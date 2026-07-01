@@ -14,16 +14,3 @@ The canonical default branch for this repository is **`main`**.
 
 This branching model applies repo-wide, to the whole `extensions/` monorepo — it is not scoped to
 any single extension.
-
-## One-time default-branch alignment (owner)
-
-The repository's local branch may still be `master` and the hosted default branch is set on first
-push. To make `main` canonical:
-
-1. Rename the local branch when ready: `git branch -m master main`.
-2. After the first push to GitHub, set the repository's default branch to `main`
-   (repo Settings → Branches → default, or `gh repo edit --default-branch main`).
-3. Confirm a pull request triggers the **Build and Release Extensions** workflow.
-
-Once the hosted default is `main`, the transitional `master` entry in the CI `pull_request` filter
-can be removed.

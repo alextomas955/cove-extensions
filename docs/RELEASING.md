@@ -71,11 +71,3 @@ It deliberately omits three things the registry owns:
 
 Letting CI compute the checksum ties the published metadata to the actual asset bytes; a
 hand-written checksum could mask a wrong or tampered asset.
-
-## Not yet live
-
-There is no git remote for this repository yet. Each extension's `repositoryUrl`,
-`sourceManifestUrl`, and `downloadUrl` become reachable only after the repository is pushed and
-that extension's first release is cut. This document prepares the gate; it does not publish
-anything. Going live — pushing the repository, cutting a release, and opening the registry pull
-request — is the maintainer's call, made independently per extension.
