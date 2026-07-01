@@ -50,7 +50,7 @@ function fullyPopulatedBlob() {
     FilenameAsTitle: true,
     RequiredFields: ["title", "studio"],
     DuplicateSuffixFormat: "_{n}",
-    AutoRenameOnUpdate: true,
+    AutoRenamerOnUpdate: true,
     StudioDestinations: { 7: "D:/studios/seven", 12: "E:/studios/twelve" },
     TagDestinations: { Anime: "D:/anime", Docs: "E:/docs" },
     PathDestinations: [

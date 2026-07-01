@@ -847,9 +847,9 @@ export function RenamePanelBody() {
         >
           <Toggle
             label="Auto-rename on update"
-            checked={options.AutoRenameOnUpdate}
+            checked={options.AutoRenamerOnUpdate}
             onChange={(v) => {
-              set("AutoRenameOnUpdate", v);
+              set("AutoRenamerOnUpdate", v);
             }}
             helper="When on, renames a video or image automatically whenever its metadata changes (respects the gating rules above). Off by default."
           />

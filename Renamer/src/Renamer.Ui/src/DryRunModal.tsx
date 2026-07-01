@@ -192,7 +192,7 @@ export function DryRunModal({
                   </thead>
                   <tbody className="divide-y divide-border">
                     {pageItems.map((it) => {
-                      const isSkip = it.status !== "Rename" && it.status !== "Move";
+                      const isSkip = it.status !== "Renamer" && it.status !== "Move";
                       const oldName = basename(it.oldFullPath);
                       const newName = it.newBasename || basename(it.newFullPath);
                       return (

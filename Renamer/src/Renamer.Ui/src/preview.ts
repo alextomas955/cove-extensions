@@ -10,9 +10,9 @@
  * can be unit-reasoned in isolation; the handler (renameSelected.ts) wraps it with window.confirm + fetch.
  */
 
-/** The `RenameStatus` enum (Planner/RenamePlan.cs), serialized as a string. */
+/** The `RenamerStatus` enum (Planner/RenamerPlan.cs), serialized as a string. */
 export type PreviewStatus =
-  | "Rename"
+  | "Renamer"
   | "Move"
   | "NoOp"
   | "SkipCollision"
@@ -143,7 +143,7 @@ export function buildConfirmSummary(
   text: string;
   willRenameCount: number;
 } {
-  const willRename = items.filter((it) => it.status === "Rename" || it.status === "Move");
+  const willRename = items.filter((it) => it.status === "Renamer" || it.status === "Move");
   const n = willRename.length;
   const m = items.length;
 

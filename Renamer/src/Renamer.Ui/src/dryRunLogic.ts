@@ -34,7 +34,7 @@ export function countByStatus(items: { status: string }[]): {
   let renamed = 0;
   let skipped = 0;
   for (const item of items) {
-    if (item.status === "Rename" || item.status === "Move") renamed++;
+    if (item.status === "Renamer" || item.status === "Move") renamed++;
     else if (SKIPPED_STATUSES.has(item.status)) skipped++;
   }
   return { renamed, skipped, scanned: items.length };

@@ -9,10 +9,10 @@ import assert from "node:assert/strict";
 const mod = await import(process.env.DRY_RUN_LOGIC_MODULE);
 const { countByStatus, paginate, totalPages } = mod;
 
-test("countByStatus counts Rename/Move as renamed, Skip* as skipped, NoOp as neither", () => {
+test("countByStatus counts Renamer/Move as renamed, Skip* as skipped, NoOp as neither", () => {
   assert.deepEqual(
     countByStatus([
-      { status: "Rename" },
+      { status: "Renamer" },
       { status: "Move" },
       { status: "SkipGated" },
       { status: "NoOp" },

@@ -3,7 +3,7 @@
  * last-focused template input (filename or folder — the panel passes the active ref).
  *
  * The token set + order is the canonical `Tokens` constant order from
- * `src/Rename/Engine/TemplateEngine.cs` (there is NO Tokens.cs — TemplateEngine.cs owns the
+ * `src/Renamer/Engine/TemplateEngine.cs` (there is NO Tokens.cs — TemplateEngine.cs owns the
  * `Tokens` class). Listing the engine's real names keeps the legend single-sourced with what
  * the engine actually resolves.
  */

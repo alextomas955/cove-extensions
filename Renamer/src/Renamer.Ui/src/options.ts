@@ -1,5 +1,5 @@
 /**
- * TS mirror of `src/Rename/Options/RenameOptions.cs`.
+ * TS mirror of `src/Renamer/Options/RenamerOptions.cs`.
  *
  * Property names are PascalCase to match the C# property spelling exactly; the C# side
  * deserializes with `PropertyNameCaseInsensitive = true`, so casing is forgiving, but
@@ -93,7 +93,7 @@ export interface RenameOptions {
   FilenameAsTitle: boolean;
   RequiredFields: string[];
   DuplicateSuffixFormat: string;
-  AutoRenameOnUpdate: boolean;
+  AutoRenamerOnUpdate: boolean;
 
   // Routing maps — id/name → destination-root template. StudioDestinations keys on the stable
   // studio id; TagDestinations keys on the tag name (compared case-insensitively by the backend).
@@ -191,7 +191,7 @@ export const DEFAULT_OPTIONS: RenameOptions = {
   FilenameAsTitle: true,
   RequiredFields: ["title"],
   DuplicateSuffixFormat: " ({n})",
-  AutoRenameOnUpdate: false,
+  AutoRenamerOnUpdate: false,
   StudioDestinations: {},
   TagDestinations: {},
   PathDestinations: [],
@@ -413,7 +413,7 @@ export function normalizeOptions(raw: unknown): RenameOptions {
     FilenameAsTitle: bool(r.FilenameAsTitle, d.FilenameAsTitle),
     RequiredFields: strArray(r.RequiredFields, [...d.RequiredFields]),
     DuplicateSuffixFormat: str(r.DuplicateSuffixFormat, d.DuplicateSuffixFormat),
-    AutoRenameOnUpdate: bool(r.AutoRenameOnUpdate, d.AutoRenameOnUpdate),
+    AutoRenamerOnUpdate: bool(r.AutoRenamerOnUpdate, d.AutoRenamerOnUpdate),
     StudioDestinations: numKeyStringMap(r.StudioDestinations),
     TagDestinations: strKeyStringMap(r.TagDestinations),
     PathDestinations: pathDestinations(r.PathDestinations),

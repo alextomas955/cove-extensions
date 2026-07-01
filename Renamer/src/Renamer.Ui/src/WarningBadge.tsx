@@ -50,7 +50,7 @@ export function badgesFor(item: PreviewItem): Badge[] {
     case "Failed":
       badges.push({ label: "Failed — rolled back", variant: "red" });
       break;
-    case "Rename":
+    case "Renamer":
     case "Move":
       if (item.suffixed) badges.push({ label: "Numbered to avoid a clash", variant: "amber" });
       if (item.sanitized) badges.push({ label: "Cleaned for the filesystem", variant: "amber" });
