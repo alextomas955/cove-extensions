@@ -85,7 +85,7 @@ const EXTENSION_ID = "com.alextomas955.renamer";
 const OPTIONS_KEY = "options";
 const DATA_BASE = `/extensions/${EXTENSION_ID}/data`;
 const PREVIEW_PATH = `/extensions/${EXTENSION_ID}/preview-sample`;
-const RENAME_LIBRARY_PATH = `/extensions/${EXTENSION_ID}/rename-library`;
+const RENAME_LIBRARY_PATH = `/extensions/${EXTENSION_ID}/renamer-library`;
 const PREVIEW_DEBOUNCE_MS = 250;
 const JOB_POLL_INTERVAL_MS = 1000;
 

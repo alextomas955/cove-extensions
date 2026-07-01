@@ -1,12 +1,12 @@
-var Ut = Object.defineProperty;
-var Bt = (t, e, a) => e in t ? Ut(t, e, { enumerable: !0, configurable: !0, writable: !0, value: a }) : t[e] = a;
-var Ne = (t, e, a) => Bt(t, typeof e != "symbol" ? e + "" : e, a);
-import { useMemo as jt, useId as xt, useState as k, useRef as q, useEffect as G, useCallback as ke } from "react";
+var Mt = Object.defineProperty;
+var Ut = (t, e, a) => e in t ? Mt(t, e, { enumerable: !0, configurable: !0, writable: !0, value: a }) : t[e] = a;
+var Ne = (t, e, a) => Ut(t, typeof e != "symbol" ? e + "" : e, a);
+import { useMemo as Bt, useId as xt, useState as k, useRef as q, useEffect as G, useCallback as ke } from "react";
 import { jsx as n, jsxs as s, Fragment as V } from "react/jsx-runtime";
-import { Loader2 as zt, X as pe, ChevronUp as vt, ChevronDown as yt, Undo2 as Kt, AlertTriangle as Ee } from "lucide-react";
-const qt = "/api";
+import { Loader2 as jt, X as pe, ChevronUp as vt, ChevronDown as yt, Undo2 as zt, AlertTriangle as Ee } from "lucide-react";
+const Kt = "/api";
 async function A(t, e = {}) {
-  const a = `${qt}${t}`, o = await fetch(a, {
+  const a = `${Kt}${t}`, o = await fetch(a, {
     ...e,
     headers: {
       "Content-Type": "application/json",
@@ -29,7 +29,7 @@ class Z extends Error {
     this.status = a, this.body = o, this.path = l, this.name = "ApiError";
   }
 }
-function Gt(t) {
+function qt(t) {
   const e = `/extensions/${t}/data`;
   return {
     get: (a) => A(`${e}/${encodeURIComponent(a)}`).then((o) => o.value),
@@ -38,8 +38,8 @@ function Gt(t) {
     getAll: () => A(`${e}`)
   };
 }
-function Wt(t) {
-  return jt(() => Gt(t), [t]);
+function Gt(t) {
+  return Bt(() => qt(t), [t]);
 }
 const P = {
   FilenameTemplate: "{$date - }$title{ [$height]}",
@@ -158,10 +158,10 @@ function _(t, e) {
 function J(t, e) {
   return Array.isArray(t) ? t.filter((a) => typeof a == "string") : e;
 }
-function Ht(t, e) {
+function Wt(t, e) {
   return Array.isArray(t) ? t.filter((a) => typeof a == "number" && Number.isFinite(a)) : e;
 }
-function Vt(t) {
+function Ht(t) {
   const e = Ie(t), a = {};
   for (const [o, l] of Object.entries(e)) {
     const i = Number(o);
@@ -169,13 +169,13 @@ function Vt(t) {
   }
   return a;
 }
-function Jt(t) {
+function Vt(t) {
   const e = Ie(t), a = {};
   for (const [o, l] of Object.entries(e))
     typeof l == "string" && (a[o] = l);
   return a;
 }
-function Yt(t) {
+function Jt(t) {
   return Array.isArray(t) ? t.filter((e) => e && typeof e == "object").map((e) => {
     const a = e;
     return {
@@ -185,13 +185,13 @@ function Yt(t) {
     };
   }) : [];
 }
-function Xt(t) {
+function Yt(t) {
   return Array.isArray(t) ? t.filter((e) => e && typeof e == "object").map((e) => {
     const a = e;
     return { Pattern: O(a.Pattern, ""), IsRegex: _(a.IsRegex, !1) };
   }) : [];
 }
-function Zt(t) {
+function Xt(t) {
   return Array.isArray(t) ? t.filter((e) => e && typeof e == "object").map((e) => {
     const a = e;
     return {
@@ -201,13 +201,13 @@ function Zt(t) {
     };
   }) : [];
 }
-function Qt(t) {
+function Zt(t) {
   return t === "KeepFirst" ? "KeepFirst" : "DropAll";
 }
-function en(t) {
+function Qt(t) {
   return t === "None" || t === "IdAsc" || t === "FavoriteFirst" ? t : "NameAsc";
 }
-function tn(t) {
+function en(t) {
   return t === "Lower" || t === "Title" ? t : "None";
 }
 function He(t, e) {
@@ -215,23 +215,23 @@ function He(t, e) {
   return {
     Separator: O(a.Separator, e.Separator),
     MaxCount: Fe(a.MaxCount, e.MaxCount),
-    OnOverflow: Qt(a.OnOverflow),
-    Sort: en(a.Sort),
+    OnOverflow: Zt(a.OnOverflow),
+    Sort: Qt(a.Sort),
     Whitelist: J(a.Whitelist, []),
     Blacklist: J(a.Blacklist, []),
     IgnoreGenders: J(a.IgnoreGenders, []),
     GenderOrder: J(a.GenderOrder, [])
   };
 }
-const nn = new Set(Object.keys(P));
-function an(t) {
+const tn = new Set(Object.keys(P));
+function nn(t) {
   if (!t || typeof t != "object") return {};
   const e = {};
   for (const [a, o] of Object.entries(t))
-    nn.has(a) || (e[a] = o);
+    tn.has(a) || (e[a] = o);
   return e;
 }
-function rn(t) {
+function an(t) {
   if (!t || typeof t != "object") return ve();
   const e = t, a = P;
   return {
@@ -244,7 +244,7 @@ function rn(t) {
     IllegalReplacement: O(e.IllegalReplacement, a.IllegalReplacement),
     SpaceReplacement: O(e.SpaceReplacement, a.SpaceReplacement),
     RemoveCharacters: O(e.RemoveCharacters, a.RemoveCharacters),
-    Case: tn(e.Case),
+    Case: en(e.Case),
     AsciiTransliterate: _(e.AsciiTransliterate, a.AsciiTransliterate),
     FilenameMax: Fe(e.FilenameMax, a.FilenameMax),
     FullPathMax: Fe(e.FullPathMax, a.FullPathMax),
@@ -254,12 +254,12 @@ function rn(t) {
     RequiredFields: J(e.RequiredFields, [...a.RequiredFields]),
     DuplicateSuffixFormat: O(e.DuplicateSuffixFormat, a.DuplicateSuffixFormat),
     AutoRenamerOnUpdate: _(e.AutoRenamerOnUpdate, a.AutoRenamerOnUpdate),
-    StudioDestinations: Vt(e.StudioDestinations),
-    TagDestinations: Jt(e.TagDestinations),
-    PathDestinations: Yt(e.PathDestinations),
+    StudioDestinations: Ht(e.StudioDestinations),
+    TagDestinations: Vt(e.TagDestinations),
+    PathDestinations: Jt(e.PathDestinations),
     ExcludeTags: J(e.ExcludeTags, []),
-    ExcludeStudioIds: Ht(e.ExcludeStudioIds, []),
-    ExcludePaths: Xt(e.ExcludePaths),
+    ExcludeStudioIds: Wt(e.ExcludeStudioIds, []),
+    ExcludePaths: Yt(e.ExcludePaths),
     AllowedRoots: J(e.AllowedRoots, []),
     AssociatedExtensions: J(e.AssociatedExtensions, [...a.AssociatedExtensions]),
     DefaultDestination: O(e.DefaultDestination, a.DefaultDestination),
@@ -270,14 +270,14 @@ function rn(t) {
     EnableAdvancedRouting: _(e.EnableAdvancedRouting, a.EnableAdvancedRouting),
     RemoveEmptyFolder: _(e.RemoveEmptyFolder, a.RemoveEmptyFolder),
     SqueezeStudioNames: _(e.SqueezeStudioNames, a.SqueezeStudioNames),
-    FieldReplacers: Zt(e.FieldReplacers),
+    FieldReplacers: Xt(e.FieldReplacers),
     StripLeadingArticles: _(e.StripLeadingArticles, a.StripLeadingArticles),
     Articles: J(e.Articles, [...a.Articles]),
     PreventTitlePerformer: _(e.PreventTitlePerformer, a.PreventTitlePerformer),
     PreventConsecutiveSegments: _(e.PreventConsecutiveSegments, a.PreventConsecutiveSegments)
   };
 }
-function on(t) {
+function rn(t) {
   if (t.length === 0) return { valid: !0 };
   try {
     return new RegExp(t), { valid: !0 };
@@ -285,11 +285,11 @@ function on(t) {
     return { valid: !1, message: e instanceof Error ? e.message : String(e) };
   }
 }
-function ln(t) {
+function on(t) {
   const e = t.trim();
   return e.length === 0 ? !0 : /^[A-Za-z]:[\\/]/.test(e) || /^[\\/]/.test(e);
 }
-const sn = /* @__PURE__ */ new Set([
+const ln = /* @__PURE__ */ new Set([
   "mp4",
   "mkv",
   "avi",
@@ -305,19 +305,19 @@ const sn = /* @__PURE__ */ new Set([
   "wav",
   "m4a"
 ]);
-function cn(t) {
-  return t.length === 0 ? null : /^[a-z0-9]+$/.test(t) ? sn.has(t) ? "This looks like a primary media extension, not a sidecar." : null : "Extensions are letters and numbers only, like srt or nfo.";
+function sn(t) {
+  return t.length === 0 ? null : /^[a-z0-9]+$/.test(t) ? ln.has(t) ? "This looks like a primary media extension, not a sidecar." : null : "Extensions are letters and numbers only, like srt or nfo.";
 }
-function dn(t, e) {
+function cn(t, e) {
   const a = t.trim().toLowerCase();
   return a.length === 0 ? [...e] : e.filter((o) => o.name.toLowerCase().includes(a));
 }
-function un(t, e, a) {
+function dn(t, e, a) {
   if (e.length === 0) return [...t];
   const o = new Set(e);
   return t.filter((l) => !o.has(a(l)));
 }
-function mn(t, e) {
+function un(t, e) {
   const a = new Set(e);
   return t.filter((o) => !a.has(o.value));
 }
@@ -325,16 +325,16 @@ function kt(t, e) {
   const a = e.find((o) => o.id === t);
   return a ? a.name : `#${t} (missing)`;
 }
-function hn(t, e) {
+function mn(t, e) {
   return e.some((a) => a.id === t);
 }
 function Nt(t, e) {
   const a = t.trim(), o = e.find((l) => l.name.toLowerCase() === a.toLowerCase());
   return o ? o.name : a;
 }
-const le = "w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none", St = "cursor-pointer rounded-lg border px-2 py-1 text-xs", pn = "border-border bg-card text-foreground hover:border-accent/50 hover:text-accent", fn = "border-accent bg-accent/15 text-foreground";
+const le = "w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none", St = "cursor-pointer rounded-lg border px-2 py-1 text-xs", hn = "border-border bg-card text-foreground hover:border-accent/50 hover:text-accent", pn = "border-accent bg-accent/15 text-foreground";
 function se(t) {
-  return `${St} ${t ? fn : pn}`;
+  return `${St} ${t ? pn : hn}`;
 }
 const De = "__custom__";
 function w({
@@ -641,7 +641,7 @@ function xe({
     )
   ] });
 }
-function gn({
+function fn({
   options: t,
   values: e,
   onChange: a
@@ -688,7 +688,7 @@ function gn({
     ))
   ] });
 }
-function bn({
+function gn({
   options: t,
   values: e,
   onChange: a,
@@ -697,7 +697,7 @@ function bn({
   const l = (m) => {
     var p;
     return ((p = t.find((g) => g.value === m)) == null ? void 0 : p.label) ?? m;
-  }, i = mn(t, e);
+  }, i = un(t, e);
   function c(m, p) {
     const g = m + p;
     if (g < 0 || g >= e.length) return;
@@ -936,14 +936,14 @@ function wt({
 }
 function Xe({ pattern: t, isRegex: e }) {
   if (!e) return null;
-  const a = on(t);
+  const a = rn(t);
   return a.valid ? null : /* @__PURE__ */ s(F, { kind: "error", children: [
     "Invalid pattern: ",
     a.message
   ] });
 }
 function ye({ value: t }) {
-  return t.trim().length === 0 || ln(t) ? null : /* @__PURE__ */ n(F, { kind: "warning", children: "Doesn't look like an absolute path." });
+  return t.trim().length === 0 || on(t) ? null : /* @__PURE__ */ n(F, { kind: "warning", children: "Doesn't look like an absolute path." });
 }
 function K({
   title: t,
@@ -1025,9 +1025,9 @@ function F({ kind: t, children: e }) {
   return /* @__PURE__ */ n("span", { className: `text-xs ${t === "success" ? "text-green-400" : t === "error" ? "text-red-400" : t === "warning" ? "text-amber-400" : "text-secondary"}`, children: e });
 }
 function Q() {
-  return /* @__PURE__ */ n(zt, { className: "h-4 w-4 animate-spin" });
+  return /* @__PURE__ */ n(jt, { className: "h-4 w-4 animate-spin" });
 }
-const _e = "com.alextomas955.renamer", xn = `/extensions/${_e}/list-studios`, vn = `/extensions/${_e}/list-tags`, yn = `/extensions/${_e}/list-performers`, kn = "w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none", Nn = "cursor-pointer rounded-lg px-2 py-1 text-left text-sm text-foreground hover:bg-card-hover", Ze = "inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-0.5 text-xs text-foreground", Sn = "border-red-400 text-red-400";
+const _e = "com.alextomas955.renamer", bn = `/extensions/${_e}/list-studios`, xn = `/extensions/${_e}/list-tags`, vn = `/extensions/${_e}/list-performers`, yn = "w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none", kn = "cursor-pointer rounded-lg px-2 py-1 text-left text-sm text-foreground hover:bg-card-hover", Ze = "inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-0.5 text-xs text-foreground", Nn = "border-red-400 text-red-400";
 function Me({
   label: t,
   helper: e,
@@ -1072,14 +1072,14 @@ function Me({
   function ae(C) {
     o(a.filter((W) => W !== C));
   }
-  const re = h ? [...a, ...h] : a, D = un(b, re, i.valueOf), I = dn(p, D);
+  const re = h ? [...a, ...h] : a, D = dn(b, re, i.valueOf), I = cn(p, D);
   return /* @__PURE__ */ s(w, { label: t, helper: e, children: [
     a.length > 0 ? /* @__PURE__ */ n("div", { className: "mb-1 flex flex-wrap gap-1", children: a.map((C) => {
       const W = d && !i.isResolved(C, b);
       return /* @__PURE__ */ s(
         "span",
         {
-          className: W ? `${Ze} ${Sn}` : Ze,
+          className: W ? `${Ze} ${Nn}` : Ze,
           children: [
             /* @__PURE__ */ n("span", { children: i.toLabel(C, b) }),
             /* @__PURE__ */ n(
@@ -1107,7 +1107,7 @@ function Me({
           type: "text",
           value: p,
           placeholder: c,
-          className: kn,
+          className: yn,
           onFocus: ie,
           onChange: (C) => {
             g(C.target.value), f(!0);
@@ -1124,7 +1124,7 @@ function Me({
         "button",
         {
           type: "button",
-          className: Nn,
+          className: kn,
           onClick: () => {
             ne(C);
           },
@@ -1136,25 +1136,47 @@ function Me({
     X ? /* @__PURE__ */ n("span", { className: "mt-1 block", children: /* @__PURE__ */ n(F, { kind: "error", children: "Could not load the list — existing values stay editable." }) }) : null
   ] });
 }
-const wn = {
+const Sn = {
   toValue: (t) => t.id,
   valueOf: (t) => t.id,
   toLabel: (t, e) => kt(t, e),
-  isResolved: (t, e) => hn(t, e)
-}, Tn = {
+  isResolved: (t, e) => mn(t, e)
+}, wn = {
   // A picked row already carries the canonical spelling; canonicalTagName also folds a typed casing.
   toValue: (t, e) => Nt(t.name, e),
   valueOf: (t) => t.name,
   toLabel: (t) => t,
   // A tag value is the name itself, so it is always displayable; "resolved" tracks list membership.
   isResolved: (t, e) => e.some((a) => a.name.toLowerCase() === t.toLowerCase())
-}, Cn = {
+}, Tn = {
   toValue: (t, e) => Nt(t.name, e),
   valueOf: (t) => t.name,
   toLabel: (t) => t,
   isResolved: (t, e) => e.some((a) => a.name.toLowerCase() === t.toLowerCase())
 };
 function Tt({
+  label: t,
+  helper: e,
+  values: a,
+  onChange: o,
+  placeholder: l,
+  excludeValues: i
+}) {
+  return /* @__PURE__ */ n(
+    Me,
+    {
+      label: t,
+      helper: e,
+      values: a,
+      onChange: o,
+      endpointPath: bn,
+      adapter: Sn,
+      placeholder: l,
+      excludeValues: i
+    }
+  );
+}
+function we({
   label: t,
   helper: e,
   values: a,
@@ -1176,7 +1198,7 @@ function Tt({
     }
   );
 }
-function we({
+function Qe({
   label: t,
   helper: e,
   values: a,
@@ -1198,34 +1220,12 @@ function we({
     }
   );
 }
-function Qe({
-  label: t,
-  helper: e,
-  values: a,
-  onChange: o,
-  placeholder: l,
-  excludeValues: i
-}) {
-  return /* @__PURE__ */ n(
-    Me,
-    {
-      label: t,
-      helper: e,
-      values: a,
-      onChange: o,
-      endpointPath: yn,
-      adapter: Cn,
-      placeholder: l,
-      excludeValues: i
-    }
-  );
-}
-function En(t) {
+function Cn(t) {
   const e = {};
   for (const [a, o] of Object.entries(t)) e[a] = o;
   return e;
 }
-function Rn(t) {
+function En(t) {
   const e = {};
   for (const [a, o] of Object.entries(t)) {
     const l = Number(a);
@@ -1233,15 +1233,15 @@ function Rn(t) {
   }
   return e;
 }
-const $n = "com.alextomas955.renamer", An = `/extensions/${$n}/list-studios`;
-function Dn({
+const Rn = "com.alextomas955.renamer", $n = `/extensions/${Rn}/list-studios`;
+function An({
   map: t,
   onChange: e
 }) {
   const [a, o] = k([]);
   return G(() => {
     let l = !0;
-    return A(An).then((i) => {
+    return A($n).then((i) => {
       l && o(i);
     }).catch(() => {
     }), () => {
@@ -1250,11 +1250,11 @@ function Dn({
   }, []), /* @__PURE__ */ n(
     wt,
     {
-      map: En(t),
+      map: Cn(t),
       onChange: (l) => {
-        e(Rn(l));
+        e(En(l));
       },
-      renderKey: (l, i, c) => /* @__PURE__ */ n(Pn, { draftKey: l, setDraftKey: i, existingKeys: c }),
+      renderKey: (l, i, c) => /* @__PURE__ */ n(Dn, { draftKey: l, setDraftKey: i, existingKeys: c }),
       renderValue: (l, i) => /* @__PURE__ */ s(V, { children: [
         /* @__PURE__ */ n(M, { value: l, onChange: i, placeholder: "Destination root" }),
         /* @__PURE__ */ n(ye, { value: l })
@@ -1264,7 +1264,7 @@ function Dn({
     }
   );
 }
-function Pn({
+function Dn({
   draftKey: t,
   setDraftKey: e,
   existingKeys: a
@@ -1306,10 +1306,10 @@ const Ue = [
   { token: "$tags", label: "Tags", kind: "optional", insert: "{ - $tags}" },
   { token: "$ext", label: "Extension", kind: "core", insert: "$ext" }
 ];
-function On(t) {
+function Pn(t) {
   return `Inserts wrapped in an optional group: ${t.insert} — disappears cleanly when empty.`;
 }
-function Fn({ onInsert: t }) {
+function On({ onInsert: t }) {
   return /* @__PURE__ */ s("div", { children: [
     /* @__PURE__ */ s("p", { className: "mb-1 text-xs text-muted", children: [
       "Click a token to insert it. ",
@@ -1325,7 +1325,7 @@ function Fn({ onInsert: t }) {
       "button",
       {
         type: "button",
-        title: e.kind === "optional" ? On(e) : e.label,
+        title: e.kind === "optional" ? Pn(e) : e.label,
         onClick: () => {
           t(e.insert);
         },
@@ -1339,7 +1339,7 @@ function Fn({ onInsert: t }) {
     )) })
   ] });
 }
-function In(t, e) {
+function Fn(t, e) {
   switch (t) {
     case "empty":
       return "⚠ This template produces an empty name for this sample.";
@@ -1353,7 +1353,7 @@ function In(t, e) {
       return null;
   }
 }
-function Ln({ result: t }) {
+function In({ result: t }) {
   return /* @__PURE__ */ s("div", { className: "rounded-xl border border-border bg-card p-4", children: [
     /* @__PURE__ */ s("div", { className: "mb-2 text-xs font-medium uppercase tracking-wide text-muted", children: [
       "Sample: ",
@@ -1369,7 +1369,7 @@ function Ln({ result: t }) {
       t.newName
     ] }),
     t.flags.length > 0 ? /* @__PURE__ */ n("div", { className: "mt-2 space-y-1", children: t.flags.map((e) => {
-      const a = In(e, t);
+      const a = Fn(e, t);
       return a ? /* @__PURE__ */ n("p", { className: "text-xs text-amber-400", children: a }, e) : null;
     }) }) : null
   ] });
@@ -1422,14 +1422,14 @@ function Ct({
     )
   ] });
 }
-function _n({ children: t }) {
+function Ln({ children: t }) {
   return /* @__PURE__ */ n("div", { className: "rounded border border-red-700 bg-red-950/60 px-3 py-2 text-sm text-red-200", children: t });
 }
-const Et = "com.alextomas955.renamer", Mn = `/extensions/${Et}/last-batch`, Un = `/extensions/${Et}/undo`, tt = "rename-undo-confirm-title", nt = "rename-undo-confirm-message", Bn = 621355968e5, Rt = 1e4, jn = Bn * Rt;
-function zn(t) {
-  return (t - jn) / Rt;
+const Et = "com.alextomas955.renamer", _n = `/extensions/${Et}/last-batch`, Mn = `/extensions/${Et}/undo`, tt = "rename-undo-confirm-title", nt = "rename-undo-confirm-message", Un = 621355968e5, Rt = 1e4, Bn = Un * Rt;
+function jn(t) {
+  return (t - Bn) / Rt;
 }
-function Kn(t, e = Date.now()) {
+function zn(t, e = Date.now()) {
   const a = e - t, o = Math.round(a / 1e3);
   if (o < 45) return "just now";
   const l = Math.round(o / 60);
@@ -1442,11 +1442,11 @@ function Kn(t, e = Date.now()) {
 function at(t) {
   return t instanceof Z ? `${t.status} ${t.body}` : String(t);
 }
-function qn({ refreshKey: t }) {
+function Kn({ refreshKey: t }) {
   const [e, a] = k(null), [o, l] = k(!0), [i, c] = k(null), [h, m] = k(!1), [p, g] = k(!1), [u, f] = k(null), b = ke(async () => {
     l(!0), c(null);
     try {
-      const R = await A(Mn);
+      const R = await A(_n);
       a(R);
     } catch (R) {
       c(at(R));
@@ -1457,12 +1457,12 @@ function qn({ refreshKey: t }) {
   G(() => {
     b();
   }, [b, t]);
-  const x = !!e && e.hasBatch && !e.consumed, d = (e == null ? void 0 : e.count) ?? 0, N = e ? zn(e.writtenAtUtcTicks) : 0;
+  const x = !!e && e.hasBatch && !e.consumed, d = (e == null ? void 0 : e.count) ?? 0, N = e ? jn(e.writtenAtUtcTicks) : 0;
   async function j() {
     var R, X, ee, S, z, te, ie, ne, ae, re;
     g(!0), f(null);
     try {
-      const D = await A(Un, { method: "POST" }), I = (((R = D.failed) == null ? void 0 : R.length) ?? 0) + (((X = D.skipped) == null ? void 0 : X.length) ?? 0);
+      const D = await A(Mn, { method: "POST" }), I = (((R = D.failed) == null ? void 0 : R.length) ?? 0) + (((X = D.skipped) == null ? void 0 : X.length) ?? 0);
       if (I === 0)
         f({
           kind: "success",
@@ -1515,7 +1515,7 @@ function qn({ refreshKey: t }) {
           " item",
           d === 1 ? "" : "s",
           " renamed · ",
-          Kn(N)
+          zn(N)
         ] }),
         /* @__PURE__ */ s(
           Y,
@@ -1525,7 +1525,7 @@ function qn({ refreshKey: t }) {
             },
             disabled: p,
             children: [
-              /* @__PURE__ */ n(Kt, { className: "h-4 w-4" }),
+              /* @__PURE__ */ n(zt, { className: "h-4 w-4" }),
               "Undo last rename"
             ]
           }
@@ -1590,12 +1590,12 @@ function qn({ refreshKey: t }) {
     ) : null
   ] });
 }
-const Gn = {
+const qn = {
   amber: "border-amber-400/40 bg-amber-400/10 text-amber-400",
   gray: "border-border bg-card text-muted",
   red: "border-red-700/50 bg-red-950/40 text-red-400"
 };
-function Wn(t) {
+function Gn(t) {
   const e = [];
   switch (t.status) {
     case "NoOp":
@@ -1620,12 +1620,12 @@ function Wn(t) {
   }
   return e;
 }
-function Hn({ badge: t }) {
+function Wn({ badge: t }) {
   const e = t.variant === "amber" || t.variant === "red";
   return /* @__PURE__ */ s(
     "span",
     {
-      className: `inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${Gn[t.variant]}`,
+      className: `inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${qn[t.variant]}`,
       children: [
         e ? /* @__PURE__ */ n(Ee, { className: "h-3 w-3" }) : null,
         t.label
@@ -1633,11 +1633,11 @@ function Hn({ badge: t }) {
     }
   );
 }
-function Vn({ item: t }) {
-  const e = Wn(t);
-  return e.length === 0 ? null : /* @__PURE__ */ n("span", { className: "inline-flex flex-wrap gap-1", children: e.map((a) => /* @__PURE__ */ n(Hn, { badge: a }, a.label)) });
+function Hn({ item: t }) {
+  const e = Gn(t);
+  return e.length === 0 ? null : /* @__PURE__ */ n("span", { className: "inline-flex flex-wrap gap-1", children: e.map((a) => /* @__PURE__ */ n(Wn, { badge: a }, a.label)) });
 }
-const Jn = /* @__PURE__ */ new Set([
+const Vn = /* @__PURE__ */ new Set([
   "SkipGated",
   "SkipCollision",
   "SkipLocked",
@@ -1649,16 +1649,16 @@ const Jn = /* @__PURE__ */ new Set([
 function $t(t) {
   let e = 0, a = 0;
   for (const o of t)
-    o.status === "Renamer" || o.status === "Move" ? e++ : Jn.has(o.status) && a++;
+    o.status === "Renamer" || o.status === "Move" ? e++ : Vn.has(o.status) && a++;
   return { renamed: e, skipped: a, scanned: t.length };
 }
-function Yn(t, e, a = 50) {
+function Jn(t, e, a = 50) {
   return t.slice(e * a, e * a + a);
 }
-function Xn(t, e = 50) {
+function Yn(t, e = 50) {
   return Math.max(1, Math.ceil(t / e));
 }
-const At = "com.alextomas955.renamer", Zn = `/extensions/${At}/scan-library`, Qn = `/extensions/${At}/last-scan`, rt = "rename-dry-run-title", ot = "rename-dry-run-summary", lt = 50, ea = 1e3;
+const At = "com.alextomas955.renamer", Xn = `/extensions/${At}/scan-library`, Zn = `/extensions/${At}/last-scan`, rt = "rename-dry-run-title", ot = "rename-dry-run-summary", lt = 50, Qn = 1e3;
 function st(t) {
   return t instanceof Z ? `${t.status} ${t.body}` : String(t);
 }
@@ -1667,7 +1667,7 @@ function it(t) {
   const e = Math.max(t.lastIndexOf("/"), t.lastIndexOf("\\"));
   return e >= 0 ? t.slice(e + 1) : t;
 }
-function ta(t, e) {
+function ea(t, e) {
   G(() => {
     if (!t) return;
     let a = !1;
@@ -1676,36 +1676,36 @@ function ta(t, e) {
         a || (l.status === "completed" || l.status === "failed" || l.status === "cancelled") && (clearInterval(o), e(l));
       }).catch(() => {
       });
-    }, ea);
+    }, Qn);
     return () => {
       a = !0, clearInterval(o);
     };
   }, [t]);
 }
-function na({
+function ta({
   onClose: t,
   onRenameAll: e,
   renaming: a
 }) {
   const [o, l] = k(null), [i, c] = k(null), [h, m] = k(null), [p, g] = k(0), u = q(!1);
   G(() => {
-    u.current || (u.current = !0, A(Zn, { method: "POST" }).then((d) => {
+    u.current || (u.current = !0, A(Xn, { method: "POST" }).then((d) => {
       l(d.jobId);
     }).catch((d) => {
       m(st(d));
     }));
-  }, []), ta(o, (d) => {
+  }, []), ea(o, (d) => {
     if (d.status !== "completed") {
       m(d.error ?? "the scan job did not complete");
       return;
     }
-    A(Qn).then((N) => {
+    A(Zn).then((N) => {
       c(N);
     }).catch((N) => {
       m(st(N));
     });
   });
-  const f = i ? $t(i) : null, b = i ? Xn(i.length, lt) : 1, x = i ? Yn(i, p, lt) : [];
+  const f = i ? $t(i) : null, b = i ? Yn(i.length, lt) : 1, x = i ? Jn(i, p, lt) : [];
   return /* @__PURE__ */ s(
     Ct,
     {
@@ -1716,7 +1716,7 @@ function na({
       size: "xl",
       children: [
         /* @__PURE__ */ n("h2", { id: rt, className: "mb-2 text-lg font-semibold text-foreground", children: "Dry run" }),
-        h ? /* @__PURE__ */ n("div", { className: "mb-4", children: /* @__PURE__ */ s(_n, { children: [
+        h ? /* @__PURE__ */ n("div", { className: "mb-4", children: /* @__PURE__ */ s(Ln, { children: [
           "Couldn't scan your library — ",
           h,
           ". Close and try again."
@@ -1770,7 +1770,7 @@ function na({
                       children: d.targetFolderPath
                     }
                   ),
-                  /* @__PURE__ */ n("td", { className: "px-3 py-2", children: /* @__PURE__ */ n(Vn, { item: d }) })
+                  /* @__PURE__ */ n("td", { className: "px-3 py-2", children: /* @__PURE__ */ n(Hn, { item: d }) })
                 ] }, d.fileId);
               }) })
             ] }),
@@ -1827,11 +1827,11 @@ function na({
   );
 }
 const Be = new Set(Ue.map((t) => t.token.slice(1).toLowerCase())), ct = Ue.map((t) => t.token.slice(1));
-function aa(t) {
+function na(t) {
   const e = t.startsWith("$") ? t.slice(1) : t;
   return Be.has(e.toLowerCase());
 }
-function ra(t) {
+function aa(t) {
   let e = 0;
   for (const a of t)
     if (a === "{") e++;
@@ -1839,7 +1839,7 @@ function ra(t) {
       return !1;
   return e === 0;
 }
-function oa(t) {
+function ra(t) {
   const e = [], a = /* @__PURE__ */ new Set();
   for (let o = 0; o < t.length; o++) {
     if (t[o] !== "$") continue;
@@ -1875,7 +1875,7 @@ function Te(t, e, a) {
   const o = (t.startsWith("$") ? t.slice(1) : t).toLowerCase();
   return dt(e, o) || dt(a, o);
 }
-function la(t, e) {
+function oa(t, e) {
   const a = t.length, o = e.length, l = Array.from({ length: o + 1 }, (i, c) => c);
   for (let i = 1; i <= a; i++) {
     let c = l[0];
@@ -1891,12 +1891,12 @@ function Dt(t) {
   const e = (t.startsWith("$") ? t.slice(1) : t).toLowerCase();
   let a, o = 1 / 0;
   for (const l of Be) {
-    const i = la(e, l);
+    const i = oa(e, l);
     i < o && (o = i, a = l);
   }
   return a !== void 0 && o > 0 && o <= 2 ? `$${a}` : void 0;
 }
-const sa = [
+const la = [
   // The shipped default, offered as a chip so a user who edits the template can return to it in one
   // click. The string matches DEFAULT_OPTIONS.FilenameTemplate exactly so the chip and "Reset to
   // defaults" produce the identical template.
@@ -1905,24 +1905,24 @@ const sa = [
   { label: "Studio – Title [Res]", filenameTemplate: "$studio{ - $title}{ [$resolution]}" },
   { label: "Date – Title", filenameTemplate: "$date{ - $title}" },
   { label: "Performers – Title", filenameTemplate: "$performers{ - $title}" }
-], he = "com.alextomas955.renamer", Pt = "options", ia = `/extensions/${he}/data`, ca = `/extensions/${he}/preview-sample`, da = `/extensions/${he}/rename-library`, ua = 250, ma = 1e3;
+], he = "com.alextomas955.renamer", Pt = "options", sa = `/extensions/${he}/data`, ia = `/extensions/${he}/preview-sample`, ca = `/extensions/${he}/renamer-library`, da = 250, ua = 1e3;
 function ut(t) {
   let e = t.trim();
   return e.startsWith(".") && (e = e.slice(1)), e.toLowerCase();
 }
-const ha = [
+const ma = [
   { value: "None", label: "None" },
   { value: "Lower", label: "lower case" },
   { value: "Title", label: "Title Case" }
 ], mt = [
   { value: "DropAll", label: "Drop all when over the max" },
   { value: "KeepFirst", label: "Keep the first N" }
-], pa = [
+], ha = [
   { value: "NameAsc", label: "Name (A→Z)" },
   { value: "None", label: "Keep original order" },
   { value: "IdAsc", label: "By internal id" },
   { value: "FavoriteFirst", label: "Favorites first, then name" }
-], fa = [
+], pa = [
   { value: "NameAsc", label: "Name (A→Z)" },
   { value: "None", label: "Keep original order" }
 ], ht = [
@@ -1951,13 +1951,13 @@ const ha = [
   "performers",
   "tags",
   "ext"
-].map((t) => ({ value: t, label: t })), ga = [
+].map((t) => ({ value: t, label: t })), fa = [
   { value: "yyyy-MM-dd", example: "2026-03-12" },
   { value: "yyyy", example: "2026" },
   { value: "MM-dd-yyyy", example: "03-12-2026" },
   { value: "dd.MM.yyyy", example: "12.03.2026" },
   { value: "yyyy.MM.dd", example: "2026.03.12" }
-], ba = [
+], ga = [
   { value: "hh\\-mm\\-ss", example: "01-23-45" },
   { value: "hh\\.mm\\.ss", example: "01.23.45" },
   { value: "mm\\-ss", example: "83-45" }
@@ -1966,7 +1966,7 @@ const ha = [
   { value: " · ", label: "Middot ( · )" },
   { value: " ", label: "Space ( ␣ )" },
   { value: " - ", label: "Dash ( - )" }
-], xa = [
+], ba = [
   { value: " ({n})", example: "name (1).mp4" },
   { value: "_{n}", example: "name_1.mp4" },
   { value: " - {n}", example: "name - 1.mp4" }
@@ -1976,8 +1976,8 @@ function ft({
   emptySamples: e = []
 }) {
   const a = [];
-  ra(t) || a.push("Unmatched { or } — it'll still render, but check your groups.");
-  for (const o of oa(t)) {
+  aa(t) || a.push("Unmatched { or } — it'll still render, but check your groups.");
+  for (const o of ra(t)) {
     const l = Dt(o);
     a.push(
       l ? `${o} isn't a known token — it'll render as empty. Did you mean ${l}?` : `${o} isn't a known token — it'll render as empty.`
@@ -1993,7 +1993,7 @@ function ft({
 function gt({ values: t }) {
   const e = [];
   for (const a of t) {
-    if (aa(a)) continue;
+    if (na(a)) continue;
     const o = Dt(a), l = o ? o.slice(1) : void 0;
     e.push(
       l ? `"${a}" isn't a known token — it'll be ignored. Did you mean ${l}?` : `"${a}" isn't a known token — it'll be ignored.`
@@ -2004,10 +2004,10 @@ function gt({ values: t }) {
     /* @__PURE__ */ n("span", { children: a })
   ] }, a)) });
 }
-function va({ onApply: t }) {
+function xa({ onApply: t }) {
   return /* @__PURE__ */ s("div", { children: [
     /* @__PURE__ */ n("span", { className: "mb-1 block text-xs font-medium uppercase tracking-wide text-muted", children: "Presets" }),
-    /* @__PURE__ */ n("div", { className: "flex flex-wrap gap-1", children: sa.map((e) => /* @__PURE__ */ n(
+    /* @__PURE__ */ n("div", { className: "flex flex-wrap gap-1", children: la.map((e) => /* @__PURE__ */ n(
       "button",
       {
         type: "button",
@@ -2029,7 +2029,7 @@ function me({ title: t, children: e }) {
     /* @__PURE__ */ n("div", { className: "space-y-4", children: e })
   ] });
 }
-function ya({
+function va({
   dirty: t,
   saving: e,
   saveError: a,
@@ -2053,10 +2053,10 @@ function ya({
     ] })
   ] }) }) : null;
 }
-async function ka(t, e) {
+async function ya(t, e) {
   const a = { ...e, ...t };
   try {
-    await A(`${ia}/${Pt}`, {
+    await A(`${sa}/${Pt}`, {
       method: "PUT",
       // Double-encode: inner serialize = the stored value; outer serialize makes it a JSON
       // string literal for the [FromBody] string binder.
@@ -2066,8 +2066,8 @@ async function ka(t, e) {
     if (o instanceof Z) throw o;
   }
 }
-function Ot() {
-  const t = Wt(he), [e, a] = k(() => ve()), [o, l] = k(() => ve()), [i, c] = k(!0), [h, m] = k(null), [p, g] = k(!1), [u, f] = k(null), [b, x] = k(!1), [d, N] = k(!1), [j, R] = k(!1), [X, ee] = k(""), S = q({}), [z, te] = k(null), [ie, ne] = k(!1), ae = q(null), re = q(null), D = q("filename"), I = JSON.stringify(e) !== JSON.stringify(o), C = I || j, [W, ce] = k(!1), [Re, je] = k(!1), [fe, $e] = k(null);
+function ka() {
+  const t = Gt(he), [e, a] = k(() => ve()), [o, l] = k(() => ve()), [i, c] = k(!0), [h, m] = k(null), [p, g] = k(!1), [u, f] = k(null), [b, x] = k(!1), [d, N] = k(!1), [j, R] = k(!1), [X, ee] = k(""), S = q({}), [z, te] = k(null), [ie, ne] = k(!1), ae = q(null), re = q(null), D = q("filename"), I = JSON.stringify(e) !== JSON.stringify(o), C = I || j, [W, ce] = k(!1), [Re, je] = k(!1), [fe, $e] = k(null);
   function ze(r) {
     return new Promise((E, y) => {
       const T = setInterval(() => {
@@ -2075,7 +2075,7 @@ function Ot() {
           $.status === "completed" ? (clearInterval(T), E()) : ($.status === "failed" || $.status === "cancelled") && (clearInterval(T), y(new Error($.error ?? "the job did not complete")));
         }).catch(() => {
         });
-      }, ma);
+      }, ua);
     });
   }
   const Ke = ke(async (r) => {
@@ -2089,7 +2089,7 @@ function Ot() {
         );
         await ze($), E = await A(`/extensions/${he}/last-scan`);
       }
-      const y = $t(E), { jobId: T } = await A(da, { method: "POST" });
+      const y = $t(E), { jobId: T } = await A(ca, { method: "POST" });
       await ze(T), ce(!1), $e({
         kind: "success",
         text: `Renamed ${y.renamed} file${y.renamed === 1 ? "" : "s"}` + (y.skipped > 0 ? `, ${y.skipped} skipped` : "") + "."
@@ -2118,8 +2118,8 @@ function Ot() {
           a(de), l(de), R(!0);
           return;
         }
-        S.current = an(y);
-        const T = rn(y), $ = {
+        S.current = nn(y);
+        const T = an(y), $ = {
           ...T,
           EnableStudioDestinations: T.EnableStudioDestinations || Object.keys(T.StudioDestinations).length > 0,
           EnableTagDestinations: T.EnableTagDestinations || Object.keys(T.TagDestinations).length > 0,
@@ -2142,7 +2142,7 @@ function Ot() {
   }, [Ae]), G(() => {
     if (i) return;
     const r = setTimeout(() => {
-      A(ca, {
+      A(ia, {
         method: "POST",
         body: JSON.stringify({ Options: e })
       }).then((E) => {
@@ -2150,15 +2150,15 @@ function Ot() {
       }).catch(() => {
         ne(!0);
       });
-    }, ua);
+    }, da);
     return () => {
       clearTimeout(r);
     };
   }, [e, i]);
-  async function It() {
+  async function Ft() {
     g(!0), f(null);
     try {
-      await ka(e, S.current), l(e), N(!1), R(!1), x(!0), setTimeout(() => {
+      await ya(e, S.current), l(e), N(!1), R(!1), x(!0), setTimeout(() => {
         x(!1);
       }, 3e3);
     } catch (r) {
@@ -2176,8 +2176,8 @@ function Ot() {
   function ge(r) {
     const E = D.current, y = E === "folder" ? re.current : ae.current, T = E === "folder" ? "FolderTemplate" : "FilenameTemplate", $ = e[T];
     if (y && typeof y.selectionStart == "number") {
-      const de = y.selectionStart, _t = y.selectionEnd ?? de, Mt = $.slice(0, de) + r + $.slice(_t);
-      v(T, Mt), requestAnimationFrame(() => {
+      const de = y.selectionStart, Lt = y.selectionEnd ?? de, _t = $.slice(0, de) + r + $.slice(Lt);
+      v(T, _t), requestAnimationFrame(() => {
         y.focus();
         const We = de + r.length;
         y.setSelectionRange(We, We);
@@ -2199,7 +2199,7 @@ function Ot() {
       ] }),
       /* @__PURE__ */ n("div", { children: /* @__PURE__ */ n(Y, { onClick: () => void Ae(), children: "Retry" }) })
     ] });
-  const B = (r) => e[r], Lt = (z ?? []).filter((r) => r.flags.includes("empty")).map((r) => r.sampleLabel), qe = Te(
+  const B = (r) => e[r], It = (z ?? []).filter((r) => r.flags.includes("empty")).map((r) => r.sampleLabel), qe = Te(
     "performers",
     e.FilenameTemplate,
     e.FolderTemplate
@@ -2214,7 +2214,7 @@ function Ot() {
         j ? /* @__PURE__ */ n(F, { kind: "error", children: "Your saved settings couldn't be read and have been reset to defaults. Review the options below and save to store a clean copy." }) : d ? /* @__PURE__ */ n(F, { kind: "muted", children: "Using default settings — pick a preset or write a template, then save." }) : null,
         /* @__PURE__ */ s(me, { title: "Essentials", children: [
           /* @__PURE__ */ n(
-            va,
+            xa,
             {
               onApply: (r) => {
                 v("FilenameTemplate", r);
@@ -2234,8 +2234,8 @@ function Ot() {
               placeholder: "$title"
             }
           ) }),
-          /* @__PURE__ */ n(ft, { value: e.FilenameTemplate, emptySamples: Lt }),
-          /* @__PURE__ */ n(Fn, { onInsert: ge }),
+          /* @__PURE__ */ n(ft, { value: e.FilenameTemplate, emptySamples: It }),
+          /* @__PURE__ */ n(On, { onInsert: ge }),
           /* @__PURE__ */ n(
             w,
             {
@@ -2266,7 +2266,7 @@ function Ot() {
         z == null ? /* @__PURE__ */ s("div", { className: "flex items-center gap-2 text-sm text-secondary", children: [
           /* @__PURE__ */ n(Q, {}),
           "Rendering preview…"
-        ] }) : /* @__PURE__ */ n("div", { className: "space-y-3", children: z.map((r) => /* @__PURE__ */ n(Ln, { result: r }, r.sampleLabel)) })
+        ] }) : /* @__PURE__ */ n("div", { className: "space-y-3", children: z.map((r) => /* @__PURE__ */ n(In, { result: r }, r.sampleLabel)) })
       ] }) })
     ] }),
     /* @__PURE__ */ s(me, { title: "What Gets Renamed", children: [
@@ -2403,7 +2403,7 @@ function Ot() {
       )
     ] }),
     W ? /* @__PURE__ */ n(
-      na,
+      ta,
       {
         onClose: () => {
           ce(!1);
@@ -2457,7 +2457,7 @@ function Ot() {
                 onChange: (r) => {
                   U("Performers", { Sort: r });
                 },
-                options: pa
+                options: ha
               }
             ) }),
             /* @__PURE__ */ n(
@@ -2466,7 +2466,7 @@ function Ot() {
                 label: "Ignore genders",
                 helper: "Drop performers of these genders before the max-count limit. A performer with no gender is always kept. None selected = off.",
                 children: /* @__PURE__ */ n(
-                  gn,
+                  fn,
                   {
                     options: ht,
                     values: B("Performers").IgnoreGenders,
@@ -2483,7 +2483,7 @@ function Ot() {
                 label: "Gender order",
                 helper: "Preferred gender order, most-preferred first. Empty = off.",
                 children: /* @__PURE__ */ n(
-                  bn,
+                  gn,
                   {
                     options: ht,
                     values: B("Performers").GenderOrder,
@@ -2566,7 +2566,7 @@ function Ot() {
                 onChange: (r) => {
                   U("Tags", { Sort: r });
                 },
-                options: fa
+                options: pa
               }
             ) }),
             /* @__PURE__ */ n(
@@ -2609,7 +2609,7 @@ function Ot() {
                 onChange: (r) => {
                   v("DateFormat", r);
                 },
-                options: ga,
+                options: fa,
                 customPlaceholder: "yyyy-MM-dd"
               }
             ) }) : null,
@@ -2620,7 +2620,7 @@ function Ot() {
                 onChange: (r) => {
                   v("DurationFormat", r);
                 },
-                options: ba,
+                options: ga,
                 customPlaceholder: "hh\\-mm\\-ss"
               }
             ) }) : null
@@ -2784,7 +2784,7 @@ function Ot() {
                 }
               ),
               children: e.EnableStudioDestinations ? /* @__PURE__ */ n(
-                Dn,
+                An,
                 {
                   map: e.StudioDestinations,
                   onChange: (r) => {
@@ -2912,7 +2912,7 @@ function Ot() {
                   }
                 ),
                 (() => {
-                  const r = cn(
+                  const r = sn(
                     ut(X)
                   );
                   return r ? /* @__PURE__ */ n(F, { kind: "warning", children: r }) : null;
@@ -2993,7 +2993,7 @@ function Ot() {
                 onChange: (r) => {
                   v("Case", r);
                 },
-                options: ha
+                options: ma
               }
             ) }),
             /* @__PURE__ */ n(
@@ -3075,7 +3075,7 @@ function Ot() {
                     onChange: (r) => {
                       v("DuplicateSuffixFormat", r);
                     },
-                    options: xa,
+                    options: ba,
                     customPlaceholder: " ({n})"
                   }
                 )
@@ -3295,16 +3295,16 @@ function Ot() {
         }
       )
     ] }),
-    /* @__PURE__ */ n("div", { id: "rename-undo-section", children: /* @__PURE__ */ n(qn, { refreshKey: 0 }) }),
+    /* @__PURE__ */ n("div", { id: "rename-undo-section", children: /* @__PURE__ */ n(Kn, { refreshKey: 0 }) }),
     /* @__PURE__ */ n(
-      ya,
+      va,
       {
         dirty: I,
         saving: p,
         saveError: u,
         savedFlash: b,
         canSave: C,
-        onSave: () => void It(),
+        onSave: () => void Ft(),
         onDiscard: () => {
           a(o);
         }
@@ -3313,30 +3313,27 @@ function Ot() {
   ] });
 }
 function Na() {
-  return /* @__PURE__ */ n(Ot, {});
-}
-function Sa() {
-  return /* @__PURE__ */ n(Ot, {});
+  return /* @__PURE__ */ n(ka, {});
 }
 function bt(t) {
   if (!t) return t;
   const e = Math.max(t.lastIndexOf("/"), t.lastIndexOf("\\"));
   return e >= 0 ? t.slice(e + 1) : t;
 }
-const wa = 5;
-function Ta(t) {
+const Sa = 5;
+function wa(t) {
   const e = t / 1073741824;
   return e >= 10 ? `${Math.round(e)} GB` : `${e.toFixed(1)} GB`;
 }
-function Ca(t) {
+function Ta(t) {
   return ((t == null ? void 0 : t.volumePairs) ?? []).map(
-    (e) => `↪ ${e.count} item${e.count === 1 ? "" : "s"} (${Ta(e.bytes)}) move from ${e.from} to ${e.to}.`
+    (e) => `↪ ${e.count} item${e.count === 1 ? "" : "s"} (${wa(e.bytes)}) move from ${e.from} to ${e.to}.`
   );
 }
-function Ea(t) {
+function Ca(t) {
   return t === "Heavy" ? "This is a LARGE cross-drive move — files will be COPIED across drives, which can take a while. Click OK only if you are sure; Cancel to stop. You can undo this afterwards." : t === "Standard" ? "This moves files across drives. Click OK to proceed, or Cancel to stop. You can undo this afterwards." : "Click OK to rename, or Cancel to stop. You can undo this afterwards.";
 }
-function Ra(t, e) {
+function Ea(t, e) {
   const a = t.filter((S) => S.status === "Renamer" || S.status === "Move"), o = a.length, l = t.length, i = t.filter((S) => S.status === "SkipGated").length, c = t.filter((S) => S.status === "SkipCollision").length, h = t.filter((S) => S.status === "SkipLocked").length, m = i + c + h, p = a.filter((S) => S.suffixed).length, g = a.filter((S) => S.sanitized).length, u = [];
   if (m > 0) {
     const S = [];
@@ -3347,7 +3344,7 @@ function Ra(t, e) {
       u.push(`⚠ ${m} skipped — ${S.join(", ")}.`);
   }
   g > 0 && u.push(`⚠ ${g} had illegal characters cleaned up.`), p > 0 && u.push(`⚠ ${p} got a number added to avoid a name clash (e.g. "name (1)").`);
-  const f = Ca(e), b = u.length > 0 ? `${u.join(`
+  const f = Ta(e), b = u.length > 0 ? `${u.join(`
 `)}
 
 ` : "", x = f.length > 0 ? `${f.join(`
@@ -3358,12 +3355,12 @@ function Ra(t, e) {
     return { text: `Nothing will be renamed — all ${l} selected item${l === 1 ? "" : "s"} are skipped or already named correctly.
 
 ` + b + "Click OK to dismiss.", willRenameCount: 0 };
-  const d = o === l ? `Rename ${o} selected item${o === 1 ? "" : "s"}?` : `Rename ${o} of ${l} selected items?`, N = a.slice(0, wa).map((S) => {
+  const d = o === l ? `Rename ${o} selected item${o === 1 ? "" : "s"}?` : `Rename ${o} of ${l} selected items?`, N = a.slice(0, Sa).map((S) => {
     const z = bt(S.oldFullPath), te = S.newBasename || bt(S.newFullPath);
     return `  ${z}  →  ${te}`;
   }), j = o - N.length;
   j > 0 && N.push(`  … and ${j} more.`);
-  const R = (e == null ? void 0 : e.confirmLevel) ?? "Light", X = Ea(R);
+  const R = (e == null ? void 0 : e.confirmLevel) ?? "Light", X = Ca(R);
   return { text: `${d}
 
 ` + b + x + `Examples:
@@ -3372,22 +3369,22 @@ ${N.join(`
 
 ` + X, willRenameCount: o };
 }
-const Ft = "com.alextomas955.renamer", $a = `/extensions/${Ft}/preview`, Aa = `/extensions/${Ft}/rename`;
-async function Da(t, e) {
-  const a = JSON.stringify({ EntityType: e.entityType, EntityIds: e.entityIds }), o = await A($a, { method: "POST", body: a }), { text: l, willRenameCount: i } = Ra(o.items, o.summary);
+const Ot = "com.alextomas955.renamer", Ra = `/extensions/${Ot}/preview`, $a = `/extensions/${Ot}/renamer`;
+async function Aa(t, e) {
+  const a = JSON.stringify({ EntityType: e.entityType, EntityIds: e.entityIds }), o = await A(Ra, { method: "POST", body: a }), { text: l, willRenameCount: i } = Ea(o.items, o.summary);
   if (!window.confirm(l))
     return { cancelled: !0 };
   if (i === 0)
     return { cancelled: !0 };
   try {
-    await A(Aa, { method: "POST", body: a });
+    await A($a, { method: "POST", body: a });
   } catch (c) {
     if (c instanceof Z) throw c;
   }
   return {};
 }
-const Pa = { components: { RenameSettingsPanel: Na, RenamePage: Sa } };
-Pa.actionHandlers = { renameSelected: Da };
+const Da = { components: { RenamerPage: Na } };
+Da.actionHandlers = { renamerSelected: Aa };
 export {
-  Pa as default
+  Da as default
 };
