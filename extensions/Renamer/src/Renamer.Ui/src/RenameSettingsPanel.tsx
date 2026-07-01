@@ -380,7 +380,10 @@ function SaveBar({
  * path-routing fields). They are merged back ahead of the modeled options — modeled values always
  * win — so saving from this panel never erases configuration it cannot edit.
  */
-async function saveOptions(options: RenamerOptions, extras: Record<string, unknown>): Promise<void> {
+async function saveOptions(
+  options: RenamerOptions,
+  extras: Record<string, unknown>,
+): Promise<void> {
   const payload = { ...extras, ...options };
   try {
     await request<unknown>(`${DATA_BASE}/${OPTIONS_KEY}`, {
