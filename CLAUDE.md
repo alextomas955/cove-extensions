@@ -38,6 +38,6 @@ dotnet build Renamer.slnx
 This folder has its own thin `.planning/` at this root, scoped to cross-cutting monorepo concerns
 only (CI changes, a future `shared/` folder, new-extension scaffolding). Each extension inside the
 monorepo has its OWN separate nested `.planning/` (e.g. `extensions/Renamer/.planning/`) for its
-own feature work — the two planning surfaces are distinct and do not share history. See
-`docs/conventions.md` (at the environment root, `i:\cove-dev\docs\conventions.md`) for the
-canonical routing rule describing which `.planning/` a given session targets.
+own feature work — the two planning surfaces are distinct and do not share history. These are
+structured planning notes for this repo's own workflow, gitignored and not part of the published
+extension.
