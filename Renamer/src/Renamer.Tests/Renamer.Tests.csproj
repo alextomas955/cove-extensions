@@ -1,0 +1,125 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <!-- inherits net10.0 / nullable / implicitusings from Directory.Build.props -->
+    <!-- a test project is never a Cove plugin: neutralize the inherited dynamic-loading flag -->
+    <EnableDynamicLoading>false</EnableDynamicLoading>
+    <!--
+      A test project is NOT a deployed plugin: it must RUN, so it needs its full runtime closure
+      copied local (EF providers, and — on the cove-ABSENT CI path — the Cove.Plugins NuGet assembly
+      that FakeStore/FakeJobProgress reference). On that path Renamer.csproj's transitive Cove.Sdk
+      PackageReference imports Cove.Sdk.targets, whose CoveStripHostProvidedCopyLocal target would
+      strip Cove.Plugins.dll (et al.) from THIS project's output too — making xUnit fail to reflect
+      over the assembly at runtime ("Could not load file or assembly 'Cove.Plugins'"). Empty the
+      host-provided denylist here so nothing is stripped from the test output. No effect on the LOCAL
+      path (cove present → tests reference cove via ProjectReference, the strip targets aren't imported).
+      NOTE: the value must be NON-EMPTY — Cove.Sdk.targets re-applies its full default denylist when the
+      property is empty (Condition="'$(CoveHostProvidedAssemblies)' == ''"). A sentinel that matches no
+      real assembly name disables the strip without re-triggering the default.
+    -->
+    <CoveHostProvidedAssemblies>;__renamer_tests_no_strip__;</CoveHostProvidedAssemblies>
+    <!--
+      NU1903: a known-vuln transitive native lib (SQLitePCLRaw.lib.e_sqlite3, pulled in by
+      Microsoft.EntityFrameworkCore.Sqlite 10.0.6). It is a TEST-ONLY dependency for the
+      SQLite-in-memory integration tier and is NEVER part of the deployed Renamer.dll payload, so it
+      poses no risk to users of the extension. The EF provider is pinned to 10.0.6 to match
+      Cove.Tests; bumping it is a dependency decision out of scope for the lint/format phase. Suppress
+      the audit-as-error here (test project only) so TreatWarningsAsErrors does not block the build.
+    -->
+    <NoWarn>$(NoWarn);NU1903</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <!--
+      TEST-ONLY: runtime Skip.IfNot(...) with a visible reason on xUnit v2 (Assert.Skip is v3-only,
+      and this project pins xunit 2.9.3). Used ONLY by the privilege-gated symlink adversarial test
+      so it skips WITH a reason when symlink creation lacks Developer Mode/admin — never a silent
+      early-return. Verified on nuget.org + github.com/AArnott/Xunit.SkippableFact; never bundled into
+      the deployed Renamer.dll (IsPackable=false test project).
+    -->
+    <PackageReference Include="Xunit.SkippableFact" Version="1.5.61" />
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <!--
+      TEST-ONLY: the integration tier stands up a real CoveContext on SQLite-in-memory
+      (constraint/transaction fidelity) and EF-InMemory (fast Path-recompute). These EF
+      providers + Cove.Data/Cove.Core are referenced ONLY here; the deployed Renamer.dll
+      publishes Renamer.csproj alone, so host assemblies are never bundled.
+      Pinned to 10.0.6 to match Cove.Tests.csproj.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.6" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- reference the extension's CODE; tests run pure logic. Always resolves. -->
+    <ProjectReference Include="..\Renamer\Renamer.csproj" />
+    <!--
+      TEST-ONLY: CoveContext lives in Cove.Data; entities in Cove.Core. Mirrors Cove.Tests.
+      These are SOURCE-ONLY (NOT on nuget.org), so the Exists(...) guard mirrors Renamer.csproj's
+      UseLocalCovePlugins pattern: when the cove monorepo is checked out beside this repo the refs
+      resolve and the FULL 194-suite (incl. the integration tier) compiles + runs locally. On a bare
+      CI runner with NO cove checkout the refs drop out and the cove-referencing sources below are
+      Compile-Removed, so the project still compiles to the pure-core UNIT tier (the EF Sqlite/InMemory
+      PackageReferences above are on NuGet and stay unconditional).
+    -->
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj" Condition="Exists('$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Core\Cove.Core.csproj" Condition="Exists('$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Core\Cove.Core.csproj')" />
+  </ItemGroup>
+
+  <!--
+    COVE-ABSENT (CI) RUNTIME DEP: when cove is NOT on disk the cove ProjectReferences above drop out,
+    so Cove.Plugins (which FakeStore.cs / TestSupport/FakeJobProgress.cs reference via IExtensionStore /
+    IJobProgress) is no longer supplied transitively. Renamer.csproj consumes Cove.Plugins as a
+    host-provided assembly (ExcludeAssets=runtime / not copied to consumers), so the test assembly would
+    fail at xUnit reflection time with "Could not load file or assembly 'Cove.Plugins'". Cove.Plugins
+    IS on nuget.org (0.6.2), so add it here for the unit tier with runtime copy ENABLED — guarded by the
+    SAME !Exists key so it is INACTIVE locally (the cove ProjectReference already provides it; the full
+    194 stay green) and ACTIVE on a bare CI runner. This makes the pure-core unit tier RUN, not just
+    compile, with no cove checkout.
+  -->
+  <ItemGroup Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')">
+    <PackageReference Include="Cove.Plugins" Version="$(CovePluginsVersion)" />
+  </ItemGroup>
+
+  <!--
+    COVE-ABSENT (CI) UNIT-TIER COMPILE SET: when the cove monorepo is NOT on disk, every source file
+    that references a Cove.* SOURCE type (Cove.Core entities/auth/events OR Cove.Data's CoveContext)
+    is Compile-Removed so the project compiles to ONLY the pure-core unit tier. The inverse condition
+    keys off the SAME path the ProjectReferences above guard on, so this group is INACTIVE locally
+    (cove present → all files compile → full 194 run) and ACTIVE on a bare runner. Folders Execution/
+    and Events/ are entirely integration, so they are removed wholesale; the rest are named explicitly.
+      - Cove.Core-ONLY (auth/events/entities, no CoveContext): ActionDeclarationTests, Api/SettingsManifestTests,
+        TestSupport/FakePrincipalAccessor, TestSupport/CapturingEventBus.
+      - INTEGRATION (real CoveContext via Cove.Data): Execution/*, Events/*, TestSupport/CoveContextFactory,
+        Jobs/RenamerBatchJobTests, Api/PreviewEndpointTests, Api/PreviewSampleEndpointTests, Api/EndpointPermissionTests.
+    FakeStore.cs and TestSupport/FakeJobProgress.cs are Cove.Plugins-only (available via NuGet) and are
+    NOT removed — they are needed by the pure-core unit tier (e.g. OptionsStoreTests).
+  -->
+  <ItemGroup Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')">
+    <Compile Remove="ActionDeclarationTests.cs" />
+    <Compile Remove="Api\SettingsManifestTests.cs" />
+    <Compile Remove="Api\PreviewEndpointTests.cs" />
+    <Compile Remove="Api\PreviewSampleEndpointTests.cs" />
+    <Compile Remove="Api\EndpointPermissionTests.cs" />
+    <Compile Remove="Api\EntityIdsCapTests.cs" />
+    <Compile Remove="Api\PreviewRoutingTests.cs" />
+    <Compile Remove="Api\UndoEndpointTests.cs" />
+    <Compile Remove="Jobs\RenamerBatchJobTests.cs" />
+    <Compile Remove="Execution\**\*.cs" />
+    <Compile Remove="Events\**\*.cs" />
+    <Compile Remove="Concurrency\**\*.cs" />
+    <Compile Remove="Preview\**\*.cs" />
+    <Compile Remove="TestSupport\CoveContextFactory.cs" />
+    <Compile Remove="TestSupport\FakePrincipalAccessor.cs" />
+    <Compile Remove="TestSupport\CapturingEventBus.cs" />
+    <Compile Remove="TestSupport\ScopedCoveContextProvider.cs" />
+    <Compile Remove="TestSupport\SharedCacheSqlite.cs" />
+  </ItemGroup>
+</Project>
