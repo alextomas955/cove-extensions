@@ -1,0 +1,32 @@
+version: 2
+updates:
+  # Renamer extension assembly — Cove.Sdk and any other NuGet deps.
+  - package-ecosystem: "nuget"
+    directory: "/extensions/Renamer/src/Renamer"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # Renamer test project NuGet deps (xUnit and friends).
+  - package-ecosystem: "nuget"
+    directory: "/extensions/Renamer/src/Renamer.Tests"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # Renamer frontend panel. @cove/extension-sdk is a file:vendor/... dependency (a committed
+  # tarball, not a registry package), so Dependabot does not — and cannot — bump it;
+  # it is updated by re-vendoring. The registry deps here are updated normally.
+  - package-ecosystem: "npm"
+    directory: "/extensions/Renamer/src/Renamer.Ui"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # Workflow action versions (checkout, setup-dotnet, setup-node, action-gh-release, codeql-action).
+  # Root-scoped regardless of how many extensions exist in this monorepo.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
