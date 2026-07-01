@@ -24,40 +24,22 @@
     System.IO.Hashing.XxHash3 for its size+hash verify. This is a first-party Microsoft BCL
     extension package (net10.0, no transitive deps) and is ABSENT from the Cove.Sdk.targets
     CoveHostProvidedAssemblies strip denylist, so it survives both the build-output and publish
-    strips and MUST ship in the extension folder. It is deliberately placed OUTSIDE both
-    UseLocalCovePlugins conditional groups so it ships on BOTH the local-source ProjectReference
-    path and the published-NuGet PackageReference path. It is NOT marked <Private>false</Private>
-    (that is only for the host-provided Cove refs) — it must copy-local and ship. The
-    deploy-dev.ps1 strip-verify gate asserts System.IO.Hashing.dll IS present in the publish set.
+    strips and MUST ship in the extension folder. It is deliberately placed OUTSIDE the Cove SDK
+    reference wiring (now centralized in the root Directory.Build.targets) so it ships on BOTH the
+    local-source ProjectReference path and the published-NuGet PackageReference path. It is NOT
+    marked <Private>false</Private> (that is only for the host-provided Cove refs) — it must
+    copy-local and ship. The deploy-dev.ps1 strip-verify gate asserts System.IO.Hashing.dll IS
+    present in the publish set.
   -->
   <ItemGroup>
     <PackageReference Include="System.IO.Hashing" Version="10.0.9" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(UseLocalCovePlugins)' == 'false'">
-    <PackageReference Include="Cove.Plugins" Version="$(CovePluginsVersion)" />
-    <PackageReference Include="Cove.Sdk" Version="$(CovePluginsVersion)" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(UseLocalCovePlugins)' == 'true'">
-    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Plugins\Cove.Plugins.csproj" Condition="Exists('$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Plugins\Cove.Plugins.csproj')">
-      <Private>false</Private>
-      <ExcludeAssets>runtime</ExcludeAssets>
-    </ProjectReference>
-    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Sdk\Cove.Sdk.csproj" Condition="Exists('$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Sdk\Cove.Sdk.csproj')">
-      <Private>false</Private>
-      <ExcludeAssets>runtime</ExcludeAssets>
-    </ProjectReference>
-  </ItemGroup>
-
   <!--
-    Local-source build only: the Cove.Sdk host-assembly stripping rules ship in the NuGet package's
-    buildTransitive/ folder, so they are auto-imported on the PackageReference (publish) path but NOT
-    when Cove.Sdk is consumed as a local ProjectReference. Import them explicitly so the local-source
-    publish set is stripped identically to the NuGet path. Without this, the transitive Cove.Core.dll
-    leaks into the published output — host assemblies must never ship in the extension. Uses the
-    host's own canonical CoveHostProvidedAssemblies denylist — no hand-rolled strip.
+    Cove SDK resolution (local ProjectReference vs. NuGet PackageReference) is centralized in the
+    root Directory.Build.targets — see extensions/Directory.Build.targets. Cove.Sdk transitively
+    carries the plugin-hosting and core-domain assemblies, so this project does not restate a
+    direct reference to those, nor a per-project relative-path literal to the sibling ../cove
+    checkout.
   -->
-  <Import Project="$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Sdk\buildTransitive\Cove.Sdk.targets"
-          Condition="'$(UseLocalCovePlugins)' == 'true' AND Exists('$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Sdk\buildTransitive\Cove.Sdk.targets')" />
 </Project>
