@@ -1,7 +1,22 @@
 ## Project
 
 A Cove extension (**Renamer**, `com.alextomas955.renamer`) — a C# class library that plugs into a
-self-hosted Cove media-library instance.
+self-hosted Cove media-library instance. It lets users rename — and optionally relocate — their
+media files based on metadata, using configurable naming templates, all configured from a settings
+panel inside Cove's own UI and persisted in Cove's backend.
+
+**Core Value:** Users can rename their media files from metadata **safely** — the operation never
+loses track of a file (Cove's database stays authoritative) and is previewable before it touches
+disk. If everything else is cut, a reliable dry-run-then-rename that keeps the library intact is
+the thing that must work.
+
+## What NOT to do
+
+| Avoid | Why |
+|-------|-----|
+| Shipping `Cove.Core` / `Cove.Plugins` / `Cove.Sdk` / EF Core / Npgsql / Pgvector in the package | Host-provided; bundling them causes `AssemblyLoadContext` type-identity mismatches at runtime. `Cove.Sdk.targets` strips them, but verify the published output. |
+| Direct SQLite/Postgres writes to rename records (Stash anti-pattern) | Schema-fragile, corrupts the DB. Use `CoveContext` + `SaveChangesAsync`. |
+| Assuming a core "rename/move file" service exists on the host | **It does not.** Only `POST /api/files/move` (changes folder, keeps basename). The extension does the disk rename itself. |
 
 ## Contract
 
