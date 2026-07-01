@@ -12,7 +12,7 @@ namespace Renamer.Tests.Concurrency;
 /// therefore assert the PARSED blob invariant (exact row count + per-row well-formedness via
 /// ReadLastOpenBatchAsync), never an exception. The store is a thread-safe ConcurrentFakeStore so
 /// the proof isolates the RevertLog gate, not the store. Both tests would fail (count &lt; N, rows
-/// dropped) if the Task-1 gate were removed.
+/// dropped) if the per-store SemaphoreSlim serialization were removed.
 /// </summary>
 [Trait("Tier", "Integration")]
 public sealed class RevertLogConcurrencyTests
