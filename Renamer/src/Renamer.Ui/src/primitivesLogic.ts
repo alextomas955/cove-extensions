@@ -60,7 +60,7 @@ export function isAbsolutePathShape(value: string): boolean {
   return /^[A-Za-z]:[\\/]/.test(trimmed) || /^[\\/]/.test(trimmed);
 }
 
-/** Extensions Cove's video/image/audio primary-file kinds commonly use — see D-08. */
+/** Extensions Cove's video/image/audio primary-file kinds commonly use. */
 const PRIMARY_MEDIA_EXTENSIONS: ReadonlySet<string> = new Set([
   "mp4",
   "mkv",

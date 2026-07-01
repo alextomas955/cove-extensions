@@ -470,7 +470,7 @@ export function RenamePanelBody() {
   }
 
   /**
-   * The SHARED "Rename all files" handler (D-09) — called identically by the panel-level button and
+   * The SHARED "Rename all files" handler — called identically by the panel-level button and
    * the Dry Run modal's footer button. Enqueues the rename-library job, polls it to completion the
    * same way the modal polls its scan job, and reports renamed/skipped counts.
    *
@@ -559,7 +559,7 @@ export function RenamePanelBody() {
         // state is now canonical by construction, both the preview body and saveOptions are single-source
         // automatically, and the stored blob self-heals on the next Save.
         const parsed = normalizeOptions(raw);
-        // D-01: a gate stored false whose underlying data is already non-empty must still surface
+        // A gate stored false whose underlying data is already non-empty must still surface
         // as ON, so an existing configuration is never silently hidden behind a new gate. Both
         // setOptions and setSaved get the identical derived value — using parsed for one and this
         // for the other would make the panel dirty on load for any such existing configuration.

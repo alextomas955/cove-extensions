@@ -34,7 +34,7 @@ export interface PreviewItem {
   suffixed: boolean;
   /** True when the sanitize step changed the name (illegal chars removed/replaced). */
   sanitized: boolean;
-  /** The routed destination-root template (ROUTE-07); null for a source-confine/in-place item. */
+  /** The routed destination-root template; null for a source-confine/in-place item. */
   resolvedDestinationRoot?: string | null;
   /** The resolver's matched-rule label (e.g. "Studio:42(direct)", "InPlace"); "" on skip/no-op. */
   matchedRule: string;
@@ -72,7 +72,7 @@ export interface PreviewSummary {
   confirmLevel: ConfirmLevel;
 }
 
-/** The `/preview` response (ROUTE-07): the per-item plan plus the whole-batch summary. */
+/** The `/preview` response: the per-item plan plus the whole-batch summary. */
 export interface PreviewResponse {
   items: PreviewItem[];
   summary: PreviewSummary;
@@ -130,7 +130,7 @@ export function confirmCallToAction(level: ConfirmLevel): string {
  * - Up to 5 `old → new` basename examples drawn from will-rename items; "… and R more." when N > 5.
  * - When N == 0 the body states nothing will be renamed (the handler then cancels even on OK).
  *
- * Blast radius (ROUTE-07 / D-06): when `summary` is supplied and the batch moves files across
+ * Blast radius: when `summary` is supplied and the batch moves files across
  * drives, the confirm wording SCALES with `summary.confirmLevel` — an explicit "N items (X GB) move
  * from A to B" line per cross-volume pair is added, and the call-to-action is heavier for a Heavy
  * batch than a Light one. A same-drive-only batch (Light, no `volumePairs`) reads exactly as before.

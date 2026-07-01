@@ -2,7 +2,7 @@
  * The full-screen "Dry run" modal: scans the whole library via the job-backed scan-library
  * endpoint, polls the host's generic job-status endpoint to completion, then renders the
  * paginated old→new preview table. The footer "Rename N files" button calls the SAME
- * rename-trigger callback the panel-level "Rename all files" button calls (D-09) — this modal
+ * rename-trigger callback the panel-level "Rename all files" button calls — this modal
  * never talks to the rename-library endpoint through a separate code path.
  *
  * Prop contract: the modal is self-contained — it POSTs scan-library itself on mount and manages
@@ -90,7 +90,7 @@ export function DryRunModal({
   renaming,
 }: {
   onClose: () => void;
-  /** The SHARED rename-trigger handler (D-09) — also called by the panel-level button. */
+  /** The SHARED rename-trigger handler — also called by the panel-level button. */
   onRenameAll: (items: ScanItem[]) => void;
   /** True while a rename triggered from either entry point is in flight. */
   renaming: boolean;
