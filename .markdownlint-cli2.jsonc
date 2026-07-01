@@ -8,7 +8,7 @@
   },
   "globs": ["**/*.md"],
   // Lint only user-facing docs. .planning/** is internal research/spec; CLAUDE.md files are
-  // Claude/GSD-managed instruction files (carry "do not edit manually" sections) — not product
-  // docs, and excluded from the CI markdown-lint glob too.
+  // AI-assistant instruction files (managed separately from product docs) — excluded from the
+  // CI markdown-lint glob too.
   "ignores": ["**/node_modules/**", "**/dist/**", ".planning/**", "**/CLAUDE.md"]
 }
