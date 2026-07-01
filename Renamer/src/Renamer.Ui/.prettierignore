@@ -1,0 +1,4 @@
+dist
+node_modules
+# The check-classes guard is intentionally kept untouched (its own verify gate); don't reformat it.
+scripts

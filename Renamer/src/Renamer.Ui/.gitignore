@@ -1,0 +1,7 @@
+node_modules/
+# Ignore build output, EXCEPT the committed bundle: dist/index.mjs is committed and shipped in the
+# release package. CI rebuilds it from source and fails if the committed file is stale (the
+# stale-bundle gate), so the tracked bundle is kept in sync with source. Exclude dir contents (not
+# the dir itself) so the negation below can re-include the one file.
+dist/*
+!dist/index.mjs
