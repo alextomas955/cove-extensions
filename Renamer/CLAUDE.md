@@ -33,16 +33,14 @@ the thing that must work.
   its own git repo — it has no own remote and no own CI workflow file. CI is defined once at the
   monorepo root (`extensions/.github/workflows/build.yml`) and driven by this extension's entry in
   `extensions/catalog.json`.
-- Launch Claude Code following the monorepo's own launch convention (see
-  `i:\cove-dev\docs\conventions.md`, §Workspace & Launch) with `--add-dir` pointed at the sibling
-  Cove core checkout so the local Cove source is available for SDK/source reference — the exact
-  relative path depends on where you launch from; don't hardcode a path literal here, follow the
-  convention doc's routing rule instead.
-- Commit identity (alextomas955 noreply), the gitleaks pre-commit hook, and the global ignore are
-  inherited automatically by location (the cove-dev `includeIf` block) — do not re-wire them.
+- Launch your editor/agent tooling with the sibling Cove core checkout also available (e.g. via an
+  `--add-dir`-style flag) so the local Cove source is available for SDK/source reference — the
+  exact relative path depends on where you launch from; don't hardcode a path literal here, follow
+  your own workspace's routing convention instead.
 - This extension's own planning lives at `extensions/Renamer/.planning/` — its own nested planning
   root, distinct from the thin `extensions/.planning/` at the monorepo root (which is scoped to
-  cross-cutting monorepo concerns, not Renamer's own feature work).
+  cross-cutting monorepo concerns, not Renamer's own feature work). Planning notes are this repo's
+  own workflow, gitignored, and not part of the published extension.
 
 ## Build note
 
