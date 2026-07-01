@@ -37,7 +37,7 @@
 
   <!--
     Cove SDK resolution (local ProjectReference vs. NuGet PackageReference) is centralized in the
-    root Directory.Build.targets — see extensions/Directory.Build.targets. Cove.Sdk transitively
+    root Directory.Build.targets — see Directory.Build.targets. Cove.Sdk transitively
     carries the plugin-hosting and core-domain assemblies, so this project does not restate a
     direct reference to those, nor a per-project relative-path literal to the sibling ../cove
     checkout.

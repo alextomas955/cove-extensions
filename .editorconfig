@@ -97,11 +97,11 @@ dotnet_diagnostic.CA2007.severity = none
 # spied/exercised as an instance in tests). Marking Move/Rollback static would break that DI seam and
 # every `_disk.Move(...)`/`mover.Move(...)` call site (CS0176) — a design change, not a lint fix.
 # Keep them instance methods; CA1822 (mark static) is intentionally relaxed for this one file.
-[Renamer/src/Renamer/Execution/DiskMover.cs]
+[extensions/Renamer/src/Renamer/Execution/DiskMover.cs]
 dotnet_diagnostic.CA1822.severity = none
 
 # Tests: relax a few rules that fight idiomatic xUnit.
-[Renamer/src/Renamer.Tests/**.cs]
+[extensions/Renamer/src/Renamer.Tests/**.cs]
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1822.severity = none
 dotnet_diagnostic.CA2007.severity = none

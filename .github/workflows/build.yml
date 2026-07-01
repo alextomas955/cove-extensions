@@ -51,7 +51,7 @@ jobs:
         run: |
           node -e '
             const fs = require("fs");
-            const catalog = JSON.parse(fs.readFileSync("catalog.json", "utf8"));
+            const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
             const tag = process.env.GITHUB_REF.replace("refs/tags/", "");
             const matches = catalog.extensions.filter((e) => tag.startsWith(e.tagPrefix));
             if (matches.length !== 1) {
@@ -75,7 +75,7 @@ jobs:
         run: |
           node -e '
             const fs = require("fs");
-            const catalog = JSON.parse(fs.readFileSync("catalog.json", "utf8"));
+            const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
             const ref = process.env.GITHUB_REF;
             let extensions = catalog.extensions;
             if (ref.startsWith("refs/tags/")) {

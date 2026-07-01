@@ -1,6 +1,6 @@
 <Solution>
   <Folder Name="/extensions/">
-    <Project Path="Renamer/src/Renamer/Renamer.csproj" />
-    <Project Path="Renamer/src/Renamer.Tests/Renamer.Tests.csproj" />
+    <Project Path="extensions/Renamer/src/Renamer/Renamer.csproj" />
+    <Project Path="extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj" />
   </Folder>
 </Solution>
