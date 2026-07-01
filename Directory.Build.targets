@@ -10,16 +10,26 @@
     Cove.Data is intentionally NOT wired here: it sits outside the Cove.Sdk/Cove.Plugins/Cove.Core
     chain and is consumed test-only (e.g. Renamer.Tests' CoveContextFactory). Each test project keeps
     its own explicit Exists()-guarded ProjectReference for that.
+
+    Scoped to non-test projects only (MSBuildProjectName not ending in ".Tests"): a *.Tests project
+    already receives Cove.Sdk/Cove.Plugins/Cove.Core transitively through its ProjectReference to the
+    extension project this wiring targets. Applying this ItemGroup unconditionally to *.Tests projects
+    too would add Cove.Sdk as a SECOND, directly-referenced Private=false dependency on the same test
+    project — which (unlike the single-hop transitive reference) MSBuild resolves as non-copy-local,
+    so Cove.Sdk.dll silently drops out of the test project's own bin/ output and xUnit fails at
+    reflection time with "Could not load file or assembly 'Cove.Sdk'". Excluding *.Tests here keeps
+    each test project's only path to Cove.Sdk the transitive one through its extension ProjectReference,
+    matching the single-extension-repo template's original per-project (not root-centralized) wiring.
   -->
 
-  <ItemGroup Condition="'$(UseLocalCoveSource)' == 'true'">
+  <ItemGroup Condition="'$(UseLocalCoveSource)' == 'true' AND !$(MSBuildProjectName.EndsWith('.Tests'))">
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\cove\src\Cove.Sdk\Cove.Sdk.csproj" Condition="Exists('$(MSBuildThisFileDirectory)..\cove\src\Cove.Sdk\Cove.Sdk.csproj')">
       <Private>false</Private>
       <ExcludeAssets>runtime</ExcludeAssets>
     </ProjectReference>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(UseLocalCoveSource)' == 'false'">
+  <ItemGroup Condition="'$(UseLocalCoveSource)' == 'false' AND !$(MSBuildProjectName.EndsWith('.Tests'))">
     <PackageReference Include="Cove.Sdk" Version="$(CoveSdkVersion)" />
   </ItemGroup>
 
@@ -28,9 +38,11 @@
     buildTransitive/ folder, so they are auto-imported on the PackageReference (publish) path but NOT
     when Cove.Sdk is consumed as a local ProjectReference. Import them explicitly so the local-source
     publish set is stripped identically to the NuGet path — otherwise the transitive Cove.Core.dll
-    (and friends) leaks into the published output.
+    (and friends) leaks into the published output. Excluded for *.Tests projects (see above): a test
+    project is never published/deployed, so it must keep its full runtime closure and never import
+    the host-provided-assembly strip target at all.
   -->
   <Import Project="$(MSBuildThisFileDirectory)..\cove\src\Cove.Sdk\buildTransitive\Cove.Sdk.targets"
-          Condition="'$(UseLocalCoveSource)' == 'true' AND Exists('$(MSBuildThisFileDirectory)..\cove\src\Cove.Sdk\buildTransitive\Cove.Sdk.targets')" />
+          Condition="'$(UseLocalCoveSource)' == 'true' AND !$(MSBuildProjectName.EndsWith('.Tests')) AND Exists('$(MSBuildThisFileDirectory)..\cove\src\Cove.Sdk\buildTransitive\Cove.Sdk.targets')" />
 
 </Project>
