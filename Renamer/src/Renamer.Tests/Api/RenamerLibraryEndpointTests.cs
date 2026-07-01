@@ -131,7 +131,7 @@ public sealed class RenamerLibraryEndpointTests
 
             await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
 
-            // Both kinds actually renamerd on disk.
+            // Both kinds actually renamed on disk.
             Assert.True(File.Exists(Path.Combine(dir.Root, "videos", "Film.mkv")));
             Assert.True(File.Exists(Path.Combine(dir.Root, "images", "Pic.jpg")));
 
@@ -223,7 +223,7 @@ public sealed class RenamerLibraryEndpointTests
             // Caller's captured writable set holds only Video (images.write was missing at enqueue time).
             await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video], progress, default);
 
-            // Video renamerd.
+            // Video renamed.
             var (videoBasename, _) = await ExecutorTestSeed.ReadFileAsync(db, videoFileId);
             Assert.Equal("Film.mkv", videoBasename);
             Assert.True(File.Exists(Path.Combine(dir.Root, "videos", "Film.mkv")));

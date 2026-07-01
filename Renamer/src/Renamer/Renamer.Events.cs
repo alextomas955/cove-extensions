@@ -100,9 +100,9 @@ public sealed partial class Renamer
             // resolves the destination folder itself, safe because this call is not parallelized.
             var result = await executor.ExecuteAsync(plan, options, ct: ct);
 
-            foreach (var r in result.Renamerd)
+            foreach (var r in result.Renamed)
             {
-                LogAutoRenamerd(kind, entityId, r.Status, r.OldPath, r.NewPath);
+                LogAutoRenamed(kind, entityId, r.Status, r.OldPath, r.NewPath);
             }
             foreach (var f in result.Failed)
             {

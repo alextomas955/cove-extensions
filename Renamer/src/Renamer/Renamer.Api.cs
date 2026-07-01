@@ -355,7 +355,7 @@ public sealed partial class Renamer
             return Results.Ok(new UndoResult(0, [], []));
         }
 
-        // Re-gate on the WRITE permission of the kind that was actually renamerd (the batch header
+        // Re-gate on the WRITE permission of the kind that was actually renamed (the batch header
         // carries it) — undoing an image renamer requires images.write, not videos.write. This is
         // checked after the batch read (needed to learn the kind) but BEFORE the options load, scope
         // open, or any disk touch, so an under-permissioned caller still mutates nothing.
@@ -407,7 +407,7 @@ public sealed partial class Renamer
     /// <para>
     /// The difference is keyed on the full ROW IDENTITY <c>(FileId, OldPath, NewPath)</c> — the
     /// same triple the <see cref="UndoReplayer.UndoFailure"/> buckets carry — NOT on FileId alone. A
-    /// single batch can legitimately contain two rows with the same FileId (a file renamerd twice within
+    /// single batch can legitimately contain two rows with the same FileId (a file renamed twice within
     /// one run, or a duplicated row the tolerant parser admits); keying on FileId alone would drop BOTH
     /// such rows from the restored log when only one was a problem (under-reporting restores), or
     /// mislabel a failed duplicate as restored. The row triple is the row's unique identity within the

@@ -60,7 +60,7 @@ public sealed class RollbackTests
             var failedItem = Assert.Single(result.Failed);
             Assert.Equal(RenamerStatus.Failed, failedItem.Status);
             Assert.Contains("rolled back", failedItem.Reason);
-            Assert.Empty(result.Renamerd);
+            Assert.Empty(result.Renamed);
             Assert.Empty(result.RevertLog);   // no success row written
             Assert.Empty(bus.Published);      // no event for a failed item
 

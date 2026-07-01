@@ -44,7 +44,7 @@ public sealed class CrossVolumeUndoTests
         try
         {
             const string original = "cross-undo bytes that must come back intact";
-            // The file CURRENTLY lives at NEW (the renamerd location on the subst root); undo moves it
+            // The file CURRENTLY lives at NEW (the renamed location on the subst root); undo moves it
             // back to OLD on the temp root.
             string oldFull = Path.Combine(oldDir.Root, "raw.mkv");
             string newFull = Path.Combine(newDrive.Root, "My Film.mkv");
@@ -285,7 +285,7 @@ public sealed class CrossVolumeUndoTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            const string original = "the renamerd bytes that must NOT clobber a re-occupied OLD slot";
+            const string original = "the renamed bytes that must NOT clobber a re-occupied OLD slot";
             const string squatter = "a different file already sitting in the OLD slot";
             string oldFull = Path.Combine(oldDir.Root, "raw.mkv");
             string newFull = Path.Combine(newDrive.Root, "My Film.mkv");
@@ -305,9 +305,9 @@ public sealed class CrossVolumeUndoTests
             Assert.Single(result.Skipped);
             Assert.Empty(undoBus.Published);
 
-            // The squatter is intact, and the renamerd bytes survive at NEW.
+            // The squatter is intact, and the renamed bytes survive at NEW.
             Assert.Equal(squatter, File.ReadAllText(oldFull));
-            Assert.True(File.Exists(newFull), "the renamerd file must stay at NEW, not clobber the OLD slot");
+            Assert.True(File.Exists(newFull), "the renamed file must stay at NEW, not clobber the OLD slot");
             Assert.Equal(original, File.ReadAllText(newFull));
         }
         finally
@@ -339,7 +339,7 @@ public sealed class CrossVolumeUndoTests
         db.Set<Cove.Core.Entities.Folder>().Add(oldFolderRow);
         await db.SaveChangesAsync();
 
-        // Seed the file at its CURRENT (NEW) location: the NEW folder + the renamerd basename.
+        // Seed the file at its CURRENT (NEW) location: the NEW folder + the renamed basename.
         var (_, videoId, fileId) =
             await ExecutorTestSeed.SeedVideoAsync(db, newFolder, "My Film.mkv", "My Film");
 

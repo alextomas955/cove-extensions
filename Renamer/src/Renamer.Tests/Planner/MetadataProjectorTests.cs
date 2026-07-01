@@ -224,7 +224,7 @@ public sealed class MetadataProjectorTests
     public void Title_FilenameDerived_SatisfiesRequiredFieldsGate()
     {
         // A title-less item with the fallback on resolves a non-empty `title` through the SAME map
-        // the RequiredFields=["title"] gate reads, so the item is renamerd rather than skipped.
+        // the RequiredFields=["title"] gate reads, so the item is renamed rather than skipped.
         var file = VideoFileRow() with { Basename = "Some Recording.mkv" };
         var entity = VideoEntity(file) with { Title = null };
         var options = new RenamerOptions { FilenameAsTitle = true };

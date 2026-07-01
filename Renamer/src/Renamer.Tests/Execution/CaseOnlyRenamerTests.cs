@@ -13,7 +13,7 @@ namespace Renamer.Tests.Execution;
 /// the target name is the SOURCE file itself — completes as a clean <see cref="RenamerStatus.Renamer"/>
 /// to <c>Movie.mkv</c>, NOT a needlessly suffixed <c>Movie (1).mkv</c> and NOT a collision skip.</item>
 /// <item>A DIFFERENT file already at the case-variant target name still collides: a third source
-/// renamerd onto <c>Movie.mkv</c> is suffixed or skipped, never clobbering the existing file. The
+/// renamed onto <c>Movie.mkv</c> is suffixed or skipped, never clobbering the existing file. The
 /// cross-file no-clobber guarantee is preserved.</item>
 /// </list>
 /// Uses the real <see cref="CoveRenamerDataPort"/> (not the collision-blind port) so the disk-side
@@ -51,14 +51,14 @@ public sealed class CaseOnlyRenamerTests
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
-            // Clean Renamer: exactly one renamerd, nothing skipped or failed, and the new name is the
+            // Clean Renamer: exactly one renamed, nothing skipped or failed, and the new name is the
             // case-corrected target — NOT a suffixed Movie (1).mkv.
-            var renamerdItem = Assert.Single(result.Renamerd);
-            Assert.Equal(RenamerStatus.Renamer, renamerdItem.Status);
+            var renamedItem = Assert.Single(result.Renamed);
+            Assert.Equal(RenamerStatus.Renamer, renamedItem.Status);
             Assert.Empty(result.Skipped);
             Assert.Empty(result.Failed);
-            Assert.EndsWith("Movie.mkv", renamerdItem.NewPath);
-            Assert.DoesNotContain("(1)", renamerdItem.NewPath);
+            Assert.EndsWith("Movie.mkv", renamedItem.NewPath);
+            Assert.DoesNotContain("(1)", renamedItem.NewPath);
 
             // DB read-back confirms the corrected basename (asserted via the row, not a case-blind
             // File.Exists which would be True for both spellings on this volume).
@@ -107,17 +107,17 @@ public sealed class CaseOnlyRenamerTests
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
             // No clobber: the source did NOT land on the existing Movie.mkv. It was either suffixed to a
-            // free name (Renamerd, not "Movie.mkv") or skip-collisioned.
-            if (result.Renamerd.Count == 1)
+            // free name (Renamed, not "Movie.mkv") or skip-collisioned.
+            if (result.Renamed.Count == 1)
             {
-                Assert.NotEqual(folderPath + "/Movie.mkv", result.Renamerd[0].NewPath.Replace('\\', '/'));
+                Assert.NotEqual(folderPath + "/Movie.mkv", result.Renamed[0].NewPath.Replace('\\', '/'));
                 Assert.Empty(result.Failed);
             }
             else
             {
                 var skipped = Assert.Single(result.Skipped);
                 Assert.Equal(RenamerStatus.SkipCollision, skipped.Status);
-                Assert.Empty(result.Renamerd);
+                Assert.Empty(result.Renamed);
             }
 
             // The pre-existing DIFFERENT file at Movie.mkv is untouched — its bytes survive intact.

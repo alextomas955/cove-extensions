@@ -17,7 +17,7 @@ public sealed record UndoResult(int Undone, IReadOnlyList<UndoEntryError> Failed
 /// </summary>
 /// <param name="FileId">The physical file row.</param>
 /// <param name="OldPath">The original location the reverse move targeted.</param>
-/// <param name="NewPath">The renamerd location the file currently sits at.</param>
+/// <param name="NewPath">The renamed location the file currently sits at.</param>
 /// <param name="Reason">A human-readable note for the skip/failure.</param>
 public sealed record UndoEntryError(int FileId, string OldPath, string NewPath, string Reason);
 

@@ -18,7 +18,7 @@ public sealed class LockedFileTests
     {
         using var dir = new TempDir();
         var old = dir.Touch("clip.mkv", "data");
-        var dest = Path.Combine(dir.Root, "Renamerd.mkv");
+        var dest = Path.Combine(dir.Root, "Renamed.mkv");
         var mover = new DiskMover();
 
         // Hold the SOURCE open exclusively so File.Move throws IOException (ERROR_SHARING_VIOLATION).
@@ -42,7 +42,7 @@ public sealed class LockedFileTests
     {
         using var dir = new TempDir();
         var old = dir.Touch("clip.mkv", "hello");
-        var dest = Path.Combine(dir.Root, "sub", "Renamerd.mkv");
+        var dest = Path.Combine(dir.Root, "sub", "Renamed.mkv");
         var mover = new DiskMover();
 
         var result = mover.Move(old, dest);

@@ -51,7 +51,7 @@ public sealed class UndoReplayerTests
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
             var fwd = await new RenamerExecutor(port, new CapturingEventBus(), revertLog, new DiskMover())
                 .ExecuteAsync(plan, options, default);
-            Assert.Single(fwd.Renamerd);
+            Assert.Single(fwd.Renamed);
 
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
             Assert.True(File.Exists(newFull));

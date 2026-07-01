@@ -22,7 +22,7 @@ public sealed class CrossVolumeMoverTests
     {
         using var dir = new TempDir();
         var old = dir.Touch("clip.mkv", "hello bytes");
-        var dest = Path.Combine(dir.Root, "sub", "Renamerd.mkv");
+        var dest = Path.Combine(dir.Root, "sub", "Renamed.mkv");
         var mover = new CrossVolumeMover();
 
         var result = await mover.MoveAsync(old, dest, sidecars: null, CancellationToken.None);
@@ -87,7 +87,7 @@ public sealed class CrossVolumeMoverTests
     {
         using var dir = new TempDir();
         var old = dir.Touch("clip.mkv", "data");
-        var dest = Path.Combine(dir.Root, "sub", "Renamerd.mkv");
+        var dest = Path.Combine(dir.Root, "sub", "Renamed.mkv");
         var mover = new CrossVolumeMover();
 
         // Hold the SOURCE open exclusively so the copy's source FileStream throws IOException.

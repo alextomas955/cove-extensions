@@ -98,7 +98,7 @@ public sealed class ExecutorAllowlistGuardTests
             Assert.Equal(RenamerStatus.SkipBlocked, skipped.Status);
             Assert.NotNull(skipped.Reason);
             Assert.Contains("outside every allowed root", skipped.Reason);
-            Assert.Empty(result.Renamerd);
+            Assert.Empty(result.Renamed);
             Assert.Empty(result.Failed);
             Assert.Empty(bus.Published);
 
@@ -154,8 +154,8 @@ public sealed class ExecutorAllowlistGuardTests
 
             var result = await executor.ExecuteAsync(plan, options, default);
 
-            // A benign in-allowlist destination moves: item renamerd/moved, file on disk at the new path.
-            var moved = Assert.Single(result.Renamerd);
+            // A benign in-allowlist destination moves: item renamed/moved, file on disk at the new path.
+            var moved = Assert.Single(result.Renamed);
             Assert.Equal(RenamerStatus.Move, moved.Status);
             Assert.Empty(result.Skipped);
             Assert.Empty(result.Failed);

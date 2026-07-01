@@ -49,7 +49,7 @@ public sealed class RenamerExecutorIntegrationTests
 
             // (a) disk: new exists, old gone, content intact.
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
-            Assert.True(File.Exists(newFull), "renamerd file must exist on disk");
+            Assert.True(File.Exists(newFull), "renamed file must exist on disk");
             Assert.False(File.Exists(oldFull), "old file must be gone");
             Assert.Equal("video-bytes", File.ReadAllText(newFull));
 
@@ -58,9 +58,9 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Equal("My Film.mkv", basename);
             Assert.Equal(folderPath + "/My Film.mkv", path);
 
-            // Result buckets: one renamerd, none skipped/failed; revert-log row written.
-            var renamerdItem = Assert.Single(result.Renamerd);
-            Assert.Equal(RenamerStatus.Renamer, renamerdItem.Status);
+            // Result buckets: one renamed, none skipped/failed; revert-log row written.
+            var renamedItem = Assert.Single(result.Renamed);
+            Assert.Equal(RenamerStatus.Renamer, renamedItem.Status);
             Assert.Empty(result.Failed);
             Assert.Empty(result.Skipped);
             var revert = Assert.Single(result.RevertLog);
@@ -137,7 +137,7 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.False(File.Exists(newOnDisk + ".renamer-partial"), "no leftover .partial");
 
             // Result buckets: one moved, none skipped/failed; revert-log row written.
-            var movedItem = Assert.Single(result.Renamerd);
+            var movedItem = Assert.Single(result.Renamed);
             Assert.Equal(RenamerStatus.Move, movedItem.Status);
             Assert.Empty(result.Failed);
             Assert.Empty(result.Skipped);
@@ -214,7 +214,7 @@ public sealed class RenamerExecutorIntegrationTests
             var failedItem = Assert.Single(result.Failed);
             Assert.Equal(RenamerStatus.Failed, failedItem.Status);
             Assert.Contains("rolled back", failedItem.Reason);
-            Assert.Empty(result.Renamerd);
+            Assert.Empty(result.Renamed);
             Assert.Empty(result.RevertLog);
 
             // (a) the source is RESTORED across the volume (copy-back) with its original content.
@@ -286,7 +286,7 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Contains("rollback INCOMPLETE", failedItem.Reason);
             Assert.Contains("rollback target re-occupied", failedItem.Reason);
             Assert.DoesNotContain("file rolled back", failedItem.Reason);
-            Assert.Empty(result.Renamerd);
+            Assert.Empty(result.Renamed);
         }
         finally
         {

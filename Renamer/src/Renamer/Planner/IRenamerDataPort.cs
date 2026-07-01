@@ -3,7 +3,7 @@ namespace Renamer.Planner;
 /// <summary>
 /// The media-file kinds this extension can renamer. Drives entity-type-aware token degradation in
 /// the <c>MetadataProjector</c>: only the media tokens a kind actually carries are projected.
-/// Gallery is not yet renamerd but is listed for completeness.
+/// Gallery is not yet renamed but is listed for completeness.
 /// </summary>
 public enum RenamerFileKind
 {
@@ -205,9 +205,9 @@ public interface IRenamerDataPort
 /// <param name="FileId">The file row to mutate.</param>
 /// <param name="NewBasename">The new basename to set.</param>
 /// <param name="NewParentFolderId">The new parent folder id, or null for an in-place renamer.</param>
-/// <param name="CaptionRenamers">(captionId, newFilename) pairs for moved sidecars.</param>
+/// <param name="CaptionRenames">(captionId, newFilename) pairs for moved sidecars.</param>
 public sealed record RenamerFileMutation(
     int FileId,
     string NewBasename,
     int? NewParentFolderId,
-    IReadOnlyList<(int CaptionId, string NewFilename)>? CaptionRenamers = null);
+    IReadOnlyList<(int CaptionId, string NewFilename)>? CaptionRenames = null);

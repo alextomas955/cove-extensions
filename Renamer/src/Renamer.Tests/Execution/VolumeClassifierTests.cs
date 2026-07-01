@@ -51,6 +51,6 @@ public sealed class VolumeClassifierTests
     {
         // A plain in-folder renamer keeps the same root, so the executor keeps the DiskMover
         // atomic File.Move fast path — the MOVE-01 contract at the unit level.
-        Assert.True(VolumeClassifier.SameVolume(@"C:\media\clip.mkv", @"C:\media\Renamerd.mkv"));
+        Assert.True(VolumeClassifier.SameVolume(@"C:\media\clip.mkv", @"C:\media\Renamed.mkv"));
     }
 }

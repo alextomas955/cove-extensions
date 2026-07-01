@@ -56,7 +56,7 @@ public sealed class FreeSpaceGuardTests
         // P8 regression: same-volume moves consume ~no extra space and must NEVER be summed.
         var moves = new[]
         {
-            (OnVol("C", "a.mkv"), OnVol("C", "renamerd.mkv"), 5L << 30),
+            (OnVol("C", "a.mkv"), OnVol("C", "renamed.mkv"), 5L << 30),
             (OnVol("C", "b.mkv"), OnVol("C", "moved.mkv"), 5L << 30),
         };
 
@@ -72,7 +72,7 @@ public sealed class FreeSpaceGuardTests
         // One same-volume move (5 GiB, must be dropped) + one cross-volume move (1 GiB, must count).
         var moves = new[]
         {
-            (OnVol("C", "stay.mkv"), OnVol("C", "stay-renamerd.mkv"), 5L << 30),   // same-volume → excluded
+            (OnVol("C", "stay.mkv"), OnVol("C", "stay-renamed.mkv"), 5L << 30),   // same-volume → excluded
             (OnVol("C", "go.mkv"), OnVol("D", "go.mkv"), 1L << 30),               // cross-volume → counts
         };
 

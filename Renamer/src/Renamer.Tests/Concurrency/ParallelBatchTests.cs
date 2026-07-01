@@ -43,7 +43,7 @@ public sealed class ParallelBatchTests
     }
 
     [Fact]
-    public async Task ParallelBatch_AllItemsRenamerd_RevertLogRowsEqualSuccesses()
+    public async Task ParallelBatch_AllItemsRenamed_RevertLogRowsEqualSuccesses()
     {
         using var dir = new TempDir();
         var shared = await SharedCacheSqlite.CreateAsync();
@@ -72,7 +72,7 @@ public sealed class ParallelBatchTests
 
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
 
-            // All K renamerd on disk.
+            // All K renamed on disk.
             for (int i = 0; i < k; i++)
             {
                 Assert.True(File.Exists(Path.Combine(dir.Root, $"Film {i}.mkv")), $"Film {i}.mkv missing");
@@ -136,14 +136,14 @@ public sealed class ParallelBatchTests
 
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
 
-            // Every item whose source existed renamerd; the faulting item did NOT (its target was never
+            // Every item whose source existed renamed; the faulting item did NOT (its target was never
             // created) and the batch still finished at 1.0 — one bad item never aborts the run.
             for (int i = 0; i < k; i++)
             {
                 if (i == faultIndex)
                 {
                     Assert.False(File.Exists(Path.Combine(dir.Root, $"Film {i}.mkv")),
-                        "the faulting item must not have produced a renamerd file");
+                        "the faulting item must not have produced a renamed file");
                 }
                 else
                 {

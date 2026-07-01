@@ -91,7 +91,7 @@ public sealed class AutoRenamerRoutingTests
 
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
-            // Renamerd in place, never relocated to the default destination (the gate held).
+            // Renamed in place, never relocated to the default destination (the gate held).
             Assert.True(File.Exists(Path.Combine(srcFolder, "My Film.mkv")));
             var (_, pathAfter) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.DoesNotContain("overflow", pathAfter.Replace('\\', '/'));

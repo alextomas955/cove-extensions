@@ -46,7 +46,7 @@ public sealed class AssociatedExtensionSidecarTests
             var result = await RealExecutor(db).ExecuteAsync(
                 RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
 
-            Assert.Single(result.Renamerd);
+            Assert.Single(result.Renamed);
             Assert.Empty(result.Failed);
 
             Assert.False(File.Exists(Path.Combine(dir.Root, "clip.srt")), "old sidecar name must be gone");
@@ -84,7 +84,7 @@ public sealed class AssociatedExtensionSidecarTests
             var result = await RealExecutor(db).ExecuteAsync(
                 RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
 
-            Assert.Single(result.Renamerd);
+            Assert.Single(result.Renamed);
             Assert.True(File.Exists(neighbor), "a different-stem neighbor must be left at its source");
             Assert.Equal("unrelated", File.ReadAllText(neighbor));
             Assert.False(File.Exists(Path.Combine(dir.Root, "Film A.srt")), "no sidecar should be created for it");
@@ -115,7 +115,7 @@ public sealed class AssociatedExtensionSidecarTests
             var result = await RealExecutor(db).ExecuteAsync(
                 RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
 
-            Assert.Single(result.Renamerd);
+            Assert.Single(result.Renamed);
             Assert.True(File.Exists(nfo), "a same-stem file with an unlisted extension must be left at its source");
             Assert.False(File.Exists(Path.Combine(dir.Root, "Film A.nfo")));
         }
@@ -149,7 +149,7 @@ public sealed class AssociatedExtensionSidecarTests
             var result = await RealExecutor(db).ExecuteAsync(
                 RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
 
-            Assert.Single(result.Renamerd);
+            Assert.Single(result.Renamed);
             Assert.True(File.Exists(traversal), "a malformed extension must move nothing");
             Assert.True(File.Exists(Path.Combine(dir.Root, "Film A.mkv")), "primary still moves");
         }
@@ -182,7 +182,7 @@ public sealed class AssociatedExtensionSidecarTests
             var result = await RealExecutor(db).ExecuteAsync(
                 RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), new RenamerOptions(), default);
 
-            Assert.Single(result.Renamerd);
+            Assert.Single(result.Renamed);
             // The DB-tracked caption still moves and renamers.
             Assert.True(File.Exists(Path.Combine(dir.Root, "Film A.en.vtt")), "caption still moves with an empty list");
             Assert.False(File.Exists(Path.Combine(dir.Root, "clip.en.vtt")));
@@ -218,7 +218,7 @@ public sealed class AssociatedExtensionSidecarTests
             var result = await RealExecutor(db).ExecuteAsync(
                 RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
 
-            Assert.Single(result.Renamerd);
+            Assert.Single(result.Renamed);
             Assert.True(File.Exists(Path.Combine(dir.Root, "Film A.mkv")), "primary still moves");
             // The pre-existing target is left untouched, and the source sidecar remains.
             Assert.Equal("theirs", File.ReadAllText(occupied));
@@ -294,7 +294,7 @@ public sealed class AssociatedExtensionSidecarTests
             var result = await RealExecutor(db).ExecuteAsync(
                 RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
 
-            Assert.Single(result.Renamerd);
+            Assert.Single(result.Renamed);
             Assert.Empty(result.Failed);
             // The file lands at the new stem exactly once, with its content intact.
             string moved = Path.Combine(dir.Root, "Film A.vtt");
@@ -333,7 +333,7 @@ public sealed class AssociatedExtensionSidecarTests
             // No item failed, and no bucket carries a skip-not-clobber sidecar warning for the
             // source-equals-target sidecar the discovery guard suppressed.
             Assert.Empty(result.Failed);
-            var allReasons = result.Renamerd.Concat(result.Skipped).Concat(result.Failed)
+            var allReasons = result.Renamed.Concat(result.Skipped).Concat(result.Failed)
                 .Select(r => r.Reason)
                 .Where(r => r is not null);
             Assert.DoesNotContain(allReasons, r => r!.Contains("sidecar", StringComparison.OrdinalIgnoreCase));
@@ -369,7 +369,7 @@ public sealed class AssociatedExtensionSidecarTests
             var result = await RealExecutor(db).ExecuteAsync(
                 RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
 
-            Assert.Single(result.Renamerd);
+            Assert.Single(result.Renamed);
             Assert.True(File.Exists(Path.Combine(dir.Root, "Film A.srt")), $"'{configured}' must match clip.srt");
             Assert.False(File.Exists(Path.Combine(dir.Root, "clip.srt")));
         }

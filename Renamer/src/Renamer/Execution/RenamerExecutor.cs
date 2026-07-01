@@ -49,12 +49,12 @@ public sealed class RenamerExecutor
     public sealed record ItemResult(int FileId, string OldPath, string NewPath, RenamerStatus Status, string? Reason);
 
     /// <summary>
-    /// The result of executing a plan: the items that renamerd/moved, the items skipped (gated /
+    /// The result of executing a plan: the items that renamed/moved, the items skipped (gated /
     /// collision / locked / no-op), the items that failed (save threw → disk rolled back), and the
     /// revert-log rows written for the successes.
     /// </summary>
     public sealed record RenamerRunResult(
-        IReadOnlyList<ItemResult> Renamerd,
+        IReadOnlyList<ItemResult> Renamed,
         IReadOnlyList<ItemResult> Skipped,
         IReadOnlyList<ItemResult> Failed,
         IReadOnlyList<RevertLog.RevertEntry> RevertLog);
@@ -80,7 +80,7 @@ public sealed class RenamerExecutor
         RenamerPlan plan, RenamerOptions options,
         IReadOnlyDictionary<string, int>? preResolvedFolderIds = null, CancellationToken ct = default)
     {
-        var renamerd = new List<ItemResult>();
+        var renamed = new List<ItemResult>();
         var skipped = new List<ItemResult>();
         var failed = new List<ItemResult>();
 
@@ -94,7 +94,7 @@ public sealed class RenamerExecutor
             ct.ThrowIfCancellationRequested();
             try
             {
-                await ExecuteItemAsync(plan, item, options, filesById, preResolvedFolderIds, renamerd, skipped, failed, ct);
+                await ExecuteItemAsync(plan, item, options, filesById, preResolvedFolderIds, renamed, skipped, failed, ct);
             }
             catch (Exception ex)
             {
@@ -105,14 +105,14 @@ public sealed class RenamerExecutor
             }
         }
 
-        return new RenamerRunResult(renamerd, skipped, failed, _revertLog.Rows);
+        return new RenamerRunResult(renamed, skipped, failed, _revertLog.Rows);
     }
 
     private async Task ExecuteItemAsync(
         RenamerPlan plan, RenamerPlanItem item, RenamerOptions options,
         IReadOnlyDictionary<int, RenamerFile> filesById,
         IReadOnlyDictionary<string, int>? preResolvedFolderIds,
-        List<ItemResult> renamerd, List<ItemResult> skipped, List<ItemResult> failed,
+        List<ItemResult> renamed, List<ItemResult> skipped, List<ItemResult> failed,
         CancellationToken ct)
     {
         // (1) Carry planner skips/no-ops straight into the skipped bucket (act only on Renamer/Move).
@@ -200,19 +200,19 @@ public sealed class RenamerExecutor
         string newStem = StemOf(candidate);
         var captions = srcFile?.Captions ?? [];
         var plannedSidecars = new List<DiskMover.SidecarMove>(captions.Count);
-        var captionRenamers = new List<(int CaptionId, string NewFilename)>(captions.Count);
+        var captionRenames = new List<(int CaptionId, string NewFilename)>(captions.Count);
         foreach (var cap in captions)
         {
             string newCaptionName = RetargetCaption(cap.Filename, oldStem: StemOf(srcFile!.Basename), newStem);
             plannedSidecars.Add(new DiskMover.SidecarMove(
                 JoinPath(oldDir, cap.Filename), JoinPath(targetFolder, newCaptionName)));
-            captionRenamers.Add((cap.CaptionId, newCaptionName));
+            captionRenames.Add((cap.CaptionId, newCaptionName));
         }
 
         // (4a) Extension-list sidecar discovery: a same-stem neighbor whose extension is configured
         //      moves with the primary, supplementing the captions above. Probe the PRECISE per-extension
         //      path (never a glob/EnumerateFiles) so only the exact stem + a listed extension is taken.
-        //      These go to plannedSidecars ONLY and NEVER to captionRenamers: unlike captions they are
+        //      These go to plannedSidecars ONLY and NEVER to captionRenames: unlike captions they are
         //      not DB-tracked, so there is no caption row to update — they are a disk-only move that
         //      rides the same skip-not-clobber + rollback-with-primary machinery the captions use.
         if (srcFile is not null && options.AssociatedExtensions.Count > 0)
@@ -326,14 +326,14 @@ public sealed class RenamerExecutor
         var movedCaptionNames = movedSidecars
             .Select(s => BasenameOf(NormalizeSlash(s.To)))
             .ToHashSet(StringComparer.Ordinal);
-        var appliedCaptionRenamers = captionRenamers
+        var appliedCaptionRenames = captionRenames
             .Where(cr => movedCaptionNames.Contains(cr.NewFilename))
             .ToList();
 
         // (6) DB SAVE second; on a save throw, ROLLBACK the disk.
         var mutation = new RenamerFileMutation(
             item.FileId, candidate, isMove ? targetFolderId : null,
-            appliedCaptionRenamers.Count > 0 ? appliedCaptionRenamers : null);
+            appliedCaptionRenames.Count > 0 ? appliedCaptionRenames : null);
 
         try
         {
@@ -369,7 +369,7 @@ public sealed class RenamerExecutor
                 (_, cleanupWarning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(DirOf(item.OldFullPath), options.AllowedRoots);
             }
 
-            renamerd.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, item.Status, cleanupWarning));
+            renamed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, item.Status, cleanupWarning));
         }
         catch (Exception ex)
         {

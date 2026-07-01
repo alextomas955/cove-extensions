@@ -236,9 +236,9 @@ public class CoveRenamerDataPort : IRenamerDataPort
                 file.ParentFolder = await _db.Set<Folder>().FirstOrDefaultAsync(f => f.Id == newFolderId, ct);
             }
 
-            if (m.CaptionRenamers is { Count: > 0 } && file is VideoFile vf)
+            if (m.CaptionRenames is { Count: > 0 } && file is VideoFile vf)
             {
-                foreach (var (captionId, newFilename) in m.CaptionRenamers)
+                foreach (var (captionId, newFilename) in m.CaptionRenames)
                 {
                     var cap = vf.Captions.FirstOrDefault(c => c.Id == captionId);
                     if (cap is not null)

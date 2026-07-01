@@ -51,7 +51,7 @@ public sealed class CollisionTests
             // The save threw on the unique index → item failed, caught (not propagated).
             var failedItem = Assert.Single(result.Failed);
             Assert.Equal(RenamerStatus.Failed, failedItem.Status);
-            Assert.Empty(result.Renamerd);
+            Assert.Empty(result.Renamed);
 
             // Disk rolled back: "a.mkv" restored, "b.mkv" not left on disk; no event published.
             Assert.True(File.Exists(oldA), "the disk file must be rolled back to its old path");

@@ -70,7 +70,7 @@ public sealed class RevertLog
 
     /// <summary>One logged renamer row.</summary>
     /// <param name="EntityId">The PARENT entity id (e.g. Video id) the forward event was published for. Differs from <see cref="FileId"/> in the normal case.</param>
-    /// <param name="FileId">The renamerd physical file row's id.</param>
+    /// <param name="FileId">The renamed physical file row's id.</param>
     /// <param name="OldPath">The path the file moved FROM (forward-slash).</param>
     /// <param name="NewPath">The path the file moved TO (forward-slash).</param>
     public readonly record struct RevertEntry(int EntityId, int FileId, string OldPath, string NewPath);

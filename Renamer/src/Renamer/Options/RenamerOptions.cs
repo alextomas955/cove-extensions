@@ -305,7 +305,7 @@ public sealed record RenamerOptions
 
     /// <summary>
     /// Gating: when <c>true</c>, an item whose <c>Organized</c> flag is false is skipped
-    /// (not renamerd), so un-curated items don't get junk names. Default <c>false</c> = renamer all.
+    /// (not renamed), so un-curated items don't get junk names. Default <c>false</c> = renamer all.
     /// <para>
     /// A configured <see cref="UnorganizedDestination"/> takes PRECEDENCE over this gate. When an
     /// unorganized destination is set, an unorganized item is NOT skipped — it routes to that

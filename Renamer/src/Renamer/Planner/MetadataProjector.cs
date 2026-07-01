@@ -38,7 +38,7 @@ public static class MetadataProjector
 
         // --- Entity-level scalar tokens (omit when empty so {} groups degrade). ---
         // The fallback derives the title from the CURRENT source basename without re-applying the
-        // template's own decorations, so re-projecting an already-renamerd item yields the same title —
+        // template's own decorations, so re-projecting an already-renamed item yields the same title —
         // no progressive re-append, no drift; a stable name then hits the executor's no-op-renamer skip.
         var title = string.IsNullOrEmpty(entity.Title) && options.FilenameAsTitle
             ? BasenameStem(file.Basename)

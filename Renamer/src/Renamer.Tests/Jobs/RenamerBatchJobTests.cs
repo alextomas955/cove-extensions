@@ -79,7 +79,7 @@ public sealed class RenamerBatchJobTests
 
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [v1, v2]), progress, default);
 
-            // Disk: both renamerd to "$title.mkv", old gone, content intact.
+            // Disk: both renamed to "$title.mkv", old gone, content intact.
             Assert.True(File.Exists(Path.Combine(dir.Root, "First Film.mkv")));
             Assert.True(File.Exists(Path.Combine(dir.Root, "Second Film.mkv")));
             Assert.False(File.Exists(Path.Combine(dir.Root, "raw one.mkv")));

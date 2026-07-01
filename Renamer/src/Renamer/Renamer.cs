@@ -295,7 +295,7 @@ public sealed partial class Renamer : FullExtensionBase
         // is already Interlocked; this only serializes the host-facing Report invocation itself.
         var progressGate = new object();
 
-        int totalRenamerd = 0, totalSkipped = 0, totalFailed = 0;
+        int totalRenamed = 0, totalSkipped = 0, totalFailed = 0;
         int done = 0;
         int totalUnits = Math.Max(acting.Count, 1);
 
@@ -331,7 +331,7 @@ public sealed partial class Renamer : FullExtensionBase
             LogBatchItem(runId, kind, unit.EntityId, result);
 
             // Thread-safe tally: a racing `+=` would lose increments under parallel workers.
-            Interlocked.Add(ref totalRenamerd, result.Renamerd.Count);
+            Interlocked.Add(ref totalRenamed, result.Renamed.Count);
             Interlocked.Add(ref totalSkipped, result.Skipped.Count);
             Interlocked.Add(ref totalFailed, result.Failed.Count);
 
@@ -368,7 +368,7 @@ public sealed partial class Renamer : FullExtensionBase
                 RunUnitAsync);
         }
 
-        LogBatchDone(runId, totalRenamerd, totalSkipped, totalFailed);
+        LogBatchDone(runId, totalRenamed, totalSkipped, totalFailed);
         progress.Report(1d, "Renamer complete.");
     }
 
@@ -460,15 +460,15 @@ public sealed partial class Renamer : FullExtensionBase
     }
 
     /// <summary>
-    /// Records one planned entity's per-file outcomes to the host log: a line per renamerd/moved file
+    /// Records one planned entity's per-file outcomes to the host log: a line per renamed/moved file
     /// (old → new), per skip (with its reason), and per failure. Paths are logged so a maintainer can
     /// audit exactly what moved and revert from the log if needed.
     /// </summary>
     private void LogBatchItem(string runId, RenamerFileKind kind, int entityId, RenamerExecutor.RenamerRunResult result)
     {
-        foreach (var r in result.Renamerd)
+        foreach (var r in result.Renamed)
         {
-            LogItemRenamerd(runId, kind, entityId, r.Status, r.OldPath, r.NewPath);
+            LogItemRenamed(runId, kind, entityId, r.Status, r.OldPath, r.NewPath);
         }
 
         foreach (var s in result.Skipped)

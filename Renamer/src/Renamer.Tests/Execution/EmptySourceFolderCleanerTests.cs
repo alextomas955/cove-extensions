@@ -165,7 +165,7 @@ public sealed class EmptySourceFolderCleanerTests
 
             var result = await executor.ExecuteAsync(plan, options, default);
 
-            var moved = Assert.Single(result.Renamerd);
+            var moved = Assert.Single(result.Renamed);
             Assert.Equal(RenamerStatus.Move, moved.Status);
             Assert.Null(moved.Reason); // no cleanup warning
             Assert.Empty(result.Failed);
@@ -215,7 +215,7 @@ public sealed class EmptySourceFolderCleanerTests
             var result = await executor.ExecuteAsync(plan, options, default);
 
             // The move still reports moved — a cleanup refusal never flips it to failed.
-            var moved = Assert.Single(result.Renamerd);
+            var moved = Assert.Single(result.Renamed);
             Assert.Equal(RenamerStatus.Move, moved.Status);
             Assert.Empty(result.Failed);
             Assert.NotNull(moved.Reason); // the cleanup warning is surfaced on the moved result
@@ -257,7 +257,7 @@ public sealed class EmptySourceFolderCleanerTests
 
             var result = await executor.ExecuteAsync(plan, options, default);
 
-            Assert.Single(result.Renamerd);
+            Assert.Single(result.Renamed);
             Assert.True(File.Exists(Path.Combine(dir.Root, "dst", "My Film.mkv")));
             Assert.True(Directory.Exists(Path.Combine(dir.Root, "src")),
                 "with the option off, the emptied source dir must be left as-is (byte-identical to today)");
@@ -280,9 +280,9 @@ public sealed class EmptySourceFolderCleanerTests
         {
             // A pure in-place renamer inside one folder: the parent dir does not change, so the trigger
             // predicate must skip the cleaner outright. We prove the predicate skipped — not merely
-            // that the cleaner no-op'd — by leaving the folder with the renamerd file still in it AND
+            // that the cleaner no-op'd — by leaving the folder with the renamed file still in it AND
             // setting RemoveEmptyFolder on: had the cleaner run, it would have found a file and no-op'd
-            // too, so the distinguishing observation is that the folder (still holding the renamerd file)
+            // too, so the distinguishing observation is that the folder (still holding the renamed file)
             // is intact and the move stayed in-place.
             string folder = dir.Root.Replace('\\', '/');
             var (folderId, videoId, fileId) =
@@ -306,9 +306,9 @@ public sealed class EmptySourceFolderCleanerTests
 
             var result = await executor.ExecuteAsync(plan, options, default);
 
-            Assert.Single(result.Renamerd);
+            Assert.Single(result.Renamed);
             Assert.True(Directory.Exists(dir.Root), "the source folder must survive a same-folder renamer");
-            Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.mkv")), "the renamerd file stays in the folder");
+            Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.mkv")), "the renamed file stays in the folder");
         }
         finally
         {
@@ -348,7 +348,7 @@ public sealed class EmptySourceFolderCleanerTests
             ]);
             var fwd = await new RenamerExecutor(port, new CapturingEventBus(), revertLog, new DiskMover())
                 .ExecuteAsync(plan, options, default);
-            Assert.Single(fwd.Renamerd);
+            Assert.Single(fwd.Renamed);
             Assert.False(Directory.Exists(Path.Combine(dir.Root, "src")), "the move + cleanup deleted the source dir");
 
             // Undo the batch: the original directory is gone, so the restore SKIPS — it is NOT recreated.

@@ -63,7 +63,7 @@ public sealed class UndoReplayer
     /// <summary>One failed/skipped reverse-replay entry surfaced in the run result's buckets.</summary>
     /// <param name="FileId">The file row.</param>
     /// <param name="OldPath">The path the reverse move targeted (the original location).</param>
-    /// <param name="NewPath">The path the file currently sits at (its renamerd location).</param>
+    /// <param name="NewPath">The path the file currently sits at (its renamed location).</param>
     /// <param name="Reason">A human-readable note for the skip/failure.</param>
     public sealed record UndoFailure(int FileId, string OldPath, string NewPath, string Reason);
 
@@ -229,7 +229,7 @@ public sealed class UndoReplayer
                 // report failed (no half-state). The file currently sits at OLD (the reverse move
                 // target); both movers' Rollback/RollbackAsync(oldFull, newFull) internally move
                 // newFull→oldFull, so passing (nativeNew, nativeOld) moves it OLD→NEW — back to the
-                // renamerd location — on the SAME volume tier the reverse move used. Surface the rollback
+                // renamed location — on the SAME volume tier the reverse move used. Surface the rollback
                 // warnings so an INCOMPLETE rollback (the NEW slot got re-occupied, a cross copy-back
                 // failed verify, a target is locked) is visible rather than falsely claiming "rolled
                 // back" — mirroring the forward executor's rollback reporting.
@@ -253,7 +253,7 @@ public sealed class UndoReplayer
             // Save failed AFTER a successful reverse move → roll the disk back to NEW through the
             // MATCHING mover so disk + DB stay consistent, and report failed (no half-state). The
             // file sits at OLD; both movers' Rollback/RollbackAsync(oldFull, newFull) internally move
-            // newFull→oldFull, so passing (nativeNew, nativeOld) moves it OLD→NEW — back to the renamerd
+            // newFull→oldFull, so passing (nativeNew, nativeOld) moves it OLD→NEW — back to the renamed
             // location — on the SAME volume tier the reverse move used (a verified cross copy-back when
             // the reverse crossed volumes). Surface the rollback warnings so an INCOMPLETE rollback is
             // visible rather than falsely claiming a rollback that did not happen.

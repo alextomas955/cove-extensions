@@ -23,7 +23,7 @@ public sealed partial class Renamer
     [LoggerMessage(
         EventId = 1001, Level = LogLevel.Information,
         Message = "[Renamer] batch {RunId}: {Kind} id={EntityId} {Status} '{Old}' -> '{New}'")]
-    private partial void LogItemRenamerd(
+    private partial void LogItemRenamed(
         string runId, RenamerFileKind kind, int entityId, RenamerStatus status, string old, string @new);
 
     [LoggerMessage(
@@ -40,8 +40,8 @@ public sealed partial class Renamer
 
     [LoggerMessage(
         EventId = 1004, Level = LogLevel.Information,
-        Message = "[Renamer] batch {RunId} done: {Renamerd} renamerd, {Skipped} skipped, {Failed} failed")]
-    private partial void LogBatchDone(string runId, int renamerd, int skipped, int failed);
+        Message = "[Renamer] batch {RunId} done: {Renamed} renamed, {Skipped} skipped, {Failed} failed")]
+    private partial void LogBatchDone(string runId, int renamed, int skipped, int failed);
 
     [LoggerMessage(
         EventId = 1010, Level = LogLevel.Information,
@@ -67,7 +67,7 @@ public sealed partial class Renamer
     [LoggerMessage(
         EventId = 1020, Level = LogLevel.Information,
         Message = "[Renamer] auto-renamer: {Kind} id={EntityId} {Status} '{Old}' -> '{New}'")]
-    private partial void LogAutoRenamerd(
+    private partial void LogAutoRenamed(
         RenamerFileKind kind, int entityId, RenamerStatus status, string old, string @new);
 
     [LoggerMessage(
