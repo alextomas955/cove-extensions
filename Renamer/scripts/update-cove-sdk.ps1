@@ -14,8 +14,8 @@
     This script refreshes that tarball from a local Cove checkout when the SDK changes:
 
       1. Resolve the Cove repo root from -CoveRepo, else $env:COVE_REPO, else ../cove relative
-         to the monorepo root (the standard cove-dev layout: i:\cove-dev\extensions\ and
-         i:\cove-dev\cove\ are siblings). The SDK package lives at <cove>/sdk/frontend.
+         to the monorepo root (the Cove checkout is expected as a sibling directory of this
+         extensions/ monorepo). The SDK package lives at <cove>/sdk/frontend.
       2. Optionally build the SDK (`npm run build`, tsc) so dist/ is current before packing.
       3. `npm pack` the SDK into src/Renamer.Ui/vendor/ (the SDK's `files: ["dist"]` field keeps the
          tarball to dist/ + package.json only).
@@ -37,10 +37,9 @@
     Build the SDK (npm run build in the SDK dir) before packing, so dist/ is fresh.
 
 .NOTES
-    Ported from the retired single-repo extensions/rename/scripts/update-cove-sdk.ps1 during the
-    multi-extension monorepo migration (v1.3) — the sibling-Cove default path is now ../cove
-    relative to the MONOREPO root (extensions/), not ../../cove relative to this extension's own
-    folder, since extensions/Renamer/ is one level deeper than the old standalone rename/ repo was.
+    The sibling-Cove default path is ../cove relative to the MONOREPO root (extensions/), not
+    relative to this extension's own folder — extensions/Renamer/ is one level deeper than the
+    monorepo root.
 #>
 [CmdletBinding()]
 param(

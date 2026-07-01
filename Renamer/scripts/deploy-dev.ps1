@@ -41,10 +41,8 @@
 
 .NOTES
     Location-independent: all paths resolve relative to $PSScriptRoot, so this is CI/GitHub-publishable.
-    Ported from the retired single-repo extensions/rename/scripts/deploy-dev.ps1 during the
-    multi-extension monorepo migration (v1.3) — property names updated from the old
-    UseLocalCovePlugins/CovePluginsVersion pair to the monorepo root's UseLocalCoveSource/
-    CoveSdkVersion pair (see extensions/Directory.Build.props).
+    Property names (UseLocalCoveSource/CoveSdkVersion) must match the monorepo root's
+    Directory.Build.props, since that is what selects the local-source build path.
 #>
 
 [CmdletBinding()]
@@ -250,9 +248,8 @@ try {
 
 if ($null -eq $conn) {
     Write-Host "    No process is listening on port $CovePort." -ForegroundColor Yellow
-    Write-Host "    The Cove dev backend does not appear to be running. Start it (e.g. via" -ForegroundColor Yellow
-    Write-Host "    i:\cove-dev\start-dev.ps1); on next startup it will discover the freshly" -ForegroundColor Yellow
-    Write-Host "    deployed extension." -ForegroundColor Yellow
+    Write-Host "    The Cove dev backend does not appear to be running. Start your Cove dev host;" -ForegroundColor Yellow
+    Write-Host "    on next startup it will discover the freshly deployed extension." -ForegroundColor Yellow
     exit 0
 }
 
@@ -264,9 +261,8 @@ if ($null -ne $proc) {
 }
 Write-Host "    Automated graceful restart of the Cove host is environment-specific and is intentionally" -ForegroundColor Yellow
 Write-Host "    NOT forced here (we never kill a process we cannot cleanly identify as the Cove dev backend)." -ForegroundColor Yellow
-Write-Host "    ACTION REQUIRED: restart the Cove backend on port $CovePort (e.g. pwsh -File" -ForegroundColor Yellow
-Write-Host "    i:\cove-dev\stop-dev.ps1 then i:\cove-dev\start-dev.ps1), then confirm the" -ForegroundColor Yellow
-Write-Host "    extension loaded:" -ForegroundColor Yellow
+Write-Host "    ACTION REQUIRED: restart your Cove dev host (the process on port $CovePort)," -ForegroundColor Yellow
+Write-Host "    then confirm the extension loaded:" -ForegroundColor Yellow
 Write-Host "      curl -s http://localhost:$CovePort/api/extensions | findstr $ExtensionId" -ForegroundColor Yellow
 Write-Host "      (expect enabled:true; check %LOCALAPPDATA%\cove\logs\cove-YYYYMMDD.log for '... initialized')" -ForegroundColor Yellow
 
