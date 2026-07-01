@@ -16,6 +16,11 @@ public sealed partial class Renamer : FullExtensionBase
 {
     public override string Id => "com.alextomas955.renamer";
     public override string Name => "Renamer";
+
+    // Repo-committed dev placeholders, not release-stamped: the published artifact's real version
+    // comes from the release tag (build.yml's -p:Version= and the packaged extension.json/
+    // package.json stamps). scripts/check-version-parity.mjs reconciles these against
+    // extension.json, package.json, and the catalog registry manifest so they can't drift.
     public override string Version => "0.1.0";
     public override string? Description => "Bulk-renames Cove library items using configurable patterns.";
     public override string? Author => "alextomas955";
