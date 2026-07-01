@@ -35,7 +35,7 @@ Primary risks:
 
 ## Verification performed
 
-Commands run from `I:\cove-dev\extensions\rename`:
+Commands run from the extension repo root (`<cove-dev>/extensions/rename`):
 
 ```powershell
 dotnet restore Rename.slnx -p:UseLocalCovePlugins=false
@@ -103,16 +103,16 @@ Repository files inspected:
 - `src/Rename.Ui/vite.config.ts`
 - `src/Rename.Ui/src/*`
 
-Local Cove source inspected:
+Local Cove source inspected (sibling Cove checkout, `<cove>/src/...`):
 
-- `I:\cove-dev\cove\src\Cove.Sdk\CoveExtensionBase.cs`
-- `I:\cove-dev\cove\src\Cove.Sdk\FullExtensionBase.cs`
-- `I:\cove-dev\cove\src\Cove.Sdk\buildTransitive\Cove.Sdk.targets`
-- `I:\cove-dev\cove\src\Cove.Plugins\IExtension.cs`
-- `I:\cove-dev\cove\src\Cove.Plugins\ExtensionManager.cs`
-- `I:\cove-dev\cove\src\Cove.Core\Auth\Permissions.cs`
-- `I:\cove-dev\cove\src\Cove.Api\Services\JobService.cs`
-- `I:\cove-dev\cove\src\Cove.Api\Program.cs`
+- `<cove>/src/Cove.Sdk/CoveExtensionBase.cs`
+- `<cove>/src/Cove.Sdk/FullExtensionBase.cs`
+- `<cove>/src/Cove.Sdk/buildTransitive/Cove.Sdk.targets`
+- `<cove>/src/Cove.Plugins/IExtension.cs`
+- `<cove>/src/Cove.Plugins/ExtensionManager.cs`
+- `<cove>/src/Cove.Core/Auth/Permissions.cs`
+- `<cove>/src/Cove.Api/Services/JobService.cs`
+- `<cove>/src/Cove.Api/Program.cs`
 
 External Cove sources consulted:
 
@@ -145,7 +145,7 @@ External Cove sources consulted:
 | F-04 | Medium-High | Confirmed | Destructive rename jobs are non-exclusive and same-volume work is effectively unbounded. | Concurrent destructive jobs can plan against stale snapshots or target the same paths. Same-volume fan-out can create disk, DB, and event-bus pressure. | `Rename.Api.cs` enqueues with `exclusive: false`; Cove `JobService.Enqueue` defaults to exclusive jobs; `Rename.cs` uses parallel execution for same-volume units. |
 | F-05 | Medium | Confirmed | Version/source-of-truth drift exists. | Manifest, runtime metadata, package metadata, changelog labels, README compatibility, and public NuGet versions do not tell one coherent release story. | `extension.json`, `Rename.cs`, and `package.json` say `0.1.0`; `CHANGELOG.md` uses `v1.0` through `v1.3` as milestones; `Directory.Build.props` pins Cove SDK packages to `0.6.2` while public latest is `0.7.1`. |
 | F-06 | Medium | Confirmed | Branch naming is inconsistent. | Contributors are told to branch from and open PRs against `main`, and CI only runs pull requests to `main`, but the local branch is `master`. If the hosted default branch is also `master`, PR CI will not run as expected. | `CONTRIBUTING.md`, `.github/workflows/build.yml`, and `git branch --show-current`. |
-| F-07 | Medium | Confirmed | Contributor setup is not fully portable across Docker, macOS, and Windows. | Backend NuGet builds are portable, but frontend and deploy paths assume a sibling Cove checkout or Windows-specific Cove installation layout. | `Directory.Build.props` auto-detects `..\..\cove`; `package.json` uses `file:../../../../cove/sdk/frontend`; `scripts/deploy-dev.ps1` uses Windows concepts and includes `I:/cove-dev/...` references. |
+| F-07 | Medium | Confirmed | Contributor setup is not fully portable across Docker, macOS, and Windows. | Backend NuGet builds are portable, but frontend and deploy paths assume a sibling Cove checkout or Windows-specific Cove installation layout. | `Directory.Build.props` auto-detects `..\..\cove`; `package.json` uses `file:../../../../cove/sdk/frontend`; `scripts/deploy-dev.ps1` uses Windows concepts and includes the author's local absolute-path references. |
 | F-08 | Medium | Confirmed | Open-source operations hardening is incomplete. | The repo has a license, contributing guide, issue templates, and PR template, but lacks common security and dependency-maintenance files. Workflow permissions are broader than needed for PR jobs. | No `SECURITY.md`, `CODE_OF_CONDUCT.md`, Dependabot config, or CodeQL config was present; `.github/workflows/build.yml` sets global `contents: write`. |
 | F-09 | Medium | Confirmed | Preview can do heavy synchronous request work. | The preview endpoint accepts up to 1000 IDs and loops over planner work in the request handler. This can create latency and load even after the mutation bug is fixed. | `Rename.Api.cs` defines `MaxEntityIdsPerRequest = 1000` and loops through IDs in `PreviewAsync`. |
 | F-10 | Low-Medium | Confirmed | Public-facing docs/scripts contain stale AI/process/local-machine residue. | Contributor-facing files should explain durable project facts, not private assistant workflow or local paths. Some residue is stale and contradicts the current UI setup. | Root `CLAUDE.md` says the template ships no frontend SDK usage; `.github/workflows/build.yml` includes planning references; `scripts/deploy-dev.ps1` includes local path references and milestone IDs. |
@@ -449,7 +449,7 @@ Scope:
 
 Acceptance criteria:
 
-- Clean clone build/test instructions work without `I:/cove-dev`.
+- Clean clone build/test instructions work without the author's local absolute path layout.
 - Optional local Cove source path is configured through `COVE_REPO` or equivalent.
 - Local Cove install path is configured through `COVE_HOME` or an explicit deploy argument.
 

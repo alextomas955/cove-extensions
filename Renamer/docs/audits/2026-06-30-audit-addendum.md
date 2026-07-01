@@ -369,7 +369,7 @@ reproducibility. A fresh clone on a machine with no sibling Cove, a GitHub Actio
 Docker or devcontainer environment, a non-Windows OS, and a clean Cove install from the exact release
 ZIP were not exercised on this host. One observation makes the caveat concrete: even with
 `-p:UseLocalCovePlugins=false`, the Release build of the solution still compiled `Cove.Core`,
-`Cove.Plugins`, and `Cove.Data` **from the sibling local source** under `I:\cove-dev\cove\src\…`. The
+`Cove.Plugins`, and `Cove.Data` **from the sibling local source** under `<cove>/src/…`. The
 *extension* assembly (`Rename.dll`) restored its `Cove.Plugins`/`Cove.Sdk` references from NuGet as
 intended, but the **test project** (`src/Rename.Tests`) carries its own `Exists(...)`-guarded Cove
 `ProjectReference`s for the integration tier that resolve whenever the sibling Cove is present,
@@ -431,7 +431,7 @@ on one Windows box.
 
 | Scenario | What would prove it | Status |
 | --- | --- | --- |
-| Fresh Windows clone with no sibling Cove | Clone to a temp directory outside `i:\cove-dev` so the `..\..\cove` auto-detect misses, then run `dotnet restore`/`build`/`test -p:UseLocalCovePlugins=false` and the `src/Rename.Ui` `npm ci`/`verify`/`build`. Confirms the test project compiles its unit tier with no Cove present, the clean-clone case the CI gate covers on Linux but not on Windows. | Pending a clean Windows environment |
+| Fresh Windows clone with no sibling Cove | Clone to a temp directory outside the author's dev-environment root so the `..\..\cove` auto-detect misses, then run `dotnet restore`/`build`/`test -p:UseLocalCovePlugins=false` and the `src/Rename.Ui` `npm ci`/`verify`/`build`. Confirms the test project compiles its unit tier with no Cove present, the clean-clone case the CI gate covers on Linux but not on Windows. | Pending a clean Windows environment |
 | Fresh Linux clone | The `ubuntu-latest` `build` and `frontend` CI jobs already do this on every PR; reproduce locally with `.devcontainer/verify.sh` on a clean Linux checkout. | Proven by CI (cross-links resolved baseline F-03, F-07) |
 | Fresh macOS clone | Run `.devcontainer/verify.sh` (or the backend NuGet-path commands plus the frontend pipeline) on a clean macOS checkout with no sibling Cove. | Investigate further (no macOS host available) |
 | GitHub Actions clean runner | Already exercised: the bare-runner `build`, `frontend`, `csharp-format`, and `version-parity` jobs in `.github/workflows/build.yml`. | Proven by CI |
@@ -1449,7 +1449,7 @@ visible at a glance.
   `lockfileVersion 3` lockfile, and the Cove SDK by `CovePluginsVersion` in `Directory.Build.props`.
 - [x] Cove source and Cove installation paths are configurable. — shipped in v1.7 (the resolution of
   F-07; the build source is selected by `UseLocalCovePlugins` / `COVE_REPO` / the sibling auto-detect,
-  and the deploy target is `COVE_HOME`-resolved — no `I:\cove-dev` layout is assumed).
+  and the deploy target is `COVE_HOME`-resolved — no author-local absolute-path layout is assumed).
 - [x] Docker/devcontainer path exists and runs the standard verification commands. — shipped in v1.7
   (the `.devcontainer` on `mcr.microsoft.com/devcontainers/dotnet:1-10.0` plus the Node 24 feature runs
   `.devcontainer/verify.sh` on create); a clean container run is still pending exercise (the
@@ -1733,7 +1733,7 @@ Acceptance criteria:
 Validation commands:
 
 - `dotnet restore`/`build`/`test -p:UseLocalCovePlugins=false` and `npm ci`/`verify`/`build` on a fresh
-  clone outside `i:\cove-dev`
+  clone outside the author's dev-environment root
 - `bash .devcontainer/verify.sh` in a clean container
 - the new `CollisionTests`/comparison cases for F-16/F-17/F-18 once an environment exists
 

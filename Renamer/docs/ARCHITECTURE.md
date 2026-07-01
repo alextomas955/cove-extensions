@@ -5,9 +5,9 @@ Cove's database updated." It's meant for a contributor reading the code for the 
 
 Rename is a Cove extension in two halves:
 
-- **Backend** — a .NET 10 C# class library (`src/Rename/`, built to `Rename.dll`) that implements
+- **Backend** — a .NET 10 C# class library (`src/Renamer/`, built to `Renamer.dll`) that implements
   Cove's `IExtension` contract (deriving `FullExtensionBase` from `Cove.Plugins` / `Cove.Sdk`).
-- **Frontend** — a React 19 + TypeScript bundle (`src/Rename.Ui/`, built to `dist/index.mjs`) that
+- **Frontend** — a React 19 + TypeScript bundle (`src/Renamer.Ui/`, built to `dist/index.mjs`) that
   renders the settings panel, live preview, and bulk-action handler inside Cove's own UI.
 
 ## The pipeline at a glance
@@ -31,16 +31,16 @@ chain through Execution. **Undo** replays the Execution layer's revert log in re
 
 ## Layer by layer
 
-### Options — `src/Rename/Options/`
+### Options — `src/Renamer/Options/`
 
 The user's saved configuration: the filename and folder templates, multi-value rules, character and
 length safety settings, case transforms, required-field gating, and the auto-rename toggle.
 
-- `RenameOptions.cs` — the options model and its JSON (de)serialization settings.
+- `RenamerOptions.cs` — the options model and its JSON (de)serialization settings.
 - `OptionsStore.cs` — loads and saves options through Cove's per-extension data store, so the
   configuration persists in Cove and survives extension upgrades.
 
-### Engine — `src/Rename/Engine/`
+### Engine — `src/Renamer/Engine/`
 
 A pure, side-effect-free renderer: given an item's tokens and the options, it produces the new
 filename (and folder). Pure means it can be unit-tested exhaustively and a hostile template can't
@@ -57,38 +57,38 @@ escape or touch disk. The render is a small pipeline:
 - `LengthReducer.cs` — enforces the max-length cap by dropping fields in priority order, with
   explicit Windows MAX_PATH handling.
 
-### Planner — `src/Rename/Planner/`
+### Planner — `src/Renamer/Planner/`
 
 Turns a rendered name into a concrete per-file plan against a real library item, performing **zero**
 disk or database mutation.
 
-- `RenamePlanner.cs` — loads the item (read-only), renders each file's new name, applies the
+- `RenamerPlanner.cs` — loads the item (read-only), renders each file's new name, applies the
   path-confinement gate, and classifies every file into a plan item with a status (rename, no-op,
   skip-collision, skip-gated, …). It owns collision suffixing, gating, and multi-file handling on the
   plan side.
-- `RenamePlan.cs` / the plan-item types — the dry-run result the API returns as the old→new diff.
-- `IRenameDataPort.cs` — the abstraction over Cove's entities, so the planner doesn't depend on the
+- `RenamerPlan.cs` / the plan-item types — the dry-run result the API returns as the old→new diff.
+- `IRenamerDataPort.cs` — the abstraction over Cove's entities, so the planner doesn't depend on the
   concrete DbContext or entity types directly (which keeps it testable).
 - `MetadataProjector.cs` — projects a Cove media item into the token set the engine consumes.
 
-### Execution — `src/Rename/Execution/`
+### Execution — `src/Renamer/Execution/`
 
 The only layer that mutates anything. It moves the file and updates Cove's database **together**, so
 the two never drift.
 
-- `RenameExecutor.cs` — runs a plan: for each file, move on disk, update the Cove record, and record
+- `RenamerExecutor.cs` — runs a plan: for each file, move on disk, update the Cove record, and record
   the change in the revert log. Move-first-then-DB with rollback so a failure leaves the file and the
   database consistent.
 - `DiskMover.cs` — the actual filesystem move, including sidecar files (captions/subtitles sharing
   the stem) and collision-safe behavior.
-- `CoveRenameDataPort.cs` — the concrete `IRenameDataPort` backed by Cove's DbContext.
+- `CoveRenamerDataPort.cs` — the concrete `IRenamerDataPort` backed by Cove's DbContext.
 - `RevertLog.cs` — the append-only batch log that makes undo possible.
 - `UndoReplayer.cs` — reverse-replays the most recent batch from the revert log.
 
-### Api — `src/Rename/Rename.Api.cs` (+ `src/Rename/Api/`)
+### Api — `src/Renamer/Renamer.Api.cs` (+ `src/Renamer/Api/`)
 
 Minimal-API endpoints the frontend calls, mounted under
-`/api/extensions/com.alextomas955.rename`:
+`/api/extensions/com.alextomas955.renamer`:
 
 - `POST /preview` — runs the planner over selected item IDs and returns the old→new plan (no
   mutation).
@@ -103,11 +103,11 @@ Every endpoint re-checks the caller's permission **in the handler** (`videos.rea
 routes, so the check is explicit and runs before any work.
 
 The bulk-action registration, the job definition, and the optional auto-rename event hook live
-alongside in `src/Rename/Rename.cs` (shared batch core) and `src/Rename/Rename.Events.cs`
+alongside in `src/Renamer/Renamer.cs` (shared batch core) and `src/Renamer/Renamer.Events.cs`
 (`video.updated` / `image.updated` auto-rename, opt-in and re-entrancy-guarded), with the
-background job runner in `src/Rename/Jobs/`.
+background job runner in `src/Renamer/Jobs/`.
 
-### Frontend — `src/Rename.Ui/src/`
+### Frontend — `src/Renamer.Ui/src/`
 
 A Vite library build that Cove loads as `index.mjs`. Its home is a dedicated **Settings → Extensions
 → Rename** tab; it also registers the "Rename selected" bulk action on video and image lists.
@@ -149,6 +149,6 @@ These are the guarantees the design exists to protect. Preserve them when you ch
 
 ## Where to start reading
 
-- To understand a rename end to end: `RenamePlanner.cs` then `RenameExecutor.cs`.
-- To understand the preview: `TemplateEngine.cs` and `Rename.Api.cs`'s `PreviewSampleAsync`.
+- To understand a rename end to end: `RenamerPlanner.cs` then `RenamerExecutor.cs`.
+- To understand the preview: `TemplateEngine.cs` and `Renamer.Api.cs`'s `PreviewSampleAsync`.
 - To understand the UI: `RenameSettingsPanel.tsx` and `renameSelected.ts`.
