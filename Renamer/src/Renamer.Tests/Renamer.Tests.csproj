@@ -62,9 +62,10 @@
     <ProjectReference Include="..\Renamer\Renamer.csproj" />
     <!--
       TEST-ONLY: CoveContext lives in Cove.Data; entities in Cove.Core. Mirrors Cove.Tests.
-      These are SOURCE-ONLY (NOT on nuget.org), so the Exists(...) guard mirrors Renamer.csproj's
-      UseLocalCovePlugins pattern: when the cove monorepo is checked out beside this repo the refs
-      resolve and the FULL 194-suite (incl. the integration tier) compiles + runs locally. On a bare
+      These are SOURCE-ONLY (NOT on nuget.org) and sit outside the Cove.Sdk/Cove.Plugins/Cove.Core
+      chain the root Directory.Build.targets wires up, so they stay as explicit, project-local
+      Exists(...)-guarded references here: when the cove monorepo is checked out beside this repo
+      the refs resolve and the FULL 194-suite (incl. the integration tier) compiles + runs locally. On a bare
       CI runner with NO cove checkout the refs drop out and the cove-referencing sources below are
       Compile-Removed, so the project still compiles to the pure-core UNIT tier (the EF Sqlite/InMemory
       PackageReferences above are on NuGet and stay unconditional).
@@ -85,7 +86,7 @@
     compile, with no cove checkout.
   -->
   <ItemGroup Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')">
-    <PackageReference Include="Cove.Plugins" Version="$(CovePluginsVersion)" />
+    <PackageReference Include="Cove.Plugins" Version="$(CoveSdkVersion)" />
   </ItemGroup>
 
   <!--
