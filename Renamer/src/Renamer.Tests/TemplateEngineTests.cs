@@ -260,7 +260,7 @@ public class TemplateEngineTests
     [Fact]
     public void Squeeze_TwoStudioVariants_RenderToOneStableFolder()
     {
-        // P7 regression through the full engine: both spacing variants render one folder key.
+        // Regression through the full engine: both spacing variants render one folder key.
         var o = new RenamerOptions
         {
             FilenameTemplate = "$title",
@@ -337,7 +337,7 @@ public class TemplateEngineTests
     public void PreventTitlePerformer_DropsNameInTitle_FreesOverflowSlot()
     {
         // Eve is named in the title -> dropped from the RAW performers list BEFORE the MaxCount cap,
-        // so the cap (2, KeepFirst) now admits Carol: a dropped name freed an overflow slot (D-02/5, D-03).
+        // so the cap (2, KeepFirst) now admits Carol: a dropped name freed an overflow slot.
         var tokens = new Dictionary<string, string> { ["title"] = "Eve Goes Home" };
         var multi = new Dictionary<string, IReadOnlyList<string>>
         {
@@ -431,7 +431,7 @@ public class TemplateEngineTests
 
         var r = TemplateEngine.Render(tokens, NoMulti, o);
 
-        Assert.Equal("Foo Foo", r.Filename); // filename untouched (D-07)
+        Assert.Equal("Foo Foo", r.Filename); // filename untouched
     }
 
     // ---- Performer ordering through Render (records carried alongside the name side-input) ----

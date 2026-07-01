@@ -10,7 +10,7 @@ public class FieldRewriterTests
     [Fact]
     public void Squeeze_TwoSpacingVariants_ProduceOneIdenticalStudioKey()
     {
-        // Canonical P7 regression: two spacing variants of one studio must collapse to ONE key.
+        // Canonical regression: two spacing variants of one studio must collapse to ONE key.
         var o = new RenamerOptions { SqueezeStudioNames = true };
         Assert.Equal("RealityKings", FieldRewriter.RewriteScalar(Tokens.Studio, "Reality Kings", o));
         Assert.Equal("RealityKings", FieldRewriter.RewriteScalar(Tokens.Studio, "RealityKings", o));
@@ -200,7 +200,7 @@ public class FieldRewriterTests
     public void DropPerformers_KeepsName_WhenOnlyASubstring()
     {
         var o = new RenamerOptions { PreventTitlePerformer = true };
-        // "Eve" is NOT a whole word in "Evelyn" (D-08), so it is kept.
+        // "Eve" is NOT a whole word in "Evelyn", so it is kept.
         var result = FieldRewriter.DropPerformersInTitle(["Eve", "Bob"], "Evelyn Goes Home", o);
         Assert.Equal(["Eve", "Bob"], result);
     }
@@ -277,7 +277,7 @@ public class FieldRewriterTests
     public void CollapseConsecutive_CaseInsensitive_KeepsFirst()
     {
         var o = new RenamerOptions { PreventConsecutiveSegments = true };
-        // "foo" then "Foo" -> the first occurrence is kept (D-07).
+        // "foo" then "Foo" -> the first occurrence is kept.
         Assert.Equal(["foo"], FieldRewriter.CollapseConsecutive(["foo", "Foo"], o));
     }
 

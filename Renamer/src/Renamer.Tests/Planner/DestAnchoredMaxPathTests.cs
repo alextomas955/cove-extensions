@@ -5,7 +5,7 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Planner;
 
 /// <summary>
-/// Proves ROUTE-08 / D-06: the FullPathMax re-check re-anchors on the ROUTED destination root, not the
+/// The FullPathMax re-check re-anchors on the ROUTED destination root, not the
 /// source folder. The load-bearing assertion is the contrast — the SAME rendered name FITS under a
 /// short source folder but OVERFLOWS under a deep routed root, so the over-long case becomes a
 /// skip-with-reason at PREVIEW (not a move-time crash). Driven through <c>RenamerPlanner.PlanAsync</c>

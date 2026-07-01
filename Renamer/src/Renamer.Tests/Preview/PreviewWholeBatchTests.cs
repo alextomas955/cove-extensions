@@ -9,7 +9,7 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Preview;
 
 /// <summary>
-/// ROUTE-07 whole-batch wire shape: <c>/preview</c> now answers an object
+/// Whole-batch wire shape: <c>/preview</c> now answers an object
 /// <c>{ items, summary }</c> (was a bare array). This pins the load-bearing serialization contract:
 /// each per-item object stays camelCase with <c>status</c> the STRING (so the UI's
 /// <c>status === "Renamer"</c> match survives) AND carries its routing fields; the additive summary
@@ -111,7 +111,7 @@ public sealed class PreviewWholeBatchTests
     [Fact]
     public async Task PreviewAsync_ExcludedItem_AppearsAsSkipExcluded_WithReason_NotSilentlyDropped()
     {
-        // EXCL-03 / D-04: an item matched by a source-path exclude is a VISIBLE SkipExcluded
+        // EXCL-03: an item matched by a source-path exclude is a VISIBLE SkipExcluded
         // skip-with-reason in the whole-batch preview item list — NOT silently dropped. It is a
         // non-acting skip (BatchPreview.Summarize counts only Renamer|Move), so the summary shows
         // zero acting items while the item itself still appears with its exclude reason.

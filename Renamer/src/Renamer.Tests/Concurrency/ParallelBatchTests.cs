@@ -186,7 +186,7 @@ public sealed class ParallelBatchTests
 
             // CrossVolumeConcurrency = 1 would throttle a cross-volume group, but same-volume runs under
             // the unthrottled group regardless; the TINY probe (1 byte free everywhere) must NOT refuse
-            // the batch because same-volume moves are excluded from the free-space sum (P8).
+            // the batch because same-volume moves are excluded from the free-space sum.
             var (ext, _, _) = await BuildAsync(shared,
                 new RenamerOptions { FilenameTemplate = "$title", CrossVolumeConcurrency = 1 });
             var progress = new FakeJobProgress();

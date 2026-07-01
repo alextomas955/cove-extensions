@@ -53,7 +53,7 @@ public sealed class FreeSpaceGuardTests
     [Fact]
     public void SameVolumeOnlyBatch_ReturnsEmptyShortfall_EvenWithTinyAvailable()
     {
-        // P8 regression: same-volume moves consume ~no extra space and must NEVER be summed.
+        // Regression: same-volume moves consume ~no extra space and must NEVER be summed.
         var moves = new[]
         {
             (OnVol("C", "a.mkv"), OnVol("C", "renamed.mkv"), 5L << 30),

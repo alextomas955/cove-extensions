@@ -107,7 +107,7 @@ public sealed class GatingTests
     }
 
     [Fact]
-    public async Task WR02_OnlyOrganized_NoUnorganizedDestination_StillGates()
+    public async Task OnlyOrganized_NoUnorganizedDestination_StillGates()
     {
         // The complement: with no UnorganizedDestination, the only-organized gate behaves exactly as
         // before — an unorganized item is skipped.

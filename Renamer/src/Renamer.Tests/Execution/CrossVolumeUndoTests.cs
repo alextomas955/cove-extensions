@@ -151,7 +151,7 @@ public sealed class CrossVolumeUndoTests
             var (_, batch, _) = await SeedReverseBatchAsync(db, oldDir.Root, newDrive.Root, oldFull, newFull);
 
             // A port whose reverse save throws AFTER the cross copy-back succeeds → the rollback path runs
-            // through CrossVolumeMover.RollbackAsync (cross-drive matching mover, D-02).
+            // through CrossVolumeMover.RollbackAsync (cross-drive matching mover).
             var throwingPort = new ThrowOnSaveDataPort(db);
             var undoBus = new CapturingEventBus();
             var replayer = new UndoReplayer(throwingPort, undoBus, new DiskMover(), cross: new CrossVolumeMover());

@@ -161,7 +161,7 @@ public sealed class RenamerExecutorIntegrationTests
     }
 
     /// <summary>
-    /// D-05 / MOVE-05 cross-path rollback: a VERIFIED cross-volume move whose subsequent DB save throws
+    /// MOVE-05 cross-path rollback: a VERIFIED cross-volume move whose subsequent DB save throws
     /// (a forced <c>(ParentFolderId, Basename)</c> unique-index clash, pre-check bypassed via
     /// <see cref="CollisionBlindDataPort"/>) must roll back through <see cref="CrossVolumeMover.RollbackAsync"/>
     /// — copy the bytes back across the volume and restore the source — leaving disk and DB consistent.

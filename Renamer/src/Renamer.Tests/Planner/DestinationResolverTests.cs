@@ -155,7 +155,7 @@ public sealed class DestinationResolverPrecedenceTests
     }
 }
 
-/// <summary>Route-on-stable-id: the studio NAME never affects the match (P7 / ROUTE-01).</summary>
+/// <summary>Route-on-stable-id: the studio NAME never affects the match.</summary>
 public sealed class DestinationResolverRouteOnStableStudioIdTests
 {
     [Fact]
@@ -181,7 +181,7 @@ public sealed class DestinationResolverRouteOnStableStudioIdTests
     }
 }
 
-/// <summary>Tag routing is case-insensitive on the tag name (ROUTE-02).</summary>
+/// <summary>Tag routing is case-insensitive on the tag name.</summary>
 public sealed class DestinationResolverTagRoutingTests
 {
     [Fact]
@@ -202,7 +202,7 @@ public sealed class DestinationResolverTagRoutingTests
     }
 }
 
-/// <summary>Source-path routing: exact beats regex; a regex-only match still routes (ROUTE-03).</summary>
+/// <summary>Source-path routing: exact beats regex; a regex-only match still routes.</summary>
 public sealed class DestinationResolverSourcePathRoutingTests
 {
     private static RenamerEntity AtPath(string path)
@@ -311,7 +311,7 @@ public sealed class DestinationResolverRegexTimeoutTests
     }
 }
 
-/// <summary>Unorganized items route to the unorganized destination, not skipped (ROUTE-05).</summary>
+/// <summary>Unorganized items route to the unorganized destination, not skipped.</summary>
 public sealed class DestinationResolverUnorganizedRouteTests
 {
     [Fact]
@@ -347,7 +347,7 @@ public sealed class DestinationResolverUnorganizedRouteTests
 }
 
 /// <summary>
-/// The milestone hard gate (ROUTE-04 / D-05): default-relocate is OFF by default. The SAME
+/// The milestone hard gate: default-relocate is OFF by default. The SAME
 /// unmatched entity + options-but-for-the-flag proves the guard is the flag, not a missing feature.
 /// </summary>
 public sealed class DestinationResolverDefaultRelocateDisabledTests
@@ -385,7 +385,7 @@ public sealed class DestinationResolverDefaultRelocateDisabledTests
 }
 
 /// <summary>
-/// EXCL-01/02/03 (D-03/D-04): excludes run FIRST in the resolver — a matching tag / studio (incl.
+/// EXCL-01/02/03: excludes run FIRST in the resolver — a matching tag / studio (incl.
 /// parent, stable id) / source-path (exact + regex) returns <see cref="RouteCategory.Excluded"/>
 /// BEFORE any routing category (including Unorganized) is considered, with a clear label. A
 /// match-time ReDoS timeout on an exclude regex is treated as no-match (classify-not-throw), never
