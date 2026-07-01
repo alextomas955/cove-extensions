@@ -337,7 +337,7 @@ export function SegmentedReplace({
   // replaceMode is the explicit UI mode. It is needed (not derived purely from value !== "") because
   // clicking "Replace with" on an empty value must REVEAL the input so the user can type — deriving from
   // value alone deadlocks. When the user is in replace mode and the input is momentarily empty, we stay in
-  // replace mode (don't collapse mid-type). The key WR-01 case is an EXTERNAL change to "" (Reset-to-
+  // replace mode (don't collapse mid-type). The key case is an EXTERNAL change to "" (Reset-to-
   // defaults / load): we detect "value changed to empty since last render" and snap back to strip mode.
   const [replaceMode, setReplaceMode] = useState(value !== "");
   const prevValue = useRef(value);

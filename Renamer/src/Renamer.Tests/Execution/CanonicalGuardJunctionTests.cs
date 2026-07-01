@@ -64,13 +64,13 @@ public sealed class CanonicalGuardJunctionTests
         Assert.Null(r.Reason);
     }
 
-    [Fact] // WR-01: an allowlisted root that is itself a junction must still accept its children.
+    [Fact] // An allowlisted root that is itself a junction must still accept its children.
     public void AllowedRootIsJunction_ChildDestination_IsAccepted()
     {
         // The allowed root is a JUNCTION to a real directory on (logically) another location — the
         // "library relocated onto another volume" pattern. The target resolves (link side) to the
         // real backing dir; the root must canonicalize the SAME way (link-resolved) or a perfectly
-        // legitimate child would be spuriously rejected. This locks the WR-01 fix to CanonicalRoot.
+        // legitimate child would be spuriously rejected. This locks canonicalization to CanonicalRoot.
         using var dir = new TempDir();
         string real = Directory.CreateDirectory(Path.Combine(dir.Root, "realmedia")).FullName;
         string rootLink = Path.Combine(dir.Root, "media"); // allowlisted root, but a junction…
@@ -80,7 +80,7 @@ public sealed class CanonicalGuardJunctionTests
         // to the deepest EXISTING ancestor — the junction root itself — and link-resolves it to the
         // real backing dir, so the target resolves to <real>/season-01/file.mkv. The allowlisted root
         // must canonicalize the SAME way (link-resolved to <real>) or this legitimate child is
-        // spuriously rejected. This locks the WR-01 fix to CanonicalRoot.
+        // spuriously rejected. This locks canonicalization to CanonicalRoot.
         var r = CanonicalPathGuard.Check(
             (Path.Combine(rootLink, "season-01") + "/file.mkv").Replace('\\', '/'),
             [rootLink.Replace('\\', '/')]);

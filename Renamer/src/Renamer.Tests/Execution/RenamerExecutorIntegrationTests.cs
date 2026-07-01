@@ -237,11 +237,11 @@ public sealed class RenamerExecutorIntegrationTests
     }
 
     /// <summary>
-    /// WR-03 regression: when the cross-volume rollback FAILS to fully restore (here the old source slot
+    /// Regression: when the cross-volume rollback FAILS to fully restore (here the old source slot
     /// is re-occupied before the copy-back runs, so <see cref="CrossVolumeMover.RollbackAsync"/> records a
     /// "rollback target re-occupied" warning rather than restoring), the executor must NOT report a clean
     /// "file rolled back". It must surface the rollback warnings so the disk/DB divergence is visible —
-    /// the previous code discarded the warnings list and falsely claimed a rollback that did not happen.
+    /// silently discarding the warnings would falsely claim a rollback that did not happen.
     /// </summary>
     [Fact]
     public async Task CrossVolumeSaveFailure_RollbackWarnings_Surfaced_NotSilentlyRolledBack()

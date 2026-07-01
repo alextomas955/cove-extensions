@@ -5,7 +5,7 @@ namespace Renamer.Tests.Planner;
 
 /// <summary>
 /// Exercises the <see cref="IRenamerDataPort"/> seam contract through the in-memory fake
-/// (per Task 2 behavior block) so the seam is asserted, not merely compiled.
+/// so the seam is asserted, not merely compiled.
 /// </summary>
 public sealed class IRenamerDataPortSeamTests
 {

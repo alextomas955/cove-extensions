@@ -188,7 +188,7 @@ public sealed class RoutingPlannerTests
         Assert.Equal("InPlace", item.MatchedRule);
         // The move lands under the file's own source folder, exactly as before this phase.
         Assert.EndsWith("library/incoming/Sorted/My Film.mkv", item.NewFullPath);
-        // WR-01: a source-confine item has no destination volume of interest (in-place move), so
+        // A source-confine item has no destination volume of interest (in-place move), so
         // TargetVolume is empty — never the fictitious synthetic-anchor root.
         Assert.Equal("", item.TargetVolume);
         Assert.Empty(port.SaveCalls);

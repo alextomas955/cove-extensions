@@ -8,7 +8,7 @@ namespace Renamer.Tests;
 /// contract: it deserializes the same file the host loads, using the same case-insensitive options the
 /// host uses, so a field the loader would reject (or a renamed/typo'd key) fails here instead of
 /// silently dropping at install time. It also pins the runtime-permissions posture and the richer
-/// admin-facing description added for v1.3.
+/// admin-facing description.
 /// </summary>
 public sealed class ExtensionManifestFileTests
 {
