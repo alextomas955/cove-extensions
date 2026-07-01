@@ -1,0 +1,33 @@
+# lefthook — one pre-commit gate spanning the mixed C# + TypeScript repo (plan §4.3).
+#
+# Why lefthook (not husky+lint-staged): a single language-agnostic YAML runs the .NET and Node
+# checks together. The dev box has the @cove/extension-sdk resolved, so this is also where the
+# FULL, type-aware frontend gate runs — covering the subset CI can't (CI uses the non-type-aware
+# eslint.config.ci.js fallback because a bare runner can't install the file: SDK).
+#
+# Keep it lightweight: format/lint only STAGED files; no full build or test run on commit.
+
+pre-commit:
+  parallel: true
+  commands:
+    # --- TypeScript: prettier + type-aware eslint on staged UI files ---
+    frontend-format:
+      root: extensions/Renamer/src/Renamer.Ui/
+      glob: "*.{ts,tsx,json,jsonc,css,md}"
+      run: npx prettier --write {staged_files}
+      stage_fixed: true
+    frontend-lint:
+      root: extensions/Renamer/src/Renamer.Ui/
+      glob: "*.{ts,tsx}"
+      run: npx eslint --fix {staged_files}
+      stage_fixed: true
+    # The host-JIT-Tailwind + XSS guard (never skipped; owns a concern no linter knows).
+    check-classes:
+      root: extensions/Renamer/src/Renamer.Ui/
+      glob: "*.tsx"
+      run: node scripts/check-classes.cjs
+
+    # --- C#: format-verify changed projects (cheap; no full build) ---
+    csharp-format:
+      glob: "*.cs"
+      run: dotnet format Renamer.slnx --verify-no-changes --severity warn --include {staged_files}

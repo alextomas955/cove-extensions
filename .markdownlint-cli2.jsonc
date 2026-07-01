@@ -1,0 +1,14 @@
+{
+  "config": {
+    "default": true,
+    "MD013": false, // line-length: prose wraps freely; code/tables overflow
+    "MD033": false, // allow inline HTML (badges, <details>)
+    "MD041": false, // first line need not be H1 (front-matter/badges)
+    "MD024": { "siblings_only": true } // duplicate headings OK across sections
+  },
+  "globs": ["**/*.md"],
+  // Lint only user-facing docs. .planning/** is internal research/spec; CLAUDE.md files are
+  // Claude/GSD-managed instruction files (carry "do not edit manually" sections) — not product
+  // docs, and excluded from the CI markdown-lint glob too.
+  "ignores": ["**/node_modules/**", "**/dist/**", ".planning/**", "**/CLAUDE.md"]
+}

@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "extensions": [
+    { "name": "Renamer", "id": "com.alextomas955.renamer", "path": "extensions/Renamer", "tagPrefix": "renamer/" }
+  ]
+}
