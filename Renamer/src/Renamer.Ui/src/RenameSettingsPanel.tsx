@@ -23,7 +23,7 @@ import { AlertTriangle } from "lucide-react";
 import { request, ApiError, useExtensionStore } from "@cove/extension-sdk";
 
 import {
-  type RenameOptions,
+  type RenamerOptions,
   type MultiValueOptions,
   type CaseTransform,
   type OverflowPolicy,
@@ -380,7 +380,7 @@ function SaveBar({
  * path-routing fields). They are merged back ahead of the modeled options — modeled values always
  * win — so saving from this panel never erases configuration it cannot edit.
  */
-async function saveOptions(options: RenameOptions, extras: Record<string, unknown>): Promise<void> {
+async function saveOptions(options: RenamerOptions, extras: Record<string, unknown>): Promise<void> {
   const payload = { ...extras, ...options };
   try {
     await request<unknown>(`${DATA_BASE}/${OPTIONS_KEY}`, {
@@ -405,8 +405,8 @@ async function saveOptions(options: RenameOptions, extras: Record<string, unknow
 export function RenamePanelBody() {
   const store = useExtensionStore(EXTENSION_ID);
 
-  const [options, setOptions] = useState<RenameOptions>(() => cloneDefaults());
-  const [saved, setSaved] = useState<RenameOptions>(() => cloneDefaults());
+  const [options, setOptions] = useState<RenamerOptions>(() => cloneDefaults());
+  const [saved, setSaved] = useState<RenamerOptions>(() => cloneDefaults());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -553,7 +553,7 @@ export function RenamePanelBody() {
         }
         // Keep any stored keys this panel does not model (backend-only settings) so Save preserves them.
         preservedExtras.current = extractUnmodeledFields(raw);
-        // normalizeOptions rebuilds a clean canonical RenameOptions, DROPPING any stale camelCase
+        // normalizeOptions rebuilds a clean canonical RenamerOptions, DROPPING any stale camelCase
         // duplicate keys a legacy blob may carry (the /preview-sample dual-source fix). The old spread
         // merge preserved them, so they overwrote live edits in the preview body. Because `options`
         // state is now canonical by construction, both the preview body and saveOptions are single-source
@@ -563,7 +563,7 @@ export function RenamePanelBody() {
         // as ON, so an existing configuration is never silently hidden behind a new gate. Both
         // setOptions and setSaved get the identical derived value — using parsed for one and this
         // for the other would make the panel dirty on load for any such existing configuration.
-        const withDerivedGates: RenameOptions = {
+        const withDerivedGates: RenamerOptions = {
           ...parsed,
           EnableStudioDestinations:
             parsed.EnableStudioDestinations || Object.keys(parsed.StudioDestinations).length > 0,
@@ -635,7 +635,7 @@ export function RenamePanelBody() {
   }
 
   // Field updaters
-  function set<K extends keyof RenameOptions>(key: K, value: RenameOptions[K]) {
+  function set<K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) {
     setOptions((o) => ({ ...o, [key]: value }));
   }
   function setMulti(group: "Performers" | "Tags", patch: Partial<MultiValueOptions>) {

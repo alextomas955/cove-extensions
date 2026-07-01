@@ -169,7 +169,7 @@ export function Select<T extends string>({
 
 /** One known format/pattern option for {@link ExampleSelect}. */
 export interface ExampleOption {
-  /** The canonical value persisted into RenameOptions (e.g. `"yyyy-MM-dd"`). */
+  /** The canonical value persisted into RenamerOptions (e.g. `"yyyy-MM-dd"`). */
   value: string;
   /** Static, hand-authored reference example shown after the arrow (e.g. `"2026-03-12"`). */
   example: string;

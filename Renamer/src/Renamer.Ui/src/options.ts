@@ -71,8 +71,8 @@ export interface FieldReplaceRule {
   Replace: string;
 }
 
-/** All rename settings. Mirrors C# `RenameOptions`. */
-export interface RenameOptions {
+/** All rename settings. Mirrors C# `RenamerOptions`. */
+export interface RenamerOptions {
   FilenameTemplate: string;
   FolderTemplate: string;
   DateFormat: string;
@@ -129,7 +129,7 @@ export interface RenameOptions {
 }
 
 /**
- * The C# defaults (RenameOptions.cs):
+ * The C# defaults (RenamerOptions.cs):
  *   FilenameTemplate "{$date - }$title{ [$height]}", FolderTemplate "", DateFormat "yyyy-MM-dd",
  *   DurationFormat verbatim `hh\-mm\-ss`, Performers.Separator ", ", Tags.Separator " ",
  *   FilenameMax 255, FullPathMax 259, the 9-field DropOrder, RequiredFields ["title"],
@@ -143,7 +143,7 @@ export interface RenameOptions {
  * extractUnmodeledFields carry a stored value through a load → save round-trip untouched instead of
  * normalizeOptions consuming (and dropping) it.
  */
-export const DEFAULT_OPTIONS: RenameOptions = {
+export const DEFAULT_OPTIONS: RenamerOptions = {
   FilenameTemplate: "{$date - }$title{ [$height]}",
   FolderTemplate: "",
   DateFormat: "yyyy-MM-dd",
@@ -220,7 +220,7 @@ export const DEFAULT_OPTIONS: RenameOptions = {
  * Every mutable member (the multi-value lists, the routing maps, and the rule/path arrays) is
  * fresh-copied; a missed member would let one form instance mutate the shared default for the next.
  */
-export function cloneDefaults(): RenameOptions {
+export function cloneDefaults(): RenamerOptions {
   return {
     ...DEFAULT_OPTIONS,
     Performers: {
@@ -258,7 +258,7 @@ export function cloneDefaults(): RenameOptions {
 // `dateFormat`) alongside the canonical PascalCase keys. The old load path spread-merged the raw blob,
 // so those stale keys rode into the /preview-sample request body AFTER the live PascalCase ones; the
 // backend binds case-insensitively with default last-write-wins, so the stale value overwrote the live
-// edit and the preview never changed. normalizeOptions rebuilds a clean, fully-canonical RenameOptions
+// edit and the preview never changed. normalizeOptions rebuilds a clean, fully-canonical RenamerOptions
 // from cloneDefaults() reading ONLY the known PascalCase keys (coerced by declared type), DROPPING every
 // unknown/stale key. Applied at the load boundary, it fixes the preview AND self-heals the stored blob on
 // the next Save (since the canonical state is what gets persisted). Frontend-only; no backend change.
@@ -386,11 +386,11 @@ export function extractUnmodeledFields(raw: unknown): Record<string, unknown> {
 }
 
 /**
- * Rebuild a fully-canonical {@link RenameOptions} from an untrusted/legacy blob, reading only the known
+ * Rebuild a fully-canonical {@link RenamerOptions} from an untrusted/legacy blob, reading only the known
  * PascalCase keys and dropping everything else (including stale camelCase duplicates). Returns
  * cloneDefaults() when `raw` is null/not-an-object.
  */
-export function normalizeOptions(raw: unknown): RenameOptions {
+export function normalizeOptions(raw: unknown): RenamerOptions {
   if (!raw || typeof raw !== "object") return cloneDefaults();
   const r = raw as Record<string, unknown>;
   const d = DEFAULT_OPTIONS;
