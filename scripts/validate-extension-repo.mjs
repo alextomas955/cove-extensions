@@ -14,18 +14,15 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-// NOTE (fork adaptation, not upstream): upstream's template computes root as the parent of its
-// own scripts/ directory, then reads root/extensions/catalog.json — i.e. upstream's template repo
-// root sits one level ABOVE an "extensions" subfolder that holds catalog.json and every
-// extension's own directory (root/extensions/<Name>). This git repo's root (this repo IS what the
-// catalog's own committed path fields call "extensions/", e.g. entry.path ==
-// "extensions/Renamer") is one level BELOW where scripts/ lives, so root here resolves one level
-// higher than upstream's "..", to make root/extensions/catalog.json and root/extensions/<Name>
-// line up with upstream's assumed shape without rewriting every catalog entry's committed path
-// fields (which the plan requires to keep their "extensions/..." form).
-const root = path.resolve(import.meta.dirname, "..", "..");
+// root is the parent of this file's own scripts/ directory — matching upstream's template
+// exactly. A real extensions/ subfolder lives one level below the repo root and holds
+// catalog.json plus one directory per extension (root/extensions/<Name>), while
+// Directory.Build.props/.targets stay at the repo root alongside scripts/. This single-level
+// climb is now genuinely correct (not coincidental on the git root's own directory name): it
+// resolves the same way regardless of what the checkout's top-level folder is called.
+const root = path.resolve(import.meta.dirname, "..");
 const catalogPath = path.join(root, "extensions", "catalog.json");
-const buildPropsPath = path.join(root, "extensions", "Directory.Build.props");
+const buildPropsPath = path.join(root, "Directory.Build.props");
 const errors = [];
 
 function readJson(filePath) {
