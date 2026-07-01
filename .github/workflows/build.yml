@@ -1,0 +1,319 @@
+# Build, validate, and (on <extension-slug>/v* tags) package + release extensions in this monorepo.
+#
+# Adapted from yourcove/multi-extension-repo-template's build.yml (forked 2026-07-01) to target
+# Renamer's real src/ subtree layout via extensions/catalog.json's additive path fields
+# (projectPath/manifestPath/uiPath/versionSourcePath — see catalog.json +
+# scripts/validate-extension-repo.mjs) instead of the template's flat {path}/{name}.csproj
+# convention. Folds in the old single-extension `rename` repo's strip-verify / stale-bundle /
+# version-parity / csharp-format / markdown-lint hardening as matrix steps (per-extension) or
+# root-level jobs (repo-wide) so future extensions inherit them automatically.
+#
+# The validate job computes the build matrix from catalog.json (all entries for a PR build; only
+# the tagged extension for a tag push) and — on a tag push — confirms the tag matches exactly one
+# catalog entry's tagPrefix and carries a valid semver suffix. No PR trigger path filtering is
+# used anywhere: every catalog entry is built on every PR (CI-04).
+
+name: Build and Release Extensions
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    tags:
+      - '*/v*'
+
+env:
+  DOTNET_VERSION: '10.0.x'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24.11.0'
+
+      - name: Validate extension catalog
+        run: node scripts/validate-extension-repo.mjs
+
+      - name: Validate release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs");
+            const catalog = JSON.parse(fs.readFileSync("catalog.json", "utf8"));
+            const tag = process.env.GITHUB_REF.replace("refs/tags/", "");
+            const matches = catalog.extensions.filter((e) => tag.startsWith(e.tagPrefix));
+            if (matches.length !== 1) {
+              console.error("Tag " + tag + " must match exactly one catalog tagPrefix, matched " + matches.length);
+              process.exit(1);
+            }
+            const versionTag = tag.slice(matches[0].tagPrefix.length);
+            const semver = /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+            if (!semver.test(versionTag)) {
+              console.error("Tag version suffix " + versionTag + " is not valid semver (expected v<major>.<minor>.<patch>)");
+              process.exit(1);
+            }
+            console.log("Tag " + tag + " matches catalog entry " + matches[0].id + " with version " + versionTag.slice(1));
+          '
+        env:
+          GITHUB_REF: ${{ github.ref }}
+
+      - name: Compute build matrix
+        id: matrix
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs");
+            const catalog = JSON.parse(fs.readFileSync("catalog.json", "utf8"));
+            const ref = process.env.GITHUB_REF;
+            let extensions = catalog.extensions;
+            if (ref.startsWith("refs/tags/")) {
+              const tag = ref.replace("refs/tags/", "");
+              extensions = catalog.extensions.filter((e) => tag.startsWith(e.tagPrefix));
+            }
+            const matrix = { extension: extensions };
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, "matrix=" + JSON.stringify(matrix) + "\n");
+          '
+        env:
+          GITHUB_REF: ${{ github.ref }}
+
+  build:
+    needs: validate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.validate.outputs.matrix) }}
+    permissions:
+      contents: write
+    steps:
+      - name: Check if this extension was tagged
+        id: check
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/${{ matrix.extension.tagPrefix }}v* ]]; then
+            echo "match=true" >> "$GITHUB_OUTPUT"
+            echo "version=${GITHUB_REF#refs/tags/${{ matrix.extension.tagPrefix }}v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "match=true" >> "$GITHUB_OUTPUT"
+            echo "version=0.0.0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v6
+        if: steps.check.outputs.match == 'true'
+
+      - name: Setup .NET
+        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        run: dotnet restore ${{ matrix.extension.projectPath }} -p:UseLocalCoveSource=false
+
+      - name: Build
+        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        run: dotnet build ${{ matrix.extension.projectPath }} -c Release --no-restore -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
+
+      - name: Publish
+        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o artifacts/${{ matrix.extension.name }} --no-build -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
+
+      # Strip-verify gate (ported from the old rename repo, generalized to the matrix artifacts
+      # dir). Runs on every build (not tag-gated), so a host-assembly leak fails the build before
+      # anything is zipped. The denylist is the same set the extension's own local deploy scripts
+      # enforce — hand-synced; when the host adds a provided dependency, add it here too.
+      - name: Strip-verify (no host assemblies, no absolute paths)
+        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          dir="artifacts/${{ matrix.extension.name }}"
+          denylist=(
+            Cove.Core
+            Cove.Plugins
+            Cove.Sdk
+            Microsoft.EntityFrameworkCore
+            Microsoft.EntityFrameworkCore.Abstractions
+            Microsoft.EntityFrameworkCore.Relational
+            Npgsql
+            Npgsql.EntityFrameworkCore.PostgreSQL
+            Pgvector
+            Pgvector.EntityFrameworkCore
+            MediatR.Contracts
+          )
+
+          fail=0
+
+          for dll in "$dir"/*.dll; do
+            base=$(basename "$dll" .dll)
+            for banned in "${denylist[@]}"; do
+              if [[ "$base" == "$banned" ]]; then
+                echo "LEAK: host-provided assembly present: $(basename "$dll")"
+                fail=1
+              fi
+            done
+          done
+
+          if [[ ! -f "$dir/${{ matrix.extension.name }}.dll" ]]; then
+            echo "MISSING: ${{ matrix.extension.name }}.dll is absent from the publish set — build produced no extension assembly."
+            fail=1
+          fi
+
+          if [[ ! -f "$dir/System.IO.Hashing.dll" ]]; then
+            echo "MISSING: System.IO.Hashing.dll is absent — Renamer's bundled cross-volume-mover dependency did not ship."
+            fail=1
+          fi
+
+          # Materialize the Windows drive-root marker (I: followed by a backslash). The backslash is
+          # written as printf's octal escape \134 so it survives YAML+bash quoting intact with no
+          # backslash adjacent to a quote (which shellcheck would flag).
+          win_marker=$(printf 'I:\134')
+          jsons=("$dir"/*.json)
+          if [[ ${#jsons[@]} -gt 0 ]]; then
+            if matches=$(grep -F -n -e "$win_marker" -e '/home/' -e '/Users/' "${jsons[@]}"); then
+              echo "LEAK: absolute path found in publish-set json:"
+              echo "$matches"
+              fail=1
+            fi
+          fi
+
+          if [[ "$fail" -ne 0 ]]; then
+            echo "Strip-verify FAILED."
+            exit 1
+          fi
+
+          echo "Strip-verify PASS — approved publish set:"
+          for f in "$dir"/*; do
+            echo "  $(basename "$f")"
+          done
+
+      - name: Copy manifest
+        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        run: cp ${{ matrix.extension.manifestPath }} artifacts/${{ matrix.extension.name }}/
+
+      - name: Stamp packaged extension.json version
+        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        run: |
+          node -e "const fs=require('fs'); const p='artifacts/${{ matrix.extension.name }}/extension.json'; const m=JSON.parse(fs.readFileSync(p,'utf8')); m.version='${{ steps.check.outputs.version }}'; fs.writeFileSync(p, JSON.stringify(m, null, 2) + '\n');"
+
+      # Conditional frontend build — only extensions with a uiPath field ship a frontend bundle.
+      - name: Setup Node
+        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        uses: actions/setup-node@v5
+        with:
+          # Exact volta pin from the UI package.json — a Node patch delta can change the emitted
+          # bundle bytes and make the stale-bundle gate flaky, so pin the exact version.
+          node-version: '24.11.0'
+
+      - name: Install frontend deps (offline, vendored SDK)
+        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        working-directory: ${{ matrix.extension.uiPath }}
+        run: npm ci
+
+      - name: Verify frontend (typecheck + lint + format:check + check-classes + test)
+        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        working-directory: ${{ matrix.extension.uiPath }}
+        run: npm run verify
+
+      - name: Build frontend bundle
+        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        working-directory: ${{ matrix.extension.uiPath }}
+        run: npm run build
+
+      # Stale-bundle gate: a clean checkout rebuilds dist/index.mjs byte-identically, so a clean
+      # tree exits 0. A source change committed without rebuilding the bundle leaves a diff here
+      # and fails the job.
+      - name: Stale-bundle gate
+        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        working-directory: ${{ matrix.extension.uiPath }}
+        run: git diff --exit-code -- dist/index.mjs
+
+      - name: Stale-bundle hint
+        if: failure() && steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        run: echo "dist/index.mjs is out of date — run 'npm run build' in ${{ matrix.extension.uiPath }} and commit dist/index.mjs."
+
+      - name: Copy frontend bundle
+        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        run: cp ${{ matrix.extension.uiPath }}/dist/index.mjs artifacts/${{ matrix.extension.name }}/
+
+      # Version parity: the version the manifest, the assembly, and the UI package declare must
+      # agree, so a release can't ship a manifest that disagrees with the binary.
+      - name: Check version parity
+        if: steps.check.outputs.match == 'true' && matrix.extension.versionSourcePath != ''
+        run: node scripts/check-version-parity.mjs ${{ matrix.extension.manifestPath }} ${{ matrix.extension.versionSourcePath }} ${{ matrix.extension.uiPath }}/package.json
+
+      - name: Package
+        if: steps.check.outputs.match == 'true' && github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          cd artifacts/${{ matrix.extension.name }}
+          zip -r ../../${{ matrix.extension.id }}-${{ steps.check.outputs.version }}.zip .
+
+      - name: Upload artifact
+        if: steps.check.outputs.match == 'true' && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.extension.id }}-${{ steps.check.outputs.version }}
+          path: ${{ matrix.extension.id }}-${{ steps.check.outputs.version }}.zip
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b  # v3
+        with:
+          files: '*.zip'
+          generate_release_notes: true
+
+  # ---- C# style + analyzer gate (monorepo-wide, run once against the shared .slnx). This job
+  # assumes every extension's projects are added to the root Renamer.slnx as a process convention
+  # (RESEARCH.md's Open Decision #3) — a future extension not added to the .slnx would silently
+  # skip this gate. ----
+  csharp-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      # Formatting/style check — reads root .editorconfig.
+      - name: dotnet format (verify)
+        run: dotnet format Renamer.slnx --verify-no-changes --severity warn
+      # Analyzer gate: a Release build with TreatWarningsAsErrors=true (root Directory.Build.props)
+      # fails on any CA/IDE warning.
+      - name: Build with analyzers (warnings = errors)
+        run: dotnet build Renamer.slnx -c Release -p:UseLocalCoveSource=false
+
+  # ---- Markdown docs (repo-wide). Scoped to README.md only — no CHANGELOG.md/docs/**/*.md exist
+  # yet at the monorepo root; Phase 13 (DOC-04) will expand both this glob and the root docs. ----
+  markdown-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: markdownlint
+        uses: DavidAnson/markdownlint-cli2-action@v23
+        with:
+          globs: 'README.md'
