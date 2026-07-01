@@ -20,7 +20,7 @@ using Renamer.Planner;
 namespace Renamer;
 
 /// <summary>
-/// The Cove-facing surface of the extension: the "Renamer selected" bulk action
+/// The Cove-facing surface of the extension: the "Rename selected" bulk action
 /// (contributed through <see cref="GetUIManifest"/> — <see cref="FullExtensionBase"/> does NOT
 /// implement <c>IActionExtension</c>, so there is no <c>GetActions()</c> to override), the
 /// <c>renamer-batch</c> job registration, and the <c>/preview</c> + <c>/renamer</c> minimal-API
@@ -56,7 +56,7 @@ public sealed partial class Renamer
     private const int MaxEntityIdsPerRequest = 1000;
 
     /// <summary>
-    /// Contributes the "Renamer selected" bulk action — registered ONCE PER ENTITY KIND (video, image)
+    /// Contributes the "Rename selected" bulk action — registered ONCE PER ENTITY KIND (video, image)
     /// so each carries the matching <c>RequiredPermission</c> (<c>videos.write</c> / <c>images.write</c>).
     /// The host's action model allows only a single <c>RequiredPermission</c> per action and filters an
     /// action's visibility by both the current entity-type context AND that permission, so a single
@@ -73,7 +73,7 @@ public sealed partial class Renamer
         => ManifestBuilder()
             .AddAction(
                 id: "renamer-selected-video",
-                label: "Renamer selected",
+                label: "Rename selected",
                 actionType: "bulk",
                 entityTypes: ["video"],
                 icon: "pencil",
@@ -83,7 +83,7 @@ public sealed partial class Renamer
                 requiredPermission: Permissions.VideosWrite)
             .AddAction(
                 id: "renamer-selected-image",
-                label: "Renamer selected",
+                label: "Rename selected",
                 actionType: "bulk",
                 entityTypes: ["image"],
                 icon: "pencil",
@@ -120,9 +120,9 @@ public sealed partial class Renamer
     protected override void DefineJobs()
         => Job(
             id: RenamerJob.JobId,
-            name: "Renamer selected",
+            name: "Rename selected",
             handler: (parameters, progress, ct) => RunRenamerBatchAsync(parameters, progress, ct),
-            description: "Batch-renamers the selected media items from the configured template.",
+            description: "Batch-renames the selected media items from the configured template.",
             supportsParameters: true,
             showInTaskList: true);
 
@@ -302,7 +302,7 @@ public sealed partial class Renamer
         // paths. Exclusive serializes them — the second waits for the first to finish.
         var jobId = jobs.Enqueue(
             $"ext:{Id}:{RenamerJob.JobId}",
-            $"[{Name}] Renamer selected",
+            $"[{Name}] Rename selected",
             (coreProgress, ct) => RunRenamerBatchAsync(parameters, new HostProgress(coreProgress), ct),
             exclusive: true);
 

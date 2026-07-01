@@ -9,7 +9,7 @@ namespace Renamer.Tests.Execution;
 /// <summary>
 /// Drives the real executor end-to-end (SQLite + a real <see cref="TempDir"/>) to prove the
 /// extension-list sidecar discovery: a same-stem neighbor whose extension is configured moves and
-/// renamers alongside the primary, the three negative cases never move, an empty list is byte-identical
+/// renames alongside the primary, the three negative cases never move, an empty list is byte-identical
 /// to caption-only behavior, the discovered move inherits skip-not-clobber + rollback-with-primary, a
 /// tracked caption is never moved twice, an in-place renamer emits no spurious sidecar warning, and the
 /// extension compare normalizes a leading dot + casing. All assertions are against the actual on-disk
@@ -183,7 +183,7 @@ public sealed class AssociatedExtensionSidecarTests
                 RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), new RenamerOptions(), default);
 
             Assert.Single(result.Renamed);
-            // The DB-tracked caption still moves and renamers.
+            // The DB-tracked caption still moves and renames.
             Assert.True(File.Exists(Path.Combine(dir.Root, "Film A.en.vtt")), "caption still moves with an empty list");
             Assert.False(File.Exists(Path.Combine(dir.Root, "clip.en.vtt")));
             // A non-caption neighbor is untouched because the extension list is empty.

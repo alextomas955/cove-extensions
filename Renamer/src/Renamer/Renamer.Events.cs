@@ -8,7 +8,7 @@ namespace Renamer;
 
 /// <summary>
 /// The optional auto-renamer event hook. Reacts to the host's fire-and-forget
-/// <c>video.updated</c>/<c>image.updated</c> events and re-renamers the touched item through
+/// <c>video.updated</c>/<c>image.updated</c> events and re-renames the touched item through
 /// the planner+executor — a THIN adapter, no renamer logic lives here.
 ///
 /// audio/text updates are intentionally NOT handled here: the auto-renamer product scope is
@@ -34,7 +34,7 @@ public sealed partial class Renamer
     }
 
     /// <summary>
-    /// Re-renamers a single updated entity when the opt-in flag is set and the item is not already
+    /// Re-renames a single updated entity when the opt-in flag is set and the item is not already
     /// correctly named. Returns without any DB work when the hook is off; returns without calling
     /// the executor (zero saves) when the plan is entirely non-acting (the re-entrancy guard).
     /// <para>

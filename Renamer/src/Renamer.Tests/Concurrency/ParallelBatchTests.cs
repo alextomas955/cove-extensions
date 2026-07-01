@@ -12,7 +12,7 @@ namespace Renamer.Tests.Concurrency;
 
 /// <summary>
 /// Parallel-batch correctness under the two-phase rewrite (SPACE-04). Proves: every acting item
-/// renamers and the shared RevertLog blob holds exactly one well-formed row per success (no torn/lost
+/// renames and the shared RevertLog blob holds exactly one well-formed row per success (no torn/lost
 /// append under real parallel workers); a per-item fault is an isolated skip while the rest succeed
 /// and the batch still reports the final <c>1.0</c> (classify-not-throw under parallelism); a
 /// same-volume-only batch runs despite a tiny free-space probe (same-volume is excluded from the

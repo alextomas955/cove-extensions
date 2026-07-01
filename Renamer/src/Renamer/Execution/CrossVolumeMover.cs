@@ -26,7 +26,7 @@ namespace Renamer.Execution;
 /// time). A size-only check would false-pass a same-length torn write, so the hash is the authority.
 /// On any mismatch the suspect <c>.partial</c> is deleted and the result is
 /// <see cref="MoveOutcome.VerifyFailed"/> — the SOURCE IS UNTOUCHED.</item>
-/// <item>Promote: a 2-arg <see cref="System.IO.File.Move(string,string)"/> renamers the verified
+/// <item>Promote: a 2-arg <see cref="System.IO.File.Move(string,string)"/> renames the verified
 /// <c>.partial</c> → the final name (same volume → atomic; throws if the final already exists →
 /// no-clobber).</item>
 /// <item>Delete the source ONLY after the promote in (3) succeeds. The source is the durable

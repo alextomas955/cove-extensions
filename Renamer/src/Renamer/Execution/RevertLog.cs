@@ -51,7 +51,7 @@ public sealed class RevertLog
 
     // SINGLE-WRITER SERIALIZATION. The persisted blob is read-modify-write (GetAsync → concat →
     // SetAsync) and the in-memory row list is a plain List, so concurrent appends would tear the
-    // blob (a dropped/interleaved line) and race the List. A batch may run many renamers in parallel,
+    // blob (a dropped/interleaved line) and race the List. A batch may run many renames in parallel,
     // and two batch jobs can run at once (the job is enqueued non-exclusively), so appends must
     // serialize BOTH within one instance AND across instances writing the SAME store key.
     //

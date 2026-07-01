@@ -7,7 +7,7 @@ namespace Renamer.Tests.Events;
 
 /// <summary>
 /// The "executes once" half of the re-entrancy story: with auto-renamer ON and a name that
-/// differs, the first event renamers the file once (disk + DB); a SECOND event — standing in for the
+/// differs, the first event renames the file once (disk + DB); a SECOND event — standing in for the
 /// re-raised <c>video.updated</c> the executor's save produces — finds an all-NoOp plan and leaves
 /// the terminal state stable with no further churn and no new published event.
 /// </summary>
@@ -15,7 +15,7 @@ namespace Renamer.Tests.Events;
 public sealed class AutoRenamerOnceTests
 {
     [Fact]
-    public async Task FlagOn_NameDiffers_RenamersOnce_ThenReentryIsStableNoOp()
+    public async Task FlagOn_NameDiffers_RenamesOnce_ThenReentryIsStableNoOp()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -33,7 +33,7 @@ public sealed class AutoRenamerOnceTests
             };
             var (ext, bus, _) = await EventTestHarness.BuildAsync(db, options);
 
-            // First event: renamers raw.mkv → My Film.mkv (one acting item ⇒ one publish).
+            // First event: renames raw.mkv → My Film.mkv (one acting item ⇒ one publish).
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
             Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.mkv")));

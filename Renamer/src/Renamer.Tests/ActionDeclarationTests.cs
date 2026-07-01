@@ -4,7 +4,7 @@ using Cove.Plugins;
 namespace Renamer.Tests;
 
 /// <summary>
-/// The "Renamer selected" bulk action is contributed through the extension's
+/// The "Rename selected" bulk action is contributed through the extension's
 /// <c>GetUIManifest()</c> (NOT <c>GetActions()</c> — <c>FullExtensionBase</c> does not implement
 /// <c>IActionExtension</c>), and the <c>renamer-batch</c> job is registered via <c>DefineJobs()</c>.
 /// These assert the exact contributed shape the host renders/dispatches against.
@@ -26,7 +26,7 @@ public sealed class ActionDeclarationTests
         Assert.Equal(2, manifest.Actions.Count);
 
         var video = Assert.Single(manifest.Actions, a => a.Id == "renamer-selected-video");
-        Assert.Equal("Renamer selected", video.Label);
+        Assert.Equal("Rename selected", video.Label);
         Assert.Equal("com.alextomas955.renamer", video.ExtensionId);
         Assert.Equal("bulk", video.ActionType);
         Assert.Equal(["video"], video.EntityTypes);
@@ -37,7 +37,7 @@ public sealed class ActionDeclarationTests
         Assert.Equal(Permissions.VideosWrite, video.RequiredPermission);
 
         var image = Assert.Single(manifest.Actions, a => a.Id == "renamer-selected-image");
-        Assert.Equal("Renamer selected", image.Label);
+        Assert.Equal("Rename selected", image.Label);
         Assert.Equal(["image"], image.EntityTypes);
         Assert.Equal("renamerSelected", image.HandlerName);
         Assert.Null(image.ApiEndpoint);

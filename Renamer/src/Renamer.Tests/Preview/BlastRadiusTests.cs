@@ -72,7 +72,7 @@ public sealed class BlastRadiusTests
         Assert.Equal(0, summary.CrossVolumeCount);
         Assert.Equal(0, summary.CrossVolumeBytes);
         Assert.Empty(summary.VolumePairs);
-        // Same-drive renamers are cheap/reversible — never escalate beyond Light regardless of size.
+        // Same-drive renames are cheap/reversible — never escalate beyond Light regardless of size.
         Assert.Equal(ConfirmLevel.Light, summary.ConfirmLevel);
     }
 

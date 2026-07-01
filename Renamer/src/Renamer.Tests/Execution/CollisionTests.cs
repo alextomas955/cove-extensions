@@ -34,7 +34,7 @@ public sealed class CollisionTests
             string oldA = Path.Combine(dir.Root, "a.mkv");
             File.WriteAllText(oldA, "A-bytes");
 
-            // Hand-build a plan that renamers a → b (the DB-taken name). The blind port stops the
+            // Hand-build a plan that renames a → b (the DB-taken name). The blind port stops the
             // executor's exec-time re-check from suffixing it away.
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [

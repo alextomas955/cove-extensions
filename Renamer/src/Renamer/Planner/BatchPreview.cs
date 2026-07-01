@@ -10,7 +10,7 @@ namespace Renamer.Planner;
 /// </summary>
 public enum ConfirmLevel
 {
-    /// <summary>A same-drive-only batch (or nothing to do): instant metadata renamers, cheap and easy to undo.</summary>
+    /// <summary>A same-drive-only batch (or nothing to do): instant metadata renames, cheap and easy to undo.</summary>
     Light,
 
     /// <summary>A modest cross-drive move: real bytes copied across a single destination volume.</summary>

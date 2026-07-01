@@ -47,7 +47,7 @@ public sealed class UndoEndpointTests
         return (ext, store);
     }
 
-    /// <summary>Seeds the extension's stored options so a renamer renamers to "$title".</summary>
+    /// <summary>Seeds the extension's stored options so a renamer renames to "$title".</summary>
     private static Task SeedTitleOptionsAsync(FakeStore store) =>
         new global::Renamer.Options.OptionsStore(store)
             .SaveAsync(new global::Renamer.Options.RenamerOptions { FilenameTemplate = "$title" });

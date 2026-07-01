@@ -10,7 +10,7 @@ namespace Renamer.Tests.Execution;
 
 /// <summary>
 /// The reverse-replay safety spine. Seeds Folder+Video+VideoFile on SQLite + a real file in
-/// a <see cref="TempDir"/>, renamers it via the live planner+executor, then reverse-replays the logged
+/// a <see cref="TempDir"/>, renames it via the live planner+executor, then reverse-replays the logged
 /// batch with <see cref="UndoReplayer"/> and asserts: the file is back at the OLD on-disk path, the DB
 /// Basename/Path are restored, and exactly one entity-updated event is published whose EntityId is the
 /// PARENT entity id from the log ROW (== seeded videoId, ≠ fileId). Also covers a multi-entity batch

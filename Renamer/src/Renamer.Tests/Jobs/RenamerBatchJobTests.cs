@@ -13,7 +13,7 @@ namespace Renamer.Tests.Jobs;
 /// <summary>
 /// Batch core: the shared <c>RunRenamerBatchAsync</c> opens a scope via the captured
 /// <c>IServiceScopeFactory</c>, builds the port+executor over the real <c>CoveContext</c>,
-/// renamers every id on disk + in the DB, and reports per-item progress plus a final <c>1.0</c>.
+/// renames every id on disk + in the DB, and reports per-item progress plus a final <c>1.0</c>.
 /// Bad/empty input is a clean no-op that still reports the final <c>1.0</c>.
 /// </summary>
 [Trait("Tier", "Integration")]
@@ -51,7 +51,7 @@ public sealed class RenamerBatchJobTests
     }
 
     [Fact]
-    public async Task RenamersEveryId_OnDiskAndInDb_ReportsPerItemPlusFinalOne()
+    public async Task RenamesEveryId_OnDiskAndInDb_ReportsPerItemPlusFinalOne()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -106,7 +106,7 @@ public sealed class RenamerBatchJobTests
     }
 
     [Fact]
-    public async Task EmptyIds_ReportsFinalOne_PerformsZeroRenamers()
+    public async Task EmptyIds_ReportsFinalOne_PerformsZeroRenames()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();

@@ -331,7 +331,7 @@ public sealed record RenamerOptions
 
     /// <summary>
     /// Auto-renamer hook opt-in: when <c>true</c>, the <c>video.updated</c>/<c>image.updated</c>
-    /// event handler re-renamers the item (respecting gating). Default <c>false</c> = the hook is a no-op.
+    /// event handler re-renames the item (respecting gating). Default <c>false</c> = the hook is a no-op.
     /// </summary>
     public bool AutoRenamerOnUpdate { get; init; }
 
@@ -465,20 +465,20 @@ public sealed record RenamerOptions
     /// beyond the projected file bytes before a cross-drive batch is allowed to proceed. The
     /// free-space guard adds this to a volume's summed need before comparing against its available
     /// space, so a batch never fills a disk to the brim. Default <c>1 GiB</c> (<c>1L &lt;&lt; 30</c>).
-    /// Same-volume renamers are excluded from the sum, so this margin only gates cross-drive moves.
+    /// Same-volume renames are excluded from the sum, so this margin only gates cross-drive moves.
     /// </summary>
     public long FreeSpaceHeadroomBytes { get; init; } = 1L << 30;
 
     /// <summary>
     /// Cross-drive concurrency bound: the maximum number of simultaneous cross-drive transfers per
-    /// (source,destination) disk pair. Same-volume renamers are unthrottled (an atomic
+    /// (source,destination) disk pair. Same-volume renames are unthrottled (an atomic
     /// <c>File.Move</c> consumes no extra space). Default <c>2</c> — conservative, to avoid thrashing
     /// two spinning disks with too many concurrent copies.
     /// </summary>
     public int CrossVolumeConcurrency { get; init; } = 2;
 
     /// <summary>
-    /// Same-volume parallelism bound: the maximum number of simultaneous same-drive renamers within one
+    /// Same-volume parallelism bound: the maximum number of simultaneous same-drive renames within one
     /// batch. A same-drive renamer is an instant metadata <c>File.Move</c> that consumes no extra space,
     /// so this is not a space guard — it is a pressure bound. An unbounded fan-out (the old <c>-1</c>)
     /// let a large selection issue thousands of concurrent <c>File.Move</c> + per-worker DB scope +

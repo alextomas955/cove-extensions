@@ -4,7 +4,7 @@ using Renamer.Planner;
 namespace Renamer;
 
 /// <summary>
-/// Source-generated, high-performance log messages for the renamer slice. Renamers and moves change
+/// Source-generated, high-performance log messages for the renamer slice. Renames and moves change
 /// files on disk, so every batch/undo/auto-renamer records what it did to Cove's normal log — per-file
 /// old → new, skip reasons, and a summary — for audit and troubleshooting.
 ///

@@ -127,7 +127,7 @@ public sealed class UndoReplayer
         //      WIDENING governing relocation DESTINATIONS — not the library's existing folders. An
         //      in-place restore (OLD and NEW share the same directory) writes back into the directory the
         //      file already legitimately occupies — no write boundary is crossed — so gating it would make
-        //      ordinary in-place renamers permanently non-undoable the moment any AllowedRoot is set. We
+        //      ordinary in-place renames permanently non-undoable the moment any AllowedRoot is set. We
         //      therefore gate ONLY when the restore changes directory (DirOf(OLD) != DirOf(NEW)), using the
         //      same OS-aware PathsEqual comparison the rest of this class uses.
         //
@@ -214,7 +214,7 @@ public sealed class UndoReplayer
         }
 
         // (4) Reverse DB save: set Basename back (and the parent folder for the in-place/move case).
-        //     Captions are out of undo scope for v1 (null caption renamers).
+        //     Captions are out of undo scope for v1 (null caption renames).
         var mutation = new RenamerFileMutation(entry.FileId, oldBasename, oldFolderId, null);
         try
         {

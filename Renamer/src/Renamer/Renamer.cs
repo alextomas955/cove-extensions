@@ -17,7 +17,7 @@ public sealed partial class Renamer : FullExtensionBase
     public override string Id => "com.alextomas955.renamer";
     public override string Name => "Renamer";
     public override string Version => "0.1.0";
-    public override string? Description => "Bulk-renamers Cove library items using configurable patterns.";
+    public override string? Description => "Bulk-renames Cove library items using configurable patterns.";
     public override string? Author => "alextomas955";
     public override string? Url => "https://github.com/alextomas955/renamer";
     public override IReadOnlyList<string> Categories => [ExtensionCategories.Tools, ExtensionCategories.Automation];
@@ -36,7 +36,7 @@ public sealed partial class Renamer : FullExtensionBase
     private IEventBus? _eventBus;
 
     /// <summary>
-    /// The host logger, writing to Cove's normal log. Renamers and moves change files on disk, so every
+    /// The host logger, writing to Cove's normal log. Renames and moves change files on disk, so every
     /// batch/undo/auto-renamer records what it did (per-file old → new, skip reasons, a summary) for
     /// audit and troubleshooting. Non-null by construction: defaults to a no-op logger and is replaced
     /// in <see cref="InitializeAsync"/> if the host supplies one, so the source-generated
@@ -125,10 +125,10 @@ public sealed partial class Renamer : FullExtensionBase
         (string OldFullPath, string NewFullPath, long SizeBytes) Move);
 
     /// <summary>
-    /// Renamers every id in the decoded batch in two phases. PHASE A plans + classifies ALL ids
+    /// Renames every id in the decoded batch in two phases. PHASE A plans + classifies ALL ids
     /// sequentially over ONE read-only scope (deterministic preview ordering) and refuses the batch up
     /// front if a destination volume would not fit. PHASE B executes the acting items in parallel:
-    /// same-volume renamers run unthrottled (an instant metadata <c>File.Move</c> needs no throttle and
+    /// same-volume renames run unthrottled (an instant metadata <c>File.Move</c> needs no throttle and
     /// consumes ~no extra space), cross-volume copies run bounded per (source,dest) disk pair. EACH
     /// worker opens its OWN scope and resolves its OWN <see cref="DbContext"/> — a <c>DbContext</c> is
     /// not thread-safe and Cove disables EF's thread-safety checks, so a shared context would corrupt
@@ -355,7 +355,7 @@ public sealed partial class Renamer : FullExtensionBase
             ct.ThrowIfCancellationRequested();
 
             // Same-volume group is bounded by SameVolumeConcurrency (a pressure bound, not a space
-            // guard — same-drive moves are instant metadata renamers). A value <= 0 means unbounded
+            // guard — same-drive moves are instant metadata renames). A value <= 0 means unbounded
             // (legacy behavior), mapped to Parallel's -1 sentinel. Each cross-volume (src,dst) pair is
             // bounded by the configured per-pair concurrency.
             int degree = pair == FreeSpaceGuard.SameVolumePair

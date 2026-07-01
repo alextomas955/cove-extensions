@@ -8,7 +8,7 @@ namespace Renamer.Tests.Events;
 /// <summary>
 /// CR-01 regression for the auto-renamer hook: a matched routing rule must relocate the just-edited
 /// item to its configured destination — the SAME on-disk outcome the manual batch and <c>/preview</c>
-/// produce. Before the fix the hook called the empty-lookups overload, so auto-renamers silently never
+/// produce. Before the fix the hook called the empty-lookups overload, so auto-renames silently never
 /// relocated even when a matching destination rule was configured. ROUTE-04 default-relocate stays
 /// gated (default off), so this proves only an explicitly-MATCHED rule relocates — not a dribble of
 /// the whole library.
