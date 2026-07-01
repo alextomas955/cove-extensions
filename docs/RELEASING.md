@@ -13,13 +13,13 @@ old single-extension-repo scheme, which used a flat `v*` tag with no extension p
 
 ## What CI does: a catalog-driven validate → build → release matrix
 
-`.github/workflows/build.yml` reads `catalog.json` to compute its build matrix:
+`.github/workflows/build.yml` reads `extensions/catalog.json` to compute its build matrix:
 
 - **validate** — on every PR and every push, confirms the catalog is well-formed and (on a tag
   push) that the tag matches exactly one catalog entry's `tagPrefix` with a valid semver suffix.
-- **build** — runs for every extension in `catalog.json` on every PR (there is no `paths:`
-  filtering; this matches the upstream template convention, not a CI-minute optimization — every
-  extension's build is exercised on every PR regardless of which extension the PR actually
+- **build** — runs for every extension in `extensions/catalog.json` on every PR (there is no
+  `paths:` filtering; this matches the upstream template convention, not a CI-minute optimization —
+  every extension's build is exercised on every PR regardless of which extension the PR actually
   touched). On a tag push, only the tagged extension's entry builds and is versioned; every other
   extension in the matrix builds with a placeholder version and is not packaged.
   - Packaging paths are driven entirely by each catalog entry's fields — `projectPath`,

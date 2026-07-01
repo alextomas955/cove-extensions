@@ -6,13 +6,13 @@ into a single multi-extension repo following [yourcove](https://github.com/yourc
 
 ## Extensions
 
-Extensions are registered in [`catalog.json`](catalog.json), the source of truth CI reads to
-compute its build matrix. Today the catalog holds one entry:
+Extensions are registered in [`extensions/catalog.json`](extensions/catalog.json), the source of
+truth CI reads to compute its build matrix. Today the catalog holds one entry:
 
 - **Renamer** (`extensions/Renamer/`) — a file-renaming extension for a self-hosted Cove media
   library.
 
-This list will grow as more entries are added to `catalog.json`.
+This list will grow as more entries are added to `extensions/catalog.json`.
 
 ## Building
 
