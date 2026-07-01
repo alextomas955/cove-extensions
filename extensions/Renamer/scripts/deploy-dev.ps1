@@ -82,9 +82,10 @@ $HostProvidedAssemblies = @(
 )
 
 # --- 1. Resolve repo paths (location-independent) ----------------------------------------------
-# $PSScriptRoot = extensions/Renamer/scripts; the monorepo root is two levels up.
+# $PSScriptRoot = extensions/Renamer/scripts; the extension root is one level up, and the
+# monorepo root is one level above that extensions/ subfolder (two levels above ExtensionRoot).
 $ExtensionRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
-$MonorepoRoot  = Resolve-Path (Join-Path $ExtensionRoot '..')
+$MonorepoRoot  = Resolve-Path (Join-Path $ExtensionRoot '../..')
 $Csproj        = Join-Path $ExtensionRoot 'src/Renamer/Renamer.csproj'
 $PublishDir    = Join-Path $ExtensionRoot 'artifacts/publish'
 $UiDir         = Join-Path $ExtensionRoot 'src/Renamer.Ui'

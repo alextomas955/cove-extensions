@@ -70,8 +70,8 @@
       Compile-Removed, so the project still compiles to the pure-core UNIT tier (the EF Sqlite/InMemory
       PackageReferences above are on NuGet and stay unconditional).
     -->
-    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj" Condition="Exists('$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')" />
-    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Core\Cove.Core.csproj" Condition="Exists('$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Core\Cove.Core.csproj')" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj" Condition="Exists('$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Core\Cove.Core.csproj" Condition="Exists('$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Core\Cove.Core.csproj')" />
   </ItemGroup>
 
   <!--
@@ -85,7 +85,7 @@
     194 stay green) and ACTIVE on a bare CI runner. This makes the pure-core unit tier RUN, not just
     compile, with no cove checkout.
   -->
-  <ItemGroup Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')">
+  <ItemGroup Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')">
     <PackageReference Include="Cove.Plugins" Version="$(CoveSdkVersion)" />
   </ItemGroup>
 
@@ -103,7 +103,7 @@
     FakeStore.cs and TestSupport/FakeJobProgress.cs are Cove.Plugins-only (available via NuGet) and are
     NOT removed — they are needed by the pure-core unit tier (e.g. OptionsStoreTests).
   -->
-  <ItemGroup Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')">
+  <ItemGroup Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')">
     <Compile Remove="ActionDeclarationTests.cs" />
     <Compile Remove="Api\SettingsManifestTests.cs" />
     <Compile Remove="Api\PreviewEndpointTests.cs" />

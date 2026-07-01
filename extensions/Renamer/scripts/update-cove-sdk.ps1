@@ -31,15 +31,15 @@
 
 .PARAMETER CoveRepo
     Path to the Cove monorepo root. Overrides $env:COVE_REPO. Defaults to ../cove relative to
-    the extensions monorepo root (two levels up from this script).
+    the extensions monorepo root (three levels up from this script).
 
 .PARAMETER Build
     Build the SDK (npm run build in the SDK dir) before packing, so dist/ is fresh.
 
 .NOTES
-    The sibling-Cove default path is ../cove relative to the MONOREPO root (extensions/), not
-    relative to this extension's own folder — extensions/Renamer/ is one level deeper than the
-    monorepo root.
+    The sibling-Cove default path is ../cove relative to the MONOREPO root (this repo's own
+    root, one level above its extensions/ subfolder), not relative to this extension's own
+    folder — extensions/Renamer/ is two levels deeper than the monorepo root.
 #>
 [CmdletBinding()]
 param(
@@ -49,9 +49,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# $PSScriptRoot = extensions/Renamer/scripts; the monorepo root is two levels up.
+# $PSScriptRoot = extensions/Renamer/scripts; the extension root is one level up, and the
+# monorepo root is one level above that extensions/ subfolder (two levels above extensionRoot).
 $extensionRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
-$monorepoRoot  = Resolve-Path (Join-Path $extensionRoot '..')
+$monorepoRoot  = Resolve-Path (Join-Path $extensionRoot '../..')
 $vendorDir     = Join-Path $extensionRoot 'src/Renamer.Ui/vendor'
 
 if (-not $CoveRepo) { $CoveRepo = $env:COVE_REPO }
