@@ -224,6 +224,11 @@ jobs:
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm ci
 
+      - name: Stamp source package.json version
+        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        working-directory: ${{ matrix.extension.uiPath }}
+        run: npm version ${{ steps.check.outputs.version }} --no-git-tag-version --allow-same-version
+
       - name: Verify frontend (typecheck + lint + format:check + check-classes + test)
         if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
         working-directory: ${{ matrix.extension.uiPath }}
@@ -250,11 +255,13 @@ jobs:
         if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
         run: cp ${{ matrix.extension.uiPath }}/dist/index.mjs artifacts/${{ matrix.extension.name }}/
 
-      # Version parity: the version the manifest, the assembly, and the UI package declare must
-      # agree, so a release can't ship a manifest that disagrees with the binary.
+      # Version parity: the version the manifest, the assembly, the UI package, and the catalog
+      # registry manifest declare must agree, so a release can't ship a manifest that disagrees
+      # with the binary. The 4th arg is the catalog registry manifest, derived from the entry's
+      # own path/id (<path>/extensions/<id>.json) rather than a new catalog.json field.
       - name: Check version parity
         if: steps.check.outputs.match == 'true' && matrix.extension.versionSourcePath != ''
-        run: node scripts/check-version-parity.mjs ${{ matrix.extension.manifestPath }} ${{ matrix.extension.versionSourcePath }} ${{ matrix.extension.uiPath }}/package.json
+        run: node scripts/check-version-parity.mjs ${{ matrix.extension.manifestPath }} ${{ matrix.extension.versionSourcePath }} ${{ matrix.extension.uiPath }}/package.json ${{ matrix.extension.path }}/extensions/${{ matrix.extension.id }}.json
 
       - name: Package
         if: steps.check.outputs.match == 'true' && github.event_name != 'pull_request'
