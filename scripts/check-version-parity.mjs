@@ -11,8 +11,9 @@
  *
  * It reconciles two axes only:
  *   - the artifact `version`, across the manifest / the C# version-source file / the UI package.json
- *     (three sources);
- *   - `minCoveVersion`, across the manifest / the C# version-source file (two sources).
+ *     / the optional catalog registry manifest (up to four sources);
+ *   - `minCoveVersion`, across the manifest / the C# version-source file / the optional catalog
+ *     registry manifest (up to three sources).
  * It deliberately does NOT touch CHANGELOG milestone labels — those are an intentionally separate,
  * documented axis (the labels are the development narrative, not the release version).
  *
@@ -20,18 +21,24 @@
  * hardcoded src/Rename/... paths resolved relative to the script's own directory. This version
  * accepts three CLI path arguments instead, resolved relative to process.cwd() (the CI/invoker's
  * working directory), so a catalog-driven monorepo workflow can invoke it once per extension entry
- * with that entry's own manifestPath/versionSourcePath, and a path to the UI package.json:
+ * with that entry's own manifestPath/versionSourcePath, and a path to the UI package.json. An
+ * optional fourth argument, the catalog registry manifest path (e.g.
+ * com.alextomas955.renamer.json), adds that manifest's `versions[0].version` and
+ * `versions[0].minCoveVersion` into the same two axes; when omitted, behavior is unchanged:
  *
- *   node scripts/check-version-parity.mjs <manifestPath> <versionSourcePath> <uiPackageJsonPath>
+ *   node scripts/check-version-parity.mjs <manifestPath> <versionSourcePath> <uiPackageJsonPath> [catalogManifestPath]
  */
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-const [, , manifestArg, versionSourceArg, uiPackageJsonArg] = process.argv;
+const [, , manifestArg, versionSourceArg, uiPackageJsonArg, catalogManifestArg] = process.argv;
 
-if (process.argv.length - 2 !== 3) {
-  console.error("Usage: node scripts/check-version-parity.mjs <manifestPath> <versionSourcePath> <uiPackageJsonPath>");
+const argCount = process.argv.length - 2;
+if (argCount < 3 || argCount > 4) {
+  console.error(
+    "Usage: node scripts/check-version-parity.mjs <manifestPath> <versionSourcePath> <uiPackageJsonPath> [catalogManifestPath]",
+  );
   process.exit(1);
 }
 
@@ -62,6 +69,30 @@ const minCoveSources = [
 ];
 
 const failures = [];
+
+// Optional fourth source: the catalog registry manifest (e.g. com.alextomas955.renamer.json).
+// It carries a `versions` ARRAY; the release entry under comparison is `versions[0]` (the
+// newest/first). Guard the nested access so a missing/empty array is a clean gate failure, not an
+// uncaught TypeError.
+if (catalogManifestArg) {
+  const catalogManifest = JSON.parse(read(catalogManifestArg));
+  const latestVersion = Array.isArray(catalogManifest.versions) ? catalogManifest.versions[0] : null;
+
+  if (latestVersion == null) {
+    failures.push(`catalog manifest (${catalogManifestArg}) has no versions[0] entry to compare`);
+  } else {
+    versionSources.push({
+      label: "catalog manifest versions[0].version",
+      file: catalogManifestArg,
+      value: latestVersion.version,
+    });
+    minCoveSources.push({
+      label: "catalog manifest versions[0].minCoveVersion",
+      file: catalogManifestArg,
+      value: latestVersion.minCoveVersion,
+    });
+  }
+}
 
 function assertAgreement(axis, sources) {
   const expected = sources[0].value;
