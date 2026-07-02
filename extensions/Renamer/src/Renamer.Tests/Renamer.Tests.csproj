@@ -20,11 +20,10 @@
     <CoveHostProvidedAssemblies>;__renamer_tests_no_strip__;</CoveHostProvidedAssemblies>
     <!--
       NU1903: a known-vuln transitive native lib (SQLitePCLRaw.lib.e_sqlite3, pulled in by
-      Microsoft.EntityFrameworkCore.Sqlite 10.0.6). It is a TEST-ONLY dependency for the
-      SQLite-in-memory integration tier and is NEVER part of the deployed Renamer.dll payload, so it
-      poses no risk to users of the extension. The EF provider is pinned to 10.0.6 to match
-      Cove.Tests; bumping it is a dependency decision out of scope for the lint/format phase. Suppress
-      the audit-as-error here (test project only) so TreatWarningsAsErrors does not block the build.
+      Microsoft.EntityFrameworkCore.Sqlite). It is a TEST-ONLY dependency for the SQLite-in-memory
+      integration tier and is NEVER part of the deployed Renamer.dll payload, so it poses no risk to
+      users of the extension. Suppress the audit-as-error here (test project only) so
+      TreatWarningsAsErrors does not block the build.
     -->
     <NoWarn>$(NoWarn);NU1903</NoWarn>
   </PropertyGroup>
@@ -46,8 +45,10 @@
       TEST-ONLY: the integration tier stands up a real CoveContext on SQLite-in-memory
       (constraint/transaction fidelity) and EF-InMemory (fast Path-recompute). These EF
       providers + Cove.Data/Cove.Core are referenced ONLY here; the deployed Renamer.dll
-      publishes Renamer.csproj alone, so host assemblies are never bundled.
-      Pinned to 10.0.6 to match Cove.Tests.csproj.
+      publishes Renamer.csproj alone, so host assemblies are never bundled. No version-parity
+      constraint with Cove.Data's own EF Core version — confirmed a patch-level gap between the
+      two already exists and works fine, since EF Core patch releases are binary-compatible within
+      a major.minor line. Dependabot may bump these freely.
     -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.6" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.9" />
