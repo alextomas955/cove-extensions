@@ -18,7 +18,7 @@ const test = base.extend({
   // eslint-disable-next-line no-empty-pattern
   isolatedHarness: [
     async ({}, use) => {
-      const isolatedHarness = await startHarness({ timeoutMs: 180_000 });
+      const isolatedHarness = await startHarness();
       isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
       await isolatedHarness.installExtension(RENAMER_EXTENSION);
       await use(isolatedHarness);

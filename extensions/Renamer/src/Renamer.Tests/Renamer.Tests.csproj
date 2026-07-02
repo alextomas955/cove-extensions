@@ -99,18 +99,22 @@
       - Cove.Core-ONLY (auth/events/entities, no CoveContext): ActionDeclarationTests, Api/SettingsManifestTests,
         TestSupport/FakePrincipalAccessor, TestSupport/CapturingEventBus.
       - INTEGRATION (real CoveContext via Cove.Data): Execution/*, Events/*, TestSupport/CoveContextFactory,
-        Jobs/RenamerBatchJobTests, Api/PreviewEndpointTests, Api/PreviewSampleEndpointTests, Api/EndpointPermissionTests.
+        Jobs/RenamerBatchJobTests, Api/PreviewEndpointTests, Api/PreviewSampleEndpointTests, Api/EndpointPermissionTests,
+        Api/ListEntitiesEndpointTests, Api/RenamerLibraryEndpointTests, Api/ScanLibraryEndpointTests.
     FakeStore.cs and TestSupport/FakeJobProgress.cs are Cove.Plugins-only (available via NuGet) and are
     NOT removed — they are needed by the pure-core unit tier (e.g. OptionsStoreTests).
   -->
   <ItemGroup Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')">
     <Compile Remove="ActionDeclarationTests.cs" />
     <Compile Remove="Api\SettingsManifestTests.cs" />
+    <Compile Remove="Api\ListEntitiesEndpointTests.cs" />
     <Compile Remove="Api\PreviewEndpointTests.cs" />
     <Compile Remove="Api\PreviewSampleEndpointTests.cs" />
     <Compile Remove="Api\EndpointPermissionTests.cs" />
     <Compile Remove="Api\EntityIdsCapTests.cs" />
     <Compile Remove="Api\PreviewRoutingTests.cs" />
+    <Compile Remove="Api\RenamerLibraryEndpointTests.cs" />
+    <Compile Remove="Api\ScanLibraryEndpointTests.cs" />
     <Compile Remove="Api\UndoEndpointTests.cs" />
     <Compile Remove="Jobs\RenamerBatchJobTests.cs" />
     <Compile Remove="Execution\**\*.cs" />

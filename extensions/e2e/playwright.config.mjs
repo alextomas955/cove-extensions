@@ -19,20 +19,23 @@ export default defineConfig({
   // entirely via their own `scope: 'test'` fixture, so parallel workers never race on those
   // mutations either.
   //
-  // Workers capped at 4, not left at Playwright's CPU-based default: each worker brings up its
-  // own Docker Compose network (one per Cove+Postgres pair), and Docker's default address-pool
-  // allocation is a finite, HOST-WIDE resource shared with any other Docker projects already
-  // running on the machine — confirmed directly (a 13-worker run failed 3 tests with "all
-  // predefined address pools have been fully subnetted" on a machine that already had several
-  // unrelated projects' networks allocated). 4 concurrent Cove instances is comfortably within
-  // Docker Desktop's default pool on a typical dev machine even with other projects running;
-  // override with `--workers=N` if a given machine can sustain more (or fewer).
+  // Workers capped, not left at Playwright's CPU-based default: each worker brings up its own
+  // Docker Compose network (one per Cove+Postgres pair) plus a Chromium instance. Locally, 4 is
+  // comfortably within Docker Desktop's default address-pool on a typical dev machine — confirmed
+  // directly (a 13-worker run failed 3 tests with "all predefined address pools have been fully
+  // subnetted" on a machine that already had several unrelated projects' networks allocated). In
+  // CI, each worker's fixed cost (a full Compose stack + a real browser, not just a browser context
+  // against one shared server) is high relative to a standard GitHub-hosted runner's 4 vCPU/16GB —
+  // running all 4 concurrently there oversubscribes the runner, so CI gets fewer, not the same
+  // count as local. Override with `--workers=N` if a given machine/runner can sustain more (or
+  // fewer) than its default.
   fullyParallel: true,
-  workers: 4,
+  workers: process.env.CI ? 2 : 4,
+  retries: process.env.CI ? 2 : 0,
   timeout: 180_000,
   reporter: [['list']],
   use: {
-    trace: 'retain-on-failure',
+    trace: process.env.CI ? 'on-first-retry' : 'retain-on-failure',
     screenshot: 'only-on-failure',
     ...devices['Desktop Chrome'],
   },

@@ -33,3 +33,9 @@ reference.
   `extensions/<Name>/docs/`, `extensions/<Name>/CHANGELOG.md`.
 - Repo-wide process docs live in [`docs/`](docs/): [`docs/BRANCHING.md`](docs/BRANCHING.md) and
   [`docs/RELEASING.md`](docs/RELEASING.md).
+
+## License
+
+Copyright (C) 2026 alextomas955
+
+Licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).

@@ -230,7 +230,8 @@ public sealed class RoutingPlannerTests
         var port = new FakeRenamerDataPort();
         port.SeedEntity(Entity(
             VideoFile(1, "a.mkv", SrcRoot),
-            VideoFile(2, "b.mkv", SrcRoot)) with { Tags = ["anime"] });
+            VideoFile(2, "b.mkv", SrcRoot)) with
+        { Tags = ["anime"] });
         var planner = new RenamerPlanner(port);
         var opts = MoveOptions([SrcRoot]);
         var lk = Lookups(excludeTags: new HashSet<string>(["anime"], StringComparer.OrdinalIgnoreCase));

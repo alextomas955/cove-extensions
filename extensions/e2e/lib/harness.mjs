@@ -16,12 +16,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const COMPOSE_DIR = join(__dirname, '..', 'docker');
 const COMPOSE_FILE = 'docker-compose.yml';
 
+// Shared-runner container cold-start is measurably slower than a dedicated dev machine's Docker
+// Desktop — widen the default startup budget in CI rather than tuning it tight against local timing.
+const DEFAULT_STARTUP_TIMEOUT_MS = process.env.CI ? 240_000 : 180_000;
+
 /**
  * Brings up an isolated Cove instance and returns a handle with baseUrl + install/teardown methods.
  * Every instance gets a random project name (Testcontainers) and a random host port so parallel
  * test runs never collide.
  */
-export async function startHarness({ image, timeoutMs = 120_000 } = {}) {
+export async function startHarness({ image, timeoutMs = DEFAULT_STARTUP_TIMEOUT_MS } = {}) {
   let environment = new DockerComposeEnvironment(COMPOSE_DIR, COMPOSE_FILE)
     .withStartupTimeout(timeoutMs)
     .withWaitStrategy('cove', Wait.forHealthCheck())

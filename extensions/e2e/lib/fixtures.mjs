@@ -15,7 +15,7 @@ export const test = base.extend({
   // eslint-disable-next-line no-empty-pattern
   harness: [
     async ({}, use, workerInfo) => {
-      const harness = await startHarness({ timeoutMs: 180_000 });
+      const harness = await startHarness();
       // Cove's frontend hard-gates the ENTIRE app behind a first-run setup wizard until an owner
       // account exists — there is no way to dismiss it otherwise (confirmed directly). Every
       // browser-driven test needs this done once per instance, so it happens here rather than

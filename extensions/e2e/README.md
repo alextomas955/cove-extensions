@@ -63,8 +63,8 @@ in the shared `e2e/` directory or in the extension's own.
 
 ## Parallel execution
 
-`fullyParallel: true` with `workers: 4` — tests run concurrently by default, each against its own
-isolated Cove instance. This is safe because:
+`fullyParallel: true` with `workers: process.env.CI ? 2 : 4` — tests run concurrently by default,
+each against its own isolated Cove instance. This is safe because:
 
 - Worker-shared-harness test files (the default — see `lib/fixtures.mjs`) each seed their own
   uniquely-named data per test (timestamp + random suffix), so concurrent tests never collide even
@@ -75,14 +75,19 @@ isolated Cove instance. This is safe because:
   removing the one shared extension install would otherwise race against any other test in the
   same worker that's mid-assertion against it.
 
-**Worker count is capped at 4, not left at Playwright's CPU-based default.** Each worker brings up
-its own Docker Compose network, and Docker's default address-pool allocation is a finite,
-**host-wide** resource shared with any other Docker projects already running on the machine —
-confirmed directly: an uncapped run (Playwright's default, which scaled to 13 workers on the
-machine this was built on) failed 3 of 13 tests with `all predefined address pools have been fully
-subnetted` because other, unrelated Docker projects on that machine had already claimed part of the
-default pool. Override with `--workers=N` if your machine can sustain more (or needs fewer, e.g. in
-a resource-constrained CI runner).
+**Worker count is capped, not left at Playwright's CPU-based default, and CI gets fewer workers
+than local.** Each worker brings up its own Docker Compose network plus a real browser instance.
+Locally, 4 is capped because Docker's default address-pool allocation is a finite, **host-wide**
+resource shared with any other Docker projects already running on the machine — confirmed
+directly: an uncapped run (Playwright's default, which scaled to 13 workers on the machine this was
+built on) failed 3 of 13 tests with `all predefined address pools have been fully subnetted`
+because other, unrelated Docker projects on that machine had already claimed part of the default
+pool. In CI, each worker's fixed cost (a full Compose stack + Postgres + a real Chromium, not a
+lightweight browser context against one already-running server) is high relative to a standard
+GitHub-hosted runner's 4 vCPU/16GB — running 4 concurrently there oversubscribes the runner, so CI
+is capped at 2 instead. `retries: 2` and `trace: 'on-first-retry'` are also CI-only, standard
+Playwright CI hygiene. Override with `--workers=N` if a given machine/runner can sustain more (or
+fewer) than its default.
 
 **If a run is killed or a worker crashes before `environment.up()` finishes**, Testcontainers'
 Ryuk cleanup can leave healthy containers running (confirmed directly — Ryuk reaps containers when
@@ -153,7 +158,7 @@ container) doesn't block every UI test either. You don't need to do anything for
 ### Available fixtures
 
 | Fixture | What it gives you |
-|---|---|
+| --- | --- |
 | `baseUrl` | The running instance's URL (e.g. `http://localhost:54321`) — a fresh random port every run |
 | `api` | `{ get, post, put, delete }` helpers for calling the instance's REST API directly, no browser |
 | `page` | A real Playwright `Page`, already navigated to `baseUrl` and already signed in |

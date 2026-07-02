@@ -23,6 +23,14 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
 
+  # Shared E2E test harness — Testcontainers, Playwright, and their transitive deps. Used by every
+  # extension's e2e suite (see extensions/e2e/README.md), not Renamer-specific.
+  - package-ecosystem: "npm"
+    directory: "/extensions/e2e"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
   # Workflow action versions (checkout, setup-dotnet, setup-node, action-gh-release, codeql-action).
   # Root-scoped regardless of how many extensions exist in this monorepo.
   - package-ecosystem: "github-actions"
