@@ -1,5 +1,9 @@
 # Cove Extensions Monorepo
 
+[![Build and Release Extensions](https://github.com/alextomas955/cove-extensions/actions/workflows/build.yml/badge.svg)](https://github.com/alextomas955/cove-extensions/actions/workflows/build.yml)
+[![CodeQL](https://github.com/alextomas955/cove-extensions/actions/workflows/codeql.yml/badge.svg)](https://github.com/alextomas955/cove-extensions/actions/workflows/codeql.yml)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
+
 This repository is the Cove extensions monorepo, converted from a one-repo-per-extension layout
 into a single multi-extension repo following [yourcove](https://github.com/yourcove)'s official
 `multi-extension-repo-template` pattern.

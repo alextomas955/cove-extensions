@@ -43,16 +43,30 @@ export class VideosPage {
    */
   async renameSelected() {
     const messages = [];
+    let resolveSecondDialog;
+    const secondDialogSeen = new Promise((resolve) => {
+      resolveSecondDialog = resolve;
+    });
     const handler = async (dialog) => {
       messages.push(dialog.message());
       await dialog.accept();
+      if (messages.length >= 2) {
+        resolveSecondDialog();
+      }
     };
     this.page.on('dialog', handler);
     try {
       await this.renameSelectedButton.click();
-      // Two sequential dialogs (confirm, then alert) — give both a moment to fire and be handled
-      // before the caller moves on, since dialog handling is async relative to the click.
-      await this.page.waitForTimeout(500);
+      // The alert() confirming the job was queued fires only after the confirm() dialog's accept
+      // triggers an async rename-job-enqueue call — waiting on a fixed sleep here was flaky under
+      // CI resource contention (confirmed: the alert can arrive well after 500ms on a loaded
+      // runner). Wait for the second dialog to actually resolve instead.
+      await Promise.race([
+        secondDialogSeen,
+        this.page.waitForTimeout(10_000).then(() => {
+          throw new Error('renameSelected: second dialog (queued alert) never fired within 10s');
+        }),
+      ]);
     } finally {
       this.page.off('dialog', handler);
     }
