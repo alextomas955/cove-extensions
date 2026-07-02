@@ -411,6 +411,30 @@ jobs:
       - name: Build with analyzers (warnings = errors)
         run: dotnet build Renamer.slnx -c Release -p:UseLocalCoveSource=false
 
+  # ---- Windows build + unit-test signal (monorepo-wide, hardcodes today's single Renamer project
+  # path — same convention as csharp-format above). Scoped to .NET build/test only, NOT the full
+  # containerized E2E suite: GitHub-hosted windows-latest runners' Docker daemon is fixed to Windows
+  # containers mode, with no supported way to switch to Linux containers (would need nested
+  # virtualization, which the standard hosted fleet does not enable) — so Testcontainers'
+  # DockerComposeEnvironment, which starts Linux-only images (the Cove app image + Postgres), cannot
+  # run there at all, on any hosted Windows runner, not just as a config issue. This job instead
+  # verifies the actual, achievable Windows signal: the solution builds and its unit tier
+  # (the pure-core tests that don't need a live Cove checkout — see Renamer.Tests.csproj's
+  # cove-absent Compile-Remove group) passes on Windows. A full Windows-hosted E2E run would need a
+  # self-hosted Windows runner with Docker Desktop configured for Linux containers, out of scope here. ----
+  windows-build-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Build
+        run: dotnet build Renamer.slnx -c Release -p:UseLocalCoveSource=false
+      - name: Test (unit tier)
+        run: dotnet test extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj -c Release --no-build
+
   # ---- Markdown docs (repo-wide). Scoped to README.md only — no CHANGELOG.md/docs/**/*.md exist
   # yet at the monorepo root; Phase 13 (DOC-04) will expand both this glob and the root docs. ----
   markdown-lint:
