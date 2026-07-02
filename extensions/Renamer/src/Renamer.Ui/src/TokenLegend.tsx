@@ -11,6 +11,7 @@
 // "components-only file" rule's premise does not apply. The `TOKENS` table is intentionally
 // co-located with the component that renders it; splitting it out would be pure churn.
 /* eslint-disable react-refresh/only-export-components */
+import { Chip } from "./primitives";
 
 /**
  * A legend entry. `kind` drives insertion style; `insert` is the EXACT string spliced at the
@@ -69,18 +70,18 @@ export function TokenLegend({ onInsert }: { onInsert: (token: string) => void })
       </p>
       <div className="flex flex-wrap gap-1">
         {TOKENS.map((t) => (
-          <button
+          <Chip
             key={t.token}
-            type="button"
+            selected={false}
+            mono
             title={t.kind === "optional" ? optionalTooltip(t) : t.label}
             onClick={() => {
               onInsert(t.insert);
             }}
-            className="cursor-pointer rounded-lg border border-border bg-card px-2 py-1 font-mono text-xs text-foreground hover:border-accent/50 hover:text-accent"
           >
             {t.token}
             {t.kind === "optional" ? <span className="ml-1 text-muted">{"{ }"}</span> : null}
-          </button>
+          </Chip>
         ))}
       </div>
     </div>
