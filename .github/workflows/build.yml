@@ -315,9 +315,15 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
+      # Publishes to <extension.path>/artifacts/publish, NOT the build job's repo-root-relative
+      # artifacts/<name> — this must match the path each extension's own e2e fixtures file expects
+      # (e.g. Renamer's RENAMER_EXTENSION.publishDir), which mirrors what a local dev deploy script
+      # (deploy-dev.ps1) produces. A mismatch here fails every E2E test at harness install time with
+      # "publishDir does not exist" — found via this repo's actual first CI run, since this job's
+      # own publish path was never exercised against the real fixtures before.
       - name: Build extension (publish output for the harness to install)
         if: steps.check.outputs.has_suite == 'true' && !matrix.extension.manifestOnly
-        run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o artifacts/${{ matrix.extension.name }} -p:UseLocalCoveSource=false
+        run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o ${{ matrix.extension.path }}/artifacts/publish -p:UseLocalCoveSource=false
 
       - name: Setup Node
         if: steps.check.outputs.has_suite == 'true'
@@ -343,20 +349,13 @@ jobs:
         id: e2e
         if: steps.check.outputs.has_suite == 'true'
         working-directory: extensions/e2e
-        # TEMPORARY (first-CI-run investigation): scoped to one fast-failing test, zero retries,
-        # so a full diagnostic cycle (run -> fail -> dump context) completes in under a minute
-        # instead of ~25 minutes for the full retried suite. Restore to the plain invocation once
-        # the root cause is fixed and confirmed.
-        run: npx playwright test --project=${{ matrix.extension.e2eProject }} collision --retries=0
-        env:
-          DEBUG: pw:api
+        run: npx playwright test --project=${{ matrix.extension.e2eProject }}
 
-      # TEMPORARY diagnostic step (first-CI-run investigation): the `list` reporter's stdout only
-      # ever shows pass/fail + duration, never the actual assertion/stack-trace detail, and that
-      # detail otherwise only reaches the Upload Playwright report artifact below — which requires
-      # downloading and unzipping to read. Dump it straight to the job log instead so the real
-      # error is visible without an extra round trip. Remove once the first real CI run is green.
-      - name: Dump E2E failure context (diagnostic)
+      # The `list` reporter's stdout only ever shows pass/fail + duration, never the actual
+      # assertion/stack-trace detail, which otherwise only reaches the Upload Playwright report
+      # artifact below — requiring a download+unzip round trip to read. Dump it straight to the job
+      # log instead so a CI failure is diagnosable from the log alone (CI-02's own requirement).
+      - name: Dump E2E failure context
         if: steps.check.outputs.has_suite == 'true' && failure() && steps.e2e.outcome == 'failure'
         working-directory: extensions/e2e
         shell: bash
