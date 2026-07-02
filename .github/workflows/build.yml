@@ -340,9 +340,26 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Run E2E suite
+        id: e2e
         if: steps.check.outputs.has_suite == 'true'
         working-directory: extensions/e2e
         run: npx playwright test --project=${{ matrix.extension.e2eProject }}
+
+      # TEMPORARY diagnostic step (first-CI-run investigation): the `list` reporter's stdout only
+      # ever shows pass/fail + duration, never the actual assertion/stack-trace detail, and that
+      # detail otherwise only reaches the Upload Playwright report artifact below — which requires
+      # downloading and unzipping to read. Dump it straight to the job log instead so the real
+      # error is visible without an extra round trip. Remove once the first real CI run is green.
+      - name: Dump E2E failure context (diagnostic)
+        if: steps.check.outputs.has_suite == 'true' && failure() && steps.e2e.outcome == 'failure'
+        working-directory: extensions/e2e
+        shell: bash
+        run: |
+          for f in $(find test-results -name "error-context.md" 2>/dev/null); do
+            echo "::group::$f"
+            cat "$f"
+            echo "::endgroup::"
+          done
 
       - name: Upload Playwright report
         if: steps.check.outputs.has_suite == 'true' && failure()
