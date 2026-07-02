@@ -259,8 +259,14 @@ jobs:
       # registry manifest declare must agree, so a release can't ship a manifest that disagrees
       # with the binary. The 4th arg is the catalog registry manifest, derived from the entry's
       # own path/id (<path>/extensions/<id>.json) rather than a new catalog.json field.
+      # PR-excluded like Package/Upload artifact below: on a PR build steps.check.outputs.version
+      # is the "0.0.0" placeholder (no real tag), which the "Stamp source package.json version"
+      # step above writes into package.json — but extension.json's own version is left at its real
+      # value (only the PACKAGED copy under artifacts/ gets stamped on a real release), so a PR
+      # build's package.json and extension.json versions are expected to disagree and would always
+      # fail this gate. The real check only makes sense once there's a real version being released.
       - name: Check version parity
-        if: steps.check.outputs.match == 'true' && matrix.extension.versionSourcePath != ''
+        if: steps.check.outputs.match == 'true' && matrix.extension.versionSourcePath != '' && github.event_name != 'pull_request'
         run: node scripts/check-version-parity.mjs ${{ matrix.extension.manifestPath }} ${{ matrix.extension.versionSourcePath }} ${{ matrix.extension.uiPath }}/package.json ${{ matrix.extension.path }}/extensions/${{ matrix.extension.id }}.json
 
       - name: Package
