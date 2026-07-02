@@ -343,7 +343,13 @@ jobs:
         id: e2e
         if: steps.check.outputs.has_suite == 'true'
         working-directory: extensions/e2e
-        run: npx playwright test --project=${{ matrix.extension.e2eProject }}
+        # TEMPORARY (first-CI-run investigation): scoped to one fast-failing test, zero retries,
+        # so a full diagnostic cycle (run -> fail -> dump context) completes in under a minute
+        # instead of ~25 minutes for the full retried suite. Restore to the plain invocation once
+        # the root cause is fixed and confirmed.
+        run: npx playwright test --project=${{ matrix.extension.e2eProject }} collision --retries=0
+        env:
+          DEBUG: pw:api
 
       # TEMPORARY diagnostic step (first-CI-run investigation): the `list` reporter's stdout only
       # ever shows pass/fail + duration, never the actual assertion/stack-trace detail, and that
