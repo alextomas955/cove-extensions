@@ -50,7 +50,7 @@
       Pinned to 10.0.6 to match Cove.Tests.csproj.
     -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.6" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.6" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.9" />
   </ItemGroup>
 
   <ItemGroup>
