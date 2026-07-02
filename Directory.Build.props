@@ -4,7 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <EnableDynamicLoading>true</EnableDynamicLoading>
-    <CoveSdkVersion Condition="'$(CoveSdkVersion)' == ''">0.7.1</CoveSdkVersion>
+    <CoveSdkVersion Condition="'$(CoveSdkVersion)' == ''">0.8.0</CoveSdkVersion>
 
     <!-- Local-Cove source selector precedence (highest wins):
          1. Explicit -p:UseLocalCoveSource=true|false (set before this file evaluates) — honored as-is.
