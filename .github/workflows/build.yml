@@ -38,7 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: '24.11.0'
 
@@ -213,7 +213,7 @@ jobs:
       # Conditional frontend build — only extensions with a uiPath field ship a frontend bundle.
       - name: Setup Node
         if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           # Exact volta pin from the UI package.json — a Node patch delta can change the emitted
           # bundle bytes and make the stale-bundle gate flaky, so pin the exact version.
@@ -327,7 +327,7 @@ jobs:
 
       - name: Setup Node
         if: steps.check.outputs.has_suite == 'true'
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: '24.11.0'
 
