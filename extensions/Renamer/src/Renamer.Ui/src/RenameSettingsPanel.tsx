@@ -18,7 +18,7 @@
  * the per-sample old→new + flags are rendered by <PreviewCard>. The panel never re-implements
  * naming — the backend engine is the single source of truth.
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { request, ApiError, useExtensionStore } from "@cove/extension-sdk";
 
@@ -302,22 +302,6 @@ function PresetRow({ onApply }: { onApply: (filenameTemplate: string) => void })
       <p className="mt-1 text-xs text-muted">
         Click a preset to fill the filename template. You can edit it afterwards.
       </p>
-    </div>
-  );
-}
-
-/**
- * A top-level settings panel: a larger, more separated header (with a divider) than a nested
- * `GroupCard`/`CollapsibleSection`, so users can tell "this is one of the 6 named sections" from
- * "this is a grouping within a section" at a glance.
- */
-function Panel({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-border bg-surface p-5">
-      <h2 className="border-b border-border pb-3 mb-4 text-base font-semibold text-foreground">
-        {title}
-      </h2>
-      <div className="space-y-4">{children}</div>
     </div>
   );
 }
@@ -730,7 +714,7 @@ export function RenamePanelBody() {
             </StatusText>
           ) : null}
 
-          <Panel title="Essentials">
+          <CollapsibleSection title="Essentials" defaultOpen={true}>
             <PresetRow
               onApply={(t) => {
                 set("FilenameTemplate", t);
@@ -767,7 +751,7 @@ export function RenamePanelBody() {
               />
             </Field>
             <TemplateValidation value={options.FolderTemplate} />
-          </Panel>
+          </CollapsibleSection>
         </div>
 
         {/* ── LIVE PREVIEW (right, 1/3) — sticky under the 64px navbar (top-16) so it stays the
@@ -775,7 +759,7 @@ export function RenamePanelBody() {
             height (default align-items:stretch — do NOT use self-start, which collapses the column to
             content height and defeats position:sticky); the inner CARD is the sticky element. ── */}
         <div>
-          <div className="space-y-4 rounded-2xl border border-border bg-surface p-5 lg:sticky lg:top-16">
+          <div className="space-y-4 lg:sticky lg:top-16">
             <div className="text-base font-semibold text-foreground">Live preview</div>
             <p className="mb-4 mt-1 text-sm text-secondary">
               Old → new for sample items, before anything touches disk.
@@ -799,7 +783,7 @@ export function RenamePanelBody() {
         </div>
       </div>
 
-      <Panel title="What Gets Renamed">
+      <CollapsibleSection title="What Gets Renamed" defaultOpen={true}>
         <Toggle
           label="Only rename organized items"
           checked={options.OnlyOrganized}
@@ -841,9 +825,9 @@ export function RenamePanelBody() {
           />
           <TokenAdvisory values={options.RequiredFields} />
         </Field>
-      </Panel>
+      </CollapsibleSection>
 
-      <Panel title="Run & Automation">
+      <CollapsibleSection title="Run & Automation" defaultOpen={true}>
         <CollapsibleSection
           title="Automation"
           summary="Auto-rename when an item's metadata changes"
@@ -911,7 +895,7 @@ export function RenamePanelBody() {
             </p>
           ) : null}
         </CollapsibleSection>
-      </Panel>
+      </CollapsibleSection>
 
       {dryRunOpen ? (
         <DryRunModal
@@ -923,7 +907,7 @@ export function RenamePanelBody() {
         />
       ) : null}
 
-      <Panel title="Token Settings">
+      <CollapsibleSection title="Token Settings" defaultOpen={true}>
         {usesPerformers ? (
           <CollapsibleSection
             title="Performers"
@@ -1164,9 +1148,9 @@ export function RenamePanelBody() {
             </div>
           </GroupCard>
         ) : null}
-      </Panel>
+      </CollapsibleSection>
 
-      <Panel title="Destination Routing">
+      <CollapsibleSection title="Destination Routing" defaultOpen={true}>
         {/* Destination routing — where matched items move to, by studio/tag/source-path. Ordered by
               decision flow: bound the writable area first (advanced routing & safety, which contains
               allowed roots), then the per-studio/per-tag routing rules, then the catch-all default and
@@ -1399,9 +1383,9 @@ export function RenamePanelBody() {
             />
           </GroupCard>
         </CollapsibleSection>
-      </Panel>
+      </CollapsibleSection>
 
-      <Panel title="Advanced">
+      <CollapsibleSection title="Advanced" defaultOpen={true}>
         <CollapsibleSection
           title="Clean up the name"
           summary="Illegal-character and space handling, case, ASCII"
@@ -1707,7 +1691,7 @@ export function RenamePanelBody() {
             />
           </GroupCard>
         </CollapsibleSection>
-      </Panel>
+      </CollapsibleSection>
 
       {/* ── UNDO — the action surface, distinct from configuration, at the bottom. ── */}
       <div id="rename-undo-section">
