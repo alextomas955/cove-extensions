@@ -48,8 +48,7 @@ import {
   ObjectArrayEditor,
   RegexValidity,
   PathShapeHint,
-  PrimaryButton,
-  GhostButton,
+  Button,
   Chip,
   StatusText,
   Spinner,
@@ -342,13 +341,13 @@ function SaveBar({
           <StatusText kind="muted">Unsaved changes</StatusText>
         )}
         <div className="ml-auto flex items-center gap-3">
-          <GhostButton onClick={onDiscard} disabled={saving}>
+          <Button variant="ghost" onClick={onDiscard} disabled={saving}>
             Discard
-          </GhostButton>
-          <PrimaryButton onClick={onSave} disabled={!canSave || saving}>
+          </Button>
+          <Button onClick={onSave} disabled={!canSave || saving}>
             {saving ? <Spinner /> : null}
             Save changes
-          </PrimaryButton>
+          </Button>
         </div>
       </div>
     </div>
@@ -667,7 +666,9 @@ export function RenamePanelBody() {
           Couldn't load your saved settings — {loadError}. Retry, or continue with defaults below.
         </StatusText>
         <div>
-          <GhostButton onClick={() => void load()}>Retry</GhostButton>
+          <Button variant="ghost" onClick={() => void load()}>
+            Retry
+          </Button>
         </div>
       </div>
     );
@@ -847,18 +848,19 @@ export function RenamePanelBody() {
           summary="Preview or rename every matching item in your library"
         >
           <div className="flex flex-wrap items-center gap-3">
-            <GhostButton
+            <Button
+              variant="ghost"
               onClick={() => {
                 setDryRunOpen(true);
               }}
               disabled={dirty}
             >
               Dry run
-            </GhostButton>
-            <PrimaryButton onClick={() => void renameLibrary()} disabled={dirty || renamingLibrary}>
+            </Button>
+            <Button onClick={() => void renameLibrary()} disabled={dirty || renamingLibrary}>
               {renamingLibrary ? <Spinner /> : null}
               Rename all files
-            </PrimaryButton>
+            </Button>
           </div>
           {dirty ? (
             <p

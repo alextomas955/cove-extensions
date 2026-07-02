@@ -959,7 +959,9 @@ export function ObjectArrayEditor<T>({
           </button>
         </div>
       ))}
-      <GhostButton onClick={add}>{addLabel}</GhostButton>
+      <Button variant="ghost" onClick={add}>
+        {addLabel}
+      </Button>
     </div>
   );
 }
@@ -1050,9 +1052,9 @@ export function KeyValueMapEditor({
       <div className="flex items-start gap-2 rounded-xl border border-border bg-card p-3">
         <span className="min-w-0 flex-1">{renderKey(draftKey, setDraftKey, keys)}</span>
         <span className="flex-1">{renderValue(draftValue, setDraftValue)}</span>
-        <GhostButton onClick={add} disabled={draftKey.trim().length === 0 || duplicate}>
+        <Button variant="ghost" onClick={add} disabled={draftKey.trim().length === 0 || duplicate}>
           {addLabel}
-        </GhostButton>
+        </Button>
       </div>
       {duplicate ? <StatusText kind="error">That key already has a value.</StatusText> : null}
     </div>
@@ -1161,43 +1163,23 @@ export function CollapsibleSection({
   );
 }
 
-export function PrimaryButton({
+export function Button({
+  variant = "primary",
   children,
   onClick,
   disabled,
 }: {
+  variant?: "primary" | "ghost";
   children: ReactNode;
   onClick: () => void;
   disabled?: boolean;
 }) {
+  const className =
+    variant === "ghost"
+      ? "inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-secondary hover:border-accent/50 hover:bg-card-hover hover:text-foreground disabled:opacity-60"
+      : "inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-60";
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-60"
-    >
-      {children}
-    </button>
-  );
-}
-
-export function GhostButton({
-  children,
-  onClick,
-  disabled,
-}: {
-  children: ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-secondary hover:border-accent/50 hover:bg-card-hover hover:text-foreground disabled:opacity-60"
-    >
+    <button type="button" onClick={onClick} disabled={disabled} className={className}>
       {children}
     </button>
   );

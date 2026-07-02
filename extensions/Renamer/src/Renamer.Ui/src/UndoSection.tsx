@@ -12,7 +12,7 @@ import { request, ApiError } from "@cove/extension-sdk";
 import { Undo2 } from "lucide-react";
 
 import { Dialog } from "./dialog";
-import { GhostButton, StatusText, Spinner } from "./primitives";
+import { Button, StatusText, Spinner } from "./primitives";
 
 const EXTENSION_ID = "com.alextomas955.renamer";
 const LAST_BATCH_PATH = `/extensions/${EXTENSION_ID}/last-batch`;
@@ -179,7 +179,9 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
             Couldn&apos;t check for a recent rename — {summaryError}.
           </StatusText>
           <div>
-            <GhostButton onClick={() => void loadSummary()}>Retry</GhostButton>
+            <Button variant="ghost" onClick={() => void loadSummary()}>
+              Retry
+            </Button>
           </div>
         </div>
       ) : hasUndoable ? (
@@ -188,7 +190,8 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
             <span className="text-sm text-foreground">
               Last rename: {count} item{count === 1 ? "" : "s"} renamed · {relativeTime(writtenMs)}
             </span>
-            <GhostButton
+            <Button
+              variant="ghost"
               onClick={() => {
                 setConfirming(true);
               }}
@@ -196,7 +199,7 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
             >
               <Undo2 className="h-4 w-4" />
               Undo last rename
-            </GhostButton>
+            </Button>
           </div>
           {feedback ? <StatusText kind={feedback.kind}>{feedback.text}</StatusText> : null}
         </div>

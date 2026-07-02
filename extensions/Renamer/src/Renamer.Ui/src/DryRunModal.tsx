@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from "react";
 import { request, ApiError } from "@cove/extension-sdk";
 
 import { Dialog, ErrorBox } from "./dialog";
-import { GhostButton, PrimaryButton, Spinner } from "./primitives";
+import { Button, Spinner } from "./primitives";
 import { WarningBadges } from "./WarningBadge";
 import type { ScanItem } from "./preview";
 import { countByStatus, paginate, totalPages } from "./dryRunLogic";
@@ -225,25 +225,27 @@ export function DryRunModal({
                   </tbody>
                 </table>
                 <div className="flex items-center justify-between border-t border-border bg-card px-3 py-2">
-                  <GhostButton
+                  <Button
+                    variant="ghost"
                     onClick={() => {
                       setPage((p) => p - 1);
                     }}
                     disabled={page === 0}
                   >
                     Prev
-                  </GhostButton>
+                  </Button>
                   <span className="text-xs text-muted">
                     Page {page + 1} of {pageCount}
                   </span>
-                  <GhostButton
+                  <Button
+                    variant="ghost"
                     onClick={() => {
                       setPage((p) => p + 1);
                     }}
                     disabled={page === pageCount - 1}
                   >
                     Next
-                  </GhostButton>
+                  </Button>
                 </div>
               </div>
             </>
@@ -252,10 +254,10 @@ export function DryRunModal({
       )}
 
       <div className="mt-6 flex justify-end gap-3">
-        <GhostButton onClick={onClose} disabled={renaming}>
+        <Button variant="ghost" onClick={onClose} disabled={renaming}>
           Close
-        </GhostButton>
-        <PrimaryButton
+        </Button>
+        <Button
           onClick={() => {
             if (items) onRenameAll(items);
           }}
@@ -263,7 +265,7 @@ export function DryRunModal({
         >
           {renaming ? <Spinner /> : null}
           Rename {counts?.renamed ?? 0} files
-        </PrimaryButton>
+        </Button>
       </div>
     </Dialog>
   );
