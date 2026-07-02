@@ -1,9 +1,16 @@
 // Phase 62 — Core Path Coverage. Automated replacement for the manual "live-verified on the
 // running dev host" checks recorded throughout Renamer's milestone history (see PROJECT.md).
-import { test, expect, seedVideo, pollJob, pollUntil } from '../lib/renamer-fixtures.mjs';
+//
+// Rename/undo/preview are driven through the REAL UI (Videos grid + Renamer settings panel), not
+// the REST API — confirmed interactively (Playwright MCP) before writing these tests: selecting a
+// card and clicking "Rename selected" raises a native confirm() with the real computed preview
+// text, then a native alert() confirming the job was queued; "Undo last rename" opens an in-app
+// (React) confirm modal, not a native dialog. See lib/pages/ for the Page Object Model.
+import { test, expect, seedVideo, pollUntil } from '../lib/renamer-fixtures.mjs';
+import { VideosPage } from '../lib/pages/videos-page.mjs';
+import { RenamerSettingsPage } from '../lib/pages/renamer-settings-page.mjs';
 
 const EXTENSION_ID = 'com.alextomas955.renamer';
-const ROUTE = `/api/extensions/${EXTENSION_ID}`;
 
 test('extension installs and reports enabled with UI, API, jobs, and state capabilities', async ({ api }) => {
   const { json } = await api.get('/api/extensions');
@@ -19,48 +26,34 @@ test('editing the filename template updates the live preview and enables Save', 
   const errors = [];
   page.on('pageerror', (err) => errors.push(err.message));
 
-  // The panel lives at /settings/renamer under Settings → Extensions → Renamer (a dedicated
-  // settings tab registered via Renamer.Api.cs's AddSettingsTab, not the top nav) — confirmed by
-  // direct inspection (Playwright MCP) of the real running panel, not assumed from the route name.
-  await page.goto(`${baseUrl}/settings/renamer`);
-
   // This is a REAL interaction test, not a "did it render" smoke check: it drives the actual
   // template textbox, asserts the debounced live-preview panel (POST /preview-sample) reflects
   // the edit, and confirms the dirty-state save bar appears — the same state-wiring path that
   // shipped a real StrictMode double-invoke bug in v1.13 (caught only by manual live verification
   // at the time; a "no console error" check would NOT have caught it, since a stale/duplicated
   // fetch doesn't throw — it silently shows wrong data).
-  const templateInput = page.getByRole('textbox', { name: 'Filename template' });
-  await expect(templateInput).toBeVisible();
-  await templateInput.fill('$title-e2e-ui-marker');
+  const settingsPage = new RenamerSettingsPage(page, baseUrl);
+  await settingsPage.goto();
 
-  // "Renamed → " (the label) and the computed filename are separate text nodes under the same
-  // sample card — match the card container, not the label span, so the filename text is included.
-  const videoSampleCard = page.getByText('SAMPLE: VIDEO', { exact: false }).locator('..');
-  await expect(videoSampleCard).toContainText('e2e-ui-marker', { timeout: 10_000 });
+  await expect(settingsPage.filenameTemplateInput).toBeVisible();
+  await settingsPage.setFilenameTemplate('$title-e2e-ui-marker');
 
-  await expect(page.getByText('Unsaved changes')).toBeVisible();
-  const saveButton = page.getByRole('button', { name: 'Save changes' });
-  await expect(saveButton).toBeVisible();
+  await expect(settingsPage.liveVideoSampleCard()).toContainText('e2e-ui-marker', { timeout: 10_000 });
+  await expect(settingsPage.unsavedChangesIndicator).toBeVisible();
+  await expect(settingsPage.saveChangesButton).toBeVisible();
 
   expect(errors, `Unexpected console errors: ${errors.join('; ')}`).toEqual([]);
 });
 
-test('a settings change persists across a reload via the generic extension data API', async ({ api }) => {
-  // Renamer has no dedicated GET/PUT options route of its own — options are read/written through
-  // Cove's generic per-extension key/value store (GET/PUT /api/extensions/{id}/data/{key}), the
-  // same store OptionsStore wraps internally. This is the only way to change a setting over HTTP
-  // without driving the settings panel's UI.
-  const before = await api.get(`/api/extensions/${EXTENSION_ID}/data`);
-  expect(before.ok).toBe(true);
+test('clicking Save changes persists a settings edit across a page reload', async ({ page, baseUrl }) => {
+  const settingsPage = new RenamerSettingsPage(page, baseUrl);
+  await settingsPage.goto();
 
-  const newOptions = JSON.stringify({ FilenameTemplate: '$title-e2e-marker' });
-  const put = await api.put(`/api/extensions/${EXTENSION_ID}/data/options`, newOptions);
-  expect(put.ok).toBe(true);
+  await settingsPage.setFilenameTemplate('$title-e2e-save-marker');
+  await settingsPage.save(); // waits for the "Unsaved changes" indicator to disappear — the real save signal
 
-  const after = await api.get(`/api/extensions/${EXTENSION_ID}/data`);
-  expect(after.ok).toBe(true);
-  expect(after.json.options).toContain('e2e-marker');
+  await page.reload();
+  await expect(settingsPage.filenameTemplateInput).toHaveValue('$title-e2e-save-marker');
 });
 
 test('dry-run preview matches the template and touches neither disk nor the DB record', async ({
@@ -71,7 +64,10 @@ test('dry-run preview matches the template and touches neither disk nor the DB r
   const video = await seedVideo({ container: harness.container, baseUrl });
   const originalPath = video.files[0].path;
 
-  const preview = await api.post(`${ROUTE}/preview`, {
+  // /preview has no UI trigger of its own (it's what "Rename selected" calls internally before
+  // showing its confirm() dialog) — the API is the only way to exercise it in isolation, without
+  // also triggering the actual mutation the UI action performs. This one test stays API-driven.
+  const preview = await api.post(`/api/extensions/${EXTENSION_ID}/preview`, {
     EntityType: 'video',
     EntityIds: [video.id],
   });
@@ -84,39 +80,49 @@ test('dry-run preview matches the template and touches neither disk nor the DB r
   expect(afterPreview.json.files[0].path).toBe(originalPath);
 });
 
-test('a real single-item rename changes disk and DB together, and undo restores both', async ({
+test('selecting a video and clicking Rename selected renames it on disk and in the DB; Undo restores it', async ({
+  page,
   harness,
   baseUrl,
   api,
 }) => {
   const video = await seedVideo({ container: harness.container, baseUrl });
+  const originalFilename = video.files[0].path.split('/').pop();
   const originalPath = video.files[0].path;
 
-  const enqueue = await api.post(`${ROUTE}/renamer`, {
-    EntityType: 'video',
-    EntityIds: [video.id],
-  });
-  expect(enqueue.status).toBe(202);
+  const videosPage = new VideosPage(page, baseUrl);
+  await videosPage.goto();
+  await videosPage.selectCard(originalFilename);
 
-  const job = await pollJob(api, enqueue.json.jobId);
-  expect(job.status.toLowerCase()).toBe('completed');
+  const dialogMessages = await videosPage.renameSelected();
+  // The confirm() dialog shows the real computed preview — assert on it, not just that a dialog
+  // fired, so this test would catch a regression in what the preview text itself says.
+  expect(dialogMessages[0]).toContain(originalFilename);
+  expect(dialogMessages[1]).toMatch(/queued for 1 video/i);
 
-  const afterRename = await api.get(`/api/videos/${video.id}`);
-  const renamedPath = afterRename.json.files[0].path;
-  expect(renamedPath).not.toBe(originalPath);
+  // Verify the mutation's OUTCOME via the DB record for this specific video, not by re-scraping
+  // the grid — the worker-shared instance can have other tests' videos on the same page, making
+  // "the first .mp4 in the grid" an unreliable signal once more than one card exists.
+  const afterRename = await pollUntil(
+    () => api.get(`/api/videos/${video.id}`).then((r) => r.json),
+    (v) => v.files[0].path !== originalPath,
+    { label: 'video record to reflect the UI-triggered rename' }
+  );
+  expect(afterRename.files[0].path).not.toBe(originalPath);
 
-  const undo = await api.post(`${ROUTE}/undo`);
-  expect(undo.status).toBe(200);
-  expect(undo.json.undone).toBe(1);
-  expect(undo.json.failed).toHaveLength(0);
+  const settingsPage = new RenamerSettingsPage(page, baseUrl);
+  await settingsPage.goto();
+  await settingsPage.undoLastRename();
 
-  // The DB write undo performs is not guaranteed visible on the very next request (observed
-  // directly: a raw GET immediately after a 200 from /undo can still return the pre-undo path).
-  // Poll instead of asserting on the first read.
-  const restored = await pollUntil(
+  const afterUndo = await pollUntil(
     () => api.get(`/api/videos/${video.id}`).then((r) => r.json),
     (v) => v.files[0].path === originalPath,
-    { label: 'video path to be restored by undo' }
+    { label: 'video record to be restored by the UI-triggered undo' }
   );
-  expect(restored.files[0].path).toBe(originalPath);
+  expect(afterUndo.files[0].path).toBe(originalPath);
+
+  // Confirm the restored state is visible in the grid too — the point of this test is that a real
+  // user driving the UI sees the file's name return to normal, not just that the DB agrees.
+  await videosPage.goto();
+  expect(await videosPage.visibleFilenames()).toContain(originalFilename);
 });

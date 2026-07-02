@@ -1,9 +1,26 @@
 // Phase 63 — Whole-Library Job Flow Coverage. Covers the v1.13 scan-library/renamer-library job
 // pair (whole-library Dry Run + Rename All), the first job-polling UI Renamer shipped.
-import { test, expect, seedVideo, pollJob, pollUntil } from '../lib/renamer-fixtures.mjs';
+import { test as base, expect, pollJob, pollUntil } from '../lib/renamer-fixtures.mjs';
+import { startHarness } from '../../../e2e/lib/harness.mjs';
+import { seedVideo } from '../../../e2e/lib/seed-media.mjs';
+import { RENAMER_EXTENSION } from '../lib/renamer-fixtures.mjs';
 
 const EXTENSION_ID = 'com.alextomas955.renamer';
 const ROUTE = `/api/extensions/${EXTENSION_ID}`;
+
+const test = base.extend({
+  // eslint-disable-next-line no-empty-pattern
+  isolatedHarness: [
+    async ({}, use) => {
+      const isolatedHarness = await startHarness({ timeoutMs: 180_000 });
+      isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
+      await isolatedHarness.installExtension(RENAMER_EXTENSION);
+      await use(isolatedHarness);
+      await isolatedHarness.stop();
+    },
+    { scope: 'test' },
+  ],
+});
 
 test('scan-library reports every seeded item without mutating any of them', async ({
   harness,
@@ -37,11 +54,37 @@ test('scan-library reports every seeded item without mutating any of them', asyn
   }
 });
 
-test('renamer-library renames every seeded item in one run', async ({ harness, baseUrl, api }) => {
+// Uses its OWN harness instance PER TEST, unlike scan-library above: renamer-library mutates
+// EVERY item in the library, not just the ones this test seeds — under real parallel execution,
+// a sibling test in the same worker could have its own seeded/mid-rename video swept into this
+// job's "whole library" scope, occasionally missing the polling window for its own rename
+// (confirmed empirically: this test flaked ~1-in-3 runs sharing a worker before this change).
+test('renamer-library renames every seeded item in one run', async ({ isolatedHarness }) => {
+  const baseUrl = isolatedHarness.baseUrl;
+  async function callApi(method, path, body) {
+    const res = await fetch(`${baseUrl}${path}`, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const text = await res.text();
+    let json;
+    try {
+      json = text ? JSON.parse(text) : undefined;
+    } catch {
+      json = undefined;
+    }
+    return { status: res.status, ok: res.ok, json, text };
+  }
+  const api = {
+    get: (p) => callApi('GET', p),
+    post: (p, b) => callApi('POST', p, b),
+  };
+
   const videos = await Promise.all([
-    seedVideo({ container: harness.container, baseUrl, destName: `lib-a-${Date.now()}.mp4` }),
-    seedVideo({ container: harness.container, baseUrl, destName: `lib-b-${Date.now()}.mp4` }),
-    seedVideo({ container: harness.container, baseUrl, destName: `lib-c-${Date.now()}.mp4` }),
+    seedVideo({ container: isolatedHarness.container, baseUrl, destName: `lib-a-${Date.now()}.mp4` }),
+    seedVideo({ container: isolatedHarness.container, baseUrl, destName: `lib-b-${Date.now()}.mp4` }),
+    seedVideo({ container: isolatedHarness.container, baseUrl, destName: `lib-c-${Date.now()}.mp4` }),
   ]);
   const originalPaths = videos.map((v) => v.files[0].path);
 
