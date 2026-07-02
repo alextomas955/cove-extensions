@@ -36,7 +36,7 @@ jobs:
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
@@ -109,7 +109,7 @@ jobs:
             echo "version=0.0.0" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         if: steps.check.outputs.match == 'true'
 
       - name: Setup .NET
@@ -296,7 +296,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.validate.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Check for an e2e suite
         id: check
@@ -398,7 +398,7 @@ jobs:
   csharp-format:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
@@ -425,7 +425,7 @@ jobs:
   windows-build-test:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
@@ -440,7 +440,7 @@ jobs:
   markdown-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: markdownlint
         uses: DavidAnson/markdownlint-cli2-action@v23
         with:
