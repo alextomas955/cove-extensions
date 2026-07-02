@@ -7,12 +7,25 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
 
-  # Renamer test project NuGet deps (xUnit and friends).
+  # Renamer test project NuGet deps (xUnit and friends). Four packages here are pinned to match
+  # Cove core's own Cove.Tests.csproj versions exactly (see the "pinned to X to match Cove.Tests"
+  # comments in Renamer.Tests.csproj) — bumping them ahead of Cove wouldn't break anything at
+  # runtime (they're test-only, never shipped in Renamer.dll), but it would silently break that
+  # documented parity, so they're ignored here until Cove itself bumps them. Microsoft.NET.Test.Sdk
+  # is additionally ignored on major versions only, since a test-runner major bump can change test
+  # discovery/execution behavior and deserves its own verification pass, not a routine auto-PR.
   - package-ecosystem: "nuget"
     directory: "/extensions/Renamer/src/Renamer.Tests"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "Microsoft.EntityFrameworkCore.Sqlite"
+      - dependency-name: "Microsoft.EntityFrameworkCore.InMemory"
+      - dependency-name: "coverlet.collector"
+      - dependency-name: "xunit.runner.visualstudio"
+      - dependency-name: "Microsoft.NET.Test.Sdk"
+        update-types: ["version-update:semver-major"]
 
   # Renamer frontend panel. @cove/extension-sdk is a file:vendor/... dependency (a committed
   # tarball, not a registry package), so Dependabot does not — and cannot — bump it;
