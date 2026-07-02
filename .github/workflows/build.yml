@@ -277,6 +277,75 @@ jobs:
           name: ${{ matrix.extension.id }}-${{ steps.check.outputs.version }}
           path: ${{ matrix.extension.id }}-${{ steps.check.outputs.version }}.zip
 
+  # ---- E2E: rebuilds each extension (a separate job from build/matrix.extension — GitHub Actions
+  # jobs don't share a filesystem, so this job publishes its own fresh copy rather than trying to
+  # reuse the build job's disk state) and installs the result into a containerized, official Cove
+  # instance via extensions/e2e's shared harness, then runs its Playwright suite against it.
+  # Extensions without their own e2e suite are skipped via the catalog's optional
+  # `e2ePath`/`e2eProject` fields (absent = no suite yet, not a failure).
+  e2e:
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.validate.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check for an e2e suite
+        id: check
+        shell: bash
+        run: |
+          if [[ -n "${{ matrix.extension.e2ePath }}" && -d "${{ matrix.extension.e2ePath }}" && -n "${{ matrix.extension.e2eProject }}" ]]; then
+            echo "has_suite=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_suite=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::${{ matrix.extension.name }} has no e2ePath/e2eProject in catalog.json (or the directory is missing) — skipping E2E for this extension."
+          fi
+
+      - name: Setup .NET
+        if: steps.check.outputs.has_suite == 'true' && !matrix.extension.manifestOnly
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Build extension (publish output for the harness to install)
+        if: steps.check.outputs.has_suite == 'true' && !matrix.extension.manifestOnly
+        run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o artifacts/${{ matrix.extension.name }} -p:UseLocalCoveSource=false
+
+      - name: Setup Node
+        if: steps.check.outputs.has_suite == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24.11.0'
+
+      - name: Build extension UI bundle
+        if: steps.check.outputs.has_suite == 'true' && matrix.extension.uiPath != ''
+        working-directory: ${{ matrix.extension.uiPath }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install harness dependencies
+        if: steps.check.outputs.has_suite == 'true'
+        working-directory: extensions/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run E2E suite
+        if: steps.check.outputs.has_suite == 'true'
+        working-directory: extensions/e2e
+        run: npx playwright test --project=${{ matrix.extension.e2eProject }}
+
+      - name: Upload Playwright report
+        if: steps.check.outputs.has_suite == 'true' && failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.extension.id }}-e2e-report
+          path: extensions/e2e/playwright-report/
+          retention-days: 7
+
   release:
     needs: build
     if: startsWith(github.ref, 'refs/tags/')

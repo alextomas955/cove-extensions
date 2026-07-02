@@ -1,0 +1,55 @@
+# Shared E2E harness — brings up an isolated, official Cove instance for testing an extension.
+#
+# Never touches the developer's local native Cove install (%LOCALAPPDATA%\cove / COVE_HOME) — all
+# state is ephemeral, scoped to this compose project, and removed by `docker compose down -v`.
+#
+# Extension install: NOT a host bind-mount. Host bind-mounts depend on the host's Docker file-
+# sharing configuration (e.g. Docker Desktop's drive-sharing allowlist on Windows) — a test suite
+# that only works when the host happens to have the right drive shared is not something every
+# contributor or CI runner can rely on. Instead, `lib/install-extension.mjs` stages the extension
+# on the host, then `docker cp`s it into the running container's /config/extensions/<id>/, which
+# works identically regardless of host file-sharing config. This is the same on-disk shape Cove's
+# own bind-mount install method produces (cove/docker/README.md) — only the delivery mechanism
+# differs.
+#
+# Usage:
+#   docker compose -p cove-e2e up -d --wait
+#   node lib/install-extension.mjs --project cove-e2e --publish-dir ... --manifest ... [--ui-bundle ...]
+#   docker compose -p cove-e2e down -v
+
+services:
+  db:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_DB: cove
+      POSTGRES_USER: cove
+      POSTGRES_PASSWORD: cove
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cove -d cove"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    tmpfs:
+      - /var/lib/postgresql
+
+  cove:
+    image: ${COVE_E2E_IMAGE:-ghcr.io/yourcove/cove-app:latest}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${COVE_E2E_PORT:-0}:5073"
+    environment:
+      COVE__Postgres__Managed: "false"
+      COVE__Postgres__ConnectionString: "Host=db;Port=5432;Database=cove;Username=cove;Password=cove"
+      COVE_HOME: /config
+      COVE__GeneratedPath: /generated
+      COVE__CachePath: /cache
+      COVE__BackupPath: /backups
+      COVE__Auth__Enabled: "false"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5073/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+      start_period: 10s
