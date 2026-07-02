@@ -53,6 +53,7 @@ function run() {
         module: "ESNext",
         moduleResolution: "bundler",
         jsx: "react-jsx",
+        rootDir: path.join(uiRoot, "src"),
         types: [],
         skipLibCheck: true,
         outDir,

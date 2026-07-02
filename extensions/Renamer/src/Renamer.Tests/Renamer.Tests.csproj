@@ -50,7 +50,7 @@
       two already exists and works fine, since EF Core patch releases are binary-compatible within
       a major.minor line. Dependabot may bump these freely.
     -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.6" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.9" />
   </ItemGroup>
 

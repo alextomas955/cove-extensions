@@ -34,6 +34,7 @@ function run() {
         target: "ESNext",
         module: "ESNext",
         moduleResolution: "bundler",
+        rootDir: path.join(uiRoot, "src"),
         types: [],
         skipLibCheck: true,
         outDir,
