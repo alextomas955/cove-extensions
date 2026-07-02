@@ -1,5 +1,4 @@
-// Page Object for Cove's /videos grid — the real screen a user renames files from. Locators are
-// confirmed against the actual running UI (Playwright MCP inspection), not guessed from source.
+// Page Object for Cove's /videos grid — the real screen a user renames files from.
 import { expect } from '../../../../e2e/lib/fixtures.mjs';
 
 export class VideosPage {

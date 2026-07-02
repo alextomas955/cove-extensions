@@ -3,11 +3,10 @@
 // which is exactly what E2E should protect that unit tests (temp-dir-based, but not against a
 // live host process handling concurrent/sequential real requests) can miss.
 //
-// Renamer's actual collision contract (confirmed empirically, not assumed): a target-name
-// collision does NOT skip the second item — it auto-suffixes it via DuplicateSuffixFormat
-// (default " ({n})") so both items end up renamed, never one clobbering the other. `SkipCollision`
-// exists as a status but is not what a plain duplicate-title collision produces; auto-suffix is
-// the default and expected outcome here.
+// Renamer's actual collision contract: a target-name collision does NOT skip the second item — it
+// auto-suffixes it via DuplicateSuffixFormat (default " ({n})") so both items end up renamed, never
+// one clobbering the other. `SkipCollision` exists as a status but is not what a plain
+// duplicate-title collision produces; auto-suffix is the default and expected outcome here.
 import { test, expect, seedVideo, pollJob, pollUntil } from '../lib/renamer-fixtures.mjs';
 
 const EXTENSION_ID = 'com.alextomas955.renamer';

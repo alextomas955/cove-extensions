@@ -2,10 +2,9 @@
 // running dev host" checks recorded throughout Renamer's milestone history (see PROJECT.md).
 //
 // Rename/undo/preview are driven through the REAL UI (Videos grid + Renamer settings panel), not
-// the REST API — confirmed interactively (Playwright MCP) before writing these tests: selecting a
-// card and clicking "Rename selected" raises a native confirm() with the real computed preview
-// text, then a native alert() confirming the job was queued; "Undo last rename" opens an in-app
-// (React) confirm modal, not a native dialog. See lib/pages/ for the Page Object Model.
+// the REST API: "Rename selected" raises a native confirm() with the real computed preview text,
+// then a native alert() confirming the job was queued; "Undo last rename" opens an in-app (React)
+// confirm modal, not a native dialog. See lib/pages/ for the Page Object Model.
 import { test, expect, seedVideo, pollUntil } from '../lib/renamer-fixtures.mjs';
 import { VideosPage } from '../lib/pages/videos-page.mjs';
 import { RenamerSettingsPage } from '../lib/pages/renamer-settings-page.mjs';
@@ -26,12 +25,10 @@ test('editing the filename template updates the live preview and enables Save', 
   const errors = [];
   page.on('pageerror', (err) => errors.push(err.message));
 
-  // This is a REAL interaction test, not a "did it render" smoke check: it drives the actual
-  // template textbox, asserts the debounced live-preview panel (POST /preview-sample) reflects
-  // the edit, and confirms the dirty-state save bar appears — the same state-wiring path that
-  // shipped a real StrictMode double-invoke bug in v1.13 (caught only by manual live verification
-  // at the time; a "no console error" check would NOT have caught it, since a stale/duplicated
-  // fetch doesn't throw — it silently shows wrong data).
+  // Drives the actual template textbox and asserts the debounced live-preview panel
+  // (POST /preview-sample) and dirty-state save bar both reflect the edit — a "no console error"
+  // check alone would miss a stale/duplicated fetch overwriting the preview with wrong data,
+  // since that failure mode doesn't throw.
   const settingsPage = new RenamerSettingsPage(page, baseUrl);
   await settingsPage.goto();
 
@@ -50,7 +47,7 @@ test('clicking Save changes persists a settings edit across a page reload', asyn
   await settingsPage.goto();
 
   await settingsPage.setFilenameTemplate('$title-e2e-save-marker');
-  await settingsPage.save(); // waits for the "Unsaved changes" indicator to disappear — the real save signal
+  await settingsPage.save();
 
   await page.reload();
   await expect(settingsPage.filenameTemplateInput).toHaveValue('$title-e2e-save-marker');

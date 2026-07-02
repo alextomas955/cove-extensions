@@ -1,9 +1,6 @@
 // Verifies Renamer's AutoRenamerOnUpdate hook end-to-end through the real UI: enabling "Auto-
 // rename on update" in the settings panel, then editing a video's title via its real Edit tab,
 // must rename the file automatically — with NO explicit "Rename selected" action from the user.
-// Confirmed interactively (Playwright MCP) before writing this test that the feature is reachable
-// entirely through clicks: Settings → Renamer → expand "Automation" → toggle "Auto-rename on
-// update" → Save changes; then Video detail → Edit tab → change Title → Save.
 //
 // Uses its OWN harness instance PER TEST (same pattern as extension-lifecycle.spec.mjs), NOT the
 // shared per-worker harness: AutoRenamerOnUpdate is a global extension setting that would leak

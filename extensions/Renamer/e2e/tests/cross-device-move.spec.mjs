@@ -1,7 +1,6 @@
 // Verifies a real cross-device move on Linux: /data2 is a tmpfs mount (a genuinely different
-// filesystem from the container's root, unlike two named volumes which land on the same backing
-// device in Docker Desktop — verified empirically before writing this test). A move from /data
-// into /data2 raises a real EXDEV at the kernel level.
+// filesystem from the container's root, unlike two named volumes, which land on the same backing
+// device in Docker Desktop). A move from /data into /data2 raises a real EXDEV at the kernel level.
 //
 // IMPORTANT — what this test does and does NOT prove: Renamer's own same-vs-cross-VOLUME
 // classification (VolumeClassifier.SameVolume) is Path.GetPathRoot()-based, which always returns
@@ -12,9 +11,9 @@
 // xUnit suite for coverage of that path.
 //
 // What IS being verified here: DiskMover.Move's `catch (IOException ex)` already catches the real
-// EXDEV .NET raises for a cross-device File.Move on Linux (confirmed: .NET's File.Move surfaces
-// EXDEV as a plain IOException, same type as "destination exists" / "source locked") — so the move
-// fails SAFELY (reported as a skip, not a crash, not a partial/corrupted state) even though the
+// EXDEV .NET raises for a cross-device File.Move on Linux (.NET's File.Move surfaces EXDEV as a
+// plain IOException, same type as "destination exists" / "source locked") — so the move fails
+// SAFELY (reported as a skip, not a crash, not a partial/corrupted state) even though the
 // reported reason ("locked or target exists") is misleading for this specific cause. This test
 // locks in that safety property and documents the misleading-message gap as a known finding for
 // Renamer's own backlog (a message-text fix is a Renamer source change, out of scope for this

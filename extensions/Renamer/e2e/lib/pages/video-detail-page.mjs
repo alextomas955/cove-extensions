@@ -1,6 +1,5 @@
 // Page Object for a video's detail page (/video/{id}) — specifically its "Edit" tab, which is how
-// a real user changes an item's metadata (title, date, etc.) through the UI. Locators confirmed
-// against the actual running UI (Playwright MCP inspection), not guessed from source.
+// a real user changes an item's metadata (title, date, etc.) through the UI.
 export class VideoDetailPage {
   constructor(page, baseUrl) {
     this.page = page;

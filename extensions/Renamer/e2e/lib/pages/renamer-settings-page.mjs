@@ -1,5 +1,4 @@
-// Page Object for the Renamer settings panel at /settings/renamer. Locators confirmed against the
-// actual running UI (Playwright MCP inspection), not guessed from source.
+// Page Object for the Renamer settings panel at /settings/renamer.
 export class RenamerSettingsPage {
   constructor(page, baseUrl) {
     this.page = page;

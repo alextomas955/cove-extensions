@@ -57,8 +57,7 @@ test('scan-library reports every seeded item without mutating any of them', asyn
 // Uses its OWN harness instance PER TEST, unlike scan-library above: renamer-library mutates
 // EVERY item in the library, not just the ones this test seeds — under real parallel execution,
 // a sibling test in the same worker could have its own seeded/mid-rename video swept into this
-// job's "whole library" scope, occasionally missing the polling window for its own rename
-// (confirmed empirically: this test flaked ~1-in-3 runs sharing a worker before this change).
+// job's "whole library" scope, occasionally missing the polling window for its own rename.
 test('renamer-library renames every seeded item in one run', async ({ isolatedHarness }) => {
   const baseUrl = isolatedHarness.baseUrl;
   async function callApi(method, path, body) {
