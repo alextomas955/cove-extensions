@@ -1,0 +1,10 @@
+{
+  "name": "@cove-extensions/renamer-e2e",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Renamer's own end-to-end tests. Registered as a project in the shared extensions/e2e/playwright.config.mjs — see ../../e2e/README.md for why this isn't its own separate Playwright install.",
+  "scripts": {
+    "test": "cd ../../e2e && npx playwright test --project=renamer"
+  }
+}
