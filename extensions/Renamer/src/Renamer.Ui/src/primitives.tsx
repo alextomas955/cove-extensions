@@ -65,6 +65,35 @@ function chipClass(selected: boolean): string {
   return `${CHIP_BASE} ${selected ? CHIP_SELECTED : CHIP_UNSELECTED}`;
 }
 
+/** Shared selectable-chip button, wrapping {@link chipClass} so every chip site renders identically. */
+export function Chip({
+  selected,
+  onClick,
+  disabled,
+  title,
+  mono,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+  title?: string;
+  mono?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={mono ? `${chipClass(selected)} font-mono` : chipClass(selected)}
+    >
+      {children}
+    </button>
+  );
+}
+
 /** Sentinel `value` for the "Custom…" option in {@link ExampleSelect}. */
 const CUSTOM_SENTINEL = "__custom__";
 
@@ -272,28 +301,26 @@ export function SeparatorChips({
         {options.map((o) => {
           const selected = o.value === value;
           return (
-            <button
+            <Chip
               key={o.value || "__empty__"}
-              type="button"
+              selected={selected}
               onClick={() => {
                 onChange(o.value);
               }}
-              className={chipClass(selected)}
             >
               {o.label}
-            </button>
+            </Chip>
           );
         })}
-        <button
-          type="button"
+        <Chip
+          selected={isCustom}
           onClick={() => {
             // Selecting Custom from a preset clears to a fresh custom entry; if already custom, keep.
             if (!isCustom) onChange("");
           }}
-          className={chipClass(isCustom)}
         >
           Custom
-        </button>
+        </Chip>
       </div>
       {isCustom ? (
         <div className="mt-2">
@@ -370,12 +397,12 @@ export function SegmentedReplace({
   return (
     <div>
       <div className="flex gap-1">
-        <button type="button" onClick={chooseStrip} className={chipClass(!replaceActive)}>
+        <Chip selected={!replaceActive} onClick={chooseStrip}>
           {stripLabel}
-        </button>
-        <button type="button" onClick={chooseReplace} className={chipClass(replaceActive)}>
+        </Chip>
+        <Chip selected={replaceActive} onClick={chooseReplace}>
           {replaceLabel}
-        </button>
+        </Chip>
       </div>
       {replaceActive ? (
         <div className="mt-2">
@@ -622,16 +649,15 @@ export function ChipMultiSelect({
       {options.map((o) => {
         const selected = values.includes(o.value);
         return (
-          <button
+          <Chip
             key={o.value}
-            type="button"
+            selected={selected}
             onClick={() => {
               toggle(o.value);
             }}
-            className={chipClass(selected)}
           >
             {o.label}
-          </button>
+          </Chip>
         );
       })}
       {extras.map((v) => (
@@ -775,22 +801,28 @@ export function TokenPicker({
       <div className="flex flex-wrap gap-1">
         {tokens.map((name) => {
           const present = values.includes(name);
-          return (
+          return present ? (
+            // Already-added tokens render a distinct muted/disabled treatment (text-muted, no hover),
+            // not the standard unselected chip — so this branch stays direct markup rather than <Chip>.
             <button
               key={name}
               type="button"
-              disabled={present}
-              onClick={() => {
-                onAdd(name);
-              }}
-              className={
-                present
-                  ? `${CHIP_BASE} border-border bg-card text-muted font-mono`
-                  : `${chipClass(false)} font-mono`
-              }
+              disabled
+              className={`${CHIP_BASE} border-border bg-card text-muted font-mono`}
             >
               {name}
             </button>
+          ) : (
+            <Chip
+              key={name}
+              selected={false}
+              mono
+              onClick={() => {
+                onAdd(name);
+              }}
+            >
+              {name}
+            </Chip>
           );
         })}
       </div>

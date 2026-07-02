@@ -50,6 +50,7 @@ import {
   PathShapeHint,
   PrimaryButton,
   GhostButton,
+  Chip,
   StatusText,
   Spinner,
   ExampleSelect,
@@ -286,17 +287,16 @@ function PresetRow({ onApply }: { onApply: (filenameTemplate: string) => void })
       </span>
       <div className="flex flex-wrap gap-1">
         {PRESETS.map((p) => (
-          <button
+          <Chip
             key={p.label}
-            type="button"
+            selected={false}
             title={p.filenameTemplate}
             onClick={() => {
               onApply(p.filenameTemplate);
             }}
-            className="cursor-pointer rounded-lg border border-border bg-card px-2 py-1 text-xs text-foreground hover:border-accent/50 hover:text-accent"
           >
             {p.label}
-          </button>
+          </Chip>
         ))}
       </div>
       <p className="mt-1 text-xs text-muted">
@@ -1109,42 +1109,42 @@ export function RenamePanelBody() {
             description="Add $performers, $tags, $date, or $duration to your filename or folder template to configure how they're formatted."
           >
             <div className="flex flex-wrap gap-1">
-              <button
-                type="button"
+              <Chip
+                selected={false}
+                mono
                 onClick={() => {
                   insertToken("{ - $performers}");
                 }}
-                className="cursor-pointer rounded-lg border border-border bg-card px-2 py-1 font-mono text-xs text-foreground hover:border-accent/50 hover:text-accent"
               >
                 $performers
-              </button>
-              <button
-                type="button"
+              </Chip>
+              <Chip
+                selected={false}
+                mono
                 onClick={() => {
                   insertToken("{ - $tags}");
                 }}
-                className="cursor-pointer rounded-lg border border-border bg-card px-2 py-1 font-mono text-xs text-foreground hover:border-accent/50 hover:text-accent"
               >
                 $tags
-              </button>
-              <button
-                type="button"
+              </Chip>
+              <Chip
+                selected={false}
+                mono
                 onClick={() => {
                   insertToken("{ - $date}");
                 }}
-                className="cursor-pointer rounded-lg border border-border bg-card px-2 py-1 font-mono text-xs text-foreground hover:border-accent/50 hover:text-accent"
               >
                 $date
-              </button>
-              <button
-                type="button"
+              </Chip>
+              <Chip
+                selected={false}
+                mono
                 onClick={() => {
                   insertToken("{ [$duration]}");
                 }}
-                className="cursor-pointer rounded-lg border border-border bg-card px-2 py-1 font-mono text-xs text-foreground hover:border-accent/50 hover:text-accent"
               >
                 $duration
-              </button>
+              </Chip>
             </div>
           </GroupCard>
         ) : null}
