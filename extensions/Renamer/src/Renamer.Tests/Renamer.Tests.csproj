@@ -32,7 +32,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
     <!--
       TEST-ONLY: runtime Skip.IfNot(...) with a visible reason on xUnit v2 (Assert.Skip is v3-only,
       and this project pins xunit 2.9.3). Used ONLY by the privilege-gated symlink adversarial test
