@@ -15,16 +15,33 @@ test('extension installs and reports enabled with UI, API, jobs, and state capab
   expect(renamer.hasJobs).toBe(true);
 });
 
-test('settings panel loads in the browser without a console error', async ({ page }) => {
+test('editing the filename template updates the live preview and enables Save', async ({ page, baseUrl }) => {
   const errors = [];
   page.on('pageerror', (err) => errors.push(err.message));
 
-  // The panel lives under Settings → Extensions → Renamer (a dedicated settings tab, not the top
-  // nav — see Renamer.Api.cs's AddSettingsTab call). Navigating the API-confirmed route directly
-  // (rather than clicking through Cove's own settings nav, which is out of scope for this suite)
-  // keeps this test focused on "does Renamer's own bundle mount and render," not Cove's nav.
-  await page.goto(`${page.url()}settings/extensions/renamer`);
-  await page.waitForLoadState('networkidle');
+  // The panel lives at /settings/renamer under Settings → Extensions → Renamer (a dedicated
+  // settings tab registered via Renamer.Api.cs's AddSettingsTab, not the top nav) — confirmed by
+  // direct inspection (Playwright MCP) of the real running panel, not assumed from the route name.
+  await page.goto(`${baseUrl}/settings/renamer`);
+
+  // This is a REAL interaction test, not a "did it render" smoke check: it drives the actual
+  // template textbox, asserts the debounced live-preview panel (POST /preview-sample) reflects
+  // the edit, and confirms the dirty-state save bar appears — the same state-wiring path that
+  // shipped a real StrictMode double-invoke bug in v1.13 (caught only by manual live verification
+  // at the time; a "no console error" check would NOT have caught it, since a stale/duplicated
+  // fetch doesn't throw — it silently shows wrong data).
+  const templateInput = page.getByRole('textbox', { name: 'Filename template' });
+  await expect(templateInput).toBeVisible();
+  await templateInput.fill('$title-e2e-ui-marker');
+
+  // "Renamed → " (the label) and the computed filename are separate text nodes under the same
+  // sample card — match the card container, not the label span, so the filename text is included.
+  const videoSampleCard = page.getByText('SAMPLE: VIDEO', { exact: false }).locator('..');
+  await expect(videoSampleCard).toContainText('e2e-ui-marker', { timeout: 10_000 });
+
+  await expect(page.getByText('Unsaved changes')).toBeVisible();
+  const saveButton = page.getByRole('button', { name: 'Save changes' });
+  await expect(saveButton).toBeVisible();
 
   expect(errors, `Unexpected console errors: ${errors.join('; ')}`).toEqual([]);
 });
@@ -51,7 +68,7 @@ test('dry-run preview matches the template and touches neither disk nor the DB r
   baseUrl,
   api,
 }) => {
-  const video = await seedVideo({ containerName: harness.containerName, baseUrl });
+  const video = await seedVideo({ container: harness.container, baseUrl });
   const originalPath = video.files[0].path;
 
   const preview = await api.post(`${ROUTE}/preview`, {
@@ -72,7 +89,7 @@ test('a real single-item rename changes disk and DB together, and undo restores 
   baseUrl,
   api,
 }) => {
-  const video = await seedVideo({ containerName: harness.containerName, baseUrl });
+  const video = await seedVideo({ container: harness.container, baseUrl });
   const originalPath = video.files[0].path;
 
   const enqueue = await api.post(`${ROUTE}/renamer`, {

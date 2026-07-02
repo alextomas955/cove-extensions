@@ -1,21 +1,19 @@
 # Shared E2E harness — brings up an isolated, official Cove instance for testing an extension.
 #
 # Never touches the developer's local native Cove install (%LOCALAPPDATA%\cove / COVE_HOME) — all
-# state is ephemeral, scoped to this compose project, and removed by `docker compose down -v`.
+# state is ephemeral, scoped to this compose project, and removed on teardown.
 #
 # Extension install: NOT a host bind-mount. Host bind-mounts depend on the host's Docker file-
 # sharing configuration (e.g. Docker Desktop's drive-sharing allowlist on Windows) — a test suite
 # that only works when the host happens to have the right drive shared is not something every
 # contributor or CI runner can rely on. Instead, `lib/install-extension.mjs` stages the extension
-# on the host, then `docker cp`s it into the running container's /config/extensions/<id>/, which
-# works identically regardless of host file-sharing config. This is the same on-disk shape Cove's
-# own bind-mount install method produces (cove/docker/README.md) — only the delivery mechanism
-# differs.
+# on the host, then copies it into the running container's /config/extensions/<id>/ via
+# Testcontainers' own container API (see `lib/harness.mjs`), which works identically regardless of
+# host file-sharing config. This is the same on-disk shape Cove's own bind-mount install method
+# produces (cove/docker/README.md) — only the delivery mechanism differs.
 #
-# Usage:
-#   docker compose -p cove-e2e up -d --wait
-#   node lib/install-extension.mjs --project cove-e2e --publish-dir ... --manifest ... [--ui-bundle ...]
-#   docker compose -p cove-e2e down -v
+# Not driven directly via `docker compose` CLI — `lib/harness.mjs`'s `startHarness()` (Testcontainers'
+# DockerComposeEnvironment) is the actual entry point; see extensions/e2e/README.md.
 
 services:
   db:
@@ -53,3 +51,22 @@ services:
       timeout: 5s
       retries: 60
       start_period: 10s
+    tmpfs:
+      # A genuinely separate filesystem, not just a separate directory or named volume. Verified
+      # empirically: two named volumes both land on Docker Desktop's single backing block device
+      # (same st_dev), so a move between them succeeds via a normal rename() — it does NOT exercise
+      # any cross-device code path. A tmpfs mount is a different filesystem TYPE at the kernel level,
+      # so a move from the container's root filesystem into it raises a real EXDEV ("cross-device
+      # link not permitted"), the same error a move across two real drives raises. This is the one
+      # mount strategy that actually triggers cross-device behavior inside a single container.
+      #
+      # Caveat (see extensions/Renamer/.planning/ for the full finding): Renamer's own same-vs-
+      # cross-volume DECISION is `Path.GetPathRoot()`-based (Windows drive-letter shaped), which
+      # always returns "/" on Linux — so Renamer's code still classifies a move into /data2 as
+      # "same volume" and routes it through the fast-path `File.Move`, which then throws the real
+      # EXDEV as a plain IOException. That exception IS caught (not a crash), but by the same
+      # branch as "locked/destination exists", so the reported reason is misleading on Linux. This
+      # mount exists to make that real, verified behavior testable and regression-protected, not to
+      # exercise Renamer's CrossVolumeMover verify/copy path (which is Windows-only reachable by
+      # the code's own design — see the existing CrossVolumeMoverTests.cs xUnit suite for that).
+      - /data2

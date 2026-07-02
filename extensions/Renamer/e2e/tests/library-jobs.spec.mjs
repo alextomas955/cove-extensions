@@ -11,8 +11,8 @@ test('scan-library reports every seeded item without mutating any of them', asyn
   api,
 }) => {
   const videos = await Promise.all([
-    seedVideo({ containerName: harness.containerName, baseUrl, destName: `scan-a-${Date.now()}.mp4` }),
-    seedVideo({ containerName: harness.containerName, baseUrl, destName: `scan-b-${Date.now()}.mp4` }),
+    seedVideo({ container: harness.container, baseUrl, destName: `scan-a-${Date.now()}.mp4` }),
+    seedVideo({ container: harness.container, baseUrl, destName: `scan-b-${Date.now()}.mp4` }),
   ]);
   const originalPaths = videos.map((v) => v.files[0].path);
   const seededFileIds = videos.map((v) => v.files[0].id);
@@ -39,9 +39,9 @@ test('scan-library reports every seeded item without mutating any of them', asyn
 
 test('renamer-library renames every seeded item in one run', async ({ harness, baseUrl, api }) => {
   const videos = await Promise.all([
-    seedVideo({ containerName: harness.containerName, baseUrl, destName: `lib-a-${Date.now()}.mp4` }),
-    seedVideo({ containerName: harness.containerName, baseUrl, destName: `lib-b-${Date.now()}.mp4` }),
-    seedVideo({ containerName: harness.containerName, baseUrl, destName: `lib-c-${Date.now()}.mp4` }),
+    seedVideo({ container: harness.container, baseUrl, destName: `lib-a-${Date.now()}.mp4` }),
+    seedVideo({ container: harness.container, baseUrl, destName: `lib-b-${Date.now()}.mp4` }),
+    seedVideo({ container: harness.container, baseUrl, destName: `lib-c-${Date.now()}.mp4` }),
   ]);
   const originalPaths = videos.map((v) => v.files[0].path);
 

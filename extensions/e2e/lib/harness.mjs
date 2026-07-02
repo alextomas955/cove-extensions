@@ -1,111 +1,58 @@
 // Core harness lifecycle: bring up an isolated Cove instance, wait for it to be ready, install an
 // extension into it, and tear it down. This is the one entry point extension authors need —
 // everything else (compose file, install mechanics, staging) is an implementation detail behind it.
-import { execFileSync } from 'node:child_process';
+//
+// Built on Testcontainers (https://node.testcontainers.org/), not a hand-rolled `docker compose`
+// child_process wrapper. Testcontainers' Ryuk sidecar guarantees container/network/volume cleanup
+// even if the test process is killed (not just on a graceful exit) — a hand-rolled wrapper only
+// cleans up in the success path, leaking containers on a killed run. It also owns port resolution
+// and health-check waiting, removing two hand-written polling loops this file used to have.
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { DockerComposeEnvironment, Wait } from 'testcontainers';
 import { installViaContainerCopy, installViaUrl } from './install-extension.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const COMPOSE_FILE = join(__dirname, '..', 'docker', 'docker-compose.yml');
-
-function compose(args, opts = {}) {
-  return execFileSync('docker', ['compose', '-f', COMPOSE_FILE, ...args], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    ...opts,
-  });
-}
-
-function randomProjectName() {
-  return `cove-e2e-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-async function waitForHealthy(project, service, { timeoutMs = 120_000, intervalMs = 1000 } = {}) {
-  const containerName = `${project}-${service}-1`;
-  const deadline = Date.now() + timeoutMs;
-  let lastStatus = 'unknown';
-  while (Date.now() < deadline) {
-    try {
-      lastStatus = execFileSync(
-        'docker',
-        ['inspect', containerName, '--format', '{{.State.Health.Status}}'],
-        { encoding: 'utf8' }
-      ).trim();
-    } catch {
-      lastStatus = 'not-found';
-    }
-    if (lastStatus === 'healthy') return;
-    if (lastStatus === 'unhealthy') {
-      let logs = '';
-      try {
-        logs = execFileSync('docker', ['logs', '--tail', '80', containerName], { encoding: 'utf8' });
-      } catch {
-        // best-effort diagnostics only
-      }
-      throw new Error(
-        `waitForHealthy: ${containerName} reported unhealthy before timeout.\nLast 80 log lines:\n${logs}`
-      );
-    }
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-  throw new Error(
-    `waitForHealthy: ${containerName} did not become healthy within ${timeoutMs}ms (last status: ${lastStatus}). ` +
-      `Check \`docker logs ${containerName}\` for details.`
-  );
-}
-
-function resolvePort(project, service, containerPort) {
-  const out = execFileSync('docker', [
-    'compose',
-    '-f',
-    COMPOSE_FILE,
-    '-p',
-    project,
-    'port',
-    service,
-    String(containerPort),
-  ]).toString().trim();
-  const port = out.split(':').pop();
-  if (!port || Number.isNaN(Number(port))) {
-    throw new Error(`resolvePort: could not resolve host port for ${service}:${containerPort} (got "${out}")`);
-  }
-  return Number(port);
-}
+const COMPOSE_DIR = join(__dirname, '..', 'docker');
+const COMPOSE_FILE = 'docker-compose.yml';
 
 /**
  * Brings up an isolated Cove instance and returns a handle with baseUrl + install/teardown methods.
- * Every instance gets a random project name and a random host port so parallel test runs never collide.
+ * Every instance gets a random project name (Testcontainers) and a random host port so parallel
+ * test runs never collide.
  */
-export async function startHarness({ image, timeoutMs } = {}) {
-  const project = randomProjectName();
-  const env = { ...process.env };
-  if (image) env.COVE_E2E_IMAGE = image;
+export async function startHarness({ image, timeoutMs = 120_000 } = {}) {
+  let environment = new DockerComposeEnvironment(COMPOSE_DIR, COMPOSE_FILE)
+    .withStartupTimeout(timeoutMs)
+    .withWaitStrategy('cove', Wait.forHealthCheck())
+    .withWaitStrategy('db', Wait.forHealthCheck());
 
-  compose(['-p', project, 'up', '-d', '--wait'], { env });
+  if (image) {
+    environment = environment.withEnvironment({ COVE_E2E_IMAGE: image });
+  }
 
-  const containerName = `${project}-cove-1`;
-  await waitForHealthy(project, 'cove', { timeoutMs });
+  const started = await environment.up();
+  let coveContainer = started.getContainer('cove-1');
 
-  // `docker restart` on a container published with an ephemeral host port (`ports: ["0:5073"]`)
-  // can reassign a NEW host port — Docker does not guarantee the same ephemeral port survives a
-  // restart. baseUrl is therefore re-resolved after every restart, not cached from container start.
   const handle = {
-    project,
-    containerName,
     get baseUrl() {
-      return `http://localhost:${resolvePort(project, 'cove', 5073)}`;
+      return `http://${coveContainer.getHost()}:${coveContainer.getMappedPort(5073)}`;
+    },
+    get containerId() {
+      return coveContainer.getId();
+    },
+    /** The raw Testcontainers StartedGenericContainer, for helpers (e.g. seedVideo) that need copyFilesToContainer/exec directly. */
+    get container() {
+      return coveContainer;
     },
 
     async installExtension({ publishDir, manifestPath, uiBundlePath }) {
-      const result = installViaContainerCopy({
-        containerName,
-        publishDir,
-        manifestPath,
-        uiBundlePath,
-      });
-      execFileSync('docker', ['restart', containerName]);
-      await waitForHealthy(project, 'cove', { timeoutMs });
+      const result = await installViaContainerCopy({ container: coveContainer, publishDir, manifestPath, uiBundlePath });
+      await coveContainer.restart();
+      // A restart on a container published with an ephemeral host port can reassign a NEW host
+      // port — re-fetch the started container's own view of itself rather than trusting a cached
+      // port number. `restart()` mutates the same StartedGenericContainer in place (its internal
+      // port-binding state is refreshed), so re-reading getMappedPort() after restart is correct.
       await waitForExtensionEnabled(handle.baseUrl, result.id, { timeoutMs });
       return result;
     },
@@ -116,8 +63,37 @@ export async function startHarness({ image, timeoutMs } = {}) {
       return result;
     },
 
+    /** Runs a command inside the Cove container (e.g. to inspect /data2 for the cross-device test). */
+    exec(command) {
+      return coveContainer.exec(command);
+    },
+
+    /**
+     * Creates the first (owner) account and returns its access token. REQUIRED before any
+     * browser-driven test: Cove's frontend (App.tsx's `showSetupWizard`) hard-gates the ENTIRE
+     * app behind a first-run setup wizard whenever no owner account exists, with no way to
+     * dismiss it — confirmed directly (a "Skip setup for now" click does nothing while
+     * `ownerMissing` is true). This is unrelated to `COVE__Auth__Enabled=false`: the auth-bypass
+     * principal used for API calls exists independently, but the UI itself still checks
+     * `GET /api/auth/bootstrap-status`'s `ownerExists` field and refuses to render past the
+     * wizard until an owner is created via `POST /api/auth/bootstrap-owner`. Every extension's
+     * browser-driven E2E test needs this, so it lives here rather than being copy-pasted per test.
+     */
+    async bootstrapOwner({ username = 'e2e-owner', password = 'E2eTestPassword123!' } = {}) {
+      const res = await fetch(`${handle.baseUrl}/api/auth/bootstrap-owner`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '<unreadable body>');
+        throw new Error(`bootstrapOwner: POST /api/auth/bootstrap-owner failed (${res.status}): ${body}`);
+      }
+      return res.json();
+    },
+
     async stop() {
-      compose(['-p', project, 'down', '-v'], { env });
+      await started.down({ removeVolumes: true });
     },
   };
   return handle;
