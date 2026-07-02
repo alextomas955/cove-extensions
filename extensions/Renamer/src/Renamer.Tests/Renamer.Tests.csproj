@@ -40,7 +40,7 @@
       the deployed Renamer.dll (IsPackable=false test project).
     -->
     <PackageReference Include="Xunit.SkippableFact" Version="1.5.61" />
-    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="coverlet.collector" Version="10.0.1" />
     <!--
       TEST-ONLY: the integration tier stands up a real CoveContext on SQLite-in-memory
       (constraint/transaction fidelity) and EF-InMemory (fast Path-recompute). These EF
