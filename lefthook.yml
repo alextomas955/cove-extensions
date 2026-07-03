@@ -30,7 +30,7 @@ pre-commit:
     # --- C#: format-verify changed projects (cheap; no full build) ---
     csharp-format:
       glob: "*.cs"
-      run: dotnet format Renamer.slnx --verify-no-changes --severity warn --include {staged_files}
+      run: dotnet format CoveExtensions.slnx --verify-no-changes --severity warn --include {staged_files}
 
     # Local-only: warns when the committed vendor/cove-extension-sdk-*.tgz drifts from the
     # sibling ../cove checkout's frontend SDK version. Cannot run in CI (no ../cove there) — it

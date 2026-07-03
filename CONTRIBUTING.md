@@ -10,7 +10,7 @@ request. Open PRs against `main`.
 From the repo root:
 
 ```sh
-dotnet build Renamer.slnx
+dotnet build CoveExtensions.slnx
 ```
 
 Each extension has its own build/test/verify commands — see that extension's own README (e.g.

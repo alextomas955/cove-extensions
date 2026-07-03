@@ -23,7 +23,7 @@ This list will grow as more entries are added to `extensions/catalog.json`.
 Build the shared solution from the repo root:
 
 ```sh
-dotnet build Renamer.slnx
+dotnet build CoveExtensions.slnx
 ```
 
 `Directory.Build.props`/`Directory.Build.targets` at this root auto-wire every project against

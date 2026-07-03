@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   # ---- C# style + analyzer gate (monorepo-wide, run once against the shared .slnx). This job
-  # assumes every extension's projects are added to the root Renamer.slnx as a process convention
+  # assumes every extension's projects are added to the root CoveExtensions.slnx as a process convention
   # (RESEARCH.md's Open Decision #3) — a future extension not added to the .slnx would silently
   # skip this gate. ----
   csharp-format:
@@ -34,11 +34,11 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       # Formatting/style check — reads root .editorconfig.
       - name: dotnet format (verify)
-        run: dotnet format Renamer.slnx --verify-no-changes --severity warn
+        run: dotnet format CoveExtensions.slnx --verify-no-changes --severity warn
       # Analyzer gate: a Release build with TreatWarningsAsErrors=true (root Directory.Build.props)
       # fails on any CA/IDE warning.
       - name: Build with analyzers (warnings = errors)
-        run: dotnet build Renamer.slnx -c Release -p:UseLocalCoveSource=false
+        run: dotnet build CoveExtensions.slnx -c Release -p:UseLocalCoveSource=false
 
   # ---- Windows build + unit-test signal (monorepo-wide, hardcodes today's single Renamer project
   # path — same convention as csharp-format above). Scoped to .NET build/test only, NOT the full
@@ -60,7 +60,7 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - name: Build
-        run: dotnet build Renamer.slnx -c Release -p:UseLocalCoveSource=false
+        run: dotnet build CoveExtensions.slnx -c Release -p:UseLocalCoveSource=false
       - name: Test (unit tier)
         run: dotnet test extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj -c Release --no-build
 

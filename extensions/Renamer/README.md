@@ -23,7 +23,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design and safety mod
 Build the whole monorepo (including this extension) from the repo root:
 
 ```sh
-dotnet build Renamer.slnx
+dotnet build CoveExtensions.slnx
 ```
 
 Run the unit tier (the pure-core tests that need no live Cove checkout):
