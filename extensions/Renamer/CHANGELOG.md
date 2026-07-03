@@ -11,8 +11,8 @@ development narrative rather than renumbered to the release version.
 - The frontend bundle is now built and source-verified in CI from a vendored copy of the Cove
   extension SDK, so the project builds from a clean clone on any OS without a sibling Cove checkout;
   a stale committed bundle fails the build.
-- The .NET SDK is pinned, the optional local-Cove source and the deploy target are explicit
-  configuration, and a dev-container runs the standard build/verify steps.
+- The .NET SDK is pinned, and the optional local-Cove source and the deploy target are explicit
+  configuration, so the standard build/verify steps run the same way locally and in CI.
 
 ## v1.6 — Product correctness
 
