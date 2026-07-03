@@ -30,5 +30,5 @@ the relative-path math to `../cove` — that's centralized here.
 Build the whole monorepo from this root:
 
 ```sh
-dotnet build Renamer.slnx
+dotnet build CoveExtensions.slnx
 ```
