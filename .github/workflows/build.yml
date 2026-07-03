@@ -228,10 +228,16 @@ jobs:
           # bundle bytes and make the stale-bundle gate flaky, so pin the exact version.
           node-version: '24.11.0'
 
+      # `npm install`, not `npm ci`: the root package.json's npm workspaces (added for the shared
+      # tests/e2e harness) make npm refuse `npm ci` in this nested, non-workspace UI package
+      # (Renamer.Ui is deliberately standalone — offline vendored @cove/extension-sdk tarball, its
+      # own lockfile, its own Dependabot entry). `npm install` on an in-sync lockfile is a no-op;
+      # UI reproducibility is still enforced by the Stale-bundle gate below (dist/index.mjs must
+      # rebuild byte-identically) plus the committed lockfile.
       - name: Install frontend deps (offline, vendored SDK)
         if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
         working-directory: ${{ matrix.extension.uiPath }}
-        run: npm ci
+        run: npm install
 
       - name: Stamp source package.json version
         if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
@@ -340,11 +346,14 @@ jobs:
         with:
           node-version: '24.11.0'
 
+      # `npm install` (not `npm ci`) for the same reason as the build job's UI step: npm refuses
+      # `npm ci` in this nested non-workspace UI package once a root workspace exists. No-op on an
+      # in-sync lockfile.
       - name: Build extension UI bundle
         if: steps.check.outputs.has_suite == 'true' && matrix.extension.uiPath != ''
         working-directory: ${{ matrix.extension.uiPath }}
         run: |
-          npm ci
+          npm install
           npm run build
 
       # npm ci runs at the REPO ROOT so the workspace symlinks (node_modules/@cove-extensions/e2e ->
