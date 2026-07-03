@@ -126,6 +126,15 @@ jobs:
         if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
         run: dotnet build ${{ matrix.extension.projectPath }} -c Release --no-restore -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
 
+      # Unit tier only — this bare runner has no ../cove sibling checkout, so the test project's
+      # cove-referencing sources are Compile-Removed (see Renamer.Tests.csproj's cove-absent
+      # group). Runs before Publish so a test failure blocks packaging, matching
+      # windows-build-test's build-then-test order in lint.yml. Optional: an extension without a
+      # testProjectPath entry in catalog.json skips this step (manifestOnly-style opt-out).
+      - name: Test (unit tier)
+        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly && matrix.extension.testProjectPath != ''
+        run: dotnet test ${{ matrix.extension.testProjectPath }} -c Release -p:UseLocalCoveSource=false
+
       - name: Publish
         if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
         run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o artifacts/${{ matrix.extension.name }} --no-build -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
