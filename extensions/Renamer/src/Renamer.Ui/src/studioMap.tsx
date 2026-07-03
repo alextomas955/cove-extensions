@@ -95,7 +95,7 @@ function StudioKeyCell({
   const usedIds = existingKeys.map(Number);
   return (
     <StudioPicker
-      label="Studio"
+      label=""
       values={current}
       onChange={(values) => {
         const latest = values.at(-1);
