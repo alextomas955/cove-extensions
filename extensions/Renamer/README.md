@@ -11,7 +11,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design and safety mod
 ## Layout
 
 | Path | Role |
-|------|------|
+| ---- | ---- |
 | `src/Renamer/` | The extension class library (`IExtension`) — engine, planner, executor, API endpoints. |
 | `src/Renamer.Ui/` | The settings/preview panel bundle (React/TypeScript → `dist/index.mjs`). |
 | `src/Renamer.Tests/` | Unit + concurrency tests. |
