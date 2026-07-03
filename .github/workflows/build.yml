@@ -295,7 +295,7 @@ jobs:
   # ---- E2E: rebuilds each extension (a separate job from build/matrix.extension — GitHub Actions
   # jobs don't share a filesystem, so this job publishes its own fresh copy rather than trying to
   # reuse the build job's disk state) and installs the result into a containerized, official Cove
-  # instance via extensions/e2e's shared harness, then runs its Playwright suite against it.
+  # instance via tests/e2e's shared harness, then runs its Playwright suite against it.
   # Extensions without their own e2e suite are skipped via the catalog's optional
   # `e2ePath`/`e2eProject` fields (absent = no suite yet, not a failure).
   e2e:
@@ -347,9 +347,11 @@ jobs:
           npm ci
           npm run build
 
+      # npm ci runs at the REPO ROOT so the workspace symlinks (node_modules/@cove-extensions/e2e ->
+      # tests/e2e) + the single hoisted @playwright/test are established before the suite runs. A
+      # `cd tests/e2e && npm ci` would ignore the root lockfile/workspaces and is wrong now.
       - name: Install harness dependencies
         if: steps.check.outputs.has_suite == 'true'
-        working-directory: extensions/e2e
         run: |
           npm ci
           npx playwright install --with-deps chromium
@@ -357,7 +359,7 @@ jobs:
       - name: Run E2E suite
         id: e2e
         if: steps.check.outputs.has_suite == 'true'
-        working-directory: extensions/e2e
+        working-directory: tests/e2e
         run: npx playwright test --project=${{ matrix.extension.e2eProject }}
 
       # The `list` reporter's stdout only ever shows pass/fail + duration, never the actual
@@ -366,7 +368,7 @@ jobs:
       # log instead so a CI failure is diagnosable from the log alone (CI-02's own requirement).
       - name: Dump E2E failure context
         if: steps.check.outputs.has_suite == 'true' && failure() && steps.e2e.outcome == 'failure'
-        working-directory: extensions/e2e
+        working-directory: tests/e2e
         shell: bash
         run: |
           for f in $(find test-results -name "error-context.md" 2>/dev/null); do
@@ -380,7 +382,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.extension.id }}-e2e-report
-          path: extensions/e2e/playwright-report/
+          path: tests/e2e/playwright-report/
           retention-days: 7
 
   release:

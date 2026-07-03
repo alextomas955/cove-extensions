@@ -1,5 +1,5 @@
 // Page Object for Cove's /videos grid — the real screen a user renames files from.
-import { expect } from '../../../../e2e/lib/fixtures.mjs';
+import { expect } from '@cove-extensions/e2e';
 
 export class VideosPage {
   constructor(page, baseUrl) {
