@@ -254,7 +254,5 @@ not (yet):
   mode — confirmed by direct source read) — this harness exists to test EXTENSIONS, not Cove's own
   auth model, so permission-enforcement testing was deliberately scoped out rather than built as a
   second harness mode.
-- Run true Windows containers (Cove ships no Windows container image — see
-  `extensions/.planning/PROJECT.md`'s Key Decisions for the full reasoning).
-
-See `extensions/.planning/REQUIREMENTS.md` (v2 Requirements) for what's deferred and why.
+- Run true Windows containers (Cove ships no Windows container image, so the containerized suite is
+  Linux-only; the Windows CI job builds and unit-tests instead of running the full E2E suite).

@@ -1183,10 +1183,28 @@ var Ke = [
 		insert: "{ - $studio}"
 	},
 	{
+		token: "$parentStudio",
+		label: "Parent studio",
+		kind: "optional",
+		insert: "{ - $parentStudio}"
+	},
+	{
 		token: "$studioCode",
 		label: "Studio code",
 		kind: "optional",
 		insert: "{ - $studioCode}"
+	},
+	{
+		token: "$director",
+		label: "Director",
+		kind: "optional",
+		insert: "{ - $director}"
+	},
+	{
+		token: "$bitrate",
+		label: "Bitrate",
+		kind: "optional",
+		insert: "{ [$bitrate]}"
 	},
 	{
 		token: "$date",

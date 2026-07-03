@@ -163,8 +163,28 @@ public sealed partial class Renamer : FullExtensionBase
         }
 
         // The only disk touch of the free-space guard. The public job-facing call path passes no probe
-        // and gets the real DriveInfo reading; tests pass a controlled function.
-        freeSpaceProbe ??= vol => new DriveInfo(vol).AvailableFreeSpace;
+        // and gets the real DriveInfo reading; tests pass a controlled function. DriveInfo's ctor
+        // throws ArgumentException for a non-drive-letter root (e.g. a UNC \\server\share destination
+        // reachable via an AllowedRoot), and the probe can hit transient IO errors. This guard is a
+        // best-effort pre-flight courtesy — the cross-volume mover still verifies every copy and fails
+        // each item safely on a real ENOSPC (copy→verify→delete-source-last never loses the source).
+        // So an unprobeable volume returns long.MaxValue ("don't block here; let the mover handle it")
+        // rather than throwing out and failing the whole batch.
+        freeSpaceProbe ??= vol =>
+        {
+            try
+            {
+                return new DriveInfo(vol).AvailableFreeSpace;
+            }
+            catch (ArgumentException)
+            {
+                return long.MaxValue; // non-drive-letter root (UNC/rootless) — not probeable via DriveInfo
+            }
+            catch (IOException)
+            {
+                return long.MaxValue; // transient/offline volume — defer to the mover's per-item verify
+            }
+        };
 
         var options = await new OptionsStore(Store).LoadAsync(ct);
 
