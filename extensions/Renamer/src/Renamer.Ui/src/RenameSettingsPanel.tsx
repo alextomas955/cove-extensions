@@ -898,8 +898,8 @@ export function RenamePanelBody() {
             >
               <AlertTriangle className="h-3 w-3 shrink-0" />
               <span>
-                Dry run previews your unsaved changes. Save before &ldquo;Rename all files&rdquo; to
-                run them for real.
+                Dry run previews your edits before saving. Save before &ldquo;Rename all
+                files&rdquo; to run them for real.
               </span>
             </p>
           ) : null}

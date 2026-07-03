@@ -10,9 +10,8 @@ export class RenamerSettingsPage {
     // The in-app (React) confirm modal's accept button — dynamic label ("Undo 1 rename",
     // "Undo 3 renames"), NOT a native browser dialog.
     this.undoConfirmButton = page.getByRole('button', { name: /^Undo \d+ renames?$/ });
-    // Lives inside the collapsed "Automation" sub-section of "Run & Automation" — the section
-    // must be expanded (by clicking its own header) before this switch is visible/clickable.
-    this.automationSectionHeader = page.getByRole('button', { name: /^Automation Auto-rename when/ });
+    // Always-visible switch under the flat "Run & automation" section (the settings redesign
+    // replaced the old collapsible "Automation" sub-section, so there is no header to expand).
     this.autoRenameOnUpdateSwitch = page.getByRole('switch', { name: 'Auto-rename on update' });
   }
 
@@ -25,14 +24,11 @@ export class RenamerSettingsPage {
   }
 
   /**
-   * Enables the "Auto-rename on update" switch (expanding the "Automation" sub-section first, if
-   * it isn't already) and returns without saving — call save() after, same as any other edit.
+   * Enables the "Auto-rename on update" switch and returns without saving — call save() after,
+   * same as any other edit. The switch is always visible in the flat "Run & automation" section.
    */
   async enableAutoRenameOnUpdate() {
-    if (!(await this.autoRenameOnUpdateSwitch.isVisible())) {
-      await this.automationSectionHeader.click();
-      await this.autoRenameOnUpdateSwitch.waitFor({ state: 'visible', timeout: 5_000 });
-    }
+    await this.autoRenameOnUpdateSwitch.waitFor({ state: 'visible', timeout: 10_000 });
     const isChecked = await this.autoRenameOnUpdateSwitch.getAttribute('aria-checked');
     if (isChecked !== 'true') {
       await this.autoRenameOnUpdateSwitch.click();

@@ -2676,7 +2676,7 @@ function mn() {
 						className: "mt-2 flex items-start gap-1 text-xs text-amber-400",
 						role: "status",
 						"aria-live": "polite",
-						children: [/* @__PURE__ */ p(o, { className: "h-3 w-3 shrink-0" }), /* @__PURE__ */ p("span", { children: "Dry run previews your unsaved changes. Save before “Rename all files” to run them for real." })]
+						children: [/* @__PURE__ */ p(o, { className: "h-3 w-3 shrink-0" }), /* @__PURE__ */ p("span", { children: "Dry run previews your edits before saving. Save before “Rename all files” to run them for real." })]
 					}) : null,
 					F ? /* @__PURE__ */ p("p", {
 						className: "mt-2",
