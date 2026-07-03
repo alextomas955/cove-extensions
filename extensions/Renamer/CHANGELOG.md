@@ -6,6 +6,12 @@ artifact `version` field (in `extension.json`, the runtime, and the UI package) 
 label — is what a registry or release carries, and the published milestone labels are kept as the
 development narrative rather than renumbered to the release version.
 
+## v1.8 — Cove 0.8.0 alignment
+
+- Rebuilt and re-verified against Cove 0.8.0 — the extension installs, previews, renames, and
+  undoes correctly on the 0.8.0 runtime. No behavior change; `minCoveVersion` stays `0.7.1`, since
+  0.8.0's extension contract is a superset and the extension still runs on 0.7.1.
+
 ## v1.7 — Reproducible build and cross-platform clean-clone
 
 - The frontend bundle is now built and source-verified in CI from a vendored copy of the Cove
