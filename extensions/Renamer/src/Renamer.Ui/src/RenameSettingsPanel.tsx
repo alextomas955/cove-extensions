@@ -44,6 +44,10 @@ import {
   TagListInput,
   CollapsibleSection,
   GroupCard,
+  SectionCard,
+  SectionGroupHeader,
+  ToggleHeaderCard,
+  Badge,
   KeyValueMapEditor,
   ObjectArrayEditor,
   RegexValidity,
@@ -329,18 +333,30 @@ function SaveBar({
 }) {
   if (!dirty) return null;
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-surface px-6 py-4">
-      <div className="flex items-center gap-3">
-        {saveError ? (
-          <StatusText kind="error">
-            Couldn't save settings — {saveError}. Your changes are still here; try Save again.
-          </StatusText>
-        ) : savedFlash ? (
-          <StatusText kind="success">Settings saved.</StatusText>
-        ) : (
-          <StatusText kind="muted">Unsaved changes</StatusText>
-        )}
-        <div className="ml-auto flex items-center gap-3">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 py-4">
+      <div className="pointer-events-auto flex w-full max-w-3xl items-center gap-4 rounded-2xl border border-border bg-card px-5 py-3.5 shadow-lg">
+        <span
+          className={`h-2 w-2 shrink-0 rounded-full ${
+            saveError ? "bg-red-400" : savedFlash ? "bg-green-400" : "bg-amber-400"
+          }`}
+        />
+        <div className="min-w-0 flex-1">
+          {saveError ? (
+            <StatusText kind="error">
+              Couldn't save settings — {saveError}. Your changes are still here; try Save again.
+            </StatusText>
+          ) : savedFlash ? (
+            <StatusText kind="success">Settings saved.</StatusText>
+          ) : (
+            <>
+              <div className="text-sm font-semibold text-foreground">Unsaved changes</div>
+              <div className="mt-0.5 text-xs text-secondary">
+                Nothing on disk changes until you save. Running a rename requires saving first.
+              </div>
+            </>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
           <Button variant="ghost" onClick={onDiscard} disabled={saving}>
             Discard
           </Button>
@@ -715,7 +731,10 @@ export function RenamePanelBody() {
             </StatusText>
           ) : null}
 
-          <CollapsibleSection title="Essentials" defaultOpen={true}>
+          <SectionCard
+            badge={<Badge solid>Essentials</Badge>}
+            description="The three things you set most often — pick a preset or write your own, then choose where files go."
+          >
             <PresetRow
               onApply={(t) => {
                 set("FilenameTemplate", t);
@@ -736,23 +755,29 @@ export function RenamePanelBody() {
             <TemplateValidation value={options.FilenameTemplate} emptySamples={emptySamples} />
             <TokenLegend onInsert={insertToken} />
 
-            <Field
-              label="Folder template"
-              helper="Blank = no folder move (rename in place). Use / for sub-folders, e.g. $studio / $year."
-            >
-              <TextInput
-                value={options.FolderTemplate}
-                onChange={(v) => {
-                  set("FolderTemplate", v);
-                }}
-                onFocus={() => (activeTemplateRef.current = "folder")}
-                inputRef={folderRef}
-                mono
-                placeholder="$studio / $year"
-              />
-            </Field>
-            <TemplateValidation value={options.FolderTemplate} />
-          </CollapsibleSection>
+            <div className="border-t border-border pt-4">
+              <div className="text-base font-semibold text-foreground">Where files go</div>
+              <p className="mb-4 mt-1 text-sm text-secondary">
+                Folder path template — moves files on rename.
+              </p>
+              <Field
+                label="Folder template"
+                helper="Blank = no folder move (rename in place). Use / for sub-folders, e.g. $studio / $year."
+              >
+                <TextInput
+                  value={options.FolderTemplate}
+                  onChange={(v) => {
+                    set("FolderTemplate", v);
+                  }}
+                  onFocus={() => (activeTemplateRef.current = "folder")}
+                  inputRef={folderRef}
+                  mono
+                  placeholder="$studio / $year"
+                />
+              </Field>
+              <TemplateValidation value={options.FolderTemplate} />
+            </div>
+          </SectionCard>
         </div>
 
         {/* ── LIVE PREVIEW (right, 1/3) — sticky under the 64px navbar (top-16) so it stays the
@@ -760,7 +785,7 @@ export function RenamePanelBody() {
             height (default align-items:stretch — do NOT use self-start, which collapses the column to
             content height and defeats position:sticky); the inner CARD is the sticky element. ── */}
         <div>
-          <div className="space-y-4 lg:sticky lg:top-16">
+          <div className="space-y-4 rounded-2xl border border-border bg-surface p-5 shadow-sm lg:sticky lg:top-16">
             <div className="text-base font-semibold text-foreground">Live preview</div>
             <p className="mb-4 mt-1 text-sm text-secondary">
               Old → new for sample items, before anything touches disk.
@@ -784,7 +809,8 @@ export function RenamePanelBody() {
         </div>
       </div>
 
-      <CollapsibleSection title="What Gets Renamed" defaultOpen={true}>
+      <SectionGroupHeader title="What gets renamed" hint="Scope and required fields" />
+      <SectionCard>
         <Toggle
           label="Only rename organized items"
           checked={options.OnlyOrganized}
@@ -826,41 +852,43 @@ export function RenamePanelBody() {
           />
           <TokenAdvisory values={options.RequiredFields} />
         </Field>
-      </CollapsibleSection>
+      </SectionCard>
 
-      <CollapsibleSection title="Run & Automation" defaultOpen={true}>
-        <CollapsibleSection
-          title="Automation"
-          summary="Auto-rename when an item's metadata changes"
-        >
-          <Toggle
-            label="Auto-rename on update"
-            checked={options.AutoRenamerOnUpdate}
-            onChange={(v) => {
-              set("AutoRenamerOnUpdate", v);
-            }}
-            helper="When on, renames a video or image automatically whenever its metadata changes (respects the gating rules above). Off by default."
-          />
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Run for the whole library"
-          summary="Preview or rename every matching item in your library"
-        >
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setDryRunOpen(true);
-              }}
-              disabled={dirty}
-            >
-              Dry run
-            </Button>
-            <Button onClick={() => void renameLibrary()} disabled={dirty || renamingLibrary}>
-              {renamingLibrary ? <Spinner /> : null}
-              Rename all files
-            </Button>
+      <SectionGroupHeader title="Run & automation" hint="When renames happen" />
+      <SectionCard>
+        <Toggle
+          label="Auto-rename on update"
+          checked={options.AutoRenamerOnUpdate}
+          onChange={(v) => {
+            set("AutoRenamerOnUpdate", v);
+          }}
+          helper="When on, renames a video or image automatically whenever its metadata changes — respects every gating and routing rule below. The core of a hands-off library. Off by default."
+        />
+        <div className="border-t border-border pt-4">
+          <div className="flex flex-wrap items-start gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="text-base font-semibold text-foreground">
+                Run for the whole library
+              </div>
+              <p className="mt-1 text-sm text-secondary">
+                Apply your rules to every matching item now. Preview first with a dry run — it
+                writes nothing.
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setDryRunOpen(true);
+                }}
+              >
+                Dry run
+              </Button>
+              <Button onClick={() => void renameLibrary()} disabled={dirty || renamingLibrary}>
+                {renamingLibrary ? <Spinner /> : null}
+                Rename all files
+              </Button>
+            </div>
           </div>
           {dirty ? (
             <p
@@ -869,7 +897,10 @@ export function RenamePanelBody() {
               aria-live="polite"
             >
               <AlertTriangle className="h-3 w-3 shrink-0" />
-              <span>Save or discard your changes before running this.</span>
+              <span>
+                Dry run previews your unsaved changes. Save before &ldquo;Rename all files&rdquo; to
+                run them for real.
+              </span>
             </p>
           ) : null}
           {runLibraryFeedback ? (
@@ -896,11 +927,12 @@ export function RenamePanelBody() {
               </StatusText>
             </p>
           ) : null}
-        </CollapsibleSection>
-      </CollapsibleSection>
+        </div>
+      </SectionCard>
 
       {dryRunOpen ? (
         <DryRunModal
+          options={options}
           onClose={() => {
             setDryRunOpen(false);
           }}
@@ -909,12 +941,10 @@ export function RenamePanelBody() {
         />
       ) : null}
 
-      <CollapsibleSection title="Token Settings" defaultOpen={true}>
+      <SectionGroupHeader title="Token settings" hint="Appear only for tokens you're using" />
+      <div className="space-y-4">
         {usesPerformers ? (
-          <CollapsibleSection
-            title="Performers"
-            summary="Separators, limits, sort, and allow/block lists"
-          >
+          <SectionCard title="Performers" badge={<Badge mono>$performers</Badge>} accent>
             <Field label="Separator">
               <SeparatorChips
                 value={mv("Performers").Separator}
@@ -995,14 +1025,11 @@ export function RenamePanelBody() {
               }}
               placeholder="Search performers…"
             />
-          </CollapsibleSection>
+          </SectionCard>
         ) : null}
 
         {usesTags ? (
-          <CollapsibleSection
-            title="Tags"
-            summary="Separators, limits, sort, and allow/block lists"
-          >
+          <SectionCard title="Tags" badge={<Badge mono>$tags</Badge>} accent>
             <Field label="Separator">
               <SeparatorChips
                 value={mv("Tags").Separator}
@@ -1058,24 +1085,23 @@ export function RenamePanelBody() {
               }}
               placeholder="Search tags…"
             />
-          </CollapsibleSection>
+          </SectionCard>
         ) : null}
 
         {usesDate || usesDuration ? (
-          <CollapsibleSection
+          <SectionCard
+            accent
+            badge={
+              <Badge mono>
+                {usesDate && usesDuration ? "$date · $duration" : usesDate ? "$date" : "$duration"}
+              </Badge>
+            }
             title={
               usesDate && usesDuration
                 ? "Date & duration format"
                 : usesDate
                   ? "Date format"
                   : "Duration format"
-            }
-            summary={
-              usesDate && usesDuration
-                ? "How $date and $duration tokens are written"
-                : usesDate
-                  ? "How the $date token is written"
-                  : "How the $duration token is written"
             }
           >
             {usesDate ? (
@@ -1102,15 +1128,19 @@ export function RenamePanelBody() {
                 />
               </Field>
             ) : null}
-          </CollapsibleSection>
+          </SectionCard>
         ) : null}
 
         {!usesPerformers && !usesTags && !usesDate && !usesDuration ? (
-          <GroupCard
-            title="No token-specific settings needed"
-            description="Add $performers, $tags, $date, or $duration to your filename or folder template to configure how they're formatted."
-          >
-            <div className="flex flex-wrap gap-1">
+          <div className="rounded-xl border border-border bg-card p-6 text-center">
+            <h3 className="text-base font-semibold text-foreground">
+              No token-specific settings needed
+            </h3>
+            <p className="mx-auto mb-4 mt-1 max-w-md text-sm text-secondary">
+              Add $performers, $tags, $date, or $duration to your filename or folder template to
+              configure how they&apos;re formatted.
+            </p>
+            <div className="flex flex-wrap justify-center gap-1">
               <Chip
                 selected={false}
                 mono
@@ -1148,170 +1178,20 @@ export function RenamePanelBody() {
                 $duration
               </Chip>
             </div>
-          </GroupCard>
+          </div>
         ) : null}
-      </CollapsibleSection>
+      </div>
 
-      <CollapsibleSection title="Destination Routing" defaultOpen={true}>
-        {/* Destination routing — where matched items move to, by studio/tag/source-path. Ordered by
-              decision flow: bound the writable area first (advanced routing & safety, which contains
-              allowed roots), then the per-studio/per-tag routing rules, then the catch-all default and
-              its relocate gate LAST (the gate is read after a default is set, since it is the most
-              dangerous control). All fields flow through set() like every other control. */}
-        <CollapsibleSection
-          title="Destination routing"
-          summary="Per-studio / tag / path destinations, allowed roots, and the default-relocate gate"
-        >
-          <GroupCard
-            title="Advanced routing & safety"
-            headerRight={
-              <Toggle
-                label="Enabled"
-                checked={options.EnableAdvancedRouting}
-                onChange={(v) => {
-                  set("EnableAdvancedRouting", v);
-                }}
-              />
-            }
-          >
-            {options.EnableAdvancedRouting ? (
-              <>
-                <h4 className="text-sm font-semibold text-foreground">Allowed roots</h4>
-                <p className="mb-4 mt-1 text-sm text-secondary">
-                  A rename may only write inside these absolute directories; a target outside them
-                  is rejected. Empty = files stay within their own source folder.
-                </p>
-                <TagListInput
-                  values={options.AllowedRoots}
-                  onChange={(v) => {
-                    set("AllowedRoots", v);
-                  }}
-                  placeholder="Add an absolute directory, press Enter"
-                />
-
-                <h4 className="text-sm font-semibold text-foreground">Source-path destinations</h4>
-                <p className="mb-4 mt-1 text-sm text-secondary">
-                  Match an item&apos;s source path to a destination root, top rule first. An exact
-                  match or a regex.
-                </p>
-                <ObjectArrayEditor<PathDestinationRule>
-                  rows={options.PathDestinations}
-                  onChange={(rows) => {
-                    set("PathDestinations", rows);
-                  }}
-                  makeRow={() => ({ Pattern: "", Dest: "", IsRegex: false })}
-                  renderRow={(row, _i, update) => (
-                    <>
-                      <Field label="Source path">
-                        <TextInput
-                          value={row.Pattern}
-                          onChange={(v) => {
-                            update({ Pattern: v });
-                          }}
-                          mono
-                          placeholder="Exact path or regex"
-                        />
-                      </Field>
-                      <Toggle
-                        label="Match as a regex"
-                        checked={row.IsRegex}
-                        onChange={(v) => {
-                          update({ IsRegex: v });
-                        }}
-                      />
-                      <RegexValidity pattern={row.Pattern} isRegex={row.IsRegex} />
-                      <Field label="Destination root">
-                        <TextInput
-                          value={row.Dest}
-                          onChange={(v) => {
-                            update({ Dest: v });
-                          }}
-                          placeholder="Destination root"
-                        />
-                        <PathShapeHint value={row.Dest} />
-                      </Field>
-                    </>
-                  )}
-                  addLabel="Add path rule"
-                  ordered
-                />
-              </>
-            ) : (
-              <p className="text-sm text-secondary">Turn this on to add advanced routing rules.</p>
-            )}
-          </GroupCard>
-
-          <GroupCard
-            title="Per-studio destinations"
-            description="Pick a studio, then the absolute root its items route to."
-            headerRight={
-              <Toggle
-                label="Enabled"
-                checked={options.EnableStudioDestinations}
-                onChange={(v) => {
-                  set("EnableStudioDestinations", v);
-                }}
-              />
-            }
-          >
-            {options.EnableStudioDestinations ? (
-              <StudioDestinationsEditor
-                map={options.StudioDestinations}
-                onChange={(m) => {
-                  set("StudioDestinations", m);
-                }}
-              />
-            ) : (
-              <p className="text-sm text-secondary">
-                Turn this on to add per-studio routing rules.
-              </p>
-            )}
-          </GroupCard>
-
-          <GroupCard
-            title="Per-tag destinations"
-            description="Pick a tag, then the absolute root its items route to."
-            headerRight={
-              <Toggle
-                label="Enabled"
-                checked={options.EnableTagDestinations}
-                onChange={(v) => {
-                  set("EnableTagDestinations", v);
-                }}
-              />
-            }
-          >
-            {options.EnableTagDestinations ? (
-              <KeyValueMapEditor
-                map={options.TagDestinations}
-                onChange={(m) => {
-                  set("TagDestinations", m);
-                }}
-                renderKey={(draftKey, setDraftKey, existingKeys) => (
-                  <TagPicker
-                    label="Tag"
-                    values={draftKey === "" ? [] : [draftKey]}
-                    onChange={(values) => {
-                      setDraftKey(values.at(-1) ?? "");
-                    }}
-                    placeholder="Search tags…"
-                    excludeValues={existingKeys}
-                  />
-                )}
-                renderValue={(value, setValue) => (
-                  <>
-                    <TextInput value={value} onChange={setValue} placeholder="Destination root" />
-                    <PathShapeHint value={value} />
-                  </>
-                )}
-                addLabel="Add tag rule"
-              />
-            ) : (
-              <p className="text-sm text-secondary">Turn this on to add per-tag routing rules.</p>
-            )}
-          </GroupCard>
-
-          <GroupCard title="Default & unorganized destinations">
+      <SectionGroupHeader title="Destination routing" hint="Where renamed files land" />
+      {/* Destination routing — where matched items move to. Card ORDER follows the design mock
+            (default & unorganized first, then per-studio, per-tag, advanced routing & safety, then
+            sidecar and empty-folder). This is presentation order only: it does NOT set the engine's
+            rule-evaluation precedence, which is decided server-side, so reordering these cards is
+            safe. Each per-* card carries its enable toggle in its header (ToggleHeaderCard); all
+            fields flow through set() like every other control. */}
+      <div className="space-y-4">
+        <GroupCard title="Default & unorganized destinations">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Field
               label="Default destination"
               helper="Where an item matching no rule goes. Blank = no default route. Honored only with the relocate gate below ON."
@@ -1338,107 +1218,231 @@ export function RenamePanelBody() {
               />
               <PathShapeHint value={options.UnorganizedDestination} />
             </Field>
-            <Toggle
-              label="Relocate unmatched items to the default destination"
-              checked={options.EnableDefaultRelocate}
-              onChange={(v) => {
-                set("EnableDefaultRelocate", v);
-              }}
-              helper="With this on, any item matching no rule is moved to the default destination — whole-library reach. Undo is the only recovery. Off by default."
-            />
-          </GroupCard>
+          </div>
+          <Toggle
+            label="Relocate unmatched items to the default destination"
+            checked={options.EnableDefaultRelocate}
+            onChange={(v) => {
+              set("EnableDefaultRelocate", v);
+            }}
+            helper="With this on, any item matching no rule is moved to the default destination — whole-library reach. Undo is the only recovery. Off by default."
+          />
+        </GroupCard>
 
-          <GroupCard
-            title="Sidecar files"
-            description="Files sharing the primary's basename with one of these extensions move and rename with it; a target that already exists is left untouched, never overwritten. Captions Cove tracks always move regardless."
-          >
-            <Field label="Also move sidecar files with these extensions">
-              <TagListInput
-                values={options.AssociatedExtensions}
-                onChange={(v) => {
-                  set("AssociatedExtensions", v);
+        <ToggleHeaderCard
+          title="Per-studio destinations"
+          description="Pick a studio, then the absolute root its items route to."
+          enabled={options.EnableStudioDestinations}
+          onToggle={(v) => {
+            set("EnableStudioDestinations", v);
+          }}
+        >
+          <StudioDestinationsEditor
+            map={options.StudioDestinations}
+            onChange={(m) => {
+              set("StudioDestinations", m);
+            }}
+          />
+        </ToggleHeaderCard>
+
+        <ToggleHeaderCard
+          title="Per-tag destinations"
+          description="Pick a tag, then the absolute root its items route to."
+          enabled={options.EnableTagDestinations}
+          onToggle={(v) => {
+            set("EnableTagDestinations", v);
+          }}
+        >
+          <KeyValueMapEditor
+            map={options.TagDestinations}
+            onChange={(m) => {
+              set("TagDestinations", m);
+            }}
+            renderKey={(draftKey, setDraftKey, existingKeys) => (
+              <TagPicker
+                label=""
+                values={draftKey === "" ? [] : [draftKey]}
+                onChange={(values) => {
+                  setDraftKey(values.at(-1) ?? "");
                 }}
-                placeholder="Add an extension, press Enter"
-                normalize={normalizeSidecarExtension}
-                onReject={(candidate) => !/^[a-z0-9]+$/.test(candidate)}
-                onLiveChange={(raw) => {
-                  setSidecarLiveInput(raw);
-                }}
+                placeholder="Search tags…"
+                excludeValues={existingKeys}
               />
-              {(() => {
-                const advisory = extensionShapeAdvisory(
-                  normalizeSidecarExtension(sidecarLiveInput),
-                );
-                return advisory ? <StatusText kind="warning">{advisory}</StatusText> : null;
-              })()}
-            </Field>
-          </GroupCard>
+            )}
+            renderValue={(value, setValue) => (
+              <>
+                <TextInput value={value} onChange={setValue} placeholder="Destination root" />
+                <PathShapeHint value={value} />
+              </>
+            )}
+            addLabel="Add tag rule"
+          />
+        </ToggleHeaderCard>
 
-          <GroupCard title="Empty source folder">
-            <Toggle
-              label="Delete the source folder when a move leaves it empty"
-              checked={options.RemoveEmptyFolder}
+        <ToggleHeaderCard
+          title="Advanced routing & safety"
+          description="Allowed roots and source-path rules."
+          enabled={options.EnableAdvancedRouting}
+          onToggle={(v) => {
+            set("EnableAdvancedRouting", v);
+          }}
+        >
+          <div>
+            <h4 className="text-sm font-semibold text-foreground">Allowed roots</h4>
+            <p className="mb-4 mt-1 text-sm text-secondary">
+              A rename may only write inside these absolute directories; a target outside them is
+              rejected. Empty = files stay within their own source folder.
+            </p>
+            <TagListInput
+              values={options.AllowedRoots}
               onChange={(v) => {
-                set("RemoveEmptyFolder", v);
+                set("AllowedRoots", v);
               }}
-              helper="Deletes a source folder only when a move empties it completely — never a non-empty folder or a root. Undo won't move the file back into a deleted folder; the file stays at its new location. Off by default."
+              placeholder="Add an absolute directory, press Enter"
             />
-          </GroupCard>
-        </CollapsibleSection>
-      </CollapsibleSection>
+          </div>
 
-      <CollapsibleSection title="Advanced" defaultOpen={true}>
+          <div>
+            <h4 className="text-sm font-semibold text-foreground">Source-path destinations</h4>
+            <p className="mb-4 mt-1 text-sm text-secondary">
+              Match an item&apos;s source path to a destination root, top rule first. An exact match
+              or a regex.
+            </p>
+            <ObjectArrayEditor<PathDestinationRule>
+              rows={options.PathDestinations}
+              onChange={(rows) => {
+                set("PathDestinations", rows);
+              }}
+              makeRow={() => ({ Pattern: "", Dest: "", IsRegex: false })}
+              renderRow={(row, _i, update) => (
+                <>
+                  <Field label="Source path">
+                    <TextInput
+                      value={row.Pattern}
+                      onChange={(v) => {
+                        update({ Pattern: v });
+                      }}
+                      mono
+                      placeholder="Exact path or regex"
+                    />
+                  </Field>
+                  <Toggle
+                    label="Match as a regex"
+                    checked={row.IsRegex}
+                    onChange={(v) => {
+                      update({ IsRegex: v });
+                    }}
+                  />
+                  <RegexValidity pattern={row.Pattern} isRegex={row.IsRegex} />
+                  <Field label="Destination root">
+                    <TextInput
+                      value={row.Dest}
+                      onChange={(v) => {
+                        update({ Dest: v });
+                      }}
+                      placeholder="Destination root"
+                    />
+                    <PathShapeHint value={row.Dest} />
+                  </Field>
+                </>
+              )}
+              addLabel="Add path rule"
+              ordered
+            />
+          </div>
+        </ToggleHeaderCard>
+
+        <GroupCard
+          title="Sidecar files"
+          description="Files sharing the primary's basename with one of these extensions move and rename with it; a target that already exists is left untouched, never overwritten. Captions Cove tracks always move regardless."
+        >
+          <Field label="Also move sidecar files with these extensions">
+            <TagListInput
+              values={options.AssociatedExtensions}
+              onChange={(v) => {
+                set("AssociatedExtensions", v);
+              }}
+              placeholder="Add an extension, press Enter"
+              normalize={normalizeSidecarExtension}
+              onReject={(candidate) => !/^[a-z0-9]+$/.test(candidate)}
+              onLiveChange={(raw) => {
+                setSidecarLiveInput(raw);
+              }}
+            />
+            {(() => {
+              const advisory = extensionShapeAdvisory(normalizeSidecarExtension(sidecarLiveInput));
+              return advisory ? <StatusText kind="warning">{advisory}</StatusText> : null;
+            })()}
+          </Field>
+        </GroupCard>
+
+        <div className="rounded-xl border border-border bg-card p-4">
+          <Toggle
+            label="Delete the source folder when a move leaves it empty"
+            checked={options.RemoveEmptyFolder}
+            onChange={(v) => {
+              set("RemoveEmptyFolder", v);
+            }}
+            helper="Deletes a source folder only when a move empties it completely — never a non-empty folder or a root. Undo won't move the file back into a deleted folder; the file stays at its new location. Off by default."
+          />
+        </div>
+      </div>
+
+      <SectionGroupHeader title="Advanced" hint="Power-user controls — collapsed by default" />
+      <div className="space-y-3">
         <CollapsibleSection
           title="Clean up the name"
           summary="Illegal-character and space handling, case, ASCII"
         >
-          <Field label="Illegal-char replacement">
-            <SegmentedReplace
-              value={options.IllegalReplacement}
-              onChange={(v) => {
-                set("IllegalReplacement", v);
-              }}
-              stripLabel="Strip"
-              replaceLabel="Replace with"
-              stripHelper="Illegal characters are removed."
-              replaceHelper="Each illegal character becomes this."
-              inputPlaceholder="e.g. _"
-            />
-          </Field>
-          <Field label="Space replacement">
-            <SegmentedReplace
-              value={options.SpaceReplacement}
-              onChange={(v) => {
-                set("SpaceReplacement", v);
-              }}
-              stripLabel="Keep spaces"
-              replaceLabel="Replace with"
-              stripHelper="Spaces are left as-is."
-              replaceHelper="Each space becomes this."
-              inputPlaceholder="e.g. _ or ."
-            />
-          </Field>
-          <Field
-            label="Remove characters"
-            helper="Characters to delete from the name, e.g. ,# — separate from illegal-character handling."
-          >
-            <TextInput
-              value={options.RemoveCharacters}
-              onChange={(v) => {
-                set("RemoveCharacters", v);
-              }}
-              placeholder="e.g. ,#"
-            />
-          </Field>
-          <Field label="Case">
-            <Select
-              value={options.Case}
-              onChange={(v) => {
-                set("Case", v);
-              }}
-              options={CASE_OPTIONS}
-            />
-          </Field>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field label="Illegal-char replacement">
+              <SegmentedReplace
+                value={options.IllegalReplacement}
+                onChange={(v) => {
+                  set("IllegalReplacement", v);
+                }}
+                stripLabel="Strip"
+                replaceLabel="Replace with"
+                stripHelper="Illegal characters are removed."
+                replaceHelper="Each illegal character becomes this."
+                inputPlaceholder="e.g. _"
+              />
+            </Field>
+            <Field label="Space replacement">
+              <SegmentedReplace
+                value={options.SpaceReplacement}
+                onChange={(v) => {
+                  set("SpaceReplacement", v);
+                }}
+                stripLabel="Keep spaces"
+                replaceLabel="Replace with"
+                stripHelper="Spaces are left as-is."
+                replaceHelper="Each space becomes this."
+                inputPlaceholder="e.g. _ or ."
+              />
+            </Field>
+            <Field
+              label="Remove characters"
+              helper="Characters to delete from the name, e.g. ,# — separate from illegal-character handling."
+            >
+              <TextInput
+                value={options.RemoveCharacters}
+                onChange={(v) => {
+                  set("RemoveCharacters", v);
+                }}
+                placeholder="e.g. ,#"
+              />
+            </Field>
+            <Field label="Case">
+              <Select
+                value={options.Case}
+                onChange={(v) => {
+                  set("Case", v);
+                }}
+                options={CASE_OPTIONS}
+              />
+            </Field>
+          </div>
           <Toggle
             label="ASCII transliterate"
             checked={options.AsciiTransliterate}
@@ -1453,24 +1457,26 @@ export function RenamePanelBody() {
           title="Length & collisions"
           summary="Length caps, what to drop when too long, duplicate suffix"
         >
-          <Field label="Filename max length">
-            <NumberInput
-              value={options.FilenameMax}
-              min={1}
-              onChange={(v) => {
-                set("FilenameMax", v);
-              }}
-            />
-          </Field>
-          <Field label="Full-path max length">
-            <NumberInput
-              value={options.FullPathMax}
-              min={1}
-              onChange={(v) => {
-                set("FullPathMax", v);
-              }}
-            />
-          </Field>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field label="Filename max length">
+              <NumberInput
+                value={options.FilenameMax}
+                min={1}
+                onChange={(v) => {
+                  set("FilenameMax", v);
+                }}
+              />
+            </Field>
+            <Field label="Full-path max length">
+              <NumberInput
+                value={options.FullPathMax}
+                min={1}
+                onChange={(v) => {
+                  set("FullPathMax", v);
+                }}
+              />
+            </Field>
+          </div>
           <Field label="Drop order" helper="Fields dropped (top first) when the name is too long.">
             <TagListInput
               values={options.DropOrder}
@@ -1587,8 +1593,8 @@ export function RenamePanelBody() {
               article stripping, the name-shaping toggles, and the per-token whitespace map. All flow
               through set() like every other control. */}
         <CollapsibleSection
-          title="Field rewriting"
-          summary="Literal token replacements, article stripping, name shaping, and per-token whitespace"
+          title="Field rewriting & name shaping"
+          summary="Literal token replacements, article stripping, and name shaping"
         >
           <GroupCard
             title="Per-token replacements"
@@ -1666,34 +1672,32 @@ export function RenamePanelBody() {
             </Field>
           </GroupCard>
 
-          <GroupCard title="Name shaping">
-            <Toggle
-              label="Squeeze studio names"
-              checked={options.SqueezeStudioNames}
-              onChange={(v) => {
-                set("SqueezeStudioNames", v);
-              }}
-              helper="Removes all spaces from the studio value so one studio renders to one stable folder name."
-            />
-            <Toggle
-              label="Drop a performer already in the title"
-              checked={options.PreventTitlePerformer}
-              onChange={(v) => {
-                set("PreventTitlePerformer", v);
-              }}
-              helper="Drops a performer whose name already appears as a whole word in the title."
-            />
-            <Toggle
-              label="Collapse repeated folder segments"
-              checked={options.PreventConsecutiveSegments}
-              onChange={(v) => {
-                set("PreventConsecutiveSegments", v);
-              }}
-              helper="Collapses consecutive duplicate folder path segments to one — affects the folder path, not the filename."
-            />
-          </GroupCard>
+          <Toggle
+            label="Squeeze studio names"
+            checked={options.SqueezeStudioNames}
+            onChange={(v) => {
+              set("SqueezeStudioNames", v);
+            }}
+            helper="Removes all spaces from the studio value so one studio renders to one stable folder name."
+          />
+          <Toggle
+            label="Drop a performer already in the title"
+            checked={options.PreventTitlePerformer}
+            onChange={(v) => {
+              set("PreventTitlePerformer", v);
+            }}
+            helper="Drops a performer whose name already appears as a whole word in the title."
+          />
+          <Toggle
+            label="Collapse repeated folder segments"
+            checked={options.PreventConsecutiveSegments}
+            onChange={(v) => {
+              set("PreventConsecutiveSegments", v);
+            }}
+            helper="Collapses consecutive duplicate folder path segments to one — affects the folder path, not the filename."
+          />
         </CollapsibleSection>
-      </CollapsibleSection>
+      </div>
 
       {/* ── UNDO — the action surface, distinct from configuration, at the bottom. ── */}
       <div id="rename-undo-section">

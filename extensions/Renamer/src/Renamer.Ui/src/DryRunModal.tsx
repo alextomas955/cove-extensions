@@ -19,6 +19,7 @@ import { Dialog, ErrorBox } from "./dialog";
 import { Button, Spinner } from "./primitives";
 import { WarningBadges } from "./WarningBadge";
 import type { ScanItem } from "./preview";
+import type { RenamerOptions } from "./options";
 import { countByStatus, paginate, totalPages } from "./dryRunLogic";
 
 const EXTENSION_ID = "com.alextomas955.renamer";
@@ -85,10 +86,13 @@ function usePollJob(jobId: string | null, onDone: (job: JobInfo) => void) {
 }
 
 export function DryRunModal({
+  options,
   onClose,
   onRenameAll,
   renaming,
 }: {
+  /** The panel's CURRENT (possibly unsaved) options — sent so the scan previews unsaved edits. */
+  options: RenamerOptions;
   onClose: () => void;
   /** The SHARED rename-trigger handler — also called by the panel-level button. */
   onRenameAll: (items: ScanItem[]) => void;
@@ -106,17 +110,24 @@ export function DryRunModal({
   // StrictMode's synthetic unmount fires the cleanup before the network round-trip resolves.
   const scanRequested = useRef(false);
 
-  // Kick off the scan on mount so the modal opens immediately in a loading state.
+  // Kick off the scan on mount so the modal opens immediately in a loading state. Sends the panel's
+  // current options (captured at open) as the scan body so the dry run previews UNSAVED edits — the
+  // point of a dry run. The blob is the same PascalCase JSON the save path stores; the backend parses
+  // it with the tolerant options set (or falls back to saved options if it's absent/corrupt).
   useEffect(() => {
     if (scanRequested.current) return;
     scanRequested.current = true;
-    request<{ jobId: string }>(SCAN_LIBRARY_PATH, { method: "POST" })
+    request<{ jobId: string }>(SCAN_LIBRARY_PATH, {
+      method: "POST",
+      body: JSON.stringify({ Options: JSON.stringify(options) }),
+    })
       .then((res) => {
         setScanJobId(res.jobId);
       })
       .catch((err: unknown) => {
         setScanError(errText(err));
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- options captured once at modal open; the guard makes this a mount-only POST
   }, []);
 
   usePollJob(scanJobId, (job) => {

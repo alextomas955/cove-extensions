@@ -174,7 +174,8 @@ public sealed partial class Renamer
                 => ListPerformersAsync(db, principal, ct));
 
         endpoints.MapPost(ScanLibraryRoute,
-            (ICurrentPrincipalAccessor principal, IJobService jobs) => ScanLibraryEnqueue(principal, jobs));
+            (ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs) =>
+                ScanLibraryEnqueue(body, principal, jobs));
 
         endpoints.MapGet(LastScanRoute,
             (ICurrentPrincipalAccessor principal, CancellationToken ct) => ScanLibraryResultAsync(principal, ct));
@@ -572,10 +573,12 @@ public sealed partial class Renamer
         [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio];
 
     /// <summary>
-    /// Enqueues the whole-library scan job. Takes NO request body and NO caller-supplied id array —
-    /// the candidate ids are server-derived per kind via <see cref="IRenamerDataPort.LoadAllEntityIdsAsync"/>
-    /// inside the job, so <see cref="MaxEntityIdsPerRequest"/> does not apply here (there is nothing for
-    /// it to bound). Coarse-gates on ANY renamer-read permission — 403 BEFORE any enqueue — then captures
+    /// Enqueues the whole-library scan job. Takes an OPTIONAL <see cref="ScanLibraryRequest"/> body
+    /// carrying the caller's current options (for a dry run on unsaved edits); with no body it scans the
+    /// saved options. Takes NO caller-supplied id array — the candidate ids are server-derived per kind
+    /// via <see cref="IRenamerDataPort.LoadAllEntityIdsAsync"/> inside the job, so
+    /// <see cref="MaxEntityIdsPerRequest"/> does not apply here (there is nothing for it to bound).
+    /// Coarse-gates on ANY renamer-read permission — 403 BEFORE any enqueue — then captures
     /// the principal's held read kinds into the job closure so the job body can apply the SAME per-kind
     /// skip a partial-permission caller would see from <see cref="PreviewAsync"/>, without re-resolving
     /// <see cref="ICurrentPrincipalAccessor"/> from inside the detached job. The scan result is persisted
@@ -583,22 +586,52 @@ public sealed partial class Renamer
     /// "the last batch") rather than a per-jobId key, since the id <c>Enqueue</c> mints is not available
     /// to the job body before <c>Enqueue</c> returns.
     /// </summary>
-    internal IResult ScanLibraryEnqueue(ICurrentPrincipalAccessor principal, IJobService jobs)
+    internal IResult ScanLibraryEnqueue(ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         if (!HasAnyReadPermission(principal))
         {
             return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
         }
 
+        // Dry-run-on-unsaved-edits: when the caller sends its current options blob, parse it with the
+        // SAME tolerant options set OptionsStore uses so the scan interprets it identically to a saved
+        // load; a null/blank/corrupt blob falls back to the persisted options (the original no-body
+        // behavior). Parsed here at enqueue time, then captured into the detached job closure — the job
+        // cannot re-read the request, exactly like readableKinds.
+        var overrideOptions = TryParseOptionsOverride(body?.Options);
+
         var readableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
 
         var jobId = jobs.Enqueue(
             $"ext:{Id}:scan-library",
             $"[{Name}] Scan library",
-            (coreProgress, ct) => RunScanLibraryJobAsync(readableKinds, new HostProgress(coreProgress), ct),
+            (coreProgress, ct) => RunScanLibraryJobAsync(readableKinds, overrideOptions, new HostProgress(coreProgress), ct),
             exclusive: true);
 
         return Results.Accepted(value: new { jobId });
+    }
+
+    /// <summary>
+    /// Parses a caller-supplied options blob for the dry-run override, returning null when the blob is
+    /// absent, blank, or unparseable. Mirrors <see cref="OptionsStore.LoadAsync"/>'s tolerant read
+    /// (<c>RenamerOptions.JsonOptions</c> + catch <see cref="JsonException"/>): a corrupt override
+    /// silently falls back to the saved options rather than failing the scan.
+    /// </summary>
+    private static RenamerOptions? TryParseOptionsOverride(string? optionsJson)
+    {
+        if (string.IsNullOrWhiteSpace(optionsJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<RenamerOptions>(optionsJson, RenamerOptions.JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -641,12 +674,19 @@ public sealed partial class Renamer
     /// a partial-permission caller's scan must omit a kind they cannot read, never 403 the whole job)
     /// reaches the job body.
     /// </param>
+    /// <param name="overrideOptions">
+    /// The caller's current options for a dry run on unsaved edits, or null to scan the saved options.
+    /// Captured at enqueue time (the detached job cannot re-read the request body).
+    /// </param>
     /// <param name="progress">The job-progress sink reported a final <c>1.0</c> on completion.</param>
     /// <param name="ct">Cancellation token; a genuine cancellation aborts the scan.</param>
     internal async Task RunScanLibraryJobAsync(
-        IReadOnlyList<RenamerFileKind> readableKinds, Cove.Plugins.IJobProgress progress, CancellationToken ct)
+        IReadOnlyList<RenamerFileKind> readableKinds, RenamerOptions? overrideOptions,
+        Cove.Plugins.IJobProgress progress, CancellationToken ct)
     {
-        var options = await new OptionsStore(Store).LoadAsync(ct);
+        // A dry run previews the caller's CURRENT (possibly unsaved) options when they were sent;
+        // otherwise it scans the saved options — the original behavior.
+        var options = overrideOptions ?? await new OptionsStore(Store).LoadAsync(ct);
         var lookups = BuildLookups(options);
         var allItems = new List<ScanItem>();
 

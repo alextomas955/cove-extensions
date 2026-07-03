@@ -109,9 +109,11 @@ export function Field({
 }) {
   return (
     <label className="block text-sm" title={helper}>
-      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted">
-        {label}
-      </span>
+      {label ? (
+        <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted">
+          {label}
+        </span>
+      ) : null}
       {children}
       {helper ? <span className="mt-1 block text-xs text-secondary">{helper}</span> : null}
     </label>
@@ -460,11 +462,13 @@ export function Toggle({
   checked,
   onChange,
   helper,
+  ariaLabel,
 }: {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   helper?: string;
+  ariaLabel?: string;
 }) {
   return (
     <div>
@@ -473,6 +477,7 @@ export function Toggle({
           type="button"
           role="switch"
           aria-checked={checked}
+          aria-label={label ? undefined : ariaLabel}
           onClick={() => {
             onChange(!checked);
           }}
@@ -486,7 +491,7 @@ export function Toggle({
             }`}
           />
         </button>
-        <span>{label}</span>
+        {label ? <span>{label}</span> : null}
       </label>
       {helper ? <p className="mt-1 text-xs text-secondary">{helper}</p> : null}
     </div>
@@ -1051,8 +1056,8 @@ export function KeyValueMapEditor({
       ))}
       <div className="flex items-start gap-2 rounded-xl border border-border bg-card p-3">
         <span className="min-w-0 flex-1">{renderKey(draftKey, setDraftKey, keys)}</span>
-        <span className="flex-1">{renderValue(draftValue, setDraftValue)}</span>
-        <Button variant="ghost" onClick={add} disabled={draftKey.trim().length === 0 || duplicate}>
+        <span className="min-w-0 flex-1">{renderValue(draftValue, setDraftValue)}</span>
+        <Button onClick={add} disabled={draftKey.trim().length === 0 || duplicate}>
           {addLabel}
         </Button>
       </div>
@@ -1115,6 +1120,121 @@ export function GroupCard({
       )}
       <div className="space-y-4">{children}</div>
     </div>
+  );
+}
+
+/**
+ * A small accent-tinted pill, used for the Essentials "Essentials" header tag and the token-settings
+ * `$token` badges. `mono` renders the label monospaced (the `$token` case); the plain case is the
+ * short uppercase tag. Host-compiled classes only.
+ */
+export function Badge({
+  children,
+  mono = false,
+  solid = false,
+}: {
+  children: ReactNode;
+  mono?: boolean;
+  solid?: boolean;
+}) {
+  const base = "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold";
+  const color = solid ? "bg-accent text-white" : "border border-accent/40 bg-accent/15 text-accent";
+  return (
+    <span className={`${base} ${color} ${mono ? "font-mono" : "uppercase tracking-wider"}`}>
+      {children}
+    </span>
+  );
+}
+
+/**
+ * A section-group divider header: an uppercase label, a hairline rule that fills the row, and an
+ * optional muted hint on the right. Groups the flat cards beneath it (What gets renamed, Run &
+ * automation, Token settings, Destination routing, Advanced) without being a collapsible itself.
+ */
+export function SectionGroupHeader({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <h2 className="text-xs font-bold uppercase tracking-wider text-secondary">{title}</h2>
+      <div className="h-px flex-1 bg-border" />
+      {hint ? <span className="text-xs text-muted">{hint}</span> : null}
+    </div>
+  );
+}
+
+/**
+ * An elevated content card — the design's primary section container (surface fill, rounded, subtle
+ * shadow). `title`/`description`/`badge`/`headerRight` render a bordered header row; omit them all
+ * for a bare padded card. `flush` drops the body padding (for cards whose child manages its own
+ * padding, e.g. a two-column grid section). Presentational only.
+ */
+export function SectionCard({
+  title,
+  description,
+  badge,
+  headerRight,
+  accent = false,
+  children,
+}: {
+  title?: string;
+  description?: string;
+  badge?: ReactNode;
+  headerRight?: ReactNode;
+  accent?: boolean;
+  children: ReactNode;
+}) {
+  const border = accent ? "border-accent/30" : "border-border";
+  const hasHeader = Boolean(title) || badge != null || headerRight != null;
+  return (
+    <section className={`overflow-hidden rounded-2xl border ${border} bg-surface shadow-sm`}>
+      {hasHeader ? (
+        <div className="flex items-start gap-3 border-b border-border px-5 py-4">
+          {badge ? <span className="mt-0.5">{badge}</span> : null}
+          <div className="min-w-0 flex-1">
+            {title ? <h3 className="text-base font-semibold text-foreground">{title}</h3> : null}
+            {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
+          </div>
+          {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
+        </div>
+      ) : null}
+      <div className="space-y-4 p-5">{children}</div>
+    </section>
+  );
+}
+
+/**
+ * A card whose header carries an enable {@link Toggle}; the body renders inline only when `enabled`.
+ * The design's per-studio / per-tag / advanced-routing pattern — the card stays visible with its
+ * title + description, and flipping the header toggle reveals the controls (or an off-state hint).
+ * The toggle state is owned by the caller (the same Enable* option), so this is presentational.
+ */
+export function ToggleHeaderCard({
+  title,
+  description,
+  enabled,
+  onToggle,
+  children,
+}: {
+  title: string;
+  description?: string;
+  enabled: boolean;
+  onToggle: (enabled: boolean) => void;
+  children: ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
+      <div className="flex items-center gap-3 px-5 py-4">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base font-semibold text-foreground">{title}</h3>
+          {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
+        </div>
+        <div className="shrink-0">
+          <Toggle label="" ariaLabel={`Enable ${title}`} checked={enabled} onChange={onToggle} />
+        </div>
+      </div>
+      {enabled ? (
+        <div className="space-y-4 border-t border-border px-5 pb-5 pt-4">{children}</div>
+      ) : null}
+    </section>
   );
 }
 
