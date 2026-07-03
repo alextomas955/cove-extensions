@@ -35,7 +35,15 @@ export interface TokenEntry {
 export const TOKENS: readonly TokenEntry[] = [
   { token: "$title", label: "Title", kind: "core", insert: "$title" },
   { token: "$studio", label: "Studio", kind: "optional", insert: "{ - $studio}" },
+  {
+    token: "$parentStudio",
+    label: "Parent studio",
+    kind: "optional",
+    insert: "{ - $parentStudio}",
+  },
   { token: "$studioCode", label: "Studio code", kind: "optional", insert: "{ - $studioCode}" },
+  { token: "$director", label: "Director", kind: "optional", insert: "{ - $director}" },
+  { token: "$bitrate", label: "Bitrate", kind: "optional", insert: "{ [$bitrate]}" },
   { token: "$date", label: "Date", kind: "optional", insert: "{ - $date}" },
   { token: "$year", label: "Year", kind: "optional", insert: "{ [$year]}" },
   { token: "$height", label: "Height", kind: "optional", insert: "{ [$height]}" },

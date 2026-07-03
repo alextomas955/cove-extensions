@@ -23,10 +23,12 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
 
-  # Shared E2E test harness — Testcontainers, Playwright, and their transitive deps. Used by every
-  # extension's e2e suite (see extensions/e2e/README.md), not Renamer-specific.
+  # JS workspaces root — the single root package-lock.json owns the shared E2E harness (tests/e2e:
+  # Testcontainers, Playwright + transitive deps) and every extension's e2e workspace. Dependabot's
+  # npm updater points at the directory holding the lockfile (the root), which covers all npm
+  # workspaces. Used by every extension's e2e suite (see tests/e2e/README.md), not Renamer-specific.
   - package-ecosystem: "npm"
-    directory: "/extensions/e2e"
+    directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5

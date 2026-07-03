@@ -1,0 +1,8 @@
+{
+  "name": "@cove-extensions/monorepo",
+  "private": true,
+  "workspaces": [
+    "tests/e2e",
+    "extensions/*/e2e"
+  ]
+}

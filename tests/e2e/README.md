@@ -26,8 +26,8 @@ drives/folders that machine's Docker is configured to share.
 ## Quick start
 
 ```sh
-cd extensions/e2e
-npm install
+npm install                       # run at the repo ROOT — sets up the workspaces
+cd tests/e2e
 npx playwright install chromium   # one-time browser download
 npm test
 ```
@@ -38,28 +38,35 @@ file provisioning and tearing down its own isolated Cove instance.
 
 ## One Playwright install, many extensions
 
-There is exactly **one** `node_modules`/`@playwright/test` install for the whole monorepo, living
-here in `extensions/e2e/`. Each extension's E2E suite is registered as a Playwright **project** in
-[`playwright.config.mjs`](playwright.config.mjs) pointing `testDir` at that extension's own test
-directory (e.g. `extensions/Renamer/e2e/tests/`) — the test *files* live next to the extension they
-test, but there's no second `@playwright/test` install anywhere else.
+There is exactly **one** `node_modules`/`@playwright/test` install for the whole monorepo. This
+harness lives at `tests/e2e/` and is published as the npm-workspace package `@cove-extensions/e2e`;
+a root `npm install` hoists the single `@playwright/test` to the repo-root `node_modules` and
+symlinks the harness there by name. Each extension's E2E suite is registered as a Playwright
+**project** in [`playwright.config.mjs`](playwright.config.mjs) pointing `testDir` at that
+extension's own test directory (e.g. `extensions/Renamer/e2e/tests/`) — the test *files* live next
+to the extension they test, and each imports the harness **by name** (`@cove-extensions/e2e`), never
+by a relative `../../../e2e/...` path.
 
 **This matters, not just a style preference:** two separate `@playwright/test` installs in the same
 process break Playwright's internal module singleton (`Requiring @playwright/test second time`) the
-moment one test file imports a fixture module from the other install. Adding a new extension's
-suite means adding one `projects` entry here — not running `npm install`/`npx playwright install`
-again inside that extension's folder.
+moment one test file imports a fixture module from the other install. Because the extension's own
+`e2e/package.json` depends on `@cove-extensions/e2e` (and never on `@playwright/test` directly),
+workspace hoisting enforces the single install structurally — adding a new extension's suite means
+adding one `projects` entry here, not running `npm install`/`npx playwright install` inside the
+extension's folder.
 
 Run a single extension's suite with `--project`:
 
 ```sh
-cd extensions/e2e
+cd tests/e2e
 npx playwright test --project=renamer
 ```
 
-Each extension's own directory (e.g. `extensions/Renamer/e2e/`) has a minimal `package.json` whose
-`test` script just shells out to this pattern, so `npm test` works the same whether you're standing
-in the shared `e2e/` directory or in the extension's own.
+Each extension's own directory (e.g. `extensions/Renamer/e2e/`) has a minimal `package.json` that
+declares `@cove-extensions/e2e` as a dependency and whose `test` script shells out to this pattern,
+so `npm test` works the same whether you're standing in `tests/e2e/` or in the extension's own
+folder. The root `package.json`'s `extensions/*/e2e` workspace glob auto-registers a new extension's
+e2e workspace on the next root `npm install` — no root-config edit needed.
 
 ## Parallel execution
 
@@ -101,27 +108,35 @@ docker network ls --filter "name=testcontainers" --format "{{.Name}}" | xargs -r
 
 ## Writing your first test
 
+See [`docs/AUTHORING-E2E.md`](../../docs/AUTHORING-E2E.md) for the full 3-step add-a-suite guide.
+In short:
+
 1. Build your extension the normal way (whatever produces its publish output + `extension.json` +
    optional UI bundle — e.g. Renamer's own `scripts/deploy-dev.ps1` build step, minus the deploy).
 2. Copy [`tests/template.spec.mjs`](tests/template.spec.mjs) into your own extension's directory
-   (e.g. `extensions/<YourExtension>/e2e/tests/`) — see Renamer's `extensions/Renamer/e2e/` for the
-   full pattern, including its own thin `lib/<yourextension>-fixtures.mjs` that pre-fills the
-   `extension` fixture option so individual test files don't repeat build paths.
-3. Add a `projects` entry for your extension in this directory's `playwright.config.mjs`.
-4. Update the `test.use({ extension: {...} })` block with your own `publishDir`, `manifestPath`,
-   and (if you have one) `uiBundlePath`.
-5. Replace the two example tests with your own assertions.
+   (e.g. `extensions/<YourExtension>/e2e/tests/`) and add a thin
+   `extensions/<YourExtension>/e2e/lib/<yourextension>-fixtures.mjs` that imports the harness by name
+   and uses `resolveExtensionPaths` — see Renamer's `extensions/Renamer/e2e/lib/renamer-fixtures.mjs`
+   for the exact shape. Give the new `extensions/<YourExtension>/e2e/package.json` a
+   `{ "dependencies": { "@cove-extensions/e2e": "*" } }` entry (never its own `@playwright/test`).
+3. Add a `projects` entry for your extension in this directory's `playwright.config.mjs`, and add
+   `e2ePath`/`e2eProject` to that extension's `catalog.json` entry. Then run `npm install` at the
+   repo root once (the workspace glob registers your suite automatically).
+
+The `extension` fixture option is filled by `resolveExtensionPaths(import.meta.url, …)`, which
+derives `publishDir`/`manifestPath`/`uiBundlePath` from the fixture file's own location — no
+hand-rolled repo-root paths.
 
 ```js
 // from e.g. extensions/<YourExtension>/e2e/tests/your-test.spec.mjs
-import { test, expect } from '../../../e2e/lib/fixtures.mjs';
+import { test, expect } from '@cove-extensions/e2e';
+import { resolveExtensionPaths } from '@cove-extensions/e2e/resolve-extension';
 
 test.use({
-  extension: {
-    publishDir: '/path/to/your/artifacts/publish',
-    manifestPath: '/path/to/your/extension.json',
-    uiBundlePath: '/path/to/your/dist/index.mjs', // omit if you have no frontend
-  },
+  extension: resolveExtensionPaths(import.meta.url, {
+    srcProject: 'YourProject', // → src/YourProject/extension.json
+    uiProject: 'YourProject.Ui', // → src/YourProject.Ui/dist/index.mjs (omit usage if no frontend)
+  }),
 });
 
 test('your extension does the thing', async ({ api, page }) => {
@@ -239,7 +254,5 @@ not (yet):
   mode — confirmed by direct source read) — this harness exists to test EXTENSIONS, not Cove's own
   auth model, so permission-enforcement testing was deliberately scoped out rather than built as a
   second harness mode.
-- Run true Windows containers (Cove ships no Windows container image — see
-  `extensions/.planning/PROJECT.md`'s Key Decisions for the full reasoning).
-
-See `extensions/.planning/REQUIREMENTS.md` (v2 Requirements) for what's deferred and why.
+- Run true Windows containers (Cove ships no Windows container image, so the containerized suite is
+  Linux-only; the Windows CI job builds and unit-tests instead of running the full E2E suite).

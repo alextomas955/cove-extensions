@@ -175,7 +175,7 @@ function D(e, t) {
 function O(e, t) {
 	return Array.isArray(e) ? e.filter((e) => typeof e == "number" && Number.isFinite(e)) : t;
 }
-function ee(e) {
+function k(e) {
 	let t = C(e), n = {};
 	for (let [e, r] of Object.entries(t)) {
 		let t = Number(e);
@@ -183,12 +183,12 @@ function ee(e) {
 	}
 	return n;
 }
-function k(e) {
+function A(e) {
 	let t = C(e), n = {};
 	for (let [e, r] of Object.entries(t)) typeof r == "string" && (n[e] = r);
 	return n;
 }
-function te(e) {
+function ee(e) {
 	return Array.isArray(e) ? e.filter((e) => e && typeof e == "object").map((e) => {
 		let t = e;
 		return {
@@ -198,7 +198,7 @@ function te(e) {
 		};
 	}) : [];
 }
-function ne(e) {
+function te(e) {
 	return Array.isArray(e) ? e.filter((e) => e && typeof e == "object").map((e) => {
 		let t = e;
 		return {
@@ -207,7 +207,7 @@ function ne(e) {
 		};
 	}) : [];
 }
-function A(e) {
+function j(e) {
 	return Array.isArray(e) ? e.filter((e) => e && typeof e == "object").map((e) => {
 		let t = e;
 		return {
@@ -217,36 +217,36 @@ function A(e) {
 		};
 	}) : [];
 }
-function j(e) {
+function M(e) {
 	return e === "KeepFirst" ? "KeepFirst" : "DropAll";
 }
-function re(e) {
+function ne(e) {
 	return e === "None" || e === "IdAsc" || e === "FavoriteFirst" ? e : "NameAsc";
 }
-function M(e) {
+function N(e) {
 	return e === "Lower" || e === "Title" ? e : "None";
 }
-function ie(e, t) {
+function re(e, t) {
 	let n = C(e);
 	return {
 		Separator: w(n.Separator, t.Separator),
 		MaxCount: T(n.MaxCount, t.MaxCount),
-		OnOverflow: j(n.OnOverflow),
-		Sort: re(n.Sort),
+		OnOverflow: M(n.OnOverflow),
+		Sort: ne(n.Sort),
 		Whitelist: D(n.Whitelist, []),
 		Blacklist: D(n.Blacklist, []),
 		IgnoreGenders: D(n.IgnoreGenders, []),
 		GenderOrder: D(n.GenderOrder, [])
 	};
 }
-var ae = new Set(Object.keys(x));
-function oe(e) {
+var ie = new Set(Object.keys(x));
+function ae(e) {
 	if (!e || typeof e != "object") return {};
 	let t = {};
-	for (let [n, r] of Object.entries(e)) ae.has(n) || (t[n] = r);
+	for (let [n, r] of Object.entries(e)) ie.has(n) || (t[n] = r);
 	return t;
 }
-function se(e) {
+function oe(e) {
 	if (!e || typeof e != "object") return S();
 	let t = e, n = x;
 	return {
@@ -254,12 +254,12 @@ function se(e) {
 		FolderTemplate: w(t.FolderTemplate, n.FolderTemplate),
 		DateFormat: w(t.DateFormat, n.DateFormat),
 		DurationFormat: w(t.DurationFormat, n.DurationFormat),
-		Performers: ie(t.Performers, n.Performers),
-		Tags: ie(t.Tags, n.Tags),
+		Performers: re(t.Performers, n.Performers),
+		Tags: re(t.Tags, n.Tags),
 		IllegalReplacement: w(t.IllegalReplacement, n.IllegalReplacement),
 		SpaceReplacement: w(t.SpaceReplacement, n.SpaceReplacement),
 		RemoveCharacters: w(t.RemoveCharacters, n.RemoveCharacters),
-		Case: M(t.Case),
+		Case: N(t.Case),
 		AsciiTransliterate: E(t.AsciiTransliterate, n.AsciiTransliterate),
 		FilenameMax: T(t.FilenameMax, n.FilenameMax),
 		FullPathMax: T(t.FullPathMax, n.FullPathMax),
@@ -269,12 +269,12 @@ function se(e) {
 		RequiredFields: D(t.RequiredFields, [...n.RequiredFields]),
 		DuplicateSuffixFormat: w(t.DuplicateSuffixFormat, n.DuplicateSuffixFormat),
 		AutoRenamerOnUpdate: E(t.AutoRenamerOnUpdate, n.AutoRenamerOnUpdate),
-		StudioDestinations: ee(t.StudioDestinations),
-		TagDestinations: k(t.TagDestinations),
-		PathDestinations: te(t.PathDestinations),
+		StudioDestinations: k(t.StudioDestinations),
+		TagDestinations: A(t.TagDestinations),
+		PathDestinations: ee(t.PathDestinations),
 		ExcludeTags: D(t.ExcludeTags, []),
 		ExcludeStudioIds: O(t.ExcludeStudioIds, []),
-		ExcludePaths: ne(t.ExcludePaths),
+		ExcludePaths: te(t.ExcludePaths),
 		AllowedRoots: D(t.AllowedRoots, []),
 		AssociatedExtensions: D(t.AssociatedExtensions, [...n.AssociatedExtensions]),
 		DefaultDestination: w(t.DefaultDestination, n.DefaultDestination),
@@ -285,7 +285,7 @@ function se(e) {
 		EnableAdvancedRouting: E(t.EnableAdvancedRouting, n.EnableAdvancedRouting),
 		RemoveEmptyFolder: E(t.RemoveEmptyFolder, n.RemoveEmptyFolder),
 		SqueezeStudioNames: E(t.SqueezeStudioNames, n.SqueezeStudioNames),
-		FieldReplacers: A(t.FieldReplacers),
+		FieldReplacers: j(t.FieldReplacers),
 		StripLeadingArticles: E(t.StripLeadingArticles, n.StripLeadingArticles),
 		Articles: D(t.Articles, [...n.Articles]),
 		PreventTitlePerformer: E(t.PreventTitlePerformer, n.PreventTitlePerformer),
@@ -294,7 +294,7 @@ function se(e) {
 }
 //#endregion
 //#region src/primitivesLogic.ts
-function ce(e) {
+function se(e) {
 	if (e.length === 0) return { valid: !0 };
 	try {
 		return new RegExp(e), { valid: !0 };
@@ -305,11 +305,11 @@ function ce(e) {
 		};
 	}
 }
-function le(e) {
+function ce(e) {
 	let t = e.trim();
 	return t.length === 0 ? !0 : /^[A-Za-z]:[\\/]/.test(t) || /^[\\/]/.test(t);
 }
-var N = /* @__PURE__ */ new Set([
+var P = /* @__PURE__ */ new Set([
 	"mp4",
 	"mkv",
 	"avi",
@@ -325,25 +325,25 @@ var N = /* @__PURE__ */ new Set([
 	"wav",
 	"m4a"
 ]);
-function ue(e) {
-	return e.length === 0 ? null : /^[a-z0-9]+$/.test(e) ? N.has(e) ? "This looks like a primary media extension, not a sidecar." : null : "Extensions are letters and numbers only, like srt or nfo.";
+function le(e) {
+	return e.length === 0 ? null : /^[a-z0-9]+$/.test(e) ? P.has(e) ? "This looks like a primary media extension, not a sidecar." : null : "Extensions are letters and numbers only, like srt or nfo.";
 }
 //#endregion
 //#region src/entityPickerLogic.ts
-function de(e, t) {
+function ue(e, t) {
 	let n = e.trim().toLowerCase();
 	return n.length === 0 ? [...t] : t.filter((e) => e.name.toLowerCase().includes(n));
 }
-function fe(e, t, n) {
+function de(e, t, n) {
 	if (t.length === 0) return [...e];
 	let r = new Set(t);
 	return e.filter((e) => !r.has(n(e)));
 }
-function pe(e, t) {
+function fe(e, t) {
 	let n = new Set(t);
 	return e.filter((e) => !n.has(e.value));
 }
-function P(e, t) {
+function pe(e, t) {
 	let n = t.find((t) => t.id === e);
 	return n ? n.name : `#${e} (missing)`;
 }
@@ -376,10 +376,10 @@ function z({ label: e, helper: t, children: n }) {
 		className: "block text-sm",
 		title: t,
 		children: [
-			/* @__PURE__ */ p("span", {
+			e ? /* @__PURE__ */ p("span", {
 				className: "mb-1 block text-xs font-medium uppercase tracking-wide text-muted",
 				children: e
-			}),
+			}) : null,
 			n,
 			t ? /* @__PURE__ */ p("span", {
 				className: "mt-1 block text-xs text-secondary",
@@ -525,7 +525,7 @@ function Se({ value: e, onChange: n, stripLabel: r, replaceLabel: o, stripHelper
 		children: s
 	}) : null] });
 }
-function H({ label: e, checked: t, onChange: n, helper: r }) {
+function H({ label: e, checked: t, onChange: n, helper: r, ariaLabel: i }) {
 	return /* @__PURE__ */ m("div", { children: [/* @__PURE__ */ m("label", {
 		className: "flex items-center gap-2 text-sm text-secondary",
 		title: r,
@@ -533,12 +533,13 @@ function H({ label: e, checked: t, onChange: n, helper: r }) {
 			type: "button",
 			role: "switch",
 			"aria-checked": t,
+			"aria-label": e ? void 0 : i,
 			onClick: () => {
 				n(!t);
 			},
 			className: `inline-flex h-5 w-9 items-center rounded-full transition-colors ${t ? "bg-accent" : "bg-card border border-border"}`,
 			children: /* @__PURE__ */ p("span", { className: `inline-block h-4 w-4 rounded-full bg-white transition-transform ${t ? "translate-x-4" : "translate-x-0.5"}` })
-		}), /* @__PURE__ */ p("span", { children: e })]
+		}), e ? /* @__PURE__ */ p("span", { children: e }) : null]
 	}), r ? /* @__PURE__ */ p("p", {
 		className: "mt-1 text-xs text-secondary",
 		children: r
@@ -641,7 +642,7 @@ function we({ options: e, values: t, onChange: n }) {
 	});
 }
 function Te({ options: e, values: t, onChange: n, addPrompt: r }) {
-	let i = (t) => e.find((e) => e.value === t)?.label ?? t, a = pe(e, t);
+	let i = (t) => e.find((e) => e.value === t)?.label ?? t, a = fe(e, t);
 	function o(e, r) {
 		let i = e + r;
 		if (i < 0 || i >= t.length) return;
@@ -854,11 +855,10 @@ function Oe({ map: e, onChange: t, renderKey: n, renderValue: r, renderKeyLabel:
 						children: n(s, c, f)
 					}),
 					/* @__PURE__ */ p("span", {
-						className: "flex-1",
+						className: "min-w-0 flex-1",
 						children: r(l, u)
 					}),
 					/* @__PURE__ */ p(G, {
-						variant: "ghost",
 						onClick: _,
 						disabled: s.trim().length === 0 || v,
 						children: o
@@ -874,14 +874,14 @@ function Oe({ map: e, onChange: t, renderKey: n, renderValue: r, renderKeyLabel:
 }
 function ke({ pattern: e, isRegex: t }) {
 	if (!t) return null;
-	let n = ce(e);
+	let n = se(e);
 	return n.valid ? null : /* @__PURE__ */ m(K, {
 		kind: "error",
 		children: ["Invalid pattern: ", n.message]
 	});
 }
 function Ae({ value: e }) {
-	return e.trim().length === 0 || le(e) ? null : /* @__PURE__ */ p(K, {
+	return e.trim().length === 0 || ce(e) ? null : /* @__PURE__ */ p(K, {
 		kind: "warning",
 		children: "Doesn't look like an absolute path."
 	});
@@ -911,7 +911,90 @@ function U({ title: e, description: t, headerRight: n, children: r }) {
 		]
 	});
 }
-function W({ title: e, summary: t, defaultOpen: n = !1, children: r }) {
+function je({ children: e, mono: t = !1, solid: n = !1 }) {
+	return /* @__PURE__ */ p("span", {
+		className: `inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${n ? "bg-accent text-white" : "border border-accent/40 bg-accent/15 text-accent"} ${t ? "font-mono" : "uppercase tracking-wider"}`,
+		children: e
+	});
+}
+function Me({ title: e, hint: t }) {
+	return /* @__PURE__ */ m("div", {
+		className: "flex items-center gap-3",
+		children: [
+			/* @__PURE__ */ p("h2", {
+				className: "text-xs font-bold uppercase tracking-wider text-secondary",
+				children: e
+			}),
+			/* @__PURE__ */ p("div", { className: "h-px flex-1 bg-border" }),
+			t ? /* @__PURE__ */ p("span", {
+				className: "text-xs text-muted",
+				children: t
+			}) : null
+		]
+	});
+}
+function W({ title: e, description: t, badge: n, headerRight: r, accent: i = !1, children: a }) {
+	let o = i ? "border-accent/30" : "border-border", s = !!e || n != null || r != null;
+	return /* @__PURE__ */ m("section", {
+		className: `overflow-hidden rounded-2xl border ${o} bg-surface shadow-sm`,
+		children: [s ? /* @__PURE__ */ m("div", {
+			className: "flex items-start gap-3 border-b border-border px-5 py-4",
+			children: [
+				n ? /* @__PURE__ */ p("span", {
+					className: "mt-0.5",
+					children: n
+				}) : null,
+				/* @__PURE__ */ m("div", {
+					className: "min-w-0 flex-1",
+					children: [e ? /* @__PURE__ */ p("h3", {
+						className: "text-base font-semibold text-foreground",
+						children: e
+					}) : null, t ? /* @__PURE__ */ p("p", {
+						className: "mt-1 text-sm text-secondary",
+						children: t
+					}) : null]
+				}),
+				r ? /* @__PURE__ */ p("div", {
+					className: "shrink-0",
+					children: r
+				}) : null
+			]
+		}) : null, /* @__PURE__ */ p("div", {
+			className: "space-y-4 p-5",
+			children: a
+		})]
+	});
+}
+function Ne({ title: e, description: t, enabled: n, onToggle: r, children: i }) {
+	return /* @__PURE__ */ m("section", {
+		className: "overflow-hidden rounded-2xl border border-border bg-surface shadow-sm",
+		children: [/* @__PURE__ */ m("div", {
+			className: "flex items-center gap-3 px-5 py-4",
+			children: [/* @__PURE__ */ m("div", {
+				className: "min-w-0 flex-1",
+				children: [/* @__PURE__ */ p("h3", {
+					className: "text-base font-semibold text-foreground",
+					children: e
+				}), t ? /* @__PURE__ */ p("p", {
+					className: "mt-1 text-sm text-secondary",
+					children: t
+				}) : null]
+			}), /* @__PURE__ */ p("div", {
+				className: "shrink-0",
+				children: /* @__PURE__ */ p(H, {
+					label: "",
+					ariaLabel: `Enable ${e}`,
+					checked: n,
+					onChange: r
+				})
+			})]
+		}), n ? /* @__PURE__ */ p("div", {
+			className: "space-y-4 border-t border-border px-5 pb-5 pt-4",
+			children: i
+		}) : null]
+	});
+}
+function Pe({ title: e, summary: t, defaultOpen: n = !1, children: r }) {
 	let [i, o] = a(n);
 	return /* @__PURE__ */ m("div", {
 		className: "overflow-hidden rounded-xl border border-border",
@@ -958,42 +1041,42 @@ function q() {
 }
 //#endregion
 //#region src/entityPicker.tsx
-var J = "com.alextomas955.renamer", Y = `/extensions/${J}/list-studios`, X = `/extensions/${J}/list-tags`, je = `/extensions/${J}/list-performers`, Me = "w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none", Ne = "cursor-pointer rounded-lg px-2 py-1 text-left text-sm text-foreground hover:bg-card-hover", Z = "inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-0.5 text-xs text-foreground", Q = "border-red-400 text-red-400";
-function Pe({ label: r, helper: o, values: s, onChange: c, endpointPath: l, adapter: u, placeholder: f, excludeValues: h }) {
-	let g = n(), [v, y] = a(""), [b, x] = a(!1), [S, C] = a([]), [w, T] = a(!1), [E, D] = a(!1), [O, ee] = a(!1), k = i(!1), te = i(null);
+var J = "com.alextomas955.renamer", Y = `/extensions/${J}/list-studios`, X = `/extensions/${J}/list-tags`, Fe = `/extensions/${J}/list-performers`, Ie = "w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none", Le = "cursor-pointer rounded-lg px-2 py-1 text-left text-sm text-foreground hover:bg-card-hover", Z = "inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-0.5 text-xs text-foreground", Q = "border-red-400 text-red-400";
+function Re({ label: r, helper: o, values: s, onChange: c, endpointPath: l, adapter: u, placeholder: f, excludeValues: h }) {
+	let g = n(), [v, y] = a(""), [b, x] = a(!1), [S, C] = a([]), [w, T] = a(!1), [E, D] = a(!1), [O, k] = a(!1), A = i(!1), ee = i(null);
 	t(() => {
 		if (!b) return;
 		let e = (e) => {
-			te.current?.contains(e.target) || x(!1);
+			ee.current?.contains(e.target) || x(!1);
 		};
 		return document.addEventListener("mousedown", e), () => {
 			document.removeEventListener("mousedown", e);
 		};
 	}, [b]);
-	let ne = e(async () => {
-		if (!(k.current || w)) {
-			k.current = !0, D(!0);
+	let te = e(async () => {
+		if (!(A.current || w)) {
+			A.current = !0, D(!0);
 			try {
 				let e = await _(l);
-				C(e), T(!0), ee(!1);
+				C(e), T(!0), k(!1);
 			} catch {
-				ee(!0);
+				k(!0);
 			} finally {
-				k.current = !1, D(!1);
+				A.current = !1, D(!1);
 			}
 		}
 	}, [l, w]);
-	function A() {
-		x(!0), ne();
+	function j() {
+		x(!0), te();
 	}
-	function j(e) {
+	function M(e) {
 		let t = u.toValue(e, S);
 		s.includes(t) || c([...s, t]), y(""), x(!1);
 	}
-	function re(e) {
+	function ne(e) {
 		c(s.filter((t) => t !== e));
 	}
-	let M = de(v, fe(S, h ? [...s, ...h] : s, u.valueOf));
+	let N = ue(v, de(S, h ? [...s, ...h] : s, u.valueOf));
 	return /* @__PURE__ */ m(z, {
 		label: r,
 		helper: o,
@@ -1006,7 +1089,7 @@ function Pe({ label: r, helper: o, values: s, onChange: c, endpointPath: l, adap
 						type: "button",
 						"aria-label": `Remove ${u.toLabel(e, S)}`,
 						onClick: () => {
-							re(e);
+							ne(e);
 						},
 						className: "text-muted hover:text-foreground",
 						children: /* @__PURE__ */ p(d, { className: "h-3 w-3" })
@@ -1015,33 +1098,33 @@ function Pe({ label: r, helper: o, values: s, onChange: c, endpointPath: l, adap
 			}) : null,
 			/* @__PURE__ */ m("div", {
 				className: "relative",
-				ref: te,
+				ref: ee,
 				children: [/* @__PURE__ */ p("input", {
 					id: g,
 					type: "text",
 					value: v,
 					placeholder: f,
-					className: Me,
-					onFocus: A,
+					className: Ie,
+					onFocus: j,
 					onChange: (e) => {
 						y(e.target.value), x(!0);
 					},
 					onKeyDown: (e) => {
-						e.key === "Enter" ? (e.preventDefault(), v.trim() !== "" && M.length > 0 && j(M[0])) : e.key === "Escape" && x(!1);
+						e.key === "Enter" ? (e.preventDefault(), v.trim() !== "" && N.length > 0 && M(N[0])) : e.key === "Escape" && x(!1);
 					}
 				}), b && !O ? /* @__PURE__ */ p("div", {
 					className: "mt-1 flex max-h-48 flex-col gap-0.5 overflow-auto rounded-xl border border-border bg-card p-1",
 					children: E ? /* @__PURE__ */ m("span", {
 						className: "flex items-center gap-2 px-2 py-1 text-sm text-muted",
 						children: [/* @__PURE__ */ p(q, {}), "Loading…"]
-					}) : M.length === 0 ? /* @__PURE__ */ p("span", {
+					}) : N.length === 0 ? /* @__PURE__ */ p("span", {
 						className: "px-2 py-1 text-sm text-muted",
 						children: "No matches"
-					}) : M.map((e) => /* @__PURE__ */ p("button", {
+					}) : N.map((e) => /* @__PURE__ */ p("button", {
 						type: "button",
-						className: Ne,
+						className: Le,
 						onClick: () => {
-							j(e);
+							M(e);
 						},
 						children: e.name
 					}, e.id))
@@ -1057,66 +1140,66 @@ function Pe({ label: r, helper: o, values: s, onChange: c, endpointPath: l, adap
 		]
 	});
 }
-var Fe = {
+var ze = {
 	toValue: (e) => e.id,
 	valueOf: (e) => e.id,
-	toLabel: (e, t) => P(e, t),
+	toLabel: (e, t) => pe(e, t),
 	isResolved: (e, t) => me(e, t)
-}, Ie = {
+}, Be = {
 	toValue: (e, t) => F(e.name, t),
 	valueOf: (e) => e.name,
 	toLabel: (e) => e,
 	isResolved: (e, t) => t.some((t) => t.name.toLowerCase() === e.toLowerCase())
-}, Le = {
+}, Ve = {
 	toValue: (e, t) => F(e.name, t),
 	valueOf: (e) => e.name,
 	toLabel: (e) => e,
 	isResolved: (e, t) => t.some((t) => t.name.toLowerCase() === e.toLowerCase())
 };
-function Re({ label: e, helper: t, values: n, onChange: r, placeholder: i, excludeValues: a }) {
-	return /* @__PURE__ */ p(Pe, {
+function He({ label: e, helper: t, values: n, onChange: r, placeholder: i, excludeValues: a }) {
+	return /* @__PURE__ */ p(Re, {
 		label: e,
 		helper: t,
 		values: n,
 		onChange: r,
 		endpointPath: Y,
-		adapter: Fe,
+		adapter: ze,
 		placeholder: i,
 		excludeValues: a
 	});
 }
-function ze({ label: e, helper: t, values: n, onChange: r, placeholder: i, excludeValues: a }) {
-	return /* @__PURE__ */ p(Pe, {
+function Ue({ label: e, helper: t, values: n, onChange: r, placeholder: i, excludeValues: a }) {
+	return /* @__PURE__ */ p(Re, {
 		label: e,
 		helper: t,
 		values: n,
 		onChange: r,
 		endpointPath: X,
-		adapter: Ie,
+		adapter: Be,
 		placeholder: i,
 		excludeValues: a
 	});
 }
-function Be({ label: e, helper: t, values: n, onChange: r, placeholder: i, excludeValues: a }) {
-	return /* @__PURE__ */ p(Pe, {
+function We({ label: e, helper: t, values: n, onChange: r, placeholder: i, excludeValues: a }) {
+	return /* @__PURE__ */ p(Re, {
 		label: e,
 		helper: t,
 		values: n,
 		onChange: r,
-		endpointPath: je,
-		adapter: Le,
+		endpointPath: Fe,
+		adapter: Ve,
 		placeholder: i,
 		excludeValues: a
 	});
 }
 //#endregion
 //#region src/studioMapLogic.ts
-function Ve(e) {
+function Ge(e) {
 	let t = {};
 	for (let [n, r] of Object.entries(e)) t[n] = r;
 	return t;
 }
-function He(e) {
+function Ke(e) {
 	let t = {};
 	for (let [n, r] of Object.entries(e)) {
 		let e = Number(n);
@@ -1126,22 +1209,22 @@ function He(e) {
 }
 //#endregion
 //#region src/studioMap.tsx
-var Ue = "/extensions/com.alextomas955.renamer/list-studios";
-function We({ map: e, onChange: n }) {
+var qe = "/extensions/com.alextomas955.renamer/list-studios";
+function Je({ map: e, onChange: n }) {
 	let [r, i] = a([]);
 	return t(() => {
 		let e = !0;
-		return _(Ue).then((t) => {
+		return _(qe).then((t) => {
 			e && i(t);
 		}).catch(() => {}), () => {
 			e = !1;
 		};
 	}, []), /* @__PURE__ */ p(Oe, {
-		map: Ve(e),
+		map: Ge(e),
 		onChange: (e) => {
-			n(He(e));
+			n(Ke(e));
 		},
-		renderKey: (e, t, n) => /* @__PURE__ */ p(Ge, {
+		renderKey: (e, t, n) => /* @__PURE__ */ p(Ye, {
 			draftKey: e,
 			setDraftKey: t,
 			existingKeys: n
@@ -1151,13 +1234,13 @@ function We({ map: e, onChange: n }) {
 			onChange: t,
 			placeholder: "Destination root"
 		}), /* @__PURE__ */ p(Ae, { value: e })] }),
-		renderKeyLabel: (e) => P(Number(e), r),
+		renderKeyLabel: (e) => pe(Number(e), r),
 		addLabel: "Add studio rule"
 	});
 }
-function Ge({ draftKey: e, setDraftKey: t, existingKeys: n }) {
-	return /* @__PURE__ */ p(Re, {
-		label: "Studio",
+function Ye({ draftKey: e, setDraftKey: t, existingKeys: n }) {
+	return /* @__PURE__ */ p(He, {
+		label: "",
 		values: e === "" ? [] : [Number(e)],
 		onChange: (e) => {
 			let n = e.at(-1);
@@ -1169,7 +1252,7 @@ function Ge({ draftKey: e, setDraftKey: t, existingKeys: n }) {
 }
 //#endregion
 //#region src/TokenLegend.tsx
-var Ke = [
+var Xe = [
 	{
 		token: "$title",
 		label: "Title",
@@ -1183,10 +1266,28 @@ var Ke = [
 		insert: "{ - $studio}"
 	},
 	{
+		token: "$parentStudio",
+		label: "Parent studio",
+		kind: "optional",
+		insert: "{ - $parentStudio}"
+	},
+	{
 		token: "$studioCode",
 		label: "Studio code",
 		kind: "optional",
 		insert: "{ - $studioCode}"
+	},
+	{
+		token: "$director",
+		label: "Director",
+		kind: "optional",
+		insert: "{ - $director}"
+	},
+	{
+		token: "$bitrate",
+		label: "Bitrate",
+		kind: "optional",
+		insert: "{ [$bitrate]}"
 	},
 	{
 		token: "$date",
@@ -1261,10 +1362,10 @@ var Ke = [
 		insert: "$ext"
 	}
 ];
-function qe(e) {
+function Ze(e) {
 	return `Inserts wrapped in an optional group: ${e.insert} — disappears cleanly when empty.`;
 }
-function Je({ onInsert: e }) {
+function Qe({ onInsert: e }) {
 	return /* @__PURE__ */ m("div", { children: [/* @__PURE__ */ m("p", {
 		className: "mb-1 text-xs text-muted",
 		children: [
@@ -1288,10 +1389,10 @@ function Je({ onInsert: e }) {
 		]
 	}), /* @__PURE__ */ p("div", {
 		className: "flex flex-wrap gap-1",
-		children: Ke.map((t) => /* @__PURE__ */ m(L, {
+		children: Xe.map((t) => /* @__PURE__ */ m(L, {
 			selected: !1,
 			mono: !0,
-			title: t.kind === "optional" ? qe(t) : t.label,
+			title: t.kind === "optional" ? Ze(t) : t.label,
 			onClick: () => {
 				e(t.insert);
 			},
@@ -1304,7 +1405,7 @@ function Je({ onInsert: e }) {
 }
 //#endregion
 //#region src/PreviewCard.tsx
-function Ye(e, t) {
+function $e(e, t) {
 	switch (e) {
 		case "empty": return "⚠ This template produces an empty name for this sample.";
 		case "sanitized": return "⚠ Adjusted: illegal characters were stripped or replaced.";
@@ -1313,7 +1414,7 @@ function Ye(e, t) {
 		default: return null;
 	}
 }
-function Xe({ result: e }) {
+function et({ result: e }) {
 	return /* @__PURE__ */ m("div", {
 		className: "rounded-xl border border-border bg-card p-4",
 		children: [
@@ -1339,7 +1440,7 @@ function Xe({ result: e }) {
 			e.flags.length > 0 ? /* @__PURE__ */ p("div", {
 				className: "mt-2 space-y-1",
 				children: e.flags.map((t) => {
-					let n = Ye(t, e);
+					let n = $e(t, e);
 					return n ? /* @__PURE__ */ p("p", {
 						className: "text-xs text-amber-400",
 						children: n
@@ -1351,14 +1452,14 @@ function Xe({ result: e }) {
 }
 //#endregion
 //#region src/dialog.tsx
-var Ze = "a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex=\"-1\"])";
-function Qe({ titleId: n, describedById: r, pending: a = !1, onCancel: o, size: s = "lg", children: c }) {
+var tt = "a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex=\"-1\"])";
+function nt({ titleId: n, describedById: r, pending: a = !1, onCancel: o, size: s = "lg", children: c }) {
 	let l = i(null), u = e(() => {
 		a || o();
 	}, [a, o]);
 	return t(() => {
 		let e = document.activeElement;
-		return (l.current?.querySelector(Ze))?.focus(), () => e?.focus();
+		return (l.current?.querySelector(tt))?.focus(), () => e?.focus();
 	}, []), t(() => {
 		function e(e) {
 			if (e.key === "Escape") {
@@ -1368,7 +1469,7 @@ function Qe({ titleId: n, describedById: r, pending: a = !1, onCancel: o, size: 
 			if (e.key !== "Tab") return;
 			let t = l.current;
 			if (!t) return;
-			let n = Array.from(t.querySelectorAll(Ze));
+			let n = Array.from(t.querySelectorAll(tt));
 			if (n.length === 0) return;
 			let r = n[0], i = n[n.length - 1], a = document.activeElement;
 			e.shiftKey && a === r ? (e.preventDefault(), i.focus()) : !e.shiftKey && a === i && (e.preventDefault(), r.focus());
@@ -1393,7 +1494,7 @@ function Qe({ titleId: n, describedById: r, pending: a = !1, onCancel: o, size: 
 		})]
 	});
 }
-function $e({ children: e }) {
+function rt({ children: e }) {
 	return /* @__PURE__ */ p("div", {
 		className: "rounded border border-red-700 bg-red-950/60 px-3 py-2 text-sm text-red-200",
 		children: e
@@ -1401,11 +1502,11 @@ function $e({ children: e }) {
 }
 //#endregion
 //#region src/UndoSection.tsx
-var et = "com.alextomas955.renamer", tt = `/extensions/${et}/last-batch`, nt = `/extensions/${et}/undo`, rt = "rename-undo-confirm-title", it = "rename-undo-confirm-message", at = 621355968e5, ot = 1e4, st = at * ot;
-function ct(e) {
-	return (e - st) / ot;
+var it = "com.alextomas955.renamer", at = `/extensions/${it}/last-batch`, ot = `/extensions/${it}/undo`, st = "rename-undo-confirm-title", ct = "rename-undo-confirm-message", lt = 621355968e5, ut = 1e4, dt = lt * ut;
+function ft(e) {
+	return (e - dt) / ut;
 }
-function lt(e, t = Date.now()) {
+function pt(e, t = Date.now()) {
 	let n = t - e, r = Math.round(n / 1e3);
 	if (r < 45) return "just now";
 	let i = Math.round(r / 60);
@@ -1415,17 +1516,17 @@ function lt(e, t = Date.now()) {
 	let o = Math.round(a / 24);
 	return o === 1 ? "yesterday" : o <= 7 ? `${o} days ago` : new Date(e).toLocaleDateString();
 }
-function ut(e) {
+function mt(e) {
 	return e instanceof v ? `${e.status} ${e.body}` : String(e);
 }
-function dt({ refreshKey: n }) {
+function ht({ refreshKey: n }) {
 	let [r, i] = a(null), [o, s] = a(!0), [c, l] = a(null), [d, f] = a(!1), [h, g] = a(!1), [y, b] = a(null), x = e(async () => {
 		s(!0), l(null);
 		try {
-			let e = await _(tt);
+			let e = await _(at);
 			i(e);
 		} catch (e) {
-			l(ut(e));
+			l(mt(e));
 		} finally {
 			s(!1);
 		}
@@ -1433,11 +1534,11 @@ function dt({ refreshKey: n }) {
 	t(() => {
 		x();
 	}, [x, n]);
-	let S = !!r && r.hasBatch && !r.consumed, C = r?.count ?? 0, w = r ? ct(r.writtenAtUtcTicks) : 0;
+	let S = !!r && r.hasBatch && !r.consumed, C = r?.count ?? 0, w = r ? ft(r.writtenAtUtcTicks) : 0;
 	async function T() {
 		g(!0), b(null);
 		try {
-			let e = await _(nt, { method: "POST" }), t = (e.failed?.length ?? 0) + (e.skipped?.length ?? 0);
+			let e = await _(ot, { method: "POST" }), t = (e.failed?.length ?? 0) + (e.skipped?.length ?? 0);
 			if (t === 0) b({
 				kind: "success",
 				text: `Undone — ${e.undone} file${e.undone === 1 ? "" : "s"} moved back to their original names.`
@@ -1459,7 +1560,7 @@ function dt({ refreshKey: n }) {
 			if (e instanceof v) {
 				b({
 					kind: "error",
-					text: `Couldn't undo — ${ut(e)}. Nothing was changed.`
+					text: `Couldn't undo — ${mt(e)}. Nothing was changed.`
 				});
 				return;
 			}
@@ -1511,7 +1612,7 @@ function dt({ refreshKey: n }) {
 							" item",
 							C === 1 ? "" : "s",
 							" renamed · ",
-							lt(w)
+							pt(w)
 						]
 					}), /* @__PURE__ */ m(G, {
 						variant: "ghost",
@@ -1535,9 +1636,9 @@ function dt({ refreshKey: n }) {
 					children: y.text
 				}) }) : null]
 			}),
-			d ? /* @__PURE__ */ m(Qe, {
-				titleId: rt,
-				describedById: it,
+			d ? /* @__PURE__ */ m(nt, {
+				titleId: st,
+				describedById: ct,
 				pending: h,
 				onCancel: () => {
 					f(!1);
@@ -1545,12 +1646,12 @@ function dt({ refreshKey: n }) {
 				size: "sm",
 				children: [
 					/* @__PURE__ */ p("h2", {
-						id: rt,
+						id: st,
 						className: "mb-2 text-lg font-semibold text-foreground",
 						children: "Undo last rename?"
 					}),
 					/* @__PURE__ */ m("p", {
-						id: it,
+						id: ct,
 						className: "mb-6 text-sm text-secondary",
 						children: [
 							"This moves ",
@@ -1591,12 +1692,12 @@ function dt({ refreshKey: n }) {
 }
 //#endregion
 //#region src/WarningBadge.tsx
-var ft = {
+var gt = {
 	amber: "border-amber-400/40 bg-amber-400/10 text-amber-400",
 	gray: "border-border bg-card text-muted",
 	red: "border-red-700/50 bg-red-950/40 text-red-400"
 };
-function pt(e) {
+function _t(e) {
 	let t = [];
 	switch (e.status) {
 		case "NoOp":
@@ -1642,23 +1743,23 @@ function pt(e) {
 	}
 	return t;
 }
-function mt({ badge: e }) {
+function vt({ badge: e }) {
 	let t = e.variant === "amber" || e.variant === "red";
 	return /* @__PURE__ */ m("span", {
-		className: `inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${ft[e.variant]}`,
+		className: `inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${gt[e.variant]}`,
 		children: [t ? /* @__PURE__ */ p(o, { className: "h-3 w-3" }) : null, e.label]
 	});
 }
-function ht({ item: e }) {
-	let t = pt(e);
+function yt({ item: e }) {
+	let t = _t(e);
 	return t.length === 0 ? null : /* @__PURE__ */ p("span", {
 		className: "inline-flex flex-wrap gap-1",
-		children: t.map((e) => /* @__PURE__ */ p(mt, { badge: e }, e.label))
+		children: t.map((e) => /* @__PURE__ */ p(vt, { badge: e }, e.label))
 	});
 }
 //#endregion
 //#region src/dryRunLogic.ts
-var gt = /* @__PURE__ */ new Set([
+var bt = /* @__PURE__ */ new Set([
 	"SkipGated",
 	"SkipCollision",
 	"SkipLocked",
@@ -1667,103 +1768,106 @@ var gt = /* @__PURE__ */ new Set([
 	"SkipExcluded",
 	"Failed"
 ]);
-function _t(e) {
+function xt(e) {
 	let t = 0, n = 0;
-	for (let r of e) r.status === "Renamer" || r.status === "Move" ? t++ : gt.has(r.status) && n++;
+	for (let r of e) r.status === "Renamer" || r.status === "Move" ? t++ : bt.has(r.status) && n++;
 	return {
 		renamed: t,
 		skipped: n,
 		scanned: e.length
 	};
 }
-function vt(e, t, n = 50) {
+function St(e, t, n = 50) {
 	return e.slice(t * n, t * n + n);
 }
-function yt(e, t = 50) {
+function Ct(e, t = 50) {
 	return Math.max(1, Math.ceil(e / t));
 }
 //#endregion
 //#region src/DryRunModal.tsx
-var bt = "com.alextomas955.renamer", xt = `/extensions/${bt}/scan-library`, St = `/extensions/${bt}/last-scan`, Ct = "rename-dry-run-title", wt = "rename-dry-run-summary", Tt = 50, Et = 1e3;
-function Dt(e) {
+var wt = "com.alextomas955.renamer", Tt = `/extensions/${wt}/scan-library`, Et = `/extensions/${wt}/last-scan`, Dt = "rename-dry-run-title", Ot = "rename-dry-run-summary", kt = 50, At = 1e3;
+function jt(e) {
 	return e instanceof v ? `${e.status} ${e.body}` : String(e);
 }
-function Ot(e) {
+function Mt(e) {
 	if (!e) return e;
 	let t = Math.max(e.lastIndexOf("/"), e.lastIndexOf("\\"));
 	return t >= 0 ? e.slice(t + 1) : e;
 }
-function kt(e, n) {
+function Nt(e, n) {
 	t(() => {
 		if (!e) return;
 		let t = !1, r = setInterval(() => {
 			_(`/jobs/${e}`).then((e) => {
 				t || (e.status === "completed" || e.status === "failed" || e.status === "cancelled") && (clearInterval(r), n(e));
 			}).catch(() => {});
-		}, Et);
+		}, At);
 		return () => {
 			t = !0, clearInterval(r);
 		};
 	}, [e]);
 }
-function At({ onClose: e, onRenameAll: n, renaming: r }) {
-	let [o, s] = a(null), [c, l] = a(null), [u, d] = a(null), [h, g] = a(0), v = i(!1);
+function Pt({ options: e, onClose: n, onRenameAll: r, renaming: o }) {
+	let [s, c] = a(null), [l, u] = a(null), [d, h] = a(null), [g, v] = a(0), y = i(!1);
 	t(() => {
-		v.current || (v.current = !0, _(xt, { method: "POST" }).then((e) => {
-			s(e.jobId);
+		y.current || (y.current = !0, _(Tt, {
+			method: "POST",
+			body: JSON.stringify({ Options: JSON.stringify(e) })
+		}).then((e) => {
+			c(e.jobId);
 		}).catch((e) => {
-			d(Dt(e));
+			h(jt(e));
 		}));
-	}, []), kt(o, (e) => {
+	}, []), Nt(s, (e) => {
 		if (e.status !== "completed") {
-			d(e.error ?? "the scan job did not complete");
+			h(e.error ?? "the scan job did not complete");
 			return;
 		}
-		_(St).then((e) => {
-			l(e);
+		_(Et).then((e) => {
+			u(e);
 		}).catch((e) => {
-			d(Dt(e));
+			h(jt(e));
 		});
 	});
-	let y = c ? _t(c) : null, b = c ? yt(c.length, Tt) : 1, x = c ? vt(c, h, Tt) : [];
-	return /* @__PURE__ */ m(Qe, {
-		titleId: Ct,
-		describedById: wt,
-		pending: r,
-		onCancel: e,
+	let b = l ? xt(l) : null, x = l ? Ct(l.length, kt) : 1, S = l ? St(l, g, kt) : [];
+	return /* @__PURE__ */ m(nt, {
+		titleId: Dt,
+		describedById: Ot,
+		pending: o,
+		onCancel: n,
 		size: "xl",
 		children: [
 			/* @__PURE__ */ p("h2", {
-				id: Ct,
+				id: Dt,
 				className: "mb-2 text-lg font-semibold text-foreground",
 				children: "Dry run"
 			}),
-			u ? /* @__PURE__ */ p("div", {
+			d ? /* @__PURE__ */ p("div", {
 				className: "mb-4",
-				children: /* @__PURE__ */ m($e, { children: [
+				children: /* @__PURE__ */ m(rt, { children: [
 					"Couldn't scan your library — ",
-					u,
+					d,
 					". Close and try again."
 				] })
-			}) : c === null || y === null ? /* @__PURE__ */ m("div", {
+			}) : l === null || b === null ? /* @__PURE__ */ m("div", {
 				className: "flex items-center gap-2 py-8 text-sm text-secondary",
 				children: [/* @__PURE__ */ p(q, {}), "Scanning your library…"]
 			}) : /* @__PURE__ */ m(f, { children: [/* @__PURE__ */ m("p", {
-				id: wt,
+				id: Ot,
 				className: "mb-4 text-sm text-secondary",
 				children: [
 					/* @__PURE__ */ p("span", {
 						className: "text-foreground",
-						children: y.renamed
+						children: b.renamed
 					}),
 					" will be renamed ·",
 					" ",
-					y.skipped,
+					b.skipped,
 					" skipped · ",
-					y.scanned,
+					b.scanned,
 					" scanned"
 				]
-			}), y.scanned === 0 ? /* @__PURE__ */ p("p", {
+			}), b.scanned === 0 ? /* @__PURE__ */ p("p", {
 				className: "py-8 text-center text-sm text-secondary",
 				children: "No items match your current settings — nothing to rename."
 			}) : /* @__PURE__ */ p(f, { children: /* @__PURE__ */ m("div", {
@@ -1793,8 +1897,8 @@ function At({ onClose: e, onRenameAll: n, renaming: r }) {
 						]
 					}) }), /* @__PURE__ */ p("tbody", {
 						className: "divide-y divide-border",
-						children: x.map((e) => {
-							let t = e.status !== "Renamer" && e.status !== "Move", n = Ot(e.oldFullPath), r = e.newBasename || Ot(e.newFullPath);
+						children: S.map((e) => {
+							let t = e.status !== "Renamer" && e.status !== "Move", n = Mt(e.oldFullPath), r = e.newBasename || Mt(e.newFullPath);
 							return /* @__PURE__ */ m("tr", {
 								className: t ? "opacity-70" : void 0,
 								children: [
@@ -1819,7 +1923,7 @@ function At({ onClose: e, onRenameAll: n, renaming: r }) {
 									}),
 									/* @__PURE__ */ p("td", {
 										className: "px-3 py-2",
-										children: /* @__PURE__ */ p(ht, { item: e })
+										children: /* @__PURE__ */ p(yt, { item: e })
 									})
 								]
 							}, e.fileId);
@@ -1831,26 +1935,26 @@ function At({ onClose: e, onRenameAll: n, renaming: r }) {
 						/* @__PURE__ */ p(G, {
 							variant: "ghost",
 							onClick: () => {
-								g((e) => e - 1);
+								v((e) => e - 1);
 							},
-							disabled: h === 0,
+							disabled: g === 0,
 							children: "Prev"
 						}),
 						/* @__PURE__ */ m("span", {
 							className: "text-xs text-muted",
 							children: [
 								"Page ",
-								h + 1,
+								g + 1,
 								" of ",
-								b
+								x
 							]
 						}),
 						/* @__PURE__ */ p(G, {
 							variant: "ghost",
 							onClick: () => {
-								g((e) => e + 1);
+								v((e) => e + 1);
 							},
-							disabled: h === b - 1,
+							disabled: g === x - 1,
 							children: "Next"
 						})
 					]
@@ -1860,18 +1964,18 @@ function At({ onClose: e, onRenameAll: n, renaming: r }) {
 				className: "mt-6 flex justify-end gap-3",
 				children: [/* @__PURE__ */ p(G, {
 					variant: "ghost",
-					onClick: e,
-					disabled: r,
+					onClick: n,
+					disabled: o,
 					children: "Close"
 				}), /* @__PURE__ */ m(G, {
 					onClick: () => {
-						c && n(c);
+						l && r(l);
 					},
-					disabled: r || !y || y.renamed === 0,
+					disabled: o || !b || b.renamed === 0,
 					children: [
-						r ? /* @__PURE__ */ p(q, {}) : null,
+						o ? /* @__PURE__ */ p(q, {}) : null,
 						"Rename ",
-						y?.renamed ?? 0,
+						b?.renamed ?? 0,
 						" files"
 					]
 				})]
@@ -1881,18 +1985,18 @@ function At({ onClose: e, onRenameAll: n, renaming: r }) {
 }
 //#endregion
 //#region src/templateValidation.ts
-var jt = new Set(Ke.map((e) => e.token.slice(1).toLowerCase())), Mt = Ke.map((e) => e.token.slice(1));
-function Nt(e) {
+var Ft = new Set(Xe.map((e) => e.token.slice(1).toLowerCase())), It = Xe.map((e) => e.token.slice(1));
+function Lt(e) {
 	let t = e.startsWith("$") ? e.slice(1) : e;
-	return jt.has(t.toLowerCase());
+	return Ft.has(t.toLowerCase());
 }
-function Pt(e) {
+function Rt(e) {
 	let t = 0;
 	for (let n of e) if (n === "{") t++;
 	else if (n === "}" && (t--, t < 0)) return !1;
 	return t === 0;
 }
-function Ft(e) {
+function zt(e) {
 	let t = [], n = /* @__PURE__ */ new Set();
 	for (let r = 0; r < e.length; r++) {
 		if (e[r] !== "$") continue;
@@ -1904,11 +2008,11 @@ function Ft(e) {
 		for (; i < e.length && /[A-Za-z0-9_]/.test(e[i]);) i++;
 		if (i === r + 1) continue;
 		let a = e.slice(r + 1, i), o = a.toLowerCase();
-		!jt.has(o) && !n.has(o) && (n.add(o), t.push(`$${a}`)), r = i - 1;
+		!Ft.has(o) && !n.has(o) && (n.add(o), t.push(`$${a}`)), r = i - 1;
 	}
 	return t;
 }
-function It(e, t) {
+function Bt(e, t) {
 	for (let n = 0; n < e.length; n++) {
 		if (e[n] !== "$") continue;
 		if (e[n + 1] === "$") {
@@ -1924,11 +2028,11 @@ function It(e, t) {
 	}
 	return !1;
 }
-function Lt(e, t, n) {
+function Vt(e, t, n) {
 	let r = (e.startsWith("$") ? e.slice(1) : e).toLowerCase();
-	return It(t, r) || It(n, r);
+	return Bt(t, r) || Bt(n, r);
 }
-function Rt(e, t) {
+function Ht(e, t) {
 	let n = e.length, r = t.length, i = Array.from({ length: r + 1 }, (e, t) => t);
 	for (let a = 1; a <= n; a++) {
 		let n = i[0];
@@ -1940,17 +2044,17 @@ function Rt(e, t) {
 	}
 	return i[r];
 }
-function zt(e) {
+function Ut(e) {
 	let t = (e.startsWith("$") ? e.slice(1) : e).toLowerCase(), n, r = Infinity;
-	for (let e of jt) {
-		let i = Rt(t, e);
+	for (let e of Ft) {
+		let i = Ht(t, e);
 		i < r && (r = i, n = e);
 	}
 	return n !== void 0 && r > 0 && r <= 2 ? `$${n}` : void 0;
 }
 //#endregion
 //#region src/presets.ts
-var Bt = [
+var Wt = [
 	{
 		label: "Date – Title [Height]",
 		filenameTemplate: "{$date - }$title{ [$height]}"
@@ -1971,12 +2075,12 @@ var Bt = [
 		label: "Performers – Title",
 		filenameTemplate: "$performers{ - $title}"
 	}
-], $ = "com.alextomas955.renamer", Vt = "options", Ht = `/extensions/${$}/data`, Ut = `/extensions/${$}/preview-sample`, Wt = `/extensions/${$}/renamer-library`, Gt = 250, Kt = 1e3;
-function qt(e) {
+], $ = "com.alextomas955.renamer", Gt = "options", Kt = `/extensions/${$}/data`, qt = `/extensions/${$}/preview-sample`, Jt = `/extensions/${$}/renamer-library`, Yt = 250, Xt = 1e3;
+function Zt(e) {
 	let t = e.trim();
 	return t.startsWith(".") && (t = t.slice(1)), t.toLowerCase();
 }
-var Jt = [
+var Qt = [
 	{
 		value: "None",
 		label: "None"
@@ -1989,13 +2093,13 @@ var Jt = [
 		value: "Title",
 		label: "Title Case"
 	}
-], Yt = [{
+], $t = [{
 	value: "DropAll",
 	label: "Drop all when over the max"
 }, {
 	value: "KeepFirst",
 	label: "Keep the first N"
-}], Xt = [
+}], en = [
 	{
 		value: "NameAsc",
 		label: "Name (A→Z)"
@@ -2012,13 +2116,13 @@ var Jt = [
 		value: "FavoriteFirst",
 		label: "Favorites first, then name"
 	}
-], Zt = [{
+], tn = [{
 	value: "NameAsc",
 	label: "Name (A→Z)"
 }, {
 	value: "None",
 	label: "Keep original order"
-}], Qt = [
+}], nn = [
 	{
 		value: "Male",
 		label: "Male"
@@ -2043,7 +2147,7 @@ var Jt = [
 		value: "NonBinary",
 		label: "Non-binary"
 	}
-], $t = [
+], rn = [
 	"title",
 	"studio",
 	"parentStudio",
@@ -2065,7 +2169,7 @@ var Jt = [
 ].map((e) => ({
 	value: e,
 	label: e
-})), en = [
+})), an = [
 	{
 		value: "yyyy-MM-dd",
 		example: "2026-03-12"
@@ -2086,7 +2190,7 @@ var Jt = [
 		value: "yyyy.MM.dd",
 		example: "2026.03.12"
 	}
-], tn = [
+], on = [
 	{
 		value: "hh\\-mm\\-ss",
 		example: "01-23-45"
@@ -2099,7 +2203,7 @@ var Jt = [
 		value: "mm\\-ss",
 		example: "83-45"
 	}
-], nn = [
+], sn = [
 	{
 		value: ", ",
 		label: "Comma + space ( , )"
@@ -2116,7 +2220,7 @@ var Jt = [
 		value: " - ",
 		label: "Dash ( - )"
 	}
-], rn = [
+], cn = [
 	{
 		value: " ({n})",
 		example: "name (1).mp4"
@@ -2130,11 +2234,11 @@ var Jt = [
 		example: "name - 1.mp4"
 	}
 ];
-function an({ value: e, emptySamples: t = [] }) {
+function ln({ value: e, emptySamples: t = [] }) {
 	let n = [];
-	Pt(e) || n.push("Unmatched { or } — it'll still render, but check your groups.");
-	for (let t of Ft(e)) {
-		let e = zt(t);
+	Rt(e) || n.push("Unmatched { or } — it'll still render, but check your groups.");
+	for (let t of zt(e)) {
+		let e = Ut(t);
 		n.push(e ? `${t} isn't a known token — it'll render as empty. Did you mean ${e}?` : `${t} isn't a known token — it'll render as empty.`);
 	}
 	for (let e of t) n.push(`This template produces an empty name for the "${e}" sample.`);
@@ -2148,11 +2252,11 @@ function an({ value: e, emptySamples: t = [] }) {
 		}, e))
 	});
 }
-function on({ values: e }) {
+function un({ values: e }) {
 	let t = [];
 	for (let n of e) {
-		if (Nt(n)) continue;
-		let e = zt(n), r = e ? e.slice(1) : void 0;
+		if (Lt(n)) continue;
+		let e = Ut(n), r = e ? e.slice(1) : void 0;
 		t.push(r ? `"${n}" isn't a known token — it'll be ignored. Did you mean ${r}?` : `"${n}" isn't a known token — it'll be ignored.`);
 	}
 	return t.length === 0 ? null : /* @__PURE__ */ p("div", {
@@ -2165,7 +2269,7 @@ function on({ values: e }) {
 		}, e))
 	});
 }
-function sn({ onApply: e }) {
+function dn({ onApply: e }) {
 	return /* @__PURE__ */ m("div", { children: [
 		/* @__PURE__ */ p("span", {
 			className: "mb-1 block text-xs font-medium uppercase tracking-wide text-muted",
@@ -2173,7 +2277,7 @@ function sn({ onApply: e }) {
 		}),
 		/* @__PURE__ */ p("div", {
 			className: "flex flex-wrap gap-1",
-			children: Bt.map((t) => /* @__PURE__ */ p(L, {
+			children: Wt.map((t) => /* @__PURE__ */ p(L, {
 				selected: !1,
 				title: t.filenameTemplate,
 				onClick: () => {
@@ -2188,47 +2292,57 @@ function sn({ onApply: e }) {
 		})
 	] });
 }
-function cn({ dirty: e, saving: t, saveError: n, savedFlash: r, canSave: i, onSave: a, onDiscard: o }) {
+function fn({ dirty: e, saving: t, saveError: n, savedFlash: r, canSave: i, onSave: a, onDiscard: o }) {
 	return e ? /* @__PURE__ */ p("div", {
-		className: "fixed inset-x-0 bottom-0 z-50 border-t border-border bg-surface px-6 py-4",
+		className: "pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 py-4",
 		children: /* @__PURE__ */ m("div", {
-			className: "flex items-center gap-3",
-			children: [n ? /* @__PURE__ */ m(K, {
-				kind: "error",
-				children: [
-					"Couldn't save settings — ",
-					n,
-					". Your changes are still here; try Save again."
-				]
-			}) : r ? /* @__PURE__ */ p(K, {
-				kind: "success",
-				children: "Settings saved."
-			}) : /* @__PURE__ */ p(K, {
-				kind: "muted",
-				children: "Unsaved changes"
-			}), /* @__PURE__ */ m("div", {
-				className: "ml-auto flex items-center gap-3",
-				children: [/* @__PURE__ */ p(G, {
-					variant: "ghost",
-					onClick: o,
-					disabled: t,
-					children: "Discard"
-				}), /* @__PURE__ */ m(G, {
-					onClick: a,
-					disabled: !i || t,
-					children: [t ? /* @__PURE__ */ p(q, {}) : null, "Save changes"]
-				})]
-			})]
+			className: "pointer-events-auto flex w-full max-w-3xl items-center gap-4 rounded-2xl border border-border bg-card px-5 py-3.5 shadow-lg",
+			children: [
+				/* @__PURE__ */ p("span", { className: `h-2 w-2 shrink-0 rounded-full ${n ? "bg-red-400" : r ? "bg-green-400" : "bg-amber-400"}` }),
+				/* @__PURE__ */ p("div", {
+					className: "min-w-0 flex-1",
+					children: n ? /* @__PURE__ */ m(K, {
+						kind: "error",
+						children: [
+							"Couldn't save settings — ",
+							n,
+							". Your changes are still here; try Save again."
+						]
+					}) : r ? /* @__PURE__ */ p(K, {
+						kind: "success",
+						children: "Settings saved."
+					}) : /* @__PURE__ */ m(f, { children: [/* @__PURE__ */ p("div", {
+						className: "text-sm font-semibold text-foreground",
+						children: "Unsaved changes"
+					}), /* @__PURE__ */ p("div", {
+						className: "mt-0.5 text-xs text-secondary",
+						children: "Nothing on disk changes until you save. Running a rename requires saving first."
+					})] })
+				}),
+				/* @__PURE__ */ m("div", {
+					className: "flex shrink-0 items-center gap-3",
+					children: [/* @__PURE__ */ p(G, {
+						variant: "ghost",
+						onClick: o,
+						disabled: t,
+						children: "Discard"
+					}), /* @__PURE__ */ m(G, {
+						onClick: a,
+						disabled: !i || t,
+						children: [t ? /* @__PURE__ */ p(q, {}) : null, "Save changes"]
+					})]
+				})
+			]
 		})
 	}) : null;
 }
-async function ln(e, t) {
+async function pn(e, t) {
 	let n = {
 		...t,
 		...e
 	};
 	try {
-		await _(`${Ht}/${Vt}`, {
+		await _(`${Kt}/${Gt}`, {
 			method: "PUT",
 			body: JSON.stringify(JSON.stringify(n))
 		});
@@ -2236,15 +2350,15 @@ async function ln(e, t) {
 		if (e instanceof v) throw e;
 	}
 }
-function un() {
-	let n = b($), [r, s] = a(() => S()), [c, l] = a(() => S()), [u, d] = a(!0), [h, g] = a(null), [y, x] = a(!1), [C, w] = a(null), [T, E] = a(!1), [D, O] = a(!1), [ee, k] = a(!1), [te, ne] = a(""), A = i({}), [j, re] = a(null), [M, ie] = a(!1), ae = i(null), ce = i(null), le = i("filename"), N = JSON.stringify(r) !== JSON.stringify(c), de = N || ee, [fe, pe] = a(!1), [P, me] = a(!1), [F, I] = a(null);
+function mn() {
+	let n = b($), [r, s] = a(() => S()), [c, l] = a(() => S()), [u, d] = a(!0), [h, g] = a(null), [y, x] = a(!1), [C, w] = a(null), [T, E] = a(!1), [D, O] = a(!1), [k, A] = a(!1), [ee, te] = a(""), j = i({}), [M, ne] = a(null), [N, re] = a(!1), ie = i(null), se = i(null), ce = i("filename"), P = JSON.stringify(r) !== JSON.stringify(c), ue = P || k, [de, fe] = a(!1), [pe, me] = a(!1), [F, I] = a(null);
 	function he(e) {
 		return new Promise((t, n) => {
 			let r = setInterval(() => {
 				_(`/jobs/${e}`).then((e) => {
 					e.status === "completed" ? (clearInterval(r), t()) : (e.status === "failed" || e.status === "cancelled") && (clearInterval(r), n(Error(e.error ?? "the job did not complete")));
 				}).catch(() => {});
-			}, Kt);
+			}, Xt);
 		});
 	}
 	let ge = e(async (e) => {
@@ -2255,8 +2369,8 @@ function un() {
 				let { jobId: e } = await _(`/extensions/${$}/scan-library`, { method: "POST" });
 				await he(e), t = await _(`/extensions/${$}/last-scan`);
 			}
-			let n = _t(t), { jobId: r } = await _(Wt, { method: "POST" });
-			await he(r), pe(!1), I({
+			let n = xt(t), { jobId: r } = await _(Jt, { method: "POST" });
+			await he(r), fe(!1), I({
 				kind: "success",
 				text: `Renamed ${n.renamed} file${n.renamed === 1 ? "" : "s"}` + (n.skipped > 0 ? `, ${n.skipped} skipped` : "") + "."
 			});
@@ -2270,22 +2384,22 @@ function un() {
 			me(!1);
 		}
 	}, []), _e = e(async () => {
-		d(!0), g(null), k(!1);
+		d(!0), g(null), A(!1);
 		try {
-			let e = (await n.getAll())[Vt];
+			let e = (await n.getAll())[Gt];
 			if (e) {
 				O(!1);
 				let t;
 				try {
 					t = JSON.parse(e);
 				} catch {
-					A.current = {};
+					j.current = {};
 					let e = S();
-					s(e), l(e), k(!0);
+					s(e), l(e), A(!0);
 					return;
 				}
-				A.current = oe(t);
-				let n = se(t), r = {
+				j.current = ae(t);
+				let n = oe(t), r = {
 					...n,
 					EnableStudioDestinations: n.EnableStudioDestinations || Object.keys(n.StudioDestinations).length > 0,
 					EnableTagDestinations: n.EnableTagDestinations || Object.keys(n.TagDestinations).length > 0,
@@ -2293,7 +2407,7 @@ function un() {
 				};
 				s(r), l(r);
 			} else {
-				O(!0), A.current = {};
+				O(!0), j.current = {};
 				let e = S();
 				s(e), l(e);
 			}
@@ -2308,15 +2422,15 @@ function un() {
 	}, [_e]), t(() => {
 		if (u) return;
 		let e = setTimeout(() => {
-			_(Ut, {
+			_(qt, {
 				method: "POST",
 				body: JSON.stringify({ Options: r })
 			}).then((e) => {
-				re(e), ie(!1);
+				ne(e), re(!1);
 			}).catch(() => {
-				ie(!0);
+				re(!0);
 			});
-		}, Gt);
+		}, Yt);
 		return () => {
 			clearTimeout(e);
 		};
@@ -2324,7 +2438,7 @@ function un() {
 	async function ve() {
 		x(!0), w(null);
 		try {
-			await ln(r, A.current), l(r), O(!1), k(!1), E(!0), setTimeout(() => {
+			await pn(r, j.current), l(r), O(!1), A(!1), E(!0), setTimeout(() => {
 				E(!1);
 			}, 3e3);
 		} catch (e) {
@@ -2349,7 +2463,7 @@ function un() {
 		}));
 	}
 	function Y(e) {
-		let t = le.current, n = t === "folder" ? ce.current : ae.current, i = t === "folder" ? "FolderTemplate" : "FilenameTemplate", a = r[i];
+		let t = ce.current, n = t === "folder" ? se.current : ie.current, i = t === "folder" ? "FolderTemplate" : "FilenameTemplate", a = r[i];
 		if (n && typeof n.selectionStart == "number") {
 			let t = n.selectionStart, r = n.selectionEnd ?? t;
 			R(i, a.slice(0, t) + e + a.slice(r)), requestAnimationFrame(() => {
@@ -2378,25 +2492,28 @@ function un() {
 			children: "Retry"
 		}) })]
 	});
-	let X = (e) => r[e], je = (j ?? []).filter((e) => e.flags.includes("empty")).map((e) => e.sampleLabel), Me = Lt("performers", r.FilenameTemplate, r.FolderTemplate), Ne = Lt("tags", r.FilenameTemplate, r.FolderTemplate), Z = Lt("date", r.FilenameTemplate, r.FolderTemplate), Q = Lt("duration", r.FilenameTemplate, r.FolderTemplate);
+	let X = (e) => r[e], Fe = (M ?? []).filter((e) => e.flags.includes("empty")).map((e) => e.sampleLabel), Ie = Vt("performers", r.FilenameTemplate, r.FolderTemplate), Le = Vt("tags", r.FilenameTemplate, r.FolderTemplate), Z = Vt("date", r.FilenameTemplate, r.FolderTemplate), Q = Vt("duration", r.FilenameTemplate, r.FolderTemplate);
 	return /* @__PURE__ */ m("div", {
-		className: `space-y-6 ${N ? "pb-20" : ""}`,
+		className: `space-y-6 ${P ? "pb-20" : ""}`,
 		children: [
 			/* @__PURE__ */ m("div", {
 				className: "grid grid-cols-1 gap-6 lg:grid-cols-3",
 				children: [/* @__PURE__ */ m("div", {
 					className: "col-span-2",
-					children: [ee ? /* @__PURE__ */ p(K, {
+					children: [k ? /* @__PURE__ */ p(K, {
 						kind: "error",
 						children: "Your saved settings couldn't be read and have been reset to defaults. Review the options below and save to store a clean copy."
 					}) : D ? /* @__PURE__ */ p(K, {
 						kind: "muted",
 						children: "Using default settings — pick a preset or write a template, then save."
 					}) : null, /* @__PURE__ */ m(W, {
-						title: "Essentials",
-						defaultOpen: !0,
+						badge: /* @__PURE__ */ p(je, {
+							solid: !0,
+							children: "Essentials"
+						}),
+						description: "The three things you set most often — pick a preset or write your own, then choose where files go.",
 						children: [
-							/* @__PURE__ */ p(sn, { onApply: (e) => {
+							/* @__PURE__ */ p(dn, { onApply: (e) => {
 								R("FilenameTemplate", e);
 							} }),
 							/* @__PURE__ */ p(z, {
@@ -2406,36 +2523,49 @@ function un() {
 									onChange: (e) => {
 										R("FilenameTemplate", e);
 									},
-									onFocus: () => le.current = "filename",
-									inputRef: ae,
+									onFocus: () => ce.current = "filename",
+									inputRef: ie,
 									mono: !0,
 									placeholder: "$title"
 								})
 							}),
-							/* @__PURE__ */ p(an, {
+							/* @__PURE__ */ p(ln, {
 								value: r.FilenameTemplate,
-								emptySamples: je
+								emptySamples: Fe
 							}),
-							/* @__PURE__ */ p(Je, { onInsert: Y }),
-							/* @__PURE__ */ p(z, {
-								label: "Folder template",
-								helper: "Blank = no folder move (rename in place). Use / for sub-folders, e.g. $studio / $year.",
-								children: /* @__PURE__ */ p(B, {
-									value: r.FolderTemplate,
-									onChange: (e) => {
-										R("FolderTemplate", e);
-									},
-									onFocus: () => le.current = "folder",
-									inputRef: ce,
-									mono: !0,
-									placeholder: "$studio / $year"
-								})
-							}),
-							/* @__PURE__ */ p(an, { value: r.FolderTemplate })
+							/* @__PURE__ */ p(Qe, { onInsert: Y }),
+							/* @__PURE__ */ m("div", {
+								className: "border-t border-border pt-4",
+								children: [
+									/* @__PURE__ */ p("div", {
+										className: "text-base font-semibold text-foreground",
+										children: "Where files go"
+									}),
+									/* @__PURE__ */ p("p", {
+										className: "mb-4 mt-1 text-sm text-secondary",
+										children: "Folder path template — moves files on rename."
+									}),
+									/* @__PURE__ */ p(z, {
+										label: "Folder template",
+										helper: "Blank = no folder move (rename in place). Use / for sub-folders, e.g. $studio / $year.",
+										children: /* @__PURE__ */ p(B, {
+											value: r.FolderTemplate,
+											onChange: (e) => {
+												R("FolderTemplate", e);
+											},
+											onFocus: () => ce.current = "folder",
+											inputRef: se,
+											mono: !0,
+											placeholder: "$studio / $year"
+										})
+									}),
+									/* @__PURE__ */ p(ln, { value: r.FolderTemplate })
+								]
+							})
 						]
 					})]
 				}), /* @__PURE__ */ p("div", { children: /* @__PURE__ */ m("div", {
-					className: "space-y-4 lg:sticky lg:top-16",
+					className: "space-y-4 rounded-2xl border border-border bg-surface p-5 shadow-sm lg:sticky lg:top-16",
 					children: [
 						/* @__PURE__ */ p("div", {
 							className: "text-base font-semibold text-foreground",
@@ -2445,137 +2575,151 @@ function un() {
 							className: "mb-4 mt-1 text-sm text-secondary",
 							children: "Old → new for sample items, before anything touches disk."
 						}),
-						M ? /* @__PURE__ */ p(K, {
+						N ? /* @__PURE__ */ p(K, {
 							kind: "error",
 							children: "Preview unavailable — saved naming still works."
 						}) : null,
-						j == null ? /* @__PURE__ */ m("div", {
+						M == null ? /* @__PURE__ */ m("div", {
 							className: "flex items-center gap-2 text-sm text-secondary",
 							children: [/* @__PURE__ */ p(q, {}), "Rendering preview…"]
 						}) : /* @__PURE__ */ p("div", {
 							className: "space-y-3",
-							children: j.map((e) => /* @__PURE__ */ p(Xe, { result: e }, e.sampleLabel))
+							children: M.map((e) => /* @__PURE__ */ p(et, { result: e }, e.sampleLabel))
 						})
 					]
 				}) })]
 			}),
-			/* @__PURE__ */ m(W, {
-				title: "What Gets Renamed",
-				defaultOpen: !0,
-				children: [
-					/* @__PURE__ */ p(H, {
-						label: "Only rename organized items",
-						checked: r.OnlyOrganized,
-						onChange: (e) => {
-							R("OnlyOrganized", e);
-						},
-						helper: "Only rename items you've marked Organized — skips un-curated items so they don't get junk names."
-					}),
-					/* @__PURE__ */ p(H, {
-						label: "Use filename as title when none is set",
-						checked: r.FilenameAsTitle,
-						onChange: (e) => {
-							R("FilenameAsTitle", e);
-						},
-						helper: "When an item has no title, use its current filename (without extension) as the title."
-					}),
-					/* @__PURE__ */ m(z, {
-						label: "Required fields",
-						helper: "Items whose listed tokens resolve to nothing are skipped instead of renamed. Default: title.",
-						children: [
-							/* @__PURE__ */ p(Ce, {
-								values: r.RequiredFields,
-								onChange: (e) => {
-									R("RequiredFields", e);
-								},
-								placeholder: "Add token, press Enter"
-							}),
-							/* @__PURE__ */ p(Ee, {
-								tokens: Mt,
-								values: r.RequiredFields,
-								onAdd: (e) => {
-									R("RequiredFields", r.RequiredFields.includes(e) ? r.RequiredFields : [...r.RequiredFields, e]);
-								}
-							}),
-							/* @__PURE__ */ p(on, { values: r.RequiredFields })
-						]
-					})
-				]
+			/* @__PURE__ */ p(Me, {
+				title: "What gets renamed",
+				hint: "Scope and required fields"
 			}),
-			/* @__PURE__ */ m(W, {
-				title: "Run & Automation",
-				defaultOpen: !0,
-				children: [/* @__PURE__ */ p(W, {
-					title: "Automation",
-					summary: "Auto-rename when an item's metadata changes",
-					children: /* @__PURE__ */ p(H, {
-						label: "Auto-rename on update",
-						checked: r.AutoRenamerOnUpdate,
-						onChange: (e) => {
-							R("AutoRenamerOnUpdate", e);
-						},
-						helper: "When on, renames a video or image automatically whenever its metadata changes (respects the gating rules above). Off by default."
-					})
-				}), /* @__PURE__ */ m(W, {
-					title: "Run for the whole library",
-					summary: "Preview or rename every matching item in your library",
+			/* @__PURE__ */ m(W, { children: [
+				/* @__PURE__ */ p(H, {
+					label: "Only rename organized items",
+					checked: r.OnlyOrganized,
+					onChange: (e) => {
+						R("OnlyOrganized", e);
+					},
+					helper: "Only rename items you've marked Organized — skips un-curated items so they don't get junk names."
+				}),
+				/* @__PURE__ */ p(H, {
+					label: "Use filename as title when none is set",
+					checked: r.FilenameAsTitle,
+					onChange: (e) => {
+						R("FilenameAsTitle", e);
+					},
+					helper: "When an item has no title, use its current filename (without extension) as the title."
+				}),
+				/* @__PURE__ */ m(z, {
+					label: "Required fields",
+					helper: "Items whose listed tokens resolve to nothing are skipped instead of renamed. Default: title.",
 					children: [
-						/* @__PURE__ */ m("div", {
-							className: "flex flex-wrap items-center gap-3",
+						/* @__PURE__ */ p(Ce, {
+							values: r.RequiredFields,
+							onChange: (e) => {
+								R("RequiredFields", e);
+							},
+							placeholder: "Add token, press Enter"
+						}),
+						/* @__PURE__ */ p(Ee, {
+							tokens: It,
+							values: r.RequiredFields,
+							onAdd: (e) => {
+								R("RequiredFields", r.RequiredFields.includes(e) ? r.RequiredFields : [...r.RequiredFields, e]);
+							}
+						}),
+						/* @__PURE__ */ p(un, { values: r.RequiredFields })
+					]
+				})
+			] }),
+			/* @__PURE__ */ p(Me, {
+				title: "Run & automation",
+				hint: "When renames happen"
+			}),
+			/* @__PURE__ */ m(W, { children: [/* @__PURE__ */ p(H, {
+				label: "Auto-rename on update",
+				checked: r.AutoRenamerOnUpdate,
+				onChange: (e) => {
+					R("AutoRenamerOnUpdate", e);
+				},
+				helper: "When on, renames a video or image automatically whenever its metadata changes — respects every gating and routing rule below. The core of a hands-off library. Off by default."
+			}), /* @__PURE__ */ m("div", {
+				className: "border-t border-border pt-4",
+				children: [
+					/* @__PURE__ */ m("div", {
+						className: "flex flex-wrap items-start gap-4",
+						children: [/* @__PURE__ */ m("div", {
+							className: "min-w-0 flex-1",
+							children: [/* @__PURE__ */ p("div", {
+								className: "text-base font-semibold text-foreground",
+								children: "Run for the whole library"
+							}), /* @__PURE__ */ p("p", {
+								className: "mt-1 text-sm text-secondary",
+								children: "Apply your rules to every matching item now. Preview first with a dry run — it writes nothing."
+							})]
+						}), /* @__PURE__ */ m("div", {
+							className: "flex shrink-0 flex-wrap items-center gap-3",
 							children: [/* @__PURE__ */ p(G, {
 								variant: "ghost",
 								onClick: () => {
-									pe(!0);
+									fe(!0);
 								},
-								disabled: N,
 								children: "Dry run"
 							}), /* @__PURE__ */ m(G, {
 								onClick: () => void ge(),
-								disabled: N || P,
-								children: [P ? /* @__PURE__ */ p(q, {}) : null, "Rename all files"]
+								disabled: P || pe,
+								children: [pe ? /* @__PURE__ */ p(q, {}) : null, "Rename all files"]
 							})]
-						}),
-						N ? /* @__PURE__ */ m("p", {
-							className: "mt-2 flex items-start gap-1 text-xs text-amber-400",
-							role: "status",
-							"aria-live": "polite",
-							children: [/* @__PURE__ */ p(o, { className: "h-3 w-3 shrink-0" }), /* @__PURE__ */ p("span", { children: "Save or discard your changes before running this." })]
-						}) : null,
-						F ? /* @__PURE__ */ p("p", {
-							className: "mt-2",
-							children: /* @__PURE__ */ m(K, {
-								kind: F.kind,
-								children: [
-									F.kind === "success" ? "✓ " : "",
-									F.text,
-									F.kind === "success" ? /* @__PURE__ */ m(f, { children: [" ", /* @__PURE__ */ p("button", {
-										type: "button",
-										onClick: () => {
-											document.getElementById("rename-undo-section")?.scrollIntoView({ behavior: "smooth" });
-										},
-										className: "text-accent underline hover:no-underline",
-										children: "Undo"
-									})] }) : null
-								]
-							})
-						}) : null
-					]
-				})]
-			}),
-			fe ? /* @__PURE__ */ p(At, {
+						})]
+					}),
+					P ? /* @__PURE__ */ m("p", {
+						className: "mt-2 flex items-start gap-1 text-xs text-amber-400",
+						role: "status",
+						"aria-live": "polite",
+						children: [/* @__PURE__ */ p(o, { className: "h-3 w-3 shrink-0" }), /* @__PURE__ */ p("span", { children: "Dry run previews your edits before saving. Save before “Rename all files” to run them for real." })]
+					}) : null,
+					F ? /* @__PURE__ */ p("p", {
+						className: "mt-2",
+						children: /* @__PURE__ */ m(K, {
+							kind: F.kind,
+							children: [
+								F.kind === "success" ? "✓ " : "",
+								F.text,
+								F.kind === "success" ? /* @__PURE__ */ m(f, { children: [" ", /* @__PURE__ */ p("button", {
+									type: "button",
+									onClick: () => {
+										document.getElementById("rename-undo-section")?.scrollIntoView({ behavior: "smooth" });
+									},
+									className: "text-accent underline hover:no-underline",
+									children: "Undo"
+								})] }) : null
+							]
+						})
+					}) : null
+				]
+			})] }),
+			de ? /* @__PURE__ */ p(Pt, {
+				options: r,
 				onClose: () => {
-					pe(!1);
+					fe(!1);
 				},
 				onRenameAll: (e) => void ge(e),
-				renaming: P
+				renaming: pe
 			}) : null,
-			/* @__PURE__ */ m(W, {
-				title: "Token Settings",
-				defaultOpen: !0,
+			/* @__PURE__ */ p(Me, {
+				title: "Token settings",
+				hint: "Appear only for tokens you're using"
+			}),
+			/* @__PURE__ */ m("div", {
+				className: "space-y-4",
 				children: [
-					Me ? /* @__PURE__ */ m(W, {
+					Ie ? /* @__PURE__ */ m(W, {
 						title: "Performers",
-						summary: "Separators, limits, sort, and allow/block lists",
+						badge: /* @__PURE__ */ p(je, {
+							mono: !0,
+							children: "$performers"
+						}),
+						accent: !0,
 						children: [
 							/* @__PURE__ */ p(z, {
 								label: "Separator",
@@ -2584,7 +2728,7 @@ function un() {
 									onChange: (e) => {
 										J("Performers", { Separator: e });
 									},
-									options: nn,
+									options: sn,
 									customPlaceholder: "Custom separator"
 								})
 							}),
@@ -2606,7 +2750,7 @@ function un() {
 									onChange: (e) => {
 										J("Performers", { OnOverflow: e });
 									},
-									options: Yt
+									options: $t
 								})
 							}),
 							/* @__PURE__ */ p(z, {
@@ -2617,14 +2761,14 @@ function un() {
 									onChange: (e) => {
 										J("Performers", { Sort: e });
 									},
-									options: Xt
+									options: en
 								})
 							}),
 							/* @__PURE__ */ p(z, {
 								label: "Ignore genders",
 								helper: "Drop performers of these genders before the max-count limit. A performer with no gender is always kept. None selected = off.",
 								children: /* @__PURE__ */ p(we, {
-									options: Qt,
+									options: nn,
 									values: X("Performers").IgnoreGenders,
 									onChange: (e) => {
 										J("Performers", { IgnoreGenders: e });
@@ -2635,7 +2779,7 @@ function un() {
 								label: "Gender order",
 								helper: "Preferred gender order, most-preferred first. Empty = off.",
 								children: /* @__PURE__ */ p(Te, {
-									options: Qt,
+									options: nn,
 									values: X("Performers").GenderOrder,
 									onChange: (e) => {
 										J("Performers", { GenderOrder: e });
@@ -2643,7 +2787,7 @@ function un() {
 									addPrompt: "Add a gender…"
 								})
 							}),
-							/* @__PURE__ */ p(Be, {
+							/* @__PURE__ */ p(We, {
 								label: "Whitelist",
 								helper: "If set, only these performers are kept (case-insensitive).",
 								values: X("Performers").Whitelist,
@@ -2652,7 +2796,7 @@ function un() {
 								},
 								placeholder: "Search performers…"
 							}),
-							/* @__PURE__ */ p(Be, {
+							/* @__PURE__ */ p(We, {
 								label: "Blacklist",
 								helper: "These performers are removed (case-insensitive).",
 								values: X("Performers").Blacklist,
@@ -2663,9 +2807,13 @@ function un() {
 							})
 						]
 					}) : null,
-					Ne ? /* @__PURE__ */ m(W, {
+					Le ? /* @__PURE__ */ m(W, {
 						title: "Tags",
-						summary: "Separators, limits, sort, and allow/block lists",
+						badge: /* @__PURE__ */ p(je, {
+							mono: !0,
+							children: "$tags"
+						}),
+						accent: !0,
 						children: [
 							/* @__PURE__ */ p(z, {
 								label: "Separator",
@@ -2674,7 +2822,7 @@ function un() {
 									onChange: (e) => {
 										J("Tags", { Separator: e });
 									},
-									options: nn,
+									options: sn,
 									customPlaceholder: "Custom separator"
 								})
 							}),
@@ -2696,7 +2844,7 @@ function un() {
 									onChange: (e) => {
 										J("Tags", { OnOverflow: e });
 									},
-									options: Yt
+									options: $t
 								})
 							}),
 							/* @__PURE__ */ p(z, {
@@ -2706,10 +2854,10 @@ function un() {
 									onChange: (e) => {
 										J("Tags", { Sort: e });
 									},
-									options: Zt
+									options: tn
 								})
 							}),
-							/* @__PURE__ */ p(ze, {
+							/* @__PURE__ */ p(Ue, {
 								label: "Whitelist",
 								helper: "If set, only these tags are kept (case-insensitive).",
 								values: X("Tags").Whitelist,
@@ -2718,7 +2866,7 @@ function un() {
 								},
 								placeholder: "Search tags…"
 							}),
-							/* @__PURE__ */ p(ze, {
+							/* @__PURE__ */ p(Ue, {
 								label: "Blacklist",
 								helper: "These tags are removed (case-insensitive).",
 								values: X("Tags").Blacklist,
@@ -2730,8 +2878,12 @@ function un() {
 						]
 					}) : null,
 					Z || Q ? /* @__PURE__ */ m(W, {
+						accent: !0,
+						badge: /* @__PURE__ */ p(je, {
+							mono: !0,
+							children: Z && Q ? "$date · $duration" : Z ? "$date" : "$duration"
+						}),
 						title: Z && Q ? "Date & duration format" : Z ? "Date format" : "Duration format",
-						summary: Z && Q ? "How $date and $duration tokens are written" : Z ? "How the $date token is written" : "How the $duration token is written",
 						children: [Z ? /* @__PURE__ */ p(z, {
 							label: "Date format",
 							helper: "e.g. yyyy-MM-dd",
@@ -2740,7 +2892,7 @@ function un() {
 								onChange: (e) => {
 									R("DateFormat", e);
 								},
-								options: en,
+								options: an,
 								customPlaceholder: "yyyy-MM-dd"
 							})
 						}) : null, Q ? /* @__PURE__ */ p(z, {
@@ -2750,365 +2902,363 @@ function un() {
 								onChange: (e) => {
 									R("DurationFormat", e);
 								},
-								options: tn,
+								options: on,
 								customPlaceholder: "hh\\-mm\\-ss"
 							})
 						}) : null]
 					}) : null,
-					!Me && !Ne && !Z && !Q ? /* @__PURE__ */ p(U, {
-						title: "No token-specific settings needed",
-						description: "Add $performers, $tags, $date, or $duration to your filename or folder template to configure how they're formatted.",
-						children: /* @__PURE__ */ m("div", {
-							className: "flex flex-wrap gap-1",
-							children: [
-								/* @__PURE__ */ p(L, {
-									selected: !1,
-									mono: !0,
-									onClick: () => {
-										Y("{ - $performers}");
-									},
-									children: "$performers"
-								}),
-								/* @__PURE__ */ p(L, {
-									selected: !1,
-									mono: !0,
-									onClick: () => {
-										Y("{ - $tags}");
-									},
-									children: "$tags"
-								}),
-								/* @__PURE__ */ p(L, {
-									selected: !1,
-									mono: !0,
-									onClick: () => {
-										Y("{ - $date}");
-									},
-									children: "$date"
-								}),
-								/* @__PURE__ */ p(L, {
-									selected: !1,
-									mono: !0,
-									onClick: () => {
-										Y("{ [$duration]}");
-									},
-									children: "$duration"
-								})
-							]
-						})
+					!Ie && !Le && !Z && !Q ? /* @__PURE__ */ m("div", {
+						className: "rounded-xl border border-border bg-card p-6 text-center",
+						children: [
+							/* @__PURE__ */ p("h3", {
+								className: "text-base font-semibold text-foreground",
+								children: "No token-specific settings needed"
+							}),
+							/* @__PURE__ */ p("p", {
+								className: "mx-auto mb-4 mt-1 max-w-md text-sm text-secondary",
+								children: "Add $performers, $tags, $date, or $duration to your filename or folder template to configure how they're formatted."
+							}),
+							/* @__PURE__ */ m("div", {
+								className: "flex flex-wrap justify-center gap-1",
+								children: [
+									/* @__PURE__ */ p(L, {
+										selected: !1,
+										mono: !0,
+										onClick: () => {
+											Y("{ - $performers}");
+										},
+										children: "$performers"
+									}),
+									/* @__PURE__ */ p(L, {
+										selected: !1,
+										mono: !0,
+										onClick: () => {
+											Y("{ - $tags}");
+										},
+										children: "$tags"
+									}),
+									/* @__PURE__ */ p(L, {
+										selected: !1,
+										mono: !0,
+										onClick: () => {
+											Y("{ - $date}");
+										},
+										children: "$date"
+									}),
+									/* @__PURE__ */ p(L, {
+										selected: !1,
+										mono: !0,
+										onClick: () => {
+											Y("{ [$duration]}");
+										},
+										children: "$duration"
+									})
+								]
+							})
+						]
 					}) : null
 				]
 			}),
-			/* @__PURE__ */ p(W, {
-				title: "Destination Routing",
-				defaultOpen: !0,
-				children: /* @__PURE__ */ m(W, {
-					title: "Destination routing",
-					summary: "Per-studio / tag / path destinations, allowed roots, and the default-relocate gate",
-					children: [
-						/* @__PURE__ */ p(U, {
-							title: "Advanced routing & safety",
-							headerRight: /* @__PURE__ */ p(H, {
-								label: "Enabled",
-								checked: r.EnableAdvancedRouting,
-								onChange: (e) => {
-									R("EnableAdvancedRouting", e);
-								}
-							}),
-							children: r.EnableAdvancedRouting ? /* @__PURE__ */ m(f, { children: [
-								/* @__PURE__ */ p("h4", {
-									className: "text-sm font-semibold text-foreground",
-									children: "Allowed roots"
-								}),
-								/* @__PURE__ */ p("p", {
-									className: "mb-4 mt-1 text-sm text-secondary",
-									children: "A rename may only write inside these absolute directories; a target outside them is rejected. Empty = files stay within their own source folder."
-								}),
-								/* @__PURE__ */ p(Ce, {
-									values: r.AllowedRoots,
-									onChange: (e) => {
-										R("AllowedRoots", e);
-									},
-									placeholder: "Add an absolute directory, press Enter"
-								}),
-								/* @__PURE__ */ p("h4", {
-									className: "text-sm font-semibold text-foreground",
-									children: "Source-path destinations"
-								}),
-								/* @__PURE__ */ p("p", {
-									className: "mb-4 mt-1 text-sm text-secondary",
-									children: "Match an item's source path to a destination root, top rule first. An exact match or a regex."
-								}),
-								/* @__PURE__ */ p(De, {
-									rows: r.PathDestinations,
-									onChange: (e) => {
-										R("PathDestinations", e);
-									},
-									makeRow: () => ({
-										Pattern: "",
-										Dest: "",
-										IsRegex: !1
-									}),
-									renderRow: (e, t, n) => /* @__PURE__ */ m(f, { children: [
-										/* @__PURE__ */ p(z, {
-											label: "Source path",
-											children: /* @__PURE__ */ p(B, {
-												value: e.Pattern,
-												onChange: (e) => {
-													n({ Pattern: e });
-												},
-												mono: !0,
-												placeholder: "Exact path or regex"
-											})
-										}),
-										/* @__PURE__ */ p(H, {
-											label: "Match as a regex",
-											checked: e.IsRegex,
-											onChange: (e) => {
-												n({ IsRegex: e });
-											}
-										}),
-										/* @__PURE__ */ p(ke, {
-											pattern: e.Pattern,
-											isRegex: e.IsRegex
-										}),
-										/* @__PURE__ */ m(z, {
-											label: "Destination root",
-											children: [/* @__PURE__ */ p(B, {
-												value: e.Dest,
-												onChange: (e) => {
-													n({ Dest: e });
-												},
-												placeholder: "Destination root"
-											}), /* @__PURE__ */ p(Ae, { value: e.Dest })]
-										})
-									] }),
-									addLabel: "Add path rule",
-									ordered: !0
-								})
-							] }) : /* @__PURE__ */ p("p", {
-								className: "text-sm text-secondary",
-								children: "Turn this on to add advanced routing rules."
-							})
-						}),
-						/* @__PURE__ */ p(U, {
-							title: "Per-studio destinations",
-							description: "Pick a studio, then the absolute root its items route to.",
-							headerRight: /* @__PURE__ */ p(H, {
-								label: "Enabled",
-								checked: r.EnableStudioDestinations,
-								onChange: (e) => {
-									R("EnableStudioDestinations", e);
-								}
-							}),
-							children: r.EnableStudioDestinations ? /* @__PURE__ */ p(We, {
-								map: r.StudioDestinations,
-								onChange: (e) => {
-									R("StudioDestinations", e);
-								}
-							}) : /* @__PURE__ */ p("p", {
-								className: "text-sm text-secondary",
-								children: "Turn this on to add per-studio routing rules."
-							})
-						}),
-						/* @__PURE__ */ p(U, {
-							title: "Per-tag destinations",
-							description: "Pick a tag, then the absolute root its items route to.",
-							headerRight: /* @__PURE__ */ p(H, {
-								label: "Enabled",
-								checked: r.EnableTagDestinations,
-								onChange: (e) => {
-									R("EnableTagDestinations", e);
-								}
-							}),
-							children: r.EnableTagDestinations ? /* @__PURE__ */ p(Oe, {
-								map: r.TagDestinations,
-								onChange: (e) => {
-									R("TagDestinations", e);
-								},
-								renderKey: (e, t, n) => /* @__PURE__ */ p(ze, {
-									label: "Tag",
-									values: e === "" ? [] : [e],
-									onChange: (e) => {
-										t(e.at(-1) ?? "");
-									},
-									placeholder: "Search tags…",
-									excludeValues: n
-								}),
-								renderValue: (e, t) => /* @__PURE__ */ m(f, { children: [/* @__PURE__ */ p(B, {
-									value: e,
-									onChange: t,
-									placeholder: "Destination root"
-								}), /* @__PURE__ */ p(Ae, { value: e })] }),
-								addLabel: "Add tag rule"
-							}) : /* @__PURE__ */ p("p", {
-								className: "text-sm text-secondary",
-								children: "Turn this on to add per-tag routing rules."
-							})
-						}),
-						/* @__PURE__ */ m(U, {
-							title: "Default & unorganized destinations",
-							children: [
-								/* @__PURE__ */ m(z, {
-									label: "Default destination",
-									helper: "Where an item matching no rule goes. Blank = no default route. Honored only with the relocate gate below ON.",
-									children: [/* @__PURE__ */ p(B, {
-										value: r.DefaultDestination,
-										onChange: (e) => {
-											R("DefaultDestination", e);
-										},
-										placeholder: "Absolute root, or blank"
-									}), /* @__PURE__ */ p(Ae, { value: r.DefaultDestination })]
-								}),
-								/* @__PURE__ */ m(z, {
-									label: "Unorganized destination",
-									helper: "Where un-curated items route instead of being skipped. Blank = no unorganized route.",
-									children: [/* @__PURE__ */ p(B, {
-										value: r.UnorganizedDestination,
-										onChange: (e) => {
-											R("UnorganizedDestination", e);
-										},
-										placeholder: "Absolute root, or blank"
-									}), /* @__PURE__ */ p(Ae, { value: r.UnorganizedDestination })]
-								}),
-								/* @__PURE__ */ p(H, {
-									label: "Relocate unmatched items to the default destination",
-									checked: r.EnableDefaultRelocate,
-									onChange: (e) => {
-										R("EnableDefaultRelocate", e);
-									},
-									helper: "With this on, any item matching no rule is moved to the default destination — whole-library reach. Undo is the only recovery. Off by default."
-								})
-							]
-						}),
-						/* @__PURE__ */ p(U, {
-							title: "Sidecar files",
-							description: "Files sharing the primary's basename with one of these extensions move and rename with it; a target that already exists is left untouched, never overwritten. Captions Cove tracks always move regardless.",
-							children: /* @__PURE__ */ m(z, {
-								label: "Also move sidecar files with these extensions",
-								children: [/* @__PURE__ */ p(Ce, {
-									values: r.AssociatedExtensions,
-									onChange: (e) => {
-										R("AssociatedExtensions", e);
-									},
-									placeholder: "Add an extension, press Enter",
-									normalize: qt,
-									onReject: (e) => !/^[a-z0-9]+$/.test(e),
-									onLiveChange: (e) => {
-										ne(e);
-									}
-								}), (() => {
-									let e = ue(qt(te));
-									return e ? /* @__PURE__ */ p(K, {
-										kind: "warning",
-										children: e
-									}) : null;
-								})()]
-							})
-						}),
-						/* @__PURE__ */ p(U, {
-							title: "Empty source folder",
-							children: /* @__PURE__ */ p(H, {
-								label: "Delete the source folder when a move leaves it empty",
-								checked: r.RemoveEmptyFolder,
-								onChange: (e) => {
-									R("RemoveEmptyFolder", e);
-								},
-								helper: "Deletes a source folder only when a move empties it completely — never a non-empty folder or a root. Undo won't move the file back into a deleted folder; the file stays at its new location. Off by default."
-							})
-						})
-					]
-				})
+			/* @__PURE__ */ p(Me, {
+				title: "Destination routing",
+				hint: "Where renamed files land"
 			}),
-			/* @__PURE__ */ m(W, {
-				title: "Advanced",
-				defaultOpen: !0,
+			/* @__PURE__ */ m("div", {
+				className: "space-y-4",
 				children: [
-					/* @__PURE__ */ m(W, {
+					/* @__PURE__ */ m(U, {
+						title: "Default & unorganized destinations",
+						children: [/* @__PURE__ */ m("div", {
+							className: "grid grid-cols-1 gap-4 md:grid-cols-2",
+							children: [/* @__PURE__ */ m(z, {
+								label: "Default destination",
+								helper: "Where an item matching no rule goes. Blank = no default route. Honored only with the relocate gate below ON.",
+								children: [/* @__PURE__ */ p(B, {
+									value: r.DefaultDestination,
+									onChange: (e) => {
+										R("DefaultDestination", e);
+									},
+									placeholder: "Absolute root, or blank"
+								}), /* @__PURE__ */ p(Ae, { value: r.DefaultDestination })]
+							}), /* @__PURE__ */ m(z, {
+								label: "Unorganized destination",
+								helper: "Where un-curated items route instead of being skipped. Blank = no unorganized route.",
+								children: [/* @__PURE__ */ p(B, {
+									value: r.UnorganizedDestination,
+									onChange: (e) => {
+										R("UnorganizedDestination", e);
+									},
+									placeholder: "Absolute root, or blank"
+								}), /* @__PURE__ */ p(Ae, { value: r.UnorganizedDestination })]
+							})]
+						}), /* @__PURE__ */ p(H, {
+							label: "Relocate unmatched items to the default destination",
+							checked: r.EnableDefaultRelocate,
+							onChange: (e) => {
+								R("EnableDefaultRelocate", e);
+							},
+							helper: "With this on, any item matching no rule is moved to the default destination — whole-library reach. Undo is the only recovery. Off by default."
+						})]
+					}),
+					/* @__PURE__ */ p(Ne, {
+						title: "Per-studio destinations",
+						description: "Pick a studio, then the absolute root its items route to.",
+						enabled: r.EnableStudioDestinations,
+						onToggle: (e) => {
+							R("EnableStudioDestinations", e);
+						},
+						children: /* @__PURE__ */ p(Je, {
+							map: r.StudioDestinations,
+							onChange: (e) => {
+								R("StudioDestinations", e);
+							}
+						})
+					}),
+					/* @__PURE__ */ p(Ne, {
+						title: "Per-tag destinations",
+						description: "Pick a tag, then the absolute root its items route to.",
+						enabled: r.EnableTagDestinations,
+						onToggle: (e) => {
+							R("EnableTagDestinations", e);
+						},
+						children: /* @__PURE__ */ p(Oe, {
+							map: r.TagDestinations,
+							onChange: (e) => {
+								R("TagDestinations", e);
+							},
+							renderKey: (e, t, n) => /* @__PURE__ */ p(Ue, {
+								label: "",
+								values: e === "" ? [] : [e],
+								onChange: (e) => {
+									t(e.at(-1) ?? "");
+								},
+								placeholder: "Search tags…",
+								excludeValues: n
+							}),
+							renderValue: (e, t) => /* @__PURE__ */ m(f, { children: [/* @__PURE__ */ p(B, {
+								value: e,
+								onChange: t,
+								placeholder: "Destination root"
+							}), /* @__PURE__ */ p(Ae, { value: e })] }),
+							addLabel: "Add tag rule"
+						})
+					}),
+					/* @__PURE__ */ m(Ne, {
+						title: "Advanced routing & safety",
+						description: "Allowed roots and source-path rules.",
+						enabled: r.EnableAdvancedRouting,
+						onToggle: (e) => {
+							R("EnableAdvancedRouting", e);
+						},
+						children: [/* @__PURE__ */ m("div", { children: [
+							/* @__PURE__ */ p("h4", {
+								className: "text-sm font-semibold text-foreground",
+								children: "Allowed roots"
+							}),
+							/* @__PURE__ */ p("p", {
+								className: "mb-4 mt-1 text-sm text-secondary",
+								children: "A rename may only write inside these absolute directories; a target outside them is rejected. Empty = files stay within their own source folder."
+							}),
+							/* @__PURE__ */ p(Ce, {
+								values: r.AllowedRoots,
+								onChange: (e) => {
+									R("AllowedRoots", e);
+								},
+								placeholder: "Add an absolute directory, press Enter"
+							})
+						] }), /* @__PURE__ */ m("div", { children: [
+							/* @__PURE__ */ p("h4", {
+								className: "text-sm font-semibold text-foreground",
+								children: "Source-path destinations"
+							}),
+							/* @__PURE__ */ p("p", {
+								className: "mb-4 mt-1 text-sm text-secondary",
+								children: "Match an item's source path to a destination root, top rule first. An exact match or a regex."
+							}),
+							/* @__PURE__ */ p(De, {
+								rows: r.PathDestinations,
+								onChange: (e) => {
+									R("PathDestinations", e);
+								},
+								makeRow: () => ({
+									Pattern: "",
+									Dest: "",
+									IsRegex: !1
+								}),
+								renderRow: (e, t, n) => /* @__PURE__ */ m(f, { children: [
+									/* @__PURE__ */ p(z, {
+										label: "Source path",
+										children: /* @__PURE__ */ p(B, {
+											value: e.Pattern,
+											onChange: (e) => {
+												n({ Pattern: e });
+											},
+											mono: !0,
+											placeholder: "Exact path or regex"
+										})
+									}),
+									/* @__PURE__ */ p(H, {
+										label: "Match as a regex",
+										checked: e.IsRegex,
+										onChange: (e) => {
+											n({ IsRegex: e });
+										}
+									}),
+									/* @__PURE__ */ p(ke, {
+										pattern: e.Pattern,
+										isRegex: e.IsRegex
+									}),
+									/* @__PURE__ */ m(z, {
+										label: "Destination root",
+										children: [/* @__PURE__ */ p(B, {
+											value: e.Dest,
+											onChange: (e) => {
+												n({ Dest: e });
+											},
+											placeholder: "Destination root"
+										}), /* @__PURE__ */ p(Ae, { value: e.Dest })]
+									})
+								] }),
+								addLabel: "Add path rule",
+								ordered: !0
+							})
+						] })]
+					}),
+					/* @__PURE__ */ p(U, {
+						title: "Sidecar files",
+						description: "Files sharing the primary's basename with one of these extensions move and rename with it; a target that already exists is left untouched, never overwritten. Captions Cove tracks always move regardless.",
+						children: /* @__PURE__ */ m(z, {
+							label: "Also move sidecar files with these extensions",
+							children: [/* @__PURE__ */ p(Ce, {
+								values: r.AssociatedExtensions,
+								onChange: (e) => {
+									R("AssociatedExtensions", e);
+								},
+								placeholder: "Add an extension, press Enter",
+								normalize: Zt,
+								onReject: (e) => !/^[a-z0-9]+$/.test(e),
+								onLiveChange: (e) => {
+									te(e);
+								}
+							}), (() => {
+								let e = le(Zt(ee));
+								return e ? /* @__PURE__ */ p(K, {
+									kind: "warning",
+									children: e
+								}) : null;
+							})()]
+						})
+					}),
+					/* @__PURE__ */ p("div", {
+						className: "rounded-xl border border-border bg-card p-4",
+						children: /* @__PURE__ */ p(H, {
+							label: "Delete the source folder when a move leaves it empty",
+							checked: r.RemoveEmptyFolder,
+							onChange: (e) => {
+								R("RemoveEmptyFolder", e);
+							},
+							helper: "Deletes a source folder only when a move empties it completely — never a non-empty folder or a root. Undo won't move the file back into a deleted folder; the file stays at its new location. Off by default."
+						})
+					})
+				]
+			}),
+			/* @__PURE__ */ p(Me, {
+				title: "Advanced",
+				hint: "Power-user controls — collapsed by default"
+			}),
+			/* @__PURE__ */ m("div", {
+				className: "space-y-3",
+				children: [
+					/* @__PURE__ */ m(Pe, {
 						title: "Clean up the name",
 						summary: "Illegal-character and space handling, case, ASCII",
-						children: [
-							/* @__PURE__ */ p(z, {
-								label: "Illegal-char replacement",
-								children: /* @__PURE__ */ p(Se, {
-									value: r.IllegalReplacement,
-									onChange: (e) => {
-										R("IllegalReplacement", e);
-									},
-									stripLabel: "Strip",
-									replaceLabel: "Replace with",
-									stripHelper: "Illegal characters are removed.",
-									replaceHelper: "Each illegal character becomes this.",
-									inputPlaceholder: "e.g. _"
+						children: [/* @__PURE__ */ m("div", {
+							className: "grid grid-cols-1 gap-4 md:grid-cols-2",
+							children: [
+								/* @__PURE__ */ p(z, {
+									label: "Illegal-char replacement",
+									children: /* @__PURE__ */ p(Se, {
+										value: r.IllegalReplacement,
+										onChange: (e) => {
+											R("IllegalReplacement", e);
+										},
+										stripLabel: "Strip",
+										replaceLabel: "Replace with",
+										stripHelper: "Illegal characters are removed.",
+										replaceHelper: "Each illegal character becomes this.",
+										inputPlaceholder: "e.g. _"
+									})
+								}),
+								/* @__PURE__ */ p(z, {
+									label: "Space replacement",
+									children: /* @__PURE__ */ p(Se, {
+										value: r.SpaceReplacement,
+										onChange: (e) => {
+											R("SpaceReplacement", e);
+										},
+										stripLabel: "Keep spaces",
+										replaceLabel: "Replace with",
+										stripHelper: "Spaces are left as-is.",
+										replaceHelper: "Each space becomes this.",
+										inputPlaceholder: "e.g. _ or ."
+									})
+								}),
+								/* @__PURE__ */ p(z, {
+									label: "Remove characters",
+									helper: "Characters to delete from the name, e.g. ,# — separate from illegal-character handling.",
+									children: /* @__PURE__ */ p(B, {
+										value: r.RemoveCharacters,
+										onChange: (e) => {
+											R("RemoveCharacters", e);
+										},
+										placeholder: "e.g. ,#"
+									})
+								}),
+								/* @__PURE__ */ p(z, {
+									label: "Case",
+									children: /* @__PURE__ */ p(V, {
+										value: r.Case,
+										onChange: (e) => {
+											R("Case", e);
+										},
+										options: Qt
+									})
 								})
-							}),
-							/* @__PURE__ */ p(z, {
-								label: "Space replacement",
-								children: /* @__PURE__ */ p(Se, {
-									value: r.SpaceReplacement,
-									onChange: (e) => {
-										R("SpaceReplacement", e);
-									},
-									stripLabel: "Keep spaces",
-									replaceLabel: "Replace with",
-									stripHelper: "Spaces are left as-is.",
-									replaceHelper: "Each space becomes this.",
-									inputPlaceholder: "e.g. _ or ."
-								})
-							}),
-							/* @__PURE__ */ p(z, {
-								label: "Remove characters",
-								helper: "Characters to delete from the name, e.g. ,# — separate from illegal-character handling.",
-								children: /* @__PURE__ */ p(B, {
-									value: r.RemoveCharacters,
-									onChange: (e) => {
-										R("RemoveCharacters", e);
-									},
-									placeholder: "e.g. ,#"
-								})
-							}),
-							/* @__PURE__ */ p(z, {
-								label: "Case",
-								children: /* @__PURE__ */ p(V, {
-									value: r.Case,
-									onChange: (e) => {
-										R("Case", e);
-									},
-									options: Jt
-								})
-							}),
-							/* @__PURE__ */ p(H, {
-								label: "ASCII transliterate",
-								checked: r.AsciiTransliterate,
-								onChange: (e) => {
-									R("AsciiTransliterate", e);
-								},
-								helper: "Convert accented characters to plain ASCII."
-							})
-						]
+							]
+						}), /* @__PURE__ */ p(H, {
+							label: "ASCII transliterate",
+							checked: r.AsciiTransliterate,
+							onChange: (e) => {
+								R("AsciiTransliterate", e);
+							},
+							helper: "Convert accented characters to plain ASCII."
+						})]
 					}),
-					/* @__PURE__ */ m(W, {
+					/* @__PURE__ */ m(Pe, {
 						title: "Length & collisions",
 						summary: "Length caps, what to drop when too long, duplicate suffix",
 						children: [
-							/* @__PURE__ */ p(z, {
-								label: "Filename max length",
-								children: /* @__PURE__ */ p(ye, {
-									value: r.FilenameMax,
-									min: 1,
-									onChange: (e) => {
-										R("FilenameMax", e);
-									}
-								})
-							}),
-							/* @__PURE__ */ p(z, {
-								label: "Full-path max length",
-								children: /* @__PURE__ */ p(ye, {
-									value: r.FullPathMax,
-									min: 1,
-									onChange: (e) => {
-										R("FullPathMax", e);
-									}
-								})
+							/* @__PURE__ */ m("div", {
+								className: "grid grid-cols-1 gap-4 md:grid-cols-2",
+								children: [/* @__PURE__ */ p(z, {
+									label: "Filename max length",
+									children: /* @__PURE__ */ p(ye, {
+										value: r.FilenameMax,
+										min: 1,
+										onChange: (e) => {
+											R("FilenameMax", e);
+										}
+									})
+								}), /* @__PURE__ */ p(z, {
+									label: "Full-path max length",
+									children: /* @__PURE__ */ p(ye, {
+										value: r.FullPathMax,
+										min: 1,
+										onChange: (e) => {
+											R("FullPathMax", e);
+										}
+									})
+								})]
 							}),
 							/* @__PURE__ */ m(z, {
 								label: "Drop order",
@@ -3123,13 +3273,13 @@ function un() {
 										placeholder: "Add field, press Enter"
 									}),
 									/* @__PURE__ */ p(Ee, {
-										tokens: Mt,
+										tokens: It,
 										values: r.DropOrder,
 										onAdd: (e) => {
 											R("DropOrder", r.DropOrder.includes(e) ? r.DropOrder : [...r.DropOrder, e]);
 										}
 									}),
-									/* @__PURE__ */ p(on, { values: r.DropOrder })
+									/* @__PURE__ */ p(un, { values: r.DropOrder })
 								]
 							}),
 							/* @__PURE__ */ p(z, {
@@ -3140,20 +3290,20 @@ function un() {
 									onChange: (e) => {
 										R("DuplicateSuffixFormat", e);
 									},
-									options: rn,
+									options: cn,
 									customPlaceholder: " ({n})"
 								})
 							})
 						]
 					}),
-					/* @__PURE__ */ m(W, {
+					/* @__PURE__ */ m(Pe, {
 						title: "Excludes",
 						summary: "Skip items by tag, studio, or source path — evaluated before any routing",
 						children: [
 							/* @__PURE__ */ p(U, {
 								title: "Exclude by tag",
 								description: "An item carrying any of these tags is skipped — never renamed, never moved. Evaluated before any routing rule.",
-								children: /* @__PURE__ */ p(ze, {
+								children: /* @__PURE__ */ p(Ue, {
 									label: "Tags",
 									values: r.ExcludeTags,
 									onChange: (e) => {
@@ -3165,7 +3315,7 @@ function un() {
 							/* @__PURE__ */ p(U, {
 								title: "Exclude by studio",
 								description: "An item under any of these studios — or under a child of one — is skipped entirely. Evaluated before any routing rule.",
-								children: /* @__PURE__ */ p(Re, {
+								children: /* @__PURE__ */ p(He, {
 									label: "Studios",
 									values: r.ExcludeStudioIds,
 									onChange: (e) => {
@@ -3215,9 +3365,9 @@ function un() {
 							})
 						]
 					}),
-					/* @__PURE__ */ m(W, {
-						title: "Field rewriting",
-						summary: "Literal token replacements, article stripping, name shaping, and per-token whitespace",
+					/* @__PURE__ */ m(Pe, {
+						title: "Field rewriting & name shaping",
+						summary: "Literal token replacements, article stripping, and name shaping",
 						children: [
 							/* @__PURE__ */ p(U, {
 								title: "Per-token replacements",
@@ -3228,12 +3378,12 @@ function un() {
 										R("FieldReplacers", e);
 									},
 									makeRow: () => ({
-										TargetToken: $t[0].value,
+										TargetToken: rn[0].value,
 										Find: "",
 										Replace: ""
 									}),
 									renderRow: (e, t, n) => {
-										let r = $t.some((t) => t.value === e.TargetToken) ? $t : [...$t, {
+										let r = rn.some((t) => t.value === e.TargetToken) ? rn : [...rn, {
 											value: e.TargetToken,
 											label: `${e.TargetToken} (unknown)`
 										}];
@@ -3294,34 +3444,29 @@ function un() {
 									})
 								})]
 							}),
-							/* @__PURE__ */ m(U, {
-								title: "Name shaping",
-								children: [
-									/* @__PURE__ */ p(H, {
-										label: "Squeeze studio names",
-										checked: r.SqueezeStudioNames,
-										onChange: (e) => {
-											R("SqueezeStudioNames", e);
-										},
-										helper: "Removes all spaces from the studio value so one studio renders to one stable folder name."
-									}),
-									/* @__PURE__ */ p(H, {
-										label: "Drop a performer already in the title",
-										checked: r.PreventTitlePerformer,
-										onChange: (e) => {
-											R("PreventTitlePerformer", e);
-										},
-										helper: "Drops a performer whose name already appears as a whole word in the title."
-									}),
-									/* @__PURE__ */ p(H, {
-										label: "Collapse repeated folder segments",
-										checked: r.PreventConsecutiveSegments,
-										onChange: (e) => {
-											R("PreventConsecutiveSegments", e);
-										},
-										helper: "Collapses consecutive duplicate folder path segments to one — affects the folder path, not the filename."
-									})
-								]
+							/* @__PURE__ */ p(H, {
+								label: "Squeeze studio names",
+								checked: r.SqueezeStudioNames,
+								onChange: (e) => {
+									R("SqueezeStudioNames", e);
+								},
+								helper: "Removes all spaces from the studio value so one studio renders to one stable folder name."
+							}),
+							/* @__PURE__ */ p(H, {
+								label: "Drop a performer already in the title",
+								checked: r.PreventTitlePerformer,
+								onChange: (e) => {
+									R("PreventTitlePerformer", e);
+								},
+								helper: "Drops a performer whose name already appears as a whole word in the title."
+							}),
+							/* @__PURE__ */ p(H, {
+								label: "Collapse repeated folder segments",
+								checked: r.PreventConsecutiveSegments,
+								onChange: (e) => {
+									R("PreventConsecutiveSegments", e);
+								},
+								helper: "Collapses consecutive duplicate folder path segments to one — affects the folder path, not the filename."
 							})
 						]
 					})
@@ -3329,14 +3474,14 @@ function un() {
 			}),
 			/* @__PURE__ */ p("div", {
 				id: "rename-undo-section",
-				children: /* @__PURE__ */ p(dt, { refreshKey: 0 })
+				children: /* @__PURE__ */ p(ht, { refreshKey: 0 })
 			}),
-			/* @__PURE__ */ p(cn, {
-				dirty: N,
+			/* @__PURE__ */ p(fn, {
+				dirty: P,
 				saving: y,
 				saveError: C,
 				savedFlash: T,
-				canSave: de,
+				canSave: ue,
 				onSave: () => void ve(),
 				onDiscard: () => {
 					s(c);
@@ -3347,28 +3492,28 @@ function un() {
 }
 //#endregion
 //#region src/RenamePage.tsx
-function dn() {
-	return /* @__PURE__ */ p(un, {});
+function hn() {
+	return /* @__PURE__ */ p(mn, {});
 }
 //#endregion
 //#region src/preview.ts
-function fn(e) {
+function gn(e) {
 	if (!e) return e;
 	let t = Math.max(e.lastIndexOf("/"), e.lastIndexOf("\\"));
 	return t >= 0 ? e.slice(t + 1) : e;
 }
-var pn = 5;
-function mn(e) {
+var _n = 5;
+function vn(e) {
 	let t = e / (1024 * 1024 * 1024);
 	return t >= 10 ? `${Math.round(t)} GB` : `${t.toFixed(1)} GB`;
 }
-function hn(e) {
-	return (e?.volumePairs ?? []).map((e) => `↪ ${e.count} item${e.count === 1 ? "" : "s"} (${mn(e.bytes)}) move from ${e.from} to ${e.to}.`);
+function yn(e) {
+	return (e?.volumePairs ?? []).map((e) => `↪ ${e.count} item${e.count === 1 ? "" : "s"} (${vn(e.bytes)}) move from ${e.from} to ${e.to}.`);
 }
-function gn(e) {
+function bn(e) {
 	return e === "Heavy" ? "This is a LARGE cross-drive move — files will be COPIED across drives, which can take a while. Click OK only if you are sure; Cancel to stop. You can undo this afterwards." : e === "Standard" ? "This moves files across drives. Click OK to proceed, or Cancel to stop. You can undo this afterwards." : "Click OK to rename, or Cancel to stop. You can undo this afterwards.";
 }
-function _n(e, t) {
+function xn(e, t) {
 	let n = e.filter((e) => e.status === "Renamer" || e.status === "Move"), r = n.length, i = e.length, a = e.filter((e) => e.status === "SkipGated").length, o = e.filter((e) => e.status === "SkipCollision").length, s = e.filter((e) => e.status === "SkipLocked").length, c = a + o + s, l = n.filter((e) => e.suffixed).length, u = n.filter((e) => e.sanitized).length, d = [];
 	if (c > 0) {
 		let e = [];
@@ -3378,14 +3523,14 @@ function _n(e, t) {
 		} else d.push(`⚠ ${c} skipped — ${e.join(", ")}.`);
 	}
 	u > 0 && d.push(`⚠ ${u} had illegal characters cleaned up.`), l > 0 && d.push(`⚠ ${l} got a number added to avoid a name clash (e.g. "name (1)").`);
-	let f = hn(t), p = d.length > 0 ? `${d.join("\n")}\n\n` : "", m = f.length > 0 ? `${f.join("\n")}\n\n` : "";
+	let f = yn(t), p = d.length > 0 ? `${d.join("\n")}\n\n` : "", m = f.length > 0 ? `${f.join("\n")}\n\n` : "";
 	if (r === 0) return {
 		text: `Nothing will be renamed — all ${i} selected item${i === 1 ? "" : "s"} are skipped or already named correctly.\n\n` + p + "Click OK to dismiss.",
 		willRenameCount: 0
 	};
-	let h = r === i ? `Rename ${r} selected item${r === 1 ? "" : "s"}?` : `Rename ${r} of ${i} selected items?`, g = n.slice(0, pn).map((e) => `  ${fn(e.oldFullPath)}  →  ${e.newBasename || fn(e.newFullPath)}`), _ = r - g.length;
+	let h = r === i ? `Rename ${r} selected item${r === 1 ? "" : "s"}?` : `Rename ${r} of ${i} selected items?`, g = n.slice(0, _n).map((e) => `  ${gn(e.oldFullPath)}  →  ${e.newBasename || gn(e.newFullPath)}`), _ = r - g.length;
 	_ > 0 && g.push(`  … and ${_} more.`);
-	let v = gn(t?.confirmLevel ?? "Light");
+	let v = bn(t?.confirmLevel ?? "Light");
 	return {
 		text: `${h}\n\n` + p + m + `Examples:\n${g.join("\n")}\n\n` + v,
 		willRenameCount: r
@@ -3393,18 +3538,18 @@ function _n(e, t) {
 }
 //#endregion
 //#region src/renameSelected.ts
-var vn = "com.alextomas955.renamer", yn = `/extensions/${vn}/preview`, bn = `/extensions/${vn}/renamer`;
-async function xn(e, t) {
+var Sn = "com.alextomas955.renamer", Cn = `/extensions/${Sn}/preview`, wn = `/extensions/${Sn}/renamer`;
+async function Tn(e, t) {
 	let n = JSON.stringify({
 		EntityType: t.entityType,
 		EntityIds: t.entityIds
-	}), r = await _(yn, {
+	}), r = await _(Cn, {
 		method: "POST",
 		body: n
-	}), { text: i, willRenameCount: a } = _n(r.items, r.summary);
+	}), { text: i, willRenameCount: a } = xn(r.items, r.summary);
 	if (!window.confirm(i) || a === 0) return { cancelled: !0 };
 	try {
-		await _(bn, {
+		await _(wn, {
 			method: "POST",
 			body: n
 		});
@@ -3415,7 +3560,7 @@ async function xn(e, t) {
 }
 //#endregion
 //#region src/index.ts
-var Sn = h({ components: { RenamerPage: dn } });
-Sn.actionHandlers = { renamerSelected: xn };
+var En = h({ components: { RenamerPage: hn } });
+En.actionHandlers = { renamerSelected: Tn };
 //#endregion
-export { Sn as default };
+export { En as default };

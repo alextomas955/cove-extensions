@@ -126,6 +126,15 @@ jobs:
         if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
         run: dotnet build ${{ matrix.extension.projectPath }} -c Release --no-restore -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
 
+      # Unit tier only — this bare runner has no ../cove sibling checkout, so the test project's
+      # cove-referencing sources are Compile-Removed (see Renamer.Tests.csproj's cove-absent
+      # group). Runs before Publish so a test failure blocks packaging, matching
+      # windows-build-test's build-then-test order in lint.yml. Optional: an extension without a
+      # testProjectPath entry in catalog.json skips this step (manifestOnly-style opt-out).
+      - name: Test (unit tier)
+        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly && matrix.extension.testProjectPath != ''
+        run: dotnet test ${{ matrix.extension.testProjectPath }} -c Release -p:UseLocalCoveSource=false
+
       - name: Publish
         if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
         run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o artifacts/${{ matrix.extension.name }} --no-build -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
@@ -219,10 +228,16 @@ jobs:
           # bundle bytes and make the stale-bundle gate flaky, so pin the exact version.
           node-version: '24.11.0'
 
+      # `npm install`, not `npm ci`: the root package.json's npm workspaces (added for the shared
+      # tests/e2e harness) make npm refuse `npm ci` in this nested, non-workspace UI package
+      # (Renamer.Ui is deliberately standalone — offline vendored @cove/extension-sdk tarball, its
+      # own lockfile, its own Dependabot entry). `npm install` on an in-sync lockfile is a no-op;
+      # UI reproducibility is still enforced by the Stale-bundle gate below (dist/index.mjs must
+      # rebuild byte-identically) plus the committed lockfile.
       - name: Install frontend deps (offline, vendored SDK)
         if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
         working-directory: ${{ matrix.extension.uiPath }}
-        run: npm ci
+        run: npm install
 
       - name: Stamp source package.json version
         if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
@@ -286,7 +301,7 @@ jobs:
   # ---- E2E: rebuilds each extension (a separate job from build/matrix.extension — GitHub Actions
   # jobs don't share a filesystem, so this job publishes its own fresh copy rather than trying to
   # reuse the build job's disk state) and installs the result into a containerized, official Cove
-  # instance via extensions/e2e's shared harness, then runs its Playwright suite against it.
+  # instance via tests/e2e's shared harness, then runs its Playwright suite against it.
   # Extensions without their own e2e suite are skipped via the catalog's optional
   # `e2ePath`/`e2eProject` fields (absent = no suite yet, not a failure).
   e2e:
@@ -331,16 +346,21 @@ jobs:
         with:
           node-version: '24.11.0'
 
+      # `npm install` (not `npm ci`) for the same reason as the build job's UI step: npm refuses
+      # `npm ci` in this nested non-workspace UI package once a root workspace exists. No-op on an
+      # in-sync lockfile.
       - name: Build extension UI bundle
         if: steps.check.outputs.has_suite == 'true' && matrix.extension.uiPath != ''
         working-directory: ${{ matrix.extension.uiPath }}
         run: |
-          npm ci
+          npm install
           npm run build
 
+      # npm ci runs at the REPO ROOT so the workspace symlinks (node_modules/@cove-extensions/e2e ->
+      # tests/e2e) + the single hoisted @playwright/test are established before the suite runs. A
+      # `cd tests/e2e && npm ci` would ignore the root lockfile/workspaces and is wrong now.
       - name: Install harness dependencies
         if: steps.check.outputs.has_suite == 'true'
-        working-directory: extensions/e2e
         run: |
           npm ci
           npx playwright install --with-deps chromium
@@ -348,7 +368,7 @@ jobs:
       - name: Run E2E suite
         id: e2e
         if: steps.check.outputs.has_suite == 'true'
-        working-directory: extensions/e2e
+        working-directory: tests/e2e
         run: npx playwright test --project=${{ matrix.extension.e2eProject }}
 
       # The `list` reporter's stdout only ever shows pass/fail + duration, never the actual
@@ -357,7 +377,7 @@ jobs:
       # log instead so a CI failure is diagnosable from the log alone (CI-02's own requirement).
       - name: Dump E2E failure context
         if: steps.check.outputs.has_suite == 'true' && failure() && steps.e2e.outcome == 'failure'
-        working-directory: extensions/e2e
+        working-directory: tests/e2e
         shell: bash
         run: |
           for f in $(find test-results -name "error-context.md" 2>/dev/null); do
@@ -371,7 +391,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.extension.id }}-e2e-report
-          path: extensions/e2e/playwright-report/
+          path: tests/e2e/playwright-report/
           retention-days: 7
 
   release:
@@ -391,57 +411,6 @@ jobs:
           files: '*.zip'
           generate_release_notes: true
 
-  # ---- C# style + analyzer gate (monorepo-wide, run once against the shared .slnx). This job
-  # assumes every extension's projects are added to the root Renamer.slnx as a process convention
-  # (RESEARCH.md's Open Decision #3) — a future extension not added to the .slnx would silently
-  # skip this gate. ----
-  csharp-format:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-      # Formatting/style check — reads root .editorconfig.
-      - name: dotnet format (verify)
-        run: dotnet format Renamer.slnx --verify-no-changes --severity warn
-      # Analyzer gate: a Release build with TreatWarningsAsErrors=true (root Directory.Build.props)
-      # fails on any CA/IDE warning.
-      - name: Build with analyzers (warnings = errors)
-        run: dotnet build Renamer.slnx -c Release -p:UseLocalCoveSource=false
-
-  # ---- Windows build + unit-test signal (monorepo-wide, hardcodes today's single Renamer project
-  # path — same convention as csharp-format above). Scoped to .NET build/test only, NOT the full
-  # containerized E2E suite: GitHub-hosted windows-latest runners' Docker daemon is fixed to Windows
-  # containers mode, with no supported way to switch to Linux containers (would need nested
-  # virtualization, which the standard hosted fleet does not enable) — so Testcontainers'
-  # DockerComposeEnvironment, which starts Linux-only images (the Cove app image + Postgres), cannot
-  # run there at all, on any hosted Windows runner, not just as a config issue. This job instead
-  # verifies the actual, achievable Windows signal: the solution builds and its unit tier
-  # (the pure-core tests that don't need a live Cove checkout — see Renamer.Tests.csproj's
-  # cove-absent Compile-Remove group) passes on Windows. A full Windows-hosted E2E run would need a
-  # self-hosted Windows runner with Docker Desktop configured for Linux containers, out of scope here. ----
-  windows-build-test:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-      - name: Build
-        run: dotnet build Renamer.slnx -c Release -p:UseLocalCoveSource=false
-      - name: Test (unit tier)
-        run: dotnet test extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj -c Release --no-build
-
-  # ---- Markdown docs (repo-wide). Scoped to README.md only — no CHANGELOG.md/docs/**/*.md exist
-  # yet at the monorepo root; Phase 13 (DOC-04) will expand both this glob and the root docs. ----
-  markdown-lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: markdownlint
-        uses: DavidAnson/markdownlint-cli2-action@v23
-        with:
-          globs: 'README.md'
+  # csharp-format, windows-build-test, and markdown-lint moved to lint.yml — none of them have a
+  # `needs:` link into this file's validate/build/e2e/release chain, so they gained nothing from
+  # co-location and were missing main-push coverage that lint.yml now has (see lint.yml's header).

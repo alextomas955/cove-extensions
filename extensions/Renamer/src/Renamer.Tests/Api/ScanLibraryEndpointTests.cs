@@ -83,7 +83,7 @@ public sealed class ScanLibraryEndpointTests
         var jobs = new RecordingJobService();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-        var result = ext.ScanLibraryEnqueue(principal, jobs);
+        var result = ext.ScanLibraryEnqueue(null, principal, jobs);
 
         Assert.Equal(202, StatusOf(result));
         Assert.Single(jobs.Enqueued);
@@ -96,7 +96,7 @@ public sealed class ScanLibraryEndpointTests
         var jobs = new RecordingJobService();
         var principal = FakePrincipalAccessor.None();
 
-        var result = ext.ScanLibraryEnqueue(principal, jobs);
+        var result = ext.ScanLibraryEnqueue(null, principal, jobs);
 
         Assert.Equal(403, StatusOf(result));
         Assert.Empty(jobs.Enqueued);
@@ -120,7 +120,7 @@ public sealed class ScanLibraryEndpointTests
 
             var progress = new FakeJobProgress();
             await ext.RunScanLibraryJobAsync(
-                [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio], progress, default);
+                [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio], null, progress, default);
 
             var json = await store.GetAsync("last-scan-result");
             Assert.False(string.IsNullOrEmpty(json));
@@ -163,7 +163,7 @@ public sealed class ScanLibraryEndpointTests
 
             var progress = new FakeJobProgress();
             // Caller holds videos.read but NOT images.read — only Video is in the captured readable set.
-            await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], progress, default);
+            await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], null, progress, default);
 
             var json = await store.GetAsync("last-scan-result");
             var items = JsonSerializer.Deserialize<JsonElement[]>(json!)!;
@@ -171,6 +171,57 @@ public sealed class ScanLibraryEndpointTests
             Assert.Single(items);
             Assert.Equal(videoFileId, items[0].GetProperty("fileId").GetInt32());
             Assert.Equal("Video", items[0].GetProperty("kind").GetString());
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ScanLibraryEnqueue_WithOptionsBody_Returns202_AndEnqueues()
+    {
+        var (ext, _) = await NewExtensionAsync();
+        var jobs = new RecordingJobService();
+        var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
+
+        var body = new global::Renamer.Api.ScanLibraryRequest(
+            JsonSerializer.Serialize(new RenamerOptions { FilenameTemplate = "$title" }, RenamerOptions.JsonOptions));
+        var result = ext.ScanLibraryEnqueue(body, principal, jobs);
+
+        Assert.Equal(202, StatusOf(result));
+        Assert.Single(jobs.Enqueued);
+    }
+
+    [Fact]
+    public async Task RunScanLibraryJobAsync_WithOverrideOptions_UsesThemOverSavedOptions()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            var (_, _, videoFileId) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One");
+
+            // Saved options template is "$title" (from NewExtensionAsync). The override below uses a
+            // DIFFERENT template with a literal prefix, so a scan that honors the override produces a
+            // visibly different new name than a scan of the saved options would.
+            var (ext, _) = await NewExtensionAsync();
+            await InitializeOverSharedConnectionAsync(ext, conn);
+
+            var overrideOptions = new RenamerOptions { FilenameTemplate = "DRYRUN - $title" };
+
+            var progress = new FakeJobProgress();
+            await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], overrideOptions, progress, default);
+
+            var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
+            var result = await ext.ScanLibraryResultAsync(principal, default);
+            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Api.ScanItem[]>>(result);
+            var item = Assert.Single(ok.Value!);
+
+            Assert.Equal(videoFileId, item.FileId);
+            // The scanned new basename reflects the OVERRIDE template's literal prefix, proving the
+            // dry run previewed the unsaved options rather than the saved "$title".
+            Assert.StartsWith("DRYRUN - One", item.NewBasename);
         }
         finally
         {
@@ -213,7 +264,7 @@ public sealed class ScanLibraryEndpointTests
             await InitializeOverSharedConnectionAsync(ext, conn);
 
             var progress = new FakeJobProgress();
-            await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], progress, default);
+            await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], null, progress, default);
 
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
             var result = await ext.ScanLibraryResultAsync(principal, default);
