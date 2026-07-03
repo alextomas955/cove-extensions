@@ -1,8 +1,8 @@
 // Phase 63 — Whole-Library Job Flow Coverage. Covers the v1.13 scan-library/renamer-library job
 // pair (whole-library Dry Run + Rename All), the first job-polling UI Renamer shipped.
 import { test as base, expect, pollJob, pollUntil } from '../lib/renamer-fixtures.mjs';
-import { startHarness } from '../../../e2e/lib/harness.mjs';
-import { seedVideo } from '../../../e2e/lib/seed-media.mjs';
+import { startHarness } from '@cove-extensions/e2e/harness';
+import { seedVideo } from '@cove-extensions/e2e/seed-media';
 import { RENAMER_EXTENSION } from '../lib/renamer-fixtures.mjs';
 
 const EXTENSION_ID = 'com.alextomas955.renamer';

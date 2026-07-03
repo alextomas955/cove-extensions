@@ -13,7 +13,7 @@
 # produces (cove/docker/README.md) — only the delivery mechanism differs.
 #
 # Not driven directly via `docker compose` CLI — `lib/harness.mjs`'s `startHarness()` (Testcontainers'
-# DockerComposeEnvironment) is the actual entry point; see extensions/e2e/README.md.
+# DockerComposeEnvironment) is the actual entry point; see tests/e2e/README.md.
 
 services:
   db:

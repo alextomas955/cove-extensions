@@ -10,8 +10,8 @@
 // under parallelism, which matters more here than in the read-mostly/uniquely-seeded-data tests
 // elsewhere in this suite. Playwright also forbids re-registering an existing fixture at a
 // different scope via .extend(), so this can't just be a rescoped `harness`.
-import { test as base, expect } from '../../../e2e/lib/fixtures.mjs';
-import { startHarness } from '../../../e2e/lib/harness.mjs';
+import { test as base, expect } from '@cove-extensions/e2e';
+import { startHarness } from '@cove-extensions/e2e/harness';
 import { RENAMER_EXTENSION } from '../lib/renamer-fixtures.mjs';
 
 const EXTENSION_ID = 'com.alextomas955.renamer';

@@ -6,10 +6,10 @@
 // shared per-worker harness: AutoRenamerOnUpdate is a global extension setting that would leak
 // into every other test sharing that worker's instance once enabled, silently changing their
 // behavior (e.g. the collision test relies on the default template/no-auto-rename state).
-import { test as base, expect } from '../../../e2e/lib/fixtures.mjs';
-import { startHarness } from '../../../e2e/lib/harness.mjs';
-import { seedVideo } from '../../../e2e/lib/seed-media.mjs';
-import { pollUntil } from '../../../e2e/lib/poll.mjs';
+import { test as base, expect } from '@cove-extensions/e2e';
+import { startHarness } from '@cove-extensions/e2e/harness';
+import { seedVideo } from '@cove-extensions/e2e/seed-media';
+import { pollUntil } from '@cove-extensions/e2e/poll';
 import { RENAMER_EXTENSION } from '../lib/renamer-fixtures.mjs';
 import { RenamerSettingsPage } from '../lib/pages/renamer-settings-page.mjs';
 import { VideoDetailPage } from '../lib/pages/video-detail-page.mjs';
