@@ -6,7 +6,7 @@
   "description": "RenameSettingsPanel — the Cove Renamer extension's settings + live-preview frontend (Vite library bundle → index.mjs).",
   "license": "AGPL-3.0",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && npx @tailwindcss/cli -i src/index.css -o dist/index.css --minify",
     "typecheck": "tsc --noEmit",
     "check-classes": "node scripts/check-classes.cjs",
     "check-primitives-logic": "node scripts/check-primitives-logic.mjs",
@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@tailwindcss/cli": "^4",
     "@types/node": "26.1.0",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
@@ -38,6 +39,7 @@
     "prettier": "3.9.4",
     "react": "19.2.7",
     "react-dom": "19.2.7",
+    "tailwindcss": "^4",
     "typescript": "6.0.3",
     "typescript-eslint": "8.62.1",
     "vite": "8.1.3"

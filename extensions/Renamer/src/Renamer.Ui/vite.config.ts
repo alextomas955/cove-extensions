@@ -31,8 +31,10 @@ export default defineConfig({
         "lucide-react",
       ],
     },
-    // No CSS bundle: the panel styles exclusively via the host's already-emitted
-    // Tailwind semantic utilities, so the extension ships no stylesheet of its own.
+    // CSS is emitted by the separate `@tailwindcss/cli` step in the build script into
+    // dist/index.css, not by Vite. `cssCodeSplit: false` is retained because Vite itself
+    // produces no stylesheet here (lib mode with no imported CSS), so this only affirms that
+    // Vite's output stays a single `index.mjs`.
     cssCodeSplit: false,
   },
 });
