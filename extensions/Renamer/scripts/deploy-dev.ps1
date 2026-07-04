@@ -16,11 +16,13 @@
                     Cove.Sdk.targets' CoveHostProvidedAssemblies. This empirically proves the
                     Cove.Sdk reference stripped the host closure. Also asserts Renamer.dll IS present.
 
-      2b. FRONTEND BUILD  Build the src/Renamer.Ui Vite library bundle to dist/index.mjs and
-                    assert it exists. `npm install` runs only when node_modules is absent (keeps the
-                    dev loop fast). index.mjs is a UI asset, NOT a .NET assembly, so it is exempt from
-                    the host-assembly strip-verify denylist and is copied as a separate explicit
-                    Copy-Item in the deploy step. No CSS bundle is shipped (host-Tailwind path).
+      2b. FRONTEND BUILD  Build the src/Renamer.Ui Vite library bundle to dist/index.mjs and its
+                    own scoped dist/index.css (the standalone @tailwindcss/cli step in `npm run
+                    build`), and assert both exist. `npm install` runs only when node_modules is
+                    absent (keeps the dev loop fast). Both are UI assets, NOT .NET assemblies, so
+                    they are exempt from the host-assembly strip-verify denylist and are copied as
+                    separate explicit Copy-Items in the deploy step. The extension ships its own
+                    dist/index.css (declared via the manifest's cssBundle field).
 
       3. DEPLOY  Resolve the Cove data root (COVE_HOME if set, else %LOCALAPPDATA%\cove),
                     target the FIXED subdir <root>\extensions\com.alextomas955.renamer (never an
@@ -90,6 +92,7 @@ $Csproj        = Join-Path $ExtensionRoot 'src/Renamer/Renamer.csproj'
 $PublishDir    = Join-Path $ExtensionRoot 'artifacts/publish'
 $UiDir         = Join-Path $ExtensionRoot 'src/Renamer.Ui'
 $UiBundle      = Join-Path $UiDir 'dist/index.mjs'
+$UiCssBundle   = Join-Path $UiDir 'dist/index.css'
 
 if (-not (Test-Path $Csproj)) {
     throw "Cannot find project at $Csproj"
@@ -202,6 +205,13 @@ if (Test-Path $UiPackageJson) {
               "Check src/Renamer.Ui/vite.config.ts (lib mode, fileName()=>'index.mjs')."
     }
     Write-Host "    PASS — bundle built: $UiBundle ($([math]::Round((Get-Item $UiBundle).Length / 1KB, 1)) KB)" -ForegroundColor Green
+
+    if (-not (Test-Path $UiCssBundle)) {
+        throw "Frontend build completed but $UiCssBundle is missing — the stylesheet would 404 and the panel " +
+              "would render unstyled. Refusing to deploy. Check the '@tailwindcss/cli' step in " +
+              "src/Renamer.Ui/package.json's 'build' script (it emits dist/index.css)."
+    }
+    Write-Host "    PASS — CSS bundle built: $UiCssBundle ($([math]::Round((Get-Item $UiCssBundle).Length / 1KB, 1)) KB)" -ForegroundColor Green
 } else {
     throw "Expected $UiPackageJson but it is missing — cannot build the frontend bundle."
 }
@@ -228,9 +238,11 @@ if (Test-Path $Target) {
 
 Copy-Item -Path (Join-Path $PublishDir '*') -Destination $Target -Recurse -Force
 
-# Copy the frontend bundle separately (UI asset, exempt from the strip-verify set). The manifest's
-# jsBundle="index.mjs" is relative to this dir, so it must land at <Target>\index.mjs. No CSS bundle.
+# Copy the frontend bundles separately (UI assets, exempt from the strip-verify set). The manifest's
+# jsBundle="index.mjs" / cssBundle="index.css" are relative to this dir, so they must land at
+# <Target>\index.mjs and <Target>\index.css.
 Copy-Item -Path $UiBundle -Destination $Target -Force
+Copy-Item -Path $UiCssBundle -Destination $Target -Force
 
 Write-Host "    Deployed files:" -ForegroundColor Green
 Get-ChildItem -Path $Target -File | Sort-Object Name | ForEach-Object {
