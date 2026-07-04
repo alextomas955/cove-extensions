@@ -9,6 +9,7 @@
   "minCoveVersion": "0.7.1",
   "entryDll": "Renamer.dll",
   "jsBundle": "index.mjs",
+  "cssBundle": "index.css",
   "permissions": {
     "network": [],
     "scraperRuntime": [],

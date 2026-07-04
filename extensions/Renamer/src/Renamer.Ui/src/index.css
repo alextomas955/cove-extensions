@@ -1,0 +1,23 @@
+/* Tailwind CLI input for the extension's own scoped stylesheet.
+ *
+ * Emits ONLY the utilities this panel uses (scanned from this file's own dir, `@source "."`,
+ * which is the src/ tree — @source paths resolve relative to the CSS file, not the cwd), with
+ * theme-color utilities
+ * compiling to var(--color-*) so the host's live theme values flow through at runtime. It
+ * deliberately does NOT `@import "tailwindcss"`: the meta-import expands to Preflight (a base
+ * reset) which, injected into the host <head>, would restyle host elements outside the extension.
+ * Selective imports omit preflight.css so no second reset ships.
+ *
+ * The imports carry NO `layer(...)` modifier: this stylesheet is injected as a standalone <link>
+ * into the host <head>, not composed into a consumer's own @layer cascade, so an explicit
+ * `@import ... layer(theme)` would only make the CLI emit an invalid `@media layer(theme){...}`
+ * wrapper that browsers drop entirely (the utilities would silently never apply — the exact
+ * failure this phase fixes). Plain unwrapped rules apply correctly on their own.
+ *
+ * No `@reference` line: the panel styles via utility class names in JSX only (no @apply/@variant
+ * against host-only tokens), so the theme import alone supplies --color-* resolution and no host
+ * CSS path is needed at build time.
+ */
+@import "tailwindcss/theme.css" source(none);
+@import "tailwindcss/utilities.css" source(none);
+@source ".";
