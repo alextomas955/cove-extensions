@@ -244,7 +244,7 @@ public sealed record RenamerOptions
     public string FolderTemplate { get; init; } = "";        // empty = no folder move
     public string DateFormat { get; init; } = "yyyy-MM-dd";
     public string DurationFormat { get; init; } = @"hh\-mm\-ss";
-    public MultiValueOptions Performers { get; init; } = new() { Separator = ", " };
+    public MultiValueOptions Performers { get; init; } = new() { Separator = " " };
     public MultiValueOptions Tags { get; init; } = new() { Separator = " " };
     public string IllegalReplacement { get; init; } = "";    // "" = strip
     public string SpaceReplacement { get; init; } = "";      // "" = keep spaces
@@ -256,7 +256,7 @@ public sealed record RenamerOptions
     /// char that is both listed and OS-illegal is removed rather than first becoming the
     /// <see cref="IllegalReplacement"/>. Not a regex (literal membership, ReDoS-free). Empty = no-op.
     /// </summary>
-    public string RemoveCharacters { get; init; } = "";    // "" = remove nothing
+    public string RemoveCharacters { get; init; } = ",#";  // default strips comma + hash; "" = remove nothing
 
     /// <summary>
     /// Fallback: when an item has no title, derive <c>$title</c> from the file's basename
