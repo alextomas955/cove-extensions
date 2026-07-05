@@ -1130,21 +1130,13 @@ export function GroupCard({
 }
 
 /**
- * A small accent-tinted pill, used for the Essentials "Essentials" header tag and the token-settings
- * `$token` badges. `mono` renders the label monospaced (the `$token` case); the plain case is the
- * short uppercase tag. Host-compiled classes only.
+ * A small accent-tinted pill, used for the token-settings `$token` badges. `mono` renders the
+ * label monospaced (the `$token` case); the plain case is the short uppercase tag. Host-compiled
+ * classes only.
  */
-export function Badge({
-  children,
-  mono = false,
-  solid = false,
-}: {
-  children: ReactNode;
-  mono?: boolean;
-  solid?: boolean;
-}) {
+export function Badge({ children, mono = false }: { children: ReactNode; mono?: boolean }) {
   const base = "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold";
-  const color = solid ? "bg-accent text-white" : "border border-accent/40 bg-accent/15 text-accent";
+  const color = "border border-accent/40 bg-accent/15 text-accent";
   return (
     <span className={`${base} ${color} ${mono ? "font-mono" : "uppercase tracking-wider"}`}>
       {children}
