@@ -1,12 +1,12 @@
 # Adding an Extension's E2E Suite
 
-The shared end-to-end harness lives at [`tests/e2e/`](../tests/e2e/) and is published as the
+The shared end-to-end harness lives at [`tests/e2e/`](https://github.com/alextomas955/cove-extensions/tree/main/tests/e2e) and is published as the
 npm-workspace package `@cove-extensions/e2e`. Every extension's own E2E suite imports it **by name**
 — there is no `../../../e2e/...` relative-path archaeology and no hand-rolled repo-root math. Adding
 a new extension's suite is three steps.
 
 Renamer is the reference implementation — copy its shape from
-[`extensions/Renamer/e2e/`](../extensions/Renamer/e2e/).
+[`extensions/Renamer/e2e/`](https://github.com/alextomas955/cove-extensions/tree/main/extensions/Renamer/e2e).
 
 ## Prerequisites
 
@@ -60,13 +60,13 @@ export { expect };
 ```
 
 **`tests/*.spec.mjs`** — your actual tests. Start from
-[`tests/e2e/tests/template.spec.mjs`](../tests/e2e/tests/template.spec.mjs) (change its imports from
+[`tests/e2e/tests/template.spec.mjs`](https://github.com/alextomas955/cove-extensions/blob/main/tests/e2e/tests/template.spec.mjs) (change its imports from
 `../lib/...` to `@cove-extensions/e2e` when you copy it out of the harness), or import your own
 `../lib/<yourext>-fixtures.mjs` for the pre-wired `test`.
 
 ## Step 2 — Register the Playwright project
 
-Add one entry to [`tests/e2e/playwright.config.mjs`](../tests/e2e/playwright.config.mjs)'s
+Add one entry to [`tests/e2e/playwright.config.mjs`](https://github.com/alextomas955/cove-extensions/blob/main/tests/e2e/playwright.config.mjs)'s
 `projects` array, pointing `testDir` at your extension's co-located tests (the config lives at
 `tests/e2e/`, so it hops up two levels then into `extensions/`):
 
@@ -80,7 +80,7 @@ Add one entry to [`tests/e2e/playwright.config.mjs`](../tests/e2e/playwright.con
 ## Step 3 — Register in the catalog + install
 
 Add `e2ePath` and `e2eProject` to your extension's entry in
-[`extensions/catalog.json`](../extensions/catalog.json) (CI reads these to decide whether to run an
+[`extensions/catalog.json`](https://github.com/alextomas955/cove-extensions/blob/main/extensions/catalog.json) (CI reads these to decide whether to run an
 e2e suite and which `--project` to pass):
 
 ```json
@@ -102,5 +102,5 @@ npx playwright test --project=<yourext>
 CI runs the same command for every catalog entry that declares `e2ePath`/`e2eProject` — see
 `.github/workflows/build.yml`'s `e2e` job. There is no CI-only fork of the harness.
 
-See [`tests/e2e/README.md`](../tests/e2e/README.md) for the full harness reference (fixtures,
+See [`tests/e2e/README.md`](https://github.com/alextomas955/cove-extensions/blob/main/tests/e2e/README.md) for the full harness reference (fixtures,
 parallel execution, cleanup, implementation notes).
