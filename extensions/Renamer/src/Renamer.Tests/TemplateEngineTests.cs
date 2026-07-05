@@ -84,6 +84,62 @@ public class TemplateEngineTests
     }
 
     [Fact]
+    public void TrailingResolution_InTitle_NotDoubled_WhenTemplateAppendsResolution()
+    {
+        // The library-migration case: the title was imported from a filename that already ends in
+        // "[1080p]", and the template also appends { [$resolution]}. The trailing tag on the title is
+        // stripped so the rendered name carries the resolution exactly once.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Bootie From Beijing [1080p]",
+            ["height"] = "1080",
+        };
+        var r = Render("$title{ [$resolution]}", tokens);
+        Assert.Equal("Bootie From Beijing [1080p]", r.Filename);
+    }
+
+    [Fact]
+    public void TrailingResolution_InTitle_Kept_WhenTemplateHasNoResolution()
+    {
+        // No $resolution in the template → the title's own tag is the only resolution and must survive.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Bootie From Beijing [1080p]",
+            ["height"] = "1080",
+        };
+        var r = Render("$title", tokens);
+        Assert.Equal("Bootie From Beijing [1080p]", r.Filename);
+    }
+
+    [Fact]
+    public void TrailingResolution_MidTitle_Untouched()
+    {
+        // Only a tag at the very END is stripped; a resolution mentioned mid-title is left alone (and
+        // the real appended resolution still renders).
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Shot in [1080p] Glory",
+            ["height"] = "2160",
+        };
+        var r = Render("$title{ [$resolution]}", tokens);
+        Assert.Equal("Shot in [1080p] Glory [4K]", r.Filename);
+    }
+
+    [Fact]
+    public void TrailingResolution_DifferentLabelThanFile_StillStripped()
+    {
+        // The title's trailing tag is stripped regardless of whether it matches the file's real height:
+        // the template's derived $resolution (from height) is authoritative.
+        var tokens = new Dictionary<string, string>
+        {
+            ["title"] = "Old Rip [720p]",
+            ["height"] = "2160",
+        };
+        var r = Render("$title{ [$resolution]}", tokens);
+        Assert.Equal("Old Rip [4K]", r.Filename);
+    }
+
+    [Fact]
     public void CoreTokens_Performers_FromMultiValueSideInput()
     {
         var multi = new Dictionary<string, IReadOnlyList<string>>

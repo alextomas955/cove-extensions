@@ -9,6 +9,13 @@ namespace Renamer.Engine;
 public static class ResolutionLabel
 {
     /// <summary>
+    /// The lettered/numbered bucket labels <see cref="FromHeight"/> can emit (the raw-height fallback
+    /// for &lt;480 is excluded — it is a number, not a fixed label). Shared so the trailing-resolution
+    /// de-duplication in <see cref="TemplateEngine"/> stays in lockstep with the buckets defined here.
+    /// </summary>
+    public static readonly IReadOnlyList<string> KnownLabels = ["4K", "1440p", "1080p", "720p", "480p"];
+
+    /// <summary>
     /// Returns the bucket label for <paramref name="height"/>:
     /// ≥2160→<c>4K</c>, ≥1440→<c>1440p</c>, ≥1080→<c>1080p</c>, ≥720→<c>720p</c>,
     /// ≥480→<c>480p</c>; below 480 returns the raw height as a string. Boundary values
