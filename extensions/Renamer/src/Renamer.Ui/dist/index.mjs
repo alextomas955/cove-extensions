@@ -914,9 +914,9 @@ function U({ title: e, description: t, headerRight: n, children: r }) {
 		]
 	});
 }
-function je({ children: e, mono: t = !1, solid: n = !1 }) {
+function je({ children: e, mono: t = !1 }) {
 	return /* @__PURE__ */ p("span", {
-		className: `inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${n ? "bg-accent text-white" : "border border-accent/40 bg-accent/15 text-accent"} ${t ? "font-mono" : "uppercase tracking-wider"}`,
+		className: `inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold border border-accent/40 bg-accent/15 text-accent ${t ? "font-mono" : "uppercase tracking-wider"}`,
 		children: e
 	});
 }
@@ -2519,11 +2519,8 @@ function gn() {
 						kind: "muted",
 						children: "Using default settings — pick a preset or write a template, then save."
 					}) : null, /* @__PURE__ */ m(W, {
-						badge: /* @__PURE__ */ p(je, {
-							solid: !0,
-							children: "Essentials"
-						}),
-						description: "The three things you set most often — pick a preset or write your own, then choose where files go.",
+						title: "Filename & destination",
+						description: "Set how files are named and where they go — pick a preset or write your own template.",
 						children: [
 							/* @__PURE__ */ p(pn, { onApply: (e) => {
 								R("FilenameTemplate", e);

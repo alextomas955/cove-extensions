@@ -719,11 +719,11 @@ export function RenamePanelBody() {
   // pb-20 (5rem bottom clearance for the sticky save bar) is host-absent — inline it.
   return (
     <div className="space-y-6" style={dirty ? { paddingBottom: "5rem" } : undefined}>
-      {/* Two-pane shell, narrowed to Essentials only: the panel (2/3 via col-span-2) + the live
-        preview (1/3) sticky on lg+. The other 5 panels render as full-width siblings below this
-        grid, so the preview's sticky containing block is Essentials' own height, not the whole
-        page. Standard grid-cols-3 + col-span-2 only — the host Tailwind never compiles arbitrary
-        [..] values for this bundle (verified live; check-classes enforces). */}
+      {/* Two-pane shell, narrowed to the Filename & destination card only: the panel (2/3 via
+        col-span-2) + the live preview (1/3) sticky on lg+. The other 5 panels render as full-width
+        siblings below this grid, so the preview's sticky containing block is that first card's own
+        height, not the whole page. Standard grid-cols-3 + col-span-2 only — the host Tailwind never
+        compiles arbitrary [..] values for this bundle (verified live; check-classes enforces). */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="col-span-2">
           {recoveredFromBadBlob ? (
@@ -738,8 +738,8 @@ export function RenamePanelBody() {
           ) : null}
 
           <SectionCard
-            badge={<Badge solid>Essentials</Badge>}
-            description="The three things you set most often — pick a preset or write your own, then choose where files go."
+            title="Filename & destination"
+            description="Set how files are named and where they go — pick a preset or write your own template."
           >
             <PresetRow
               onApply={(t) => {
@@ -787,7 +787,7 @@ export function RenamePanelBody() {
         </div>
 
         {/* ── LIVE PREVIEW (right, 1/3) — sticky under the 64px navbar (top-16) so it stays the
-            visible centerpiece while scrolling Essentials. The COLUMN stretches to the row
+            visible centerpiece while scrolling the Filename & destination card. The COLUMN stretches to the row
             height (default align-items:stretch — do NOT use self-start, which collapses the column to
             content height and defeats position:sticky); the inner CARD is the sticky element. ── */}
         <div>
