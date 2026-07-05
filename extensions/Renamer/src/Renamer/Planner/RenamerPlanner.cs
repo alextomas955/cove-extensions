@@ -194,12 +194,19 @@ public sealed class RenamerPlanner
                 : confined.TargetFolderPath)
             : file.ParentFolderPath;
 
-        // (3) NoOp: in-place and the new name equals the current basename.
-        if (!isMove && string.Equals(newBasename, file.Basename, StringComparison.Ordinal))
+        // (3) NoOp: the file already sits at its computed destination. Comparing the full target path
+        //     (folder + name) — NOT just the basename — is what makes a configured destination that
+        //     resolves back to the file's CURRENT folder a no-op. Gating this on `!isMove` (the old
+        //     behavior) meant that once any destination/folder-template was set, EVERY file became a
+        //     "move", so a file already in its target folder with an unchanged name was reported (and
+        //     would be executed) as a move-to-itself. Both parts are forward-slash normalized via
+        //     JoinPath, so an ordinal compare is exact.
+        string computedFullPath = JoinPath(relTargetFolder, newBasename);
+        if (string.Equals(computedFullPath, oldFullPath, StringComparison.Ordinal))
         {
             return new RenamerPlanItem(
                 file.FileId, oldFullPath, oldFullPath, RenamerStatus.NoOp,
-                file.Basename, relTargetFolder, "no-op: rendered name equals current name");
+                file.Basename, relTargetFolder, "no-op: file already at its computed destination");
         }
 
         // (4) Collision (plan side, NO mutation): resolve the target folder id and apply the
