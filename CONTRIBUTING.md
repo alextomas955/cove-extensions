@@ -2,8 +2,8 @@
 
 ## Branching and CI
 
-See [`docs/BRANCHING.md`](docs/BRANCHING.md) for the branch model and what CI runs on a pull
-request. Open PRs against `main`.
+See [Branching](https://alextomas955.github.io/cove-extensions/contributing/branching) for the
+branch model and what CI runs on a pull request. Open PRs against `main`.
 
 ## Building and testing
 
@@ -18,10 +18,20 @@ Each extension has its own build/test/verify commands — see that extension's o
 [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) for what a PR is expected to
 verify before it's opened.
 
+## Documentation
+
+Docs are part of "done," not a follow-up. If a change alters an extension's settings,
+configuration options, public API, or user-facing behavior, update that extension's docs in the
+same PR — `extensions/<Name>/docs/`, its `README.md`, and `CHANGELOG.md` as applicable, plus the
+matching page under `website/docs/` (the docs site).
+
+A pre-commit check warns when an extension's source changed but its docs didn't; it's a reminder,
+not a gate. If a change genuinely needs no docs update, say so in the PR and check the box anyway.
+
 ## Releasing
 
 Releases are cut per extension via tags, not from this file's process — see
-[`docs/RELEASING.md`](docs/RELEASING.md).
+[Releasing](https://alextomas955.github.io/cove-extensions/contributing/releasing).
 
 ## Reporting a bug or requesting a feature
 

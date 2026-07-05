@@ -33,10 +33,13 @@ reference.
 
 ## Docs
 
+- Full docs site: [alextomas955.github.io/cove-extensions](https://alextomas955.github.io/cove-extensions/).
 - Per-extension documentation and changelogs live under each extension's own folder:
   `extensions/<Name>/docs/`, `extensions/<Name>/CHANGELOG.md`.
-- Repo-wide process docs live in [`docs/`](docs/): [`docs/BRANCHING.md`](docs/BRANCHING.md) and
-  [`docs/RELEASING.md`](docs/RELEASING.md).
+- Repo-wide process docs live on the docs site under Contributing:
+  [Branching](https://alextomas955.github.io/cove-extensions/contributing/branching),
+  [Releasing](https://alextomas955.github.io/cove-extensions/contributing/releasing), and
+  [Authoring E2E tests](https://alextomas955.github.io/cove-extensions/contributing/authoring-e2e).
 
 ## License
 

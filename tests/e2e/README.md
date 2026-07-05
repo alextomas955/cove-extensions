@@ -108,7 +108,8 @@ docker network ls --filter "name=testcontainers" --format "{{.Name}}" | xargs -r
 
 ## Writing your first test
 
-See [`docs/AUTHORING-E2E.md`](../../docs/AUTHORING-E2E.md) for the full 3-step add-a-suite guide.
+See [Authoring E2E tests](https://alextomas955.github.io/cove-extensions/contributing/authoring-e2e)
+for the full 3-step add-a-suite guide.
 In short:
 
 1. Build your extension the normal way (whatever produces its publish output + `extension.json` +

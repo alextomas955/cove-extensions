@@ -7,6 +7,7 @@ A short description of the change and why it's needed.
 - [ ] `dotnet test extensions/Renamer/src/Renamer.Tests` passes
 - [ ] `cd extensions/Renamer/src/Renamer.Ui && npm run verify` passes
 - [ ] Built and checked in a running Cove (if the change affects runtime/UI behavior)
+- [ ] Docs updated for any settings, config, public API, or user-facing behavior change (or none needed)
 
 Describe what you actually ran and observed.
 

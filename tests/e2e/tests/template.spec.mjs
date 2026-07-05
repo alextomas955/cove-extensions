@@ -6,8 +6,9 @@
 // harness with relative paths (`../lib/...`). When you copy it into your extension, change those to
 // the package name — `@cove-extensions/e2e` and `@cove-extensions/e2e/resolve-extension` — so there
 // is no `../../../` path archaeology (npm workspaces resolves the harness by name). See
-// extensions/Renamer/e2e/lib/renamer-fixtures.mjs for the real-world shape and docs/AUTHORING-E2E.md
-// for the full 3-step add-a-suite guide.
+// extensions/Renamer/e2e/lib/renamer-fixtures.mjs for the real-world shape and the "Authoring E2E
+// tests" docs page (https://alextomas955.github.io/cove-extensions/contributing/authoring-e2e) for
+// the full 3-step add-a-suite guide.
 //
 // Run: cd tests/e2e && npm test -- template.spec.mjs
 import { test, expect } from '../lib/fixtures.mjs';

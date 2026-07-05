@@ -17,7 +17,8 @@ extensions, following [yourcove](https://github.com/yourcove)'s official
   catalog entry builds on every PR (no `paths:` filtering); a release for one extension is cut by
   pushing a tag of the form `<tagPrefix>v<semver>` (e.g. `renamer/v1.0.0`), which builds, strip-
   verifies, and packages only that extension.
-- See `docs/BRANCHING.md` and `docs/RELEASING.md` for the full branching and release process.
+- See `website/docs/contributing/branching.md` and `website/docs/contributing/releasing.md` for the
+  full branching and release process.
 
 ## Build wiring
 
@@ -32,3 +33,10 @@ Build the whole monorepo from this root:
 ```sh
 dotnet build CoveExtensions.slnx
 ```
+
+## Documentation upkeep
+
+When a change alters an extension's settings, configuration options, public API, or user-facing
+behavior, update that extension's docs in the same change — `extensions/<Name>/docs/`, its
+`README.md`, and `CHANGELOG.md` as applicable, plus the matching docs-site page. Docs are part of
+done. Do not defer them to a later change.

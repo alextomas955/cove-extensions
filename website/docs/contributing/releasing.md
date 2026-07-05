@@ -36,8 +36,8 @@ old single-extension-repo scheme, which used a flat `v*` tag with no extension p
   the matching `.zip` to a GitHub release for that tag.
 
 Renamer is the concrete worked example today: its `tagPrefix` is `renamer/`, its manifest id is
-`com.alextomas955.renamer`, and cutting `renamer/v1.0.0` builds, strip-verifies, and packages
-`com.alextomas955.renamer-1.0.0.zip`.
+`com.alextomas955.renamer`, and cutting `renamer/v0.1.0` builds, strip-verifies, and packages
+`com.alextomas955.renamer-0.1.0.zip`.
 
 ## Publish order: release asset first, then the registry pull request
 
@@ -47,7 +47,7 @@ version's `downloadUrl` and hashing it, and it fails the pull request if that UR
 
 That gives a strict order, for any extension being released:
 
-1. Tag the release (`<tagPrefix>v<semver>`, e.g. `renamer/v1.0.0`) and let the workflow publish
+1. Tag the release (`<tagPrefix>v<semver>`, e.g. `renamer/v0.1.0`) and let the workflow publish
    the packaged `.zip` asset to the GitHub release.
 2. Confirm the asset is reachable at its `downloadUrl`.
 3. Only then open the registry pull request that adds that extension's registry entry (e.g.

@@ -49,12 +49,46 @@ const config: Config = {
     ],
   ],
 
+  // D-07: offline local search (no Algolia, no network at query time). Registered as a theme;
+  // the classic theme then renders its built-in navbar search box automatically. Audited OK in
+  // 16-UI-SPEC.md (@easyops-cn org, MIT, Docusaurus 3.x-compatible). Stock styling (D-08).
+  themes: [
+    [
+      '@easyops-cn/docusaurus-search-local',
+      {
+        hashed: true,
+        indexDocs: true,
+        docsRouteBasePath: '/', // matches the docs plugin's routeBasePath so the indexer finds docs
+      },
+    ],
+  ],
+
   themeConfig: {
     navbar: {
       title: 'Cove Extensions',
       items: [
-        // Phase 16 adds a link back to GitHub-special files (README/CONTRIBUTING/etc.) here —
-        // out of scope for Phase 14; leave navbar minimal for this phase.
+        // PAGES-02: GitHub-special files stay at repo root (never moved/duplicated into the site) —
+        // reached here via canonical github.com blob links, right-aligned by default position.
+        {
+          href: 'https://github.com/alextomas955/cove-extensions/blob/main/README.md',
+          label: 'README',
+          position: 'right',
+        },
+        {
+          href: 'https://github.com/alextomas955/cove-extensions/blob/main/CONTRIBUTING.md',
+          label: 'Contributing',
+          position: 'right',
+        },
+        {
+          href: 'https://github.com/alextomas955/cove-extensions/blob/main/SECURITY.md',
+          label: 'Security',
+          position: 'right',
+        },
+        {
+          href: 'https://github.com/alextomas955/cove-extensions/blob/main/CODE_OF_CONDUCT.md',
+          label: 'Code of Conduct',
+          position: 'right',
+        },
       ],
     },
     footer: {

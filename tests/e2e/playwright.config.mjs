@@ -43,7 +43,8 @@ export default defineConfig({
   // (the harness's own dir) holds only `template.spec.mjs` — a COPYABLE starting point, not a live
   // suite — so it is intentionally NOT registered as a project: it uses `resolveExtensionPaths`
   // self-relatively, which only resolves to a real extension once the file has been copied INTO one.
-  // Add a new extension by adding one entry here (see docs/AUTHORING-E2E.md).
+  // Add a new extension by adding one entry here (see the "Authoring E2E tests" docs page:
+  // https://alextomas955.github.io/cove-extensions/contributing/authoring-e2e).
   projects: [
     {
       name: 'renamer',
