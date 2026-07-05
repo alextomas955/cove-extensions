@@ -240,7 +240,7 @@ public sealed record ExcludeRule
 /// </summary>
 public sealed record RenamerOptions
 {
-    public string FilenameTemplate { get; init; } = "{$date - }$title{ [$height]}";
+    public string FilenameTemplate { get; init; } = "{$date - }$title{ [$resolution]}";
     public string FolderTemplate { get; init; } = "";        // empty = no folder move
     public string DateFormat { get; init; } = "yyyy-MM-dd";
     public string DurationFormat { get; init; } = @"hh\-mm\-ss";

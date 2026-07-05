@@ -71,10 +71,10 @@ public sealed class PreviewSampleEndpointTests
         Assert.Equal(3, all.Count); // exactly the 3 server-side samples
 
         var video = Sample(all, "Video");
-        // The default template is "{$date - }$title{ [$height]}"; the Video sample has date
-        // 2021-03-14 and height 2160 ($height is the RAW numeric token, not the derived $resolution
-        // bucket), so both groups render: "2021-03-14 - The Example [2160]".
-        Assert.Equal("2021-03-14 - The Example [2160].mp4", video.NewName);
+        // The default template is "{$date - }$title{ [$resolution]}"; the Video sample has date
+        // 2021-03-14 and height 2160, which the engine buckets to $resolution "4K"
+        // (ResolutionLabel.FromHeight), so both groups render: "2021-03-14 - The Example [4K]".
+        Assert.Equal("2021-03-14 - The Example [4K].mp4", video.NewName);
         Assert.Equal("the.example.2021.WEBRip.mp4", video.OldName);
         Assert.Empty(video.Flags);
         Assert.Empty(video.DroppedFields);
@@ -83,10 +83,10 @@ public sealed class PreviewSampleEndpointTests
     [Fact]
     public void PreviewSample_DefaultTemplate_AudioSample_NoBracketsNoDanglingSeparator()
     {
-        // The Audio sample has a date but NO height, so the default's "{ [$height]}" group collapses
-        // ENTIRELY (leading space + brackets + token) while the "{$date - }" prefix stays, leaving a
-        // clean name with no dangling brackets.
-        var all = Preview(new RenamerOptions()); // default FilenameTemplate = "{$date - }$title{ [$height]}"
+        // The Audio sample has a date but NO height (so no $resolution), so the default's
+        // "{ [$resolution]}" group collapses ENTIRELY (leading space + brackets + token) while the
+        // "{$date - }" prefix stays, leaving a clean name with no dangling brackets.
+        var all = Preview(new RenamerOptions()); // default FilenameTemplate = "{$date - }$title{ [$resolution]}"
 
         var audio = Sample(all, "Audio");
         Assert.Equal("2020-01-09 - Track One.flac", audio.NewName); // date prefix kept, no " []"
@@ -167,8 +167,9 @@ public sealed class PreviewSampleEndpointTests
     public void PreviewSample_NullOptions_FallsBackToDefaults()
     {
         var all = Preview(null); // null options → new RenamerOptions()
-        // The default template "{$date - }$title{ [$height]}" + the Video sample's date + height 2160.
-        Assert.Equal("2021-03-14 - The Example [2160].mp4", Sample(all, "Video").NewName);
+        // The default template "{$date - }$title{ [$resolution]}" + the Video sample's date + height
+        // 2160 → $resolution "4K".
+        Assert.Equal("2021-03-14 - The Example [4K].mp4", Sample(all, "Video").NewName);
     }
 
     [Fact]
@@ -239,9 +240,10 @@ public sealed class PreviewSampleEndpointTests
     public void PreviewSample_EmptyBody_FallsBackToDefaults_Returns200()
     {
         // No content (empty body) deserializes to null → safe defaults, not a 400.
-        // The default template "{$date - }$title{ [$height]}" + the Video sample's date + height 2160.
+        // The default template "{$date - }$title{ [$resolution]}" + the Video sample's date + height
+        // 2160 → $resolution "4K".
         var video = Sample(PreviewRaw(""), "Video");
-        Assert.Equal("2021-03-14 - The Example [2160].mp4", video.NewName);
+        Assert.Equal("2021-03-14 - The Example [4K].mp4", video.NewName);
     }
 
     [Fact]

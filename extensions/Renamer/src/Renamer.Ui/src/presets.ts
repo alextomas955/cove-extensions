@@ -18,7 +18,7 @@ export const PRESETS: readonly Preset[] = [
   // The shipped default, offered as a chip so a user who edits the template can return to it in one
   // click. The string matches DEFAULT_OPTIONS.FilenameTemplate exactly so the chip and "Reset to
   // defaults" produce the identical template.
-  { label: "Date – Title [Height]", filenameTemplate: "{$date - }$title{ [$height]}" },
+  { label: "Date – Title [Resolution]", filenameTemplate: "{$date - }$title{ [$resolution]}" },
   { label: "Title + resolution", filenameTemplate: "$title{ [$resolution]}" },
   { label: "Studio – Title [Res]", filenameTemplate: "$studio{ - $title}{ [$resolution]}" },
   { label: "Date – Title", filenameTemplate: "$date{ - $title}" },
