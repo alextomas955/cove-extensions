@@ -439,8 +439,8 @@ public sealed class RenamerOptionsJsonTests
     public void RemoveCharactersAndFilenameAsTitle_DefaultValues()
     {
         var o = new RenamerOptions();
-        Assert.Equal("", o.RemoveCharacters); // empty = no characters removed
-        Assert.True(o.FilenameAsTitle);       // basename fallback on for a fresh install
+        Assert.Equal(",#", o.RemoveCharacters); // default strips comma + hash out of the box
+        Assert.True(o.FilenameAsTitle);         // basename fallback on for a fresh install
     }
 
     [Fact]
@@ -480,7 +480,7 @@ public sealed class RenamerOptionsJsonTests
         var loaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
         Assert.NotNull(loaded);
-        Assert.Equal("", loaded!.RemoveCharacters);
+        Assert.Equal(",#", loaded!.RemoveCharacters); // omitted → default (strips comma + hash)
         Assert.True(loaded.FilenameAsTitle); // defaults on for a fresh install
     }
 
@@ -550,7 +550,7 @@ public sealed class RenamerOptionsJsonTests
         Assert.Equal(CaseTransform.None, o.Case);
         Assert.False(o.AsciiTransliterate);
 
-        Assert.Equal(", ", o.Performers.Separator);
+        Assert.Equal(" ", o.Performers.Separator);
         Assert.Equal(" ", o.Tags.Separator);
         Assert.Equal(0, o.Performers.MaxCount);
         Assert.Equal(OverflowPolicy.DropAll, o.Performers.OnOverflow);

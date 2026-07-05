@@ -58,7 +58,7 @@ var x = {
 	DateFormat: "yyyy-MM-dd",
 	DurationFormat: "hh\\-mm\\-ss",
 	Performers: {
-		Separator: ", ",
+		Separator: " ",
 		MaxCount: 0,
 		OnOverflow: "DropAll",
 		Sort: "NameAsc",
@@ -79,7 +79,7 @@ var x = {
 	},
 	IllegalReplacement: "",
 	SpaceReplacement: "",
-	RemoveCharacters: "",
+	RemoveCharacters: ",#",
 	Case: "None",
 	AsciiTransliterate: !1,
 	FilenameMax: 255,

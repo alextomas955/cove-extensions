@@ -91,8 +91,9 @@ public class TemplateEngineTests
             ["performers"] = new[] { "Bob", "Alice" },
         };
         var r = Render("$performers", multi: multi);
-        // default Performers sort = NameAsc, separator = ", "
-        Assert.Equal("Alice, Bob", r.Filename);
+        // default Performers sort = NameAsc, separator = " " (default; the "," in a comma separator
+        // would be stripped anyway by the default RemoveCharacters = ",#").
+        Assert.Equal("Alice Bob", r.Filename);
     }
 
     [Fact]
@@ -347,6 +348,9 @@ public class TemplateEngineTests
         {
             FilenameTemplate = "$performers",
             PreventTitlePerformer = true,
+            // This test exercises the comma-separated join; opt out of the default RemoveCharacters
+            // (",#") so the separator comma is not stripped by the final sanitize pass.
+            RemoveCharacters = "",
             Performers = new MultiValueOptions
             {
                 Separator = ", ",
@@ -376,6 +380,7 @@ public class TemplateEngineTests
             FilenameTemplate = "$performers",
             PreventTitlePerformer = true,
             StripLeadingArticles = true,
+            RemoveCharacters = "", // keep the comma separator (default ",#" would strip it)
             Performers = new MultiValueOptions { Separator = ", ", Sort = SortOrder.None },
         };
 
@@ -455,6 +460,7 @@ public class TemplateEngineTests
         var o = new RenamerOptions
         {
             FilenameTemplate = "$performers",
+            RemoveCharacters = "", // keep the comma separator (default ",#" would strip it)
             Performers = new MultiValueOptions
             {
                 Separator = ", ",
@@ -514,6 +520,7 @@ public class TemplateEngineTests
         {
             FilenameTemplate = "$performers",
             PreventTitlePerformer = true,
+            RemoveCharacters = "", // keep the comma separator (default ",#" would strip it)
             Performers = new MultiValueOptions
             {
                 Separator = ", ",
@@ -550,6 +557,7 @@ public class TemplateEngineTests
         {
             FilenameTemplate = "$performers",
             PreventTitlePerformer = true,
+            RemoveCharacters = "", // keep the comma separator (default ",#" would strip it)
             Performers = new MultiValueOptions { Separator = ", ", Sort = SortOrder.None },
         };
 

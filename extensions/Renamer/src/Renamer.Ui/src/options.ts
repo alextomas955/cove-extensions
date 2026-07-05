@@ -150,7 +150,7 @@ export const DEFAULT_OPTIONS: RenamerOptions = {
   // C# verbatim string @"hh\-mm\-ss" → the literal value contains single backslashes.
   DurationFormat: "hh\\-mm\\-ss",
   Performers: {
-    Separator: ", ",
+    Separator: " ",
     MaxCount: 0,
     OnOverflow: "DropAll",
     Sort: "NameAsc",
@@ -171,7 +171,7 @@ export const DEFAULT_OPTIONS: RenamerOptions = {
   },
   IllegalReplacement: "",
   SpaceReplacement: "",
-  RemoveCharacters: "",
+  RemoveCharacters: ",#",
   Case: "None",
   AsciiTransliterate: false,
   FilenameMax: 255,
