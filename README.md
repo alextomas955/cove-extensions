@@ -8,6 +8,9 @@ This repository is the Cove extensions monorepo, converted from a one-repo-per-e
 into a single multi-extension repo following [yourcove](https://github.com/yourcove)'s official
 `multi-extension-repo-template` pattern.
 
+> **Community project.** These are personal, third-party extensions maintained by alextomas955.
+> They are not affiliated with, or endorsed by, the [Cove](https://github.com/yourcove/cove) project.
+
 ## Extensions
 
 Extensions are registered in [`extensions/catalog.json`](extensions/catalog.json), the source of

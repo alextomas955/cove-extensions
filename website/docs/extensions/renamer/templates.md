@@ -1,7 +1,7 @@
 ---
 id: templates
 title: Naming templates
-sidebar_position: 3
+sidebar_position: 4
 ---
 
 A naming template is the pattern Renamer uses to build each new filename (and, optionally, folder

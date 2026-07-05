@@ -1,7 +1,7 @@
 ---
 id: changelog
 title: Changelog
-sidebar_position: 3
+sidebar_position: 6
 ---
 
 User-facing changes, newest first. The `v1.x` headings are development milestones, not published
