@@ -53,7 +53,7 @@ function b(e) {
 //#endregion
 //#region src/options.ts
 var x = {
-	FilenameTemplate: "{$date - }$title{ [$height]}",
+	FilenameTemplate: "{$date - }$title{ [$resolution]}",
 	FolderTemplate: "",
 	DateFormat: "yyyy-MM-dd",
 	DurationFormat: "hh\\-mm\\-ss",
@@ -2153,8 +2153,8 @@ function Yt(e) {
 //#region src/presets.ts
 var Xt = [
 	{
-		label: "Date – Title [Height]",
-		filenameTemplate: "{$date - }$title{ [$height]}"
+		label: "Date – Title [Resolution]",
+		filenameTemplate: "{$date - }$title{ [$resolution]}"
 	},
 	{
 		label: "Title + resolution",

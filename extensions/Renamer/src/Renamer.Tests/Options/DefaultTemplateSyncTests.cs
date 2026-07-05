@@ -4,10 +4,12 @@ namespace Renamer.Tests.Options;
 
 /// <summary>
 /// Default-template lock: the out-of-box default <see cref="RenamerOptions.FilenameTemplate"/> is the
-/// optional-grouped literal <c>{$date - }$title{ [$height]}</c>. The date group drops its <c>" - "</c>
-/// when <c>$date</c> resolves empty and the height group drops the whole <c> [...]</c> when
-/// <c>$height</c> resolves empty, so a fresh install never leaves a leading separator or a dangling
-/// <c>[]</c>. The default lives in two hand-synced sources (this C# record +
+/// optional-grouped literal <c>{$date - }$title{ [$resolution]}</c>. The date group drops its <c>" - "</c>
+/// when <c>$date</c> resolves empty and the resolution group drops the whole <c> [...]</c> when
+/// <c>$resolution</c> resolves empty, so a fresh install never leaves a leading separator or a dangling
+/// <c>[]</c>. ($resolution — the bucketed label 4K/1080p/… — is the default rather than $height's raw
+/// pixel count, so a library already tagged [1080p] is not churned to [1080]; $height stays available
+/// as a token for anyone who wants the raw height.) The default lives in two hand-synced sources (this C# record +
 /// <c>src/Renamer.Ui/src/options.ts</c> DEFAULT_OPTIONS); this test locks the C# side so an accidental
 /// one-sided edit is caught. The TS side is covered by the live fresh-install verify.
 /// <see cref="RenamerOptions.FolderTemplate"/> stays <c>""</c> — folder move remains opt-in. The two
@@ -16,9 +18,9 @@ namespace Renamer.Tests.Options;
 public sealed class DefaultTemplateSyncTests
 {
     [Fact]
-    public void DefaultFilenameTemplate_IsTheGroupedDateTitleHeightString()
+    public void DefaultFilenameTemplate_IsTheGroupedDateTitleResolutionString()
     {
-        Assert.Equal("{$date - }$title{ [$height]}", new RenamerOptions().FilenameTemplate);
+        Assert.Equal("{$date - }$title{ [$resolution]}", new RenamerOptions().FilenameTemplate);
         Assert.Equal("", new RenamerOptions().FolderTemplate); // folder move stays opt-in
     }
 

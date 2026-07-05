@@ -130,7 +130,7 @@ export interface RenamerOptions {
 
 /**
  * The C# defaults (RenamerOptions.cs):
- *   FilenameTemplate "{$date - }$title{ [$height]}", FolderTemplate "", DateFormat "yyyy-MM-dd",
+ *   FilenameTemplate "{$date - }$title{ [$resolution]}", FolderTemplate "", DateFormat "yyyy-MM-dd",
  *   DurationFormat verbatim `hh\-mm\-ss`, Performers.Separator ", ", Tags.Separator " ",
  *   FilenameMax 255, FullPathMax 259, the 9-field DropOrder, RequiredFields ["title"],
  *   DuplicateSuffixFormat " ({n})", Articles ["The","A","An"], FilenameAsTitle true and
@@ -144,7 +144,7 @@ export interface RenamerOptions {
  * normalizeOptions consuming (and dropping) it.
  */
 export const DEFAULT_OPTIONS: RenamerOptions = {
-  FilenameTemplate: "{$date - }$title{ [$height]}",
+  FilenameTemplate: "{$date - }$title{ [$resolution]}",
   FolderTemplate: "",
   DateFormat: "yyyy-MM-dd",
   // C# verbatim string @"hh\-mm\-ss" → the literal value contains single backslashes.
