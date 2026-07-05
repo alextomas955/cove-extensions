@@ -22,6 +22,14 @@ import type { ScanItem } from "./preview";
 import type { RenamerOptions } from "./options";
 import { countByStatus, paginate, totalPages } from "./dryRunLogic";
 
+// Inline styles for two host-absent Tailwind classes (the extension ships no CSS; Cove's prebuilt
+// bundle only emits classes its own UI uses, and border-collapse / max-w-0 appear nowhere in it).
+// Element-scoped inline styles render everywhere and cannot leak onto host pages.
+const TABLE_STYLE = { borderCollapse: "collapse" } as const;
+// max-w-0 + min-w-0 + truncate is the standard "let this cell shrink and ellipsize" trio; only
+// max-w-0 is host-absent, so it moves inline while min-w-0/truncate stay as (host-emitted) classes.
+const TRUNCATE_CELL_STYLE = { maxWidth: 0 } as const;
+
 const EXTENSION_ID = "com.alextomas955.renamer";
 const SCAN_LIBRARY_PATH = `/extensions/${EXTENSION_ID}/scan-library`;
 const LAST_SCAN_PATH = `/extensions/${EXTENSION_ID}/last-scan`;
@@ -183,7 +191,7 @@ export function DryRunModal({
           ) : (
             <>
               <div className="max-h-96 overflow-y-auto rounded border border-border text-sm">
-                <table className="w-full border-collapse">
+                <table className="w-full" style={TABLE_STYLE}>
                   <thead>
                     <tr className="sticky top-0 bg-card text-left">
                       <th className="w-20 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted">
@@ -210,19 +218,22 @@ export function DryRunModal({
                         <tr key={it.fileId} className={isSkip ? "opacity-70" : undefined}>
                           <td className="w-20 px-3 py-2 text-sm text-secondary">{it.kind}</td>
                           <td
-                            className="min-w-0 max-w-0 truncate px-3 py-2 font-mono text-sm text-muted"
+                            className="min-w-0 truncate px-3 py-2 font-mono text-sm text-muted"
+                            style={TRUNCATE_CELL_STYLE}
                             title={it.oldFullPath}
                           >
                             {oldName}
                           </td>
                           <td
-                            className={`min-w-0 max-w-0 truncate px-3 py-2 font-mono text-sm ${isSkip ? "text-muted" : "text-foreground"}`}
+                            className={`min-w-0 truncate px-3 py-2 font-mono text-sm ${isSkip ? "text-muted" : "text-foreground"}`}
+                            style={TRUNCATE_CELL_STYLE}
                             title={it.newFullPath}
                           >
                             {isSkip ? "— will be skipped" : newName}
                           </td>
                           <td
-                            className="min-w-0 max-w-0 truncate px-3 py-2 font-mono text-xs text-muted"
+                            className="min-w-0 truncate px-3 py-2 font-mono text-xs text-muted"
+                            style={TRUNCATE_CELL_STYLE}
                             title={it.targetFolderPath}
                           >
                             {it.targetFolderPath}

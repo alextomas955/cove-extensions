@@ -538,7 +538,10 @@ function H({ label: e, checked: t, onChange: n, helper: r, ariaLabel: i }) {
 				n(!t);
 			},
 			className: `inline-flex h-5 w-9 items-center rounded-full transition-colors ${t ? "bg-accent" : "bg-card border border-border"}`,
-			children: /* @__PURE__ */ p("span", { className: `inline-block h-4 w-4 rounded-full bg-white transition-transform ${t ? "translate-x-4" : "translate-x-0.5"}` })
+			children: /* @__PURE__ */ p("span", {
+				className: "inline-block h-4 w-4 rounded-full bg-white transition-transform",
+				style: { transform: t ? "translateX(1rem)" : "translateX(0.125rem)" }
+			})
 		}), e ? /* @__PURE__ */ p("span", { children: e }) : null]
 	}), r ? /* @__PURE__ */ p("p", {
 		className: "mt-1 text-xs text-secondary",
@@ -1785,60 +1788,60 @@ function Ct(e, t = 50) {
 }
 //#endregion
 //#region src/DryRunModal.tsx
-var wt = "com.alextomas955.renamer", Tt = `/extensions/${wt}/scan-library`, Et = `/extensions/${wt}/last-scan`, Dt = "rename-dry-run-title", Ot = "rename-dry-run-summary", kt = 50, At = 1e3;
-function jt(e) {
+var wt = { borderCollapse: "collapse" }, Tt = { maxWidth: 0 }, Et = "com.alextomas955.renamer", Dt = `/extensions/${Et}/scan-library`, Ot = `/extensions/${Et}/last-scan`, kt = "rename-dry-run-title", At = "rename-dry-run-summary", jt = 50, Mt = 1e3;
+function Nt(e) {
 	return e instanceof v ? `${e.status} ${e.body}` : String(e);
 }
-function Mt(e) {
+function Pt(e) {
 	if (!e) return e;
 	let t = Math.max(e.lastIndexOf("/"), e.lastIndexOf("\\"));
 	return t >= 0 ? e.slice(t + 1) : e;
 }
-function Nt(e, n) {
+function Ft(e, n) {
 	t(() => {
 		if (!e) return;
 		let t = !1, r = setInterval(() => {
 			_(`/jobs/${e}`).then((e) => {
 				t || (e.status === "completed" || e.status === "failed" || e.status === "cancelled") && (clearInterval(r), n(e));
 			}).catch(() => {});
-		}, At);
+		}, Mt);
 		return () => {
 			t = !0, clearInterval(r);
 		};
 	}, [e]);
 }
-function Pt({ options: e, onClose: n, onRenameAll: r, renaming: o }) {
+function It({ options: e, onClose: n, onRenameAll: r, renaming: o }) {
 	let [s, c] = a(null), [l, u] = a(null), [d, h] = a(null), [g, v] = a(0), y = i(!1);
 	t(() => {
-		y.current || (y.current = !0, _(Tt, {
+		y.current || (y.current = !0, _(Dt, {
 			method: "POST",
 			body: JSON.stringify({ Options: JSON.stringify(e) })
 		}).then((e) => {
 			c(e.jobId);
 		}).catch((e) => {
-			h(jt(e));
+			h(Nt(e));
 		}));
-	}, []), Nt(s, (e) => {
+	}, []), Ft(s, (e) => {
 		if (e.status !== "completed") {
 			h(e.error ?? "the scan job did not complete");
 			return;
 		}
-		_(Et).then((e) => {
+		_(Ot).then((e) => {
 			u(e);
 		}).catch((e) => {
-			h(jt(e));
+			h(Nt(e));
 		});
 	});
-	let b = l ? xt(l) : null, x = l ? Ct(l.length, kt) : 1, S = l ? St(l, g, kt) : [];
+	let b = l ? xt(l) : null, x = l ? Ct(l.length, jt) : 1, S = l ? St(l, g, jt) : [];
 	return /* @__PURE__ */ m(nt, {
-		titleId: Dt,
-		describedById: Ot,
+		titleId: kt,
+		describedById: At,
 		pending: o,
 		onCancel: n,
 		size: "xl",
 		children: [
 			/* @__PURE__ */ p("h2", {
-				id: Dt,
+				id: kt,
 				className: "mb-2 text-lg font-semibold text-foreground",
 				children: "Dry run"
 			}),
@@ -1853,7 +1856,7 @@ function Pt({ options: e, onClose: n, onRenameAll: r, renaming: o }) {
 				className: "flex items-center gap-2 py-8 text-sm text-secondary",
 				children: [/* @__PURE__ */ p(q, {}), "Scanning your library…"]
 			}) : /* @__PURE__ */ m(f, { children: [/* @__PURE__ */ m("p", {
-				id: Ot,
+				id: At,
 				className: "mb-4 text-sm text-secondary",
 				children: [
 					/* @__PURE__ */ p("span", {
@@ -1873,7 +1876,8 @@ function Pt({ options: e, onClose: n, onRenameAll: r, renaming: o }) {
 			}) : /* @__PURE__ */ p(f, { children: /* @__PURE__ */ m("div", {
 				className: "max-h-96 overflow-y-auto rounded border border-border text-sm",
 				children: [/* @__PURE__ */ m("table", {
-					className: "w-full border-collapse",
+					className: "w-full",
+					style: wt,
 					children: [/* @__PURE__ */ p("thead", { children: /* @__PURE__ */ m("tr", {
 						className: "sticky top-0 bg-card text-left",
 						children: [
@@ -1898,7 +1902,7 @@ function Pt({ options: e, onClose: n, onRenameAll: r, renaming: o }) {
 					}) }), /* @__PURE__ */ p("tbody", {
 						className: "divide-y divide-border",
 						children: S.map((e) => {
-							let t = e.status !== "Renamer" && e.status !== "Move", n = Mt(e.oldFullPath), r = e.newBasename || Mt(e.newFullPath);
+							let t = e.status !== "Renamer" && e.status !== "Move", n = Pt(e.oldFullPath), r = e.newBasename || Pt(e.newFullPath);
 							return /* @__PURE__ */ m("tr", {
 								className: t ? "opacity-70" : void 0,
 								children: [
@@ -1907,17 +1911,20 @@ function Pt({ options: e, onClose: n, onRenameAll: r, renaming: o }) {
 										children: e.kind
 									}),
 									/* @__PURE__ */ p("td", {
-										className: "min-w-0 max-w-0 truncate px-3 py-2 font-mono text-sm text-muted",
+										className: "min-w-0 truncate px-3 py-2 font-mono text-sm text-muted",
+										style: Tt,
 										title: e.oldFullPath,
 										children: n
 									}),
 									/* @__PURE__ */ p("td", {
-										className: `min-w-0 max-w-0 truncate px-3 py-2 font-mono text-sm ${t ? "text-muted" : "text-foreground"}`,
+										className: `min-w-0 truncate px-3 py-2 font-mono text-sm ${t ? "text-muted" : "text-foreground"}`,
+										style: Tt,
 										title: e.newFullPath,
 										children: t ? "— will be skipped" : r
 									}),
 									/* @__PURE__ */ p("td", {
-										className: "min-w-0 max-w-0 truncate px-3 py-2 font-mono text-xs text-muted",
+										className: "min-w-0 truncate px-3 py-2 font-mono text-xs text-muted",
+										style: Tt,
 										title: e.targetFolderPath,
 										children: e.targetFolderPath
 									}),
@@ -1985,18 +1992,18 @@ function Pt({ options: e, onClose: n, onRenameAll: r, renaming: o }) {
 }
 //#endregion
 //#region src/templateValidation.ts
-var Ft = new Set(Xe.map((e) => e.token.slice(1).toLowerCase())), It = Xe.map((e) => e.token.slice(1));
-function Lt(e) {
+var Lt = new Set(Xe.map((e) => e.token.slice(1).toLowerCase())), Rt = Xe.map((e) => e.token.slice(1));
+function zt(e) {
 	let t = e.startsWith("$") ? e.slice(1) : e;
-	return Ft.has(t.toLowerCase());
+	return Lt.has(t.toLowerCase());
 }
-function Rt(e) {
+function Bt(e) {
 	let t = 0;
 	for (let n of e) if (n === "{") t++;
 	else if (n === "}" && (t--, t < 0)) return !1;
 	return t === 0;
 }
-function zt(e) {
+function Vt(e) {
 	let t = [], n = /* @__PURE__ */ new Set();
 	for (let r = 0; r < e.length; r++) {
 		if (e[r] !== "$") continue;
@@ -2008,11 +2015,11 @@ function zt(e) {
 		for (; i < e.length && /[A-Za-z0-9_]/.test(e[i]);) i++;
 		if (i === r + 1) continue;
 		let a = e.slice(r + 1, i), o = a.toLowerCase();
-		!Ft.has(o) && !n.has(o) && (n.add(o), t.push(`$${a}`)), r = i - 1;
+		!Lt.has(o) && !n.has(o) && (n.add(o), t.push(`$${a}`)), r = i - 1;
 	}
 	return t;
 }
-function Bt(e, t) {
+function Ht(e, t) {
 	for (let n = 0; n < e.length; n++) {
 		if (e[n] !== "$") continue;
 		if (e[n + 1] === "$") {
@@ -2028,11 +2035,11 @@ function Bt(e, t) {
 	}
 	return !1;
 }
-function Vt(e, t, n) {
+function Ut(e, t, n) {
 	let r = (e.startsWith("$") ? e.slice(1) : e).toLowerCase();
-	return Bt(t, r) || Bt(n, r);
+	return Ht(t, r) || Ht(n, r);
 }
-function Ht(e, t) {
+function Wt(e, t) {
 	let n = e.length, r = t.length, i = Array.from({ length: r + 1 }, (e, t) => t);
 	for (let a = 1; a <= n; a++) {
 		let n = i[0];
@@ -2044,17 +2051,17 @@ function Ht(e, t) {
 	}
 	return i[r];
 }
-function Ut(e) {
+function Gt(e) {
 	let t = (e.startsWith("$") ? e.slice(1) : e).toLowerCase(), n, r = Infinity;
-	for (let e of Ft) {
-		let i = Ht(t, e);
+	for (let e of Lt) {
+		let i = Wt(t, e);
 		i < r && (r = i, n = e);
 	}
 	return n !== void 0 && r > 0 && r <= 2 ? `$${n}` : void 0;
 }
 //#endregion
 //#region src/presets.ts
-var Wt = [
+var Kt = [
 	{
 		label: "Date – Title [Height]",
 		filenameTemplate: "{$date - }$title{ [$height]}"
@@ -2075,12 +2082,12 @@ var Wt = [
 		label: "Performers – Title",
 		filenameTemplate: "$performers{ - $title}"
 	}
-], $ = "com.alextomas955.renamer", Gt = "options", Kt = `/extensions/${$}/data`, qt = `/extensions/${$}/preview-sample`, Jt = `/extensions/${$}/renamer-library`, Yt = 250, Xt = 1e3;
-function Zt(e) {
+], $ = "com.alextomas955.renamer", qt = "options", Jt = `/extensions/${$}/data`, Yt = `/extensions/${$}/preview-sample`, Xt = `/extensions/${$}/renamer-library`, Zt = 250, Qt = 1e3;
+function $t(e) {
 	let t = e.trim();
 	return t.startsWith(".") && (t = t.slice(1)), t.toLowerCase();
 }
-var Qt = [
+var en = [
 	{
 		value: "None",
 		label: "None"
@@ -2093,13 +2100,13 @@ var Qt = [
 		value: "Title",
 		label: "Title Case"
 	}
-], $t = [{
+], tn = [{
 	value: "DropAll",
 	label: "Drop all when over the max"
 }, {
 	value: "KeepFirst",
 	label: "Keep the first N"
-}], en = [
+}], nn = [
 	{
 		value: "NameAsc",
 		label: "Name (A→Z)"
@@ -2116,13 +2123,13 @@ var Qt = [
 		value: "FavoriteFirst",
 		label: "Favorites first, then name"
 	}
-], tn = [{
+], rn = [{
 	value: "NameAsc",
 	label: "Name (A→Z)"
 }, {
 	value: "None",
 	label: "Keep original order"
-}], nn = [
+}], an = [
 	{
 		value: "Male",
 		label: "Male"
@@ -2147,7 +2154,7 @@ var Qt = [
 		value: "NonBinary",
 		label: "Non-binary"
 	}
-], rn = [
+], on = [
 	"title",
 	"studio",
 	"parentStudio",
@@ -2169,7 +2176,7 @@ var Qt = [
 ].map((e) => ({
 	value: e,
 	label: e
-})), an = [
+})), sn = [
 	{
 		value: "yyyy-MM-dd",
 		example: "2026-03-12"
@@ -2190,7 +2197,7 @@ var Qt = [
 		value: "yyyy.MM.dd",
 		example: "2026.03.12"
 	}
-], on = [
+], cn = [
 	{
 		value: "hh\\-mm\\-ss",
 		example: "01-23-45"
@@ -2203,7 +2210,7 @@ var Qt = [
 		value: "mm\\-ss",
 		example: "83-45"
 	}
-], sn = [
+], ln = [
 	{
 		value: ", ",
 		label: "Comma + space ( , )"
@@ -2220,7 +2227,7 @@ var Qt = [
 		value: " - ",
 		label: "Dash ( - )"
 	}
-], cn = [
+], un = [
 	{
 		value: " ({n})",
 		example: "name (1).mp4"
@@ -2234,11 +2241,11 @@ var Qt = [
 		example: "name - 1.mp4"
 	}
 ];
-function ln({ value: e, emptySamples: t = [] }) {
+function dn({ value: e, emptySamples: t = [] }) {
 	let n = [];
-	Rt(e) || n.push("Unmatched { or } — it'll still render, but check your groups.");
-	for (let t of zt(e)) {
-		let e = Ut(t);
+	Bt(e) || n.push("Unmatched { or } — it'll still render, but check your groups.");
+	for (let t of Vt(e)) {
+		let e = Gt(t);
 		n.push(e ? `${t} isn't a known token — it'll render as empty. Did you mean ${e}?` : `${t} isn't a known token — it'll render as empty.`);
 	}
 	for (let e of t) n.push(`This template produces an empty name for the "${e}" sample.`);
@@ -2252,11 +2259,11 @@ function ln({ value: e, emptySamples: t = [] }) {
 		}, e))
 	});
 }
-function un({ values: e }) {
+function fn({ values: e }) {
 	let t = [];
 	for (let n of e) {
-		if (Lt(n)) continue;
-		let e = Ut(n), r = e ? e.slice(1) : void 0;
+		if (zt(n)) continue;
+		let e = Gt(n), r = e ? e.slice(1) : void 0;
 		t.push(r ? `"${n}" isn't a known token — it'll be ignored. Did you mean ${r}?` : `"${n}" isn't a known token — it'll be ignored.`);
 	}
 	return t.length === 0 ? null : /* @__PURE__ */ p("div", {
@@ -2269,7 +2276,7 @@ function un({ values: e }) {
 		}, e))
 	});
 }
-function dn({ onApply: e }) {
+function pn({ onApply: e }) {
 	return /* @__PURE__ */ m("div", { children: [
 		/* @__PURE__ */ p("span", {
 			className: "mb-1 block text-xs font-medium uppercase tracking-wide text-muted",
@@ -2277,7 +2284,7 @@ function dn({ onApply: e }) {
 		}),
 		/* @__PURE__ */ p("div", {
 			className: "flex flex-wrap gap-1",
-			children: Wt.map((t) => /* @__PURE__ */ p(L, {
+			children: Kt.map((t) => /* @__PURE__ */ p(L, {
 				selected: !1,
 				title: t.filenameTemplate,
 				onClick: () => {
@@ -2292,11 +2299,15 @@ function dn({ onApply: e }) {
 		})
 	] });
 }
-function fn({ dirty: e, saving: t, saveError: n, savedFlash: r, canSave: i, onSave: a, onDiscard: o }) {
+function mn({ dirty: e, saving: t, saveError: n, savedFlash: r, canSave: i, onSave: a, onDiscard: o }) {
 	return e ? /* @__PURE__ */ p("div", {
 		className: "pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 py-4",
 		children: /* @__PURE__ */ m("div", {
-			className: "pointer-events-auto flex w-full max-w-3xl items-center gap-4 rounded-2xl border border-border bg-card px-5 py-3.5 shadow-lg",
+			className: "pointer-events-auto flex w-full max-w-3xl items-center gap-4 rounded-2xl border border-border bg-card px-5 shadow-lg",
+			style: {
+				paddingTop: "0.875rem",
+				paddingBottom: "0.875rem"
+			},
 			children: [
 				/* @__PURE__ */ p("span", { className: `h-2 w-2 shrink-0 rounded-full ${n ? "bg-red-400" : r ? "bg-green-400" : "bg-amber-400"}` }),
 				/* @__PURE__ */ p("div", {
@@ -2336,13 +2347,13 @@ function fn({ dirty: e, saving: t, saveError: n, savedFlash: r, canSave: i, onSa
 		})
 	}) : null;
 }
-async function pn(e, t) {
+async function hn(e, t) {
 	let n = {
 		...t,
 		...e
 	};
 	try {
-		await _(`${Kt}/${Gt}`, {
+		await _(`${Jt}/${qt}`, {
 			method: "PUT",
 			body: JSON.stringify(JSON.stringify(n))
 		});
@@ -2350,7 +2361,7 @@ async function pn(e, t) {
 		if (e instanceof v) throw e;
 	}
 }
-function mn() {
+function gn() {
 	let n = b($), [r, s] = a(() => S()), [c, l] = a(() => S()), [u, d] = a(!0), [h, g] = a(null), [y, x] = a(!1), [C, w] = a(null), [T, E] = a(!1), [D, O] = a(!1), [k, A] = a(!1), [ee, te] = a(""), j = i({}), [M, ne] = a(null), [N, re] = a(!1), ie = i(null), se = i(null), ce = i("filename"), P = JSON.stringify(r) !== JSON.stringify(c), ue = P || k, [de, fe] = a(!1), [pe, me] = a(!1), [F, I] = a(null);
 	function he(e) {
 		return new Promise((t, n) => {
@@ -2358,7 +2369,7 @@ function mn() {
 				_(`/jobs/${e}`).then((e) => {
 					e.status === "completed" ? (clearInterval(r), t()) : (e.status === "failed" || e.status === "cancelled") && (clearInterval(r), n(Error(e.error ?? "the job did not complete")));
 				}).catch(() => {});
-			}, Xt);
+			}, Qt);
 		});
 	}
 	let ge = e(async (e) => {
@@ -2369,7 +2380,7 @@ function mn() {
 				let { jobId: e } = await _(`/extensions/${$}/scan-library`, { method: "POST" });
 				await he(e), t = await _(`/extensions/${$}/last-scan`);
 			}
-			let n = xt(t), { jobId: r } = await _(Jt, { method: "POST" });
+			let n = xt(t), { jobId: r } = await _(Xt, { method: "POST" });
 			await he(r), fe(!1), I({
 				kind: "success",
 				text: `Renamed ${n.renamed} file${n.renamed === 1 ? "" : "s"}` + (n.skipped > 0 ? `, ${n.skipped} skipped` : "") + "."
@@ -2386,7 +2397,7 @@ function mn() {
 	}, []), _e = e(async () => {
 		d(!0), g(null), A(!1);
 		try {
-			let e = (await n.getAll())[Gt];
+			let e = (await n.getAll())[qt];
 			if (e) {
 				O(!1);
 				let t;
@@ -2422,7 +2433,7 @@ function mn() {
 	}, [_e]), t(() => {
 		if (u) return;
 		let e = setTimeout(() => {
-			_(qt, {
+			_(Yt, {
 				method: "POST",
 				body: JSON.stringify({ Options: r })
 			}).then((e) => {
@@ -2430,7 +2441,7 @@ function mn() {
 			}).catch(() => {
 				re(!0);
 			});
-		}, Yt);
+		}, Zt);
 		return () => {
 			clearTimeout(e);
 		};
@@ -2438,7 +2449,7 @@ function mn() {
 	async function ve() {
 		x(!0), w(null);
 		try {
-			await pn(r, j.current), l(r), O(!1), A(!1), E(!0), setTimeout(() => {
+			await hn(r, j.current), l(r), O(!1), A(!1), E(!0), setTimeout(() => {
 				E(!1);
 			}, 3e3);
 		} catch (e) {
@@ -2492,9 +2503,10 @@ function mn() {
 			children: "Retry"
 		}) })]
 	});
-	let X = (e) => r[e], Fe = (M ?? []).filter((e) => e.flags.includes("empty")).map((e) => e.sampleLabel), Ie = Vt("performers", r.FilenameTemplate, r.FolderTemplate), Le = Vt("tags", r.FilenameTemplate, r.FolderTemplate), Z = Vt("date", r.FilenameTemplate, r.FolderTemplate), Q = Vt("duration", r.FilenameTemplate, r.FolderTemplate);
+	let X = (e) => r[e], Fe = (M ?? []).filter((e) => e.flags.includes("empty")).map((e) => e.sampleLabel), Ie = Ut("performers", r.FilenameTemplate, r.FolderTemplate), Le = Ut("tags", r.FilenameTemplate, r.FolderTemplate), Z = Ut("date", r.FilenameTemplate, r.FolderTemplate), Q = Ut("duration", r.FilenameTemplate, r.FolderTemplate);
 	return /* @__PURE__ */ m("div", {
-		className: `space-y-6 ${P ? "pb-20" : ""}`,
+		className: "space-y-6",
+		style: P ? { paddingBottom: "5rem" } : void 0,
 		children: [
 			/* @__PURE__ */ m("div", {
 				className: "grid grid-cols-1 gap-6 lg:grid-cols-3",
@@ -2513,7 +2525,7 @@ function mn() {
 						}),
 						description: "The three things you set most often — pick a preset or write your own, then choose where files go.",
 						children: [
-							/* @__PURE__ */ p(dn, { onApply: (e) => {
+							/* @__PURE__ */ p(pn, { onApply: (e) => {
 								R("FilenameTemplate", e);
 							} }),
 							/* @__PURE__ */ p(z, {
@@ -2529,7 +2541,7 @@ function mn() {
 									placeholder: "$title"
 								})
 							}),
-							/* @__PURE__ */ p(ln, {
+							/* @__PURE__ */ p(dn, {
 								value: r.FilenameTemplate,
 								emptySamples: Fe
 							}),
@@ -2559,7 +2571,7 @@ function mn() {
 											placeholder: "$studio / $year"
 										})
 									}),
-									/* @__PURE__ */ p(ln, { value: r.FolderTemplate })
+									/* @__PURE__ */ p(dn, { value: r.FolderTemplate })
 								]
 							})
 						]
@@ -2622,13 +2634,13 @@ function mn() {
 							placeholder: "Add token, press Enter"
 						}),
 						/* @__PURE__ */ p(Ee, {
-							tokens: It,
+							tokens: Rt,
 							values: r.RequiredFields,
 							onAdd: (e) => {
 								R("RequiredFields", r.RequiredFields.includes(e) ? r.RequiredFields : [...r.RequiredFields, e]);
 							}
 						}),
-						/* @__PURE__ */ p(un, { values: r.RequiredFields })
+						/* @__PURE__ */ p(fn, { values: r.RequiredFields })
 					]
 				})
 			] }),
@@ -2690,7 +2702,7 @@ function mn() {
 									onClick: () => {
 										document.getElementById("rename-undo-section")?.scrollIntoView({ behavior: "smooth" });
 									},
-									className: "text-accent underline hover:no-underline",
+									className: "text-accent",
 									children: "Undo"
 								})] }) : null
 							]
@@ -2698,7 +2710,7 @@ function mn() {
 					}) : null
 				]
 			})] }),
-			de ? /* @__PURE__ */ p(Pt, {
+			de ? /* @__PURE__ */ p(It, {
 				options: r,
 				onClose: () => {
 					fe(!1);
@@ -2728,7 +2740,7 @@ function mn() {
 									onChange: (e) => {
 										J("Performers", { Separator: e });
 									},
-									options: sn,
+									options: ln,
 									customPlaceholder: "Custom separator"
 								})
 							}),
@@ -2750,7 +2762,7 @@ function mn() {
 									onChange: (e) => {
 										J("Performers", { OnOverflow: e });
 									},
-									options: $t
+									options: tn
 								})
 							}),
 							/* @__PURE__ */ p(z, {
@@ -2761,14 +2773,14 @@ function mn() {
 									onChange: (e) => {
 										J("Performers", { Sort: e });
 									},
-									options: en
+									options: nn
 								})
 							}),
 							/* @__PURE__ */ p(z, {
 								label: "Ignore genders",
 								helper: "Drop performers of these genders before the max-count limit. A performer with no gender is always kept. None selected = off.",
 								children: /* @__PURE__ */ p(we, {
-									options: nn,
+									options: an,
 									values: X("Performers").IgnoreGenders,
 									onChange: (e) => {
 										J("Performers", { IgnoreGenders: e });
@@ -2779,7 +2791,7 @@ function mn() {
 								label: "Gender order",
 								helper: "Preferred gender order, most-preferred first. Empty = off.",
 								children: /* @__PURE__ */ p(Te, {
-									options: nn,
+									options: an,
 									values: X("Performers").GenderOrder,
 									onChange: (e) => {
 										J("Performers", { GenderOrder: e });
@@ -2822,7 +2834,7 @@ function mn() {
 									onChange: (e) => {
 										J("Tags", { Separator: e });
 									},
-									options: sn,
+									options: ln,
 									customPlaceholder: "Custom separator"
 								})
 							}),
@@ -2844,7 +2856,7 @@ function mn() {
 									onChange: (e) => {
 										J("Tags", { OnOverflow: e });
 									},
-									options: $t
+									options: tn
 								})
 							}),
 							/* @__PURE__ */ p(z, {
@@ -2854,7 +2866,7 @@ function mn() {
 									onChange: (e) => {
 										J("Tags", { Sort: e });
 									},
-									options: tn
+									options: rn
 								})
 							}),
 							/* @__PURE__ */ p(Ue, {
@@ -2892,7 +2904,7 @@ function mn() {
 								onChange: (e) => {
 									R("DateFormat", e);
 								},
-								options: an,
+								options: sn,
 								customPlaceholder: "yyyy-MM-dd"
 							})
 						}) : null, Q ? /* @__PURE__ */ p(z, {
@@ -2902,7 +2914,7 @@ function mn() {
 								onChange: (e) => {
 									R("DurationFormat", e);
 								},
-								options: on,
+								options: cn,
 								customPlaceholder: "hh\\-mm\\-ss"
 							})
 						}) : null]
@@ -3135,13 +3147,13 @@ function mn() {
 									R("AssociatedExtensions", e);
 								},
 								placeholder: "Add an extension, press Enter",
-								normalize: Zt,
+								normalize: $t,
 								onReject: (e) => !/^[a-z0-9]+$/.test(e),
 								onLiveChange: (e) => {
 									te(e);
 								}
 							}), (() => {
-								let e = le(Zt(ee));
+								let e = le($t(ee));
 								return e ? /* @__PURE__ */ p(K, {
 									kind: "warning",
 									children: e
@@ -3221,7 +3233,7 @@ function mn() {
 										onChange: (e) => {
 											R("Case", e);
 										},
-										options: Qt
+										options: en
 									})
 								})
 							]
@@ -3273,13 +3285,13 @@ function mn() {
 										placeholder: "Add field, press Enter"
 									}),
 									/* @__PURE__ */ p(Ee, {
-										tokens: It,
+										tokens: Rt,
 										values: r.DropOrder,
 										onAdd: (e) => {
 											R("DropOrder", r.DropOrder.includes(e) ? r.DropOrder : [...r.DropOrder, e]);
 										}
 									}),
-									/* @__PURE__ */ p(un, { values: r.DropOrder })
+									/* @__PURE__ */ p(fn, { values: r.DropOrder })
 								]
 							}),
 							/* @__PURE__ */ p(z, {
@@ -3290,7 +3302,7 @@ function mn() {
 									onChange: (e) => {
 										R("DuplicateSuffixFormat", e);
 									},
-									options: cn,
+									options: un,
 									customPlaceholder: " ({n})"
 								})
 							})
@@ -3378,12 +3390,12 @@ function mn() {
 										R("FieldReplacers", e);
 									},
 									makeRow: () => ({
-										TargetToken: rn[0].value,
+										TargetToken: on[0].value,
 										Find: "",
 										Replace: ""
 									}),
 									renderRow: (e, t, n) => {
-										let r = rn.some((t) => t.value === e.TargetToken) ? rn : [...rn, {
+										let r = on.some((t) => t.value === e.TargetToken) ? on : [...on, {
 											value: e.TargetToken,
 											label: `${e.TargetToken} (unknown)`
 										}];
@@ -3476,7 +3488,7 @@ function mn() {
 				id: "rename-undo-section",
 				children: /* @__PURE__ */ p(ht, { refreshKey: 0 })
 			}),
-			/* @__PURE__ */ p(fn, {
+			/* @__PURE__ */ p(mn, {
 				dirty: P,
 				saving: y,
 				saveError: C,
@@ -3492,28 +3504,28 @@ function mn() {
 }
 //#endregion
 //#region src/RenamePage.tsx
-function hn() {
-	return /* @__PURE__ */ p(mn, {});
+function _n() {
+	return /* @__PURE__ */ p(gn, {});
 }
 //#endregion
 //#region src/preview.ts
-function gn(e) {
+function vn(e) {
 	if (!e) return e;
 	let t = Math.max(e.lastIndexOf("/"), e.lastIndexOf("\\"));
 	return t >= 0 ? e.slice(t + 1) : e;
 }
-var _n = 5;
-function vn(e) {
+var yn = 5;
+function bn(e) {
 	let t = e / (1024 * 1024 * 1024);
 	return t >= 10 ? `${Math.round(t)} GB` : `${t.toFixed(1)} GB`;
 }
-function yn(e) {
-	return (e?.volumePairs ?? []).map((e) => `↪ ${e.count} item${e.count === 1 ? "" : "s"} (${vn(e.bytes)}) move from ${e.from} to ${e.to}.`);
+function xn(e) {
+	return (e?.volumePairs ?? []).map((e) => `↪ ${e.count} item${e.count === 1 ? "" : "s"} (${bn(e.bytes)}) move from ${e.from} to ${e.to}.`);
 }
-function bn(e) {
+function Sn(e) {
 	return e === "Heavy" ? "This is a LARGE cross-drive move — files will be COPIED across drives, which can take a while. Click OK only if you are sure; Cancel to stop. You can undo this afterwards." : e === "Standard" ? "This moves files across drives. Click OK to proceed, or Cancel to stop. You can undo this afterwards." : "Click OK to rename, or Cancel to stop. You can undo this afterwards.";
 }
-function xn(e, t) {
+function Cn(e, t) {
 	let n = e.filter((e) => e.status === "Renamer" || e.status === "Move"), r = n.length, i = e.length, a = e.filter((e) => e.status === "SkipGated").length, o = e.filter((e) => e.status === "SkipCollision").length, s = e.filter((e) => e.status === "SkipLocked").length, c = a + o + s, l = n.filter((e) => e.suffixed).length, u = n.filter((e) => e.sanitized).length, d = [];
 	if (c > 0) {
 		let e = [];
@@ -3523,14 +3535,14 @@ function xn(e, t) {
 		} else d.push(`⚠ ${c} skipped — ${e.join(", ")}.`);
 	}
 	u > 0 && d.push(`⚠ ${u} had illegal characters cleaned up.`), l > 0 && d.push(`⚠ ${l} got a number added to avoid a name clash (e.g. "name (1)").`);
-	let f = yn(t), p = d.length > 0 ? `${d.join("\n")}\n\n` : "", m = f.length > 0 ? `${f.join("\n")}\n\n` : "";
+	let f = xn(t), p = d.length > 0 ? `${d.join("\n")}\n\n` : "", m = f.length > 0 ? `${f.join("\n")}\n\n` : "";
 	if (r === 0) return {
 		text: `Nothing will be renamed — all ${i} selected item${i === 1 ? "" : "s"} are skipped or already named correctly.\n\n` + p + "Click OK to dismiss.",
 		willRenameCount: 0
 	};
-	let h = r === i ? `Rename ${r} selected item${r === 1 ? "" : "s"}?` : `Rename ${r} of ${i} selected items?`, g = n.slice(0, _n).map((e) => `  ${gn(e.oldFullPath)}  →  ${e.newBasename || gn(e.newFullPath)}`), _ = r - g.length;
+	let h = r === i ? `Rename ${r} selected item${r === 1 ? "" : "s"}?` : `Rename ${r} of ${i} selected items?`, g = n.slice(0, yn).map((e) => `  ${vn(e.oldFullPath)}  →  ${e.newBasename || vn(e.newFullPath)}`), _ = r - g.length;
 	_ > 0 && g.push(`  … and ${_} more.`);
-	let v = bn(t?.confirmLevel ?? "Light");
+	let v = Sn(t?.confirmLevel ?? "Light");
 	return {
 		text: `${h}\n\n` + p + m + `Examples:\n${g.join("\n")}\n\n` + v,
 		willRenameCount: r
@@ -3538,18 +3550,18 @@ function xn(e, t) {
 }
 //#endregion
 //#region src/renameSelected.ts
-var Sn = "com.alextomas955.renamer", Cn = `/extensions/${Sn}/preview`, wn = `/extensions/${Sn}/renamer`;
-async function Tn(e, t) {
+var wn = "com.alextomas955.renamer", Tn = `/extensions/${wn}/preview`, En = `/extensions/${wn}/renamer`;
+async function Dn(e, t) {
 	let n = JSON.stringify({
 		EntityType: t.entityType,
 		EntityIds: t.entityIds
-	}), r = await _(Cn, {
+	}), r = await _(Tn, {
 		method: "POST",
 		body: n
-	}), { text: i, willRenameCount: a } = xn(r.items, r.summary);
+	}), { text: i, willRenameCount: a } = Cn(r.items, r.summary);
 	if (!window.confirm(i) || a === 0) return { cancelled: !0 };
 	try {
-		await _(wn, {
+		await _(En, {
 			method: "POST",
 			body: n
 		});
@@ -3560,7 +3572,7 @@ async function Tn(e, t) {
 }
 //#endregion
 //#region src/index.ts
-var En = h({ components: { RenamerPage: hn } });
-En.actionHandlers = { renamerSelected: Tn };
+var On = h({ components: { RenamerPage: _n } });
+On.actionHandlers = { renamerSelected: Dn };
 //#endregion
-export { En as default };
+export { On as default };

@@ -486,9 +486,15 @@ export function Toggle({
           }`}
         >
           <span
-            className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
-              checked ? "translate-x-4" : "translate-x-0.5"
-            }`}
+            className="inline-block h-4 w-4 rounded-full bg-white transition-transform"
+            // Knob offset is an inline transform, not a translate-x-* utility. The extension
+            // ships no CSS of its own; it styles via classes the host's prebuilt Tailwind bundle
+            // already emits. translate-x-4 / translate-x-0.5 are used nowhere in Cove's own UI, so
+            // the host never compiles them — as classes they'd resolve to nothing and the knob
+            // wouldn't move. An inline style is element-scoped (cannot leak onto host pages) and
+            // needs no bundle. 1rem = the 9-wide track minus the 4-wide knob minus the 0.125rem
+            // off-state inset; transition-transform (host-emitted) still animates the slide.
+            style={{ transform: checked ? "translateX(1rem)" : "translateX(0.125rem)" }}
           />
         </button>
         {label ? <span>{label}</span> : null}
