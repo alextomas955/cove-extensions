@@ -2,8 +2,8 @@
 
 ## Branching and CI
 
-See [`docs/BRANCHING.md`](docs/BRANCHING.md) for the branch model and what CI runs on a pull
-request. Open PRs against `main`.
+See [Branching](https://alextomas955.github.io/cove-extensions/contributing/branching) for the
+branch model and what CI runs on a pull request. Open PRs against `main`.
 
 ## Building and testing
 
@@ -21,7 +21,7 @@ verify before it's opened.
 ## Releasing
 
 Releases are cut per extension via tags, not from this file's process — see
-[`docs/RELEASING.md`](docs/RELEASING.md).
+[Releasing](https://alextomas955.github.io/cove-extensions/contributing/releasing).
 
 ## Reporting a bug or requesting a feature
 

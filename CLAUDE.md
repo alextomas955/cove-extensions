@@ -17,7 +17,8 @@ extensions, following [yourcove](https://github.com/yourcove)'s official
   catalog entry builds on every PR (no `paths:` filtering); a release for one extension is cut by
   pushing a tag of the form `<tagPrefix>v<semver>` (e.g. `renamer/v1.0.0`), which builds, strip-
   verifies, and packages only that extension.
-- See `docs/BRANCHING.md` and `docs/RELEASING.md` for the full branching and release process.
+- See `website/docs/contributing/branching.md` and `website/docs/contributing/releasing.md` for the
+  full branching and release process.
 
 ## Build wiring
 

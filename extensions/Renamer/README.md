@@ -55,4 +55,5 @@ checkout (or `$COVE_REPO`) so the extension is ABI-identical to the running host
 ## Releasing
 
 A release is cut by pushing a tag of the form `renamer/v<semver>` (e.g. `renamer/v1.0.0`). See the
-repo-wide [`docs/RELEASING.md`](../../docs/RELEASING.md) for the full process.
+repo-wide [Releasing](https://alextomas955.github.io/cove-extensions/contributing/releasing) guide
+for the full process.
