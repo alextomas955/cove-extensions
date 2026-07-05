@@ -1,0 +1,62 @@
+# Build and deploy the standalone Docusaurus docs site (website/) to GitHub Pages.
+#
+# Deliberately SEPARATE from build.yml (the catalog-driven extension build/release matrix) — the docs
+# site is its own concern with its own trigger and toolchain. Uses the modern first-party Pages flow
+# (actions/configure-pages -> actions/upload-pages-artifact -> actions/deploy-pages), not the legacy
+# branch-push publishing flow. Mirrors build.yml's toolchain pins (actions/checkout@v7, actions/setup-node@v6,
+# node 24.11.0). The site is a standalone npm package built with `npm --prefix website ...`.
+
+name: Deploy docs site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+# Least-privilege token: read the repo, write Pages, mint the OIDC id-token deploy-pages needs.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Serialize Pages deploys; never cancel an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.11.0'
+          cache: 'npm'
+          cache-dependency-path: website/package-lock.json
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Build the docs site
+        run: npm --prefix website ci && npm --prefix website run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

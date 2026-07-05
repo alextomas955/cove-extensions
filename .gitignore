@@ -17,3 +17,7 @@ node_modules/
 .cursor/
 .codex/
 CLAUDE.local.md
+
+# Docusaurus build output — website/ is a standalone package (see website/package.json);
+# node_modules/ is already covered by the existing root rule above.
+website/build/
