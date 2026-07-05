@@ -33,3 +33,10 @@ Build the whole monorepo from this root:
 ```sh
 dotnet build CoveExtensions.slnx
 ```
+
+## Documentation upkeep
+
+When a change alters an extension's settings, configuration options, public API, or user-facing
+behavior, update that extension's docs in the same change — `extensions/<Name>/docs/`, its
+`README.md`, and `CHANGELOG.md` as applicable, plus the matching docs-site page. Docs are part of
+done. Do not defer them to a later change.

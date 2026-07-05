@@ -139,3 +139,10 @@ string ResolveCanonicalPath(string candidate);
 
 - The repo's standing ban on planning-process jargon and AI/author-narrative voice in all shipped
   artifacts governs comments too — this policy reinforces it, it does not replace it.
+
+## Documentation upkeep
+
+When a change alters an extension's settings, configuration options, public API, or user-facing
+behavior, update that extension's docs in the same change — `extensions/<Name>/docs/`, its
+`README.md`, and `CHANGELOG.md` as applicable, plus the matching docs-site page. Docs are part of
+done. Do not defer them to a later change.

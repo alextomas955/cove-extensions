@@ -40,3 +40,11 @@ pre-commit:
     # only); drop --warn to make it a hard fail once the maintainer wants drift to block commits.
     sdk-drift-check:
       run: node extensions/Renamer/scripts/check-sdk-drift.mjs --warn
+
+    # Local + CI advisory: warns when an extension's public-surface source (settings/options/SDK/
+    # manifest/UI-settings) changed but that extension's docs did not (docs/, README, CHANGELOG, or
+    # the website/docs page). Heuristic, so it WARNS only — a source change may legitimately need no
+    # docs update; the PR checklist is where intent is confirmed. Catalog-driven (scales to N
+    # extensions). Drop --warn to make it a hard fail once the maintainer wants drift to block.
+    docs-drift-check:
+      run: node scripts/check-docs-drift.mjs --warn {staged_files}
