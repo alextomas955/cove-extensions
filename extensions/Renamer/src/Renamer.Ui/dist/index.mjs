@@ -175,7 +175,7 @@ function D(e, t) {
 function O(e, t) {
 	return Array.isArray(e) ? e.filter((e) => typeof e == "number" && Number.isFinite(e)) : t;
 }
-function k(e) {
+function ee(e) {
 	let t = C(e), n = {};
 	for (let [e, r] of Object.entries(t)) {
 		let t = Number(e);
@@ -183,12 +183,12 @@ function k(e) {
 	}
 	return n;
 }
-function A(e) {
+function k(e) {
 	let t = C(e), n = {};
 	for (let [e, r] of Object.entries(t)) typeof r == "string" && (n[e] = r);
 	return n;
 }
-function ee(e) {
+function te(e) {
 	return Array.isArray(e) ? e.filter((e) => e && typeof e == "object").map((e) => {
 		let t = e;
 		return {
@@ -198,7 +198,7 @@ function ee(e) {
 		};
 	}) : [];
 }
-function te(e) {
+function ne(e) {
 	return Array.isArray(e) ? e.filter((e) => e && typeof e == "object").map((e) => {
 		let t = e;
 		return {
@@ -207,7 +207,7 @@ function te(e) {
 		};
 	}) : [];
 }
-function j(e) {
+function A(e) {
 	return Array.isArray(e) ? e.filter((e) => e && typeof e == "object").map((e) => {
 		let t = e;
 		return {
@@ -217,36 +217,36 @@ function j(e) {
 		};
 	}) : [];
 }
-function M(e) {
+function j(e) {
 	return e === "KeepFirst" ? "KeepFirst" : "DropAll";
 }
-function ne(e) {
+function re(e) {
 	return e === "None" || e === "IdAsc" || e === "FavoriteFirst" ? e : "NameAsc";
 }
-function N(e) {
+function M(e) {
 	return e === "Lower" || e === "Title" ? e : "None";
 }
-function re(e, t) {
+function ie(e, t) {
 	let n = C(e);
 	return {
 		Separator: w(n.Separator, t.Separator),
 		MaxCount: T(n.MaxCount, t.MaxCount),
-		OnOverflow: M(n.OnOverflow),
-		Sort: ne(n.Sort),
+		OnOverflow: j(n.OnOverflow),
+		Sort: re(n.Sort),
 		Whitelist: D(n.Whitelist, []),
 		Blacklist: D(n.Blacklist, []),
 		IgnoreGenders: D(n.IgnoreGenders, []),
 		GenderOrder: D(n.GenderOrder, [])
 	};
 }
-var ie = new Set(Object.keys(x));
-function ae(e) {
+var ae = new Set(Object.keys(x));
+function oe(e) {
 	if (!e || typeof e != "object") return {};
 	let t = {};
-	for (let [n, r] of Object.entries(e)) ie.has(n) || (t[n] = r);
+	for (let [n, r] of Object.entries(e)) ae.has(n) || (t[n] = r);
 	return t;
 }
-function oe(e) {
+function se(e) {
 	if (!e || typeof e != "object") return S();
 	let t = e, n = x;
 	return {
@@ -254,12 +254,12 @@ function oe(e) {
 		FolderTemplate: w(t.FolderTemplate, n.FolderTemplate),
 		DateFormat: w(t.DateFormat, n.DateFormat),
 		DurationFormat: w(t.DurationFormat, n.DurationFormat),
-		Performers: re(t.Performers, n.Performers),
-		Tags: re(t.Tags, n.Tags),
+		Performers: ie(t.Performers, n.Performers),
+		Tags: ie(t.Tags, n.Tags),
 		IllegalReplacement: w(t.IllegalReplacement, n.IllegalReplacement),
 		SpaceReplacement: w(t.SpaceReplacement, n.SpaceReplacement),
 		RemoveCharacters: w(t.RemoveCharacters, n.RemoveCharacters),
-		Case: N(t.Case),
+		Case: M(t.Case),
 		AsciiTransliterate: E(t.AsciiTransliterate, n.AsciiTransliterate),
 		FilenameMax: T(t.FilenameMax, n.FilenameMax),
 		FullPathMax: T(t.FullPathMax, n.FullPathMax),
@@ -269,12 +269,12 @@ function oe(e) {
 		RequiredFields: D(t.RequiredFields, [...n.RequiredFields]),
 		DuplicateSuffixFormat: w(t.DuplicateSuffixFormat, n.DuplicateSuffixFormat),
 		AutoRenamerOnUpdate: E(t.AutoRenamerOnUpdate, n.AutoRenamerOnUpdate),
-		StudioDestinations: k(t.StudioDestinations),
-		TagDestinations: A(t.TagDestinations),
-		PathDestinations: ee(t.PathDestinations),
+		StudioDestinations: ee(t.StudioDestinations),
+		TagDestinations: k(t.TagDestinations),
+		PathDestinations: te(t.PathDestinations),
 		ExcludeTags: D(t.ExcludeTags, []),
 		ExcludeStudioIds: O(t.ExcludeStudioIds, []),
-		ExcludePaths: te(t.ExcludePaths),
+		ExcludePaths: ne(t.ExcludePaths),
 		AllowedRoots: D(t.AllowedRoots, []),
 		AssociatedExtensions: D(t.AssociatedExtensions, [...n.AssociatedExtensions]),
 		DefaultDestination: w(t.DefaultDestination, n.DefaultDestination),
@@ -285,7 +285,7 @@ function oe(e) {
 		EnableAdvancedRouting: E(t.EnableAdvancedRouting, n.EnableAdvancedRouting),
 		RemoveEmptyFolder: E(t.RemoveEmptyFolder, n.RemoveEmptyFolder),
 		SqueezeStudioNames: E(t.SqueezeStudioNames, n.SqueezeStudioNames),
-		FieldReplacers: j(t.FieldReplacers),
+		FieldReplacers: A(t.FieldReplacers),
 		StripLeadingArticles: E(t.StripLeadingArticles, n.StripLeadingArticles),
 		Articles: D(t.Articles, [...n.Articles]),
 		PreventTitlePerformer: E(t.PreventTitlePerformer, n.PreventTitlePerformer),
@@ -294,7 +294,7 @@ function oe(e) {
 }
 //#endregion
 //#region src/primitivesLogic.ts
-function se(e) {
+function ce(e) {
 	if (e.length === 0) return { valid: !0 };
 	try {
 		return new RegExp(e), { valid: !0 };
@@ -305,11 +305,11 @@ function se(e) {
 		};
 	}
 }
-function ce(e) {
+function le(e) {
 	let t = e.trim();
 	return t.length === 0 ? !0 : /^[A-Za-z]:[\\/]/.test(t) || /^[\\/]/.test(t);
 }
-var P = /* @__PURE__ */ new Set([
+var N = /* @__PURE__ */ new Set([
 	"mp4",
 	"mkv",
 	"avi",
@@ -325,53 +325,53 @@ var P = /* @__PURE__ */ new Set([
 	"wav",
 	"m4a"
 ]);
-function le(e) {
-	return e.length === 0 ? null : /^[a-z0-9]+$/.test(e) ? P.has(e) ? "This looks like a primary media extension, not a sidecar." : null : "Extensions are letters and numbers only, like srt or nfo.";
+function ue(e) {
+	return e.length === 0 ? null : /^[a-z0-9]+$/.test(e) ? N.has(e) ? "This looks like a primary media extension, not a sidecar." : null : "Extensions are letters and numbers only, like srt or nfo.";
 }
 //#endregion
 //#region src/entityPickerLogic.ts
-function ue(e, t) {
+function de(e, t) {
 	let n = e.trim().toLowerCase();
 	return n.length === 0 ? [...t] : t.filter((e) => e.name.toLowerCase().includes(n));
 }
-function de(e, t, n) {
+function fe(e, t, n) {
 	if (t.length === 0) return [...e];
 	let r = new Set(t);
 	return e.filter((e) => !r.has(n(e)));
 }
-function fe(e, t) {
+function pe(e, t) {
 	let n = new Set(t);
 	return e.filter((e) => !n.has(e.value));
 }
-function pe(e, t) {
+function me(e, t) {
 	let n = t.find((t) => t.id === e);
 	return n ? n.name : `#${e} (missing)`;
 }
-function me(e, t) {
+function he(e, t) {
 	return t.some((t) => t.id === e);
 }
-function F(e, t) {
+function P(e, t) {
 	let n = e.trim(), r = t.find((e) => e.name.toLowerCase() === n.toLowerCase());
 	return r ? r.name : n;
 }
 //#endregion
 //#region src/primitives.tsx
-var I = "w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none", he = "cursor-pointer rounded-lg border px-2 py-1 text-xs", ge = "border-border bg-card text-foreground hover:border-accent/50 hover:text-accent", _e = "border-accent bg-accent/15 text-foreground";
-function ve(e) {
-	return `${he} ${e ? _e : ge}`;
+var F = "w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none", ge = "cursor-pointer rounded-lg border px-2 py-1 text-xs", _e = "border-border bg-card text-foreground hover:border-accent/50 hover:text-accent", ve = "border-accent bg-accent/15 text-foreground";
+function ye(e) {
+	return `${ge} ${e ? ve : _e}`;
 }
-function L({ selected: e, onClick: t, disabled: n, title: r, mono: i, children: a }) {
+function I({ selected: e, onClick: t, disabled: n, title: r, mono: i, children: a }) {
 	return /* @__PURE__ */ p("button", {
 		type: "button",
 		onClick: t,
 		disabled: n,
 		title: r,
-		className: i ? `${ve(e)} font-mono` : ve(e),
+		className: i ? `${ye(e)} font-mono` : ye(e),
 		children: a
 	});
 }
-var R = "__custom__";
-function z({ label: e, helper: t, children: n }) {
+var L = "__custom__";
+function R({ label: e, helper: t, children: n }) {
 	return /* @__PURE__ */ m("label", {
 		className: "block text-sm",
 		title: t,
@@ -388,7 +388,7 @@ function z({ label: e, helper: t, children: n }) {
 		]
 	});
 }
-function B({ value: e, onChange: t, onFocus: n, placeholder: r, mono: i = !1, inputRef: a }) {
+function z({ value: e, onChange: t, onFocus: n, placeholder: r, mono: i = !1, inputRef: a }) {
 	return /* @__PURE__ */ p("input", {
 		ref: a,
 		type: "text",
@@ -398,10 +398,10 @@ function B({ value: e, onChange: t, onFocus: n, placeholder: r, mono: i = !1, in
 			t(e.target.value);
 		},
 		onFocus: n,
-		className: i ? `${I} font-mono` : I
+		className: i ? `${F} font-mono` : F
 	});
 }
-function ye({ value: e, onChange: t, min: n }) {
+function be({ value: e, onChange: t, min: n }) {
 	return /* @__PURE__ */ p("input", {
 		type: "number",
 		value: Number.isNaN(e) ? "" : e,
@@ -409,31 +409,31 @@ function ye({ value: e, onChange: t, min: n }) {
 		onChange: (e) => {
 			t(e.target.value === "" ? 0 : Number(e.target.value));
 		},
-		className: `themed-number-input ${I}`
+		className: `themed-number-input ${F}`
 	});
 }
-function V({ value: e, onChange: t, options: n }) {
+function B({ value: e, onChange: t, options: n }) {
 	return /* @__PURE__ */ p("select", {
 		value: e,
 		onChange: (e) => {
 			t(e.target.value);
 		},
-		className: I,
+		className: F,
 		children: n.map((e) => /* @__PURE__ */ p("option", {
 			value: e.value,
 			children: e.label
 		}, e.value))
 	});
 }
-function be({ value: e, onChange: t, options: n, customPlaceholder: r }) {
-	let i = n.find((t) => t.value === e), a = i === void 0, o = a ? R : e, s = i ? `${i.value} → ${i.example}` : e;
+function xe({ value: e, onChange: t, options: n, customPlaceholder: r }) {
+	let i = n.find((t) => t.value === e), a = i === void 0, o = a ? L : e, s = i ? `${i.value} → ${i.example}` : e;
 	return /* @__PURE__ */ m("div", { children: [/* @__PURE__ */ m("select", {
 		value: o,
 		onChange: (e) => {
 			let n = e.target.value;
-			n === R ? a || t("") : t(n);
+			n === L ? a || t("") : t(n);
 		},
-		className: I,
+		className: F,
 		children: [n.map((e) => /* @__PURE__ */ m("option", {
 			value: e.value,
 			children: [
@@ -442,12 +442,12 @@ function be({ value: e, onChange: t, options: n, customPlaceholder: r }) {
 				e.example
 			]
 		}, e.value)), /* @__PURE__ */ p("option", {
-			value: R,
+			value: L,
 			children: "Custom…"
 		})]
 	}), a ? /* @__PURE__ */ p("div", {
 		className: "mt-2",
-		children: /* @__PURE__ */ p(B, {
+		children: /* @__PURE__ */ p(z, {
 			value: e,
 			onChange: t,
 			placeholder: r,
@@ -458,17 +458,17 @@ function be({ value: e, onChange: t, options: n, customPlaceholder: r }) {
 		children: s
 	})] });
 }
-function xe({ value: e, onChange: t, options: n, customPlaceholder: r }) {
+function Se({ value: e, onChange: t, options: n, customPlaceholder: r }) {
 	let i = !n.some((t) => t.value === e);
 	return /* @__PURE__ */ m("div", { children: [/* @__PURE__ */ m("div", {
 		className: "flex flex-wrap gap-1",
-		children: [n.map((n) => /* @__PURE__ */ p(L, {
+		children: [n.map((n) => /* @__PURE__ */ p(I, {
 			selected: n.value === e,
 			onClick: () => {
 				t(n.value);
 			},
 			children: n.label
-		}, n.value || "__empty__")), /* @__PURE__ */ p(L, {
+		}, n.value || "__empty__")), /* @__PURE__ */ p(I, {
 			selected: i,
 			onClick: () => {
 				i || t("");
@@ -477,7 +477,7 @@ function xe({ value: e, onChange: t, options: n, customPlaceholder: r }) {
 		})]
 	}), i ? /* @__PURE__ */ p("div", {
 		className: "mt-2",
-		children: /* @__PURE__ */ p(B, {
+		children: /* @__PURE__ */ p(z, {
 			value: e,
 			onChange: t,
 			placeholder: r,
@@ -485,7 +485,7 @@ function xe({ value: e, onChange: t, options: n, customPlaceholder: r }) {
 		})
 	}) : null] });
 }
-function Se({ value: e, onChange: n, stripLabel: r, replaceLabel: o, stripHelper: s, replaceHelper: c, inputPlaceholder: l }) {
+function Ce({ value: e, onChange: n, stripLabel: r, replaceLabel: o, stripHelper: s, replaceHelper: c, inputPlaceholder: l }) {
 	let u = i(null), [d, f] = a(e !== ""), h = i(e);
 	t(() => {
 		e === "" ? h.current !== "" && f(!1) : f(!0), h.current = e;
@@ -499,18 +499,18 @@ function Se({ value: e, onChange: n, stripLabel: r, replaceLabel: o, stripHelper
 	}
 	return /* @__PURE__ */ m("div", { children: [/* @__PURE__ */ m("div", {
 		className: "flex gap-1",
-		children: [/* @__PURE__ */ p(L, {
+		children: [/* @__PURE__ */ p(I, {
 			selected: !g,
 			onClick: _,
 			children: r
-		}), /* @__PURE__ */ p(L, {
+		}), /* @__PURE__ */ p(I, {
 			selected: g,
 			onClick: v,
 			children: o
 		})]
 	}), g ? /* @__PURE__ */ m("div", {
 		className: "mt-2",
-		children: [/* @__PURE__ */ p(B, {
+		children: [/* @__PURE__ */ p(z, {
 			value: e,
 			onChange: n,
 			placeholder: l,
@@ -525,7 +525,7 @@ function Se({ value: e, onChange: n, stripLabel: r, replaceLabel: o, stripHelper
 		children: s
 	}) : null] });
 }
-function H({ label: e, checked: t, onChange: n, helper: r, ariaLabel: i }) {
+function V({ label: e, checked: t, onChange: n, helper: r, ariaLabel: i }) {
 	return /* @__PURE__ */ m("div", { children: [/* @__PURE__ */ m("label", {
 		className: "flex items-center gap-2 text-sm text-secondary",
 		title: r,
@@ -548,7 +548,7 @@ function H({ label: e, checked: t, onChange: n, helper: r, ariaLabel: i }) {
 		children: r
 	}) : null] });
 }
-function Ce({ values: e, onChange: t, placeholder: r, ordered: i = !1, normalize: a, onReject: o, onLiveChange: s }) {
+function we({ values: e, onChange: t, placeholder: r, ordered: i = !1, normalize: a, onReject: o, onLiveChange: s }) {
 	let c = n();
 	function l(n) {
 		let r = (a ? a(n.value) : n.value).trim();
@@ -604,7 +604,7 @@ function Ce({ values: e, onChange: t, placeholder: r, ordered: i = !1, normalize
 		id: c,
 		type: "text",
 		placeholder: r,
-		className: I,
+		className: F,
 		onChange: (e) => {
 			s?.(e.target.value);
 		},
@@ -616,7 +616,7 @@ function Ce({ values: e, onChange: t, placeholder: r, ordered: i = !1, normalize
 		}
 	})] });
 }
-function we({ options: e, values: t, onChange: n }) {
+function Te({ options: e, values: t, onChange: n }) {
 	let r = new Set(e.map((e) => e.value)), i = t.filter((e) => !r.has(e));
 	function a(r) {
 		let a = t.includes(r);
@@ -627,7 +627,7 @@ function we({ options: e, values: t, onChange: n }) {
 	}
 	return /* @__PURE__ */ m("div", {
 		className: "flex flex-wrap gap-1",
-		children: [e.map((e) => /* @__PURE__ */ p(L, {
+		children: [e.map((e) => /* @__PURE__ */ p(I, {
 			selected: t.includes(e.value),
 			onClick: () => {
 				a(e.value);
@@ -638,14 +638,14 @@ function we({ options: e, values: t, onChange: n }) {
 			onClick: () => {
 				o(e);
 			},
-			className: `${ve(!0)} inline-flex items-center gap-1`,
+			className: `${ye(!0)} inline-flex items-center gap-1`,
 			title: "Not a recognized value — click to remove",
 			children: [e, /* @__PURE__ */ p(d, { className: "h-3 w-3" })]
 		}, `extra:${e}`))]
 	});
 }
-function Te({ options: e, values: t, onChange: n, addPrompt: r }) {
-	let i = (t) => e.find((e) => e.value === t)?.label ?? t, a = fe(e, t);
+function Ee({ options: e, values: t, onChange: n, addPrompt: r }) {
+	let i = (t) => e.find((e) => e.value === t)?.label ?? t, a = pe(e, t);
 	function o(e, r) {
 		let i = e + r;
 		if (i < 0 || i >= t.length) return;
@@ -696,7 +696,7 @@ function Te({ options: e, values: t, onChange: n, addPrompt: r }) {
 			let r = e.target.value;
 			r !== "" && n([...t, r]);
 		},
-		className: I,
+		className: F,
 		children: [/* @__PURE__ */ p("option", {
 			value: "",
 			children: r
@@ -706,7 +706,7 @@ function Te({ options: e, values: t, onChange: n, addPrompt: r }) {
 		}, e.value))]
 	}) : null] });
 }
-function Ee({ tokens: e, values: t, onAdd: n }) {
+function De({ tokens: e, values: t, onAdd: n }) {
 	return /* @__PURE__ */ m("div", {
 		className: "mt-1",
 		children: [/* @__PURE__ */ p("span", {
@@ -717,9 +717,9 @@ function Ee({ tokens: e, values: t, onAdd: n }) {
 			children: e.map((e) => t.includes(e) ? /* @__PURE__ */ p("button", {
 				type: "button",
 				disabled: !0,
-				className: `${he} border-border bg-card text-muted font-mono`,
+				className: `${ge} border-border bg-card text-muted font-mono`,
 				children: e
-			}, e) : /* @__PURE__ */ p(L, {
+			}, e) : /* @__PURE__ */ p(I, {
 				selected: !1,
 				mono: !0,
 				onClick: () => {
@@ -730,7 +730,7 @@ function Ee({ tokens: e, values: t, onAdd: n }) {
 		})]
 	});
 }
-function De({ rows: e, onChange: n, makeRow: r, renderRow: o, addLabel: l, ordered: u = !1 }) {
+function Oe({ rows: e, onChange: n, makeRow: r, renderRow: o, addLabel: l, ordered: u = !1 }) {
 	let [f, h] = a(() => e.map((e, t) => t)), g = i(e.length);
 	t(() => {
 		f.length !== e.length && (g.current = e.length, h(e.map((e, t) => t)));
@@ -797,14 +797,14 @@ function De({ rows: e, onChange: n, makeRow: r, renderRow: o, addLabel: l, order
 					children: /* @__PURE__ */ p(d, { className: "h-4 w-4" })
 				})
 			]
-		}, f.length === e.length ? f[n] : n)), /* @__PURE__ */ p(G, {
+		}, f.length === e.length ? f[n] : n)), /* @__PURE__ */ p(W, {
 			variant: "ghost",
 			onClick: b,
 			children: l
 		})]
 	});
 }
-function Oe({ map: e, onChange: t, renderKey: n, renderValue: r, renderKeyLabel: i, addLabel: o }) {
+function ke({ map: e, onChange: t, renderKey: n, renderValue: r, renderKeyLabel: i, addLabel: o }) {
 	let [s, c] = a(""), [l, u] = a(""), f = Object.keys(e);
 	function h(n, r) {
 		t({
@@ -861,35 +861,35 @@ function Oe({ map: e, onChange: t, renderKey: n, renderValue: r, renderKeyLabel:
 						className: "min-w-0 flex-1",
 						children: r(l, u)
 					}),
-					/* @__PURE__ */ p(G, {
+					/* @__PURE__ */ p(W, {
 						onClick: _,
 						disabled: s.trim().length === 0 || v,
 						children: o
 					})
 				]
 			}),
-			v ? /* @__PURE__ */ p(K, {
+			v ? /* @__PURE__ */ p(G, {
 				kind: "error",
 				children: "That key already has a value."
 			}) : null
 		]
 	});
 }
-function ke({ pattern: e, isRegex: t }) {
+function Ae({ pattern: e, isRegex: t }) {
 	if (!t) return null;
-	let n = se(e);
-	return n.valid ? null : /* @__PURE__ */ m(K, {
+	let n = ce(e);
+	return n.valid ? null : /* @__PURE__ */ m(G, {
 		kind: "error",
 		children: ["Invalid pattern: ", n.message]
 	});
 }
-function Ae({ value: e }) {
-	return e.trim().length === 0 || ce(e) ? null : /* @__PURE__ */ p(K, {
+function je({ value: e }) {
+	return e.trim().length === 0 || le(e) ? null : /* @__PURE__ */ p(G, {
 		kind: "warning",
 		children: "Doesn't look like an absolute path."
 	});
 }
-function U({ title: e, description: t, headerRight: n, children: r }) {
+function H({ title: e, description: t, headerRight: n, children: r }) {
 	return /* @__PURE__ */ m("div", {
 		className: "rounded-xl border border-border bg-card p-4",
 		children: [
@@ -914,13 +914,13 @@ function U({ title: e, description: t, headerRight: n, children: r }) {
 		]
 	});
 }
-function je({ children: e, mono: t = !1 }) {
+function Me({ children: e, mono: t = !1 }) {
 	return /* @__PURE__ */ p("span", {
 		className: `inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold border border-accent/40 bg-accent/15 text-accent ${t ? "font-mono" : "uppercase tracking-wider"}`,
 		children: e
 	});
 }
-function Me({ title: e, hint: t }) {
+function Ne({ title: e, hint: t }) {
 	return /* @__PURE__ */ m("div", {
 		className: "flex items-center gap-3",
 		children: [
@@ -936,7 +936,7 @@ function Me({ title: e, hint: t }) {
 		]
 	});
 }
-function W({ title: e, description: t, badge: n, headerRight: r, accent: i = !1, children: a }) {
+function U({ title: e, description: t, badge: n, headerRight: r, accent: i = !1, children: a }) {
 	let o = i ? "border-accent/30" : "border-border", s = !!e || n != null || r != null;
 	return /* @__PURE__ */ m("section", {
 		className: `overflow-hidden rounded-2xl border ${o} bg-surface shadow-sm`,
@@ -968,7 +968,7 @@ function W({ title: e, description: t, badge: n, headerRight: r, accent: i = !1,
 		})]
 	});
 }
-function Ne({ title: e, description: t, enabled: n, onToggle: r, children: i }) {
+function Pe({ title: e, description: t, enabled: n, onToggle: r, children: i }) {
 	return /* @__PURE__ */ m("section", {
 		className: "overflow-hidden rounded-2xl border border-border bg-surface shadow-sm",
 		children: [/* @__PURE__ */ m("div", {
@@ -984,7 +984,7 @@ function Ne({ title: e, description: t, enabled: n, onToggle: r, children: i }) 
 				}) : null]
 			}), /* @__PURE__ */ p("div", {
 				className: "shrink-0",
-				children: /* @__PURE__ */ p(H, {
+				children: /* @__PURE__ */ p(V, {
 					label: "",
 					ariaLabel: `Enable ${e}`,
 					checked: n,
@@ -997,7 +997,7 @@ function Ne({ title: e, description: t, enabled: n, onToggle: r, children: i }) 
 		}) : null]
 	});
 }
-function Pe({ title: e, summary: t, defaultOpen: n = !1, children: r }) {
+function Fe({ title: e, summary: t, defaultOpen: n = !1, children: r }) {
 	let [i, o] = a(n);
 	return /* @__PURE__ */ m("div", {
 		className: "overflow-hidden rounded-xl border border-border",
@@ -1024,7 +1024,7 @@ function Pe({ title: e, summary: t, defaultOpen: n = !1, children: r }) {
 		}) : null]
 	});
 }
-function G({ variant: e = "primary", children: t, onClick: n, disabled: r }) {
+function W({ variant: e = "primary", children: t, onClick: n, disabled: r }) {
 	return /* @__PURE__ */ p("button", {
 		type: "button",
 		onClick: n,
@@ -1033,66 +1033,66 @@ function G({ variant: e = "primary", children: t, onClick: n, disabled: r }) {
 		children: t
 	});
 }
-function K({ kind: e, children: t }) {
+function G({ kind: e, children: t }) {
 	return /* @__PURE__ */ p("span", {
 		className: `text-xs ${e === "success" ? "text-green-400" : e === "error" ? "text-red-400" : e === "warning" ? "text-amber-400" : "text-secondary"}`,
 		children: t
 	});
 }
-function q() {
+function K() {
 	return /* @__PURE__ */ p(l, { className: "h-4 w-4 animate-spin" });
 }
 //#endregion
 //#region src/entityPicker.tsx
-var J = "com.alextomas955.renamer", Y = `/extensions/${J}/list-studios`, X = `/extensions/${J}/list-tags`, Fe = `/extensions/${J}/list-performers`, Ie = "w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none", Le = "cursor-pointer rounded-lg px-2 py-1 text-left text-sm text-foreground hover:bg-card-hover", Z = "inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-0.5 text-xs text-foreground", Q = "border-red-400 text-red-400";
-function Re({ label: r, helper: o, values: s, onChange: c, endpointPath: l, adapter: u, placeholder: f, excludeValues: h }) {
-	let g = n(), [v, y] = a(""), [b, x] = a(!1), [S, C] = a([]), [w, T] = a(!1), [E, D] = a(!1), [O, k] = a(!1), A = i(!1), ee = i(null);
+var q = "com.alextomas955.renamer", J = `/extensions/${q}/list-studios`, Y = `/extensions/${q}/list-tags`, Ie = `/extensions/${q}/list-performers`, Le = "w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none", Re = "cursor-pointer rounded-lg px-2 py-1 text-left text-sm text-foreground hover:bg-card-hover", X = "inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-0.5 text-xs text-foreground", Z = "border-red-400 text-red-400";
+function ze({ label: r, helper: o, values: s, onChange: c, endpointPath: l, adapter: u, placeholder: f, excludeValues: h }) {
+	let g = n(), [v, y] = a(""), [b, x] = a(!1), [S, C] = a([]), [w, T] = a(!1), [E, D] = a(!1), [O, ee] = a(!1), k = i(!1), te = i(null);
 	t(() => {
 		if (!b) return;
 		let e = (e) => {
-			ee.current?.contains(e.target) || x(!1);
+			te.current?.contains(e.target) || x(!1);
 		};
 		return document.addEventListener("mousedown", e), () => {
 			document.removeEventListener("mousedown", e);
 		};
 	}, [b]);
-	let te = e(async () => {
-		if (!(A.current || w)) {
-			A.current = !0, D(!0);
+	let ne = e(async () => {
+		if (!(k.current || w)) {
+			k.current = !0, D(!0);
 			try {
 				let e = await _(l);
-				C(e), T(!0), k(!1);
+				C(e), T(!0), ee(!1);
 			} catch {
-				k(!0);
+				ee(!0);
 			} finally {
-				A.current = !1, D(!1);
+				k.current = !1, D(!1);
 			}
 		}
 	}, [l, w]);
-	function j() {
-		x(!0), te();
+	function A() {
+		x(!0), ne();
 	}
-	function M(e) {
+	function j(e) {
 		let t = u.toValue(e, S);
 		s.includes(t) || c([...s, t]), y(""), x(!1);
 	}
-	function ne(e) {
+	function re(e) {
 		c(s.filter((t) => t !== e));
 	}
-	let N = ue(v, de(S, h ? [...s, ...h] : s, u.valueOf));
-	return /* @__PURE__ */ m(z, {
+	let M = de(v, fe(S, h ? [...s, ...h] : s, u.valueOf));
+	return /* @__PURE__ */ m(R, {
 		label: r,
 		helper: o,
 		children: [
 			s.length > 0 ? /* @__PURE__ */ p("div", {
 				className: "mb-1 flex flex-wrap gap-1",
 				children: s.map((e) => /* @__PURE__ */ m("span", {
-					className: w && !u.isResolved(e, S) ? `${Z} ${Q}` : Z,
+					className: w && !u.isResolved(e, S) ? `${X} ${Z}` : X,
 					children: [/* @__PURE__ */ p("span", { children: u.toLabel(e, S) }), /* @__PURE__ */ p("button", {
 						type: "button",
 						"aria-label": `Remove ${u.toLabel(e, S)}`,
 						onClick: () => {
-							ne(e);
+							re(e);
 						},
 						className: "text-muted hover:text-foreground",
 						children: /* @__PURE__ */ p(d, { className: "h-3 w-3" })
@@ -1101,33 +1101,33 @@ function Re({ label: r, helper: o, values: s, onChange: c, endpointPath: l, adap
 			}) : null,
 			/* @__PURE__ */ m("div", {
 				className: "relative",
-				ref: ee,
+				ref: te,
 				children: [/* @__PURE__ */ p("input", {
 					id: g,
 					type: "text",
 					value: v,
 					placeholder: f,
-					className: Ie,
-					onFocus: j,
+					className: Le,
+					onFocus: A,
 					onChange: (e) => {
 						y(e.target.value), x(!0);
 					},
 					onKeyDown: (e) => {
-						e.key === "Enter" ? (e.preventDefault(), v.trim() !== "" && N.length > 0 && M(N[0])) : e.key === "Escape" && x(!1);
+						e.key === "Enter" ? (e.preventDefault(), v.trim() !== "" && M.length > 0 && j(M[0])) : e.key === "Escape" && x(!1);
 					}
 				}), b && !O ? /* @__PURE__ */ p("div", {
 					className: "mt-1 flex max-h-48 flex-col gap-0.5 overflow-auto rounded-xl border border-border bg-card p-1",
 					children: E ? /* @__PURE__ */ m("span", {
 						className: "flex items-center gap-2 px-2 py-1 text-sm text-muted",
-						children: [/* @__PURE__ */ p(q, {}), "Loading…"]
-					}) : N.length === 0 ? /* @__PURE__ */ p("span", {
+						children: [/* @__PURE__ */ p(K, {}), "Loading…"]
+					}) : M.length === 0 ? /* @__PURE__ */ p("span", {
 						className: "px-2 py-1 text-sm text-muted",
 						children: "No matches"
-					}) : N.map((e) => /* @__PURE__ */ p("button", {
+					}) : M.map((e) => /* @__PURE__ */ p("button", {
 						type: "button",
-						className: Le,
+						className: Re,
 						onClick: () => {
-							M(e);
+							j(e);
 						},
 						children: e.name
 					}, e.id))
@@ -1135,7 +1135,7 @@ function Re({ label: r, helper: o, values: s, onChange: c, endpointPath: l, adap
 			}),
 			O ? /* @__PURE__ */ p("span", {
 				className: "mt-1 block",
-				children: /* @__PURE__ */ p(K, {
+				children: /* @__PURE__ */ p(G, {
 					kind: "error",
 					children: "Could not load the list — existing values stay editable."
 				})
@@ -1143,66 +1143,66 @@ function Re({ label: r, helper: o, values: s, onChange: c, endpointPath: l, adap
 		]
 	});
 }
-var ze = {
+var Be = {
 	toValue: (e) => e.id,
 	valueOf: (e) => e.id,
-	toLabel: (e, t) => pe(e, t),
-	isResolved: (e, t) => me(e, t)
-}, Be = {
-	toValue: (e, t) => F(e.name, t),
+	toLabel: (e, t) => me(e, t),
+	isResolved: (e, t) => he(e, t)
+}, Ve = {
+	toValue: (e, t) => P(e.name, t),
 	valueOf: (e) => e.name,
 	toLabel: (e) => e,
 	isResolved: (e, t) => t.some((t) => t.name.toLowerCase() === e.toLowerCase())
-}, Ve = {
-	toValue: (e, t) => F(e.name, t),
+}, He = {
+	toValue: (e, t) => P(e.name, t),
 	valueOf: (e) => e.name,
 	toLabel: (e) => e,
 	isResolved: (e, t) => t.some((t) => t.name.toLowerCase() === e.toLowerCase())
 };
-function He({ label: e, helper: t, values: n, onChange: r, placeholder: i, excludeValues: a }) {
-	return /* @__PURE__ */ p(Re, {
-		label: e,
-		helper: t,
-		values: n,
-		onChange: r,
-		endpointPath: Y,
-		adapter: ze,
-		placeholder: i,
-		excludeValues: a
-	});
-}
 function Ue({ label: e, helper: t, values: n, onChange: r, placeholder: i, excludeValues: a }) {
-	return /* @__PURE__ */ p(Re, {
+	return /* @__PURE__ */ p(ze, {
 		label: e,
 		helper: t,
 		values: n,
 		onChange: r,
-		endpointPath: X,
+		endpointPath: J,
 		adapter: Be,
 		placeholder: i,
 		excludeValues: a
 	});
 }
 function We({ label: e, helper: t, values: n, onChange: r, placeholder: i, excludeValues: a }) {
-	return /* @__PURE__ */ p(Re, {
+	return /* @__PURE__ */ p(ze, {
 		label: e,
 		helper: t,
 		values: n,
 		onChange: r,
-		endpointPath: Fe,
+		endpointPath: Y,
 		adapter: Ve,
+		placeholder: i,
+		excludeValues: a
+	});
+}
+function Ge({ label: e, helper: t, values: n, onChange: r, placeholder: i, excludeValues: a }) {
+	return /* @__PURE__ */ p(ze, {
+		label: e,
+		helper: t,
+		values: n,
+		onChange: r,
+		endpointPath: Ie,
+		adapter: He,
 		placeholder: i,
 		excludeValues: a
 	});
 }
 //#endregion
 //#region src/studioMapLogic.ts
-function Ge(e) {
+function Ke(e) {
 	let t = {};
 	for (let [n, r] of Object.entries(e)) t[n] = r;
 	return t;
 }
-function Ke(e) {
+function qe(e) {
 	let t = {};
 	for (let [n, r] of Object.entries(e)) {
 		let e = Number(n);
@@ -1212,37 +1212,37 @@ function Ke(e) {
 }
 //#endregion
 //#region src/studioMap.tsx
-var qe = "/extensions/com.alextomas955.renamer/list-studios";
-function Je({ map: e, onChange: n }) {
+var Je = "/extensions/com.alextomas955.renamer/list-studios";
+function Ye({ map: e, onChange: n }) {
 	let [r, i] = a([]);
 	return t(() => {
 		let e = !0;
-		return _(qe).then((t) => {
+		return _(Je).then((t) => {
 			e && i(t);
 		}).catch(() => {}), () => {
 			e = !1;
 		};
-	}, []), /* @__PURE__ */ p(Oe, {
-		map: Ge(e),
+	}, []), /* @__PURE__ */ p(ke, {
+		map: Ke(e),
 		onChange: (e) => {
-			n(Ke(e));
+			n(qe(e));
 		},
-		renderKey: (e, t, n) => /* @__PURE__ */ p(Ye, {
+		renderKey: (e, t, n) => /* @__PURE__ */ p(Xe, {
 			draftKey: e,
 			setDraftKey: t,
 			existingKeys: n
 		}),
-		renderValue: (e, t) => /* @__PURE__ */ m(f, { children: [/* @__PURE__ */ p(B, {
+		renderValue: (e, t) => /* @__PURE__ */ m(f, { children: [/* @__PURE__ */ p(z, {
 			value: e,
 			onChange: t,
 			placeholder: "Destination root"
-		}), /* @__PURE__ */ p(Ae, { value: e })] }),
-		renderKeyLabel: (e) => pe(Number(e), r),
+		}), /* @__PURE__ */ p(je, { value: e })] }),
+		renderKeyLabel: (e) => me(Number(e), r),
 		addLabel: "Add studio rule"
 	});
 }
-function Ye({ draftKey: e, setDraftKey: t, existingKeys: n }) {
-	return /* @__PURE__ */ p(He, {
+function Xe({ draftKey: e, setDraftKey: t, existingKeys: n }) {
+	return /* @__PURE__ */ p(Ue, {
 		label: "",
 		values: e === "" ? [] : [Number(e)],
 		onChange: (e) => {
@@ -1255,7 +1255,7 @@ function Ye({ draftKey: e, setDraftKey: t, existingKeys: n }) {
 }
 //#endregion
 //#region src/TokenLegend.tsx
-var Xe = [
+var Ze = [
 	{
 		token: "$title",
 		label: "Title",
@@ -1365,10 +1365,10 @@ var Xe = [
 		insert: "$ext"
 	}
 ];
-function Ze(e) {
+function Qe(e) {
 	return `Inserts wrapped in an optional group: ${e.insert} — disappears cleanly when empty.`;
 }
-function Qe({ onInsert: e }) {
+function $e({ onInsert: e }) {
 	return /* @__PURE__ */ m("div", { children: [/* @__PURE__ */ m("p", {
 		className: "mb-1 text-xs text-muted",
 		children: [
@@ -1392,10 +1392,10 @@ function Qe({ onInsert: e }) {
 		]
 	}), /* @__PURE__ */ p("div", {
 		className: "flex flex-wrap gap-1",
-		children: Xe.map((t) => /* @__PURE__ */ m(L, {
+		children: Ze.map((t) => /* @__PURE__ */ m(I, {
 			selected: !1,
 			mono: !0,
-			title: t.kind === "optional" ? Ze(t) : t.label,
+			title: t.kind === "optional" ? Qe(t) : t.label,
 			onClick: () => {
 				e(t.insert);
 			},
@@ -1408,7 +1408,7 @@ function Qe({ onInsert: e }) {
 }
 //#endregion
 //#region src/PreviewCard.tsx
-function $e(e, t) {
+function et(e, t) {
 	switch (e) {
 		case "empty": return "⚠ This template produces an empty name for this sample.";
 		case "sanitized": return "⚠ Adjusted: illegal characters were stripped or replaced.";
@@ -1417,7 +1417,7 @@ function $e(e, t) {
 		default: return null;
 	}
 }
-function et({ result: e }) {
+function tt({ result: e }) {
 	return /* @__PURE__ */ m("div", {
 		className: "rounded-xl border border-border bg-card p-4",
 		children: [
@@ -1443,7 +1443,7 @@ function et({ result: e }) {
 			e.flags.length > 0 ? /* @__PURE__ */ p("div", {
 				className: "mt-2 space-y-1",
 				children: e.flags.map((t) => {
-					let n = $e(t, e);
+					let n = et(t, e);
 					return n ? /* @__PURE__ */ p("p", {
 						className: "text-xs text-amber-400",
 						children: n
@@ -1455,14 +1455,14 @@ function et({ result: e }) {
 }
 //#endregion
 //#region src/dialog.tsx
-var tt = "a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex=\"-1\"])";
-function nt({ titleId: n, describedById: r, pending: a = !1, onCancel: o, size: s = "lg", children: c }) {
+var nt = "a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex=\"-1\"])";
+function rt({ titleId: n, describedById: r, pending: a = !1, onCancel: o, size: s = "lg", children: c }) {
 	let l = i(null), u = e(() => {
 		a || o();
 	}, [a, o]);
 	return t(() => {
 		let e = document.activeElement;
-		return (l.current?.querySelector(tt))?.focus(), () => e?.focus();
+		return (l.current?.querySelector(nt))?.focus(), () => e?.focus();
 	}, []), t(() => {
 		function e(e) {
 			if (e.key === "Escape") {
@@ -1472,7 +1472,7 @@ function nt({ titleId: n, describedById: r, pending: a = !1, onCancel: o, size: 
 			if (e.key !== "Tab") return;
 			let t = l.current;
 			if (!t) return;
-			let n = Array.from(t.querySelectorAll(tt));
+			let n = Array.from(t.querySelectorAll(nt));
 			if (n.length === 0) return;
 			let r = n[0], i = n[n.length - 1], a = document.activeElement;
 			e.shiftKey && a === r ? (e.preventDefault(), i.focus()) : !e.shiftKey && a === i && (e.preventDefault(), r.focus());
@@ -1497,7 +1497,7 @@ function nt({ titleId: n, describedById: r, pending: a = !1, onCancel: o, size: 
 		})]
 	});
 }
-function rt({ children: e }) {
+function it({ children: e }) {
 	return /* @__PURE__ */ p("div", {
 		className: "rounded border border-red-700 bg-red-950/60 px-3 py-2 text-sm text-red-200",
 		children: e
@@ -1505,11 +1505,11 @@ function rt({ children: e }) {
 }
 //#endregion
 //#region src/UndoSection.tsx
-var it = "com.alextomas955.renamer", at = `/extensions/${it}/last-batch`, ot = `/extensions/${it}/undo`, st = "rename-undo-confirm-title", ct = "rename-undo-confirm-message", lt = 621355968e5, ut = 1e4, dt = lt * ut;
-function ft(e) {
-	return (e - dt) / ut;
+var at = "com.alextomas955.renamer", ot = `/extensions/${at}/last-batch`, st = `/extensions/${at}/undo`, ct = "rename-undo-confirm-title", lt = "rename-undo-confirm-message", ut = 621355968e5, dt = 1e4, ft = ut * dt;
+function pt(e) {
+	return (e - ft) / dt;
 }
-function pt(e, t = Date.now()) {
+function mt(e, t = Date.now()) {
 	let n = t - e, r = Math.round(n / 1e3);
 	if (r < 45) return "just now";
 	let i = Math.round(r / 60);
@@ -1519,17 +1519,17 @@ function pt(e, t = Date.now()) {
 	let o = Math.round(a / 24);
 	return o === 1 ? "yesterday" : o <= 7 ? `${o} days ago` : new Date(e).toLocaleDateString();
 }
-function mt(e) {
+function ht(e) {
 	return e instanceof v ? `${e.status} ${e.body}` : String(e);
 }
-function ht({ refreshKey: n }) {
+function gt({ refreshKey: n }) {
 	let [r, i] = a(null), [o, s] = a(!0), [c, l] = a(null), [d, f] = a(!1), [h, g] = a(!1), [y, b] = a(null), x = e(async () => {
 		s(!0), l(null);
 		try {
-			let e = await _(at);
+			let e = await _(ot);
 			i(e);
 		} catch (e) {
-			l(mt(e));
+			l(ht(e));
 		} finally {
 			s(!1);
 		}
@@ -1537,11 +1537,11 @@ function ht({ refreshKey: n }) {
 	t(() => {
 		x();
 	}, [x, n]);
-	let S = !!r && r.hasBatch && !r.consumed, C = r?.count ?? 0, w = r ? ft(r.writtenAtUtcTicks) : 0;
+	let S = !!r && r.hasBatch && !r.consumed, C = r?.count ?? 0, w = r ? pt(r.writtenAtUtcTicks) : 0;
 	async function T() {
 		g(!0), b(null);
 		try {
-			let e = await _(ot, { method: "POST" }), t = (e.failed?.length ?? 0) + (e.skipped?.length ?? 0);
+			let e = await _(st, { method: "POST" }), t = (e.failed?.length ?? 0) + (e.skipped?.length ?? 0);
 			if (t === 0) b({
 				kind: "success",
 				text: `Undone — ${e.undone} file${e.undone === 1 ? "" : "s"} moved back to their original names.`
@@ -1563,7 +1563,7 @@ function ht({ refreshKey: n }) {
 			if (e instanceof v) {
 				b({
 					kind: "error",
-					text: `Couldn't undo — ${mt(e)}. Nothing was changed.`
+					text: `Couldn't undo — ${ht(e)}. Nothing was changed.`
 				});
 				return;
 			}
@@ -1588,17 +1588,17 @@ function ht({ refreshKey: n }) {
 			}),
 			o ? /* @__PURE__ */ m("div", {
 				className: "flex items-center gap-2 text-sm text-secondary",
-				children: [/* @__PURE__ */ p(q, {}), "Checking for a recent rename…"]
+				children: [/* @__PURE__ */ p(K, {}), "Checking for a recent rename…"]
 			}) : c ? /* @__PURE__ */ m("div", {
 				className: "space-y-2",
-				children: [/* @__PURE__ */ m(K, {
+				children: [/* @__PURE__ */ m(G, {
 					kind: "error",
 					children: [
 						"Couldn't check for a recent rename — ",
 						c,
 						"."
 					]
-				}), /* @__PURE__ */ p("div", { children: /* @__PURE__ */ p(G, {
+				}), /* @__PURE__ */ p("div", { children: /* @__PURE__ */ p(W, {
 					variant: "ghost",
 					onClick: () => void x(),
 					children: "Retry"
@@ -1615,9 +1615,9 @@ function ht({ refreshKey: n }) {
 							" item",
 							C === 1 ? "" : "s",
 							" renamed · ",
-							pt(w)
+							mt(w)
 						]
-					}), /* @__PURE__ */ m(G, {
+					}), /* @__PURE__ */ m(W, {
 						variant: "ghost",
 						onClick: () => {
 							f(!0);
@@ -1625,7 +1625,7 @@ function ht({ refreshKey: n }) {
 						disabled: h,
 						children: [/* @__PURE__ */ p(u, { className: "h-4 w-4" }), "Undo last rename"]
 					})]
-				}), y ? /* @__PURE__ */ p(K, {
+				}), y ? /* @__PURE__ */ p(G, {
 					kind: y.kind,
 					children: y.text
 				}) : null]
@@ -1634,14 +1634,14 @@ function ht({ refreshKey: n }) {
 				children: [/* @__PURE__ */ p("span", {
 					className: "text-sm text-secondary",
 					children: "No rename to undo."
-				}), y ? /* @__PURE__ */ p("div", { children: /* @__PURE__ */ p(K, {
+				}), y ? /* @__PURE__ */ p("div", { children: /* @__PURE__ */ p(G, {
 					kind: y.kind,
 					children: y.text
 				}) }) : null]
 			}),
-			d ? /* @__PURE__ */ m(nt, {
-				titleId: st,
-				describedById: ct,
+			d ? /* @__PURE__ */ m(rt, {
+				titleId: ct,
+				describedById: lt,
 				pending: h,
 				onCancel: () => {
 					f(!1);
@@ -1649,12 +1649,12 @@ function ht({ refreshKey: n }) {
 				size: "sm",
 				children: [
 					/* @__PURE__ */ p("h2", {
-						id: st,
+						id: ct,
 						className: "mb-2 text-lg font-semibold text-foreground",
 						children: "Undo last rename?"
 					}),
 					/* @__PURE__ */ m("p", {
-						id: ct,
+						id: lt,
 						className: "mb-6 text-sm text-secondary",
 						children: [
 							"This moves ",
@@ -1680,7 +1680,7 @@ function ht({ refreshKey: n }) {
 							disabled: h,
 							className: "inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-60",
 							children: [
-								h ? /* @__PURE__ */ p(q, {}) : null,
+								h ? /* @__PURE__ */ p(K, {}) : null,
 								"Undo ",
 								C,
 								" rename",
@@ -1695,12 +1695,12 @@ function ht({ refreshKey: n }) {
 }
 //#endregion
 //#region src/WarningBadge.tsx
-var gt = {
+var _t = {
 	amber: "border-amber-400/40 bg-amber-400/10 text-amber-400",
 	gray: "border-border bg-card text-muted",
 	red: "border-red-700/50 bg-red-950/40 text-red-400"
 };
-function _t(e) {
+function vt(e) {
 	let t = [];
 	switch (e.status) {
 		case "NoOp":
@@ -1746,23 +1746,23 @@ function _t(e) {
 	}
 	return t;
 }
-function vt({ badge: e }) {
+function yt({ badge: e }) {
 	let t = e.variant === "amber" || e.variant === "red";
 	return /* @__PURE__ */ m("span", {
-		className: `inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${gt[e.variant]}`,
+		className: `inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${_t[e.variant]}`,
 		children: [t ? /* @__PURE__ */ p(o, { className: "h-3 w-3" }) : null, e.label]
 	});
 }
-function yt({ item: e }) {
-	let t = _t(e);
+function bt({ item: e }) {
+	let t = vt(e);
 	return t.length === 0 ? null : /* @__PURE__ */ p("span", {
 		className: "inline-flex flex-wrap gap-1",
-		children: t.map((e) => /* @__PURE__ */ p(vt, { badge: e }, e.label))
+		children: t.map((e) => /* @__PURE__ */ p(yt, { badge: e }, e.label))
 	});
 }
 //#endregion
 //#region src/dryRunLogic.ts
-var bt = /* @__PURE__ */ new Set([
+var xt = /* @__PURE__ */ new Set([
 	"SkipGated",
 	"SkipCollision",
 	"SkipLocked",
@@ -1771,218 +1771,308 @@ var bt = /* @__PURE__ */ new Set([
 	"SkipExcluded",
 	"Failed"
 ]);
-function xt(e) {
+function St(e) {
 	let t = 0, n = 0;
-	for (let r of e) r.status === "Renamer" || r.status === "Move" ? t++ : bt.has(r.status) && n++;
+	for (let r of e) r.status === "Renamer" || r.status === "Move" ? t++ : xt.has(r.status) && n++;
 	return {
 		renamed: t,
 		skipped: n,
 		scanned: e.length
 	};
 }
-function St(e, t, n = 50) {
+function Q(e) {
+	return e.status === "Renamer" || e.status === "Move" ? "will-change" : e.status === "NoOp" ? "no-change" : "attention";
+}
+function Ct(e) {
+	let t = 0, n = 0, r = 0;
+	for (let i of e) {
+		let e = Q(i);
+		e === "will-change" ? t++ : e === "attention" ? n++ : r++;
+	}
+	return {
+		willChange: t,
+		attention: n,
+		noChange: r,
+		scanned: e.length
+	};
+}
+function wt(e, t) {
+	let n = t === "all" ? e : e.filter((e) => Q(e) === t);
+	if (t !== "all") return n;
+	let r = {
+		"will-change": 0,
+		attention: 1,
+		"no-change": 2
+	};
+	return n.map((e, t) => ({
+		it: e,
+		i: t
+	})).sort((e, t) => r[Q(e.it)] - r[Q(t.it)] || e.i - t.i).map((e) => e.it);
+}
+function Tt(e, t, n = 50) {
 	return e.slice(t * n, t * n + n);
 }
-function Ct(e, t = 50) {
+function Et(e, t = 50) {
 	return Math.max(1, Math.ceil(e / t));
 }
 //#endregion
 //#region src/DryRunModal.tsx
-var wt = { borderCollapse: "collapse" }, Tt = { maxWidth: 0 }, Et = "com.alextomas955.renamer", Dt = `/extensions/${Et}/scan-library`, Ot = `/extensions/${Et}/last-scan`, kt = "rename-dry-run-title", At = "rename-dry-run-summary", jt = 50, Mt = 1e3;
-function Nt(e) {
+var Dt = { borderCollapse: "collapse" }, Ot = { maxWidth: 0 }, kt = "com.alextomas955.renamer", At = `/extensions/${kt}/scan-library`, jt = `/extensions/${kt}/last-scan`, Mt = "rename-dry-run-title", Nt = "rename-dry-run-summary", Pt = 50, Ft = 1e3;
+function It(e) {
 	return e instanceof v ? `${e.status} ${e.body}` : String(e);
 }
-function Pt(e) {
+function Lt(e) {
 	if (!e) return e;
 	let t = Math.max(e.lastIndexOf("/"), e.lastIndexOf("\\"));
 	return t >= 0 ? e.slice(t + 1) : e;
 }
-function Ft(e, n) {
+function Rt(e) {
+	if (!e) return e;
+	let t = Math.max(e.lastIndexOf("/"), e.lastIndexOf("\\"));
+	return t >= 0 ? e.slice(0, t) : "";
+}
+function zt(e, n) {
 	t(() => {
 		if (!e) return;
 		let t = !1, r = setInterval(() => {
 			_(`/jobs/${e}`).then((e) => {
 				t || (e.status === "completed" || e.status === "failed" || e.status === "cancelled") && (clearInterval(r), n(e));
 			}).catch(() => {});
-		}, Mt);
+		}, Ft);
 		return () => {
 			t = !0, clearInterval(r);
 		};
 	}, [e]);
 }
-function It({ options: e, onClose: n, onRenameAll: r, renaming: o }) {
-	let [s, c] = a(null), [l, u] = a(null), [d, h] = a(null), [g, v] = a(0), y = i(!1);
+function Bt({ options: e, onClose: n, onRenameAll: r, renaming: o }) {
+	let [s, c] = a(null), [l, u] = a(null), [d, h] = a(null), [g, v] = a(0), [y, b] = a("all"), x = i(!1);
 	t(() => {
-		y.current || (y.current = !0, _(Dt, {
+		x.current || (x.current = !0, _(At, {
 			method: "POST",
 			body: JSON.stringify({ Options: JSON.stringify(e) })
 		}).then((e) => {
 			c(e.jobId);
 		}).catch((e) => {
-			h(Nt(e));
+			h(It(e));
 		}));
-	}, []), Ft(s, (e) => {
+	}, []), zt(s, (e) => {
 		if (e.status !== "completed") {
 			h(e.error ?? "the scan job did not complete");
 			return;
 		}
-		_(Ot).then((e) => {
+		_(jt).then((e) => {
 			u(e);
 		}).catch((e) => {
-			h(Nt(e));
+			h(It(e));
 		});
 	});
-	let b = l ? xt(l) : null, x = l ? Ct(l.length, jt) : 1, S = l ? St(l, g, jt) : [];
-	return /* @__PURE__ */ m(nt, {
-		titleId: kt,
-		describedById: At,
+	let S = l ? Ct(l) : null, C = l ? wt(l, y) : [], w = Et(C.length, Pt), T = Math.min(g, w - 1), E = Tt(C, T, Pt), D = (e) => {
+		b(e), v(0);
+	};
+	return /* @__PURE__ */ m(rt, {
+		titleId: Mt,
+		describedById: Nt,
 		pending: o,
 		onCancel: n,
 		size: "xl",
 		children: [
 			/* @__PURE__ */ p("h2", {
-				id: kt,
+				id: Mt,
 				className: "mb-2 text-lg font-semibold text-foreground",
 				children: "Dry run"
 			}),
 			d ? /* @__PURE__ */ p("div", {
 				className: "mb-4",
-				children: /* @__PURE__ */ m(rt, { children: [
+				children: /* @__PURE__ */ m(it, { children: [
 					"Couldn't scan your library — ",
 					d,
 					". Close and try again."
 				] })
-			}) : l === null || b === null ? /* @__PURE__ */ m("div", {
+			}) : l === null || S === null ? /* @__PURE__ */ m("div", {
 				className: "flex items-center gap-2 py-8 text-sm text-secondary",
-				children: [/* @__PURE__ */ p(q, {}), "Scanning your library…"]
-			}) : /* @__PURE__ */ m(f, { children: [/* @__PURE__ */ m("p", {
-				id: At,
-				className: "mb-4 text-sm text-secondary",
-				children: [
-					/* @__PURE__ */ p("span", {
-						className: "text-foreground",
-						children: b.renamed
-					}),
-					" will be renamed ·",
-					" ",
-					b.skipped,
-					" skipped · ",
-					b.scanned,
-					" scanned"
-				]
-			}), b.scanned === 0 ? /* @__PURE__ */ p("p", {
-				className: "py-8 text-center text-sm text-secondary",
-				children: "No items match your current settings — nothing to rename."
-			}) : /* @__PURE__ */ p(f, { children: /* @__PURE__ */ m("div", {
-				className: "max-h-96 overflow-y-auto rounded border border-border text-sm",
-				children: [/* @__PURE__ */ m("table", {
-					className: "w-full",
-					style: wt,
-					children: [/* @__PURE__ */ p("thead", { children: /* @__PURE__ */ m("tr", {
-						className: "sticky top-0 bg-card text-left",
-						children: [
-							/* @__PURE__ */ p("th", {
-								className: "w-20 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted",
-								children: "Type"
-							}),
-							/* @__PURE__ */ p("th", {
-								className: "min-w-0 flex-1 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted",
-								children: "Current name"
-							}),
-							/* @__PURE__ */ p("th", {
-								className: "min-w-0 flex-1 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted",
-								children: "New name"
-							}),
-							/* @__PURE__ */ p("th", {
-								className: "min-w-0 flex-1 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted",
-								children: "Destination"
-							}),
-							/* @__PURE__ */ p("th", { className: "px-3 py-2" })
-						]
-					}) }), /* @__PURE__ */ p("tbody", {
-						className: "divide-y divide-border",
-						children: S.map((e) => {
-							let t = e.status !== "Renamer" && e.status !== "Move", n = Pt(e.oldFullPath), r = e.newBasename || Pt(e.newFullPath);
-							return /* @__PURE__ */ m("tr", {
-								className: t ? "opacity-70" : void 0,
-								children: [
-									/* @__PURE__ */ p("td", {
-										className: "w-20 px-3 py-2 text-sm text-secondary",
-										children: e.kind
-									}),
-									/* @__PURE__ */ p("td", {
-										className: "min-w-0 truncate px-3 py-2 font-mono text-sm text-muted",
-										style: Tt,
-										title: e.oldFullPath,
-										children: n
-									}),
-									/* @__PURE__ */ p("td", {
-										className: `min-w-0 truncate px-3 py-2 font-mono text-sm ${t ? "text-muted" : "text-foreground"}`,
-										style: Tt,
-										title: e.newFullPath,
-										children: t ? "— will be skipped" : r
-									}),
-									/* @__PURE__ */ p("td", {
-										className: "min-w-0 truncate px-3 py-2 font-mono text-xs text-muted",
-										style: Tt,
-										title: e.targetFolderPath,
-										children: e.targetFolderPath
-									}),
-									/* @__PURE__ */ p("td", {
-										className: "px-3 py-2",
-										children: /* @__PURE__ */ p(yt, { item: e })
-									})
-								]
-							}, e.fileId);
-						})
-					})]
-				}), /* @__PURE__ */ m("div", {
-					className: "flex items-center justify-between border-t border-border bg-card px-3 py-2",
+				children: [/* @__PURE__ */ p(K, {}), "Scanning your library…"]
+			}) : /* @__PURE__ */ m(f, { children: [
+				/* @__PURE__ */ m("p", {
+					id: Nt,
+					className: "mb-3 text-sm text-secondary",
 					children: [
-						/* @__PURE__ */ p(G, {
-							variant: "ghost",
-							onClick: () => {
-								v((e) => e - 1);
-							},
-							disabled: g === 0,
-							children: "Prev"
+						/* @__PURE__ */ p("span", {
+							className: "text-foreground",
+							children: S.willChange
 						}),
-						/* @__PURE__ */ m("span", {
-							className: "text-xs text-muted",
-							children: [
-								"Page ",
-								g + 1,
-								" of ",
-								x
-							]
-						}),
-						/* @__PURE__ */ p(G, {
-							variant: "ghost",
-							onClick: () => {
-								v((e) => e + 1);
-							},
-							disabled: g === x - 1,
-							children: "Next"
-						})
+						" will change ·",
+						" ",
+						S.attention,
+						" need attention · ",
+						S.noChange,
+						" no change · ",
+						S.scanned,
+						" ",
+						"scanned"
 					]
-				})]
-			}) })] }),
+				}),
+				S.scanned === 0 ? /* @__PURE__ */ p("p", {
+					className: "py-8 text-center text-sm text-secondary",
+					children: "No items match your current settings — nothing to rename."
+				}) : /* @__PURE__ */ p(f, { children: /* @__PURE__ */ p("div", {
+					className: "mb-4 flex flex-wrap gap-2",
+					children: [
+						{
+							key: "all",
+							label: "All",
+							n: S.scanned
+						},
+						{
+							key: "will-change",
+							label: "Will change",
+							n: S.willChange
+						},
+						{
+							key: "attention",
+							label: "Needs attention",
+							n: S.attention
+						},
+						{
+							key: "no-change",
+							label: "No change",
+							n: S.noChange
+						}
+					].map((e) => {
+						let t = y === e.key, n = e.n === 0 && e.key !== "all";
+						return /* @__PURE__ */ m("button", {
+							type: "button",
+							disabled: n,
+							onClick: () => {
+								D(e.key);
+							},
+							"aria-pressed": t,
+							className: `rounded-lg border px-3 py-1 text-xs font-medium ${t ? "border-accent bg-accent/15 text-foreground" : "border-border bg-card text-secondary hover:text-foreground"} ${n ? "opacity-40" : ""}`,
+							children: [
+								e.label,
+								" (",
+								e.n,
+								")"
+							]
+						}, e.key);
+					})
+				}) }),
+				S.scanned === 0 ? null : C.length === 0 ? /* @__PURE__ */ p("p", {
+					className: "py-8 text-center text-sm text-secondary",
+					children: "No items in this view."
+				}) : /* @__PURE__ */ p(f, { children: /* @__PURE__ */ m("div", {
+					className: "max-h-96 overflow-y-auto rounded border border-border text-sm",
+					children: [/* @__PURE__ */ m("table", {
+						className: "w-full",
+						style: Dt,
+						children: [/* @__PURE__ */ p("thead", { children: /* @__PURE__ */ m("tr", {
+							className: "sticky top-0 bg-card text-left",
+							children: [
+								/* @__PURE__ */ p("th", {
+									className: "w-20 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted",
+									children: "Type"
+								}),
+								/* @__PURE__ */ p("th", {
+									className: "min-w-0 flex-1 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted",
+									children: "Current name"
+								}),
+								/* @__PURE__ */ p("th", {
+									className: "min-w-0 flex-1 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted",
+									children: "New name"
+								}),
+								/* @__PURE__ */ p("th", {
+									className: "min-w-0 flex-1 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted",
+									children: "Destination"
+								}),
+								/* @__PURE__ */ p("th", { className: "px-3 py-2" })
+							]
+						}) }), /* @__PURE__ */ p("tbody", {
+							className: "divide-y divide-border",
+							children: E.map((e) => {
+								let t = Q(e), n = t === "will-change", r = Lt(e.oldFullPath), i = e.newBasename || Lt(e.newFullPath), a = Rt(e.oldFullPath), o = n && i !== r, s = n && e.targetFolderPath !== a;
+								return /* @__PURE__ */ m("tr", {
+									className: n ? void 0 : "opacity-70",
+									children: [
+										/* @__PURE__ */ p("td", {
+											className: "w-20 px-3 py-2 text-sm text-secondary",
+											children: e.kind
+										}),
+										/* @__PURE__ */ p("td", {
+											className: "min-w-0 truncate px-3 py-2 font-mono text-sm text-muted",
+											style: Ot,
+											title: e.oldFullPath,
+											children: r
+										}),
+										/* @__PURE__ */ p("td", {
+											className: `min-w-0 truncate px-3 py-2 font-mono text-sm ${n ? "text-foreground" : "text-muted"}`,
+											style: Ot,
+											title: n ? e.newFullPath : void 0,
+											children: n ? o ? i : "(name unchanged)" : t === "no-change" ? "— unchanged" : "— will be skipped"
+										}),
+										/* @__PURE__ */ p("td", {
+											className: "min-w-0 truncate px-3 py-2 font-mono text-xs text-muted",
+											style: Ot,
+											title: e.targetFolderPath,
+											children: s ? /* @__PURE__ */ m("span", {
+												className: "text-foreground",
+												children: ["→ ", e.targetFolderPath]
+											}) : e.targetFolderPath
+										}),
+										/* @__PURE__ */ p("td", {
+											className: "px-3 py-2",
+											children: /* @__PURE__ */ p(bt, { item: e })
+										})
+									]
+								}, e.fileId);
+							})
+						})]
+					}), /* @__PURE__ */ m("div", {
+						className: "flex items-center justify-between border-t border-border bg-card px-3 py-2",
+						children: [
+							/* @__PURE__ */ p(W, {
+								variant: "ghost",
+								onClick: () => {
+									v(T - 1);
+								},
+								disabled: T === 0,
+								children: "Prev"
+							}),
+							/* @__PURE__ */ m("span", {
+								className: "text-xs text-muted",
+								children: [
+									"Page ",
+									T + 1,
+									" of ",
+									w
+								]
+							}),
+							/* @__PURE__ */ p(W, {
+								variant: "ghost",
+								onClick: () => {
+									v(T + 1);
+								},
+								disabled: T === w - 1,
+								children: "Next"
+							})
+						]
+					})]
+				}) })
+			] }),
 			/* @__PURE__ */ m("div", {
 				className: "mt-6 flex justify-end gap-3",
-				children: [/* @__PURE__ */ p(G, {
+				children: [/* @__PURE__ */ p(W, {
 					variant: "ghost",
 					onClick: n,
 					disabled: o,
 					children: "Close"
-				}), /* @__PURE__ */ m(G, {
+				}), /* @__PURE__ */ m(W, {
 					onClick: () => {
 						l && r(l);
 					},
-					disabled: o || !b || b.renamed === 0,
+					disabled: o || !S || S.willChange === 0,
 					children: [
-						o ? /* @__PURE__ */ p(q, {}) : null,
+						o ? /* @__PURE__ */ p(K, {}) : null,
 						"Rename ",
-						b?.renamed ?? 0,
+						S?.willChange ?? 0,
 						" files"
 					]
 				})]
@@ -1992,18 +2082,18 @@ function It({ options: e, onClose: n, onRenameAll: r, renaming: o }) {
 }
 //#endregion
 //#region src/templateValidation.ts
-var Lt = new Set(Xe.map((e) => e.token.slice(1).toLowerCase())), Rt = Xe.map((e) => e.token.slice(1));
-function zt(e) {
+var Vt = new Set(Ze.map((e) => e.token.slice(1).toLowerCase())), Ht = Ze.map((e) => e.token.slice(1));
+function Ut(e) {
 	let t = e.startsWith("$") ? e.slice(1) : e;
-	return Lt.has(t.toLowerCase());
+	return Vt.has(t.toLowerCase());
 }
-function Bt(e) {
+function Wt(e) {
 	let t = 0;
 	for (let n of e) if (n === "{") t++;
 	else if (n === "}" && (t--, t < 0)) return !1;
 	return t === 0;
 }
-function Vt(e) {
+function Gt(e) {
 	let t = [], n = /* @__PURE__ */ new Set();
 	for (let r = 0; r < e.length; r++) {
 		if (e[r] !== "$") continue;
@@ -2015,11 +2105,11 @@ function Vt(e) {
 		for (; i < e.length && /[A-Za-z0-9_]/.test(e[i]);) i++;
 		if (i === r + 1) continue;
 		let a = e.slice(r + 1, i), o = a.toLowerCase();
-		!Lt.has(o) && !n.has(o) && (n.add(o), t.push(`$${a}`)), r = i - 1;
+		!Vt.has(o) && !n.has(o) && (n.add(o), t.push(`$${a}`)), r = i - 1;
 	}
 	return t;
 }
-function Ht(e, t) {
+function Kt(e, t) {
 	for (let n = 0; n < e.length; n++) {
 		if (e[n] !== "$") continue;
 		if (e[n + 1] === "$") {
@@ -2035,11 +2125,11 @@ function Ht(e, t) {
 	}
 	return !1;
 }
-function Ut(e, t, n) {
+function qt(e, t, n) {
 	let r = (e.startsWith("$") ? e.slice(1) : e).toLowerCase();
-	return Ht(t, r) || Ht(n, r);
+	return Kt(t, r) || Kt(n, r);
 }
-function Wt(e, t) {
+function Jt(e, t) {
 	let n = e.length, r = t.length, i = Array.from({ length: r + 1 }, (e, t) => t);
 	for (let a = 1; a <= n; a++) {
 		let n = i[0];
@@ -2051,17 +2141,17 @@ function Wt(e, t) {
 	}
 	return i[r];
 }
-function Gt(e) {
+function Yt(e) {
 	let t = (e.startsWith("$") ? e.slice(1) : e).toLowerCase(), n, r = Infinity;
-	for (let e of Lt) {
-		let i = Wt(t, e);
+	for (let e of Vt) {
+		let i = Jt(t, e);
 		i < r && (r = i, n = e);
 	}
 	return n !== void 0 && r > 0 && r <= 2 ? `$${n}` : void 0;
 }
 //#endregion
 //#region src/presets.ts
-var Kt = [
+var Xt = [
 	{
 		label: "Date – Title [Height]",
 		filenameTemplate: "{$date - }$title{ [$height]}"
@@ -2082,12 +2172,12 @@ var Kt = [
 		label: "Performers – Title",
 		filenameTemplate: "$performers{ - $title}"
 	}
-], $ = "com.alextomas955.renamer", qt = "options", Jt = `/extensions/${$}/data`, Yt = `/extensions/${$}/preview-sample`, Xt = `/extensions/${$}/renamer-library`, Zt = 250, Qt = 1e3;
-function $t(e) {
+], $ = "com.alextomas955.renamer", Zt = "options", Qt = `/extensions/${$}/data`, $t = `/extensions/${$}/preview-sample`, en = `/extensions/${$}/renamer-library`, tn = 250, nn = 1e3;
+function rn(e) {
 	let t = e.trim();
 	return t.startsWith(".") && (t = t.slice(1)), t.toLowerCase();
 }
-var en = [
+var an = [
 	{
 		value: "None",
 		label: "None"
@@ -2100,13 +2190,13 @@ var en = [
 		value: "Title",
 		label: "Title Case"
 	}
-], tn = [{
+], on = [{
 	value: "DropAll",
 	label: "Drop all when over the max"
 }, {
 	value: "KeepFirst",
 	label: "Keep the first N"
-}], nn = [
+}], sn = [
 	{
 		value: "NameAsc",
 		label: "Name (A→Z)"
@@ -2123,13 +2213,13 @@ var en = [
 		value: "FavoriteFirst",
 		label: "Favorites first, then name"
 	}
-], rn = [{
+], cn = [{
 	value: "NameAsc",
 	label: "Name (A→Z)"
 }, {
 	value: "None",
 	label: "Keep original order"
-}], an = [
+}], ln = [
 	{
 		value: "Male",
 		label: "Male"
@@ -2154,7 +2244,7 @@ var en = [
 		value: "NonBinary",
 		label: "Non-binary"
 	}
-], on = [
+], un = [
 	"title",
 	"studio",
 	"parentStudio",
@@ -2176,7 +2266,7 @@ var en = [
 ].map((e) => ({
 	value: e,
 	label: e
-})), sn = [
+})), dn = [
 	{
 		value: "yyyy-MM-dd",
 		example: "2026-03-12"
@@ -2197,7 +2287,7 @@ var en = [
 		value: "yyyy.MM.dd",
 		example: "2026.03.12"
 	}
-], cn = [
+], fn = [
 	{
 		value: "hh\\-mm\\-ss",
 		example: "01-23-45"
@@ -2210,7 +2300,7 @@ var en = [
 		value: "mm\\-ss",
 		example: "83-45"
 	}
-], ln = [
+], pn = [
 	{
 		value: ", ",
 		label: "Comma + space ( , )"
@@ -2227,7 +2317,7 @@ var en = [
 		value: " - ",
 		label: "Dash ( - )"
 	}
-], un = [
+], mn = [
 	{
 		value: " ({n})",
 		example: "name (1).mp4"
@@ -2241,11 +2331,11 @@ var en = [
 		example: "name - 1.mp4"
 	}
 ];
-function dn({ value: e, emptySamples: t = [] }) {
+function hn({ value: e, emptySamples: t = [] }) {
 	let n = [];
-	Bt(e) || n.push("Unmatched { or } — it'll still render, but check your groups.");
-	for (let t of Vt(e)) {
-		let e = Gt(t);
+	Wt(e) || n.push("Unmatched { or } — it'll still render, but check your groups.");
+	for (let t of Gt(e)) {
+		let e = Yt(t);
 		n.push(e ? `${t} isn't a known token — it'll render as empty. Did you mean ${e}?` : `${t} isn't a known token — it'll render as empty.`);
 	}
 	for (let e of t) n.push(`This template produces an empty name for the "${e}" sample.`);
@@ -2259,11 +2349,11 @@ function dn({ value: e, emptySamples: t = [] }) {
 		}, e))
 	});
 }
-function fn({ values: e }) {
+function gn({ values: e }) {
 	let t = [];
 	for (let n of e) {
-		if (zt(n)) continue;
-		let e = Gt(n), r = e ? e.slice(1) : void 0;
+		if (Ut(n)) continue;
+		let e = Yt(n), r = e ? e.slice(1) : void 0;
 		t.push(r ? `"${n}" isn't a known token — it'll be ignored. Did you mean ${r}?` : `"${n}" isn't a known token — it'll be ignored.`);
 	}
 	return t.length === 0 ? null : /* @__PURE__ */ p("div", {
@@ -2276,7 +2366,7 @@ function fn({ values: e }) {
 		}, e))
 	});
 }
-function pn({ onApply: e }) {
+function _n({ onApply: e }) {
 	return /* @__PURE__ */ m("div", { children: [
 		/* @__PURE__ */ p("span", {
 			className: "mb-1 block text-xs font-medium uppercase tracking-wide text-muted",
@@ -2284,7 +2374,7 @@ function pn({ onApply: e }) {
 		}),
 		/* @__PURE__ */ p("div", {
 			className: "flex flex-wrap gap-1",
-			children: Kt.map((t) => /* @__PURE__ */ p(L, {
+			children: Xt.map((t) => /* @__PURE__ */ p(I, {
 				selected: !1,
 				title: t.filenameTemplate,
 				onClick: () => {
@@ -2299,7 +2389,7 @@ function pn({ onApply: e }) {
 		})
 	] });
 }
-function mn({ dirty: e, saving: t, saveError: n, savedFlash: r, canSave: i, onSave: a, onDiscard: o }) {
+function vn({ dirty: e, saving: t, saveError: n, savedFlash: r, canSave: i, onSave: a, onDiscard: o }) {
 	return e ? /* @__PURE__ */ p("div", {
 		className: "pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 py-4",
 		children: /* @__PURE__ */ m("div", {
@@ -2312,14 +2402,14 @@ function mn({ dirty: e, saving: t, saveError: n, savedFlash: r, canSave: i, onSa
 				/* @__PURE__ */ p("span", { className: `h-2 w-2 shrink-0 rounded-full ${n ? "bg-red-400" : r ? "bg-green-400" : "bg-amber-400"}` }),
 				/* @__PURE__ */ p("div", {
 					className: "min-w-0 flex-1",
-					children: n ? /* @__PURE__ */ m(K, {
+					children: n ? /* @__PURE__ */ m(G, {
 						kind: "error",
 						children: [
 							"Couldn't save settings — ",
 							n,
 							". Your changes are still here; try Save again."
 						]
-					}) : r ? /* @__PURE__ */ p(K, {
+					}) : r ? /* @__PURE__ */ p(G, {
 						kind: "success",
 						children: "Settings saved."
 					}) : /* @__PURE__ */ m(f, { children: [/* @__PURE__ */ p("div", {
@@ -2332,28 +2422,28 @@ function mn({ dirty: e, saving: t, saveError: n, savedFlash: r, canSave: i, onSa
 				}),
 				/* @__PURE__ */ m("div", {
 					className: "flex shrink-0 items-center gap-3",
-					children: [/* @__PURE__ */ p(G, {
+					children: [/* @__PURE__ */ p(W, {
 						variant: "ghost",
 						onClick: o,
 						disabled: t,
 						children: "Discard"
-					}), /* @__PURE__ */ m(G, {
+					}), /* @__PURE__ */ m(W, {
 						onClick: a,
 						disabled: !i || t,
-						children: [t ? /* @__PURE__ */ p(q, {}) : null, "Save changes"]
+						children: [t ? /* @__PURE__ */ p(K, {}) : null, "Save changes"]
 					})]
 				})
 			]
 		})
 	}) : null;
 }
-async function hn(e, t) {
+async function yn(e, t) {
 	let n = {
 		...t,
 		...e
 	};
 	try {
-		await _(`${Jt}/${qt}`, {
+		await _(`${Qt}/${Zt}`, {
 			method: "PUT",
 			body: JSON.stringify(JSON.stringify(n))
 		});
@@ -2361,56 +2451,56 @@ async function hn(e, t) {
 		if (e instanceof v) throw e;
 	}
 }
-function gn() {
-	let n = b($), [r, s] = a(() => S()), [c, l] = a(() => S()), [u, d] = a(!0), [h, g] = a(null), [y, x] = a(!1), [C, w] = a(null), [T, E] = a(!1), [D, O] = a(!1), [k, A] = a(!1), [ee, te] = a(""), j = i({}), [M, ne] = a(null), [N, re] = a(!1), ie = i(null), se = i(null), ce = i("filename"), P = JSON.stringify(r) !== JSON.stringify(c), ue = P || k, [de, fe] = a(!1), [pe, me] = a(!1), [F, I] = a(null);
-	function he(e) {
+function bn() {
+	let n = b($), [r, s] = a(() => S()), [c, l] = a(() => S()), [u, d] = a(!0), [h, g] = a(null), [y, x] = a(!1), [C, w] = a(null), [T, E] = a(!1), [D, O] = a(!1), [ee, k] = a(!1), [te, ne] = a(""), A = i({}), [j, re] = a(null), [M, ie] = a(!1), ae = i(null), ce = i(null), le = i("filename"), N = JSON.stringify(r) !== JSON.stringify(c), de = N || ee, [fe, pe] = a(!1), [me, he] = a(!1), [P, F] = a(null);
+	function ge(e) {
 		return new Promise((t, n) => {
 			let r = setInterval(() => {
 				_(`/jobs/${e}`).then((e) => {
 					e.status === "completed" ? (clearInterval(r), t()) : (e.status === "failed" || e.status === "cancelled") && (clearInterval(r), n(Error(e.error ?? "the job did not complete")));
 				}).catch(() => {});
-			}, Qt);
+			}, nn);
 		});
 	}
-	let ge = e(async (e) => {
-		me(!0), I(null);
+	let _e = e(async (e) => {
+		he(!0), F(null);
 		try {
 			let t = e;
 			if (!t) {
 				let { jobId: e } = await _(`/extensions/${$}/scan-library`, { method: "POST" });
-				await he(e), t = await _(`/extensions/${$}/last-scan`);
+				await ge(e), t = await _(`/extensions/${$}/last-scan`);
 			}
-			let n = xt(t), { jobId: r } = await _(Xt, { method: "POST" });
-			await he(r), fe(!1), I({
+			let n = St(t), { jobId: r } = await _(en, { method: "POST" });
+			await ge(r), pe(!1), F({
 				kind: "success",
 				text: `Renamed ${n.renamed} file${n.renamed === 1 ? "" : "s"}` + (n.skipped > 0 ? `, ${n.skipped} skipped` : "") + "."
 			});
 		} catch (e) {
 			let t = e instanceof v ? `${e.status} ${e.body}` : String(e);
-			I({
+			F({
 				kind: "error",
 				text: `Couldn't rename — ${t}. Nothing was changed; you can try again.`
 			});
 		} finally {
-			me(!1);
+			he(!1);
 		}
-	}, []), _e = e(async () => {
-		d(!0), g(null), A(!1);
+	}, []), ve = e(async () => {
+		d(!0), g(null), k(!1);
 		try {
-			let e = (await n.getAll())[qt];
+			let e = (await n.getAll())[Zt];
 			if (e) {
 				O(!1);
 				let t;
 				try {
 					t = JSON.parse(e);
 				} catch {
-					j.current = {};
+					A.current = {};
 					let e = S();
-					s(e), l(e), A(!0);
+					s(e), l(e), k(!0);
 					return;
 				}
-				j.current = ae(t);
-				let n = oe(t), r = {
+				A.current = oe(t);
+				let n = se(t), r = {
 					...n,
 					EnableStudioDestinations: n.EnableStudioDestinations || Object.keys(n.StudioDestinations).length > 0,
 					EnableTagDestinations: n.EnableTagDestinations || Object.keys(n.TagDestinations).length > 0,
@@ -2418,7 +2508,7 @@ function gn() {
 				};
 				s(r), l(r);
 			} else {
-				O(!0), j.current = {};
+				O(!0), A.current = {};
 				let e = S();
 				s(e), l(e);
 			}
@@ -2429,27 +2519,27 @@ function gn() {
 		}
 	}, [n]);
 	t(() => {
-		_e();
-	}, [_e]), t(() => {
+		ve();
+	}, [ve]), t(() => {
 		if (u) return;
 		let e = setTimeout(() => {
-			_(Yt, {
+			_($t, {
 				method: "POST",
 				body: JSON.stringify({ Options: r })
 			}).then((e) => {
-				ne(e), re(!1);
+				re(e), ie(!1);
 			}).catch(() => {
-				re(!0);
+				ie(!0);
 			});
-		}, Zt);
+		}, tn);
 		return () => {
 			clearTimeout(e);
 		};
 	}, [r, u]);
-	async function ve() {
+	async function ye() {
 		x(!0), w(null);
 		try {
-			await hn(r, j.current), l(r), O(!1), A(!1), E(!0), setTimeout(() => {
+			await yn(r, A.current), l(r), O(!1), k(!1), E(!0), setTimeout(() => {
 				E(!1);
 			}, 3e3);
 		} catch (e) {
@@ -2458,13 +2548,13 @@ function gn() {
 			x(!1);
 		}
 	}
-	function R(e, t) {
+	function L(e, t) {
 		s((n) => ({
 			...n,
 			[e]: t
 		}));
 	}
-	function J(e, t) {
+	function q(e, t) {
 		s((n) => ({
 			...n,
 			[e]: {
@@ -2473,76 +2563,76 @@ function gn() {
 			}
 		}));
 	}
-	function Y(e) {
-		let t = ce.current, n = t === "folder" ? se.current : ie.current, i = t === "folder" ? "FolderTemplate" : "FilenameTemplate", a = r[i];
+	function J(e) {
+		let t = le.current, n = t === "folder" ? ce.current : ae.current, i = t === "folder" ? "FolderTemplate" : "FilenameTemplate", a = r[i];
 		if (n && typeof n.selectionStart == "number") {
 			let t = n.selectionStart, r = n.selectionEnd ?? t;
-			R(i, a.slice(0, t) + e + a.slice(r)), requestAnimationFrame(() => {
+			L(i, a.slice(0, t) + e + a.slice(r)), requestAnimationFrame(() => {
 				n.focus();
 				let r = t + e.length;
 				n.setSelectionRange(r, r);
 			});
-		} else R(i, a + e);
+		} else L(i, a + e);
 	}
 	if (u) return /* @__PURE__ */ m("div", {
 		className: "flex items-center gap-2 text-sm text-secondary",
-		children: [/* @__PURE__ */ p(q, {}), "Loading settings…"]
+		children: [/* @__PURE__ */ p(K, {}), "Loading settings…"]
 	});
 	if (h) return /* @__PURE__ */ m("div", {
 		className: "space-y-3",
-		children: [/* @__PURE__ */ m(K, {
+		children: [/* @__PURE__ */ m(G, {
 			kind: "error",
 			children: [
 				"Couldn't load your saved settings — ",
 				h,
 				". Retry, or continue with defaults below."
 			]
-		}), /* @__PURE__ */ p("div", { children: /* @__PURE__ */ p(G, {
+		}), /* @__PURE__ */ p("div", { children: /* @__PURE__ */ p(W, {
 			variant: "ghost",
-			onClick: () => void _e(),
+			onClick: () => void ve(),
 			children: "Retry"
 		}) })]
 	});
-	let X = (e) => r[e], Fe = (M ?? []).filter((e) => e.flags.includes("empty")).map((e) => e.sampleLabel), Ie = Ut("performers", r.FilenameTemplate, r.FolderTemplate), Le = Ut("tags", r.FilenameTemplate, r.FolderTemplate), Z = Ut("date", r.FilenameTemplate, r.FolderTemplate), Q = Ut("duration", r.FilenameTemplate, r.FolderTemplate);
+	let Y = (e) => r[e], Ie = (j ?? []).filter((e) => e.flags.includes("empty")).map((e) => e.sampleLabel), Le = qt("performers", r.FilenameTemplate, r.FolderTemplate), Re = qt("tags", r.FilenameTemplate, r.FolderTemplate), X = qt("date", r.FilenameTemplate, r.FolderTemplate), Z = qt("duration", r.FilenameTemplate, r.FolderTemplate);
 	return /* @__PURE__ */ m("div", {
 		className: "space-y-6",
-		style: P ? { paddingBottom: "5rem" } : void 0,
+		style: N ? { paddingBottom: "5rem" } : void 0,
 		children: [
 			/* @__PURE__ */ m("div", {
 				className: "grid grid-cols-1 gap-6 lg:grid-cols-3",
 				children: [/* @__PURE__ */ m("div", {
 					className: "col-span-2",
-					children: [k ? /* @__PURE__ */ p(K, {
+					children: [ee ? /* @__PURE__ */ p(G, {
 						kind: "error",
 						children: "Your saved settings couldn't be read and have been reset to defaults. Review the options below and save to store a clean copy."
-					}) : D ? /* @__PURE__ */ p(K, {
+					}) : D ? /* @__PURE__ */ p(G, {
 						kind: "muted",
 						children: "Using default settings — pick a preset or write a template, then save."
-					}) : null, /* @__PURE__ */ m(W, {
+					}) : null, /* @__PURE__ */ m(U, {
 						title: "Filename & destination",
 						description: "Set how files are named and where they go — pick a preset or write your own template.",
 						children: [
-							/* @__PURE__ */ p(pn, { onApply: (e) => {
-								R("FilenameTemplate", e);
+							/* @__PURE__ */ p(_n, { onApply: (e) => {
+								L("FilenameTemplate", e);
 							} }),
-							/* @__PURE__ */ p(z, {
+							/* @__PURE__ */ p(R, {
 								label: "Filename template",
-								children: /* @__PURE__ */ p(B, {
+								children: /* @__PURE__ */ p(z, {
 									value: r.FilenameTemplate,
 									onChange: (e) => {
-										R("FilenameTemplate", e);
+										L("FilenameTemplate", e);
 									},
-									onFocus: () => ce.current = "filename",
-									inputRef: ie,
+									onFocus: () => le.current = "filename",
+									inputRef: ae,
 									mono: !0,
 									placeholder: "$title"
 								})
 							}),
-							/* @__PURE__ */ p(dn, {
+							/* @__PURE__ */ p(hn, {
 								value: r.FilenameTemplate,
-								emptySamples: Fe
+								emptySamples: Ie
 							}),
-							/* @__PURE__ */ p(Qe, { onInsert: Y }),
+							/* @__PURE__ */ p($e, { onInsert: J }),
 							/* @__PURE__ */ m("div", {
 								className: "border-t border-border pt-4",
 								children: [
@@ -2554,21 +2644,21 @@ function gn() {
 										className: "mb-4 mt-1 text-sm text-secondary",
 										children: "Folder path template — moves files on rename."
 									}),
-									/* @__PURE__ */ p(z, {
+									/* @__PURE__ */ p(R, {
 										label: "Folder template",
 										helper: "Blank = no folder move (rename in place). Use / for sub-folders, e.g. $studio / $year.",
-										children: /* @__PURE__ */ p(B, {
+										children: /* @__PURE__ */ p(z, {
 											value: r.FolderTemplate,
 											onChange: (e) => {
-												R("FolderTemplate", e);
+												L("FolderTemplate", e);
 											},
-											onFocus: () => ce.current = "folder",
-											inputRef: se,
+											onFocus: () => le.current = "folder",
+											inputRef: ce,
 											mono: !0,
 											placeholder: "$studio / $year"
 										})
 									}),
-									/* @__PURE__ */ p(dn, { value: r.FolderTemplate })
+									/* @__PURE__ */ p(hn, { value: r.FolderTemplate })
 								]
 							})
 						]
@@ -2584,72 +2674,72 @@ function gn() {
 							className: "mb-4 mt-1 text-sm text-secondary",
 							children: "Old → new for sample items, before anything touches disk."
 						}),
-						N ? /* @__PURE__ */ p(K, {
+						M ? /* @__PURE__ */ p(G, {
 							kind: "error",
 							children: "Preview unavailable — saved naming still works."
 						}) : null,
-						M == null ? /* @__PURE__ */ m("div", {
+						j == null ? /* @__PURE__ */ m("div", {
 							className: "flex items-center gap-2 text-sm text-secondary",
-							children: [/* @__PURE__ */ p(q, {}), "Rendering preview…"]
+							children: [/* @__PURE__ */ p(K, {}), "Rendering preview…"]
 						}) : /* @__PURE__ */ p("div", {
 							className: "space-y-3",
-							children: M.map((e) => /* @__PURE__ */ p(et, { result: e }, e.sampleLabel))
+							children: j.map((e) => /* @__PURE__ */ p(tt, { result: e }, e.sampleLabel))
 						})
 					]
 				}) })]
 			}),
-			/* @__PURE__ */ p(Me, {
+			/* @__PURE__ */ p(Ne, {
 				title: "What gets renamed",
 				hint: "Scope and required fields"
 			}),
-			/* @__PURE__ */ m(W, { children: [
-				/* @__PURE__ */ p(H, {
+			/* @__PURE__ */ m(U, { children: [
+				/* @__PURE__ */ p(V, {
 					label: "Only rename organized items",
 					checked: r.OnlyOrganized,
 					onChange: (e) => {
-						R("OnlyOrganized", e);
+						L("OnlyOrganized", e);
 					},
 					helper: "Only rename items you've marked Organized — skips un-curated items so they don't get junk names."
 				}),
-				/* @__PURE__ */ p(H, {
+				/* @__PURE__ */ p(V, {
 					label: "Use filename as title when none is set",
 					checked: r.FilenameAsTitle,
 					onChange: (e) => {
-						R("FilenameAsTitle", e);
+						L("FilenameAsTitle", e);
 					},
 					helper: "When an item has no title, use its current filename (without extension) as the title."
 				}),
-				/* @__PURE__ */ m(z, {
+				/* @__PURE__ */ m(R, {
 					label: "Required fields",
 					helper: "Items whose listed tokens resolve to nothing are skipped instead of renamed. Default: title.",
 					children: [
-						/* @__PURE__ */ p(Ce, {
+						/* @__PURE__ */ p(we, {
 							values: r.RequiredFields,
 							onChange: (e) => {
-								R("RequiredFields", e);
+								L("RequiredFields", e);
 							},
 							placeholder: "Add token, press Enter"
 						}),
-						/* @__PURE__ */ p(Ee, {
-							tokens: Rt,
+						/* @__PURE__ */ p(De, {
+							tokens: Ht,
 							values: r.RequiredFields,
 							onAdd: (e) => {
-								R("RequiredFields", r.RequiredFields.includes(e) ? r.RequiredFields : [...r.RequiredFields, e]);
+								L("RequiredFields", r.RequiredFields.includes(e) ? r.RequiredFields : [...r.RequiredFields, e]);
 							}
 						}),
-						/* @__PURE__ */ p(fn, { values: r.RequiredFields })
+						/* @__PURE__ */ p(gn, { values: r.RequiredFields })
 					]
 				})
 			] }),
-			/* @__PURE__ */ p(Me, {
+			/* @__PURE__ */ p(Ne, {
 				title: "Run & automation",
 				hint: "When renames happen"
 			}),
-			/* @__PURE__ */ m(W, { children: [/* @__PURE__ */ p(H, {
+			/* @__PURE__ */ m(U, { children: [/* @__PURE__ */ p(V, {
 				label: "Auto-rename on update",
 				checked: r.AutoRenamerOnUpdate,
 				onChange: (e) => {
-					R("AutoRenamerOnUpdate", e);
+					L("AutoRenamerOnUpdate", e);
 				},
 				helper: "When on, renames a video or image automatically whenever its metadata changes — respects every gating and routing rule below. The core of a hands-off library. Off by default."
 			}), /* @__PURE__ */ m("div", {
@@ -2668,33 +2758,33 @@ function gn() {
 							})]
 						}), /* @__PURE__ */ m("div", {
 							className: "flex shrink-0 flex-wrap items-center gap-3",
-							children: [/* @__PURE__ */ p(G, {
+							children: [/* @__PURE__ */ p(W, {
 								variant: "ghost",
 								onClick: () => {
-									fe(!0);
+									pe(!0);
 								},
 								children: "Dry run"
-							}), /* @__PURE__ */ m(G, {
-								onClick: () => void ge(),
-								disabled: P || pe,
-								children: [pe ? /* @__PURE__ */ p(q, {}) : null, "Rename all files"]
+							}), /* @__PURE__ */ m(W, {
+								onClick: () => void _e(),
+								disabled: N || me,
+								children: [me ? /* @__PURE__ */ p(K, {}) : null, "Rename all files"]
 							})]
 						})]
 					}),
-					P ? /* @__PURE__ */ m("p", {
+					N ? /* @__PURE__ */ m("p", {
 						className: "mt-2 flex items-start gap-1 text-xs text-amber-400",
 						role: "status",
 						"aria-live": "polite",
 						children: [/* @__PURE__ */ p(o, { className: "h-3 w-3 shrink-0" }), /* @__PURE__ */ p("span", { children: "Dry run previews your edits before saving. Save before “Rename all files” to run them for real." })]
 					}) : null,
-					F ? /* @__PURE__ */ p("p", {
+					P ? /* @__PURE__ */ p("p", {
 						className: "mt-2",
-						children: /* @__PURE__ */ m(K, {
-							kind: F.kind,
+						children: /* @__PURE__ */ m(G, {
+							kind: P.kind,
 							children: [
-								F.kind === "success" ? "✓ " : "",
-								F.text,
-								F.kind === "success" ? /* @__PURE__ */ m(f, { children: [" ", /* @__PURE__ */ p("button", {
+								P.kind === "success" ? "✓ " : "",
+								P.text,
+								P.kind === "success" ? /* @__PURE__ */ m(f, { children: [" ", /* @__PURE__ */ p("button", {
 									type: "button",
 									onClick: () => {
 										document.getElementById("rename-undo-section")?.scrollIntoView({ behavior: "smooth" });
@@ -2707,216 +2797,216 @@ function gn() {
 					}) : null
 				]
 			})] }),
-			de ? /* @__PURE__ */ p(It, {
+			fe ? /* @__PURE__ */ p(Bt, {
 				options: r,
 				onClose: () => {
-					fe(!1);
+					pe(!1);
 				},
-				onRenameAll: (e) => void ge(e),
-				renaming: pe
+				onRenameAll: (e) => void _e(e),
+				renaming: me
 			}) : null,
-			/* @__PURE__ */ p(Me, {
+			/* @__PURE__ */ p(Ne, {
 				title: "Token settings",
 				hint: "Appear only for tokens you're using"
 			}),
 			/* @__PURE__ */ m("div", {
 				className: "space-y-4",
 				children: [
-					Ie ? /* @__PURE__ */ m(W, {
+					Le ? /* @__PURE__ */ m(U, {
 						title: "Performers",
-						badge: /* @__PURE__ */ p(je, {
+						badge: /* @__PURE__ */ p(Me, {
 							mono: !0,
 							children: "$performers"
 						}),
 						accent: !0,
 						children: [
-							/* @__PURE__ */ p(z, {
+							/* @__PURE__ */ p(R, {
 								label: "Separator",
-								children: /* @__PURE__ */ p(xe, {
-									value: X("Performers").Separator,
+								children: /* @__PURE__ */ p(Se, {
+									value: Y("Performers").Separator,
 									onChange: (e) => {
-										J("Performers", { Separator: e });
+										q("Performers", { Separator: e });
 									},
-									options: ln,
+									options: pn,
 									customPlaceholder: "Custom separator"
 								})
 							}),
-							/* @__PURE__ */ p(z, {
+							/* @__PURE__ */ p(R, {
 								label: "Max count",
 								helper: "0 = unlimited",
-								children: /* @__PURE__ */ p(ye, {
-									value: X("Performers").MaxCount,
+								children: /* @__PURE__ */ p(be, {
+									value: Y("Performers").MaxCount,
 									min: 0,
 									onChange: (e) => {
-										J("Performers", { MaxCount: e });
+										q("Performers", { MaxCount: e });
 									}
 								})
 							}),
-							/* @__PURE__ */ p(z, {
+							/* @__PURE__ */ p(R, {
 								label: "On overflow",
-								children: /* @__PURE__ */ p(V, {
-									value: X("Performers").OnOverflow,
+								children: /* @__PURE__ */ p(B, {
+									value: Y("Performers").OnOverflow,
 									onChange: (e) => {
-										J("Performers", { OnOverflow: e });
+										q("Performers", { OnOverflow: e });
 									},
-									options: tn
+									options: on
 								})
 							}),
-							/* @__PURE__ */ p(z, {
+							/* @__PURE__ */ p(R, {
 								label: "Sort",
 								helper: "The id and favorite orders apply to performers only.",
-								children: /* @__PURE__ */ p(V, {
-									value: X("Performers").Sort,
+								children: /* @__PURE__ */ p(B, {
+									value: Y("Performers").Sort,
 									onChange: (e) => {
-										J("Performers", { Sort: e });
+										q("Performers", { Sort: e });
 									},
-									options: nn
+									options: sn
 								})
 							}),
-							/* @__PURE__ */ p(z, {
+							/* @__PURE__ */ p(R, {
 								label: "Ignore genders",
 								helper: "Drop performers of these genders before the max-count limit. A performer with no gender is always kept. None selected = off.",
-								children: /* @__PURE__ */ p(we, {
-									options: an,
-									values: X("Performers").IgnoreGenders,
+								children: /* @__PURE__ */ p(Te, {
+									options: ln,
+									values: Y("Performers").IgnoreGenders,
 									onChange: (e) => {
-										J("Performers", { IgnoreGenders: e });
+										q("Performers", { IgnoreGenders: e });
 									}
 								})
 							}),
-							/* @__PURE__ */ p(z, {
+							/* @__PURE__ */ p(R, {
 								label: "Gender order",
 								helper: "Preferred gender order, most-preferred first. Empty = off.",
-								children: /* @__PURE__ */ p(Te, {
-									options: an,
-									values: X("Performers").GenderOrder,
+								children: /* @__PURE__ */ p(Ee, {
+									options: ln,
+									values: Y("Performers").GenderOrder,
 									onChange: (e) => {
-										J("Performers", { GenderOrder: e });
+										q("Performers", { GenderOrder: e });
 									},
 									addPrompt: "Add a gender…"
 								})
 							}),
-							/* @__PURE__ */ p(We, {
+							/* @__PURE__ */ p(Ge, {
 								label: "Whitelist",
 								helper: "If set, only these performers are kept (case-insensitive).",
-								values: X("Performers").Whitelist,
+								values: Y("Performers").Whitelist,
 								onChange: (e) => {
-									J("Performers", { Whitelist: e });
+									q("Performers", { Whitelist: e });
 								},
 								placeholder: "Search performers…"
 							}),
-							/* @__PURE__ */ p(We, {
+							/* @__PURE__ */ p(Ge, {
 								label: "Blacklist",
 								helper: "These performers are removed (case-insensitive).",
-								values: X("Performers").Blacklist,
+								values: Y("Performers").Blacklist,
 								onChange: (e) => {
-									J("Performers", { Blacklist: e });
+									q("Performers", { Blacklist: e });
 								},
 								placeholder: "Search performers…"
 							})
 						]
 					}) : null,
-					Le ? /* @__PURE__ */ m(W, {
+					Re ? /* @__PURE__ */ m(U, {
 						title: "Tags",
-						badge: /* @__PURE__ */ p(je, {
+						badge: /* @__PURE__ */ p(Me, {
 							mono: !0,
 							children: "$tags"
 						}),
 						accent: !0,
 						children: [
-							/* @__PURE__ */ p(z, {
+							/* @__PURE__ */ p(R, {
 								label: "Separator",
-								children: /* @__PURE__ */ p(xe, {
-									value: X("Tags").Separator,
+								children: /* @__PURE__ */ p(Se, {
+									value: Y("Tags").Separator,
 									onChange: (e) => {
-										J("Tags", { Separator: e });
+										q("Tags", { Separator: e });
 									},
-									options: ln,
+									options: pn,
 									customPlaceholder: "Custom separator"
 								})
 							}),
-							/* @__PURE__ */ p(z, {
+							/* @__PURE__ */ p(R, {
 								label: "Max count",
 								helper: "0 = unlimited",
-								children: /* @__PURE__ */ p(ye, {
-									value: X("Tags").MaxCount,
+								children: /* @__PURE__ */ p(be, {
+									value: Y("Tags").MaxCount,
 									min: 0,
 									onChange: (e) => {
-										J("Tags", { MaxCount: e });
+										q("Tags", { MaxCount: e });
 									}
 								})
 							}),
-							/* @__PURE__ */ p(z, {
+							/* @__PURE__ */ p(R, {
 								label: "On overflow",
-								children: /* @__PURE__ */ p(V, {
-									value: X("Tags").OnOverflow,
+								children: /* @__PURE__ */ p(B, {
+									value: Y("Tags").OnOverflow,
 									onChange: (e) => {
-										J("Tags", { OnOverflow: e });
+										q("Tags", { OnOverflow: e });
 									},
-									options: tn
+									options: on
 								})
 							}),
-							/* @__PURE__ */ p(z, {
+							/* @__PURE__ */ p(R, {
 								label: "Sort",
-								children: /* @__PURE__ */ p(V, {
-									value: X("Tags").Sort,
+								children: /* @__PURE__ */ p(B, {
+									value: Y("Tags").Sort,
 									onChange: (e) => {
-										J("Tags", { Sort: e });
+										q("Tags", { Sort: e });
 									},
-									options: rn
+									options: cn
 								})
 							}),
-							/* @__PURE__ */ p(Ue, {
+							/* @__PURE__ */ p(We, {
 								label: "Whitelist",
 								helper: "If set, only these tags are kept (case-insensitive).",
-								values: X("Tags").Whitelist,
+								values: Y("Tags").Whitelist,
 								onChange: (e) => {
-									J("Tags", { Whitelist: e });
+									q("Tags", { Whitelist: e });
 								},
 								placeholder: "Search tags…"
 							}),
-							/* @__PURE__ */ p(Ue, {
+							/* @__PURE__ */ p(We, {
 								label: "Blacklist",
 								helper: "These tags are removed (case-insensitive).",
-								values: X("Tags").Blacklist,
+								values: Y("Tags").Blacklist,
 								onChange: (e) => {
-									J("Tags", { Blacklist: e });
+									q("Tags", { Blacklist: e });
 								},
 								placeholder: "Search tags…"
 							})
 						]
 					}) : null,
-					Z || Q ? /* @__PURE__ */ m(W, {
+					X || Z ? /* @__PURE__ */ m(U, {
 						accent: !0,
-						badge: /* @__PURE__ */ p(je, {
+						badge: /* @__PURE__ */ p(Me, {
 							mono: !0,
-							children: Z && Q ? "$date · $duration" : Z ? "$date" : "$duration"
+							children: X && Z ? "$date · $duration" : X ? "$date" : "$duration"
 						}),
-						title: Z && Q ? "Date & duration format" : Z ? "Date format" : "Duration format",
-						children: [Z ? /* @__PURE__ */ p(z, {
+						title: X && Z ? "Date & duration format" : X ? "Date format" : "Duration format",
+						children: [X ? /* @__PURE__ */ p(R, {
 							label: "Date format",
 							helper: "e.g. yyyy-MM-dd",
-							children: /* @__PURE__ */ p(be, {
+							children: /* @__PURE__ */ p(xe, {
 								value: r.DateFormat,
 								onChange: (e) => {
-									R("DateFormat", e);
+									L("DateFormat", e);
 								},
-								options: sn,
+								options: dn,
 								customPlaceholder: "yyyy-MM-dd"
 							})
-						}) : null, Q ? /* @__PURE__ */ p(z, {
+						}) : null, Z ? /* @__PURE__ */ p(R, {
 							label: "Duration format",
-							children: /* @__PURE__ */ p(be, {
+							children: /* @__PURE__ */ p(xe, {
 								value: r.DurationFormat,
 								onChange: (e) => {
-									R("DurationFormat", e);
+									L("DurationFormat", e);
 								},
-								options: cn,
+								options: fn,
 								customPlaceholder: "hh\\-mm\\-ss"
 							})
 						}) : null]
 					}) : null,
-					!Ie && !Le && !Z && !Q ? /* @__PURE__ */ m("div", {
+					!Le && !Re && !X && !Z ? /* @__PURE__ */ m("div", {
 						className: "rounded-xl border border-border bg-card p-6 text-center",
 						children: [
 							/* @__PURE__ */ p("h3", {
@@ -2930,35 +3020,35 @@ function gn() {
 							/* @__PURE__ */ m("div", {
 								className: "flex flex-wrap justify-center gap-1",
 								children: [
-									/* @__PURE__ */ p(L, {
+									/* @__PURE__ */ p(I, {
 										selected: !1,
 										mono: !0,
 										onClick: () => {
-											Y("{ - $performers}");
+											J("{ - $performers}");
 										},
 										children: "$performers"
 									}),
-									/* @__PURE__ */ p(L, {
+									/* @__PURE__ */ p(I, {
 										selected: !1,
 										mono: !0,
 										onClick: () => {
-											Y("{ - $tags}");
+											J("{ - $tags}");
 										},
 										children: "$tags"
 									}),
-									/* @__PURE__ */ p(L, {
+									/* @__PURE__ */ p(I, {
 										selected: !1,
 										mono: !0,
 										onClick: () => {
-											Y("{ - $date}");
+											J("{ - $date}");
 										},
 										children: "$date"
 									}),
-									/* @__PURE__ */ p(L, {
+									/* @__PURE__ */ p(I, {
 										selected: !1,
 										mono: !0,
 										onClick: () => {
-											Y("{ [$duration]}");
+											J("{ [$duration]}");
 										},
 										children: "$duration"
 									})
@@ -2968,74 +3058,74 @@ function gn() {
 					}) : null
 				]
 			}),
-			/* @__PURE__ */ p(Me, {
+			/* @__PURE__ */ p(Ne, {
 				title: "Destination routing",
 				hint: "Where renamed files land"
 			}),
 			/* @__PURE__ */ m("div", {
 				className: "space-y-4",
 				children: [
-					/* @__PURE__ */ m(U, {
+					/* @__PURE__ */ m(H, {
 						title: "Default & unorganized destinations",
 						children: [/* @__PURE__ */ m("div", {
 							className: "grid grid-cols-1 gap-4 md:grid-cols-2",
-							children: [/* @__PURE__ */ m(z, {
+							children: [/* @__PURE__ */ m(R, {
 								label: "Default destination",
 								helper: "Where an item matching no rule goes. Blank = no default route. Honored only with the relocate gate below ON.",
-								children: [/* @__PURE__ */ p(B, {
+								children: [/* @__PURE__ */ p(z, {
 									value: r.DefaultDestination,
 									onChange: (e) => {
-										R("DefaultDestination", e);
+										L("DefaultDestination", e);
 									},
 									placeholder: "Absolute root, or blank"
-								}), /* @__PURE__ */ p(Ae, { value: r.DefaultDestination })]
-							}), /* @__PURE__ */ m(z, {
+								}), /* @__PURE__ */ p(je, { value: r.DefaultDestination })]
+							}), /* @__PURE__ */ m(R, {
 								label: "Unorganized destination",
 								helper: "Where un-curated items route instead of being skipped. Blank = no unorganized route.",
-								children: [/* @__PURE__ */ p(B, {
+								children: [/* @__PURE__ */ p(z, {
 									value: r.UnorganizedDestination,
 									onChange: (e) => {
-										R("UnorganizedDestination", e);
+										L("UnorganizedDestination", e);
 									},
 									placeholder: "Absolute root, or blank"
-								}), /* @__PURE__ */ p(Ae, { value: r.UnorganizedDestination })]
+								}), /* @__PURE__ */ p(je, { value: r.UnorganizedDestination })]
 							})]
-						}), /* @__PURE__ */ p(H, {
+						}), /* @__PURE__ */ p(V, {
 							label: "Relocate unmatched items to the default destination",
 							checked: r.EnableDefaultRelocate,
 							onChange: (e) => {
-								R("EnableDefaultRelocate", e);
+								L("EnableDefaultRelocate", e);
 							},
 							helper: "With this on, any item matching no rule is moved to the default destination — whole-library reach. Undo is the only recovery. Off by default."
 						})]
 					}),
-					/* @__PURE__ */ p(Ne, {
+					/* @__PURE__ */ p(Pe, {
 						title: "Per-studio destinations",
 						description: "Pick a studio, then the absolute root its items route to.",
 						enabled: r.EnableStudioDestinations,
 						onToggle: (e) => {
-							R("EnableStudioDestinations", e);
+							L("EnableStudioDestinations", e);
 						},
-						children: /* @__PURE__ */ p(Je, {
+						children: /* @__PURE__ */ p(Ye, {
 							map: r.StudioDestinations,
 							onChange: (e) => {
-								R("StudioDestinations", e);
+								L("StudioDestinations", e);
 							}
 						})
 					}),
-					/* @__PURE__ */ p(Ne, {
+					/* @__PURE__ */ p(Pe, {
 						title: "Per-tag destinations",
 						description: "Pick a tag, then the absolute root its items route to.",
 						enabled: r.EnableTagDestinations,
 						onToggle: (e) => {
-							R("EnableTagDestinations", e);
+							L("EnableTagDestinations", e);
 						},
-						children: /* @__PURE__ */ p(Oe, {
+						children: /* @__PURE__ */ p(ke, {
 							map: r.TagDestinations,
 							onChange: (e) => {
-								R("TagDestinations", e);
+								L("TagDestinations", e);
 							},
-							renderKey: (e, t, n) => /* @__PURE__ */ p(Ue, {
+							renderKey: (e, t, n) => /* @__PURE__ */ p(We, {
 								label: "",
 								values: e === "" ? [] : [e],
 								onChange: (e) => {
@@ -3044,20 +3134,20 @@ function gn() {
 								placeholder: "Search tags…",
 								excludeValues: n
 							}),
-							renderValue: (e, t) => /* @__PURE__ */ m(f, { children: [/* @__PURE__ */ p(B, {
+							renderValue: (e, t) => /* @__PURE__ */ m(f, { children: [/* @__PURE__ */ p(z, {
 								value: e,
 								onChange: t,
 								placeholder: "Destination root"
-							}), /* @__PURE__ */ p(Ae, { value: e })] }),
+							}), /* @__PURE__ */ p(je, { value: e })] }),
 							addLabel: "Add tag rule"
 						})
 					}),
-					/* @__PURE__ */ m(Ne, {
+					/* @__PURE__ */ m(Pe, {
 						title: "Advanced routing & safety",
 						description: "Allowed roots and source-path rules.",
 						enabled: r.EnableAdvancedRouting,
 						onToggle: (e) => {
-							R("EnableAdvancedRouting", e);
+							L("EnableAdvancedRouting", e);
 						},
 						children: [/* @__PURE__ */ m("div", { children: [
 							/* @__PURE__ */ p("h4", {
@@ -3068,10 +3158,10 @@ function gn() {
 								className: "mb-4 mt-1 text-sm text-secondary",
 								children: "A rename may only write inside these absolute directories; a target outside them is rejected. Empty = files stay within their own source folder."
 							}),
-							/* @__PURE__ */ p(Ce, {
+							/* @__PURE__ */ p(we, {
 								values: r.AllowedRoots,
 								onChange: (e) => {
-									R("AllowedRoots", e);
+									L("AllowedRoots", e);
 								},
 								placeholder: "Add an absolute directory, press Enter"
 							})
@@ -3084,10 +3174,10 @@ function gn() {
 								className: "mb-4 mt-1 text-sm text-secondary",
 								children: "Match an item's source path to a destination root, top rule first. An exact match or a regex."
 							}),
-							/* @__PURE__ */ p(De, {
+							/* @__PURE__ */ p(Oe, {
 								rows: r.PathDestinations,
 								onChange: (e) => {
-									R("PathDestinations", e);
+									L("PathDestinations", e);
 								},
 								makeRow: () => ({
 									Pattern: "",
@@ -3095,9 +3185,9 @@ function gn() {
 									IsRegex: !1
 								}),
 								renderRow: (e, t, n) => /* @__PURE__ */ m(f, { children: [
-									/* @__PURE__ */ p(z, {
+									/* @__PURE__ */ p(R, {
 										label: "Source path",
-										children: /* @__PURE__ */ p(B, {
+										children: /* @__PURE__ */ p(z, {
 											value: e.Pattern,
 											onChange: (e) => {
 												n({ Pattern: e });
@@ -3106,26 +3196,26 @@ function gn() {
 											placeholder: "Exact path or regex"
 										})
 									}),
-									/* @__PURE__ */ p(H, {
+									/* @__PURE__ */ p(V, {
 										label: "Match as a regex",
 										checked: e.IsRegex,
 										onChange: (e) => {
 											n({ IsRegex: e });
 										}
 									}),
-									/* @__PURE__ */ p(ke, {
+									/* @__PURE__ */ p(Ae, {
 										pattern: e.Pattern,
 										isRegex: e.IsRegex
 									}),
-									/* @__PURE__ */ m(z, {
+									/* @__PURE__ */ m(R, {
 										label: "Destination root",
-										children: [/* @__PURE__ */ p(B, {
+										children: [/* @__PURE__ */ p(z, {
 											value: e.Dest,
 											onChange: (e) => {
 												n({ Dest: e });
 											},
 											placeholder: "Destination root"
-										}), /* @__PURE__ */ p(Ae, { value: e.Dest })]
+										}), /* @__PURE__ */ p(je, { value: e.Dest })]
 									})
 								] }),
 								addLabel: "Add path rule",
@@ -3133,25 +3223,25 @@ function gn() {
 							})
 						] })]
 					}),
-					/* @__PURE__ */ p(U, {
+					/* @__PURE__ */ p(H, {
 						title: "Sidecar files",
 						description: "Files sharing the primary's basename with one of these extensions move and rename with it; a target that already exists is left untouched, never overwritten. Captions Cove tracks always move regardless.",
-						children: /* @__PURE__ */ m(z, {
+						children: /* @__PURE__ */ m(R, {
 							label: "Also move sidecar files with these extensions",
-							children: [/* @__PURE__ */ p(Ce, {
+							children: [/* @__PURE__ */ p(we, {
 								values: r.AssociatedExtensions,
 								onChange: (e) => {
-									R("AssociatedExtensions", e);
+									L("AssociatedExtensions", e);
 								},
 								placeholder: "Add an extension, press Enter",
-								normalize: $t,
+								normalize: rn,
 								onReject: (e) => !/^[a-z0-9]+$/.test(e),
 								onLiveChange: (e) => {
-									te(e);
+									ne(e);
 								}
 							}), (() => {
-								let e = le($t(ee));
-								return e ? /* @__PURE__ */ p(K, {
+								let e = ue(rn(te));
+								return e ? /* @__PURE__ */ p(G, {
 									kind: "warning",
 									children: e
 								}) : null;
@@ -3160,36 +3250,36 @@ function gn() {
 					}),
 					/* @__PURE__ */ p("div", {
 						className: "rounded-xl border border-border bg-card p-4",
-						children: /* @__PURE__ */ p(H, {
+						children: /* @__PURE__ */ p(V, {
 							label: "Delete the source folder when a move leaves it empty",
 							checked: r.RemoveEmptyFolder,
 							onChange: (e) => {
-								R("RemoveEmptyFolder", e);
+								L("RemoveEmptyFolder", e);
 							},
 							helper: "Deletes a source folder only when a move empties it completely — never a non-empty folder or a root. Undo won't move the file back into a deleted folder; the file stays at its new location. Off by default."
 						})
 					})
 				]
 			}),
-			/* @__PURE__ */ p(Me, {
+			/* @__PURE__ */ p(Ne, {
 				title: "Advanced",
 				hint: "Power-user controls — collapsed by default"
 			}),
 			/* @__PURE__ */ m("div", {
 				className: "space-y-3",
 				children: [
-					/* @__PURE__ */ m(Pe, {
+					/* @__PURE__ */ m(Fe, {
 						title: "Clean up the name",
 						summary: "Illegal-character and space handling, case, ASCII",
 						children: [/* @__PURE__ */ m("div", {
 							className: "grid grid-cols-1 gap-4 md:grid-cols-2",
 							children: [
-								/* @__PURE__ */ p(z, {
+								/* @__PURE__ */ p(R, {
 									label: "Illegal-char replacement",
-									children: /* @__PURE__ */ p(Se, {
+									children: /* @__PURE__ */ p(Ce, {
 										value: r.IllegalReplacement,
 										onChange: (e) => {
-											R("IllegalReplacement", e);
+											L("IllegalReplacement", e);
 										},
 										stripLabel: "Strip",
 										replaceLabel: "Replace with",
@@ -3198,12 +3288,12 @@ function gn() {
 										inputPlaceholder: "e.g. _"
 									})
 								}),
-								/* @__PURE__ */ p(z, {
+								/* @__PURE__ */ p(R, {
 									label: "Space replacement",
-									children: /* @__PURE__ */ p(Se, {
+									children: /* @__PURE__ */ p(Ce, {
 										value: r.SpaceReplacement,
 										onChange: (e) => {
-											R("SpaceReplacement", e);
+											L("SpaceReplacement", e);
 										},
 										stripLabel: "Keep spaces",
 										replaceLabel: "Replace with",
@@ -3212,143 +3302,143 @@ function gn() {
 										inputPlaceholder: "e.g. _ or ."
 									})
 								}),
-								/* @__PURE__ */ p(z, {
+								/* @__PURE__ */ p(R, {
 									label: "Remove characters",
 									helper: "Characters to delete from the name, e.g. ,# — separate from illegal-character handling.",
-									children: /* @__PURE__ */ p(B, {
+									children: /* @__PURE__ */ p(z, {
 										value: r.RemoveCharacters,
 										onChange: (e) => {
-											R("RemoveCharacters", e);
+											L("RemoveCharacters", e);
 										},
 										placeholder: "e.g. ,#"
 									})
 								}),
-								/* @__PURE__ */ p(z, {
+								/* @__PURE__ */ p(R, {
 									label: "Case",
-									children: /* @__PURE__ */ p(V, {
+									children: /* @__PURE__ */ p(B, {
 										value: r.Case,
 										onChange: (e) => {
-											R("Case", e);
+											L("Case", e);
 										},
-										options: en
+										options: an
 									})
 								})
 							]
-						}), /* @__PURE__ */ p(H, {
+						}), /* @__PURE__ */ p(V, {
 							label: "ASCII transliterate",
 							checked: r.AsciiTransliterate,
 							onChange: (e) => {
-								R("AsciiTransliterate", e);
+								L("AsciiTransliterate", e);
 							},
 							helper: "Convert accented characters to plain ASCII."
 						})]
 					}),
-					/* @__PURE__ */ m(Pe, {
+					/* @__PURE__ */ m(Fe, {
 						title: "Length & collisions",
 						summary: "Length caps, what to drop when too long, duplicate suffix",
 						children: [
 							/* @__PURE__ */ m("div", {
 								className: "grid grid-cols-1 gap-4 md:grid-cols-2",
-								children: [/* @__PURE__ */ p(z, {
+								children: [/* @__PURE__ */ p(R, {
 									label: "Filename max length",
-									children: /* @__PURE__ */ p(ye, {
+									children: /* @__PURE__ */ p(be, {
 										value: r.FilenameMax,
 										min: 1,
 										onChange: (e) => {
-											R("FilenameMax", e);
+											L("FilenameMax", e);
 										}
 									})
-								}), /* @__PURE__ */ p(z, {
+								}), /* @__PURE__ */ p(R, {
 									label: "Full-path max length",
-									children: /* @__PURE__ */ p(ye, {
+									children: /* @__PURE__ */ p(be, {
 										value: r.FullPathMax,
 										min: 1,
 										onChange: (e) => {
-											R("FullPathMax", e);
+											L("FullPathMax", e);
 										}
 									})
 								})]
 							}),
-							/* @__PURE__ */ m(z, {
+							/* @__PURE__ */ m(R, {
 								label: "Drop order",
 								helper: "Fields dropped (top first) when the name is too long.",
 								children: [
-									/* @__PURE__ */ p(Ce, {
+									/* @__PURE__ */ p(we, {
 										values: r.DropOrder,
 										onChange: (e) => {
-											R("DropOrder", e);
+											L("DropOrder", e);
 										},
 										ordered: !0,
 										placeholder: "Add field, press Enter"
 									}),
-									/* @__PURE__ */ p(Ee, {
-										tokens: Rt,
+									/* @__PURE__ */ p(De, {
+										tokens: Ht,
 										values: r.DropOrder,
 										onAdd: (e) => {
-											R("DropOrder", r.DropOrder.includes(e) ? r.DropOrder : [...r.DropOrder, e]);
+											L("DropOrder", r.DropOrder.includes(e) ? r.DropOrder : [...r.DropOrder, e]);
 										}
 									}),
-									/* @__PURE__ */ p(fn, { values: r.DropOrder })
+									/* @__PURE__ */ p(gn, { values: r.DropOrder })
 								]
 							}),
-							/* @__PURE__ */ p(z, {
+							/* @__PURE__ */ p(R, {
 								label: "Duplicate suffix format",
 								helper: "{n} = a counter added only when a name already exists, e.g. name (1).mp4.",
-								children: /* @__PURE__ */ p(be, {
+								children: /* @__PURE__ */ p(xe, {
 									value: r.DuplicateSuffixFormat,
 									onChange: (e) => {
-										R("DuplicateSuffixFormat", e);
+										L("DuplicateSuffixFormat", e);
 									},
-									options: un,
+									options: mn,
 									customPlaceholder: " ({n})"
 								})
 							})
 						]
 					}),
-					/* @__PURE__ */ m(Pe, {
+					/* @__PURE__ */ m(Fe, {
 						title: "Excludes",
 						summary: "Skip items by tag, studio, or source path — evaluated before any routing",
 						children: [
-							/* @__PURE__ */ p(U, {
+							/* @__PURE__ */ p(H, {
 								title: "Exclude by tag",
 								description: "An item carrying any of these tags is skipped — never renamed, never moved. Evaluated before any routing rule.",
-								children: /* @__PURE__ */ p(Ue, {
+								children: /* @__PURE__ */ p(We, {
 									label: "Tags",
 									values: r.ExcludeTags,
 									onChange: (e) => {
-										R("ExcludeTags", e);
+										L("ExcludeTags", e);
 									},
 									placeholder: "Search tags…"
 								})
 							}),
-							/* @__PURE__ */ p(U, {
+							/* @__PURE__ */ p(H, {
 								title: "Exclude by studio",
 								description: "An item under any of these studios — or under a child of one — is skipped entirely. Evaluated before any routing rule.",
-								children: /* @__PURE__ */ p(He, {
+								children: /* @__PURE__ */ p(Ue, {
 									label: "Studios",
 									values: r.ExcludeStudioIds,
 									onChange: (e) => {
-										R("ExcludeStudioIds", e);
+										L("ExcludeStudioIds", e);
 									},
 									placeholder: "Search studios…"
 								})
 							}),
-							/* @__PURE__ */ p(U, {
+							/* @__PURE__ */ p(H, {
 								title: "Exclude by source path",
 								description: "An item whose source path matches a rule is skipped entirely. Evaluated before any routing rule. An exact match or a regex.",
-								children: /* @__PURE__ */ p(De, {
+								children: /* @__PURE__ */ p(Oe, {
 									rows: r.ExcludePaths,
 									onChange: (e) => {
-										R("ExcludePaths", e);
+										L("ExcludePaths", e);
 									},
 									makeRow: () => ({
 										Pattern: "",
 										IsRegex: !1
 									}),
 									renderRow: (e, t, n) => /* @__PURE__ */ m(f, { children: [
-										/* @__PURE__ */ p(z, {
+										/* @__PURE__ */ p(R, {
 											label: "Source path",
-											children: /* @__PURE__ */ p(B, {
+											children: /* @__PURE__ */ p(z, {
 												value: e.Pattern,
 												onChange: (e) => {
 													n({ Pattern: e });
@@ -3357,14 +3447,14 @@ function gn() {
 												placeholder: "Exact path or regex"
 											})
 										}),
-										/* @__PURE__ */ p(H, {
+										/* @__PURE__ */ p(V, {
 											label: "Match as a regex",
 											checked: e.IsRegex,
 											onChange: (e) => {
 												n({ IsRegex: e });
 											}
 										}),
-										/* @__PURE__ */ p(ke, {
+										/* @__PURE__ */ p(Ae, {
 											pattern: e.Pattern,
 											isRegex: e.IsRegex
 										})
@@ -3374,32 +3464,32 @@ function gn() {
 							})
 						]
 					}),
-					/* @__PURE__ */ m(Pe, {
+					/* @__PURE__ */ m(Fe, {
 						title: "Field rewriting & name shaping",
 						summary: "Literal token replacements, article stripping, and name shaping",
 						children: [
-							/* @__PURE__ */ p(U, {
+							/* @__PURE__ */ p(H, {
 								title: "Per-token replacements",
 								description: "A literal find/replace on a single token's value, before the name is shaped. The target is a canonical token name (e.g. studio, title), matched case-insensitively.",
-								children: /* @__PURE__ */ p(De, {
+								children: /* @__PURE__ */ p(Oe, {
 									rows: r.FieldReplacers,
 									onChange: (e) => {
-										R("FieldReplacers", e);
+										L("FieldReplacers", e);
 									},
 									makeRow: () => ({
-										TargetToken: on[0].value,
+										TargetToken: un[0].value,
 										Find: "",
 										Replace: ""
 									}),
 									renderRow: (e, t, n) => {
-										let r = on.some((t) => t.value === e.TargetToken) ? on : [...on, {
+										let r = un.some((t) => t.value === e.TargetToken) ? un : [...un, {
 											value: e.TargetToken,
 											label: `${e.TargetToken} (unknown)`
 										}];
 										return /* @__PURE__ */ m(f, { children: [
-											/* @__PURE__ */ p(z, {
+											/* @__PURE__ */ p(R, {
 												label: "Target token",
-												children: /* @__PURE__ */ p(V, {
+												children: /* @__PURE__ */ p(B, {
 													value: e.TargetToken,
 													onChange: (e) => {
 														n({ TargetToken: e });
@@ -3407,10 +3497,10 @@ function gn() {
 													options: r
 												})
 											}),
-											/* @__PURE__ */ p(z, {
+											/* @__PURE__ */ p(R, {
 												label: "Find",
 												helper: "Literal text to match. Empty does nothing.",
-												children: /* @__PURE__ */ p(B, {
+												children: /* @__PURE__ */ p(z, {
 													value: e.Find,
 													onChange: (e) => {
 														n({ Find: e });
@@ -3418,9 +3508,9 @@ function gn() {
 													placeholder: "Text to find"
 												})
 											}),
-											/* @__PURE__ */ p(z, {
+											/* @__PURE__ */ p(R, {
 												label: "Replace with",
-												children: /* @__PURE__ */ p(B, {
+												children: /* @__PURE__ */ p(z, {
 													value: e.Replace,
 													onChange: (e) => {
 														n({ Replace: e });
@@ -3433,47 +3523,47 @@ function gn() {
 									addLabel: "Add replacement"
 								})
 							}),
-							/* @__PURE__ */ m(U, {
+							/* @__PURE__ */ m(H, {
 								title: "Strip leading article",
-								children: [/* @__PURE__ */ p(H, {
+								children: [/* @__PURE__ */ p(V, {
 									label: "Strip a leading article from the title",
 									checked: r.StripLeadingArticles,
 									onChange: (e) => {
-										R("StripLeadingArticles", e);
+										L("StripLeadingArticles", e);
 									},
 									helper: "Removes a single leading article and the whitespace after it from the title, at most once (case-insensitive) — a word merely starting with an article, and a mid-title article, are left alone."
-								}), /* @__PURE__ */ p(z, {
+								}), /* @__PURE__ */ p(R, {
 									label: "Articles",
-									children: /* @__PURE__ */ p(Ce, {
+									children: /* @__PURE__ */ p(we, {
 										values: r.Articles,
 										onChange: (e) => {
-											R("Articles", e);
+											L("Articles", e);
 										},
 										placeholder: "Add article, press Enter"
 									})
 								})]
 							}),
-							/* @__PURE__ */ p(H, {
+							/* @__PURE__ */ p(V, {
 								label: "Squeeze studio names",
 								checked: r.SqueezeStudioNames,
 								onChange: (e) => {
-									R("SqueezeStudioNames", e);
+									L("SqueezeStudioNames", e);
 								},
 								helper: "Removes all spaces from the studio value so one studio renders to one stable folder name."
 							}),
-							/* @__PURE__ */ p(H, {
+							/* @__PURE__ */ p(V, {
 								label: "Drop a performer already in the title",
 								checked: r.PreventTitlePerformer,
 								onChange: (e) => {
-									R("PreventTitlePerformer", e);
+									L("PreventTitlePerformer", e);
 								},
 								helper: "Drops a performer whose name already appears as a whole word in the title."
 							}),
-							/* @__PURE__ */ p(H, {
+							/* @__PURE__ */ p(V, {
 								label: "Collapse repeated folder segments",
 								checked: r.PreventConsecutiveSegments,
 								onChange: (e) => {
-									R("PreventConsecutiveSegments", e);
+									L("PreventConsecutiveSegments", e);
 								},
 								helper: "Collapses consecutive duplicate folder path segments to one — affects the folder path, not the filename."
 							})
@@ -3483,15 +3573,15 @@ function gn() {
 			}),
 			/* @__PURE__ */ p("div", {
 				id: "rename-undo-section",
-				children: /* @__PURE__ */ p(ht, { refreshKey: 0 })
+				children: /* @__PURE__ */ p(gt, { refreshKey: 0 })
 			}),
-			/* @__PURE__ */ p(mn, {
-				dirty: P,
+			/* @__PURE__ */ p(vn, {
+				dirty: N,
 				saving: y,
 				saveError: C,
 				savedFlash: T,
-				canSave: ue,
-				onSave: () => void ve(),
+				canSave: de,
+				onSave: () => void ye(),
 				onDiscard: () => {
 					s(c);
 				}
@@ -3501,28 +3591,28 @@ function gn() {
 }
 //#endregion
 //#region src/RenamePage.tsx
-function _n() {
-	return /* @__PURE__ */ p(gn, {});
+function xn() {
+	return /* @__PURE__ */ p(bn, {});
 }
 //#endregion
 //#region src/preview.ts
-function vn(e) {
+function Sn(e) {
 	if (!e) return e;
 	let t = Math.max(e.lastIndexOf("/"), e.lastIndexOf("\\"));
 	return t >= 0 ? e.slice(t + 1) : e;
 }
-var yn = 5;
-function bn(e) {
+var Cn = 5;
+function wn(e) {
 	let t = e / (1024 * 1024 * 1024);
 	return t >= 10 ? `${Math.round(t)} GB` : `${t.toFixed(1)} GB`;
 }
-function xn(e) {
-	return (e?.volumePairs ?? []).map((e) => `↪ ${e.count} item${e.count === 1 ? "" : "s"} (${bn(e.bytes)}) move from ${e.from} to ${e.to}.`);
+function Tn(e) {
+	return (e?.volumePairs ?? []).map((e) => `↪ ${e.count} item${e.count === 1 ? "" : "s"} (${wn(e.bytes)}) move from ${e.from} to ${e.to}.`);
 }
-function Sn(e) {
+function En(e) {
 	return e === "Heavy" ? "This is a LARGE cross-drive move — files will be COPIED across drives, which can take a while. Click OK only if you are sure; Cancel to stop. You can undo this afterwards." : e === "Standard" ? "This moves files across drives. Click OK to proceed, or Cancel to stop. You can undo this afterwards." : "Click OK to rename, or Cancel to stop. You can undo this afterwards.";
 }
-function Cn(e, t) {
+function Dn(e, t) {
 	let n = e.filter((e) => e.status === "Renamer" || e.status === "Move"), r = n.length, i = e.length, a = e.filter((e) => e.status === "SkipGated").length, o = e.filter((e) => e.status === "SkipCollision").length, s = e.filter((e) => e.status === "SkipLocked").length, c = a + o + s, l = n.filter((e) => e.suffixed).length, u = n.filter((e) => e.sanitized).length, d = [];
 	if (c > 0) {
 		let e = [];
@@ -3532,14 +3622,14 @@ function Cn(e, t) {
 		} else d.push(`⚠ ${c} skipped — ${e.join(", ")}.`);
 	}
 	u > 0 && d.push(`⚠ ${u} had illegal characters cleaned up.`), l > 0 && d.push(`⚠ ${l} got a number added to avoid a name clash (e.g. "name (1)").`);
-	let f = xn(t), p = d.length > 0 ? `${d.join("\n")}\n\n` : "", m = f.length > 0 ? `${f.join("\n")}\n\n` : "";
+	let f = Tn(t), p = d.length > 0 ? `${d.join("\n")}\n\n` : "", m = f.length > 0 ? `${f.join("\n")}\n\n` : "";
 	if (r === 0) return {
 		text: `Nothing will be renamed — all ${i} selected item${i === 1 ? "" : "s"} are skipped or already named correctly.\n\n` + p + "Click OK to dismiss.",
 		willRenameCount: 0
 	};
-	let h = r === i ? `Rename ${r} selected item${r === 1 ? "" : "s"}?` : `Rename ${r} of ${i} selected items?`, g = n.slice(0, yn).map((e) => `  ${vn(e.oldFullPath)}  →  ${e.newBasename || vn(e.newFullPath)}`), _ = r - g.length;
+	let h = r === i ? `Rename ${r} selected item${r === 1 ? "" : "s"}?` : `Rename ${r} of ${i} selected items?`, g = n.slice(0, Cn).map((e) => `  ${Sn(e.oldFullPath)}  →  ${e.newBasename || Sn(e.newFullPath)}`), _ = r - g.length;
 	_ > 0 && g.push(`  … and ${_} more.`);
-	let v = Sn(t?.confirmLevel ?? "Light");
+	let v = En(t?.confirmLevel ?? "Light");
 	return {
 		text: `${h}\n\n` + p + m + `Examples:\n${g.join("\n")}\n\n` + v,
 		willRenameCount: r
@@ -3547,18 +3637,18 @@ function Cn(e, t) {
 }
 //#endregion
 //#region src/renameSelected.ts
-var wn = "com.alextomas955.renamer", Tn = `/extensions/${wn}/preview`, En = `/extensions/${wn}/renamer`;
-async function Dn(e, t) {
+var On = "com.alextomas955.renamer", kn = `/extensions/${On}/preview`, An = `/extensions/${On}/renamer`;
+async function jn(e, t) {
 	let n = JSON.stringify({
 		EntityType: t.entityType,
 		EntityIds: t.entityIds
-	}), r = await _(Tn, {
+	}), r = await _(kn, {
 		method: "POST",
 		body: n
-	}), { text: i, willRenameCount: a } = Cn(r.items, r.summary);
+	}), { text: i, willRenameCount: a } = Dn(r.items, r.summary);
 	if (!window.confirm(i) || a === 0) return { cancelled: !0 };
 	try {
-		await _(En, {
+		await _(An, {
 			method: "POST",
 			body: n
 		});
@@ -3569,7 +3659,7 @@ async function Dn(e, t) {
 }
 //#endregion
 //#region src/index.ts
-var On = h({ components: { RenamerPage: _n } });
-On.actionHandlers = { renamerSelected: Dn };
+var Mn = h({ components: { RenamerPage: xn } });
+Mn.actionHandlers = { renamerSelected: jn };
 //#endregion
-export { On as default };
+export { Mn as default };

@@ -7,7 +7,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const mod = await import(process.env.DRY_RUN_LOGIC_MODULE);
-const { countByStatus, paginate, totalPages } = mod;
+const { countByStatus, paginate, totalPages, classifyItem, bucketCounts, filterItems } = mod;
 
 test("countByStatus counts Renamer/Move as renamed, Skip* as skipped, NoOp as neither", () => {
   assert.deepEqual(
@@ -61,4 +61,55 @@ test("totalPages never returns 0, even for an empty result", () => {
 test("totalPages computes the correct page count", () => {
   assert.equal(totalPages(120, 50), 3);
   assert.equal(totalPages(100, 50), 2);
+});
+
+test("classifyItem: Renamer/Move → will-change, NoOp → no-change, everything else → attention", () => {
+  assert.equal(classifyItem({ status: "Renamer" }), "will-change");
+  assert.equal(classifyItem({ status: "Move" }), "will-change");
+  assert.equal(classifyItem({ status: "NoOp" }), "no-change");
+  assert.equal(classifyItem({ status: "SkipCollision" }), "attention");
+  assert.equal(classifyItem({ status: "Failed" }), "attention");
+  // Unknown/future status is surfaced as attention, never silently hidden.
+  assert.equal(classifyItem({ status: "SomeFutureStatus" }), "attention");
+});
+
+test("bucketCounts partitions every row exactly once (unlike countByStatus, NoOp is its own bucket)", () => {
+  const items = [
+    { status: "Renamer" },
+    { status: "Move" },
+    { status: "NoOp" },
+    { status: "SkipGated" },
+    { status: "Failed" },
+  ];
+  assert.deepEqual(bucketCounts(items), { willChange: 2, attention: 2, noChange: 1, scanned: 5 });
+  const c = bucketCounts(items);
+  assert.equal(c.willChange + c.attention + c.noChange, c.scanned);
+});
+
+test("filterItems on a single bucket keeps scan order and only that bucket", () => {
+  const items = [
+    { id: 1, status: "NoOp" },
+    { id: 2, status: "Renamer" },
+    { id: 3, status: "SkipGated" },
+    { id: 4, status: "Move" },
+  ];
+  assert.deepEqual(
+    filterItems(items, "will-change").map((x) => x.id),
+    [2, 4],
+  );
+  assert.deepEqual(filterItems(items, "no-change").map((x) => x.id), [1]);
+});
+
+test("filterItems 'all' orders will-change → attention → no-change, stable within a bucket", () => {
+  const items = [
+    { id: 1, status: "NoOp" }, // no-change
+    { id: 2, status: "SkipGated" }, // attention
+    { id: 3, status: "Move" }, // will-change
+    { id: 4, status: "Renamer" }, // will-change
+    { id: 5, status: "Failed" }, // attention
+  ];
+  assert.deepEqual(
+    filterItems(items, "all").map((x) => x.id),
+    [3, 4, 2, 5, 1],
+  );
 });
