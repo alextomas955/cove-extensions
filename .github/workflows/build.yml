@@ -254,58 +254,21 @@ jobs:
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm run build
 
-      # Stale-bundle gate: a clean checkout rebuilds dist/index.mjs and dist/index.css
-      # byte-identically, so a clean tree exits 0. A source change committed without rebuilding the
-      # bundles leaves a diff here and fails the job. The Tailwind CLI step compiles from
-      # @source "./src" alone (no ../cove host source), so dist/index.css reproduces on the bare runner.
+      # Stale-bundle gate: a clean checkout rebuilds dist/index.mjs byte-identically, so a clean
+      # tree exits 0. A source change committed without rebuilding the bundle leaves a diff here
+      # and fails the job.
       - name: Stale-bundle gate
         if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
         working-directory: ${{ matrix.extension.uiPath }}
-        run: git diff --exit-code -- dist/index.mjs dist/index.css
+        run: git diff --exit-code -- dist/index.mjs
 
       - name: Stale-bundle hint
         if: failure() && steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
-        run: echo "dist/index.mjs or dist/index.css is out of date — run 'npm run build' in ${{ matrix.extension.uiPath }} and commit dist/index.mjs and dist/index.css."
+        run: echo "dist/index.mjs is out of date — run 'npm run build' in ${{ matrix.extension.uiPath }} and commit dist/index.mjs."
 
       - name: Copy frontend bundle
         if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
         run: cp ${{ matrix.extension.uiPath }}/dist/index.mjs artifacts/${{ matrix.extension.name }}/
-
-      - name: Copy frontend CSS bundle
-        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
-        run: cp ${{ matrix.extension.uiPath }}/dist/index.css artifacts/${{ matrix.extension.name }}/
-
-      # D-05 host-major tripwire: a host Tailwind MAJOR bump (v4->v5) could rename/remove the
-      # @theme tokens the extension's emitted var(--color-*) output depends on, so fail CI if the
-      # host's installed tailwind major is >= 5 (prompting a re-verify of dist/index.css against the
-      # new host major). The host UI package.json lives in the ../cove sibling the C# build
-      # auto-detects (relative to the monorepo root = the repo checkout root here). The bare CI
-      # runner has NO ../cove sibling (see the "-p:UseLocalCoveSource=false" note above), so the
-      # guard must SKIP-with-notice (exit 0) when that file is absent — it is a dev/local-source
-      # tripwire, not a bare-CI blocker. Within-v4 minor drift is value-stable (RESEARCH §3), so only
-      # the major is checked.
-      - name: Host Tailwind major-version guard
-        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
-        shell: bash
-        run: |
-          set -euo pipefail
-          host_pkg="../cove/ui/package.json"
-          if [[ ! -f "$host_pkg" ]]; then
-            echo "::notice::Host tailwind version could not be checked on this runner (no ../cove sibling checkout) — skipping the major-version guard."
-            exit 0
-          fi
-          ver=$(node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('$host_pkg','utf8')); const d={...(p.dependencies||{}),...(p.devDependencies||{})}; process.stdout.write(String(d.tailwindcss||''));")
-          if [[ -z "$ver" ]]; then
-            echo "::notice::Host package.json has no tailwindcss dependency declared — skipping the major-version guard."
-            exit 0
-          fi
-          major=$(echo "$ver" | sed -E 's/^[^0-9]*([0-9]+).*/\1/')
-          echo "Host tailwindcss declared version: $ver (major $major)"
-          if [[ "$major" -ge 5 ]]; then
-            echo "Host tailwindcss major is $major (>= 5) — a major bump can rename/remove @theme tokens the extension's var(--color-*) output depends on."
-            echo "Re-verify extensions/Renamer/src/Renamer.Ui/dist/index.css against the new host major before shipping."
-            exit 1
-          fi
 
       # Version parity: the version the manifest, the assembly, the UI package, and the catalog
       # registry manifest declare must agree, so a release can't ship a manifest that disagrees
