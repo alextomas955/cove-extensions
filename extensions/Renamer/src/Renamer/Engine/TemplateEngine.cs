@@ -132,6 +132,18 @@ public static class TemplateEngine
             map[key] = FieldRewriter.RewriteScalar(key, map[key], options);
         }
 
+        // De-double the resolution: when the filename template renders $resolution AND the title
+        // already ends in a resolution tag (common for libraries whose titles were imported from
+        // filenames, e.g. "… [1080p]"), strip that trailing tag so the template's own [$resolution]
+        // is the single source — otherwise the name would carry "[1080p] [1080p]". Only stripped when
+        // the template actually appends a resolution; a template without $resolution keeps whatever the
+        // title carries. Not a user option: there is no sensible reason to want the doubled tag.
+        if (map.TryGetValue(Tokens.Title, out var titleValue)
+            && TemplateRendersResolution(options.FilenameTemplate))
+        {
+            map[Tokens.Title] = StripTrailingResolutionTag(titleValue);
+        }
+
         if (TryGetMulti(multiValues, Tokens.Performers, out var performers))
         {
             // Drop performers already named in the RESOLVED title (after the scalar rewrites above)
@@ -192,6 +204,59 @@ public static class TemplateEngine
     /// <summary>Case-insensitive token lookup; unknown/absent → empty.</summary>
     private static string Resolve(IReadOnlyDictionary<string, string> resolved, string name)
         => resolved.TryGetValue(name, out var v) ? v ?? string.Empty : string.Empty;
+
+    /// <summary>
+    /// True iff <paramref name="template"/> references the <c>$resolution</c> token, so the render will
+    /// append a resolution and a trailing one already in the title would be a duplicate. Matches the
+    /// bare <c>$resolution</c> the engine supports (there is no <c>${…}</c> form), case-insensitively,
+    /// and only when the char after the token is not another token-name char (so <c>$resolutionx</c>
+    /// does not match). Pure string scan — no regex.
+    /// </summary>
+    private static bool TemplateRendersResolution(string template)
+    {
+        const string tok = "$" + Tokens.Resolution; // "$resolution"
+        int from = 0;
+        while (from <= template.Length - tok.Length)
+        {
+            int idx = template.IndexOf(tok, from, StringComparison.OrdinalIgnoreCase);
+            if (idx < 0)
+            {
+                return false;
+            }
+
+            int end = idx + tok.Length;
+            char after = end < template.Length ? template[end] : '\0';
+            if (!(char.IsLetterOrDigit(after) || after == '_'))
+            {
+                return true;
+            }
+
+            from = idx + 1;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Removes a single trailing <c>[&lt;resolution-label&gt;]</c> from <paramref name="value"/> (the
+    /// labels <see cref="ResolutionLabel.KnownLabels"/> defines), then re-trims trailing whitespace.
+    /// Only a tag at the very END is removed, matched case-insensitively (a bounded suffix compare, no
+    /// regex), so a resolution mentioned mid-title is left untouched.
+    /// </summary>
+    private static string StripTrailingResolutionTag(string value)
+    {
+        string trimmed = value.TrimEnd();
+        foreach (var label in ResolutionLabel.KnownLabels)
+        {
+            string tag = "[" + label + "]";
+            if (trimmed.EndsWith(tag, StringComparison.OrdinalIgnoreCase))
+            {
+                return trimmed[..^tag.Length].TrimEnd();
+            }
+        }
+
+        return value;
+    }
 
     /// <summary>
     /// Live-preview helper for the required-field gate: resolves a single token name against the SAME
