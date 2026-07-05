@@ -5,8 +5,19 @@ library items from configurable metadata templates. It updates the file on disk 
 database record together, previews every change before touching disk, and supports undo of the
 last batch.
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design and safety model, and
-[`CHANGELOG.md`](CHANGELOG.md) for the release history.
+## Documentation
+
+**User docs live on the docs site — start there:**
+
+- **[Renamer docs](https://alextomas955.github.io/cove-extensions/extensions/renamer)** — overview and index
+- [User guide](https://alextomas955.github.io/cove-extensions/extensions/renamer/guide) — enable, set a template, dry-run, rename, undo
+- [Settings reference](https://alextomas955.github.io/cove-extensions/extensions/renamer/settings) — every setting, with defaults
+- [Naming templates](https://alextomas955.github.io/cove-extensions/extensions/renamer/templates) — tokens, presets, and examples
+
+Design and safety model: [Architecture](https://alextomas955.github.io/cove-extensions/extensions/renamer/architecture).
+Release history: [Changelog](https://alextomas955.github.io/cove-extensions/extensions/renamer/changelog).
+
+The rest of this file is for contributors working on the extension itself.
 
 ## Layout
 
@@ -54,6 +65,6 @@ checkout (or `$COVE_REPO`) so the extension is ABI-identical to the running host
 
 ## Releasing
 
-A release is cut by pushing a tag of the form `renamer/v<semver>` (e.g. `renamer/v1.0.0`). See the
+A release is cut by pushing a tag of the form `renamer/v<semver>` (e.g. `renamer/v0.1.0`). See the
 repo-wide [Releasing](https://alextomas955.github.io/cove-extensions/contributing/releasing) guide
 for the full process.
