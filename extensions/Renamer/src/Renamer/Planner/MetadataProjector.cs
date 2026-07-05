@@ -141,21 +141,26 @@ public static class MetadataProjector
     }
 
     /// <summary>
-    /// Resolves the extension token: the file <c>Format</c> when present (it is an extension-like
-    /// token, e.g. <c>"mkv"</c>), otherwise the basename's own extension. The engine normalizes
-    /// the leading dot, so either form is accepted. Empty when neither is available. Kept as a
-    /// pure string op (no <c>System.IO</c>) to preserve the projector's purity contract.
+    /// Resolves the extension token: the file's ACTUAL on-disk extension (from the basename),
+    /// falling back to the metadata <c>Format</c> only when the basename has no extension.
     /// </summary>
+    /// <remarks>
+    /// The on-disk extension is authoritative and is preferred deliberately. Cove's <c>Format</c>
+    /// field is the container/format NAME, which is often NOT the file extension — e.g. an
+    /// <c>.mkv</c> file reports <c>Format = "matroska"</c>. Using <c>Format</c> as the extension
+    /// rewrote <c>movie.mkv</c> → <c>movie.matroska</c>, a non-standard extension that breaks
+    /// player/OS association and Cove's own kind detection. A rename should change the NAME, not the
+    /// container type, so the real extension always wins; <c>Format</c> is only a fallback for the
+    /// rare extensionless file. Pure string op (no <c>System.IO</c>) to preserve projector purity.
+    /// </remarks>
     private static string ResolveExt(RenamerFile file)
     {
-        if (!string.IsNullOrEmpty(file.Format))
+        var dot = file.Basename.LastIndexOf('.');
+        if (dot >= 0 && dot < file.Basename.Length - 1)
         {
-            return file.Format;
+            return file.Basename[(dot + 1)..];
         }
 
-        var dot = file.Basename.LastIndexOf('.');
-        return dot >= 0 && dot < file.Basename.Length - 1
-            ? file.Basename[(dot + 1)..]
-            : string.Empty;
+        return file.Format ?? string.Empty;
     }
 }
