@@ -21,7 +21,8 @@
     "verify": "npm run typecheck && npm run lint && npm run format:check && npm run check-classes && npm run test"
   },
   "dependencies": {
-    "@cove/extension-sdk": "file:vendor/cove-extension-sdk-0.1.0.tgz"
+    "@cove/extension-sdk": "file:vendor/cove-extension-sdk-0.1.0.tgz",
+    "@tanstack/react-virtual": "3.13.24"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

@@ -14,6 +14,14 @@ import path from "node:path";
 // (omitted from `external`). Externalizing it would 404 at runtime.
 export default defineConfig({
   plugins: [react()],
+  // Bundled deps that branch on `process.env.NODE_ENV` (e.g. @tanstack/react-virtual's dev-only
+  // warnings) would otherwise ship a live `process` reference — undefined in the browser, so the
+  // panel throws `ReferenceError: process is not defined` on mount. Vite's library mode does NOT
+  // auto-define `process`, so replace it at build time. The extension bundle is always the
+  // production artifact, so "production" is the correct constant (drops the dev-only branches).
+  define: {
+    "process.env.NODE_ENV": JSON.stringify("production"),
+  },
   build: {
     lib: {
       entry: path.resolve(__dirname, "src/index.ts"),
