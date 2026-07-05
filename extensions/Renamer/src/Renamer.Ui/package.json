@@ -6,15 +6,14 @@
   "description": "RenameSettingsPanel — the Cove Renamer extension's settings + live-preview frontend (Vite library bundle → index.mjs).",
   "license": "AGPL-3.0",
   "scripts": {
-    "build": "vite build && npx @tailwindcss/cli -i src/index.css -o dist/index.css --minify",
+    "build": "vite build",
     "typecheck": "tsc --noEmit",
     "check-classes": "node scripts/check-classes.cjs",
     "check-primitives-logic": "node scripts/check-primitives-logic.mjs",
     "check-entity-picker-logic": "node scripts/check-entity-picker-logic.mjs",
     "check-dry-run-logic": "node scripts/check-dry-run-logic.mjs",
     "check-template-validation": "node scripts/check-template-validation.mjs",
-    "check-css-coverage": "node scripts/check-css-coverage.mjs",
-    "test": "node scripts/check-options-roundtrip.mjs && node scripts/check-primitives-logic.mjs && node scripts/check-entity-picker-logic.mjs && node scripts/check-studio-map.mjs && node scripts/check-dry-run-logic.mjs && node scripts/check-template-validation.mjs && node scripts/check-css-coverage.mjs",
+    "test": "node scripts/check-options-roundtrip.mjs && node scripts/check-primitives-logic.mjs && node scripts/check-entity-picker-logic.mjs && node scripts/check-studio-map.mjs && node scripts/check-dry-run-logic.mjs && node scripts/check-template-validation.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -26,7 +25,6 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
-    "@tailwindcss/cli": "4.3.2",
     "@types/node": "26.1.0",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
@@ -40,7 +38,6 @@
     "prettier": "3.9.4",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "tailwindcss": "4.3.2",
     "typescript": "6.0.3",
     "typescript-eslint": "8.62.1",
     "vite": "8.1.3"
