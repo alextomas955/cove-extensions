@@ -49,6 +49,20 @@ const config: Config = {
     ],
   ],
 
+  // D-07: offline local search (no Algolia, no network at query time). Registered as a theme;
+  // the classic theme then renders its built-in navbar search box automatically. Audited OK in
+  // 16-UI-SPEC.md (@easyops-cn org, MIT, Docusaurus 3.x-compatible). Stock styling (D-08).
+  themes: [
+    [
+      '@easyops-cn/docusaurus-search-local',
+      {
+        hashed: true,
+        indexDocs: true,
+        docsRouteBasePath: '/', // matches the docs plugin's routeBasePath so the indexer finds docs
+      },
+    ],
+  ],
+
   themeConfig: {
     navbar: {
       title: 'Cove Extensions',
