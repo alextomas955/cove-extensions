@@ -20,7 +20,14 @@ import { Button, Spinner } from "./primitives";
 import { WarningBadges } from "./WarningBadge";
 import type { ScanItem } from "./preview";
 import type { RenamerOptions } from "./options";
-import { countByStatus, paginate, totalPages } from "./dryRunLogic";
+import {
+  bucketCounts,
+  classifyItem,
+  filterItems,
+  paginate,
+  totalPages,
+  type DryRunFilter,
+} from "./dryRunLogic";
 
 // Inline styles for two host-absent Tailwind classes (the extension ships no CSS; Cove's prebuilt
 // bundle only emits classes its own UI uses, and border-collapse / max-w-0 appear nowhere in it).
@@ -60,6 +67,13 @@ function basename(p: string): string {
   if (!p) return p;
   const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
   return i >= 0 ? p.slice(i + 1) : p;
+}
+
+/** The folder portion of a path (everything before the last separator); "" if there is none. */
+function dirname(p: string): string {
+  if (!p) return p;
+  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+  return i >= 0 ? p.slice(0, i) : "";
 }
 
 /**
@@ -111,6 +125,7 @@ export function DryRunModal({
   const [items, setItems] = useState<ScanItem[] | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
+  const [filter, setFilter] = useState<DryRunFilter>("all");
   // Guards against StrictMode's dev-only mount->unmount->remount cycle enqueueing the scan job
   // twice. A plain boolean ref (rather than a per-effect `cancelled` local) survives the
   // synthetic unmount, so it suppresses the SECOND mount's POST without also discarding the
@@ -152,9 +167,19 @@ export function DryRunModal({
       });
   });
 
-  const counts = items ? countByStatus(items) : null;
-  const pageCount = items ? totalPages(items.length, PAGE_SIZE) : 1;
-  const pageItems = items ? paginate(items, page, PAGE_SIZE) : [];
+  // Bucket counts come from ALL scanned items (so the segment labels are stable regardless of the
+  // active filter); the table pages over the FILTERED, will-change-first list.
+  const counts = items ? bucketCounts(items) : null;
+  const filtered = items ? filterItems(items, filter) : [];
+  const pageCount = totalPages(filtered.length, PAGE_SIZE);
+  // A filter change can leave `page` past the new end; clamp so pagination never shows an empty page.
+  const safePage = Math.min(page, pageCount - 1);
+  const pageItems = paginate(filtered, safePage, PAGE_SIZE);
+
+  const setFilterAndReset = (next: DryRunFilter) => {
+    setFilter(next);
+    setPage(0);
+  };
 
   return (
     <Dialog
@@ -179,15 +204,57 @@ export function DryRunModal({
         </div>
       ) : (
         <>
-          <p id={DESC_ID} className="mb-4 text-sm text-secondary">
-            <span className="text-foreground">{counts.renamed}</span> will be renamed ·{" "}
-            {counts.skipped} skipped · {counts.scanned} scanned
+          <p id={DESC_ID} className="mb-3 text-sm text-secondary">
+            <span className="text-foreground">{counts.willChange}</span> will change ·{" "}
+            {counts.attention} need attention · {counts.noChange} no change · {counts.scanned}{" "}
+            scanned
           </p>
 
           {counts.scanned === 0 ? (
             <p className="py-8 text-center text-sm text-secondary">
               No items match your current settings — nothing to rename.
             </p>
+          ) : (
+            <>
+              {/* Segmented filter: isolate "what's actually happening" from the noise. Counts are
+                  from the full scan; a segment with 0 rows is disabled rather than hidden so the
+                  control's shape stays stable. */}
+              <div className="mb-4 flex flex-wrap gap-2">
+                {(
+                  [
+                    { key: "all", label: "All", n: counts.scanned },
+                    { key: "will-change", label: "Will change", n: counts.willChange },
+                    { key: "attention", label: "Needs attention", n: counts.attention },
+                    { key: "no-change", label: "No change", n: counts.noChange },
+                  ] as const
+                ).map((seg) => {
+                  const active = filter === seg.key;
+                  const empty = seg.n === 0 && seg.key !== "all";
+                  return (
+                    <button
+                      key={seg.key}
+                      type="button"
+                      disabled={empty}
+                      onClick={() => {
+                        setFilterAndReset(seg.key);
+                      }}
+                      aria-pressed={active}
+                      className={`rounded-lg border px-3 py-1 text-xs font-medium ${
+                        active
+                          ? "border-accent bg-accent/15 text-foreground"
+                          : "border-border bg-card text-secondary hover:text-foreground"
+                      } ${empty ? "opacity-40" : ""}`}
+                    >
+                      {seg.label} ({seg.n})
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {counts.scanned === 0 ? null : filtered.length === 0 ? (
+            <p className="py-8 text-center text-sm text-secondary">No items in this view.</p>
           ) : (
             <>
               <div className="max-h-96 overflow-y-auto rounded border border-border text-sm">
@@ -211,11 +278,18 @@ export function DryRunModal({
                   </thead>
                   <tbody className="divide-y divide-border">
                     {pageItems.map((it) => {
-                      const isSkip = it.status !== "Renamer" && it.status !== "Move";
+                      const bucket = classifyItem(it);
+                      const willChange = bucket === "will-change";
                       const oldName = basename(it.oldFullPath);
                       const newName = it.newBasename || basename(it.newFullPath);
+                      const oldFolder = dirname(it.oldFullPath);
+                      // A folder-only move (basename unchanged, target folder differs) would look
+                      // like "no change" in the name columns — flag it explicitly so the user sees
+                      // WHAT is happening (moved, not renamed in place).
+                      const nameChanged = willChange && newName !== oldName;
+                      const folderMoved = willChange && it.targetFolderPath !== oldFolder;
                       return (
-                        <tr key={it.fileId} className={isSkip ? "opacity-70" : undefined}>
+                        <tr key={it.fileId} className={willChange ? undefined : "opacity-70"}>
                           <td className="w-20 px-3 py-2 text-sm text-secondary">{it.kind}</td>
                           <td
                             className="min-w-0 truncate px-3 py-2 font-mono text-sm text-muted"
@@ -225,18 +299,28 @@ export function DryRunModal({
                             {oldName}
                           </td>
                           <td
-                            className={`min-w-0 truncate px-3 py-2 font-mono text-sm ${isSkip ? "text-muted" : "text-foreground"}`}
+                            className={`min-w-0 truncate px-3 py-2 font-mono text-sm ${willChange ? "text-foreground" : "text-muted"}`}
                             style={TRUNCATE_CELL_STYLE}
-                            title={it.newFullPath}
+                            title={willChange ? it.newFullPath : undefined}
                           >
-                            {isSkip ? "— will be skipped" : newName}
+                            {!willChange
+                              ? bucket === "no-change"
+                                ? "— unchanged"
+                                : "— will be skipped"
+                              : nameChanged
+                                ? newName
+                                : "(name unchanged)"}
                           </td>
                           <td
                             className="min-w-0 truncate px-3 py-2 font-mono text-xs text-muted"
                             style={TRUNCATE_CELL_STYLE}
                             title={it.targetFolderPath}
                           >
-                            {it.targetFolderPath}
+                            {folderMoved ? (
+                              <span className="text-foreground">→ {it.targetFolderPath}</span>
+                            ) : (
+                              it.targetFolderPath
+                            )}
                           </td>
                           <td className="px-3 py-2">
                             <WarningBadges item={it} />
@@ -250,21 +334,21 @@ export function DryRunModal({
                   <Button
                     variant="ghost"
                     onClick={() => {
-                      setPage((p) => p - 1);
+                      setPage(safePage - 1);
                     }}
-                    disabled={page === 0}
+                    disabled={safePage === 0}
                   >
                     Prev
                   </Button>
                   <span className="text-xs text-muted">
-                    Page {page + 1} of {pageCount}
+                    Page {safePage + 1} of {pageCount}
                   </span>
                   <Button
                     variant="ghost"
                     onClick={() => {
-                      setPage((p) => p + 1);
+                      setPage(safePage + 1);
                     }}
-                    disabled={page === pageCount - 1}
+                    disabled={safePage === pageCount - 1}
                   >
                     Next
                   </Button>
@@ -283,10 +367,10 @@ export function DryRunModal({
           onClick={() => {
             if (items) onRenameAll(items);
           }}
-          disabled={renaming || !counts || counts.renamed === 0}
+          disabled={renaming || !counts || counts.willChange === 0}
         >
           {renaming ? <Spinner /> : null}
-          Rename {counts?.renamed ?? 0} files
+          Rename {counts?.willChange ?? 0} files
         </Button>
       </div>
     </Dialog>
