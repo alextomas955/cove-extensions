@@ -7,7 +7,29 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const mod = await import(process.env.DRY_RUN_LOGIC_MODULE);
-const { countByStatus, paginate, totalPages, classifyItem, bucketCounts, filterItems } = mod;
+const {
+  countByStatus,
+  paginate,
+  totalPages,
+  classifyItem,
+  bucketCounts,
+  filterItems,
+  searchItems,
+  sortItems,
+} = mod;
+
+/** A full-ish scan row for the search/sort tests (only the fields those functions read). */
+function row(over) {
+  return {
+    status: "Move",
+    kind: "Video",
+    oldFullPath: "",
+    newFullPath: "",
+    newBasename: "",
+    targetFolderPath: "",
+    ...over,
+  };
+}
 
 test("countByStatus counts Renamer/Move as renamed, Skip* as skipped, NoOp as neither", () => {
   assert.deepEqual(
@@ -111,5 +133,48 @@ test("filterItems 'all' orders will-change → attention → no-change, stable w
   assert.deepEqual(
     filterItems(items, "all").map((x) => x.id),
     [3, 4, 2, 5, 1],
+  );
+});
+
+test("searchItems matches case-insensitively across current/new/destination, empty query passes all", () => {
+  const items = [
+    row({ oldFullPath: "G:/vids/Alpha [1080p].mp4" }),
+    row({ newBasename: "Beta Movie.mp4" }),
+    row({ targetFolderPath: "G:/vids/Gamma Studio" }),
+  ];
+  assert.equal(searchItems(items, "alpha").length, 1);
+  assert.equal(searchItems(items, "BETA").length, 1);
+  assert.equal(searchItems(items, "gamma studio").length, 1);
+  assert.equal(searchItems(items, "nope").length, 0);
+  assert.equal(searchItems(items, "   ").length, 3); // whitespace-only → all
+  assert.equal(searchItems(items, "").length, 3);
+});
+
+test("sortItems sorts by a column asc/desc and is stable on ties; null column is a no-op", () => {
+  const items = [
+    row({ oldFullPath: "c.mp4" }),
+    row({ oldFullPath: "a.mp4" }),
+    row({ oldFullPath: "b.mp4" }),
+  ];
+  assert.deepEqual(
+    sortItems(items, "current", "asc").map((x) => x.oldFullPath),
+    ["a.mp4", "b.mp4", "c.mp4"],
+  );
+  assert.deepEqual(
+    sortItems(items, "current", "desc").map((x) => x.oldFullPath),
+    ["c.mp4", "b.mp4", "a.mp4"],
+  );
+  // null column returns the input order untouched
+  assert.deepEqual(
+    sortItems(items, null, "asc").map((x) => x.oldFullPath),
+    ["c.mp4", "a.mp4", "b.mp4"],
+  );
+});
+
+test("sortItems 'new' sorts on newBasename (falling back to newFullPath)", () => {
+  const items = [row({ newBasename: "", newFullPath: "z.mp4" }), row({ newBasename: "a.mp4" })];
+  assert.deepEqual(
+    sortItems(items, "new", "asc").map((x) => x.newBasename || x.newFullPath),
+    ["a.mp4", "z.mp4"],
   );
 });

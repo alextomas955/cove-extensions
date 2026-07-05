@@ -115,3 +115,71 @@ export function paginate<T>(items: T[], page: number, pageSize = 50): T[] {
 export function totalPages(itemCount: number, pageSize = 50): number {
   return Math.max(1, Math.ceil(itemCount / pageSize));
 }
+
+/** The scan-row fields the in-table search and sort read. A subset of the full ScanItem. */
+export interface DryRunRow {
+  status: string;
+  kind: string;
+  oldFullPath: string;
+  newFullPath: string;
+  newBasename: string;
+  targetFolderPath: string;
+}
+
+/** Columns the table can sort by. `type` = kind; the rest sort on their displayed text. */
+export type DryRunSortColumn = "type" | "current" | "new" | "destination";
+
+/** Ascending or descending; a column header toggles between them. */
+export type DryRunSortDirection = "asc" | "desc";
+
+/**
+ * Case-insensitive substring match of `query` against a row's current name, new name/basename, and
+ * destination folder (the three text columns a user scans by eye). An empty/whitespace query returns
+ * every row unchanged. Trims the query so a stray space does not hide everything. Pure — no DOM.
+ */
+export function searchItems<T extends DryRunRow>(items: T[], query: string): T[] {
+  const q = query.trim().toLowerCase();
+  if (q === "") return items;
+  return items.filter((it) => {
+    const haystack = `${it.oldFullPath}\n${it.newFullPath}\n${it.newBasename}\n${it.targetFolderPath}`;
+    return haystack.toLowerCase().includes(q);
+  });
+}
+
+/** The value a row sorts on for a given column (lower-cased for path columns; kind is short text). */
+function sortKey(row: DryRunRow, column: DryRunSortColumn): string {
+  switch (column) {
+    case "type":
+      return row.kind.toLowerCase();
+    case "current":
+      return row.oldFullPath.toLowerCase();
+    case "new":
+      return (row.newBasename || row.newFullPath).toLowerCase();
+    case "destination":
+      return row.targetFolderPath.toLowerCase();
+  }
+}
+
+/**
+ * Sort a copy of `items` by `column`/`direction`. A user-chosen sort intentionally OVERRIDES the
+ * will-change-first grouping {@link filterItems} applies for the `all` view — when the user clicks a
+ * column they want that column's order, not the bucket order. The sort is stable: rows comparing
+ * equal keep their incoming (bucket-ordered) relative order, so an unsorted-but-filtered `all` view
+ * still reads will-change → attention → no-change until a column is picked. Pure — no DOM.
+ */
+export function sortItems<T extends DryRunRow>(
+  items: T[],
+  column: DryRunSortColumn | null,
+  direction: DryRunSortDirection,
+): T[] {
+  if (column === null) return items;
+  const sign = direction === "asc" ? 1 : -1;
+  return items
+    .map((it, i) => ({ it, i }))
+    .sort((a, b) => {
+      const ka = sortKey(a.it, column);
+      const kb = sortKey(b.it, column);
+      return ka < kb ? -sign : ka > kb ? sign : a.i - b.i;
+    })
+    .map((x) => x.it);
+}

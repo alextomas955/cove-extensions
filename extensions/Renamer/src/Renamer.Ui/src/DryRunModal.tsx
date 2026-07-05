@@ -1,7 +1,7 @@
 /**
  * The full-screen "Dry run" modal: scans the whole library via the job-backed scan-library
- * endpoint, polls the host's generic job-status endpoint to completion, then renders the
- * paginated old→new preview table. The footer "Rename N files" button calls the SAME
+ * endpoint, polls the host's generic job-status endpoint to completion, then renders a filterable,
+ * searchable, sortable, virtualized old→new preview table. The footer "Rename N files" button calls the SAME
  * rename-trigger callback the panel-level "Rename all files" button calls — this modal
  * never talks to the rename-library endpoint through a separate code path.
  *
@@ -12,8 +12,10 @@
  *
  * SECURITY: every filename/path is a React text node (auto-escaped); no dangerouslySetInnerHTML.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { request, ApiError } from "@cove/extension-sdk";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { ArrowDown, ArrowUp, Search } from "lucide-react";
 
 import { Dialog, ErrorBox } from "./dialog";
 import { Button, Spinner } from "./primitives";
@@ -24,18 +26,22 @@ import {
   bucketCounts,
   classifyItem,
   filterItems,
-  paginate,
-  totalPages,
+  searchItems,
+  sortItems,
   type DryRunFilter,
+  type DryRunSortColumn,
+  type DryRunSortDirection,
 } from "./dryRunLogic";
 
-// Inline styles for two host-absent Tailwind classes (the extension ships no CSS; Cove's prebuilt
-// bundle only emits classes its own UI uses, and border-collapse / max-w-0 appear nowhere in it).
-// Element-scoped inline styles render everywhere and cannot leak onto host pages.
-const TABLE_STYLE = { borderCollapse: "collapse" } as const;
-// max-w-0 + min-w-0 + truncate is the standard "let this cell shrink and ellipsize" trio; only
-// max-w-0 is host-absent, so it moves inline while min-w-0/truncate stay as (host-emitted) classes.
-const TRUNCATE_CELL_STYLE = { maxWidth: 0 } as const;
+// The four content columns share one grid template so the sticky header and every virtualized row
+// align. Expressed inline because `grid-template-columns` with these exact tracks is host-absent
+// (Cove's prebuilt Tailwind emits only the classes its own UI uses); an element-scoped inline style
+// renders everywhere and cannot leak onto host pages. Type | Current | New | Destination | badges.
+const GRID_TEMPLATE = {
+  gridTemplateColumns: "5rem minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto",
+} as const;
+// Fixed row height the virtualizer measures against (px). Matches the py-2 + single line of text.
+const ROW_HEIGHT = 37;
 
 const EXTENSION_ID = "com.alextomas955.renamer";
 const SCAN_LIBRARY_PATH = `/extensions/${EXTENSION_ID}/scan-library`;
@@ -43,7 +49,6 @@ const LAST_SCAN_PATH = `/extensions/${EXTENSION_ID}/last-scan`;
 
 const TITLE_ID = "rename-dry-run-title";
 const DESC_ID = "rename-dry-run-summary";
-const PAGE_SIZE = 50;
 const POLL_INTERVAL_MS = 1000;
 
 /**
@@ -74,6 +79,44 @@ function dirname(p: string): string {
   if (!p) return p;
   const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
   return i >= 0 ? p.slice(0, i) : "";
+}
+
+/**
+ * A clickable column header that sorts by {@link column}. Shows an up/down arrow when it is the
+ * active sort column. Uses only host-emitted classes (no CSS shipped by the extension).
+ */
+function SortHeader({
+  label,
+  column,
+  active,
+  direction,
+  onSort,
+}: {
+  label: string;
+  column: DryRunSortColumn;
+  active: boolean;
+  direction: DryRunSortDirection;
+  onSort: (column: DryRunSortColumn) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        onSort(column);
+      }}
+      aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : "none"}
+      className="flex w-full items-center gap-1 px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted hover:text-foreground"
+    >
+      {label}
+      {active ? (
+        direction === "asc" ? (
+          <ArrowUp className="h-3 w-3" aria-hidden />
+        ) : (
+          <ArrowDown className="h-3 w-3" aria-hidden />
+        )
+      ) : null}
+    </button>
+  );
 }
 
 /**
@@ -124,8 +167,10 @@ export function DryRunModal({
   const [scanJobId, setScanJobId] = useState<string | null>(null);
   const [items, setItems] = useState<ScanItem[] | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
-  const [page, setPage] = useState(0);
   const [filter, setFilter] = useState<DryRunFilter>("all");
+  const [search, setSearch] = useState("");
+  const [sortColumn, setSortColumn] = useState<DryRunSortColumn | null>(null);
+  const [sortDir, setSortDir] = useState<DryRunSortDirection>("asc");
   // Guards against StrictMode's dev-only mount->unmount->remount cycle enqueueing the scan job
   // twice. A plain boolean ref (rather than a per-effect `cancelled` local) survives the
   // synthetic unmount, so it suppresses the SECOND mount's POST without also discarding the
@@ -168,18 +213,37 @@ export function DryRunModal({
   });
 
   // Bucket counts come from ALL scanned items (so the segment labels are stable regardless of the
-  // active filter); the table pages over the FILTERED, will-change-first list.
+  // active filter). The visible list is filter → search → sort, computed over the WHOLE scan (not a
+  // page) so the virtualized scroll shows every matching row. Memoized so it only recomputes when an
+  // input actually changes, not on every unrelated re-render (e.g. the scroll-driven ones below).
   const counts = items ? bucketCounts(items) : null;
-  const filtered = items ? filterItems(items, filter) : [];
-  const pageCount = totalPages(filtered.length, PAGE_SIZE);
-  // A filter change can leave `page` past the new end; clamp so pagination never shows an empty page.
-  const safePage = Math.min(page, pageCount - 1);
-  const pageItems = paginate(filtered, safePage, PAGE_SIZE);
+  const visible = useMemo(() => {
+    if (!items) return [];
+    return sortItems(searchItems(filterItems(items, filter), search), sortColumn, sortDir);
+  }, [items, filter, search, sortColumn, sortDir]);
 
-  const setFilterAndReset = (next: DryRunFilter) => {
-    setFilter(next);
-    setPage(0);
+  // Clicking a column header sorts by it; clicking the active column flips direction. A fresh column
+  // starts ascending.
+  const toggleSort = (column: DryRunSortColumn) => {
+    if (sortColumn === column) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(column);
+      setSortDir("asc");
+    }
   };
+
+  // Virtualize the (possibly thousands of) visible rows: only the rows in view are mounted, so the
+  // 8k-row scan scrolls smoothly with no pagination. The scroll container is `scrollRef`; rows are
+  // a fixed ROW_HEIGHT, absolutely positioned via each item's translateY.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual returns functions the React Compiler cannot memoize; this is the library's documented, supported usage and safe here (the returned virtualizer is used inline, not passed to a memoized child).
+  const rowVirtualizer = useVirtualizer({
+    count: visible.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 12,
+  });
 
   return (
     <Dialog
@@ -236,7 +300,7 @@ export function DryRunModal({
                       type="button"
                       disabled={empty}
                       onClick={() => {
-                        setFilterAndReset(seg.key);
+                        setFilter(seg.key);
                       }}
                       aria-pressed={active}
                       className={`rounded-lg border px-3 py-1 text-xs font-medium ${
@@ -250,34 +314,89 @@ export function DryRunModal({
                   );
                 })}
               </div>
+
+              {/* In-table search: filters the visible rows by current/new name or destination. Runs
+                  over the whole (filtered) scan, so every matching row is reachable by scrolling. */}
+              <div className="mb-3 flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
+                <Search className="h-4 w-4 shrink-0 text-muted" aria-hidden />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                  }}
+                  placeholder="Search names or destination…"
+                  aria-label="Search the dry-run rows"
+                  className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
+                />
+                {search ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch("");
+                    }}
+                    className="shrink-0 text-xs text-muted hover:text-foreground"
+                  >
+                    Clear
+                  </button>
+                ) : null}
+              </div>
             </>
           )}
 
-          {counts.scanned === 0 ? null : filtered.length === 0 ? (
-            <p className="py-8 text-center text-sm text-secondary">No items in this view.</p>
+          {counts.scanned === 0 ? null : visible.length === 0 ? (
+            <p className="py-8 text-center text-sm text-secondary">
+              {search ? "No rows match your search." : "No items in this view."}
+            </p>
           ) : (
             <>
-              <div className="max-h-96 overflow-y-auto rounded border border-border text-sm">
-                <table className="w-full" style={TABLE_STYLE}>
-                  <thead>
-                    <tr className="sticky top-0 bg-card text-left">
-                      <th className="w-20 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted">
-                        Type
-                      </th>
-                      <th className="min-w-0 flex-1 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted">
-                        Current name
-                      </th>
-                      <th className="min-w-0 flex-1 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted">
-                        New name
-                      </th>
-                      <th className="min-w-0 flex-1 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted">
-                        Destination
-                      </th>
-                      <th className="px-3 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {pageItems.map((it) => {
+              <div className="overflow-hidden rounded border border-border text-sm">
+                {/* Sticky grid header — one grid row that shares GRID_TEMPLATE with every body row so
+                    the columns line up. Four sortable headers + a badges column. */}
+                <div
+                  className="grid items-center border-b border-border bg-card"
+                  style={GRID_TEMPLATE}
+                >
+                  <SortHeader
+                    label="Type"
+                    column="type"
+                    active={sortColumn === "type"}
+                    direction={sortDir}
+                    onSort={toggleSort}
+                  />
+                  <SortHeader
+                    label="Current name"
+                    column="current"
+                    active={sortColumn === "current"}
+                    direction={sortDir}
+                    onSort={toggleSort}
+                  />
+                  <SortHeader
+                    label="New name"
+                    column="new"
+                    active={sortColumn === "new"}
+                    direction={sortDir}
+                    onSort={toggleSort}
+                  />
+                  <SortHeader
+                    label="Destination"
+                    column="destination"
+                    active={sortColumn === "destination"}
+                    direction={sortDir}
+                    onSort={toggleSort}
+                  />
+                  <span className="px-3 py-2" />
+                </div>
+
+                {/* Virtualized body: a fixed-height scroll viewport with a spacer sized to the full
+                    row count; only the rows in view are mounted and positioned by translateY. */}
+                <div ref={scrollRef} className="h-96 overflow-y-auto">
+                  <div
+                    className="relative w-full"
+                    style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+                  >
+                    {rowVirtualizer.getVirtualItems().map((vRow) => {
+                      const it = visible[vRow.index];
                       const bucket = classifyItem(it);
                       const willChange = bucket === "will-change";
                       const oldName = basename(it.oldFullPath);
@@ -289,18 +408,24 @@ export function DryRunModal({
                       const nameChanged = willChange && newName !== oldName;
                       const folderMoved = willChange && it.targetFolderPath !== oldFolder;
                       return (
-                        <tr key={it.fileId} className={willChange ? undefined : "opacity-70"}>
-                          <td className="w-20 px-3 py-2 text-sm text-secondary">{it.kind}</td>
-                          <td
-                            className="min-w-0 truncate px-3 py-2 font-mono text-sm text-muted"
-                            style={TRUNCATE_CELL_STYLE}
+                        <div
+                          key={it.fileId}
+                          className={`absolute left-0 grid w-full items-center border-b border-border hover:bg-card ${willChange ? "" : "opacity-70"}`}
+                          style={{
+                            ...GRID_TEMPLATE,
+                            height: `${vRow.size}px`,
+                            transform: `translateY(${vRow.start}px)`,
+                          }}
+                        >
+                          <span className="px-3 py-2 text-sm text-secondary">{it.kind}</span>
+                          <span
+                            className="truncate px-3 py-2 font-mono text-sm text-muted"
                             title={it.oldFullPath}
                           >
                             {oldName}
-                          </td>
-                          <td
-                            className={`min-w-0 truncate px-3 py-2 font-mono text-sm ${willChange ? "text-foreground" : "text-muted"}`}
-                            style={TRUNCATE_CELL_STYLE}
+                          </span>
+                          <span
+                            className={`truncate px-3 py-2 font-mono text-sm ${willChange ? "text-foreground" : "text-muted"}`}
                             title={willChange ? it.newFullPath : undefined}
                           >
                             {!willChange
@@ -310,10 +435,9 @@ export function DryRunModal({
                               : nameChanged
                                 ? newName
                                 : "(name unchanged)"}
-                          </td>
-                          <td
-                            className="min-w-0 truncate px-3 py-2 font-mono text-xs text-muted"
-                            style={TRUNCATE_CELL_STYLE}
+                          </span>
+                          <span
+                            className="truncate px-3 py-2 font-mono text-xs text-muted"
                             title={it.targetFolderPath}
                           >
                             {folderMoved ? (
@@ -321,37 +445,21 @@ export function DryRunModal({
                             ) : (
                               it.targetFolderPath
                             )}
-                          </td>
-                          <td className="px-3 py-2">
+                          </span>
+                          <span className="px-3 py-2">
                             <WarningBadges item={it} />
-                          </td>
-                        </tr>
+                          </span>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
-                <div className="flex items-center justify-between border-t border-border bg-card px-3 py-2">
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      setPage(safePage - 1);
-                    }}
-                    disabled={safePage === 0}
-                  >
-                    Prev
-                  </Button>
-                  <span className="text-xs text-muted">
-                    Page {safePage + 1} of {pageCount}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      setPage(safePage + 1);
-                    }}
-                    disabled={safePage === pageCount - 1}
-                  >
-                    Next
-                  </Button>
+                  </div>
+                </div>
+
+                {/* Footer: how many rows the current filter/search shows, out of the scan. */}
+                <div className="border-t border-border bg-card px-3 py-2 text-xs text-muted">
+                  Showing {visible.length}
+                  {visible.length !== counts.scanned ? ` of ${counts.scanned}` : ""} row
+                  {visible.length === 1 ? "" : "s"}
                 </div>
               </div>
             </>
