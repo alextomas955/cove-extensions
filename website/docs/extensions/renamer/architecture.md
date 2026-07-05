@@ -1,7 +1,7 @@
 ---
 id: architecture
 title: Architecture
-sidebar_position: 2
+sidebar_position: 5
 ---
 
 This document walks the Rename extension from "user changed an option" to "file moved on disk and

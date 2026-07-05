@@ -1,7 +1,7 @@
 ---
 id: settings
 title: Settings reference
-sidebar_position: 4
+sidebar_position: 3
 ---
 
 Every Renamer setting, grouped by the section it appears in on the **Rename** settings tab

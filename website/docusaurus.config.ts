@@ -5,8 +5,8 @@ import type * as Preset from '@docusaurus/preset-classic';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: 'Cove Extensions',
-  tagline: 'Extensions for Cove, a self-hosted media library platform',
+  title: 'alextomas955 Cove Extensions',
+  tagline: 'Community extensions for Cove by alextomas955 — not an official Cove project',
   favicon: 'img/favicon.ico',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
@@ -65,7 +65,7 @@ const config: Config = {
 
   themeConfig: {
     navbar: {
-      title: 'Cove Extensions',
+      title: 'alextomas955 / Cove Extensions',
       items: [
         // PAGES-02: GitHub-special files stay at repo root (never moved/duplicated into the site) —
         // reached here via canonical github.com blob links, right-aligned by default position.
