@@ -9,7 +9,7 @@ public class MultiValueTests
     // ---- ResolutionLabel.FromHeight ----
 
     [Theory]
-    [InlineData(2160, "4K")]
+    [InlineData(2160, "4k")]
     [InlineData(1440, "1440p")]
     [InlineData(1080, "1080p")]
     [InlineData(720, "720p")]
@@ -20,7 +20,7 @@ public class MultiValueTests
     }
 
     [Theory]
-    [InlineData(3000, "4K")]   // > 2160
+    [InlineData(3000, "4k")]   // > 2160
     [InlineData(2000, "1440p")] // between 1440 and 2160
     [InlineData(1200, "1080p")]
     [InlineData(900, "720p")]
