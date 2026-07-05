@@ -67,11 +67,11 @@ public class TemplateEngineTests
     {
         var tokens = new Dictionary<string, string> { ["height"] = "2160", ["title"] = "X" };
         var r = Render("$title $resolution", tokens);
-        Assert.Equal("X 4K", r.Filename);
+        Assert.Equal("X 4k", r.Filename);
     }
 
     [Theory]
-    [InlineData("2160", "4K")]
+    [InlineData("2160", "4k")]
     [InlineData("1440", "1440p")]
     [InlineData("1080", "1080p")]
     [InlineData("720", "720p")]
@@ -122,7 +122,7 @@ public class TemplateEngineTests
             ["height"] = "2160",
         };
         var r = Render("$title{ [$resolution]}", tokens);
-        Assert.Equal("Shot in [1080p] Glory [4K]", r.Filename);
+        Assert.Equal("Shot in [1080p] Glory [4k]", r.Filename);
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class TemplateEngineTests
             ["height"] = "2160",
         };
         var r = Render("$title{ [$resolution]}", tokens);
-        Assert.Equal("Old Rip [4K]", r.Filename);
+        Assert.Equal("Old Rip [4k]", r.Filename);
     }
 
     [Fact]

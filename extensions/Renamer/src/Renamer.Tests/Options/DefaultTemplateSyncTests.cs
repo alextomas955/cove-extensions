@@ -7,7 +7,7 @@ namespace Renamer.Tests.Options;
 /// optional-grouped literal <c>{$date - }$title{ [$resolution]}</c>. The date group drops its <c>" - "</c>
 /// when <c>$date</c> resolves empty and the resolution group drops the whole <c> [...]</c> when
 /// <c>$resolution</c> resolves empty, so a fresh install never leaves a leading separator or a dangling
-/// <c>[]</c>. ($resolution — the bucketed label 4K/1080p/… — is the default rather than $height's raw
+/// <c>[]</c>. ($resolution — the bucketed label 4k/1080p/… — is the default rather than $height's raw
 /// pixel count, so a library already tagged [1080p] is not churned to [1080]; $height stays available
 /// as a token for anyone who wants the raw height.) The default lives in two hand-synced sources (this C# record +
 /// <c>src/Renamer.Ui/src/options.ts</c> DEFAULT_OPTIONS); this test locks the C# side so an accidental
