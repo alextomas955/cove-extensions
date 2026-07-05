@@ -112,6 +112,44 @@ public sealed class MetadataProjectorTests
     }
 
     [Fact]
+    public void Ext_PrefersOnDiskExtension_OverContainerFormatName()
+    {
+        // Cove's Format field is the container NAME, not the extension: an .mkv file reports
+        // Format "matroska". The extension token must be the real on-disk extension ("mkv"), NOT
+        // "matroska" — otherwise the rename rewrites movie.mkv → movie.matroska (a non-standard
+        // extension that breaks player/OS association). Regression guard for that bug.
+        var file = new RenamerFile(
+            FileId: 5, Kind: RenamerFileKind.Video, Basename: "movie.mkv", ParentFolderId: 9,
+            ParentFolderPath: "media/videos", Format: "matroska", Height: 1080);
+        var entity = new RenamerEntity(
+            EntityId: 50, Kind: RenamerFileKind.Video, Title: "Movie", Code: null, StudioName: null,
+            Date: null, Organized: true, Performers: [], Tags: [], Files: [file]);
+
+        var (tokens, multi, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
+        Assert.Equal("mkv", tokens[Tokens.Ext]);
+
+        // End-to-end: the rendered extension stays .mkv, not .matroska.
+        var result = TemplateEngine.Render(
+            tokens, multi, new RenamerOptions { FilenameTemplate = "$title" });
+        Assert.Equal(".mkv", result.Ext);
+    }
+
+    [Fact]
+    public void Ext_FallsBackToFormat_WhenBasenameHasNoExtension()
+    {
+        // A rare extensionless file: with no on-disk extension to read, fall back to Format.
+        var file = new RenamerFile(
+            FileId: 6, Kind: RenamerFileKind.Video, Basename: "movie", ParentFolderId: 9,
+            ParentFolderPath: "media/videos", Format: "mkv", Height: 1080);
+        var entity = new RenamerEntity(
+            EntityId: 60, Kind: RenamerFileKind.Video, Title: "Movie", Code: null, StudioName: null,
+            Date: null, Organized: true, Performers: [], Tags: [], Files: [file]);
+
+        var (tokens, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
+        Assert.Equal("mkv", tokens[Tokens.Ext]);
+    }
+
+    [Fact]
     public void ProjectorOutput_FedThroughRender_ProducesExpectedName_Video()
     {
         var file = VideoFileRow();
