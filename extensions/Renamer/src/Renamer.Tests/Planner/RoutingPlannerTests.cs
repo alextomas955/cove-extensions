@@ -277,6 +277,35 @@ public sealed class RoutingPlannerTests
     }
 
     [Fact]
+    public async Task RoutedToSameFolder_SameName_IsNoOp_NotMove()
+    {
+        // The move-to-itself bug: with a destination configured, EVERY file is a "move" (isMove
+        // true). If the route resolves the file back to the folder it already lives in AND the
+        // rendered name equals its current basename, nothing changes on disk — it must be NoOp, not
+        // a Move reported (and executed) as a rename to its own identical path. Here the default
+        // root IS the file's source root, no subfolder, and the filename template reproduces the
+        // current basename stem — so target full path == current full path.
+        var port = new FakeRenamerDataPort();
+        port.SeedEntity(Entity(VideoFile(1, "My Film.mkv", SrcRoot)) with { StudioId = 999, Tags = [] });
+        var planner = new RenamerPlanner(port);
+        var opts = new RenamerOptions
+        {
+            FilenameTemplate = "$title",     // renders "My Film" → "My Film.mkv" == current basename
+            FolderTemplate = "",             // no subfolder …
+            AllowedRoots = [SrcRoot],
+            DefaultDestination = SrcRoot,    // … and the destination IS the file's own folder
+            EnableDefaultRelocate = true,
+        };
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), default);
+
+        var item = Assert.Single(plan.Items);
+        Assert.Equal(RenamerStatus.NoOp, item.Status);
+        Assert.Equal(item.OldFullPath, item.NewFullPath);
+        Assert.Empty(port.SaveCalls);
+    }
+
+    [Fact]
     public async Task DefaultRelocateEnabled_RoutesToDefaultRoot()
     {
         var port = new FakeRenamerDataPort();
