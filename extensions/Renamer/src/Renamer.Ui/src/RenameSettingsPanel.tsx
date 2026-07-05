@@ -334,7 +334,12 @@ function SaveBar({
   if (!dirty) return null;
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 py-4">
-      <div className="pointer-events-auto flex w-full max-w-3xl items-center gap-4 rounded-2xl border border-border bg-card px-5 py-3.5 shadow-lg">
+      {/* py-3.5 is host-absent (Cove's own UI never uses it, so its prebuilt bundle omits it);
+          inline the 0.875rem padding instead of shipping CSS. */}
+      <div
+        className="pointer-events-auto flex w-full max-w-3xl items-center gap-4 rounded-2xl border border-border bg-card px-5 shadow-lg"
+        style={{ paddingTop: "0.875rem", paddingBottom: "0.875rem" }}
+      >
         <span
           className={`h-2 w-2 shrink-0 rounded-full ${
             saveError ? "bg-red-400" : savedFlash ? "bg-green-400" : "bg-amber-400"
@@ -711,8 +716,9 @@ export function RenamePanelBody() {
     options.FolderTemplate,
   );
 
+  // pb-20 (5rem bottom clearance for the sticky save bar) is host-absent — inline it.
   return (
-    <div className={`space-y-6 ${dirty ? "pb-20" : ""}`}>
+    <div className="space-y-6" style={dirty ? { paddingBottom: "5rem" } : undefined}>
       {/* Two-pane shell, narrowed to Essentials only: the panel (2/3 via col-span-2) + the live
         preview (1/3) sticky on lg+. The other 5 panels render as full-width siblings below this
         grid, so the preview's sticky containing block is Essentials' own height, not the whole
@@ -918,7 +924,10 @@ export function RenamePanelBody() {
                           .getElementById("rename-undo-section")
                           ?.scrollIntoView({ behavior: "smooth" });
                       }}
-                      className="text-accent underline hover:no-underline"
+                      // No underline: hover:no-underline is host-absent (and hover:underline
+                      // is too), and an inline style can't express a :hover state. The accent
+                      // color alone marks it as the actionable control.
+                      className="text-accent"
                     >
                       Undo
                     </button>
