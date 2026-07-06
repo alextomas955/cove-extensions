@@ -43,7 +43,8 @@ full token list and the grouping rules.
 A dry run scans your whole library and shows exactly what *would* happen — old name → new name, the
 destination, and any warnings — without changing anything.
 
-1. In the **Run & automation** section, click **Dry run**.
+1. In the **Run & automation** section, click **Dry run**. While the library scans, a progress bar
+   shows how far along it is, the number scanned so far, and an estimated time left.
 2. Use the filter (All / Will change / Needs attention / No change) to review the results. The dry
    run uses your current settings, including edits you haven't saved yet, so you can iterate on the
    template and re-run until the preview looks right.
@@ -52,7 +53,8 @@ destination, and any warnings — without changing anything.
 ## Rename
 
 1. When the preview looks right, **save** your settings (the sticky Save bar at the bottom).
-2. Click **Rename all files** (in the panel or from the dry-run footer).
+2. Click **Rename all files** (in the panel or from the dry-run footer). If you started it from the
+   dry-run footer, a progress bar and the current phase (planning, then per-file) show while it runs.
 3. Renamer renames each file and updates its Cove record together. A file is never renamed onto an
    existing file — a collision gets a numbered suffix such as `(1)` instead.
 

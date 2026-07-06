@@ -4,6 +4,10 @@ User-facing changes, newest first.
 
 ## Unreleased
 
+- **Live progress in the Dry Run modal** — the library scan now shows a real progress bar, an
+  N-of-M count, and an estimated time left instead of just a spinner (and reads "Finalizing…" at the
+  end rather than sitting at 99%). Starting a rename from the dry-run footer shows the same bar plus
+  the current phase while it runs.
 - **Cross-drive concurrency in the settings panel** — the cross-volume and same-volume concurrency
   knobs are now editable Advanced settings (clamped to 1–16) instead of stored-only options.
 - **Faster planning on large libraries** — a whole-library dry run/scan now loads each item once
