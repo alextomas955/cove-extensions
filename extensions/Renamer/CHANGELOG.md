@@ -4,6 +4,18 @@ User-facing changes, newest first.
 
 ## Unreleased
 
+- **Scan results respect your permissions** — reading back a whole-library scan now returns only the
+  media kinds you can read, so a scan run by a higher-permission account never exposes other kinds'
+  file paths to a narrower account.
+- **Auto-rename is now undoable** — an auto-rename triggered by a metadata update is recorded as its
+  own batch, so the Undo button reliably reverses it. Previously an auto-rename could leave an
+  unrecoverable or misread undo record.
+- **The Undo panel refreshes after a rename** — running a rename from the settings panel or the Dry
+  Run modal now immediately updates the Undo section to show the batch you just created, instead of
+  showing stale state until you reload.
+- **Safer failure handling on a rename** — in the rare case where a file is moved on disk and saved
+  to the database but the two disagree afterward, the move is now rolled back and the mismatch is
+  reported, rather than leaving the file moved with no undo record.
 - **Live progress in the Dry Run modal** — the library scan now shows a real progress bar, an
   N-of-M count, and an estimated time left instead of just a spinner (and reads "Finalizing…" at the
   end rather than sitting at 99%). Starting a rename from the dry-run footer shows the same bar plus
