@@ -18,9 +18,15 @@ public static class ResolutionLabel
     /// <summary>
     /// Returns the bucket label for <paramref name="height"/>:
     /// ≥2160→<c>4k</c>, ≥1440→<c>1440p</c>, ≥1080→<c>1080p</c>, ≥720→<c>720p</c>,
-    /// ≥480→<c>480p</c>; below 480 returns the raw height as a string. Boundary values
-    /// map to their labeled bucket (≥ comparison).
+    /// ≥480→<c>480p</c>; below 480 returns the raw height with a <c>p</c> suffix (e.g.
+    /// <c>368</c>→<c>368p</c>). Boundary values map to their labeled bucket (≥ comparison).
     /// </summary>
+    /// <remarks>
+    /// The sub-480 fallback is progressive-scan-labelled (<c>{height}p</c>), not a bare number: a real
+    /// library labels low-res files <c>[368p]</c> in their own filenames, so emitting a bare <c>368</c>
+    /// here would REWRITE an already-correct <c>[368p]</c> down to <c>[368]</c> — a needless rename that
+    /// strips the <c>p</c>. Suffixing keeps a correctly-labelled low-res file a no-op instead.
+    /// </remarks>
     public static string FromHeight(int height) => height switch
     {
         >= 2160 => "4k",
@@ -28,6 +34,7 @@ public static class ResolutionLabel
         >= 1080 => "1080p",
         >= 720 => "720p",
         >= 480 => "480p",
-        _ => height.ToString(CultureInfo.InvariantCulture),
+        > 0 => height.ToString(CultureInfo.InvariantCulture) + "p",
+        _ => string.Empty,
     };
 }

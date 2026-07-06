@@ -76,11 +76,25 @@ public class TemplateEngineTests
     [InlineData("1080", "1080p")]
     [InlineData("720", "720p")]
     [InlineData("480", "480p")]
+    // Sub-480 is progressive-scan-labelled ("{height}p"), NOT a bare number — otherwise an
+    // already-correct "[368p]" filename would be rewritten down to "[368]" (a needless rename).
+    [InlineData("432", "432p")]
+    [InlineData("368", "368p")]
+    [InlineData("240", "240p")]
     public void CoreTokens_ResolutionBuckets(string height, string label)
     {
         var tokens = new Dictionary<string, string> { ["height"] = height };
         var r = Render("$resolution", tokens);
         Assert.Equal(label, r.Filename);
+    }
+
+    [Fact]
+    public void CoreTokens_Resolution_ZeroOrMissingHeight_RendersEmpty()
+    {
+        // A zero/absent height must render NO resolution tag (empty), not a garbage "[0]" — the
+        // "{ [$resolution]}" group collapses when the token is empty.
+        var zero = Render("X{ [$resolution]}", new Dictionary<string, string> { ["height"] = "0" });
+        Assert.Equal("X", zero.Filename);
     }
 
     [Fact]

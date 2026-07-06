@@ -30,13 +30,24 @@ public class MultiValueTests
         Assert.Equal(expected, ResolutionLabel.FromHeight(height));
     }
 
+    // Sub-480 heights are progressive-scan-labelled ("{height}p"), NOT bare numbers — otherwise an
+    // already-correct "[368p]" filename would be needlessly rewritten to "[368]". A non-positive height
+    // has no resolution and renders empty (never a garbage "[0]").
     [Theory]
-    [InlineData(360, "360")]
-    [InlineData(240, "240")]
-    [InlineData(0, "0")]
-    public void ResolutionLabel_BelowMinBucket_ReturnsRawHeight(int height, string expected)
+    [InlineData(360, "360p")]
+    [InlineData(240, "240p")]
+    [InlineData(432, "432p")]
+    public void ResolutionLabel_BelowMinBucket_AppendsP(int height, string expected)
     {
         Assert.Equal(expected, ResolutionLabel.FromHeight(height));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void ResolutionLabel_NonPositive_ReturnsEmpty(int height)
+    {
+        Assert.Equal(string.Empty, ResolutionLabel.FromHeight(height));
     }
 
     // ---- MultiValue.Resolve ----
