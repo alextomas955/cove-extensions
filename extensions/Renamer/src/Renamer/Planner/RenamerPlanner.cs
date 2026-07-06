@@ -84,6 +84,22 @@ public sealed class RenamerPlanner
             return new PlanResult(new RenamerPlan(entityId, kind, Array.Empty<RenamerPlanItem>()), null);
         }
 
+        return new PlanResult(await PlanLoadedEntity(entity, options, lookups, ct), entity);
+    }
+
+    /// <summary>
+    /// Plans an ALREADY-LOADED entity: route → exclude → gate → per-file classify — the exact plan
+    /// logic <see cref="PlanWithEntityAsync(RenamerFileKind,int,RenamerOptions,RouteLookups,CancellationToken)"/>
+    /// runs after its own load.
+    /// </summary>
+    /// <remarks>
+    /// Performs NO DB load — the caller supplies the loaded <paramref name="entity"/>. That is the seam
+    /// a batch loader uses: load many entities in one round-trip, then plan each here with results
+    /// identical to the per-id load-then-plan path.
+    /// </remarks>
+    public async Task<RenamerPlan> PlanLoadedEntity(
+        RenamerEntity entity, RenamerOptions options, RouteLookups lookups, CancellationToken ct)
+    {
         // Route ONCE per entity (mirroring how the metadata projector runs once per file), and do it
         // BEFORE gating. Excludes are evaluated first and beat every other reason an item could be
         // skipped — including the gates — so an item that both matches an exclude rule and would be
@@ -100,7 +116,7 @@ public sealed class RenamerPlanner
             var excluded = entity.Files
                 .Select(f => SkipItem(f, RenamerStatus.SkipExcluded, $"excluded: {route.MatchedRule}"))
                 .ToList();
-            return new PlanResult(new RenamerPlan(entity.EntityId, entity.Kind, excluded), entity);
+            return new RenamerPlan(entity.EntityId, entity.Kind, excluded);
         }
 
         // A gated (non-excluded) item is SkipGated for EVERY file, never rendered.
@@ -109,7 +125,7 @@ public sealed class RenamerPlanner
             var gated = entity.Files
                 .Select(f => SkipItem(f, RenamerStatus.SkipGated, gateReason!))
                 .ToList();
-            return new PlanResult(new RenamerPlan(entity.EntityId, entity.Kind, gated), entity);
+            return new RenamerPlan(entity.EntityId, entity.Kind, gated);
         }
 
         var items = new List<RenamerPlanItem>(entity.Files.Count);
@@ -119,7 +135,7 @@ public sealed class RenamerPlanner
             items.Add(await PlanFileAsync(entity, file, options, route, ct));
         }
 
-        return new PlanResult(new RenamerPlan(entity.EntityId, entity.Kind, items), entity);
+        return new RenamerPlan(entity.EntityId, entity.Kind, items);
     }
 
     /// <summary>

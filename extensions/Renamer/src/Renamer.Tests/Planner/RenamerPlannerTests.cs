@@ -105,4 +105,60 @@ public sealed class RenamerPlannerTests
         Assert.Empty(plan.Items);
         Assert.Empty(port.SaveCalls);
     }
+
+    private static readonly RouteLookups EmptyLookups = new(
+        new Dictionary<int, string>(), new Dictionary<string, string>(),
+        new Dictionary<string, string>(), Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
+
+    [Fact]
+    public async Task PlanLoadedEntity_MatchesLoadingPath_ItemForItem()
+    {
+        // Seed the SAME entity behind the loading path; plan it both ways and prove item-for-item
+        // equality — the pure method and the load-then-plan method share identical plan logic.
+        var entity = VideoEntity("My Film", VideoFile(1, "raw.mkv"));
+        var port = new FakeRenamerDataPort();
+        port.SeedEntity(entity);
+        var planner = new RenamerPlanner(port);
+        var opts = new RenamerOptions { FilenameTemplate = "$title" };
+
+        var loaded = await planner.PlanLoadedEntity(entity, opts, EmptyLookups, default);
+        var viaLoad = (await planner.PlanWithEntityAsync(RenamerFileKind.Video, 10, opts, default)).Plan;
+
+        Assert.Equal(viaLoad.EntityId, loaded.EntityId);
+        Assert.Equal(viaLoad.Kind, loaded.Kind);
+        Assert.Equal(viaLoad.Items, loaded.Items);
+        Assert.Empty(port.SaveCalls);
+    }
+
+    [Fact]
+    public async Task PlanLoadedEntity_PerformsZeroLoads()
+    {
+        var entity = VideoEntity("My Film", VideoFile(1, "raw.mkv"));
+        var port = new FakeRenamerDataPort();  // NOT seeded — proves no load is attempted
+        var planner = new RenamerPlanner(port);
+
+        var plan = await planner.PlanLoadedEntity(entity, new RenamerOptions { FilenameTemplate = "$title" }, EmptyLookups, default);
+
+        Assert.Single(plan.Items);
+        Assert.Equal(0, port.LoadEntityCallCount);
+    }
+
+    [Fact]
+    public async Task PlanLoadedEntity_GatedEntity_YieldsSameSkips_AsLoadingPath()
+    {
+        // An unorganized entity under the only-organized gate: SkipGated for every file, both ways.
+        var entity = new RenamerEntity(
+            EntityId: 10, Kind: RenamerFileKind.Video, Title: "Ungated", Code: null, StudioName: null,
+            Date: null, Organized: false, Performers: [], Tags: [], Files: [VideoFile(1, "raw.mkv")]);
+        var port = new FakeRenamerDataPort();
+        port.SeedEntity(entity);
+        var planner = new RenamerPlanner(port);
+        var opts = new RenamerOptions { FilenameTemplate = "$title", OnlyOrganized = true };
+
+        var loaded = await planner.PlanLoadedEntity(entity, opts, EmptyLookups, default);
+        var viaLoad = (await planner.PlanWithEntityAsync(RenamerFileKind.Video, 10, opts, default)).Plan;
+
+        Assert.Equal(RenamerStatus.SkipGated, Assert.Single(loaded.Items).Status);
+        Assert.Equal(viaLoad.Items, loaded.Items);
+    }
 }
