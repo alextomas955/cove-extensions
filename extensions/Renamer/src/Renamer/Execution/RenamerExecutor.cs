@@ -44,7 +44,7 @@ public sealed class RenamerExecutor
     /// <param name="FileId">The file row.</param>
     /// <param name="OldPath">The path before execution.</param>
     /// <param name="NewPath">The path after execution (or the intended/attempted path on skip/fail).</param>
-    /// <param name="Status">The terminal status (Renamer/Move/NoOp/SkipGated/SkipCollision/SkipLocked/SkipBlocked/Failed).</param>
+    /// <param name="Status">The terminal status (Renamer/Move/NoOp/SkipGated/SkipCollision/SkipLocked/SkipMissingSource/SkipBlocked/Failed).</param>
     /// <param name="Reason">A human-readable note for a skip/fail; null on success.</param>
     public sealed record ItemResult(int FileId, string OldPath, string NewPath, RenamerStatus Status, string? Reason);
 
@@ -119,6 +119,20 @@ public sealed class RenamerExecutor
         if (item.Status is not (RenamerStatus.Renamer or RenamerStatus.Move))
         {
             skipped.Add(new ItemResult(item.FileId, item.OldFullPath, item.NewFullPath, item.Status, item.Reason));
+            return;
+        }
+
+        // (1a) SOURCE-PRESENCE PRE-CHECK — the first thing done for an item we will actually act on,
+        //      BEFORE the allowlist guard, the folder resolve, the collision loop, and the mover.
+        //      A source that is in the DB but gone from disk would otherwise fall through to the mover
+        //      and surface as a swallowed FileNotFoundException/DirectoryNotFoundException — both
+        //      derive from IOException, which the mover buckets as LockedOrExists → SkipLocked, so a
+        //      genuinely-gone file would be mislabeled "in use". Pre-empting the mover here classifies
+        //      it as SkipMissingSource instead. This is a safe no-op skip (nothing moves/saves).
+        if (!System.IO.File.Exists(ToNative(item.OldFullPath)))
+        {
+            skipped.Add(new ItemResult(item.FileId, item.OldFullPath, item.NewFullPath,
+                RenamerStatus.SkipMissingSource, "skipped: source file is missing on disk"));
             return;
         }
 

@@ -34,6 +34,12 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     /// <summary>Seeds the id set <see cref="LoadAllEntityIdsAsync"/> returns for <paramref name="kind"/>.</summary>
     public void SeedAllIds(RenamerFileKind kind, params int[] ids) => _allIds[kind] = [.. ids];
 
+    /// <summary>Forward-slash source paths the test declares absent on disk; everything else reports present.</summary>
+    public HashSet<string> MissingSources { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Declares <paramref name="fullPath"/> absent on disk for <see cref="SourceExistsAsync"/>.</summary>
+    public void SeedMissingSource(string fullPath) => MissingSources.Add(fullPath);
+
     public Task<RenamerEntity?> LoadEntityAsync(RenamerFileKind kind, int entityId, CancellationToken ct = default)
         => Task.FromResult(_entities.TryGetValue((kind, entityId), out var e) ? e : null);
 
@@ -63,6 +69,9 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
 
     public Task<int?> TryGetFolderIdAsync(string folderPath, CancellationToken ct = default)
         => Task.FromResult(_folderIds.TryGetValue(folderPath, out var id) ? id : (int?)null);
+
+    public Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default)
+        => Task.FromResult(!MissingSources.Contains(fullPath));
 
     public Task<int> SaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
     {

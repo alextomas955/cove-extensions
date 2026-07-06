@@ -123,8 +123,9 @@ public sealed class ParallelBatchTests
                 await seedDb.SaveChangesAsync();
                 await ExecutorTestSeed.SeedAdditionalFileAsync(seedDb, folderId, video.Id, $"raw {i}.mkv");
                 ids.Add(video.Id);
-                // Write the on-disk source for every id EXCEPT the fault one — its move will fail (no
-                // source to move) and the executor classifies it as a skip without throwing.
+                // Write the on-disk source for every id EXCEPT the fault one — with no source on disk
+                // the executor's source pre-check classifies it as SkipMissingSource (not a mover-level
+                // lock skip) without throwing, so the batch still completes.
                 if (i != faultIndex)
                 {
                     File.WriteAllText(Path.Combine(dir.Root, $"raw {i}.mkv"), $"bytes-{i}");

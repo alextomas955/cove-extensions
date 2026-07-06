@@ -176,6 +176,13 @@ public class CoveRenamerDataPort : IRenamerDataPort
         return existing?.Id;
     }
 
+    /// <summary>The read-only disk probe backing the preview's missing-source warning; never mutates.</summary>
+    public Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default)
+    {
+        var native = fullPath.Replace('/', Path.DirectorySeparatorChar);
+        return Task.FromResult(System.IO.File.Exists(native));
+    }
+
     /// <summary>
     /// Persists a planned set of mutations via <see cref="ApplyAndSaveAsync"/>. Provided so the
     /// planner-facing seam is complete; the executor uses the richer <see cref="ApplyAndSaveAsync"/>

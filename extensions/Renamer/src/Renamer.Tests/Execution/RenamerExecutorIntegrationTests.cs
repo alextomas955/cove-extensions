@@ -86,6 +86,52 @@ public sealed class RenamerExecutorIntegrationTests
     }
 
     /// <summary>
+    /// A source row present in the DB but ABSENT on disk must be classified SkipMissingSource by the
+    /// executor's source pre-check — NOT SkipLocked (the swallowed-IOException bucket it would fall
+    /// into if it reached the mover). It is a safe no-op skip: nothing renamed/failed, no revert-log
+    /// row, no event published.
+    /// </summary>
+    [Fact]
+    public async Task MissingSource_ClassifiedSkipMissingSource_NotSkipLocked()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            // Seed the Folder + VideoFile on the real temp-dir root, but write NO on-disk source file.
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (folderId, videoId, fileId) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "gone.mkv", "My Film");
+
+            var port = new CoveRenamerDataPort(db);
+            var bus = new CapturingEventBus();
+            var revertLog = new RevertLog(new FakeStore());
+            var executor = new RenamerExecutor(port, bus, revertLog, new DiskMover());
+
+            var options = new RenamerOptions { FilenameTemplate = "$title" };
+
+            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
+            var result = await executor.ExecuteAsync(plan, options, default);
+
+            // Classified as SkipMissingSource — not SkipLocked — with a missing-source reason.
+            var skippedItem = Assert.Single(result.Skipped);
+            Assert.Equal(RenamerStatus.SkipMissingSource, skippedItem.Status);
+            Assert.Contains("missing", skippedItem.Reason);
+
+            // A missing source is a safe no-op skip: nothing moved/failed, no revert-log, no event.
+            Assert.Empty(result.Renamed);
+            Assert.Empty(result.Failed);
+            Assert.Empty(result.RevertLog);
+            Assert.Empty(bus.Published);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
     /// MOVE-01 cross-branch: force the executor's volume branch to take the verified
     /// <see cref="CrossVolumeMover"/> path by moving a file from a real <see cref="TempDir"/> to a
     /// SUBST-mapped second root (a distinct <see cref="Path.GetPathRoot(string)"/> on the same physical

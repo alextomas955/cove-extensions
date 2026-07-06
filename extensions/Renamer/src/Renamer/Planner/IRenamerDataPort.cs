@@ -191,6 +191,15 @@ public interface IRenamerDataPort
     Task<int?> TryGetFolderIdAsync(string folderPath, CancellationToken ct = default);
 
     /// <summary>
+    /// A READ-ONLY on-disk existence probe of a source file's current full path. Takes the
+    /// forward-slash full path the planner already computes (<c>ParentFolderPath/Basename</c>); the
+    /// port normalizes it to a native path internally. Used by the preview to warn a dry-run that a
+    /// DB-listed source is gone. NEVER creates or saves, so it does not break preview purity (which
+    /// forbids DB mutation, not disk reads). Returns true iff the file currently exists on disk.
+    /// </summary>
+    Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default);
+
+    /// <summary>
     /// Persists a planned set of file mutations (new basename / parent folder / caption renames)
     /// to the DB. The executor sets <c>Basename</c>/<c>ParentFolderId</c> only — never <c>.Path</c>,
     /// which Cove recomputes on save. Returns the number of file rows changed.

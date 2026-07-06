@@ -7,7 +7,9 @@ namespace Renamer.Planner;
 /// produces <see cref="Renamer"/>/<see cref="Move"/>/<see cref="NoOp"/>/
 /// <see cref="SkipCollision"/>/<see cref="SkipGated"/>; <see cref="SkipLocked"/>,
 /// <see cref="SkipBlocked"/> and <see cref="Failed"/> are produced by the executor but defined here
-/// so the planner and executor speak one enum.
+/// so the planner and executor speak one enum. <see cref="SkipMissingSource"/> is produced by BOTH
+/// halves — the executor's move-time source pre-check and the preview planner's read-only
+/// source-presence check.
 /// </summary>
 public enum RenamerStatus
 {
@@ -40,6 +42,15 @@ public enum RenamerStatus
 
     /// <summary>Executor-only: the source file was locked/in-use at move time.</summary>
     SkipLocked,
+
+    /// <summary>
+    /// Executor- AND preview-produced: the source row exists in the DB but its file is absent on
+    /// disk. Kept DISTINCT from <see cref="SkipLocked"/> (a file-lock skip) so run output, the log,
+    /// and the preview attribute a genuinely-gone file correctly rather than reporting it as in-use.
+    /// The executor emits it from a move-time source pre-check; the preview planner emits it from a
+    /// read-only source-presence check.
+    /// </summary>
+    SkipMissingSource,
 
     /// <summary>
     /// Batch-only: the destination volume dropped below the free-space headroom in flight (a
