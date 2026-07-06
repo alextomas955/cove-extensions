@@ -116,6 +116,7 @@ Collapsed by default.
 | Remove characters | Literal characters deleted from the name outright (not a regex). | `,#` |
 | Case | Case transform applied to the whole name: None, lower case, or Title Case. | None |
 | ASCII transliterate | Convert accented characters to their ASCII equivalents (e.g. `é` → `e`). | Off |
+| Normalize punctuation to ASCII | Fold typographic punctuation to plain ASCII: curly quotes → straight quotes, en/em dashes → a hyphen, ellipsis → three dots. Letters and accents are untouched (that is *ASCII transliterate*). | On |
 
 ### Length & collisions
 
