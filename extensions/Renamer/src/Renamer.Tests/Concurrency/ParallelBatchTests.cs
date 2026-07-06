@@ -93,6 +93,15 @@ public sealed class ParallelBatchTests
             });
 
             Assert.Equal(1d, progress.LastPercent);
+
+            // Progress must move during BOTH phases, not jump from 0% to done. PHASE A (planning) drives
+            // the bar into (0, 0.5] and PHASE B (executing) carries it past 0.5 to 1.0 — so there must be
+            // at least one report in each band, every report is in [0,1], and the sequence never regresses.
+            Assert.Contains(progress.Reports, r => r.Percent is > 0d and <= 0.5d);
+            Assert.Contains(progress.Reports, r => r.Percent is > 0.5d and < 1d);
+            Assert.All(progress.Reports, r => Assert.InRange(r.Percent, 0d, 1d));
+            var seq = progress.Reports.Select(r => r.Percent).ToList();
+            Assert.Equal(seq.OrderBy(p => p).ToList(), seq);
         }
         finally
         {

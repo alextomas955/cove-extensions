@@ -130,6 +130,14 @@ public sealed partial class Renamer : FullExtensionBase
         (string OldFullPath, string NewFullPath, long SizeBytes) Move);
 
     /// <summary>
+    /// The fraction of the progress bar the PHASE A planning pass owns. Planning every id in a large
+    /// library is slow and reported nothing before, so the bar sat at 0% for the whole pass; splitting
+    /// the bar (planning 0 → this, executing this → 1.0) keeps it moving throughout. 0.5 splits it evenly;
+    /// the exact split is cosmetic — both phases scale linearly, so the bar only ever advances.
+    /// </summary>
+    private const double PlanningProgressShare = 0.5;
+
+    /// <summary>
     /// Renames every id in the decoded batch in two phases. PHASE A plans + classifies ALL ids
     /// sequentially over ONE read-only scope (deterministic preview ordering) and refuses the batch up
     /// front if a destination volume would not fit. PHASE B executes the acting items in parallel:
@@ -257,6 +265,13 @@ public sealed partial class Renamer : FullExtensionBase
                 }
 
                 LogItemPlanned(runId, ++planIndex, ids.Length, id, actingThisItem);
+                // Planning drives the FIRST half of the bar (0 -> PlanningProgressShare). ids.Length is
+                // known here, so the fraction is exact; the message names the phase so the UI reads
+                // "Planning 6769/8238" rather than a silent 0%. PHASE B's reporter continues from
+                // PlanningProgressShare to 1.0, so the bar only ever advances.
+                progress.Report(
+                    (double)planIndex / ids.Length * PlanningProgressShare,
+                    $"Planning {planIndex}/{ids.Length}...");
             }
 
             // Pre-create/resolve every DISTINCT destination folder ONCE, here, on the single
@@ -392,9 +407,14 @@ public sealed partial class Renamer : FullExtensionBase
         // exclusive across PHASE B workers.
         void ReportProgress(double percent)
         {
+            // PHASE B owns the SECOND half of the bar: map its own [0,1] completion fraction into
+            // [PlanningProgressShare, 1.0] so it picks up exactly where planning left off and never jumps
+            // backwards. A same-message-less report keeps the host's own phase label; the final 1.0 after
+            // the loop lands at exactly 1.0.
+            double scaled = PlanningProgressShare + percent * (1d - PlanningProgressShare);
             lock (progressGate)
             {
-                progress.Report(percent, null);
+                progress.Report(scaled, null);
             }
         }
 
