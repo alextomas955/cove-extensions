@@ -109,7 +109,7 @@ export function filterItems<T extends { status: string }>(items: T[], filter: Dr
  * unexpected kind falls through to `null` rather than fabricating a wrong URL — the href is derived
  * from this fixed map and the numeric id ONLY, never from a path or basename.
  */
-const KIND_SEGMENT: Record<string, string> = {
+const KIND_SEGMENT: Record<string, string | undefined> = {
   Video: "video",
   Image: "image",
   Audio: "audio",

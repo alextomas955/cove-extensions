@@ -23,6 +23,7 @@ import { WarningBadges } from "./WarningBadge";
 import type { ScanItem } from "./preview";
 import type { RenamerOptions } from "./options";
 import {
+  assetHref,
   bucketCounts,
   classifyItem,
   filterItems,
@@ -407,6 +408,10 @@ export function DryRunModal({
                       // WHAT is happening (moved, not renamed in place).
                       const nameChanged = willChange && newName !== oldName;
                       const folderMoved = willChange && it.targetFolderPath !== oldFolder;
+                      // Root-relative Cove detail path for the asset (or null when the id can't
+                      // resolve). Origin is prepended here, not in the pure helper, so a sub-path
+                      // deployment links correctly. The href is id-derived only — never the path.
+                      const assetPath = assetHref(it.kind, it.entityId);
                       return (
                         <div
                           key={it.fileId}
@@ -422,7 +427,19 @@ export function DryRunModal({
                             className="truncate px-3 py-2 font-mono text-sm text-muted"
                             title={it.oldFullPath}
                           >
-                            {oldName}
+                            {assetPath ? (
+                              <a
+                                href={window.location.origin + assetPath}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label={`Open ${oldName} in Cove (new tab)`}
+                                className="text-accent"
+                              >
+                                {oldName}
+                              </a>
+                            ) : (
+                              oldName
+                            )}
                           </span>
                           <span
                             className={`truncate px-3 py-2 font-mono text-sm ${willChange ? "text-foreground" : "text-muted"}`}
