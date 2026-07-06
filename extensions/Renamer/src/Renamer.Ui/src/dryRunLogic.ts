@@ -157,7 +157,8 @@ export function isFinalizing(raw: number | undefined | null): boolean {
 
 /** Human ETA copy, or null when the caller should show nothing (no estimate available). */
 export function formatEta(seconds: number | undefined | null): string | null {
-  if (seconds === undefined || seconds === null || Number.isNaN(seconds) || seconds < 0) return null;
+  if (seconds === undefined || seconds === null || Number.isNaN(seconds) || seconds < 0)
+    return null;
   if (seconds < 60) return `~${Math.round(seconds)}s left`;
   if (seconds < 3600) return `~${Math.max(1, Math.round(seconds / 60))}m left`;
   return `~${Math.max(1, Math.round(seconds / 3600))}h left`;

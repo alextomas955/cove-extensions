@@ -449,6 +449,14 @@ export function RenamePanelBody() {
   const [dryRunOpen, setDryRunOpen] = useState(false);
   const [renamingLibrary, setRenamingLibrary] = useState(false);
   const [runLibraryFeedback, setRunLibraryFeedback] = useState<RunLibraryFeedback>(null);
+  // Live rename-job progress, threaded from the SINGLE existing pollJobToCompletion into the modal.
+  // Null before/after the job (falls back to the bare spinner); a {progress, subTask, etaSeconds}
+  // sample while it runs.
+  const [renameProgress, setRenameProgress] = useState<{
+    progress: number;
+    subTask?: string | null;
+    etaSeconds?: number | null;
+  } | null>(null);
 
   /**
    * Polls `GET /jobs/{jobId}` until it leaves pending/running; rejects on failed/cancelled. The
@@ -456,10 +464,23 @@ export function RenamePanelBody() {
    * which lowercases the leading character of the JobStatus enum's PascalCase member names
    * (Completed -> "completed") — the status strings here must be camelCase, not PascalCase.
    */
-  function pollJobToCompletion(jobId: string): Promise<void> {
+  function pollJobToCompletion(
+    jobId: string,
+    onProgress?: (p: {
+      progress: number;
+      subTask?: string | null;
+      etaSeconds?: number | null;
+    }) => void,
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const interval = setInterval(() => {
-        request<{ status: string; error?: string | null }>(`/jobs/${jobId}`)
+        request<{
+          status: string;
+          error?: string | null;
+          progress?: number;
+          subTask?: string | null;
+          etaSeconds?: number | null;
+        }>(`/jobs/${jobId}`)
           .then((job) => {
             if (job.status === "completed") {
               clearInterval(interval);
@@ -467,6 +488,13 @@ export function RenamePanelBody() {
             } else if (job.status === "failed" || job.status === "cancelled") {
               clearInterval(interval);
               reject(new Error(job.error ?? "the job did not complete"));
+            } else {
+              // Still pending/running — surface live progress from this SAME poll (no second poller).
+              onProgress?.({
+                progress: job.progress ?? 0,
+                subTask: job.subTask,
+                etaSeconds: job.etaSeconds,
+              });
             }
           })
           .catch(() => {
@@ -490,6 +518,7 @@ export function RenamePanelBody() {
   const renameLibrary = useCallback(async (scanItems?: ScanItem[]) => {
     setRenamingLibrary(true);
     setRunLibraryFeedback(null);
+    setRenameProgress(null);
     try {
       let items = scanItems;
       if (!items) {
@@ -503,7 +532,9 @@ export function RenamePanelBody() {
       const counts = countByStatus(items);
 
       const { jobId } = await request<{ jobId: string }>(RENAME_LIBRARY_PATH, { method: "POST" });
-      await pollJobToCompletion(jobId);
+      await pollJobToCompletion(jobId, (p) => {
+        setRenameProgress(p);
+      });
 
       setDryRunOpen(false);
       setRunLibraryFeedback({
@@ -521,6 +552,7 @@ export function RenamePanelBody() {
       });
     } finally {
       setRenamingLibrary(false);
+      setRenameProgress(null);
     }
   }, []);
 
@@ -945,6 +977,7 @@ export function RenamePanelBody() {
           }}
           onRenameAll={(items) => void renameLibrary(items)}
           renaming={renamingLibrary}
+          renameProgress={renameProgress}
         />
       ) : null}
 

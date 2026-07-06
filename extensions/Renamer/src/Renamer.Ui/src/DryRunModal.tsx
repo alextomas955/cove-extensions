@@ -169,35 +169,29 @@ function usePollJob(
 }
 
 /**
- * The scan's live progress block: a determinate {@link ProgressBar} plus the host's own phase line
- * ("Scanning library… {done}/{total}", already formatted server-side) and an ETA. The bar is
- * clamped up to `maxPercent` so it never retreats. Near the end the scan caps at 99% until the
- * result persists, so the copy switches to "Finalizing…" instead of sitting at a stuck 99%. The ETA
- * prefers the host's server-computed `etaSeconds`, falling back to a wall-clock estimate from
- * `startMs` when the host reports none.
+ * A scan sample already reduced to display values. The poll handler computes these (not the render)
+ * so the wall-clock ETA fallback's `Date.now()` stays out of the render path — the React Compiler
+ * forbids impure calls during render. `line` is the host's own phase text when present ("Scanning
+ * library… {done}/{total}") or a percent, and reads "Finalizing…" while the scan holds at its 99%
+ * persist cap so the bar doesn't look stalled.
  */
-function ScanProgress({
-  job,
-  maxPercent,
-  startMs,
-}: {
-  job: JobInfo;
-  maxPercent: number;
-  startMs: number;
-}) {
-  const percent = Math.max(progressPercent(job.progress), maxPercent);
-  const finalizing = isFinalizing(job.progress);
-  const eta =
-    formatEta(job.etaSeconds) ?? formatEta(etaFromSamples(startMs, Date.now(), job.progress));
-  const line = finalizing
-    ? "Finalizing…"
-    : (job.subTask ?? `Scanning your library… ${percent}%`);
+interface ScanDisplay {
+  percent: number;
+  finalizing: boolean;
+  line: string;
+  eta: string | null;
+}
+
+/** The scan's live progress block: a determinate {@link ProgressBar} + phase line + ETA. */
+function ScanProgress({ display }: { display: ScanDisplay }) {
   return (
     <div className="flex flex-col gap-2 py-8 text-sm text-secondary">
-      <ProgressBar percent={percent} label="Library scan progress" />
+      <ProgressBar percent={display.percent} label="Library scan progress" />
       <div className="flex items-center justify-between gap-3">
-        <span>{line}</span>
-        {eta && !finalizing ? <span className="text-muted">{eta}</span> : null}
+        <span>{display.line}</span>
+        {display.eta && !display.finalizing ? (
+          <span className="text-muted">{display.eta}</span>
+        ) : null}
       </div>
     </div>
   );
@@ -208,6 +202,7 @@ export function DryRunModal({
   onClose,
   onRenameAll,
   renaming,
+  renameProgress,
 }: {
   /** The panel's CURRENT (possibly unsaved) options — sent so the scan previews unsaved edits. */
   options: RenamerOptions;
@@ -216,6 +211,12 @@ export function DryRunModal({
   onRenameAll: (items: ScanItem[]) => void;
   /** True while a rename triggered from either entry point is in flight. */
   renaming: boolean;
+  /**
+   * Live rename-job progress from the panel's single existing poll. Absent (panel-direct path, or
+   * before the first sample) falls back to the button spinner. The modal creates NO poller of its
+   * own for the rename job.
+   */
+  renameProgress?: { progress: number; subTask?: string | null; etaSeconds?: number | null } | null;
 }) {
   const [scanJobId, setScanJobId] = useState<string | null>(null);
   const [items, setItems] = useState<ScanItem[] | null>(null);
@@ -224,9 +225,9 @@ export function DryRunModal({
   const [search, setSearch] = useState("");
   const [sortColumn, setSortColumn] = useState<DryRunSortColumn | null>(null);
   const [sortDir, setSortDir] = useState<DryRunSortDirection>("asc");
-  // The latest running-scan sample the bar renders. Null until the first progress poll lands (the
-  // modal shows the bare spinner in that brief window).
-  const [scanProgress, setScanProgress] = useState<JobInfo | null>(null);
+  // The latest running-scan sample the bar renders, already reduced to display values. Null until
+  // the first progress poll lands (the modal shows the bare spinner in that brief window).
+  const [scanProgress, setScanProgress] = useState<ScanDisplay | null>(null);
   // Highest percent seen so far — the displayed bar is clamped up to this so a backwards poll sample
   // (the host can revise progress downward) never makes the bar visibly retreat.
   const scanMaxPercent = useRef(0);
@@ -277,9 +278,20 @@ export function DryRunModal({
     },
     (job) => {
       // Advance the monotonic ceiling before storing the sample so the bar never retreats on a
-      // downward-revised poll (see scanMaxPercent).
+      // downward-revised poll (see scanMaxPercent). The wall-clock ETA fallback reads Date.now()
+      // here, in the event handler, not at render (the React Compiler forbids impure render calls).
       scanMaxPercent.current = Math.max(scanMaxPercent.current, progressPercent(job.progress));
-      setScanProgress(job);
+      const percent = scanMaxPercent.current;
+      const finalizing = isFinalizing(job.progress);
+      const eta =
+        formatEta(job.etaSeconds) ??
+        formatEta(etaFromSamples(scanStartMs.current, Date.now(), job.progress));
+      setScanProgress({
+        percent,
+        finalizing,
+        eta,
+        line: finalizing ? "Finalizing…" : (job.subTask ?? `Scanning your library… ${percent}%`),
+      });
     },
   );
 
@@ -334,7 +346,7 @@ export function DryRunModal({
         </div>
       ) : items === null || counts === null ? (
         scanProgress ? (
-          <ScanProgress job={scanProgress} maxPercent={scanMaxPercent.current} startMs={scanStartMs.current} />
+          <ScanProgress display={scanProgress} />
         ) : (
           <div className="flex items-center gap-2 py-8 text-sm text-secondary">
             <Spinner />
@@ -557,6 +569,21 @@ export function DryRunModal({
           )}
         </>
       )}
+
+      {renaming && renameProgress ? (
+        <div className="mt-6 flex flex-col gap-2 text-sm text-secondary">
+          <ProgressBar percent={progressPercent(renameProgress.progress)} label="Rename progress" />
+          <div className="flex items-center justify-between gap-3">
+            <span>
+              Renaming… {renameProgress.subTask ?? `${progressPercent(renameProgress.progress)}%`}
+            </span>
+            {(() => {
+              const eta = formatEta(renameProgress.etaSeconds);
+              return eta ? <span className="text-muted">{eta}</span> : null;
+            })()}
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-6 flex justify-end gap-3">
         <Button variant="ghost" onClick={onClose} disabled={renaming}>
