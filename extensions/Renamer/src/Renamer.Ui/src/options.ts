@@ -85,6 +85,7 @@ export interface RenamerOptions {
   RemoveCharacters: string;
   Case: CaseTransform;
   AsciiTransliterate: boolean;
+  NormalizePunctuation: boolean;
   FilenameMax: number;
   FullPathMax: number;
   DropOrder: string[];
@@ -174,6 +175,7 @@ export const DEFAULT_OPTIONS: RenamerOptions = {
   RemoveCharacters: ",#",
   Case: "None",
   AsciiTransliterate: false,
+  NormalizePunctuation: true,
   FilenameMax: 255,
   FullPathMax: 259,
   DropOrder: [
@@ -406,6 +408,7 @@ export function normalizeOptions(raw: unknown): RenamerOptions {
     RemoveCharacters: str(r.RemoveCharacters, d.RemoveCharacters),
     Case: caseTransform(r.Case),
     AsciiTransliterate: bool(r.AsciiTransliterate, d.AsciiTransliterate),
+    NormalizePunctuation: bool(r.NormalizePunctuation, d.NormalizePunctuation),
     FilenameMax: num(r.FilenameMax, d.FilenameMax),
     FullPathMax: num(r.FullPathMax, d.FullPathMax),
     DropOrder: strArray(r.DropOrder, [...d.DropOrder]),

@@ -43,6 +43,7 @@ function fullyPopulatedBlob() {
     RemoveCharacters: ",#",
     Case: "Lower",
     AsciiTransliterate: true,
+    NormalizePunctuation: false,
     FilenameMax: 200,
     FullPathMax: 240,
     DropOrder: ["tags", "studio"],

@@ -1458,6 +1458,14 @@ export function RenamePanelBody() {
             }}
             helper="Convert accented characters to plain ASCII."
           />
+          <Toggle
+            label="Normalize punctuation to ASCII"
+            checked={options.NormalizePunctuation}
+            onChange={(v) => {
+              set("NormalizePunctuation", v);
+            }}
+            helper="Fold curly quotes, en/em dashes, and ellipses to plain ASCII."
+          />
         </CollapsibleSection>
 
         <CollapsibleSection
