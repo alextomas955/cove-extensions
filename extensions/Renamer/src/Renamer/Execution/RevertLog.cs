@@ -104,6 +104,18 @@ public sealed class RevertLog
         await _gate.WaitAsync(ct);
         try
         {
+            // COMPACT-THEN-APPEND. Drop the now-dead history before the new header lands, so this run's
+            // header and its subsequent AppendAsync rows concatenate onto the live tail — an append is
+            // O(last open batch), not O(total history). keepTrailingConsumed is false here: a
+            // most-recent CONSUMED batch loses its panel role to the header about to be written, so it is
+            // dropped; still-OPEN batches (later undo targets) are always kept.
+            var existing = await _store.GetAsync(Key, ct);
+            var compacted = Compact(existing, keepTrailingConsumed: false);
+            if (compacted != existing)
+            {
+                await _store.SetAsync(Key, compacted, ct);
+            }
+
             await AppendLineAsync(line, ct);
         }
         finally
@@ -254,32 +266,47 @@ public sealed class RevertLog
     /// <summary>
     /// Marks the batch with run id <paramref name="runId"/> as spent (read-modify-write the blob,
     /// rewrite that header's lifecycle marker) so a subsequent <see cref="ReadLastOpenBatchAsync"/>
-    /// skips it. A no-op if the run id is not found.
+    /// skips it, then compacts the dead batches away. A no-op if the run id is not found.
     /// </summary>
     public async Task MarkLastBatchConsumedAsync(string runId, CancellationToken ct = default)
     {
-        var blob = await _store.GetAsync(Key, ct);
-        if (string.IsNullOrEmpty(blob))
+        // Runs its whole body under the gate: the consume rewrite is a blob read-modify-write on the
+        // shared store key, so it must serialize against concurrent same-key appends exactly as every
+        // other write does (a batch can be consumed by /undo while a NEW job appends to the same blob) —
+        // an ungated rewrite here could tear an interleaved append.
+        await _gate.WaitAsync(ct);
+        try
         {
-            return;
-        }
-
-        var lines = blob.Split('\n');
-        bool changed = false;
-        for (int i = 0; i < lines.Length; i++)
-        {
-            if (IsHeader(lines[i]) && TryParseHeader(lines[i], out var rid, out var kind, out var status)
-                && rid == runId && status != StatusConsumed)
+            var blob = await _store.GetAsync(Key, ct);
+            if (string.IsNullOrEmpty(blob))
             {
-                long ticks = ParseHeaderTicks(lines[i]);
-                lines[i] = $"{HeaderTag}{FieldSep}{rid}{FieldSep}{ticks}{FieldSep}{kind}{FieldSep}{StatusConsumed}";
-                changed = true;
+                return;
+            }
+
+            var lines = blob.Split('\n');
+            bool changed = false;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (IsHeader(lines[i]) && TryParseHeader(lines[i], out var rid, out var kind, out var status)
+                    && rid == runId && status != StatusConsumed)
+                {
+                    long ticks = ParseHeaderTicks(lines[i]);
+                    lines[i] = $"{HeaderTag}{FieldSep}{rid}{FieldSep}{ticks}{FieldSep}{kind}{FieldSep}{StatusConsumed}";
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                // MARK-THEN-COMPACT. After flipping the header to consumed, drop it (and any now-dead
+                // older batches) so the stored footprint shrinks on consume instead of growing over the
+                // install's life.
+                await _store.SetAsync(Key, Compact(string.Join("\n", lines), keepTrailingConsumed: true), ct);
             }
         }
-
-        if (changed)
+        finally
         {
-            await _store.SetAsync(Key, string.Join("\n", lines), ct);
+            _gate.Release();
         }
     }
 
@@ -290,6 +317,73 @@ public sealed class RevertLog
         var existing = await _store.GetAsync(Key, ct);
         var updated = string.IsNullOrEmpty(existing) ? line : existing + "\n" + line;
         await _store.SetAsync(Key, updated, ct);
+    }
+
+    // ── compaction ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the compacted blob: the LIVE TAIL from the LAST still-open header onward, with every
+    /// earlier line dropped. If no header is open, the result depends on
+    /// <paramref name="keepTrailingConsumed"/> — true keeps the LAST (consumed) header onward, false
+    /// drops the whole blob to "".
+    /// </summary>
+    /// <remarks>
+    /// Two reads constrain what may be dropped. Undo reads only the LAST OPEN batch
+    /// (<see cref="ReadLastOpenBatchAsync"/> + <see cref="MarkLastBatchConsumedAsync"/> operate on "the
+    /// last replayable batch"), so keeping from the last open header preserves every still-open batch —
+    /// each is a live recovery path (including an earlier open batch that becomes the target again once a
+    /// newer batch is consumed, and an all-skipped batch /undo deliberately left open for retry) and is
+    /// never dropped. The panel reads the LAST batch, open OR consumed
+    /// (<see cref="ReadLastBatchSummaryAsync"/>), to show its outcome. That split is why the caller
+    /// chooses via <paramref name="keepTrailingConsumed"/>: the consume path passes true so a
+    /// just-consumed most-recent batch survives at rest (else the panel would blank — a user-facing
+    /// regression); the begin path passes false because the fresh open header it is about to write takes
+    /// over the panel role, so the now-superseded consumed batch is dropped rather than stranded ahead of
+    /// the new live tail. Everything before the kept header satisfies neither read and is a pure audit
+    /// trail safe to drop; that is what bounds the footprint. A legacy no-header blob is one implicit
+    /// still-replayable batch and is returned unchanged (backward-read invariant). Surviving lines are
+    /// preserved byte-for-byte (a contiguous suffix, no re-serialization), so a tolerated-but-malformed
+    /// row inside the live batch round-trips exactly as the defensive parsers already handle it. Never
+    /// throws.
+    /// </remarks>
+    private static string Compact(string? blob, bool keepTrailingConsumed)
+    {
+        if (string.IsNullOrEmpty(blob))
+        {
+            return "";
+        }
+
+        var lines = blob.Split('\n');
+
+        int lastOpenHeader = -1;
+        int lastHeader = -1;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            if (!IsHeader(lines[i]) || !TryParseHeader(lines[i], out _, out _, out var status))
+            {
+                continue;
+            }
+
+            lastHeader = i;
+            if (status == StatusOpen)
+            {
+                lastOpenHeader = i;
+            }
+        }
+
+        if (lastHeader < 0)
+        {
+            return blob;  // legacy flat blob — one implicit still-replayable batch, never reshaped
+        }
+
+        if (lastOpenHeader >= 0)
+        {
+            return string.Join("\n", lines[lastOpenHeader..]);  // undo's target — always survives
+        }
+
+        // No open batch. Keep the last (consumed) one only for the panel at rest; drop it when a fresh
+        // header is about to supersede it.
+        return keepTrailingConsumed ? string.Join("\n", lines[lastHeader..]) : "";
     }
 
     // ── parsing (defensive — never throws on a bad line) ───────────────────────
