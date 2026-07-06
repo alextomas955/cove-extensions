@@ -27,6 +27,7 @@ import {
   bucketCounts,
   classifyItem,
   etaFromSamples,
+  ETA_WINDOW,
   filterItems,
   formatEta,
   isFinalizing,
@@ -36,6 +37,7 @@ import {
   type DryRunFilter,
   type DryRunSortColumn,
   type DryRunSortDirection,
+  type ProgressSample,
 } from "./dryRunLogic";
 
 // The four content columns share one grid template so the sticky header and every virtualized row
@@ -231,9 +233,11 @@ export function DryRunModal({
   // Highest percent seen so far — the displayed bar is clamped up to this so a backwards poll sample
   // (the host can revise progress downward) never makes the bar visibly retreat.
   const scanMaxPercent = useRef(0);
-  // Wall-clock time the modal opened, anchoring the client-side ETA fallback when the host's
-  // etaSeconds is null.
-  const scanStartMs = useRef(Date.now());
+  // Trailing (timeMs, progress) samples for the client-side ETA fallback when the host's
+  // etaSeconds is null. A rolling window (not a since-open anchor) so the estimate tracks the
+  // CURRENT scan rate and the slow first sample ages out — otherwise a scan that finishes in
+  // seconds flashes an absurd "~2h left" from the cold-start average.
+  const scanSamples = useRef<ProgressSample[]>([]);
   // Guards against StrictMode's dev-only mount->unmount->remount cycle enqueueing the scan job
   // twice. A plain boolean ref (rather than a per-effect `cancelled` local) survives the
   // synthetic unmount, so it suppresses the SECOND mount's POST without also discarding the
@@ -283,9 +287,19 @@ export function DryRunModal({
       scanMaxPercent.current = Math.max(scanMaxPercent.current, progressPercent(job.progress));
       const percent = scanMaxPercent.current;
       const finalizing = isFinalizing(job.progress);
-      const eta =
-        formatEta(job.etaSeconds) ??
-        formatEta(etaFromSamples(scanStartMs.current, Date.now(), job.progress));
+      // Append this poll to the rolling sample buffer (bounded to the ETA window) for the wall-clock
+      // fallback. Reading Date.now() here in the handler, not at render (the React Compiler forbids
+      // impure render calls). Prefer the host's own etaSeconds when it supplies one.
+      scanSamples.current = [
+        ...scanSamples.current.slice(-(ETA_WINDOW - 1)),
+        { timeMs: Date.now(), progress: job.progress },
+      ];
+      // Use our OWN rolling-window ETA FIRST, not the host's job.etaSeconds. The host's estimate for a
+      // fraction-reporting job (which the scan is) comes from its legacy fraction path — a since-start
+      // EWMA that folds the slow cold-start sample into the estimate, so it flashes an absurd "~2h left"
+      // on a scan that finishes in seconds. The rolling window over recent samples tracks the actual
+      // current rate. Fall back to the host value only when we don't yet have two samples.
+      const eta = formatEta(etaFromSamples(scanSamples.current)) ?? formatEta(job.etaSeconds);
       setScanProgress({
         percent,
         finalizing,

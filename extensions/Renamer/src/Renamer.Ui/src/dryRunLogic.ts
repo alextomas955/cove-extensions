@@ -164,23 +164,56 @@ export function formatEta(seconds: number | undefined | null): string | null {
   return `~${Math.max(1, Math.round(seconds / 3600))}h left`;
 }
 
+/** One observed progress reading: wall-clock ms + the fraction done (0..1) at that instant. */
+export interface ProgressSample {
+  timeMs: number;
+  progress: number;
+}
+
 /**
- * Client-side ETA fallback for when the host's `etaSeconds` is null (it only computes one when it
- * can). Extrapolates remaining seconds from the elapsed wall time and the fraction done:
- * elapsed / p * (1 - p). Returns null when no estimate is possible — progress at or beyond the ends
- * (can't project from 0, already done at 1) or non-finite inputs.
+ * Number of trailing samples the rolling ETA rate is measured over. Wide enough to smooth
+ * poll-to-poll jitter, short enough that the estimate tracks the CURRENT rate rather than the
+ * cold-start average — so a slow first query (DB warmup / JIT / first batch) scrolls out of the
+ * window within a few polls instead of dominating the estimate for the whole scan.
  */
-export function etaFromSamples(
-  startedAtMs: number,
-  nowMs: number,
-  progress: number,
-): number | null {
-  if (!Number.isFinite(startedAtMs) || !Number.isFinite(nowMs) || !Number.isFinite(progress)) {
+export const ETA_WINDOW = 5;
+
+/**
+ * Client-side ETA fallback for when the host's `etaSeconds` is null. Estimates remaining seconds
+ * from the rate over the LAST {@link ETA_WINDOW} samples — `(latest.progress - oldest.progress) /
+ * (latest.timeMs - oldest.timeMs)` — NOT the cumulative average since the scan started. The
+ * cumulative form (elapsed / p * (1 - p)) folds the cold-start latency into every later estimate,
+ * which is why a scan that finishes in seconds first flashed "~2h left": the first sample was slow
+ * and anchored the average. A trailing window discards that warmup once it ages out.
+ *
+ * Returns null when no estimate is possible: progress at/beyond the ends (can't project from 0,
+ * done at 1), fewer than 2 samples, non-finite inputs, or a window showing no forward progress /
+ * non-positive elapsed (would divide by ~zero or project backwards).
+ */
+export function etaFromSamples(samples: readonly ProgressSample[]): number | null {
+  if (samples.length < 2) return null;
+
+  const window = samples.slice(-ETA_WINDOW);
+  const oldest = window[0];
+  const latest = window[window.length - 1];
+  if (
+    !Number.isFinite(oldest.timeMs) ||
+    !Number.isFinite(latest.timeMs) ||
+    !Number.isFinite(latest.progress)
+  ) {
     return null;
   }
-  if (progress <= 0 || progress >= 1) return null;
-  const elapsedSec = (nowMs - startedAtMs) / 1000;
-  return (elapsedSec / progress) * (1 - progress);
+
+  const p = latest.progress;
+  if (p <= 0 || p >= 1) return null;
+
+  const deltaProgress = latest.progress - oldest.progress;
+  const deltaSec = (latest.timeMs - oldest.timeMs) / 1000;
+  // No forward movement in the window (or a backwards/zero time step) → no usable rate.
+  if (deltaProgress <= 0 || deltaSec <= 0) return null;
+
+  const ratePerSec = deltaProgress / deltaSec;
+  return (1 - p) / ratePerSec;
 }
 
 /** Slice `items` to the page at `page` (0-indexed), `pageSize` rows per page (locked at 50). */
