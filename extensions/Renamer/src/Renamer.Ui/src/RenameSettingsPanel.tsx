@@ -1530,6 +1530,40 @@ export function RenamePanelBody() {
           </Field>
         </CollapsibleSection>
 
+        <CollapsibleSection
+          title="Cross-drive concurrency"
+          summary="How many transfers and renames run at once"
+        >
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field
+              label="Cross-volume concurrency"
+              helper="How many files to copy across drives at once. Leave at 2 for regular hard drives; raise to 4–8 if both drives are SSDs. Higher is not always faster — on spinning disks it can be slower."
+            >
+              <NumberInput
+                value={options.CrossVolumeConcurrency}
+                min={1}
+                max={16}
+                onChange={(v) => {
+                  set("CrossVolumeConcurrency", v);
+                }}
+              />
+            </Field>
+            <Field
+              label="Same-volume concurrency"
+              helper="How many same-drive renames to run at once (these are instant; the default is fine)."
+            >
+              <NumberInput
+                value={options.SameVolumeConcurrency}
+                min={1}
+                max={16}
+                onChange={(v) => {
+                  set("SameVolumeConcurrency", v);
+                }}
+              />
+            </Field>
+          </div>
+        </CollapsibleSection>
+
         {/* Excludes — the pre-routing skip list, sibling to routing so the two stay parallel.
               These are evaluated before any routing rule; a matching item is dropped from the batch
               entirely (neither renamed nor moved), so they are the safest way to fence off items you

@@ -88,6 +88,10 @@ export interface RenamerOptions {
   NormalizePunctuation: boolean;
   FilenameMax: number;
   FullPathMax: number;
+  /** Simultaneous cross-drive transfers per source→destination disk pair. */
+  CrossVolumeConcurrency: number;
+  /** Simultaneous same-drive renames in a batch. */
+  SameVolumeConcurrency: number;
   DropOrder: string[];
   OnlyOrganized: boolean;
   /** Use the basename (without extension) as $title when an item has none. */
@@ -138,11 +142,11 @@ export interface RenamerOptions {
  *   PreventConsecutiveSegments true (both on for a fresh install), RemoveEmptyFolder off
  *   (destructive stays opt-in), every routing map {} / list [] and every other flag/string off/empty.
  *
- * The cross-drive safety knobs (FreeSpaceHeadroomBytes / CrossVolumeConcurrency /
- * SameVolumeConcurrency) are intentionally NOT modeled here. The panel never edits them, so leaving
- * them out of DEFAULT_OPTIONS keeps them out of MODELED_KEYS — which is what lets
- * extractUnmodeledFields carry a stored value through a load → save round-trip untouched instead of
- * normalizeOptions consuming (and dropping) it.
+ * CrossVolumeConcurrency / SameVolumeConcurrency ARE modeled — the Advanced panel edits them, so
+ * they belong in DEFAULT_OPTIONS (and therefore MODELED_KEYS + normalizeOptions). FreeSpaceHeadroomBytes
+ * is the ONE remaining knob the panel never edits: leaving it out of DEFAULT_OPTIONS keeps it out of
+ * MODELED_KEYS, which is what lets extractUnmodeledFields carry a stored value through a load → save
+ * round-trip untouched instead of normalizeOptions consuming (and dropping) it.
  */
 export const DEFAULT_OPTIONS: RenamerOptions = {
   FilenameTemplate: "{$date - }$title{ [$resolution]}",
@@ -178,6 +182,8 @@ export const DEFAULT_OPTIONS: RenamerOptions = {
   NormalizePunctuation: true,
   FilenameMax: 255,
   FullPathMax: 259,
+  CrossVolumeConcurrency: 2,
+  SameVolumeConcurrency: 8,
   DropOrder: [
     "videoCodec",
     "audioCodec",
@@ -411,6 +417,8 @@ export function normalizeOptions(raw: unknown): RenamerOptions {
     NormalizePunctuation: bool(r.NormalizePunctuation, d.NormalizePunctuation),
     FilenameMax: num(r.FilenameMax, d.FilenameMax),
     FullPathMax: num(r.FullPathMax, d.FullPathMax),
+    CrossVolumeConcurrency: num(r.CrossVolumeConcurrency, d.CrossVolumeConcurrency),
+    SameVolumeConcurrency: num(r.SameVolumeConcurrency, d.SameVolumeConcurrency),
     DropOrder: strArray(r.DropOrder, [...d.DropOrder]),
     OnlyOrganized: bool(r.OnlyOrganized, d.OnlyOrganized),
     FilenameAsTitle: bool(r.FilenameAsTitle, d.FilenameAsTitle),

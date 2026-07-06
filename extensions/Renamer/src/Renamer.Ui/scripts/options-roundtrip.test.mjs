@@ -46,6 +46,8 @@ function fullyPopulatedBlob() {
     NormalizePunctuation: false,
     FilenameMax: 200,
     FullPathMax: 240,
+    CrossVolumeConcurrency: 4,
+    SameVolumeConcurrency: 16,
     DropOrder: ["tags", "studio"],
     OnlyOrganized: true,
     FilenameAsTitle: true,
@@ -79,11 +81,9 @@ function fullyPopulatedBlob() {
   };
 }
 
-const SAFETY_KNOBS = {
-  FreeSpaceHeadroomBytes: 2147483648,
-  CrossVolumeConcurrency: 4,
-  SameVolumeConcurrency: 16,
-};
+// FreeSpaceHeadroomBytes is the ONLY knob the panel never models, so it is the only one
+// extractUnmodeledFields must still carry. The two concurrency knobs are now modeled (see below).
+const UNMODELED_KNOB = { FreeSpaceHeadroomBytes: 2147483648 };
 
 test("every modeled field survives load → no-op edit → save value-equal", () => {
   const blob = fullyPopulatedBlob();
@@ -100,6 +100,8 @@ test("every modeled field survives load → no-op edit → save value-equal", ()
   assert.deepEqual(loaded.AssociatedExtensions, ["srt", "vtt"]);
   assert.deepEqual(loaded.StudioDestinations, { 7: "D:/studios/seven", 12: "E:/studios/twelve" });
   assert.deepEqual(loaded.PathDestinations, blob.PathDestinations);
+  assert.equal(loaded.CrossVolumeConcurrency, 4);
+  assert.equal(loaded.SameVolumeConcurrency, 16);
 
   // The panel's save merge, then a re-load (the next session reading what was persisted).
   const extras = extractUnmodeledFields(blob);
@@ -133,25 +135,56 @@ test("cloneDefaults isolates every mutable collection from DEFAULT_OPTIONS", () 
   assert.deepEqual(DEFAULT_OPTIONS, before);
 });
 
-test("unmodeled safety knobs survive the save merge unchanged across a load → save loop", () => {
-  const blob = { ...fullyPopulatedBlob(), ...SAFETY_KNOBS };
+test("FreeSpaceHeadroomBytes stays the only unmodeled knob; concurrency is modeled", () => {
+  const blob = {
+    ...fullyPopulatedBlob(),
+    ...UNMODELED_KNOB,
+    CrossVolumeConcurrency: 4,
+    SameVolumeConcurrency: 16,
+  };
 
   const extras = extractUnmodeledFields(blob);
-  assert.equal(extras.FreeSpaceHeadroomBytes, SAFETY_KNOBS.FreeSpaceHeadroomBytes);
-  assert.equal(extras.CrossVolumeConcurrency, SAFETY_KNOBS.CrossVolumeConcurrency);
-  assert.equal(extras.SameVolumeConcurrency, SAFETY_KNOBS.SameVolumeConcurrency);
+  // Only FreeSpaceHeadroomBytes is carried as an extra; the two concurrency knobs are modeled now,
+  // so extractUnmodeledFields must NOT carry them.
+  assert.equal(extras.FreeSpaceHeadroomBytes, UNMODELED_KNOB.FreeSpaceHeadroomBytes);
+  assert.ok(!("CrossVolumeConcurrency" in extras));
+  assert.ok(!("SameVolumeConcurrency" in extras));
 
   const persisted = { ...extras, ...normalizeOptions(blob) };
-  assert.equal(persisted.FreeSpaceHeadroomBytes, SAFETY_KNOBS.FreeSpaceHeadroomBytes);
-  assert.equal(persisted.CrossVolumeConcurrency, SAFETY_KNOBS.CrossVolumeConcurrency);
-  assert.equal(persisted.SameVolumeConcurrency, SAFETY_KNOBS.SameVolumeConcurrency);
+  assert.equal(persisted.FreeSpaceHeadroomBytes, UNMODELED_KNOB.FreeSpaceHeadroomBytes);
+  assert.equal(persisted.CrossVolumeConcurrency, 4);
+  assert.equal(persisted.SameVolumeConcurrency, 16);
 
   // A second load → save keeps them: the merge re-extracts and re-merges with no drift.
   const extras2 = extractUnmodeledFields(persisted);
+  assert.ok(!("CrossVolumeConcurrency" in extras2));
+  assert.ok(!("SameVolumeConcurrency" in extras2));
   const persisted2 = { ...extras2, ...normalizeOptions(persisted) };
-  assert.equal(persisted2.FreeSpaceHeadroomBytes, SAFETY_KNOBS.FreeSpaceHeadroomBytes);
-  assert.equal(persisted2.CrossVolumeConcurrency, SAFETY_KNOBS.CrossVolumeConcurrency);
-  assert.equal(persisted2.SameVolumeConcurrency, SAFETY_KNOBS.SameVolumeConcurrency);
+  assert.equal(persisted2.FreeSpaceHeadroomBytes, UNMODELED_KNOB.FreeSpaceHeadroomBytes);
+  assert.equal(persisted2.CrossVolumeConcurrency, 4);
+  assert.equal(persisted2.SameVolumeConcurrency, 16);
+});
+
+test("a concurrency value stored before it was modeled still loads (not the 2/8 defaults)", () => {
+  // These keys used to be UNMODELED (carried by extractUnmodeledFields). A blob saved back then can
+  // hold a hand-tuned value; now that the fields are modeled, normalizeOptions must read that stored
+  // value rather than reverting it to the 2/8 defaults, and the save merge must not drift it.
+  const preExposureBlob = { CrossVolumeConcurrency: 4, SameVolumeConcurrency: 16 };
+
+  const loaded = normalizeOptions(preExposureBlob);
+  assert.equal(loaded.CrossVolumeConcurrency, 4);
+  assert.equal(loaded.SameVolumeConcurrency, 16);
+
+  const persisted = { ...extractUnmodeledFields(preExposureBlob), ...loaded };
+  const reloaded = normalizeOptions(persisted);
+  assert.equal(reloaded.CrossVolumeConcurrency, 4);
+  assert.equal(reloaded.SameVolumeConcurrency, 16);
+});
+
+test("a blob absent both concurrency keys normalizes them to the 2/8 defaults", () => {
+  const loaded = normalizeOptions({ FilenameTemplate: "$title" });
+  assert.equal(loaded.CrossVolumeConcurrency, 2);
+  assert.equal(loaded.SameVolumeConcurrency, 8);
 });
 
 test("a stored blob with the old defaults survives load → save unchanged", () => {

@@ -154,18 +154,28 @@ export function NumberInput({
   value,
   onChange,
   min,
+  max,
 }: {
   value: number;
   onChange: (value: number) => void;
   min?: number;
+  max?: number;
 }) {
   return (
     <input
       type="number"
       value={Number.isNaN(value) ? "" : value}
       min={min}
+      max={max}
       onChange={(e) => {
-        onChange(e.target.value === "" ? 0 : Number(e.target.value));
+        if (e.target.value === "") {
+          onChange(0);
+          return;
+        }
+        let next = Number(e.target.value);
+        if (max !== undefined && next > max) next = max;
+        if (min !== undefined && next < min) next = min;
+        onChange(next);
       }}
       className={`themed-number-input ${INPUT_CLASS}`}
     />
