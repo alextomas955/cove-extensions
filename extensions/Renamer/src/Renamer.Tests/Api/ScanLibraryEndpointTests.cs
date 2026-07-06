@@ -108,10 +108,10 @@ public sealed class ScanLibraryEndpointTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (_, _, videoFileId1) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films/one", "one.mkv", "One");
-            var (_, _, videoFileId2) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films/two", "two.mkv", "Two");
-            var (_, _, imageFileId) = await ExecutorTestSeed.SeedImageAsync(db, "/library/pics", "pic.jpg", "Pic");
-            var (_, _, audioFileId) = await ExecutorTestSeed.SeedAudioAsync(db, "/library/music", "song.mp3", "Song");
+            var (_, videoEntityId1, videoFileId1) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films/one", "one.mkv", "One");
+            var (_, videoEntityId2, videoFileId2) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films/two", "two.mkv", "Two");
+            var (_, imageEntityId, imageFileId) = await ExecutorTestSeed.SeedImageAsync(db, "/library/pics", "pic.jpg", "Pic");
+            var (_, audioEntityId, audioFileId) = await ExecutorTestSeed.SeedAudioAsync(db, "/library/music", "song.mp3", "Song");
 
             var (beforeVideoName, beforeVideoPath) = await ExecutorTestSeed.ReadFileAsync(db, videoFileId1);
 
@@ -130,6 +130,16 @@ public sealed class ScanLibraryEndpointTests
 
             var fileIds = items.Select(i => i.GetProperty("fileId").GetInt32()).OrderBy(x => x).ToArray();
             Assert.Equal(new[] { videoFileId1, videoFileId2, imageFileId, audioFileId }.OrderBy(x => x), fileIds);
+
+            // The entity id is threaded from the plan onto every file's wire item — asserted PAIRED
+            // with its fileId so the mapping is proven, not just that the set of ids appears somewhere.
+            var entityIdByFileId = items.ToDictionary(
+                i => i.GetProperty("fileId").GetInt32(),
+                i => i.GetProperty("entityId").GetInt32());
+            Assert.Equal(videoEntityId1, entityIdByFileId[videoFileId1]);
+            Assert.Equal(videoEntityId2, entityIdByFileId[videoFileId2]);
+            Assert.Equal(imageEntityId, entityIdByFileId[imageFileId]);
+            Assert.Equal(audioEntityId, entityIdByFileId[audioFileId]);
 
             // Every item carries an explicit per-item kind tag (the multi-kind response gap RESEARCH found).
             var kinds = items.Select(i => i.GetProperty("kind").GetString()!).ToHashSet();
@@ -263,7 +273,7 @@ public sealed class ScanLibraryEndpointTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (_, _, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One");
+            var (_, entityId, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One");
 
             var (ext, _) = await NewExtensionAsync();
             await InitializeOverSharedConnectionAsync(ext, conn);
@@ -277,6 +287,7 @@ public sealed class ScanLibraryEndpointTests
             var ok = Assert.IsType<JsonHttpResult<global::Renamer.Api.ScanItem[]>>(result);
             var item = Assert.Single(ok.Value!);
             Assert.Equal(fileId, item.FileId);
+            Assert.Equal(entityId, item.EntityId);
             Assert.Equal(RenamerFileKind.Video, item.Kind);
         }
         finally

@@ -12,6 +12,7 @@ namespace Renamer.Api;
 /// </summary>
 public sealed record ScanItem(
     RenamerFileKind Kind,
+    int EntityId,
     int FileId,
     string OldFullPath,
     string NewFullPath,
@@ -26,8 +27,14 @@ public sealed record ScanItem(
     string TargetVolume)
 {
     /// <summary>Wraps a planned <paramref name="item"/> with its entity <paramref name="kind"/> for the wire response.</summary>
-    public static ScanItem From(RenamerFileKind kind, RenamerPlanItem item) => new(
+    /// <remarks>
+    /// <paramref name="entityId"/> is the Cove entity id the whole plan is for (<see cref="RenamerPlan.EntityId"/>),
+    /// NOT the per-file <see cref="RenamerPlanItem.FileId"/> — the UI builds the asset detail link from it, so every
+    /// file of the same entity shares the one entity id.
+    /// </remarks>
+    public static ScanItem From(RenamerFileKind kind, int entityId, RenamerPlanItem item) => new(
         kind,
+        entityId,
         item.FileId,
         item.OldFullPath,
         item.NewFullPath,

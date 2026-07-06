@@ -703,7 +703,7 @@ public sealed partial class Renamer
             {
                 ct.ThrowIfCancellationRequested();
                 var plan = await planner.PlanAsync(kind, id, options, lookups, ct);
-                allItems.AddRange(plan.Items.Select(item => ScanItem.From(kind, item)));
+                allItems.AddRange(plan.Items.Select(item => ScanItem.From(kind, plan.EntityId, item)));
             }
         }
 
