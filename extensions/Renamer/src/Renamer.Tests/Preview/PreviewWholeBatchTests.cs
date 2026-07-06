@@ -37,11 +37,17 @@ public sealed class PreviewWholeBatchTests
     [Fact]
     public async Task PreviewAsync_ReturnsItemsAndSummary_WithRoutingFields_AndCamelCaseStringEnums()
     {
+        // The source lives in a real temp dir so preview's on-disk source probe finds it (a gone
+        // source would be SkipMissingSource, not the routed Move this test asserts). The routed
+        // destination (PathRoot, a fictional different drive) stays cross-volume vs the temp source.
+        using var srcDir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
+            string srcFolder = srcDir.Root.Replace('\\', '/');
             var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(
-                db, Fwd(SrcRoot), "raw.mkv", "My Film");
+                db, srcFolder, "raw.mkv", "My Film");
+            File.WriteAllText(Path.Combine(srcDir.Root, "raw.mkv"), "video-bytes");
             var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
 
             // An exact source-path rule + an allowed dest root on a DIFFERENT volume → a routed Move
@@ -50,8 +56,8 @@ public sealed class PreviewWholeBatchTests
             {
                 FilenameTemplate = "$title",
                 FolderTemplate = "Sorted",
-                AllowedRoots = [SrcRoot, PathRoot],
-                PathDestinations = [new PathDestinationRule { Pattern = Fwd(SrcRoot), Dest = PathRoot, IsRegex = false }],
+                AllowedRoots = [srcFolder, PathRoot],
+                PathDestinations = [new PathDestinationRule { Pattern = srcFolder, Dest = PathRoot, IsRegex = false }],
             };
 
             var ext = await BuildExtensionAsync(options);
@@ -167,11 +173,16 @@ public sealed class PreviewWholeBatchTests
     [Fact]
     public async Task PreviewAsync_SameVolumeRenamer_SummaryIsLight()
     {
+        using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
+            // Preview probes the source on disk, so give the seeded row a real on-disk file — a gone
+            // source would be SkipMissingSource instead of the same-volume Renamer this test asserts.
+            string folderPath = dir.Root.Replace('\\', '/');
             var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
-                db, "/library/films", "raw one.mkv", "First Film");
+                db, folderPath, "raw one.mkv", "First Film");
+            File.WriteAllText(Path.Combine(dir.Root, "raw one.mkv"), "video-bytes");
 
             var ext = await BuildExtensionAsync(new RenamerOptions { FilenameTemplate = "$title" });
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);

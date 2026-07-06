@@ -33,11 +33,16 @@ public sealed class PreviewEndpointTests
     [Fact]
     public async Task PreviewAsync_WithVideosRead_ReturnsPlanItems_AndMutatesNothing()
     {
+        using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
+            // Preview probes the source on disk, so the seeded row needs a matching on-disk file for
+            // the item to classify as a real Renamer (a gone source would be SkipMissingSource).
+            string folderPath = dir.Root.Replace('\\', '/');
             var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(
-                db, "/library/films", "raw one.mkv", "First Film");
+                db, folderPath, "raw one.mkv", "First Film");
+            File.WriteAllText(Path.Combine(dir.Root, "raw one.mkv"), "video-bytes");
             var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
 
             var ext = await BuildExtensionAsync();

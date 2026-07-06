@@ -19,19 +19,24 @@ namespace Renamer.Tests.Api;
 [Trait("Tier", "Integration")]
 public sealed class PreviewRoutingTests
 {
-    // OS-aware absolute roots so routing to a different root yields a real Move and a stable volume.
-    private static string SrcRoot => OperatingSystem.IsWindows() ? @"C:\library\incoming" : "/srv/library/incoming";
+    // A fictional destination root on a DIFFERENT drive than the temp source, so routing anchors on a
+    // distinct root; only the source needs to exist on disk (preview probes the source, not the dest).
     private static string PathRoot => OperatingSystem.IsWindows() ? @"F:\by-source" : "/mnt/by-source";
-    private static string Fwd(string p) => p.Replace('\\', '/');
 
     [Fact]
     public async Task PreviewAsync_RoutedItem_ReportsRoutedDestination_MatchingBatch_AndMutatesNothing()
     {
+        // The source lives in a real temp dir so preview's on-disk source probe finds it (a gone
+        // source would be SkipMissingSource, not the routed Move this test asserts). The routed
+        // destination (PathRoot, a fictional different drive) stays a distinct root for routing.
+        using var srcDir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
+            string srcFolder = srcDir.Root.Replace('\\', '/');
             var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(
-                db, Fwd(SrcRoot), "raw.mkv", "My Film");
+                db, srcFolder, "raw.mkv", "My Film");
+            File.WriteAllText(Path.Combine(srcDir.Root, "raw.mkv"), "video-bytes");
             var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
 
             // An exact source-path rule + an allowed dest root: BuildLookups turns this into a
@@ -40,8 +45,8 @@ public sealed class PreviewRoutingTests
             {
                 FilenameTemplate = "$title",
                 FolderTemplate = "Sorted",
-                AllowedRoots = [SrcRoot, PathRoot],
-                PathDestinations = [new PathDestinationRule { Pattern = Fwd(SrcRoot), Dest = PathRoot, IsRegex = false }],
+                AllowedRoots = [srcFolder, PathRoot],
+                PathDestinations = [new PathDestinationRule { Pattern = srcFolder, Dest = PathRoot, IsRegex = false }],
             };
 
             var ext = new global::Renamer.Renamer();

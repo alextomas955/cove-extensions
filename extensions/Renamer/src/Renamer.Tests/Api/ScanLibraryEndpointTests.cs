@@ -197,10 +197,15 @@ public sealed class ScanLibraryEndpointTests
     [Fact]
     public async Task RunScanLibraryJobAsync_WithOverrideOptions_UsesThemOverSavedOptions()
     {
+        using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (_, _, videoFileId) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One");
+            // The scan previews the source on disk, so the seeded row needs a real on-disk file — a
+            // gone source would be SkipMissingSource, not the previewed rename this test asserts.
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, _, videoFileId) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "one.mkv", "One");
+            File.WriteAllText(Path.Combine(dir.Root, "one.mkv"), "video-bytes");
 
             // Saved options template is "$title" (from NewExtensionAsync). The override below uses a
             // DIFFERENT template with a literal prefix, so a scan that honors the override produces a
