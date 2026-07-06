@@ -97,33 +97,33 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Check if this extension was tagged
+      - name: Derive version
         id: check
         shell: bash
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/${{ matrix.extension.tagPrefix }}v* ]]; then
-            echo "match=true" >> "$GITHUB_OUTPUT"
             echo "version=${GITHUB_REF#refs/tags/${{ matrix.extension.tagPrefix }}v}" >> "$GITHUB_OUTPUT"
           else
-            echo "match=true" >> "$GITHUB_OUTPUT"
             echo "version=0.0.0" >> "$GITHUB_OUTPUT"
           fi
 
+      # Unconditional: the validate job's matrix computation already filters to only the tagged
+      # extension on a tag push (all entries on a PR), so there is nothing left for this job to
+      # re-check per-step.
       - uses: actions/checkout@v7
-        if: steps.check.outputs.match == 'true'
 
       - name: Setup .NET
-        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        if: ${{ !matrix.extension.manifestOnly }}
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Restore
-        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        if: ${{ !matrix.extension.manifestOnly }}
         run: dotnet restore ${{ matrix.extension.projectPath }} -p:UseLocalCoveSource=false
 
       - name: Build
-        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        if: ${{ !matrix.extension.manifestOnly }}
         run: dotnet build ${{ matrix.extension.projectPath }} -c Release --no-restore -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
 
       # Unit tier only — this bare runner has no ../cove sibling checkout, so the test project's
@@ -132,38 +132,27 @@ jobs:
       # windows-build-test's build-then-test order in lint.yml. Optional: an extension without a
       # testProjectPath entry in catalog.json skips this step (manifestOnly-style opt-out).
       - name: Test (unit tier)
-        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly && matrix.extension.testProjectPath != ''
+        if: ${{ !matrix.extension.manifestOnly && matrix.extension.testProjectPath != '' }}
         run: dotnet test ${{ matrix.extension.testProjectPath }} -c Release -p:UseLocalCoveSource=false
 
       - name: Publish
-        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        if: ${{ !matrix.extension.manifestOnly }}
         run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o artifacts/${{ matrix.extension.name }} --no-build -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
 
       # Strip-verify gate (ported from the old rename repo, generalized to the matrix artifacts
       # dir). Runs on every build (not tag-gated), so a host-assembly leak fails the build before
-      # anything is zipped. The denylist is the same set the extension's own local deploy scripts
-      # enforce — hand-synced; when the host adds a provided dependency, add it here too.
+      # anything is zipped. The denylist is the single shared source at .github/DLL_DENYLIST.json —
+      # both CI (here) and the local deploy script (deploy-dev.ps1) read it, so there is no
+      # hand-sync drift when the host adds a provided dependency.
       - name: Strip-verify (no host assemblies, no absolute paths)
-        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        if: ${{ !matrix.extension.manifestOnly }}
         shell: bash
         run: |
           set -euo pipefail
           shopt -s nullglob
 
           dir="artifacts/${{ matrix.extension.name }}"
-          denylist=(
-            Cove.Core
-            Cove.Plugins
-            Cove.Sdk
-            Microsoft.EntityFrameworkCore
-            Microsoft.EntityFrameworkCore.Abstractions
-            Microsoft.EntityFrameworkCore.Relational
-            Npgsql
-            Npgsql.EntityFrameworkCore.PostgreSQL
-            Pgvector
-            Pgvector.EntityFrameworkCore
-            MediatR.Contracts
-          )
+          mapfile -t denylist < <(jq -r '.[]' .github/DLL_DENYLIST.json)
 
           fail=0
 
@@ -211,17 +200,17 @@ jobs:
           done
 
       - name: Copy manifest
-        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        if: ${{ !matrix.extension.manifestOnly }}
         run: cp ${{ matrix.extension.manifestPath }} artifacts/${{ matrix.extension.name }}/
 
       - name: Stamp packaged extension.json version
-        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        if: ${{ !matrix.extension.manifestOnly }}
         run: |
           node -e "const fs=require('fs'); const p='artifacts/${{ matrix.extension.name }}/extension.json'; const m=JSON.parse(fs.readFileSync(p,'utf8')); m.version='${{ steps.check.outputs.version }}'; fs.writeFileSync(p, JSON.stringify(m, null, 2) + '\n');"
 
       # Conditional frontend build — only extensions with a uiPath field ship a frontend bundle.
       - name: Setup Node
-        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        if: ${{ matrix.extension.uiPath != '' }}
         uses: actions/setup-node@v6
         with:
           # Pin matches the UI package.json volta pin for a reproducible build.
@@ -233,27 +222,27 @@ jobs:
       # own lockfile, its own Dependabot entry). `npm install` on an in-sync lockfile is a no-op;
       # UI reproducibility is anchored by the committed lockfile.
       - name: Install frontend deps (offline, vendored SDK)
-        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        if: ${{ matrix.extension.uiPath != '' }}
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm install
 
       - name: Stamp source package.json version
-        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        if: ${{ matrix.extension.uiPath != '' }}
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm version ${{ steps.check.outputs.version }} --no-git-tag-version --allow-same-version
 
       - name: Verify frontend (typecheck + lint + format:check + check-classes + test)
-        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        if: ${{ matrix.extension.uiPath != '' }}
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm run verify
 
       - name: Build frontend bundle
-        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        if: ${{ matrix.extension.uiPath != '' }}
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm run build
 
       - name: Copy frontend bundle
-        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        if: ${{ matrix.extension.uiPath != '' }}
         run: cp ${{ matrix.extension.uiPath }}/dist/index.mjs artifacts/${{ matrix.extension.name }}/
 
       # Version parity: the version the manifest, the assembly, the UI package, and the catalog
@@ -267,18 +256,18 @@ jobs:
       # build's package.json and extension.json versions are expected to disagree and would always
       # fail this gate. The real check only makes sense once there's a real version being released.
       - name: Check version parity
-        if: steps.check.outputs.match == 'true' && matrix.extension.versionSourcePath != '' && github.event_name != 'pull_request'
+        if: ${{ matrix.extension.versionSourcePath != '' && github.event_name != 'pull_request' }}
         run: node scripts/check-version-parity.mjs ${{ matrix.extension.manifestPath }} ${{ matrix.extension.versionSourcePath }} ${{ matrix.extension.uiPath }}/package.json ${{ matrix.extension.path }}/extensions/${{ matrix.extension.id }}.json
 
       - name: Package
-        if: steps.check.outputs.match == 'true' && github.event_name != 'pull_request'
+        if: ${{ github.event_name != 'pull_request' }}
         shell: bash
         run: |
           cd artifacts/${{ matrix.extension.name }}
           zip -r ../../${{ matrix.extension.id }}-${{ steps.check.outputs.version }}.zip .
 
       - name: Upload artifact
-        if: steps.check.outputs.match == 'true' && github.event_name != 'pull_request'
+        if: ${{ github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.extension.id }}-${{ steps.check.outputs.version }}
