@@ -322,29 +322,33 @@ public sealed class RevertLog
     // ── compaction ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Returns the compacted blob: the LIVE TAIL from the LAST still-open header onward, with every
-    /// earlier line dropped. If no header is open, the result depends on
+    /// Returns the compacted blob: the LIVE TAIL from the EARLIEST still-open header onward, with every
+    /// earlier (fully-consumed) line dropped. If no header is open, the result depends on
     /// <paramref name="keepTrailingConsumed"/> — true keeps the LAST (consumed) header onward, false
     /// drops the whole blob to "".
     /// </summary>
     /// <remarks>
-    /// Two reads constrain what may be dropped. Undo reads only the LAST OPEN batch
-    /// (<see cref="ReadLastOpenBatchAsync"/> + <see cref="MarkLastBatchConsumedAsync"/> operate on "the
-    /// last replayable batch"), so keeping from the last open header preserves every still-open batch —
-    /// each is a live recovery path (including an earlier open batch that becomes the target again once a
-    /// newer batch is consumed, and an all-skipped batch /undo deliberately left open for retry) and is
-    /// never dropped. The panel reads the LAST batch, open OR consumed
-    /// (<see cref="ReadLastBatchSummaryAsync"/>), to show its outcome. That split is why the caller
-    /// chooses via <paramref name="keepTrailingConsumed"/>: the consume path passes true so a
-    /// just-consumed most-recent batch survives at rest (else the panel would blank — a user-facing
-    /// regression); the begin path passes false because the fresh open header it is about to write takes
-    /// over the panel role, so the now-superseded consumed batch is dropped rather than stranded ahead of
-    /// the new live tail. Everything before the kept header satisfies neither read and is a pure audit
-    /// trail safe to drop; that is what bounds the footprint. A legacy no-header blob is one implicit
-    /// still-replayable batch and is returned unchanged (backward-read invariant). Surviving lines are
-    /// preserved byte-for-byte (a contiguous suffix, no re-serialization), so a tolerated-but-malformed
-    /// row inside the live batch round-trips exactly as the defensive parsers already handle it. Never
-    /// throws.
+    /// Two reads constrain what may be dropped. Undo consumes open batches from the newest backward
+    /// (<see cref="ReadLastOpenBatchAsync"/> + <see cref="MarkLastBatchConsumedAsync"/> target the last
+    /// replayable batch), so EVERY still-open batch is a live recovery path — not just the newest: an
+    /// earlier open batch becomes the target again once the batches after it are consumed, and an
+    /// all-skipped batch /undo deliberately left open is retried later. Keeping from the LAST open header
+    /// would silently drop those earlier still-open batches (they were never consumed, yet vanish) — the
+    /// data-loss bug this method previously had. So we keep from the EARLIEST open header: every still-open
+    /// batch survives, and only the fully-consumed leading run ahead of it is dropped. The panel reads the
+    /// LAST batch, open OR consumed (<see cref="ReadLastBatchSummaryAsync"/>), to show its outcome. That
+    /// split is why the caller chooses via <paramref name="keepTrailingConsumed"/>: the consume path passes
+    /// true so a just-consumed most-recent batch survives at rest (else the panel would blank — a
+    /// user-facing regression); the begin path passes false because the fresh open header it is about to
+    /// write takes over the panel role, so the now-superseded consumed batch is dropped rather than
+    /// stranded ahead of the new live tail. The leading consumed run satisfies neither read and is a pure
+    /// audit trail safe to drop; that (plus the panel-consumed exception) is what bounds the footprint —
+    /// to all still-open batches, never the total history. In the common single-open-batch case the
+    /// earliest open header IS the last, so the kept suffix is identical to before. A legacy no-header blob
+    /// is one implicit still-replayable batch and is returned unchanged (backward-read invariant).
+    /// Surviving lines are preserved byte-for-byte (a contiguous suffix, no re-serialization), so a
+    /// tolerated-but-malformed row inside a live batch round-trips exactly as the defensive parsers already
+    /// handle it. Never throws.
     /// </remarks>
     private static string Compact(string? blob, bool keepTrailingConsumed)
     {
@@ -355,7 +359,7 @@ public sealed class RevertLog
 
         var lines = blob.Split('\n');
 
-        int lastOpenHeader = -1;
+        int firstOpenHeader = -1;
         int lastHeader = -1;
         for (int i = 0; i < lines.Length; i++)
         {
@@ -365,9 +369,9 @@ public sealed class RevertLog
             }
 
             lastHeader = i;
-            if (status == StatusOpen)
+            if (status == StatusOpen && firstOpenHeader < 0)
             {
-                lastOpenHeader = i;
+                firstOpenHeader = i;
             }
         }
 
@@ -376,9 +380,9 @@ public sealed class RevertLog
             return blob;  // legacy flat blob — one implicit still-replayable batch, never reshaped
         }
 
-        if (lastOpenHeader >= 0)
+        if (firstOpenHeader >= 0)
         {
-            return string.Join("\n", lines[lastOpenHeader..]);  // undo's target — always survives
+            return string.Join("\n", lines[firstOpenHeader..]);  // every still-open batch is an undo target — all survive
         }
 
         // No open batch. Keep the last (consumed) one only for the panel at rest; drop it when a fresh
