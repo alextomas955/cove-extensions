@@ -1323,3 +1323,32 @@ export function StatusText({ kind, children }: { kind: StatusKind; children: Rea
 export function Spinner() {
   return <Loader2 className="h-4 w-4 animate-spin" />;
 }
+
+/**
+ * A thin determinate/indeterminate progress track. Presentational: the caller supplies an already-
+ * clamped whole `percent` (0..100) when it has one, or omits it for the indeterminate state before
+ * the first sample arrives. The fill width is an element-scoped inline style — an arbitrary
+ * `w-[NN%]` class would render nothing here (the host's Tailwind JIT never scans this bundle, the
+ * same reason {@link Toggle}'s knob offset is inline). Colors/shape come from host-emitted utilities
+ * only, so no CSS ships. Determinate carries `role="progressbar"` + `aria-valuenow/min/max`;
+ * indeterminate carries `aria-busy` instead, with a full-width pulsing fill.
+ */
+export function ProgressBar({ percent, label }: { percent?: number; label?: string }) {
+  const determinate = percent !== undefined;
+  return (
+    <div
+      role="progressbar"
+      aria-label={label}
+      aria-valuenow={determinate ? percent : undefined}
+      aria-valuemin={determinate ? 0 : undefined}
+      aria-valuemax={determinate ? 100 : undefined}
+      aria-busy={determinate ? undefined : true}
+      className="h-1.5 w-full overflow-hidden rounded-full bg-card"
+    >
+      <div
+        className={`h-full rounded-full bg-accent ${determinate ? "transition-all" : "animate-pulse"}`}
+        style={{ width: determinate ? `${percent}%` : "100%" }}
+      />
+    </div>
+  );
+}

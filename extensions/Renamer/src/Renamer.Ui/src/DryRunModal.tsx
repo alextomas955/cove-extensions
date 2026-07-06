@@ -18,7 +18,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, ArrowUp, Search } from "lucide-react";
 
 import { Dialog, ErrorBox } from "./dialog";
-import { Button, Spinner } from "./primitives";
+import { Button, ProgressBar, Spinner } from "./primitives";
 import { WarningBadges } from "./WarningBadge";
 import type { ScanItem } from "./preview";
 import type { RenamerOptions } from "./options";
@@ -26,7 +26,11 @@ import {
   assetHref,
   bucketCounts,
   classifyItem,
+  etaFromSamples,
   filterItems,
+  formatEta,
+  isFinalizing,
+  progressPercent,
   searchItems,
   sortItems,
   type DryRunFilter,
@@ -63,6 +67,12 @@ interface JobInfo {
   status: "pending" | "running" | "completed" | "failed" | "cancelled";
   progress: number;
   error?: string | null;
+  // The host reports these on every poll; only the bar reads them. `subTask` is the free-text phase
+  // message ("Scanning library… {done}/{total}"); `etaSeconds` is the server's own estimate (null
+  // when it can't compute one); `startedAt` anchors the client-side ETA fallback.
+  subTask?: string | null;
+  etaSeconds?: number | null;
+  startedAt?: string;
 }
 
 function errText(err: unknown): string {
@@ -126,7 +136,11 @@ function SortHeader({
  * (first job-polling UI in this codebase). Clears its interval on unmount or job change so no
  * timer leaks and no state updates fire after unmount.
  */
-function usePollJob(jobId: string | null, onDone: (job: JobInfo) => void) {
+function usePollJob(
+  jobId: string | null,
+  onDone: (job: JobInfo) => void,
+  onProgress?: (job: JobInfo) => void,
+) {
   useEffect(() => {
     if (!jobId) return;
     let cancelled = false;
@@ -137,6 +151,9 @@ function usePollJob(jobId: string | null, onDone: (job: JobInfo) => void) {
           if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
             clearInterval(interval);
             onDone(job);
+          } else {
+            // Still pending/running — surface live progress. Terminal polls never fire onProgress.
+            onProgress?.(job);
           }
         })
         .catch(() => {
@@ -147,8 +164,43 @@ function usePollJob(jobId: string | null, onDone: (job: JobInfo) => void) {
       cancelled = true;
       clearInterval(interval);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- onDone is a stable ref from the caller
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onDone/onProgress are stable refs from the caller
   }, [jobId]);
+}
+
+/**
+ * The scan's live progress block: a determinate {@link ProgressBar} plus the host's own phase line
+ * ("Scanning library… {done}/{total}", already formatted server-side) and an ETA. The bar is
+ * clamped up to `maxPercent` so it never retreats. Near the end the scan caps at 99% until the
+ * result persists, so the copy switches to "Finalizing…" instead of sitting at a stuck 99%. The ETA
+ * prefers the host's server-computed `etaSeconds`, falling back to a wall-clock estimate from
+ * `startMs` when the host reports none.
+ */
+function ScanProgress({
+  job,
+  maxPercent,
+  startMs,
+}: {
+  job: JobInfo;
+  maxPercent: number;
+  startMs: number;
+}) {
+  const percent = Math.max(progressPercent(job.progress), maxPercent);
+  const finalizing = isFinalizing(job.progress);
+  const eta =
+    formatEta(job.etaSeconds) ?? formatEta(etaFromSamples(startMs, Date.now(), job.progress));
+  const line = finalizing
+    ? "Finalizing…"
+    : (job.subTask ?? `Scanning your library… ${percent}%`);
+  return (
+    <div className="flex flex-col gap-2 py-8 text-sm text-secondary">
+      <ProgressBar percent={percent} label="Library scan progress" />
+      <div className="flex items-center justify-between gap-3">
+        <span>{line}</span>
+        {eta && !finalizing ? <span className="text-muted">{eta}</span> : null}
+      </div>
+    </div>
+  );
 }
 
 export function DryRunModal({
@@ -172,6 +224,15 @@ export function DryRunModal({
   const [search, setSearch] = useState("");
   const [sortColumn, setSortColumn] = useState<DryRunSortColumn | null>(null);
   const [sortDir, setSortDir] = useState<DryRunSortDirection>("asc");
+  // The latest running-scan sample the bar renders. Null until the first progress poll lands (the
+  // modal shows the bare spinner in that brief window).
+  const [scanProgress, setScanProgress] = useState<JobInfo | null>(null);
+  // Highest percent seen so far — the displayed bar is clamped up to this so a backwards poll sample
+  // (the host can revise progress downward) never makes the bar visibly retreat.
+  const scanMaxPercent = useRef(0);
+  // Wall-clock time the modal opened, anchoring the client-side ETA fallback when the host's
+  // etaSeconds is null.
+  const scanStartMs = useRef(Date.now());
   // Guards against StrictMode's dev-only mount->unmount->remount cycle enqueueing the scan job
   // twice. A plain boolean ref (rather than a per-effect `cancelled` local) survives the
   // synthetic unmount, so it suppresses the SECOND mount's POST without also discarding the
@@ -199,19 +260,28 @@ export function DryRunModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- options captured once at modal open; the guard makes this a mount-only POST
   }, []);
 
-  usePollJob(scanJobId, (job) => {
-    if (job.status !== "completed") {
-      setScanError(job.error ?? "the scan job did not complete");
-      return;
-    }
-    request<ScanItem[]>(LAST_SCAN_PATH)
-      .then((res) => {
-        setItems(res);
-      })
-      .catch((err: unknown) => {
-        setScanError(errText(err));
-      });
-  });
+  usePollJob(
+    scanJobId,
+    (job) => {
+      if (job.status !== "completed") {
+        setScanError(job.error ?? "the scan job did not complete");
+        return;
+      }
+      request<ScanItem[]>(LAST_SCAN_PATH)
+        .then((res) => {
+          setItems(res);
+        })
+        .catch((err: unknown) => {
+          setScanError(errText(err));
+        });
+    },
+    (job) => {
+      // Advance the monotonic ceiling before storing the sample so the bar never retreats on a
+      // downward-revised poll (see scanMaxPercent).
+      scanMaxPercent.current = Math.max(scanMaxPercent.current, progressPercent(job.progress));
+      setScanProgress(job);
+    },
+  );
 
   // Bucket counts come from ALL scanned items (so the segment labels are stable regardless of the
   // active filter). The visible list is filter → search → sort, computed over the WHOLE scan (not a
@@ -263,10 +333,14 @@ export function DryRunModal({
           <ErrorBox>Couldn&apos;t scan your library — {scanError}. Close and try again.</ErrorBox>
         </div>
       ) : items === null || counts === null ? (
-        <div className="flex items-center gap-2 py-8 text-sm text-secondary">
-          <Spinner />
-          Scanning your library…
-        </div>
+        scanProgress ? (
+          <ScanProgress job={scanProgress} maxPercent={scanMaxPercent.current} startMs={scanStartMs.current} />
+        ) : (
+          <div className="flex items-center gap-2 py-8 text-sm text-secondary">
+            <Spinner />
+            Scanning your library…
+          </div>
+        )
       ) : (
         <>
           <p id={DESC_ID} className="mb-3 text-sm text-secondary">
