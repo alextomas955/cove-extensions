@@ -1,0 +1,11 @@
+{
+  "name": "@cove-extensions/monorepo",
+  "private": true,
+  "scripts": {
+    "test": "node --test scripts/*.test.mjs"
+  },
+  "workspaces": [
+    "tests/e2e",
+    "extensions/*/e2e"
+  ]
+}

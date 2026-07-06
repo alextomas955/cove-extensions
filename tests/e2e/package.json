@@ -1,0 +1,25 @@
+{
+  "name": "@cove-extensions/e2e",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Shared end-to-end test harness for Cove extensions in this monorepo.",
+  "exports": {
+    ".": "./lib/fixtures.mjs",
+    "./harness": "./lib/harness.mjs",
+    "./seed-media": "./lib/seed-media.mjs",
+    "./poll": "./lib/poll.mjs",
+    "./config": "./playwright.config.mjs",
+    "./resolve-extension": "./lib/resolve-extension.mjs"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  },
+  "dependencies": {
+    "testcontainers": "^12.0.4"
+  }
+}

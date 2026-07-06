@@ -1,0 +1,50 @@
+# lefthook — one pre-commit gate spanning the mixed C# + TypeScript repo (plan §4.3).
+#
+# Why lefthook (not husky+lint-staged): a single language-agnostic YAML runs the .NET and Node
+# checks together. The dev box has the @cove/extension-sdk resolved, so this is also where the
+# FULL, type-aware frontend gate runs — covering the subset CI can't (CI uses the non-type-aware
+# eslint.config.ci.js fallback because a bare runner can't install the file: SDK).
+#
+# Keep it lightweight: format/lint only STAGED files; no full build or test run on commit.
+
+pre-commit:
+  parallel: true
+  commands:
+    # --- TypeScript: prettier + type-aware eslint on staged UI files ---
+    frontend-format:
+      root: extensions/Renamer/src/Renamer.Ui/
+      glob: "*.{ts,tsx,json,jsonc,css,md}"
+      run: npx prettier --write {staged_files}
+      stage_fixed: true
+    frontend-lint:
+      root: extensions/Renamer/src/Renamer.Ui/
+      glob: "*.{ts,tsx}"
+      run: npx eslint --fix {staged_files}
+      stage_fixed: true
+    # The host-JIT-Tailwind + XSS guard (never skipped; owns a concern no linter knows).
+    check-classes:
+      root: extensions/Renamer/src/Renamer.Ui/
+      glob: "*.tsx"
+      run: node scripts/check-classes.cjs
+
+    # --- C#: format-verify changed projects (cheap; no full build) ---
+    csharp-format:
+      glob: "*.cs"
+      run: dotnet format CoveExtensions.slnx --verify-no-changes --severity warn --include {staged_files}
+
+    # Local-only: warns when the committed vendor/cove-extension-sdk-*.tgz drifts from the
+    # sibling ../cove checkout's frontend SDK version. Cannot run in CI (no ../cove there) — it
+    # no-ops there and on any clean clone lacking the sibling. Unconditional (not glob-scoped):
+    # the script itself no-ops fast when the sibling is absent, which is cheaper and safer than
+    # a multi-path glob pattern here. Runs with --warn so it never blocks a commit (informational
+    # only); drop --warn to make it a hard fail once the maintainer wants drift to block commits.
+    sdk-drift-check:
+      run: node extensions/Renamer/scripts/check-sdk-drift.mjs --warn
+
+    # Local + CI advisory: warns when an extension's public-surface source (settings/options/SDK/
+    # manifest/UI-settings) changed but that extension's docs did not (docs/, README, CHANGELOG, or
+    # the website/docs page). Heuristic, so it WARNS only — a source change may legitimately need no
+    # docs update; the PR checklist is where intent is confirmed. Catalog-driven (scales to N
+    # extensions). Drop --warn to make it a hard fail once the maintainer wants drift to block.
+    docs-drift-check:
+      run: node scripts/check-docs-drift.mjs --warn {staged_files}
