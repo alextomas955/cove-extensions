@@ -50,6 +50,8 @@ export interface PreviewItem {
  */
 export interface ScanItem extends PreviewItem {
   kind: "Video" | "Image" | "Audio";
+  /** The Cove entity id the asset detail link is built from; distinct from the per-file `fileId`. */
+  entityId: number;
 }
 
 /** How loud the pre-rename confirm must be — mirrors the C# `ConfirmLevel` (serialized string). */

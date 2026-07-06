@@ -16,6 +16,7 @@ const {
   filterItems,
   searchItems,
   sortItems,
+  assetHref,
 } = mod;
 
 /** A full-ish scan row for the search/sort tests (only the fields those functions read). */
@@ -178,4 +179,20 @@ test("sortItems 'new' sorts on newBasename (falling back to newFullPath)", () =>
     sortItems(items, "new", "asc").map((x) => x.newBasename || x.newFullPath),
     ["a.mp4", "z.mp4"],
   );
+});
+
+test("assetHref maps each kind to its lowercased detail-route segment with the numeric id", () => {
+  assert.equal(assetHref("Video", 123), "/video/123");
+  assert.equal(assetHref("Image", 7), "/image/7");
+  assert.equal(assetHref("Audio", 42), "/audio/42");
+});
+
+test("assetHref returns null for a missing/zero/negative id → plain-text fallback, no dead link", () => {
+  assert.equal(assetHref("Video", 0), null);
+  assert.equal(assetHref("Video", undefined), null);
+  assert.equal(assetHref("Video", -1), null);
+});
+
+test("assetHref returns null for an unmapped kind rather than a wrong URL", () => {
+  assert.equal(assetHref("Gallery", 5), null);
 });

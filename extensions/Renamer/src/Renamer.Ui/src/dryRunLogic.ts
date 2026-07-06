@@ -104,6 +104,30 @@ export function filterItems<T extends { status: string }>(items: T[], filter: Dr
     .map((x) => x.it);
 }
 
+/**
+ * Cove's asset detail-route segment for each scan kind. Enumerated (not `kind.toLowerCase()`) so an
+ * unexpected kind falls through to `null` rather than fabricating a wrong URL — the href is derived
+ * from this fixed map and the numeric id ONLY, never from a path or basename.
+ */
+const KIND_SEGMENT: Record<string, string> = {
+  Video: "video",
+  Image: "image",
+  Audio: "audio",
+};
+
+/**
+ * The root-relative Cove detail path for an asset (`/video/123`), or `null` when the row cannot link
+ * — a missing/zero/non-positive id, or a kind outside {@link KIND_SEGMENT}. DOM-free: the caller
+ * prepends `window.location.origin` so a sub-path deployment can't misfire a bare `/video/…`, and the
+ * helper stays offline-testable. Never interpolates a path/name — the URL is the id + fixed segment only.
+ */
+export function assetHref(kind: string, entityId: number | undefined): string | null {
+  const segment = KIND_SEGMENT[kind];
+  if (segment === undefined) return null;
+  if (typeof entityId !== "number" || entityId <= 0) return null;
+  return `/${segment}/${entityId}`;
+}
+
 /** Slice `items` to the page at `page` (0-indexed), `pageSize` rows per page (locked at 50). */
 export function paginate<T>(items: T[], page: number, pageSize = 50): T[] {
   return items.slice(page * pageSize, page * pageSize + pageSize);
