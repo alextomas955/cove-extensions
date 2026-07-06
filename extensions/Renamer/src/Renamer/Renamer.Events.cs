@@ -95,7 +95,17 @@ public sealed partial class Renamer
                 return;
             }
 
-            var executor = new RenamerExecutor(port, EventBus, new RevertLog(Store), new DiskMover());
+            // Open exactly one batch header for this per-edit rename, mirroring the manual batch
+            // (RunRenamerBatchAsync): mint a runId and call BeginBatchAsync only now, on the acting path,
+            // so nothing-acts writes no header (an empty open header would shadow a prior replayable
+            // batch from /undo). WITHOUT a header the executor's success rows are headerless, and /undo
+            // misparses them as legacy 3-field rows (entityId→fileId), corrupting the restore. The SAME
+            // revertLog instance is handed to the executor so its AppendAsync rows land under this header.
+            var runId = Guid.NewGuid().ToString("N");
+            var revertLog = new RevertLog(Store);
+            await revertLog.BeginBatchAsync(runId, kind, ct);
+
+            var executor = new RenamerExecutor(port, EventBus, revertLog, new DiskMover());
             // Single-entity hook path (no batch concurrency): no pre-resolved folder map — the executor
             // resolves the destination folder itself, safe because this call is not parallelized.
             var result = await executor.ExecuteAsync(plan, options, ct: ct);

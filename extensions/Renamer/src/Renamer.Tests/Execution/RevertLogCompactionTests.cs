@@ -123,6 +123,60 @@ public sealed class RevertLogCompactionTests
         Assert.Null(await log.ReadLastOpenBatchAsync());
     }
 
+    [Fact]
+    public async Task MultipleOpenBatches_EarlierOpenBatchesSurvive_NotDroppedByLaterBegin()
+    {
+        var store = new FakeStore();
+        var log = NewLog(store);
+
+        // Open three batches WITHOUT consuming any. Each is a live recovery target (undo consumes them
+        // newest-first; the earlier ones become the target again as the later ones are consumed). A
+        // Begin must NOT drop an earlier still-open batch — that was the silent data-loss bug: keeping
+        // only from the LAST open header stranded batch A while B/C opened.
+        await log.BeginBatchAsync("A", RenamerFileKind.Video);
+        await log.AppendAsync(entityId: 1, fileId: 11, oldPath: "m/a.mkv", newPath: "m/A.mkv");
+        await log.BeginBatchAsync("B", RenamerFileKind.Video);
+        await log.AppendAsync(entityId: 2, fileId: 22, oldPath: "m/b.mkv", newPath: "m/B.mkv");
+        await log.BeginBatchAsync("C", RenamerFileKind.Video);
+        await log.AppendAsync(entityId: 3, fileId: 33, oldPath: "m/c.mkv", newPath: "m/C.mkv");
+
+        var blob = await store.GetAsync(RevertLog.Key);
+        Assert.NotNull(blob);
+
+        // All three headers survive, and batch A's data row is intact — A is still replayable.
+        Assert.Equal(3, CountHeaders(blob!));
+        Assert.Contains("#batch|A|", blob, StringComparison.Ordinal);
+        Assert.Contains("#batch|B|", blob, StringComparison.Ordinal);
+        Assert.Contains("#batch|C|", blob, StringComparison.Ordinal);
+        Assert.Contains("1|11|m/a.mkv|m/A.mkv", blob, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task LeadingConsumedBatch_IsDropped_TrailingOpenBatchKept()
+    {
+        var store = new FakeStore();
+        var log = NewLog(store);
+
+        // A CONSUMED batch followed by an OPEN one: compaction must drop the leading consumed batch and
+        // keep the open tail. This guards that fixing the multi-open bug did not disable the footprint
+        // shrink for fully-consumed leading history.
+        await log.BeginBatchAsync("CONSUMED", RenamerFileKind.Video);
+        await log.AppendAsync(entityId: 1, fileId: 11, oldPath: "m/x.mkv", newPath: "m/X.mkv");
+        await log.MarkLastBatchConsumedAsync("CONSUMED");
+
+        await log.BeginBatchAsync("OPEN", RenamerFileKind.Video);
+        await log.AppendAsync(entityId: 2, fileId: 22, oldPath: "m/y.mkv", newPath: "m/Y.mkv");
+
+        var blob = await store.GetAsync(RevertLog.Key);
+        Assert.NotNull(blob);
+
+        // Only the open batch survives; the leading consumed batch is gone (its Begin dropped it).
+        Assert.Equal(1, CountHeaders(blob!));
+        Assert.StartsWith("#batch|OPEN|", blob!);
+        Assert.DoesNotContain("CONSUMED", blob, StringComparison.Ordinal);
+        Assert.DoesNotContain("m/x.mkv", blob, StringComparison.Ordinal);
+    }
+
     [Trait("Tier", "Integration")]
     [Fact]
     public async Task UndoRoundTrip_ReplaysLastOpenBatch_AfterEarlierBatchesCompactedAway()

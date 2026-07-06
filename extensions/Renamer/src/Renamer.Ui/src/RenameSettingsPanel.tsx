@@ -449,6 +449,9 @@ export function RenamePanelBody() {
   const [dryRunOpen, setDryRunOpen] = useState(false);
   const [renamingLibrary, setRenamingLibrary] = useState(false);
   const [runLibraryFeedback, setRunLibraryFeedback] = useState<RunLibraryFeedback>(null);
+  // Bumped on every in-panel rename success so UndoSection re-reads /last-batch (both the panel
+  // button and the Dry Run modal's "Rename all" flow through renameLibrary below).
+  const [undoRefreshKey, setUndoRefreshKey] = useState(0);
   // Live rename-job progress, threaded from the SINGLE existing pollJobToCompletion into the modal.
   // Null before/after the job (falls back to the bare spinner); a {progress, subTask, etaSeconds}
   // sample while it runs.
@@ -544,6 +547,7 @@ export function RenamePanelBody() {
           (counts.skipped > 0 ? `, ${counts.skipped} skipped` : "") +
           `.`,
       });
+      setUndoRefreshKey((k) => k + 1);
     } catch (err) {
       const text = err instanceof ApiError ? `${err.status} ${err.body}` : String(err);
       setRunLibraryFeedback({
@@ -1783,7 +1787,7 @@ export function RenamePanelBody() {
 
       {/* ── UNDO — the action surface, distinct from configuration, at the bottom. ── */}
       <div id="rename-undo-section">
-        <UndoSection refreshKey={0} />
+        <UndoSection refreshKey={undoRefreshKey} />
       </div>
 
       <SaveBar

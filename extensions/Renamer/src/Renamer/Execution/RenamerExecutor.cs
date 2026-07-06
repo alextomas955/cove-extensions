@@ -360,8 +360,30 @@ public sealed class RenamerExecutor
             string expected = NormalizeSlash(newFull);
             if (!PathsEqual(savedFile.RecomputedPath, expected))
             {
-                failed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.Failed,
-                    $"recomputed Path '{savedFile.RecomputedPath}' != on-disk path '{expected}'"));
+                // Disk and DB disagree after a SUCCESSFUL save. Roll the disk back to the OLD path
+                // through the SAME mover the move used (and the catch below uses), capturing rollback
+                // warnings so an INCOMPLETE rollback is surfaced rather than falsely claiming "rolled
+                // back" — mirroring the save-throw catch and the UndoReplayer's assertion branch. Do NOT
+                // write a revert-log row or publish an event on this path: the move is being undone, so
+                // there is nothing to reindex or to offer /undo.
+                //
+                // WHY this remains a reported inconsistency: the DB save already COMMITTED (the row now
+                // points at the NEW basename/folder), yet we roll the FILE back to the OLD path. Disk and
+                // DB therefore diverge — the row says NEW, the bytes are at OLD. This is deliberate: the
+                // fix's goal is that the file is no longer SILENTLY abandoned at the new path with no undo
+                // record (the pre-fix bug), and that the failure is fully surfaced. The operator must
+                // reconcile the committed DB row against the rolled-back file; the Failed reason names the
+                // exact path mismatch and any rollback warnings so the divergence is visible, not hidden.
+                IReadOnlyList<string> rbWarnings = sameVolume
+                    ? _disk.Rollback(nativeOld, nativeNew,
+                        [.. movedSidecars.Select(s => new DiskMover.SidecarMove(s.From, s.To))])
+                    : await _cross.RollbackAsync(nativeOld, nativeNew,
+                        [.. movedSidecars.Select(s => new CrossVolumeMover.SidecarMove(s.From, s.To))], ct);
+
+                string note = rbWarnings.Count > 0
+                    ? $"recomputed Path '{savedFile.RecomputedPath}' != on-disk '{expected}'; rollback INCOMPLETE: {string.Join("; ", rbWarnings)}"
+                    : $"recomputed Path '{savedFile.RecomputedPath}' != on-disk '{expected}'; rolled back";
+                failed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.Failed, note));
                 return;
             }
 
