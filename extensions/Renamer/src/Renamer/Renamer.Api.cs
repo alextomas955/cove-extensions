@@ -695,21 +695,52 @@ public sealed partial class Renamer
         var port = new CoveRenamerDataPort(db);
         var planner = new RenamerPlanner(port);
 
+        // Load every kind's ids up front so the TOTAL is known before planning — the scan previously
+        // reported only a single Report(1.0) at the end, so the job jumped 0%→100% with no intermediate
+        // feedback. A denominator lets each planned entity advance the bar. The id-only queries are cheap
+        // (they were already run one-per-kind below; this just hoists them so the total is available).
+        var idsByKind = new List<(RenamerFileKind Kind, IReadOnlyList<int> Ids)>(readableKinds.Count);
         foreach (var kind in readableKinds)
         {
             ct.ThrowIfCancellationRequested();
-            var ids = await port.LoadAllEntityIdsAsync(kind, ct);
+            idsByKind.Add((kind, await port.LoadAllEntityIdsAsync(kind, ct)));
+        }
+
+        int total = idsByKind.Sum(k => k.Ids.Count);
+        LogScanStarted(total, idsByKind.Count);
+
+        // total can be 0 (an empty library / no readable kinds): guard the divisor and report 1.0 so the
+        // UI completes instead of dividing by zero or hanging at 0%.
+        if (total == 0)
+        {
+            await Store.SetAsync(LastScanResultKey, JsonSerializer.Serialize(allItems, PreviewResponseJsonOptions), ct);
+            LogScanDone(0, 0);
+            progress.Report(1d, "Scan complete — nothing to scan.");
+            return;
+        }
+
+        int done = 0;
+        foreach (var (kind, ids) in idsByKind)
+        {
             foreach (var id in ids)
             {
                 ct.ThrowIfCancellationRequested();
                 var plan = await planner.PlanAsync(kind, id, options, lookups, ct);
                 allItems.AddRange(plan.Items.Select(item => ScanItem.From(kind, plan.EntityId, item)));
+
+                done++;
+                LogScanItemPlanned(done, total, kind, id);
+                // Report the fraction planned with a live message, capped just under 1.0 — the final 1.0
+                // is reserved for after the result is persisted, so the UI only reads "complete" once the
+                // scan result is actually available to fetch.
+                progress.Report(Math.Min((double)done / total, 0.99), $"Scanning library… {done}/{total}");
             }
         }
 
         var json = JsonSerializer.Serialize(allItems, PreviewResponseJsonOptions);
         await Store.SetAsync(LastScanResultKey, json, ct);
 
+        LogScanDone(allItems.Count, total);
         progress.Report(1d, "Scan complete.");
     }
 

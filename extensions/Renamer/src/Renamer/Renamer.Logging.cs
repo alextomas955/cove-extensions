@@ -79,6 +79,25 @@ public sealed partial class Renamer
         Message = "[Renamer] library renamer: {Kind} — {Count} item(s) to plan")]
     private partial void LogLibraryKind(RenamerFileKind kind, int count);
 
+    // The whole-library SCAN (dry run) planned every entity with a single Report(1.0) at the end, so the
+    // job jumped 0%→100% with no intermediate feedback. These trace the scan and match the per-item
+    // planning trace the rename batch already emits, so a large scan is legible in Cove's log.
+
+    [LoggerMessage(
+        EventId = 1050, Level = LogLevel.Information,
+        Message = "[Renamer] scan library: {Total} item(s) across {Kinds} kind(s) to plan")]
+    private partial void LogScanStarted(int total, int kinds);
+
+    [LoggerMessage(
+        EventId = 1051, Level = LogLevel.Information,
+        Message = "[Renamer] scan library: planned {Done}/{Total} ({Kind} id={EntityId})")]
+    private partial void LogScanItemPlanned(int done, int total, RenamerFileKind kind, int entityId);
+
+    [LoggerMessage(
+        EventId = 1052, Level = LogLevel.Information,
+        Message = "[Renamer] scan library: complete — {Rows} row(s) from {Total} item(s)")]
+    private partial void LogScanDone(int rows, int total);
+
     [LoggerMessage(
         EventId = 1010, Level = LogLevel.Information,
         Message = "[Renamer] undo {RunId}: {Kind} id={EntityId} restored '{New}' -> '{Old}'")]

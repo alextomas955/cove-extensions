@@ -150,7 +150,15 @@ public sealed class ScanLibraryEndpointTests
             Assert.Equal(beforeVideoName, afterVideoName);
             Assert.Equal(beforeVideoPath, afterVideoPath);
 
-            Assert.Contains(progress.Reports, r => r.Percent == 1d);
+            // Progress feedback: the scan must report INTERMEDIATE progress as it plans, not jump
+            // straight to 1.0 at the end (the 0%→100% regression). With 4 seeded entities there must be
+            // at least one sub-1.0 report, every report must be in (0,1], and the sequence must be
+            // non-decreasing and end at exactly 1.0.
+            Assert.Equal(1d, progress.Reports[^1].Percent);
+            Assert.Contains(progress.Reports, r => r.Percent is > 0d and < 1d);
+            Assert.All(progress.Reports, r => Assert.InRange(r.Percent, 0d, 1d));
+            var percents = progress.Reports.Select(r => r.Percent).ToList();
+            Assert.Equal(percents.OrderBy(p => p).ToList(), percents);
         }
         finally
         {
