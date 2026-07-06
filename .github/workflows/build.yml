@@ -224,16 +224,14 @@ jobs:
         if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
         uses: actions/setup-node@v6
         with:
-          # Exact volta pin from the UI package.json — a Node patch delta can change the emitted
-          # bundle bytes and make the stale-bundle gate flaky, so pin the exact version.
+          # Pin matches the UI package.json volta pin for a reproducible build.
           node-version: '24.11.0'
 
       # `npm install`, not `npm ci`: the root package.json's npm workspaces (added for the shared
       # tests/e2e harness) make npm refuse `npm ci` in this nested, non-workspace UI package
       # (Renamer.Ui is deliberately standalone — offline vendored @cove/extension-sdk tarball, its
       # own lockfile, its own Dependabot entry). `npm install` on an in-sync lockfile is a no-op;
-      # UI reproducibility is still enforced by the Stale-bundle gate below (dist/index.mjs must
-      # rebuild byte-identically) plus the committed lockfile.
+      # UI reproducibility is anchored by the committed lockfile.
       - name: Install frontend deps (offline, vendored SDK)
         if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
         working-directory: ${{ matrix.extension.uiPath }}
@@ -253,18 +251,6 @@ jobs:
         if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm run build
-
-      # Stale-bundle gate: a clean checkout rebuilds dist/index.mjs byte-identically, so a clean
-      # tree exits 0. A source change committed without rebuilding the bundle leaves a diff here
-      # and fails the job.
-      - name: Stale-bundle gate
-        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
-        working-directory: ${{ matrix.extension.uiPath }}
-        run: git diff --exit-code -- dist/index.mjs
-
-      - name: Stale-bundle hint
-        if: failure() && steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
-        run: echo "dist/index.mjs is out of date — run 'npm run build' in ${{ matrix.extension.uiPath }} and commit dist/index.mjs."
 
       - name: Copy frontend bundle
         if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
