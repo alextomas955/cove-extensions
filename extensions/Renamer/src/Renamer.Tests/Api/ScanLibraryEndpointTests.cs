@@ -414,6 +414,68 @@ public sealed class ScanLibraryEndpointTests
         Assert.Equal(403, StatusOf(result));
     }
 
+    /// <summary>
+    /// A ScanItem carrying only the fields the readback filter needs (kind), the rest filled with
+    /// placeholder values — the endpoint filters on <c>Kind</c> alone, so the paths/ids just prove the
+    /// row is (or isn't) present.
+    /// </summary>
+    private static global::Renamer.Api.ScanItem MakeItem(RenamerFileKind kind, int entityId, int fileId) =>
+        new(kind, entityId, fileId, $"/old/{fileId}", $"/new/{fileId}", RenamerStatus.Renamer,
+            $"name{fileId}", "/target", null, false, false, null, "default", "media");
+
+    /// <summary>Serializes an all-kind scan result to the store under the fixed last-scan key.</summary>
+    private static readonly JsonSerializerOptions EnumJson =
+        new(JsonSerializerDefaults.Web) { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
+
+    [Fact]
+    public async Task ScanLibraryResultAsync_VideoOnlyCaller_ReturnsOnlyVideoRows_NotImageOrAudio()
+    {
+        // A higher-permission user's scan persisted Video+Image+Audio rows under the FIXED key. A
+        // video-only caller reading it back must NOT receive the image/audio paths (the cross-kind leak).
+        var (ext, store) = await NewExtensionAsync();
+        var stored = new[]
+        {
+            MakeItem(RenamerFileKind.Video, 10, 100),
+            MakeItem(RenamerFileKind.Image, 20, 200),
+            MakeItem(RenamerFileKind.Audio, 30, 300),
+        };
+        await store.SetAsync("last-scan-result", JsonSerializer.Serialize(stored, EnumJson));
+
+        var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
+        var result = await ext.ScanLibraryResultAsync(principal, default);
+
+        var ok = Assert.IsType<JsonHttpResult<global::Renamer.Api.ScanItem[]>>(result);
+        var item = Assert.Single(ok.Value!);
+        Assert.Equal(RenamerFileKind.Video, item.Kind);
+        Assert.Equal(100, item.FileId);
+        // No Image/Audio row survives the filter.
+        Assert.DoesNotContain(ok.Value!, i => i.Kind is RenamerFileKind.Image or RenamerFileKind.Audio);
+    }
+
+    [Fact]
+    public async Task ScanLibraryResultAsync_AllKindReader_SeesEveryRow_NoRegression()
+    {
+        // A caller who can read every kind the scan covered gets the full result unchanged.
+        var (ext, store) = await NewExtensionAsync();
+        var stored = new[]
+        {
+            MakeItem(RenamerFileKind.Video, 10, 100),
+            MakeItem(RenamerFileKind.Image, 20, 200),
+            MakeItem(RenamerFileKind.Audio, 30, 300),
+        };
+        await store.SetAsync("last-scan-result", JsonSerializer.Serialize(stored, EnumJson));
+
+        var principal = FakePrincipalAccessor.WithPermissions(
+            Permissions.VideosRead, Permissions.ImagesRead, Permissions.AudiosRead);
+        var result = await ext.ScanLibraryResultAsync(principal, default);
+
+        var ok = Assert.IsType<JsonHttpResult<global::Renamer.Api.ScanItem[]>>(result);
+        Assert.Equal(3, ok.Value!.Length);
+        Assert.Equal(
+            new HashSet<RenamerFileKind> { RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio },
+            ok.Value!.Select(i => i.Kind).ToHashSet());
+    }
+
     [Fact]
     public async Task ScanLibraryResultAsync_AfterJobCompletes_ReturnsThePersistedItems()
     {

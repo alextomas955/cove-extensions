@@ -641,6 +641,13 @@ public sealed partial class Renamer
     /// "absent key" contract — there is no per-jobId tracking, so a 404 also covers "wrong/unknown
     /// jobId", which the caller does not need to distinguish: the frontend only ever asks "is the
     /// scan I started done yet").
+    /// <para>
+    /// The stored result is written under a FIXED key by whoever last ran the scan, capturing THEIR
+    /// readable kinds — a higher-permission scan can hold Image/Audio rows a video-only reader may not
+    /// see. So each row is filtered to the kinds the CURRENT caller can read (the same per-kind gate the
+    /// scan job applied at enqueue) BEFORE returning, mirroring <see cref="PreviewAsync"/>'s per-kind
+    /// permission model. A caller who can read every kind the scan covered sees no change.
+    /// </para>
     /// </summary>
     internal async Task<IResult> ScanLibraryResultAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
@@ -656,7 +663,10 @@ public sealed partial class Renamer
         }
 
         var items = JsonSerializer.Deserialize<ScanItem[]>(json, PreviewResponseJsonOptions) ?? [];
-        return Results.Json(items, PreviewResponseJsonOptions);
+        var readable = items
+            .Where(item => principal.Current!.Has(PermissionsFor(item.Kind).Read))
+            .ToArray();
+        return Results.Json(readable, PreviewResponseJsonOptions);
     }
 
     /// <summary>
