@@ -13,8 +13,8 @@ namespace Renamer.Tests.Execution;
 /// <list type="bullet">
 /// <item>Test A (REVERTLOG-01): after many historical + consumed batches, the stored blob holds ONLY
 /// the final live batch, so a single append writes the live tail — not the whole history.</item>
-/// <item>Test B (REVERTLOG-02): the stored footprint does not grow monotonically as batches are
-/// consumed, and empties once every batch is consumed.</item>
+/// <item>Test B (REVERTLOG-02): the stored footprint stays flat (one batch) across a rename/undo cycle
+/// repeated over the install's life instead of growing with every batch ever written.</item>
 /// <item>Test C (REVERTLOG-03): a real forward-rename's batch is still read back and reverse-replayed
 /// by <see cref="UndoReplayer"/> AFTER compaction has dropped earlier, already-consumed batches —
 /// compaction never drops or corrupts the still-replayable last open batch.</item>
@@ -80,42 +80,46 @@ public sealed class RevertLogCompactionTests
     }
 
     [Fact]
-    public async Task ConsumingBatches_KeepsFootprintBounded_AndEmptiesWhenAllConsumed()
+    public async Task RenameUndoCycle_KeepsFootprintBounded_NeverAccumulatesHistory()
     {
         var store = new FakeStore();
         var log = NewLog(store);
 
-        // Open N batches (each Begin → a few Appends). The runIds are recorded so they can be consumed
-        // newest-appropriate; only the last open batch is ever reachable, so consuming from the newest
-        // toward the oldest is the order the endpoint drives (/undo consumes the last open batch).
-        const int nBatches = 20;
-        var runIds = new List<string>();
-        for (int n = 0; n < nBatches; n++)
+        // Model the real endpoint cycle over the install's life: a rename opens a batch, then /undo
+        // consumes it, then the next rename opens the next batch. Consuming drops the dead batch (only
+        // the just-consumed one is kept, for the panel), so the footprint never accumulates across the
+        // N cycles — the monotonic growth the log used to have.
+        const int cycles = 30;
+        for (int n = 0; n < cycles; n++)
         {
             var runId = $"R{n}";
-            runIds.Add(runId);
             await log.BeginBatchAsync(runId, RenamerFileKind.Video);
             await log.AppendAsync(entityId: n, fileId: 100 + n, oldPath: $"m/o-{n}.mkv", newPath: $"m/n-{n}.mkv");
             await log.AppendAsync(entityId: n, fileId: 200 + n, oldPath: $"m/p-{n}.mkv", newPath: $"m/q-{n}.mkv");
+            await log.MarkLastBatchConsumedAsync(runId);
+
+            var mid = (await store.GetAsync(RevertLog.Key))!;
+            // After each consume the log holds exactly ONE batch (the just-consumed one, for the panel)
+            // with its two data rows — never the accumulated history. Structural (one header + two rows),
+            // constant at every cycle, so the footprint is flat across the install's life rather than
+            // growing with the number of batches ever written.
+            Assert.Equal(1, CountHeaders(mid));
+            Assert.Equal(3, mid.Split('\n').Length);
         }
 
-        // At the point of the LAST Begin, everything before it has already been compacted away — the
-        // stored blob is only the last open batch. Capture that bound before consuming.
-        int boundedLength = (await store.GetAsync(RevertLog.Key))!.Length;
+        // A subsequent Begin (a fresh rename) drops the trailing consumed batch — its panel role passes to
+        // the new open header — so the footprint does not even carry the last consumed batch forward.
+        await log.BeginBatchAsync("FINAL-OPEN", RenamerFileKind.Video);
+        var afterBegin = (await store.GetAsync(RevertLog.Key))!;
+        Assert.Equal(1, CountHeaders(afterBegin));
+        Assert.StartsWith("#batch|FINAL-OPEN|", afterBegin);
 
-        // Consume newest→oldest. After each consume the footprint stays at-or-below the single-live-batch
-        // bound; it never grows with the number of historical batches ever written.
-        for (int i = runIds.Count - 1; i >= 0; i--)
-        {
-            await log.MarkLastBatchConsumedAsync(runIds[i]);
-            int len = (await store.GetAsync(RevertLog.Key))!.Length;
-            Assert.True(len <= boundedLength,
-                $"footprint {len} exceeded the single-live-batch bound {boundedLength} after consuming {runIds[i]}");
-        }
-
-        // Terminal case: every batch consumed → no replayable history remains → the stored blob is empty.
-        var blob = await store.GetAsync(RevertLog.Key);
-        Assert.True(string.IsNullOrEmpty(blob) || CountHeaders(blob!) == 0);
+        // The final open batch is undo-reachable; consuming it (with no earlier open batch behind it)
+        // leaves at most the single consumed batch — never a growing trail.
+        Assert.NotNull(await log.ReadLastOpenBatchAsync());
+        await log.MarkLastBatchConsumedAsync("FINAL-OPEN");
+        var final = await store.GetAsync(RevertLog.Key);
+        Assert.True(string.IsNullOrEmpty(final) || CountHeaders(final!) <= 1);
         Assert.Null(await log.ReadLastOpenBatchAsync());
     }
 
