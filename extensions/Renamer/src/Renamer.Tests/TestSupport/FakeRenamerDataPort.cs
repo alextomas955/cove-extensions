@@ -43,10 +43,23 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     /// <summary>Number of <see cref="LoadEntityAsync"/> calls — lets a test prove PHASE A loads each id once, not twice.</summary>
     public int LoadEntityCallCount { get; private set; }
 
+    /// <summary>Number of <see cref="LoadEntitiesAsync"/> calls — one per CALL (not per id), so a scan test can prove batching issues far fewer than N loads.</summary>
+    public int LoadEntitiesCallCount { get; private set; }
+
     public Task<RenamerEntity?> LoadEntityAsync(RenamerFileKind kind, int entityId, CancellationToken ct = default)
     {
         LoadEntityCallCount++;
         return Task.FromResult(_entities.TryGetValue((kind, entityId), out var e) ? e : null);
+    }
+
+    public Task<IReadOnlyList<RenamerEntity>> LoadEntitiesAsync(RenamerFileKind kind, IReadOnlyList<int> ids, CancellationToken ct = default)
+    {
+        LoadEntitiesCallCount++;
+        var found = ids
+            .Where(id => _entities.ContainsKey((kind, id)))
+            .Select(id => _entities[(kind, id)])
+            .ToList();
+        return Task.FromResult<IReadOnlyList<RenamerEntity>>(found);
     }
 
     public Task<IReadOnlyList<int>> LoadAllEntityIdsAsync(RenamerFileKind kind, CancellationToken ct = default)

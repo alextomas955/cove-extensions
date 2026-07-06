@@ -169,6 +169,20 @@ public interface IRenamerDataPort
     Task<IReadOnlyList<int>> LoadAllEntityIdsAsync(RenamerFileKind kind, CancellationToken ct = default);
 
     /// <summary>
+    /// The batch counterpart to <see cref="LoadEntityAsync"/>: loads many entities of one
+    /// <paramref name="kind"/> across a few chunked <c>WHERE Id IN (...)</c> queries — the SAME Include
+    /// graph, mapped through the SAME per-entity mapper — so each returned DTO is byte-identical to the
+    /// single-load path. Lets a whole-library scan collapse N per-entity round-trips into ~N/chunk.
+    /// </summary>
+    /// <remarks>
+    /// Contract a caller cannot infer from the signature: the result holds one entry per id that
+    /// EXISTS — a missing id is omitted, never a null slot and never a throw. Ordering within the
+    /// result is NOT guaranteed by the DB, so an order-sensitive caller (the scan) re-orders by its
+    /// own id list. Gallery (non-renamable) and an empty <paramref name="ids"/> return an empty list.
+    /// </remarks>
+    Task<IReadOnlyList<RenamerEntity>> LoadEntitiesAsync(RenamerFileKind kind, IReadOnlyList<int> ids, CancellationToken ct = default);
+
+    /// <summary>
     /// True iff some OTHER file row (id != <paramref name="selfFileId"/>) already occupies
     /// (<paramref name="folderId"/>, <paramref name="basename"/>) — the
     /// <c>(ParentFolderId, Basename)</c> unique-index pre-check.

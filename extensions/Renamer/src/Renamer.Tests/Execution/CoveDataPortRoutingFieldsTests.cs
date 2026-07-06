@@ -126,6 +126,158 @@ public sealed class CoveDataPortRoutingFieldsTests
     }
 
     [Fact]
+    public async Task LoadEntities_ReturnsDtos_FieldForFieldEqualToPerIdSingleLoad()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            // Three videos, each with a studio chain + a sized file, so the batch path exercises the
+            // full Include graph (studio parents, files, performers, tags) the single path exercises.
+            var grandparent = new Studio { Name = "Grand Network" };
+            db.Set<Studio>().Add(grandparent);
+            await db.SaveChangesAsync();
+            var parent = new Studio { Name = "Parent Label", ParentId = grandparent.Id };
+            db.Set<Studio>().Add(parent);
+            await db.SaveChangesAsync();
+            var direct = new Studio { Name = "Direct Studio", ParentId = parent.Id };
+            db.Set<Studio>().Add(direct);
+            await db.SaveChangesAsync();
+
+            var ids = new List<int>();
+            for (int n = 1; n <= 3; n++)
+            {
+                var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
+                    db, folderPath: $"media/incoming/{n}", basename: $"clip{n}.mkv", title: $"Clip {n}");
+                var video = await db.Set<Video>().FirstAsync(v => v.Id == videoId);
+                video.StudioId = direct.Id;
+                var file = await db.Set<VideoFile>().FirstAsync(f => f.VideoId == videoId);
+                file.Size = 1000 + n;
+                await db.SaveChangesAsync();
+                ids.Add(videoId);
+            }
+
+            var port = new CoveRenamerDataPort(db);
+
+            var batch = await port.LoadEntitiesAsync(RenamerFileKind.Video, ids);
+            var byId = batch.ToDictionary(e => e.EntityId);
+            Assert.Equal(3, batch.Count);
+
+            foreach (var id in ids)
+            {
+                var single = await port.LoadEntityAsync(RenamerFileKind.Video, id);
+                Assert.NotNull(single);
+                Assert.True(byId.TryGetValue(id, out var batched));
+                AssertEntityEqual(single!, batched);
+            }
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task LoadEntities_EmptyIds_ReturnsEmpty()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            var port = new CoveRenamerDataPort(db);
+            var result = await port.LoadEntitiesAsync(RenamerFileKind.Video, []);
+            Assert.Empty(result);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task LoadEntities_Gallery_ReturnsEmpty()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            var port = new CoveRenamerDataPort(db);
+            var result = await port.LoadEntitiesAsync(RenamerFileKind.Gallery, [1, 2, 3]);
+            Assert.Empty(result);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task LoadEntities_MissingId_IsOmitted_NoNullSlot_NoThrow()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
+                db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip");
+
+            var port = new CoveRenamerDataPort(db);
+            var result = await port.LoadEntitiesAsync(RenamerFileKind.Video, [videoId, videoId + 9999]);
+
+            Assert.Single(result);
+            Assert.Equal(videoId, result[0].EntityId);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    private static void AssertEntityEqual(RenamerEntity expected, RenamerEntity actual)
+    {
+        Assert.Equal(expected.EntityId, actual.EntityId);
+        Assert.Equal(expected.Kind, actual.Kind);
+        Assert.Equal(expected.Title, actual.Title);
+        Assert.Equal(expected.Code, actual.Code);
+        Assert.Equal(expected.StudioName, actual.StudioName);
+        Assert.Equal(expected.Date, actual.Date);
+        Assert.Equal(expected.Organized, actual.Organized);
+        Assert.Equal(expected.StudioId, actual.StudioId);
+        Assert.Equal(expected.Director, actual.Director);
+        Assert.Equal(expected.Performers, actual.Performers);
+        Assert.Equal(expected.Tags, actual.Tags);
+
+        var expectedParents = expected.ParentStudios ?? [];
+        var actualParents = actual.ParentStudios ?? [];
+        Assert.Equal(expectedParents, actualParents);
+
+        // RenamerFile carries an IReadOnlyList<RenamerCaption> member, which record value-equality
+        // compares by reference — two field-identical files from distinct loads are never record-equal.
+        // Compare the files field-by-field (and captions element-wise) instead.
+        Assert.Equal(expected.Files.Count, actual.Files.Count);
+        for (int f = 0; f < expected.Files.Count; f++)
+        {
+            var ef = expected.Files[f];
+            var af = actual.Files[f];
+            Assert.Equal(ef.FileId, af.FileId);
+            Assert.Equal(ef.Kind, af.Kind);
+            Assert.Equal(ef.Basename, af.Basename);
+            Assert.Equal(ef.ParentFolderId, af.ParentFolderId);
+            Assert.Equal(ef.ParentFolderPath, af.ParentFolderPath);
+            Assert.Equal(ef.Format, af.Format);
+            Assert.Equal(ef.Width, af.Width);
+            Assert.Equal(ef.Height, af.Height);
+            Assert.Equal(ef.Duration, af.Duration);
+            Assert.Equal(ef.VideoCodec, af.VideoCodec);
+            Assert.Equal(ef.AudioCodec, af.AudioCodec);
+            Assert.Equal(ef.FrameRate, af.FrameRate);
+            Assert.Equal(ef.SizeBytes, af.SizeBytes);
+            Assert.Equal(ef.BitRate, af.BitRate);
+            Assert.Equal(ef.Captions ?? [], af.Captions ?? []);
+        }
+    }
+
+    [Fact]
     public async Task LoadEntity_NoStudio_YieldsNullId_EmptyParentChain_AndDoesNotThrow()
     {
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();

@@ -51,83 +51,127 @@ public class CoveRenamerDataPort : IRenamerDataPort
         {
             case RenamerFileKind.Video:
                 {
-                    var v = await _db.Set<Video>()
-                        .AsNoTracking()
-                        .Include(x => x.Studio).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent)
-                        .Include(x => x.Files).ThenInclude(f => f.ParentFolder)
-                        .Include(x => x.Files).ThenInclude(f => f.Captions)
-                        .Include(x => x.VideoPerformers).ThenInclude(vp => vp.Performer)
-                        .Include(x => x.VideoTags).ThenInclude(vt => vt.Tag)
-                        .FirstOrDefaultAsync(x => x.Id == entityId, ct);
-                    if (v is null)
-                    {
-                        return null;
-                    }
-
-                    return new RenamerEntity(
-                        v.Id, RenamerFileKind.Video, v.Title, v.Code, v.Studio?.Name, v.Date, v.Organized,
-                        [.. v.VideoPerformers
-                            .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
-                            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
-                        [.. v.VideoTags.Select(t => t.Tag?.Name ?? "").Where(n => n.Length > 0)],
-                        [.. v.Files.Select(MapVideoFile)],
-                        StudioId: v.StudioId,
-                        ParentStudios: WalkParentStudios(v.Studio),
-                        Director: v.Director);
+                    var v = await VideoQuery().FirstOrDefaultAsync(x => x.Id == entityId, ct);
+                    return v is null ? null : MapVideoEntity(v);
                 }
             case RenamerFileKind.Image:
                 {
-                    var i = await _db.Set<Image>()
-                        .AsNoTracking()
-                        .Include(x => x.Studio).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent)
-                        .Include(x => x.Files).ThenInclude(f => f.ParentFolder)
-                        .Include(x => x.ImagePerformers).ThenInclude(ip => ip.Performer)
-                        .Include(x => x.ImageTags).ThenInclude(it => it.Tag)
-                        .FirstOrDefaultAsync(x => x.Id == entityId, ct);
-                    if (i is null)
-                    {
-                        return null;
-                    }
-
-                    return new RenamerEntity(
-                        i.Id, RenamerFileKind.Image, i.Title, i.Code, i.Studio?.Name, i.Date, i.Organized,
-                        [.. i.ImagePerformers
-                            .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
-                            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
-                        [.. i.ImageTags.Select(t => t.Tag?.Name ?? "").Where(n => n.Length > 0)],
-                        [.. i.Files.Select(MapImageFile)],
-                        StudioId: i.StudioId,
-                        ParentStudios: WalkParentStudios(i.Studio));
+                    var i = await ImageQuery().FirstOrDefaultAsync(x => x.Id == entityId, ct);
+                    return i is null ? null : MapImageEntity(i);
                 }
             case RenamerFileKind.Audio:
                 {
-                    var a = await _db.Set<Audio>()
-                        .AsNoTracking()
-                        .Include(x => x.Studio).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent)
-                        .Include(x => x.Files).ThenInclude(f => f.ParentFolder)
-                        .Include(x => x.AudioPerformers).ThenInclude(ap => ap.Performer)
-                        .Include(x => x.AudioTags).ThenInclude(at => at.Tag)
-                        .FirstOrDefaultAsync(x => x.Id == entityId, ct);
-                    if (a is null)
-                    {
-                        return null;
-                    }
-
-                    return new RenamerEntity(
-                        a.Id, RenamerFileKind.Audio, a.Title, a.Code, a.Studio?.Name, a.Date, a.Organized,
-                        [.. a.AudioPerformers
-                            .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
-                            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
-                        [.. a.AudioTags.Select(t => t.Tag?.Name ?? "").Where(n => n.Length > 0)],
-                        [.. a.Files.Select(MapAudioFile)],
-                        StudioId: a.StudioId,
-                        ParentStudios: WalkParentStudios(a.Studio));
+                    var a = await AudioQuery().FirstOrDefaultAsync(x => x.Id == entityId, ct);
+                    return a is null ? null : MapAudioEntity(a);
                 }
             default:
                 // Gallery is not yet a renamable kind.
                 return null;
         }
     }
+
+    // EF Core translates "WHERE Id IN (@p0..@pN)" to one bound parameter per id, so a huge N would
+    // blow Postgres's ~65535-parameter cap and generate pathological SQL. Ids are therefore loaded
+    // ~200 at a time — a bounded parameter count and one heavy round-trip per chunk instead of one per
+    // entity. IN-list over "= ANY(@ids)" is deliberate: the provider is host-supplied (Postgres in
+    // prod, SQLite in tests) and a raw Npgsql array param would not translate on SQLite and would need
+    // provider-conditional SQL; the fixed IN-list chunk is provider-agnostic.
+    internal const int LoadChunkSize = 200;
+
+    public async Task<IReadOnlyList<RenamerEntity>> LoadEntitiesAsync(
+        RenamerFileKind kind, IReadOnlyList<int> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var result = new List<RenamerEntity>(ids.Count);
+        switch (kind)
+        {
+            case RenamerFileKind.Video:
+                foreach (var chunk in ids.Chunk(LoadChunkSize))
+                {
+                    var rows = await VideoQuery().Where(x => chunk.Contains(x.Id)).ToListAsync(ct);
+                    result.AddRange(rows.Select(MapVideoEntity));
+                }
+                break;
+            case RenamerFileKind.Image:
+                foreach (var chunk in ids.Chunk(LoadChunkSize))
+                {
+                    var rows = await ImageQuery().Where(x => chunk.Contains(x.Id)).ToListAsync(ct);
+                    result.AddRange(rows.Select(MapImageEntity));
+                }
+                break;
+            case RenamerFileKind.Audio:
+                foreach (var chunk in ids.Chunk(LoadChunkSize))
+                {
+                    var rows = await AudioQuery().Where(x => chunk.Contains(x.Id)).ToListAsync(ct);
+                    result.AddRange(rows.Select(MapAudioEntity));
+                }
+                break;
+            default:
+                // Gallery is not yet a renamable kind.
+                return [];
+        }
+
+        return result;
+    }
+
+    // ── Per-kind query + mapper: single-load and batch-load share BOTH so their DTOs cannot drift. ──
+
+    private IQueryable<Video> VideoQuery() => _db.Set<Video>()
+        .AsNoTracking()
+        .Include(x => x.Studio).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent)
+        .Include(x => x.Files).ThenInclude(f => f.ParentFolder)
+        .Include(x => x.Files).ThenInclude(f => f.Captions)
+        .Include(x => x.VideoPerformers).ThenInclude(vp => vp.Performer)
+        .Include(x => x.VideoTags).ThenInclude(vt => vt.Tag);
+
+    private IQueryable<Image> ImageQuery() => _db.Set<Image>()
+        .AsNoTracking()
+        .Include(x => x.Studio).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent)
+        .Include(x => x.Files).ThenInclude(f => f.ParentFolder)
+        .Include(x => x.ImagePerformers).ThenInclude(ip => ip.Performer)
+        .Include(x => x.ImageTags).ThenInclude(it => it.Tag);
+
+    private IQueryable<Audio> AudioQuery() => _db.Set<Audio>()
+        .AsNoTracking()
+        .Include(x => x.Studio).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent)
+        .Include(x => x.Files).ThenInclude(f => f.ParentFolder)
+        .Include(x => x.AudioPerformers).ThenInclude(ap => ap.Performer)
+        .Include(x => x.AudioTags).ThenInclude(at => at.Tag);
+
+    private static RenamerEntity MapVideoEntity(Video v) => new(
+        v.Id, RenamerFileKind.Video, v.Title, v.Code, v.Studio?.Name, v.Date, v.Organized,
+        [.. v.VideoPerformers
+            .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
+            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
+        [.. v.VideoTags.Select(t => t.Tag?.Name ?? "").Where(n => n.Length > 0)],
+        [.. v.Files.Select(MapVideoFile)],
+        StudioId: v.StudioId,
+        ParentStudios: WalkParentStudios(v.Studio),
+        Director: v.Director);
+
+    private static RenamerEntity MapImageEntity(Image i) => new(
+        i.Id, RenamerFileKind.Image, i.Title, i.Code, i.Studio?.Name, i.Date, i.Organized,
+        [.. i.ImagePerformers
+            .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
+            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
+        [.. i.ImageTags.Select(t => t.Tag?.Name ?? "").Where(n => n.Length > 0)],
+        [.. i.Files.Select(MapImageFile)],
+        StudioId: i.StudioId,
+        ParentStudios: WalkParentStudios(i.Studio));
+
+    private static RenamerEntity MapAudioEntity(Audio a) => new(
+        a.Id, RenamerFileKind.Audio, a.Title, a.Code, a.Studio?.Name, a.Date, a.Organized,
+        [.. a.AudioPerformers
+            .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
+            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
+        [.. a.AudioTags.Select(t => t.Tag?.Name ?? "").Where(n => n.Length > 0)],
+        [.. a.Files.Select(MapAudioFile)],
+        StudioId: a.StudioId,
+        ParentStudios: WalkParentStudios(a.Studio));
 
     /// <summary>
     /// An <c>AsNoTracking</c> id-only bulk query over the kind's table — Gallery (and any other
