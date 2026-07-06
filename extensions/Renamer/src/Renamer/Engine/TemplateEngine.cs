@@ -238,14 +238,24 @@ public static class TemplateEngine
     }
 
     /// <summary>
-    /// Removes a single trailing <c>[&lt;resolution-label&gt;]</c> from <paramref name="value"/> (the
-    /// labels <see cref="ResolutionLabel.KnownLabels"/> defines), then re-trims trailing whitespace.
-    /// Only a tag at the very END is removed, matched case-insensitively (a bounded suffix compare, no
-    /// regex), so a resolution mentioned mid-title is left untouched.
+    /// Removes a single trailing resolution tag from <paramref name="value"/>, then re-trims trailing
+    /// whitespace. A tag is a bracketed resolution label: either a fixed
+    /// <see cref="ResolutionLabel.KnownLabels"/> entry (e.g. <c>[1080p]</c>, <c>[4k]</c>) OR a bare
+    /// numeric-height progressive-scan label (<c>[368p]</c>, <c>[240p]</c>) — the sub-480 form
+    /// <see cref="ResolutionLabel.FromHeight"/> now emits. Only a tag at the very END is removed
+    /// (a bounded suffix scan, no regex), so a resolution mentioned mid-title is left untouched.
     /// </summary>
+    /// <remarks>
+    /// The generic <c>[&lt;digits&gt;p]</c> arm is what stops a doubled tag: a title imported as
+    /// "Nikki [368p]" plus a template that appends <c>{ [$resolution]}</c> (which now renders "368p")
+    /// would otherwise yield "Nikki [368p] [368p]" — matching ONLY the five fixed labels missed the
+    /// sub-480 tag and left it to double. Matching any bracketed numeric-p (or 4k) suffix de-dupes it.
+    /// </remarks>
     private static string StripTrailingResolutionTag(string value)
     {
         string trimmed = value.TrimEnd();
+
+        // Fixed labels first (covers "4k" and the ≥480 buckets).
         foreach (var label in ResolutionLabel.KnownLabels)
         {
             string tag = "[" + label + "]";
@@ -255,7 +265,51 @@ public static class TemplateEngine
             }
         }
 
+        // Generic trailing "[<digits>p]" (the sub-480 form, e.g. "[368p]") the fixed list does not carry.
+        if (trimmed.EndsWith(']') && TryStripTrailingNumericResTag(trimmed, out var stripped))
+        {
+            return stripped.TrimEnd();
+        }
+
         return value;
+    }
+
+    /// <summary>
+    /// Strips a trailing <c>[&lt;digits&gt;p]</c> tag (one or more ASCII digits, then a <c>p</c>, in
+    /// brackets) from <paramref name="s"/>, which MUST already end in <c>']'</c>. Returns false when the
+    /// suffix is not that exact shape (e.g. <c>[POV]</c>, <c>[caufkb2cd9]</c>, <c>[28]</c> — a
+    /// bracketed number with NO <c>p</c> is a serial/index, not a resolution, and must NOT be stripped).
+    /// Bounded backward scan, no regex.
+    /// </summary>
+    private static bool TryStripTrailingNumericResTag(string s, out string stripped)
+    {
+        stripped = s;
+        int close = s.Length - 1;              // index of ']'
+        if (close < 3)
+        {
+            return false;                      // need at least "[Np]"
+        }
+
+        int i = close - 1;
+        if (s[i] is not ('p' or 'P'))
+        {
+            return false;                      // must end "...p]"
+        }
+
+        i--;
+        int digitsEnd = i;
+        while (i >= 0 && char.IsAsciiDigit(s[i]))
+        {
+            i--;
+        }
+
+        if (i == digitsEnd || i < 0 || s[i] != '[')
+        {
+            return false;                      // no digits, or no matching '[' immediately before them
+        }
+
+        stripped = s[..i];                     // everything before the '['
+        return true;
     }
 
     /// <summary>

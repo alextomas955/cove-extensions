@@ -154,6 +154,32 @@ public class TemplateEngineTests
     }
 
     [Fact]
+    public void TrailingResolution_SubBucketTag_NotDoubled()
+    {
+        // The doubled-tag regression: a title imported with a sub-480 "[368p]" tag (which the fixed
+        // KnownLabels list does NOT carry) plus a template that appends { [$resolution]} (now "368p")
+        // would yield "Nikki [368p] [368p]". The generic trailing-[<digits>p] strip de-dupes it.
+        var tokens = new Dictionary<string, string> { ["title"] = "Nikki [368p]", ["height"] = "368" };
+        var r = Render("$title{ [$resolution]}", tokens);
+        Assert.Equal("Nikki [368p]", r.Filename);
+    }
+
+    [Theory]
+    // A bracketed number with NO 'p' is a serial/index/scene number, NOT a resolution — never stripped.
+    [InlineData("Calendar Audition [28]", "2160", "Calendar Audition [28] [4k]")]
+    // A hash-like bracketed token is not a resolution tag.
+    [InlineData("Blowjob [caufkb2cd9]", "1080", "Blowjob [caufkb2cd9] [1080p]")]
+    // A resolution mid-title with a real serial at the end: only a trailing res-tag is stripped, and
+    // there is none here, so nothing is stripped and the derived tag is appended.
+    [InlineData("Shot [720p] Take [5]", "1080", "Shot [720p] Take [5] [1080p]")]
+    public void TrailingResolution_NonResolutionBrackets_NotStripped(string title, string height, string expected)
+    {
+        var tokens = new Dictionary<string, string> { ["title"] = title, ["height"] = height };
+        var r = Render("$title{ [$resolution]}", tokens);
+        Assert.Equal(expected, r.Filename);
+    }
+
+    [Fact]
     public void CoreTokens_Performers_FromMultiValueSideInput()
     {
         var multi = new Dictionary<string, IReadOnlyList<string>>
