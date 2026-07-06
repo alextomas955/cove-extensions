@@ -18,6 +18,7 @@ export type PreviewStatus =
   | "SkipCollision"
   | "SkipGated"
   | "SkipLocked"
+  | "SkipMissingSource"
   | "SkipBlocked"
   | "Failed";
 
@@ -150,7 +151,8 @@ export function buildConfirmSummary(
   const gated = items.filter((it) => it.status === "SkipGated").length;
   const collision = items.filter((it) => it.status === "SkipCollision").length;
   const lockedSkipped = items.filter((it) => it.status === "SkipLocked").length;
-  const skipped = gated + collision + lockedSkipped;
+  const missingSkipped = items.filter((it) => it.status === "SkipMissingSource").length;
+  const skipped = gated + collision + lockedSkipped + missingSkipped;
   const numbered = willRename.filter((it) => it.suffixed).length;
   const cleaned = willRename.filter((it) => it.sanitized).length;
 
@@ -160,10 +162,17 @@ export function buildConfirmSummary(
     if (gated > 0) clauses.push(`${gated} need a required field`);
     if (collision > 0) clauses.push(`${collision} have a name conflict`);
     if (lockedSkipped > 0) clauses.push(`${lockedSkipped} are in use`);
+    if (missingSkipped > 0) clauses.push(`${missingSkipped} are missing on disk`);
     // If only one reason kind, collapse to the compact "(reason)" form.
     if (clauses.length === 1) {
       const onlyReason =
-        gated > 0 ? "needs a required field" : collision > 0 ? "name conflict" : "in use";
+        gated > 0
+          ? "needs a required field"
+          : collision > 0
+            ? "name conflict"
+            : lockedSkipped > 0
+              ? "in use"
+              : "missing on disk";
       warningLines.push(`⚠ ${skipped} skipped (${onlyReason}).`);
     } else {
       warningLines.push(`⚠ ${skipped} skipped — ${clauses.join(", ")}.`);

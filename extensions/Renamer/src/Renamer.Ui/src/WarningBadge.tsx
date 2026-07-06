@@ -47,6 +47,9 @@ export function badgesFor(item: PreviewItem): Badge[] {
     case "SkipLocked":
       badges.push({ label: "Skipped — file in use", variant: "amber" });
       break;
+    case "SkipMissingSource":
+      badges.push({ label: "Skipped — file missing on disk", variant: "amber" });
+      break;
     case "Failed":
       badges.push({ label: "Failed — rolled back", variant: "red" });
       break;

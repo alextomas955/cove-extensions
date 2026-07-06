@@ -52,12 +52,13 @@ test("countByStatus treats every Skip-prefixed status plus Failed as skipped", (
     { status: "SkipGated" },
     { status: "SkipCollision" },
     { status: "SkipLocked" },
+    { status: "SkipMissingSource" },
     { status: "SkipBlocked" },
     { status: "SkipNoSpace" },
     { status: "SkipExcluded" },
     { status: "Failed" },
   ];
-  assert.deepEqual(countByStatus(items), { renamed: 0, skipped: 7, scanned: 7 });
+  assert.deepEqual(countByStatus(items), { renamed: 0, skipped: 8, scanned: 8 });
 });
 
 test("paginate returns the correct 50-item slice for page 0", () => {

@@ -14,6 +14,7 @@ const SKIPPED_STATUSES = new Set([
   "SkipGated",
   "SkipCollision",
   "SkipLocked",
+  "SkipMissingSource",
   "SkipBlocked",
   "SkipNoSpace",
   "SkipExcluded",
