@@ -774,6 +774,8 @@ public sealed partial class Renamer
                 continue;
             }
 
+            LogLibraryKind(kind, ids.Count);
+
             var parameters = RenamerJob.Encode(EntityTypeFor(kind), ids);
             await RunRenamerBatchAsync(parameters, progress, ct);
         }

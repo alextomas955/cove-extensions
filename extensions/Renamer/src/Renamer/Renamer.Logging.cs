@@ -43,6 +43,42 @@ public sealed partial class Renamer
         Message = "[Renamer] batch {RunId} done: {Renamed} renamed, {Skipped} skipped, {Failed} failed")]
     private partial void LogBatchDone(string runId, int renamed, int skipped, int failed);
 
+    // PHASE A of RunRenamerBatchAsync plans + classifies every id sequentially and reports NO progress
+    // percentage until PHASE B, so a large library sits at 0% with no visible signal. These trace the
+    // planning phase to Cove's log so a long 0% is legible as "still planning N of M", not a hang.
+
+    [LoggerMessage(
+        EventId = 1005, Level = LogLevel.Information,
+        Message = "[Renamer] batch {RunId} ({Kind}): planning {Count} item(s)…")]
+    private partial void LogPlanningStarted(string runId, RenamerFileKind kind, int count);
+
+    [LoggerMessage(
+        EventId = 1006, Level = LogLevel.Information,
+        Message = "[Renamer] batch {RunId}: planning {Index}/{Count} id={EntityId} — {ActingFiles} file(s) will act")]
+    private partial void LogItemPlanned(string runId, int index, int count, int entityId, int actingFiles);
+
+    [LoggerMessage(
+        EventId = 1007, Level = LogLevel.Information,
+        Message = "[Renamer] batch {RunId}: planning complete — {Acting} file(s) will act across {Planned} item(s)")]
+    private partial void LogPlanningDone(string runId, int acting, int planned);
+
+    // Logged BEFORE a move runs, so a cross-volume copy (a full copy→verify→delete that can take many
+    // seconds for a large file) is legible as "copying now", not a frozen bar. A same-volume rename is
+    // near-instant, so the CrossVolume flag lets the reader tell a slow copy from a quick rename.
+    [LoggerMessage(
+        EventId = 1008, Level = LogLevel.Information,
+        Message = "[Renamer] batch {RunId}: {Done}/{Total} starting {Kind} id={EntityId} (crossVolume={CrossVolume}, {SizeMb} MB) '{Old}'")]
+    private partial void LogItemStarting(
+        string runId, int done, int total, RenamerFileKind kind, int entityId, bool crossVolume, long sizeMb, string old);
+
+    // RunRenamerLibraryJobAsync fans out one batch PER KIND over the whole library; without these the
+    // only signal is the inner per-batch lines, so the outer "which kind, how many" framing is invisible.
+
+    [LoggerMessage(
+        EventId = 1040, Level = LogLevel.Information,
+        Message = "[Renamer] library renamer: {Kind} — {Count} item(s) to plan")]
+    private partial void LogLibraryKind(RenamerFileKind kind, int count);
+
     [LoggerMessage(
         EventId = 1010, Level = LogLevel.Information,
         Message = "[Renamer] undo {RunId}: {Kind} id={EntityId} restored '{New}' -> '{Old}'")]

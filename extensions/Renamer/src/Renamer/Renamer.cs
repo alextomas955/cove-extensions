@@ -216,12 +216,18 @@ public sealed partial class Renamer : FullExtensionBase
         // resolved TargetFolderPath → folderId map here and hand it to each worker's executor.
         var acting = new List<BatchUnit>();
         var folderIdByPath = new Dictionary<string, int>(DestinationResolver.SourcePathComparer);
+
+        // PHASE A reports no progress percentage (that starts in PHASE B), so trace the planning loop to
+        // the log — otherwise a large library sits at 0% here with no signal that it is still planning.
+        LogPlanningStarted(runId, kind, ids.Length);
+
         await using (var readScope = ScopeFactory.CreateAsyncScope())
         {
             var readDb = readScope.ServiceProvider.GetRequiredService<DbContext>();
             var port = new CoveRenamerDataPort(readDb);
             var planner = new RenamerPlanner(port);
 
+            int planIndex = 0;
             foreach (var id in ids)
             {
                 ct.ThrowIfCancellationRequested();
@@ -232,6 +238,7 @@ public sealed partial class Renamer : FullExtensionBase
                 var entity = await port.LoadEntityAsync(kind, id, ct);
                 var sizeByFileId = entity?.Files.ToDictionary(f => f.FileId, f => f.SizeBytes) ?? [];
 
+                int actingThisItem = 0;
                 foreach (var item in plan.Items)
                 {
                     if (item.Status is not (RenamerStatus.Renamer or RenamerStatus.Move))
@@ -239,6 +246,7 @@ public sealed partial class Renamer : FullExtensionBase
                         continue;
                     }
 
+                    actingThisItem++;
                     long size = sizeByFileId.GetValueOrDefault(item.FileId);
                     // Hand each worker a single-file plan so the executor acts on exactly this file
                     // (it reloads plan.EntityId and processes plan.Items); the parent entity id rides
@@ -247,6 +255,8 @@ public sealed partial class Renamer : FullExtensionBase
                     acting.Add(new BatchUnit(plan.EntityId, unitPlan,
                         (item.OldFullPath, item.NewFullPath, size)));
                 }
+
+                LogItemPlanned(runId, ++planIndex, ids.Length, id, actingThisItem);
             }
 
             // Pre-create/resolve every DISTINCT destination folder ONCE, here, on the single
@@ -299,6 +309,10 @@ public sealed partial class Renamer : FullExtensionBase
         // which /undo replays. The header is written ONCE here, single-threaded, never per worker.
         await revertLog.BeginBatchAsync(runId, kind, ct);
 
+        // Marks the PHASE A → PHASE B boundary in the log: PHASE B's percentage now advances per
+        // completed file, so a later stall is legible as "stuck partway through {Acting}", not silence.
+        LogPlanningDone(runId, acting.Count, ids.Length);
+
         // ── PHASE B — execute, partitioned + bounded, per-worker scope ─────────────────────────────
         // Map a move back to its unit by the source full path so each partition group hands the worker
         // the right single-file plan. A duplicate OldFullPath (e.g. two Folder rows sharing one Path,
@@ -348,6 +362,15 @@ public sealed partial class Renamer : FullExtensionBase
             // fault is a skip/failure recorded below — only a genuine cancellation propagates. The
             // pre-resolved folderIdByPath is handed in so the executor reads each Move's destination
             // folder id from the map instead of doing a check-then-act create on a shared Folder row.
+            // Log the move ABOUT to run: a cross-volume copy of a large file can take many seconds, and
+            // PHASE B only logged COMPLETIONS — so a long gap read as a freeze. This "starting" line makes
+            // an in-flight copy visible. crossVolume/size come from the already-known move tuple (no extra IO).
+            bool crossVolume = !VolumeClassifier.SameVolume(unit.Move.OldFullPath, unit.Move.NewFullPath);
+            long sizeMb = unit.Move.SizeBytes / (1024 * 1024);
+            int doneNow = Volatile.Read(ref done);
+            LogItemStarting(runId, doneNow, totalUnits, kind, unit.EntityId,
+                crossVolume, sizeMb, unit.Move.OldFullPath);
+
             await using var scope = ScopeFactory.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<DbContext>();
             var exec = new RenamerExecutor(new CoveRenamerDataPort(db), EventBus, revertLog, new DiskMover());
