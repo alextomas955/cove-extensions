@@ -46,6 +46,27 @@ public sealed class PreviewPurityTests
     }
 
     [Fact]
+    public async Task Preview_MissingSource_ClassifiedSkipMissingSource_NoMutation()
+    {
+        var port = new FakeRenamerDataPort();
+        port.SeedEntity(Entity(File(1, "raw.mkv")));
+        // Declare the file's current source (ParentFolderPath + Basename) absent on disk.
+        port.SeedMissingSource("media/videos/raw.mkv");
+        var planner = new RenamerPlanner(port);
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, MoveOptions(), default);
+
+        var item = Assert.Single(plan.Items);
+        // The gone source is classified SkipMissingSource, keeping the file at its current path...
+        Assert.Equal(RenamerStatus.SkipMissingSource, item.Status);
+        Assert.Equal(item.OldFullPath, item.NewFullPath);
+        Assert.Contains("missing", item.Reason);
+        // ...detected through the read-only port seam, so preview still mutates nothing.
+        Assert.Empty(port.CreatedFolderPaths);
+        Assert.Empty(port.SaveCalls);
+    }
+
+    [Fact]
     public async Task Preview_MoveToExistingFolder_StillDetectsCollision_WithoutCreating()
     {
         var port = new FakeRenamerDataPort();

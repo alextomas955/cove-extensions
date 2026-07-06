@@ -172,6 +172,17 @@ public sealed class RenamerPlanner
                 file.Basename, file.ParentFolderPath, confined.Reason);
         }
 
+        // Preview should warn "the source is gone" rather than compute a rename target for a file that
+        // cannot be moved. The probe runs THROUGH the read-only port seam (never a raw File.Exists in
+        // the pure planner) so it stays deterministic/fakeable and never mutates — preview purity is
+        // about DB mutation, not disk reads. The item keeps the file at its current path.
+        if (!await _port.SourceExistsAsync(oldFullPath, ct))
+        {
+            return new RenamerPlanItem(
+                file.FileId, oldFullPath, oldFullPath, RenamerStatus.SkipMissingSource,
+                file.Basename, file.ParentFolderPath, "skipped: source file is missing on disk");
+        }
+
         // A move happens whenever the file leaves its own source folder. Two independent causes:
         // the folder template rendered a subfolder, OR a routing rule matched and pointed the file at
         // a different destination root. A matched route with an EMPTY folder template still relocates
