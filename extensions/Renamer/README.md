@@ -54,8 +54,9 @@ npm run verify    # typecheck + lint + format:check + check-classes + tests
 npm run build     # rebuild dist/index.mjs
 ```
 
-`dist/index.mjs` is committed. If you change any UI source, run `npm run build` and commit the
-rebuilt bundle — CI's stale-bundle gate fails if the committed bundle does not match source.
+`dist/` is build output and is not committed — it is gitignored. CI rebuilds the bundle from source
+with `npm run build` and packages the freshly built `dist/index.mjs` into the release, so you do not
+need to build or commit the bundle for a normal source change.
 
 ## Local dev deploy
 

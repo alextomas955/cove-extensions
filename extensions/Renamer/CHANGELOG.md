@@ -6,6 +6,12 @@ artifact `version` field (in `extension.json`, the runtime, and the UI package) 
 label — is what a registry or release carries, and the published milestone labels are kept as the
 development narrative rather than renumbered to the release version.
 
+## v1.9 — Bundle no longer committed
+
+- The built UI bundle is no longer committed to the repository — it is gitignored and rebuilt from
+  source by CI, which packages it into the release, matching Cove's official extensions-UI
+  convention. The released package is unchanged.
+
 ## v1.8 — Cove 0.8.0 alignment
 
 - Rebuilt and re-verified against Cove 0.8.0 — the extension installs, previews, renames, and
