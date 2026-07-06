@@ -1,0 +1,66 @@
+# CodeQL security analysis.
+#
+# C# is built on a bare runner with no Cove monorepo, so the build leg uses the same NuGet path the
+# main build uses (UseLocalCoveSource=false): Cove.Sdk (and its transitive Cove.Plugins/Cove.Core)
+# restore from nuget.org. The local-source build property is deliberately NOT used here — it needs
+# a Cove checkout the runner does not have.
+#
+# This is a root-level job (not matrix-driven), hardcoding today's single Renamer project path —
+# acceptable per RESEARCH.md's note that .slnx-inclusion is a documented process convention, not a
+# scaling mechanism for CodeQL specifically. When a second extension arrives, add its project path
+# to this same build step (or generalize the step to loop the catalog).
+
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, so analysis runs even when no new commits land.
+    - cron: '23 4 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: csharp
+            build-mode: manual
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        if: matrix.language == 'csharp'
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      # NuGet build path — works on a bare runner with no Cove checkout.
+      - name: Build C#
+        if: matrix.language == 'csharp'
+        run: dotnet build extensions/Renamer/src/Renamer/Renamer.csproj -c Release -p:UseLocalCoveSource=false
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"

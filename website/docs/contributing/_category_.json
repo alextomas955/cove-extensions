@@ -1,0 +1,9 @@
+{
+  "label": "Contributing",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "slug": "/contributing",
+    "description": "How to work in this repo. See CONTRIBUTING.md in the repository root for the contributor entry point."
+  }
+}

@@ -1,0 +1,402 @@
+# Build, validate, and (on <extension-slug>/v* tags) package + release extensions in this monorepo.
+#
+# Adapted from yourcove/multi-extension-repo-template's build.yml (forked 2026-07-01) to target
+# Renamer's real src/ subtree layout via extensions/catalog.json's additive path fields
+# (projectPath/manifestPath/uiPath/versionSourcePath — see catalog.json +
+# scripts/validate-extension-repo.mjs) instead of the template's flat {path}/{name}.csproj
+# convention. Folds in the old single-extension `rename` repo's strip-verify / stale-bundle /
+# version-parity / csharp-format / markdown-lint hardening as matrix steps (per-extension) or
+# root-level jobs (repo-wide) so future extensions inherit them automatically.
+#
+# The validate job computes the build matrix from catalog.json (all entries for a PR build; only
+# the tagged extension for a tag push) and — on a tag push — confirms the tag matches exactly one
+# catalog entry's tagPrefix and carries a valid semver suffix. No PR trigger path filtering is
+# used anywhere: every catalog entry is built on every PR (CI-04).
+
+name: Build and Release Extensions
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    tags:
+      - '*/v*'
+
+env:
+  DOTNET_VERSION: '10.0.x'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.11.0'
+
+      - name: Validate extension catalog
+        run: node scripts/validate-extension-repo.mjs
+
+      - name: Validate release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs");
+            const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
+            const tag = process.env.GITHUB_REF.replace("refs/tags/", "");
+            const matches = catalog.extensions.filter((e) => tag.startsWith(e.tagPrefix));
+            if (matches.length !== 1) {
+              console.error("Tag " + tag + " must match exactly one catalog tagPrefix, matched " + matches.length);
+              process.exit(1);
+            }
+            const versionTag = tag.slice(matches[0].tagPrefix.length);
+            const semver = /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+            if (!semver.test(versionTag)) {
+              console.error("Tag version suffix " + versionTag + " is not valid semver (expected v<major>.<minor>.<patch>)");
+              process.exit(1);
+            }
+            console.log("Tag " + tag + " matches catalog entry " + matches[0].id + " with version " + versionTag.slice(1));
+          '
+        env:
+          GITHUB_REF: ${{ github.ref }}
+
+      - name: Compute build matrix
+        id: matrix
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs");
+            const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
+            const ref = process.env.GITHUB_REF;
+            let extensions = catalog.extensions;
+            if (ref.startsWith("refs/tags/")) {
+              const tag = ref.replace("refs/tags/", "");
+              extensions = catalog.extensions.filter((e) => tag.startsWith(e.tagPrefix));
+            }
+            const matrix = { extension: extensions };
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, "matrix=" + JSON.stringify(matrix) + "\n");
+          '
+        env:
+          GITHUB_REF: ${{ github.ref }}
+
+  build:
+    needs: validate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.validate.outputs.matrix) }}
+    permissions:
+      contents: write
+    steps:
+      - name: Check if this extension was tagged
+        id: check
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/${{ matrix.extension.tagPrefix }}v* ]]; then
+            echo "match=true" >> "$GITHUB_OUTPUT"
+            echo "version=${GITHUB_REF#refs/tags/${{ matrix.extension.tagPrefix }}v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "match=true" >> "$GITHUB_OUTPUT"
+            echo "version=0.0.0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.check.outputs.match == 'true'
+
+      - name: Setup .NET
+        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        run: dotnet restore ${{ matrix.extension.projectPath }} -p:UseLocalCoveSource=false
+
+      - name: Build
+        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        run: dotnet build ${{ matrix.extension.projectPath }} -c Release --no-restore -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
+
+      # Unit tier only — this bare runner has no ../cove sibling checkout, so the test project's
+      # cove-referencing sources are Compile-Removed (see Renamer.Tests.csproj's cove-absent
+      # group). Runs before Publish so a test failure blocks packaging, matching
+      # windows-build-test's build-then-test order in lint.yml. Optional: an extension without a
+      # testProjectPath entry in catalog.json skips this step (manifestOnly-style opt-out).
+      - name: Test (unit tier)
+        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly && matrix.extension.testProjectPath != ''
+        run: dotnet test ${{ matrix.extension.testProjectPath }} -c Release -p:UseLocalCoveSource=false
+
+      - name: Publish
+        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o artifacts/${{ matrix.extension.name }} --no-build -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
+
+      # Strip-verify gate (ported from the old rename repo, generalized to the matrix artifacts
+      # dir). Runs on every build (not tag-gated), so a host-assembly leak fails the build before
+      # anything is zipped. The denylist is the same set the extension's own local deploy scripts
+      # enforce — hand-synced; when the host adds a provided dependency, add it here too.
+      - name: Strip-verify (no host assemblies, no absolute paths)
+        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          dir="artifacts/${{ matrix.extension.name }}"
+          denylist=(
+            Cove.Core
+            Cove.Plugins
+            Cove.Sdk
+            Microsoft.EntityFrameworkCore
+            Microsoft.EntityFrameworkCore.Abstractions
+            Microsoft.EntityFrameworkCore.Relational
+            Npgsql
+            Npgsql.EntityFrameworkCore.PostgreSQL
+            Pgvector
+            Pgvector.EntityFrameworkCore
+            MediatR.Contracts
+          )
+
+          fail=0
+
+          for dll in "$dir"/*.dll; do
+            base=$(basename "$dll" .dll)
+            for banned in "${denylist[@]}"; do
+              if [[ "$base" == "$banned" ]]; then
+                echo "LEAK: host-provided assembly present: $(basename "$dll")"
+                fail=1
+              fi
+            done
+          done
+
+          if [[ ! -f "$dir/${{ matrix.extension.name }}.dll" ]]; then
+            echo "MISSING: ${{ matrix.extension.name }}.dll is absent from the publish set — build produced no extension assembly."
+            fail=1
+          fi
+
+          if [[ ! -f "$dir/System.IO.Hashing.dll" ]]; then
+            echo "MISSING: System.IO.Hashing.dll is absent — Renamer's bundled cross-volume-mover dependency did not ship."
+            fail=1
+          fi
+
+          # Materialize the Windows drive-root marker (I: followed by a backslash). The backslash is
+          # written as printf's octal escape \134 so it survives YAML+bash quoting intact with no
+          # backslash adjacent to a quote (which shellcheck would flag).
+          win_marker=$(printf 'I:\134')
+          jsons=("$dir"/*.json)
+          if [[ ${#jsons[@]} -gt 0 ]]; then
+            if matches=$(grep -F -n -e "$win_marker" -e '/home/' -e '/Users/' "${jsons[@]}"); then
+              echo "LEAK: absolute path found in publish-set json:"
+              echo "$matches"
+              fail=1
+            fi
+          fi
+
+          if [[ "$fail" -ne 0 ]]; then
+            echo "Strip-verify FAILED."
+            exit 1
+          fi
+
+          echo "Strip-verify PASS — approved publish set:"
+          for f in "$dir"/*; do
+            echo "  $(basename "$f")"
+          done
+
+      - name: Copy manifest
+        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        run: cp ${{ matrix.extension.manifestPath }} artifacts/${{ matrix.extension.name }}/
+
+      - name: Stamp packaged extension.json version
+        if: steps.check.outputs.match == 'true' && !matrix.extension.manifestOnly
+        run: |
+          node -e "const fs=require('fs'); const p='artifacts/${{ matrix.extension.name }}/extension.json'; const m=JSON.parse(fs.readFileSync(p,'utf8')); m.version='${{ steps.check.outputs.version }}'; fs.writeFileSync(p, JSON.stringify(m, null, 2) + '\n');"
+
+      # Conditional frontend build — only extensions with a uiPath field ship a frontend bundle.
+      - name: Setup Node
+        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        uses: actions/setup-node@v6
+        with:
+          # Pin matches the UI package.json volta pin for a reproducible build.
+          node-version: '24.11.0'
+
+      # `npm install`, not `npm ci`: the root package.json's npm workspaces (added for the shared
+      # tests/e2e harness) make npm refuse `npm ci` in this nested, non-workspace UI package
+      # (Renamer.Ui is deliberately standalone — offline vendored @cove/extension-sdk tarball, its
+      # own lockfile, its own Dependabot entry). `npm install` on an in-sync lockfile is a no-op;
+      # UI reproducibility is anchored by the committed lockfile.
+      - name: Install frontend deps (offline, vendored SDK)
+        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        working-directory: ${{ matrix.extension.uiPath }}
+        run: npm install
+
+      - name: Stamp source package.json version
+        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        working-directory: ${{ matrix.extension.uiPath }}
+        run: npm version ${{ steps.check.outputs.version }} --no-git-tag-version --allow-same-version
+
+      - name: Verify frontend (typecheck + lint + format:check + check-classes + test)
+        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        working-directory: ${{ matrix.extension.uiPath }}
+        run: npm run verify
+
+      - name: Build frontend bundle
+        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        working-directory: ${{ matrix.extension.uiPath }}
+        run: npm run build
+
+      - name: Copy frontend bundle
+        if: steps.check.outputs.match == 'true' && matrix.extension.uiPath != ''
+        run: cp ${{ matrix.extension.uiPath }}/dist/index.mjs artifacts/${{ matrix.extension.name }}/
+
+      # Version parity: the version the manifest, the assembly, the UI package, and the catalog
+      # registry manifest declare must agree, so a release can't ship a manifest that disagrees
+      # with the binary. The 4th arg is the catalog registry manifest, derived from the entry's
+      # own path/id (<path>/extensions/<id>.json) rather than a new catalog.json field.
+      # PR-excluded like Package/Upload artifact below: on a PR build steps.check.outputs.version
+      # is the "0.0.0" placeholder (no real tag), which the "Stamp source package.json version"
+      # step above writes into package.json — but extension.json's own version is left at its real
+      # value (only the PACKAGED copy under artifacts/ gets stamped on a real release), so a PR
+      # build's package.json and extension.json versions are expected to disagree and would always
+      # fail this gate. The real check only makes sense once there's a real version being released.
+      - name: Check version parity
+        if: steps.check.outputs.match == 'true' && matrix.extension.versionSourcePath != '' && github.event_name != 'pull_request'
+        run: node scripts/check-version-parity.mjs ${{ matrix.extension.manifestPath }} ${{ matrix.extension.versionSourcePath }} ${{ matrix.extension.uiPath }}/package.json ${{ matrix.extension.path }}/extensions/${{ matrix.extension.id }}.json
+
+      - name: Package
+        if: steps.check.outputs.match == 'true' && github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          cd artifacts/${{ matrix.extension.name }}
+          zip -r ../../${{ matrix.extension.id }}-${{ steps.check.outputs.version }}.zip .
+
+      - name: Upload artifact
+        if: steps.check.outputs.match == 'true' && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.extension.id }}-${{ steps.check.outputs.version }}
+          path: ${{ matrix.extension.id }}-${{ steps.check.outputs.version }}.zip
+
+  # ---- E2E: rebuilds each extension (a separate job from build/matrix.extension — GitHub Actions
+  # jobs don't share a filesystem, so this job publishes its own fresh copy rather than trying to
+  # reuse the build job's disk state) and installs the result into a containerized, official Cove
+  # instance via tests/e2e's shared harness, then runs its Playwright suite against it.
+  # Extensions without their own e2e suite are skipped via the catalog's optional
+  # `e2ePath`/`e2eProject` fields (absent = no suite yet, not a failure).
+  e2e:
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.validate.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check for an e2e suite
+        id: check
+        shell: bash
+        run: |
+          if [[ -n "${{ matrix.extension.e2ePath }}" && -d "${{ matrix.extension.e2ePath }}" && -n "${{ matrix.extension.e2eProject }}" ]]; then
+            echo "has_suite=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_suite=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::${{ matrix.extension.name }} has no e2ePath/e2eProject in catalog.json (or the directory is missing) — skipping E2E for this extension."
+          fi
+
+      - name: Setup .NET
+        if: steps.check.outputs.has_suite == 'true' && !matrix.extension.manifestOnly
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # Publishes to <extension.path>/artifacts/publish, NOT the build job's repo-root-relative
+      # artifacts/<name> — this must match the path each extension's own e2e fixtures file expects
+      # (e.g. Renamer's RENAMER_EXTENSION.publishDir), which mirrors what a local dev deploy script
+      # (deploy-dev.ps1) produces. A mismatch here fails every E2E test at harness install time with
+      # "publishDir does not exist" — found via this repo's actual first CI run, since this job's
+      # own publish path was never exercised against the real fixtures before.
+      - name: Build extension (publish output for the harness to install)
+        if: steps.check.outputs.has_suite == 'true' && !matrix.extension.manifestOnly
+        run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o ${{ matrix.extension.path }}/artifacts/publish -p:UseLocalCoveSource=false
+
+      - name: Setup Node
+        if: steps.check.outputs.has_suite == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.11.0'
+
+      # `npm install` (not `npm ci`) for the same reason as the build job's UI step: npm refuses
+      # `npm ci` in this nested non-workspace UI package once a root workspace exists. No-op on an
+      # in-sync lockfile.
+      - name: Build extension UI bundle
+        if: steps.check.outputs.has_suite == 'true' && matrix.extension.uiPath != ''
+        working-directory: ${{ matrix.extension.uiPath }}
+        run: |
+          npm install
+          npm run build
+
+      # npm ci runs at the REPO ROOT so the workspace symlinks (node_modules/@cove-extensions/e2e ->
+      # tests/e2e) + the single hoisted @playwright/test are established before the suite runs. A
+      # `cd tests/e2e && npm ci` would ignore the root lockfile/workspaces and is wrong now.
+      - name: Install harness dependencies
+        if: steps.check.outputs.has_suite == 'true'
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run E2E suite
+        id: e2e
+        if: steps.check.outputs.has_suite == 'true'
+        working-directory: tests/e2e
+        run: npx playwright test --project=${{ matrix.extension.e2eProject }}
+
+      # The `list` reporter's stdout only ever shows pass/fail + duration, never the actual
+      # assertion/stack-trace detail, which otherwise only reaches the Upload Playwright report
+      # artifact below — requiring a download+unzip round trip to read. Dump it straight to the job
+      # log instead so a CI failure is diagnosable from the log alone (CI-02's own requirement).
+      - name: Dump E2E failure context
+        if: steps.check.outputs.has_suite == 'true' && failure() && steps.e2e.outcome == 'failure'
+        working-directory: tests/e2e
+        shell: bash
+        run: |
+          for f in $(find test-results -name "error-context.md" 2>/dev/null); do
+            echo "::group::$f"
+            cat "$f"
+            echo "::endgroup::"
+          done
+
+      - name: Upload Playwright report
+        if: steps.check.outputs.has_suite == 'true' && failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.extension.id }}-e2e-report
+          path: tests/e2e/playwright-report/
+          retention-days: 7
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b  # v3
+        with:
+          files: '*.zip'
+          generate_release_notes: true
+
+  # csharp-format, windows-build-test, and markdown-lint moved to lint.yml — none of them have a
+  # `needs:` link into this file's validate/build/e2e/release chain, so they gained nothing from
+  # co-location and were missing main-push coverage that lint.yml now has (see lint.yml's header).

@@ -1,0 +1,23 @@
+**/bin/*
+**/obj/*
+artifacts/
+*.zip
+.DS_Store
+.playwright-mcp/
+*.playwright-mcp.yml
+
+# JS workspace installs — the root npm install (workspaces) hoists deps here; also covers any
+# nested node_modules. Node/Playwright test artifacts are additionally ignored in tests/e2e/.gitignore.
+node_modules/
+
+# Local planning / AI-assistant scaffolding — not part of the published extension.
+.planning/
+.claude/
+.agents/
+.cursor/
+.codex/
+CLAUDE.local.md
+
+# Docusaurus build output — website/ is a standalone package (see website/package.json);
+# node_modules/ is already covered by the existing root rule above.
+website/build/

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "extensions": [
+    {
+      "name": "Renamer",
+      "id": "com.alextomas955.renamer",
+      "path": "extensions/Renamer",
+      "tagPrefix": "renamer/",
+      "projectPath": "extensions/Renamer/src/Renamer/Renamer.csproj",
+      "testProjectPath": "extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj",
+      "manifestPath": "extensions/Renamer/src/Renamer/extension.json",
+      "uiPath": "extensions/Renamer/src/Renamer.Ui",
+      "versionSourcePath": "extensions/Renamer/src/Renamer/Renamer.cs",
+      "e2ePath": "extensions/Renamer/e2e",
+      "e2eProject": "renamer"
+    }
+  ]
+}

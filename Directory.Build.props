@@ -1,0 +1,38 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <CoveSdkVersion Condition="'$(CoveSdkVersion)' == ''">0.7.1</CoveSdkVersion>
+
+    <!-- Local-Cove source selector precedence (highest wins):
+         1. Explicit -p:UseLocalCoveSource=true|false (set before this file evaluates) — honored as-is.
+         2. COVE_REPO env var pointing at a Cove checkout — opt in by configuration on any machine.
+         3. The conventional ..\cove sibling checkout relative to this monorepo root — auto-detect
+            convenience fallback.
+         4. Published NuGet packages (UseLocalCoveSource=false) — the clean-clone default.
+         Only the boolean is decided here; the local ProjectReference paths live in
+         Directory.Build.targets, anchored at $(MSBuildThisFileDirectory) (the monorepo root), not a
+         per-project relative literal. -->
+    <UseLocalCoveSource Condition="'$(UseLocalCoveSource)' == '' and '$(COVE_REPO)' != '' and Exists('$(COVE_REPO)\src\Cove.Sdk\Cove.Sdk.csproj')">true</UseLocalCoveSource>
+    <UseLocalCoveSource Condition="'$(UseLocalCoveSource)' == '' and Exists('$(MSBuildThisFileDirectory)..\cove\src\Cove.Sdk\Cove.Sdk.csproj')">true</UseLocalCoveSource>
+    <UseLocalCoveSource Condition="'$(UseLocalCoveSource)' == ''">false</UseLocalCoveSource>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Code analysis: analyzers ship in the SDK; do NOT also add the NetAnalyzers NuGet package. -->
+    <AnalysisLevel>latest-Recommended</AnalysisLevel>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- Zero-warning policy: any analyzer/compiler warning fails the build (locally + CI). -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!-- Needed so IDE0005 (dead usings) is reported on build. CS1591 (missing XML doc) is silenced:
+         we want dead-using detection, not a doc-comment mandate. Docs are earned by judgment, not
+         forced — see the "C# Comments & XML docs" policy in CLAUDE.md. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+</Project>
