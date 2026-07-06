@@ -722,11 +722,28 @@ public sealed partial class Renamer
         int done = 0;
         foreach (var (kind, ids) in idsByKind)
         {
+            // The scan previously issued one heavy multi-Include query per entity (100K entities = 100K
+            // sequential round-trips — the scan bottleneck). Batch-load the kind's entities instead:
+            // the port chunks the load internally (CoveRenamerDataPort.LoadChunkSize, one round-trip per
+            // ~200 ids), collapsing N round-trips to ~N/chunk. The single chunk-size decision stays in
+            // the port; the scan just re-orders the (DB-unordered) result by its own id list so the
+            // per-id ORDER and the per-entity progress cadence are preserved — scan output + progress
+            // semantics are unchanged, only the LOAD is batched (never the progress).
+            var loaded = await port.LoadEntitiesAsync(kind, ids, ct);
+            var byId = loaded.ToDictionary(e => e.EntityId);
+
             foreach (var id in ids)
             {
                 ct.ThrowIfCancellationRequested();
-                var plan = await planner.PlanAsync(kind, id, options, lookups, ct);
-                allItems.AddRange(plan.Items.Select(item => ScanItem.From(kind, plan.EntityId, item)));
+
+                // A missing entry means the id vanished between the id-list query and the batch load —
+                // it contributes nothing, matching the old path where PlanAsync on a missing id yielded
+                // an empty plan.
+                if (byId.TryGetValue(id, out var entity))
+                {
+                    var plan = await planner.PlanLoadedEntity(entity, options, lookups, ct);
+                    allItems.AddRange(plan.Items.Select(item => ScanItem.From(kind, plan.EntityId, item)));
+                }
 
                 done++;
                 LogScanItemPlanned(done, total, kind, id);
