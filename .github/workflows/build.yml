@@ -45,6 +45,9 @@ jobs:
       - name: Validate extension catalog
         run: node scripts/validate-extension-repo.mjs
 
+      - name: Test validator error paths
+        run: node --test scripts/validate-extension-repo.test.mjs
+
       - name: Validate release tag
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
