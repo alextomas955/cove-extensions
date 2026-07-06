@@ -127,6 +127,13 @@ Collapsed by default.
 | Drop order | When a name is too long, the order in which fields are dropped to fit (first listed dropped first). | `videoCodec, audioCodec, frameRate, resolution, tags, studioCode, studio, performers, date` |
 | Duplicate suffix format | Suffix added before the extension when the target name is taken; `{n}` is the collision counter. | `" ({n})"` → `name (1).mp4` |
 
+### Cross-drive concurrency
+
+| Setting | What it does | Default |
+| --- | --- | --- |
+| Cross-volume concurrency | How many files to copy across drives at once. Leave at 2 for regular hard drives; raise to 4–8 if both drives are SSDs. Higher is not always faster — on spinning disks it can be slower. Clamped to 1–16 in the UI. | `2` |
+| Same-volume concurrency | How many same-drive renames to run at once (these are instant; the default is fine). Clamped to 1–16 in the UI. | `8` |
+
 ### Excludes
 
 | Setting | What it does | Default |
@@ -148,12 +155,10 @@ Collapsed by default.
 
 ## Advanced settings not shown in the UI
 
-These are persisted but have **no control in the settings panel** — they exist for unusual
-cross-drive setups and are safe to leave at their defaults. Changing them requires editing the
-extension's stored options directly.
+This is persisted but has **no control in the settings panel** — it exists for unusual cross-drive
+setups and is safe to leave at its default. Changing it requires editing the extension's stored
+options directly.
 
 | Setting | What it does | Default |
 | --- | --- | --- |
 | Free-space headroom | Bytes kept free on each destination volume before a cross-drive batch proceeds (gates cross-drive moves only). | 1 GiB |
-| Cross-volume concurrency | Max simultaneous cross-drive transfers per source→destination disk pair. | `2` |
-| Same-volume concurrency | Max simultaneous same-drive renames in a batch (`≤ 0` = unbounded). | `8` |

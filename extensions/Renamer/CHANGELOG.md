@@ -2,6 +2,13 @@
 
 User-facing changes, newest first.
 
+## Unreleased
+
+- **Cross-drive concurrency in the settings panel** — the cross-volume and same-volume concurrency
+  knobs are now editable Advanced settings (clamped to 1–16) instead of stored-only options.
+- **Faster planning on large libraries** — a whole-library dry run/scan now loads each item once
+  instead of twice, roughly halving the database round-trips in the planning pass.
+
 ## 0.1.0 — Initial release
 
 The first release of Renamer — bulk-rename and optionally relocate your Cove media from metadata,
