@@ -17,6 +17,11 @@ const {
   searchItems,
   sortItems,
   assetHref,
+  clampProgress,
+  progressPercent,
+  isFinalizing,
+  formatEta,
+  etaFromSamples,
 } = mod;
 
 /** A full-ish scan row for the search/sort tests (only the fields those functions read). */
@@ -195,4 +200,44 @@ test("assetHref returns null for a missing/zero/negative id → plain-text fallb
 
 test("assetHref returns null for an unmapped kind rather than a wrong URL", () => {
   assert.equal(assetHref("Gallery", 5), null);
+});
+
+test("clampProgress guards absent/garbage/out-of-range into [0,1]", () => {
+  assert.equal(clampProgress(undefined), 0);
+  assert.equal(clampProgress(null), 0);
+  assert.equal(clampProgress(NaN), 0);
+  assert.equal(clampProgress(-0.2), 0);
+  assert.equal(clampProgress(1.5), 1);
+  assert.equal(clampProgress(0.42), 0.42);
+});
+
+test("progressPercent rounds a clamped fraction to a whole percent", () => {
+  assert.equal(progressPercent(undefined), 0);
+  assert.equal(progressPercent(0.42), 42);
+  assert.equal(progressPercent(0.999), 100);
+  assert.equal(progressPercent(1.5), 100);
+  assert.equal(progressPercent(-0.2), 0);
+});
+
+test("isFinalizing is true only in the 0.99-cap window, not at a genuine 1.0", () => {
+  assert.equal(isFinalizing(0.99), true);
+  assert.equal(isFinalizing(0.995), true);
+  assert.equal(isFinalizing(1), false);
+  assert.equal(isFinalizing(0.5), false);
+  assert.equal(isFinalizing(undefined), false);
+});
+
+test("formatEta renders seconds/minutes/hours, null when there's nothing to show", () => {
+  assert.equal(formatEta(null), null);
+  assert.equal(formatEta(-5), null);
+  assert.equal(formatEta(40), "~40s left");
+  assert.equal(formatEta(90), "~2m left");
+  assert.equal(formatEta(3700), "~1h left");
+});
+
+test("etaFromSamples extrapolates remaining seconds, null when it can't estimate", () => {
+  assert.equal(etaFromSamples(1000, 11000, 0), null);
+  assert.equal(etaFromSamples(1000, 11000, 1), null);
+  assert.equal(etaFromSamples(1000, 11000, 0.5), 10);
+  assert.equal(etaFromSamples(1000, Infinity, 0.5), null);
 });

@@ -128,6 +128,60 @@ export function assetHref(kind: string, entityId: number | undefined): string | 
   return `/${segment}/${entityId}`;
 }
 
+/**
+ * Clamp a raw `job.progress` (a host double in 0..1) into a safe display fraction. An absent or
+ * garbage sample (undefined/null/NaN) reads as 0 rather than blanking the bar, and an out-of-range
+ * sample is pinned to [0,1] so a stray value never pushes the bar past full or negative.
+ */
+export function clampProgress(raw: number | undefined | null): number {
+  if (raw === undefined || raw === null || Number.isNaN(raw)) return 0;
+  if (raw < 0) return 0;
+  if (raw > 1) return 1;
+  return raw;
+}
+
+/** The whole-percent form of {@link clampProgress} for `aria-valuenow` and the width style. */
+export function progressPercent(raw: number | undefined | null): number {
+  return Math.round(clampProgress(raw) * 100);
+}
+
+/**
+ * True while the scan sits in its persist cap: the scan job holds `progress` at 0.99 until its
+ * result is written, so a bar parked at 99% looks stalled. This drives the "Finalizing…" copy that
+ * explains the wait instead. Excludes a genuine 1.0 (done) and anything below the cap.
+ */
+export function isFinalizing(raw: number | undefined | null): boolean {
+  const p = clampProgress(raw);
+  return p >= 0.99 && p < 1;
+}
+
+/** Human ETA copy, or null when the caller should show nothing (no estimate available). */
+export function formatEta(seconds: number | undefined | null): string | null {
+  if (seconds === undefined || seconds === null || Number.isNaN(seconds) || seconds < 0) return null;
+  if (seconds < 60) return `~${Math.round(seconds)}s left`;
+  if (seconds < 3600) return `~${Math.max(1, Math.round(seconds / 60))}m left`;
+  return `~${Math.max(1, Math.round(seconds / 3600))}h left`;
+}
+
+/**
+ * Client-side ETA fallback for when the host's `etaSeconds` is null (it only computes one when it
+ * can). Extrapolates remaining seconds from the elapsed wall time and the fraction done:
+ * elapsed / p * (1 - p). Returns null when no estimate is possible — progress at or beyond the ends
+ * (can't project from 0, already done at 1) or non-finite inputs.
+ */
+export function etaFromSamples(
+  startedAtMs: number,
+  nowMs: number,
+  progress: number,
+): number | null {
+  if (!Number.isFinite(startedAtMs) || !Number.isFinite(nowMs) || !Number.isFinite(progress)) {
+    return null;
+  }
+  if (progress <= 0 || progress >= 1) return null;
+  const elapsedSec = (nowMs - startedAtMs) / 1000;
+  return (elapsedSec / progress) * (1 - progress);
+}
+
 /** Slice `items` to the page at `page` (0-indexed), `pageSize` rows per page (locked at 50). */
 export function paginate<T>(items: T[], page: number, pageSize = 50): T[] {
   return items.slice(page * pageSize, page * pageSize + pageSize);
