@@ -112,8 +112,9 @@ public sealed class CoveDataPortRoutingFieldsTests
 
             Assert.NotNull(entity);
             Assert.NotNull(entity!.ParentStudios);
-            // Nearest-first, three ancestor levels deep, all hydrated.
-            Assert.Equal(3, entity.ParentStudios!.Count);
+            // Nearest-first, three ancestor levels deep, all hydrated. The count asserts against the
+            // single source of truth (not a literal 3) so it cannot silently out-run a depth change.
+            Assert.Equal(CoveRenamerDataPort.MaxParentDepth, entity.ParentStudios!.Count);
             Assert.Equal(parent.Id, entity.ParentStudios[0].Id);
             Assert.Equal(grandparent.Id, entity.ParentStudios[1].Id);
             Assert.Equal(greatGrand.Id, entity.ParentStudios[2].Id);
