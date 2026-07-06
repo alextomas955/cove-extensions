@@ -239,11 +239,12 @@ public sealed partial class Renamer : FullExtensionBase
             foreach (var id in ids)
             {
                 ct.ThrowIfCancellationRequested();
-                var plan = await planner.PlanAsync(kind, id, options, lookups, ct);
+                var (plan, entity) = await planner.PlanWithEntityAsync(kind, id, options, lookups, ct);
 
                 // File sizes for the free-space sum live on the loaded entity's files, not on the plan
-                // item. Load the entity once and read each file's bytes by id.
-                var entity = await port.LoadEntityAsync(kind, id, ct);
+                // item — so read them off the entity the planner just loaded rather than loading it a
+                // second time. (A chunked WHERE-Id-IN load is a possible future win but was deferred:
+                // it would change the single-entity LoadEntityAsync contract PHASE B and the tests rely on.)
                 var sizeByFileId = entity?.Files.ToDictionary(f => f.FileId, f => f.SizeBytes) ?? [];
 
                 int actingThisItem = 0;

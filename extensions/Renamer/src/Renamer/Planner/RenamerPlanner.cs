@@ -43,6 +43,11 @@ public sealed class RenamerPlanner
         RenamerFileKind kind, int entityId, RenamerOptions options, CancellationToken ct)
         => PlanAsync(kind, entityId, options, EmptyLookups, ct);
 
+    /// <summary>Non-routing overload of <see cref="PlanWithEntityAsync(RenamerFileKind,int,RenamerOptions,RouteLookups,CancellationToken)"/> (legacy source-confine).</summary>
+    public Task<PlanResult> PlanWithEntityAsync(
+        RenamerFileKind kind, int entityId, RenamerOptions options, CancellationToken ct)
+        => PlanWithEntityAsync(kind, entityId, options, EmptyLookups, ct);
+
     /// <summary>
     /// Computes the per-file old→new plan for the given entity, performing zero disk/DB mutation.
     /// Returns an empty plan when the entity does not exist. Routing is resolved ONCE per entity
@@ -57,11 +62,26 @@ public sealed class RenamerPlanner
     /// <param name="ct">Cancellation token.</param>
     public async Task<RenamerPlan> PlanAsync(
         RenamerFileKind kind, int entityId, RenamerOptions options, RouteLookups lookups, CancellationToken ct)
+        => (await PlanWithEntityAsync(kind, entityId, options, lookups, ct)).Plan;
+
+    /// <summary>
+    /// Same as <see cref="PlanAsync(RenamerFileKind,int,RenamerOptions,RouteLookups,CancellationToken)"/>
+    /// but also surfaces the entity it loaded.
+    /// </summary>
+    /// <remarks>
+    /// The batch runner needs each file's <c>SizeBytes</c> for the cross-drive free-space sum. Those
+    /// sizes live on the loaded entity's files, not on the plan items — so this overload hands back the
+    /// same entity the planner already loaded, letting PHASE A read the sizes without a second
+    /// (identical, expensive multi-<c>Include</c>) DB load per id. <see cref="PlanResult.Entity"/> is
+    /// <c>null</c> exactly when the id is not found (an empty plan + null entity).
+    /// </remarks>
+    public async Task<PlanResult> PlanWithEntityAsync(
+        RenamerFileKind kind, int entityId, RenamerOptions options, RouteLookups lookups, CancellationToken ct)
     {
         var entity = await _port.LoadEntityAsync(kind, entityId, ct);
         if (entity is null)
         {
-            return new RenamerPlan(entityId, kind, Array.Empty<RenamerPlanItem>());
+            return new PlanResult(new RenamerPlan(entityId, kind, Array.Empty<RenamerPlanItem>()), null);
         }
 
         // Route ONCE per entity (mirroring how the metadata projector runs once per file), and do it
@@ -80,7 +100,7 @@ public sealed class RenamerPlanner
             var excluded = entity.Files
                 .Select(f => SkipItem(f, RenamerStatus.SkipExcluded, $"excluded: {route.MatchedRule}"))
                 .ToList();
-            return new RenamerPlan(entity.EntityId, entity.Kind, excluded);
+            return new PlanResult(new RenamerPlan(entity.EntityId, entity.Kind, excluded), entity);
         }
 
         // A gated (non-excluded) item is SkipGated for EVERY file, never rendered.
@@ -89,7 +109,7 @@ public sealed class RenamerPlanner
             var gated = entity.Files
                 .Select(f => SkipItem(f, RenamerStatus.SkipGated, gateReason!))
                 .ToList();
-            return new RenamerPlan(entity.EntityId, entity.Kind, gated);
+            return new PlanResult(new RenamerPlan(entity.EntityId, entity.Kind, gated), entity);
         }
 
         var items = new List<RenamerPlanItem>(entity.Files.Count);
@@ -99,7 +119,7 @@ public sealed class RenamerPlanner
             items.Add(await PlanFileAsync(entity, file, options, route, ct));
         }
 
-        return new RenamerPlan(entity.EntityId, entity.Kind, items);
+        return new PlanResult(new RenamerPlan(entity.EntityId, entity.Kind, items), entity);
     }
 
     /// <summary>
@@ -308,3 +328,6 @@ public sealed class RenamerPlanner
         return a.TrimEnd('/') + "/" + b.TrimStart('/');
     }
 }
+
+/// <summary>The dry-run plan plus the entity it was computed from (<c>null</c> when the id was not found).</summary>
+public readonly record struct PlanResult(RenamerPlan Plan, RenamerEntity? Entity);

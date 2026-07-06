@@ -40,8 +40,14 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     /// <summary>Declares <paramref name="fullPath"/> absent on disk for <see cref="SourceExistsAsync"/>.</summary>
     public void SeedMissingSource(string fullPath) => MissingSources.Add(fullPath);
 
+    /// <summary>Number of <see cref="LoadEntityAsync"/> calls — lets a test prove PHASE A loads each id once, not twice.</summary>
+    public int LoadEntityCallCount { get; private set; }
+
     public Task<RenamerEntity?> LoadEntityAsync(RenamerFileKind kind, int entityId, CancellationToken ct = default)
-        => Task.FromResult(_entities.TryGetValue((kind, entityId), out var e) ? e : null);
+    {
+        LoadEntityCallCount++;
+        return Task.FromResult(_entities.TryGetValue((kind, entityId), out var e) ? e : null);
+    }
 
     public Task<IReadOnlyList<int>> LoadAllEntityIdsAsync(RenamerFileKind kind, CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<int>>(_allIds.TryGetValue(kind, out var ids) ? ids : []);
