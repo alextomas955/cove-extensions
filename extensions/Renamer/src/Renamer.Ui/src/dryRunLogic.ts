@@ -171,49 +171,71 @@ export interface ProgressSample {
 }
 
 /**
- * Number of trailing samples the rolling ETA rate is measured over. Wide enough to smooth
- * poll-to-poll jitter, short enough that the estimate tracks the CURRENT rate rather than the
- * cold-start average — so a slow first query (DB warmup / JIT / first batch) scrolls out of the
- * window within a few polls instead of dominating the estimate for the whole scan.
+ * EWMA smoothing factor for the ETA rate — the weight of the newest instantaneous rate vs. the
+ * running average. This is tqdm's `smoothing` default (0.3): high enough to track a changing rate,
+ * low enough to damp poll-to-poll jitter. `smoothed = α·instant + (1 − α)·smoothed`.
  */
-export const ETA_WINDOW = 5;
+export const ETA_SMOOTHING = 0.3;
 
 /**
- * Client-side ETA fallback for when the host's `etaSeconds` is null. Estimates remaining seconds
- * from the rate over the LAST {@link ETA_WINDOW} samples — `(latest.progress - oldest.progress) /
- * (latest.timeMs - oldest.timeMs)` — NOT the cumulative average since the scan started. The
- * cumulative form (elapsed / p * (1 - p)) folds the cold-start latency into every later estimate,
- * which is why a scan that finishes in seconds first flashed "~2h left": the first sample was slow
- * and anchored the average. A trailing window discards that warmup once it ages out.
+ * Minimum number of instantaneous-rate observations that must fold into the EWMA before an ETA is
+ * shown. The first rate only SEEDS the average (it is unsmoothed), so requiring a second means the
+ * displayed value always reflects a smoothed rate — no one-poll "~2m" flash from a noisy first
+ * sample. This is a display-confidence gate (curl shows `--:--`, tqdm shows `?` until warmed), not a
+ * discard of data: every rate still contributes to the average; we only withhold the DISPLAY early.
+ */
+export const ETA_MIN_RATES = 2;
+
+/**
+ * Client-side ETA fallback for when the host's `etaSeconds` is null. Estimates remaining seconds as
+ * `(1 − progress) / smoothedRate`, where `smoothedRate` (progress-per-second) is an EXPONENTIALLY-
+ * WEIGHTED MOVING AVERAGE of the per-poll instantaneous rates — the standard approach (tqdm, curl's
+ * rolling speed, download managers), NOT a cumulative average since start.
  *
- * Returns null when no estimate is possible: progress at/beyond the ends (can't project from 0,
- * done at 1), fewer than 2 samples, non-finite inputs, or a window showing no forward progress /
- * non-positive elapsed (would divide by ~zero or project backwards).
+ * Why EWMA rather than "cumulative elapsed/p·(1−p)" or a fixed window with the first sample dropped:
+ * the cumulative form folds the cold-start latency (DB warmup / JIT / first batch) into every later
+ * estimate, so a scan that finishes in seconds first flashes "~2h left". EWMA instead lets that slow
+ * first rate DECAY exponentially as real samples arrive — the warmup stops mattering within ~2–3
+ * polls, with no magic "discard the first N" threshold. Recency-weighting is the principled fix.
+ *
+ * Returns null when no rate is yet computable — fewer than 2 samples (a rate needs two points; this
+ * is math, not a heuristic), progress at/beyond the ends (can't project from 0, done at 1), a
+ * non-positive smoothed rate (no forward progress → would divide by ~zero or project backwards), or
+ * non-finite inputs.
  */
 export function etaFromSamples(samples: readonly ProgressSample[]): number | null {
   if (samples.length < 2) return null;
 
-  const window = samples.slice(-ETA_WINDOW);
-  const oldest = window[0];
-  const latest = window[window.length - 1];
-  if (
-    !Number.isFinite(oldest.timeMs) ||
-    !Number.isFinite(latest.timeMs) ||
-    !Number.isFinite(latest.progress)
-  ) {
-    return null;
-  }
-
+  const latest = samples[samples.length - 1];
+  if (!Number.isFinite(latest.timeMs) || !Number.isFinite(latest.progress)) return null;
   const p = latest.progress;
   if (p <= 0 || p >= 1) return null;
 
-  const deltaProgress = latest.progress - oldest.progress;
-  const deltaSec = (latest.timeMs - oldest.timeMs) / 1000;
-  // No forward movement in the window (or a backwards/zero time step) → no usable rate.
-  if (deltaProgress <= 0 || deltaSec <= 0) return null;
+  // Fold each consecutive pair's instantaneous rate into the EWMA. The FIRST rate merely SEEDS the
+  // average (nothing to blend with yet), so it carries any cold-start/first-poll noise unsmoothed —
+  // showing an ETA off that single seed is what flashes a wrong "~2m" for one poll. So we withhold
+  // the estimate until at least ETA_MIN_RATES rates have folded in (the seed + one more), i.e. the
+  // EWMA has actually smoothed. This is the standard "don't show a low-confidence ETA yet" rule that
+  // curl (`--:--`) and tqdm (`?`) use — a display-confidence gate, NOT discarding data from the math.
+  let smoothedRate: number | null = null;
+  let rateCount = 0;
+  for (let i = 1; i < samples.length; i++) {
+    const prev = samples[i - 1];
+    const cur = samples[i];
+    if (!Number.isFinite(prev.timeMs) || !Number.isFinite(cur.timeMs)) continue;
+    const dt = (cur.timeMs - prev.timeMs) / 1000;
+    const dp = cur.progress - prev.progress;
+    if (dt <= 0 || dp <= 0) continue; // skip a stalled/backwards step, don't poison the average
+    const instant = dp / dt; // progress-per-second
+    smoothedRate =
+      smoothedRate === null
+        ? instant
+        : ETA_SMOOTHING * instant + (1 - ETA_SMOOTHING) * smoothedRate;
+    rateCount++;
+  }
 
-  const ratePerSec = deltaProgress / deltaSec;
-  return (1 - p) / ratePerSec;
+  if (smoothedRate === null || smoothedRate <= 0 || rateCount < ETA_MIN_RATES) return null;
+  return (1 - p) / smoothedRate;
 }
 
 /** Slice `items` to the page at `page` (0-indexed), `pageSize` rows per page (locked at 50). */

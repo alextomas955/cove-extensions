@@ -27,7 +27,6 @@ import {
   bucketCounts,
   classifyItem,
   etaFromSamples,
-  ETA_WINDOW,
   filterItems,
   formatEta,
   isFinalizing,
@@ -39,6 +38,10 @@ import {
   type DryRunSortDirection,
   type ProgressSample,
 } from "./dryRunLogic";
+
+// Memory cap on the ETA sample buffer (a scan is only tens of polls; the EWMA recency-weights, so
+// this bounds retained samples without affecting the estimate).
+const ETA_MAX_SAMPLES = 60;
 
 // The four content columns share one grid template so the sticky header and every virtualized row
 // align. Expressed inline because `grid-template-columns` with these exact tracks is host-absent
@@ -252,6 +255,11 @@ export function DryRunModal({
   useEffect(() => {
     if (scanRequested.current) return;
     scanRequested.current = true;
+    // Start each scan from a clean slate so no stale sample/ceiling from a prior scan in this modal
+    // lifecycle leaks into the first ETA (a leftover old-timestamp sample pairs with a fresh one and
+    // computes a bogus slow rate → a brief "~2m"/"~2h" flash before it self-corrects).
+    scanSamples.current = [];
+    scanMaxPercent.current = 0;
     request<{ jobId: string }>(SCAN_LIBRARY_PATH, {
       method: "POST",
       body: JSON.stringify({ Options: JSON.stringify(options) }),
@@ -287,18 +295,19 @@ export function DryRunModal({
       scanMaxPercent.current = Math.max(scanMaxPercent.current, progressPercent(job.progress));
       const percent = scanMaxPercent.current;
       const finalizing = isFinalizing(job.progress);
-      // Append this poll to the rolling sample buffer (bounded to the ETA window) for the wall-clock
-      // fallback. Reading Date.now() here in the handler, not at render (the React Compiler forbids
-      // impure render calls). Prefer the host's own etaSeconds when it supplies one.
+      // Append this poll to the sample buffer that feeds the EWMA ETA. Reading Date.now() here in the
+      // handler, not at render (the React Compiler forbids impure render calls). The buffer is capped
+      // generously (a scan is only ~tens of polls) — the EWMA recency-weights anyway, so the cap is
+      // just a memory bound, not part of the estimate.
       scanSamples.current = [
-        ...scanSamples.current.slice(-(ETA_WINDOW - 1)),
+        ...scanSamples.current.slice(-(ETA_MAX_SAMPLES - 1)),
         { timeMs: Date.now(), progress: job.progress },
       ];
-      // Use our OWN rolling-window ETA FIRST, not the host's job.etaSeconds. The host's estimate for a
+      // Use our OWN EWMA ETA FIRST, not the host's job.etaSeconds. The host's estimate for a
       // fraction-reporting job (which the scan is) comes from its legacy fraction path — a since-start
-      // EWMA that folds the slow cold-start sample into the estimate, so it flashes an absurd "~2h left"
-      // on a scan that finishes in seconds. The rolling window over recent samples tracks the actual
-      // current rate. Fall back to the host value only when we don't yet have two samples.
+      // average that folds the slow cold-start sample in, so it flashes an absurd "~2h left" on a scan
+      // that finishes in seconds. Our recency-weighted EWMA tracks the actual current rate. Fall back
+      // to the host value only before we have two samples (a rate needs two points).
       const eta = formatEta(etaFromSamples(scanSamples.current)) ?? formatEta(job.etaSeconds);
       setScanProgress({
         percent,

@@ -22,7 +22,8 @@ const {
   isFinalizing,
   formatEta,
   etaFromSamples,
-  ETA_WINDOW,
+  ETA_SMOOTHING,
+  ETA_MIN_RATES,
 } = mod;
 
 /** A full-ish scan row for the search/sort tests (only the fields those functions read). */
@@ -236,31 +237,86 @@ test("formatEta renders seconds/minutes/hours, null when there's nothing to show
   assert.equal(formatEta(3700), "~1h left");
 });
 
-test("etaFromSamples estimates from the rolling-window rate, null when it can't", () => {
-  // 2 samples, +0.1 progress over 1s = 0.1/s; remaining 1-0.6=0.4 → ~4s (float-tolerant).
-  assert.ok(Math.abs(etaFromSamples([{ timeMs: 0, progress: 0.5 }, { timeMs: 1000, progress: 0.6 }]) - 4) < 1e-6);
+test("etaFromSamples is an EWMA of the rate; a warmed steady rate gives the plain projection", () => {
+  // Two identical-rate pairs → EWMA of a constant is that constant. 0.1/s, remaining 0.4 → 4s.
+  assert.ok(
+    Math.abs(
+      etaFromSamples([
+        { timeMs: 0, progress: 0.4 },
+        { timeMs: 1000, progress: 0.5 },
+        { timeMs: 2000, progress: 0.6 },
+      ]) - 4,
+    ) < 1e-6,
+  );
 
-  // Null guards: fewer than 2 samples, progress at the ends, no forward progress, non-finite.
+  // Display-confidence gate: a SINGLE rate (one pair) is withheld (unsmoothed seed) → null.
+  assert.equal(etaFromSamples([{ timeMs: 1000, progress: 0.5 }, { timeMs: 2000, progress: 0.6 }]), null);
+
+  // Null guards: <2 samples (a rate needs two points), progress at the ends, no forward progress,
+  // non-finite.
   assert.equal(etaFromSamples([]), null);
   assert.equal(etaFromSamples([{ timeMs: 0, progress: 0.5 }]), null);
-  assert.equal(etaFromSamples([{ timeMs: 0, progress: 0 }, { timeMs: 1000, progress: 0 }]), null);
-  assert.equal(etaFromSamples([{ timeMs: 0, progress: 0.9 }, { timeMs: 1000, progress: 1 }]), null); // latest at 1.0
-  assert.equal(etaFromSamples([{ timeMs: 0, progress: 0.5 }, { timeMs: 1000, progress: 0.5 }]), null); // flat window
-  assert.equal(etaFromSamples([{ timeMs: 0, progress: 0.3 }, { timeMs: Infinity, progress: 0.5 }]), null);
+  assert.equal(
+    etaFromSamples([{ timeMs: 0, progress: 0 }, { timeMs: 1000, progress: 0 }, { timeMs: 2000, progress: 0 }]),
+    null,
+  ); // no forward progress
+  assert.equal(
+    etaFromSamples([{ timeMs: 0, progress: 0.8 }, { timeMs: 1000, progress: 0.9 }, { timeMs: 2000, progress: 1 }]),
+    null,
+  ); // latest at 1.0
+  assert.equal(
+    etaFromSamples([{ timeMs: 0, progress: 0.5 }, { timeMs: 1000, progress: 0.5 }, { timeMs: 2000, progress: 0.5 }]),
+    null,
+  ); // flat
 });
 
-test("etaFromSamples ignores the slow cold-start sample once it ages out of the window", () => {
-  // The real bug: a slow first sample (7200s to reach 1%) then a fast steady rate. The cumulative
-  // average would project ~2h; the rolling window over the recent fast samples projects seconds.
-  const samples = [
-    { timeMs: 0, progress: 0.01 }, // cold start: 1% took 7.2s
-    { timeMs: 7200, progress: 0.01 },
-  ];
-  // fast phase: +0.1 every 200ms
-  for (let i = 1; i <= ETA_WINDOW + 2; i++) {
-    samples.push({ timeMs: 7200 + i * 200, progress: Math.min(0.99, 0.01 + i * 0.1) });
+test("etaFromSamples EWMA decays the cold-start rate instead of flashing a bogus slow ETA", () => {
+  // The reported symptom: a slow first pair (1% over 7.2s) then a fast steady rate. The EWMA pulls
+  // toward the fast rate each poll, so the estimate is seconds — NOT minutes/hours — and it does so
+  // WITHOUT dropping any samples (recency-weighting is the principled fix, not a magic threshold).
+  const samples = [{ timeMs: 0, progress: 0.01 }, { timeMs: 7200, progress: 0.02 }]; // slow warmup pair
+  for (let i = 1; i <= 8; i++) {
+    samples.push({ timeMs: 7200 + i * 200, progress: Math.min(0.99, 0.02 + i * 0.1) }); // fast phase
   }
   const eta = etaFromSamples(samples);
-  // Window is the last ETA_WINDOW samples (all in the fast phase) → a small ETA, NOT hours.
-  assert.ok(eta !== null && eta < 10, `expected a small ETA from the recent fast rate, got ${eta}`);
+  assert.ok(eta !== null && eta < 10, `expected a small ETA after the EWMA absorbs the fast rate, got ${eta}`);
+
+  // The confidence gate means the FIRST fast poll (only 2 rate observations: slow seed + 1 fast) is
+  // shown, and by then the EWMA already leans toward the fast rate — so it is seconds, not minutes.
+  // slow seed ≈ 0.00139/s; fast instant 0.5/0.2=2.5/s; smoothed = 0.3*2.5 + 0.7*0.00139 ≈ 0.751/s;
+  // remaining from 0.52 ≈ 0.48/0.751 ≈ 0.6s.
+  const early = etaFromSamples([
+    { timeMs: 0, progress: 0.01 },
+    { timeMs: 7200, progress: 0.02 }, // slow seed (rate #1)
+    { timeMs: 7400, progress: 0.52 }, // one fast poll (rate #2 — now shown)
+  ]);
+  assert.ok(early !== null && early < 60, `expected under a minute once warmed, got ${early}`);
+});
+
+test("etaFromSamples withholds the estimate until it has ETA_MIN_RATES smoothed rates", () => {
+  // Exactly one rate observation (unsmoothed seed) → null, no matter how clean the pair looks. This
+  // is the fix for the intermittent one-poll "~2m" flash: never DISPLAY off a single raw seed.
+  assert.equal(ETA_MIN_RATES, 2);
+  assert.equal(etaFromSamples([{ timeMs: 0, progress: 0.2 }, { timeMs: 1000, progress: 0.3 }]), null); // 1 rate
+  // A stalled step between doesn't count as a rate, so 3 samples with one flat gap = still 1 rate → null.
+  assert.equal(
+    etaFromSamples([
+      { timeMs: 0, progress: 0.2 },
+      { timeMs: 1000, progress: 0.2 }, // flat — skipped, not a rate
+      { timeMs: 2000, progress: 0.3 }, // rate #1 only
+    ]),
+    null,
+  );
+  // Two real rates → shown.
+  assert.ok(
+    etaFromSamples([
+      { timeMs: 0, progress: 0.2 },
+      { timeMs: 1000, progress: 0.3 },
+      { timeMs: 2000, progress: 0.4 },
+    ]) !== null,
+  );
+});
+
+test("ETA_SMOOTHING is tqdm's 0.3 default", () => {
+  assert.equal(ETA_SMOOTHING, 0.3);
 });
