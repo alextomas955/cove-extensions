@@ -655,4 +655,44 @@ public class TemplateEngineTests
 
         Assert.Equal([1, 2], survivors.Select(p => p.Id).ToArray());
     }
+
+    // ---- NormalizePunctuation: end-to-end render (default ON) ----
+
+    [Fact]
+    public void NormalizePunctuation_On_FoldsCurlyApostrophe()
+    {
+        var r = Render("$title", new Dictionary<string, string> { ["title"] = "It’s Here" });
+        Assert.Equal("It's Here", r.Filename);
+    }
+
+    [Fact]
+    public void NormalizePunctuation_On_StraightDoubleQuote_ThenStrippedByClean()
+    {
+        // The folded straight double-quote is OS-illegal, so CleanSegment removes it afterwards.
+        var r = Render("$title", new Dictionary<string, string> { ["title"] = "“Hi”" });
+        Assert.Equal("Hi", r.Filename);
+    }
+
+    [Fact]
+    public void NormalizePunctuation_On_FoldsEnDash()
+    {
+        var r = Render("$title", new Dictionary<string, string> { ["title"] = "A–B" });
+        Assert.Equal("A-B", r.Filename);
+    }
+
+    [Fact]
+    public void NormalizePunctuation_On_FoldsEllipsis()
+    {
+        // The ellipsis is mid-title so the folded three dots are not trimmed as trailing-edge dots.
+        var r = Render("$title", new Dictionary<string, string> { ["title"] = "Wait… What" });
+        Assert.Equal("Wait... What", r.Filename);
+    }
+
+    [Fact]
+    public void NormalizePunctuation_Off_PassesTypographicCharsThrough()
+    {
+        var o = new RenamerOptions { NormalizePunctuation = false };
+        var r = Render("$title", new Dictionary<string, string> { ["title"] = "It’s A–Z" }, options: o);
+        Assert.Equal("It’s A–Z", r.Filename);
+    }
 }

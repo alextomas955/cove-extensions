@@ -192,4 +192,44 @@ public static class Sanitizer
         }
         return sb.ToString().Normalize(NormalizationForm.FormC);
     }
+
+    /// <summary>
+    /// Folds a small, punctuation-only set of typographic characters to their ASCII equivalents:
+    /// curly single quotes (U+2018/U+2019) → <c>'</c>, curly double quotes (U+201C/U+201D) → <c>"</c>,
+    /// en/em dashes (U+2013/U+2014) → <c>-</c>, and the ellipsis (U+2026) → three ASCII dots. Every
+    /// other character (letters, diacritics, non-Latin scripts) is left verbatim — folding accented
+    /// letters is <see cref="Transliterate"/>'s job, not this method's.
+    /// </summary>
+    public static string NormalizePunctuation(string s)
+    {
+        // Scrapers store smart quotes/dashes in metadata while the files on disk are plain ASCII;
+        // folding punctuation back to ASCII keeps those straight-quote files as no-ops instead of moves.
+        var sb = new StringBuilder(s.Length);
+        foreach (var ch in s)
+        {
+            switch (ch)
+            {
+                case '‘':
+                case '’':
+                    sb.Append('\'');
+                    break;
+                case '“':
+                case '”':
+                    sb.Append('"');
+                    break;
+                case '–':
+                case '—':
+                    sb.Append('-');
+                    break;
+                case '…':
+                    sb.Append("...");
+                    break;
+                default:
+                    sb.Append(ch);
+                    break;
+            }
+        }
+
+        return sb.ToString();
+    }
 }

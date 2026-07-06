@@ -454,9 +454,16 @@ public static class TemplateEngine
         return Resolve(resolved, name);
     }
 
-    /// <summary>Applies the configured ASCII transliteration then case transform.</summary>
+    /// <summary>Applies the configured punctuation normalization, then ASCII transliteration, then case transform.</summary>
     private static string ApplyTransforms(string s, RenamerOptions options)
     {
+        // Punctuation normalization runs FIRST so a folded straight double-quote is still subsequently
+        // stripped by the illegal-char step in CleanSegment (every render path calls this before it).
+        if (options.NormalizePunctuation)
+        {
+            s = Sanitizer.NormalizePunctuation(s);
+        }
+
         if (options.AsciiTransliterate)
         {
             s = Sanitizer.Transliterate(s);

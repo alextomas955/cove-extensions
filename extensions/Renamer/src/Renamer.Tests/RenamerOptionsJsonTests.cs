@@ -433,6 +433,52 @@ public sealed class RenamerOptionsJsonTests
         Assert.Empty(loaded.ExcludePaths);
     }
 
+    // ---- NormalizePunctuation ----
+
+    [Fact]
+    public void NormalizePunctuation_Defaults_On()
+    {
+        Assert.True(new RenamerOptions().NormalizePunctuation); // on for a fresh install (folds smart quotes to ASCII)
+    }
+
+    [Fact]
+    public void NormalizePunctuation_Participates_In_Equality()
+    {
+        // A bare flag difference must make two options instances UNEQUAL — proves the flag
+        // is wired into the hand-written Equals/GetHashCode (not silently ignored).
+        var off = new RenamerOptions { NormalizePunctuation = false };
+        var on = new RenamerOptions { NormalizePunctuation = true };
+        Assert.NotEqual(off, on);
+    }
+
+    [Fact]
+    public void NormalizePunctuation_RoundTrip_AreEqual()
+    {
+        var original = new RenamerOptions { NormalizePunctuation = false };
+
+        var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
+        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
+
+        Assert.Equal(original, reloaded);
+        Assert.False(reloaded!.NormalizePunctuation); // an explicit false survives the round-trip
+    }
+
+    [Fact]
+    public void NormalizePunctuation_OmittedFromJson_LoadsTrue_ExplicitFalsePreserved()
+    {
+        // forward-compat: an old blob that predates the field loads with the true default; a blob that
+        // explicitly stores false keeps that stored value (a present value is never overwritten).
+        const string omitted = """{"FilenameTemplate":"$title"}""";
+        var loadedOmitted = JsonSerializer.Deserialize<RenamerOptions>(omitted, RenamerOptions.JsonOptions);
+        Assert.NotNull(loadedOmitted);
+        Assert.True(loadedOmitted!.NormalizePunctuation);
+
+        const string explicitFalse = """{"FilenameTemplate":"$title","NormalizePunctuation":false}""";
+        var loadedFalse = JsonSerializer.Deserialize<RenamerOptions>(explicitFalse, RenamerOptions.JsonOptions);
+        Assert.NotNull(loadedFalse);
+        Assert.False(loadedFalse!.NormalizePunctuation);
+    }
+
     // ---- removechar + filename-as-title ----
 
     [Fact]

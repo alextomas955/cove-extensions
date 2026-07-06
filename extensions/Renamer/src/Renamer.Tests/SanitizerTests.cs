@@ -227,4 +227,32 @@ public class SanitizerTests
     {
         Assert.Equal("Plain Title", Sanitizer.Transliterate("Plain Title"));
     }
+
+    // ---- NormalizePunctuation ----
+
+    [Theory]
+    [InlineData("It‘s", "It's")]        // U+2018 left single quote
+    [InlineData("It’s", "It's")]        // U+2019 right single quote (apostrophe)
+    [InlineData("“Hi”", "\"Hi\"")] // U+201C/U+201D curly double quotes
+    [InlineData("A–B", "A-B")]          // U+2013 en-dash
+    [InlineData("A—B", "A-B")]          // U+2014 em-dash
+    [InlineData("Wait…", "Wait...")]    // U+2026 ellipsis -> three dots
+    public void Transform_NormalizePunctuation_FoldsEachMapping(string input, string expected)
+    {
+        Assert.Equal(expected, Sanitizer.NormalizePunctuation(input));
+    }
+
+    [Fact]
+    public void Transform_NormalizePunctuation_LeavesLettersAndNonLatinUnchanged()
+    {
+        // Punctuation-only: accented letters and non-Latin scripts are NOT this method's job.
+        Assert.Equal("Beyoncé", Sanitizer.NormalizePunctuation("Beyoncé"));
+        Assert.Equal("Москва", Sanitizer.NormalizePunctuation("Москва"));
+    }
+
+    [Fact]
+    public void Transform_NormalizePunctuation_PlainAsciiUnchanged()
+    {
+        Assert.Equal("Plain Title", Sanitizer.NormalizePunctuation("Plain Title"));
+    }
 }

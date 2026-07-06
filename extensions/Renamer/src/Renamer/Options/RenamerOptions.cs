@@ -277,6 +277,20 @@ public sealed record RenamerOptions
     public bool RemoveEmptyFolder { get; init; }
 
     public bool AsciiTransliterate { get; init; }
+
+    /// <summary>
+    /// When <c>true</c>, a small punctuation-only set of typographic characters is folded to ASCII in
+    /// the rendered name (curly quotes → straight quotes, en/em dashes → hyphen, ellipsis → three dots).
+    /// <remarks>
+    /// Punctuation-only — accented letters and non-Latin scripts are untouched (that is
+    /// <c>AsciiTransliterate</c>). Default <c>true</c> because scrapers store smart quotes/dashes in
+    /// metadata while the on-disk basenames are plain ASCII, so folding punctuation back keeps those
+    /// straight-quote files as no-ops rather than rewriting them to carry curly punctuation. A
+    /// previously-saved value is preserved on load (the default applies only to a first run).
+    /// </remarks>
+    /// </summary>
+    public bool NormalizePunctuation { get; init; } = true;
+
     public int FilenameMax { get; init; } = 255;
     public int FullPathMax { get; init; } = 259;
     public List<string> DropOrder { get; init; } =
@@ -506,6 +520,7 @@ public sealed record RenamerOptions
         && FilenameAsTitle == other.FilenameAsTitle
         && RemoveEmptyFolder == other.RemoveEmptyFolder
         && AsciiTransliterate == other.AsciiTransliterate
+        && NormalizePunctuation == other.NormalizePunctuation
         && FilenameMax == other.FilenameMax
         && FullPathMax == other.FullPathMax
         && OnlyOrganized == other.OnlyOrganized
@@ -581,6 +596,7 @@ public sealed record RenamerOptions
         hc.Add(FilenameAsTitle);
         hc.Add(RemoveEmptyFolder);
         hc.Add(AsciiTransliterate);
+        hc.Add(NormalizePunctuation);
         hc.Add(FilenameMax);
         hc.Add(FullPathMax);
         hc.Add(OnlyOrganized);
