@@ -33,6 +33,27 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
 
+  # Docs site (Docusaurus) — its own package-lock.json, separate from the JS workspaces root.
+  # The co-versioned @docusaurus/* (+ @mdx-js/*) packages are grouped into one PR per release
+  # instead of ~8 separate ones. cooldown defers a version bump until the release has had time to
+  # be vetted (Docusaurus's own recommended supply-chain measure); security updates ignore
+  # cooldown and still open immediately.
+  - package-ecosystem: "npm"
+    directory: "/website"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 5
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 7
+    groups:
+      docusaurus:
+        patterns:
+          - "@docusaurus/*"
+          - "@mdx-js/*"
+
   # Workflow action versions (checkout, setup-dotnet, setup-node, action-gh-release, codeql-action).
   # Root-scoped regardless of how many extensions exist in this monorepo.
   - package-ecosystem: "github-actions"
