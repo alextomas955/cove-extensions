@@ -62,25 +62,6 @@ $ExtensionId   = 'com.alextomas955.renamer'
 $EntryDll      = 'Renamer.dll'
 $CovePort      = 5073
 
-# Host-provided assemblies that MUST NOT ship — mirrors CoveHostProvidedAssemblies in
-# <COVE_REPO>/src/Cove.Sdk/buildTransitive/Cove.Sdk.targets. Kept in sync by hand; if the host
-# adds a dependency, add it here too.
-# The same denylist is enforced in CI by .github/workflows/build.yml (the strip-verify step); the
-# two lists are hand-synced, so a host-dependency change must update both.
-$HostProvidedAssemblies = @(
-    'Cove.Core',
-    'Cove.Plugins',
-    'Cove.Sdk',
-    'Microsoft.EntityFrameworkCore',
-    'Microsoft.EntityFrameworkCore.Abstractions',
-    'Microsoft.EntityFrameworkCore.Relational',
-    'Npgsql',
-    'Npgsql.EntityFrameworkCore.PostgreSQL',
-    'Pgvector',
-    'Pgvector.EntityFrameworkCore',
-    'MediatR.Contracts'
-)
-
 # --- 1. Resolve repo paths (location-independent) ----------------------------------------------
 # $PSScriptRoot = extensions/Renamer/scripts; the extension root is one level up, and the
 # monorepo root is one level above that extensions/ subfolder (two levels above ExtensionRoot).
@@ -90,6 +71,16 @@ $Csproj        = Join-Path $ExtensionRoot 'src/Renamer/Renamer.csproj'
 $PublishDir    = Join-Path $ExtensionRoot 'artifacts/publish'
 $UiDir         = Join-Path $ExtensionRoot 'src/Renamer.Ui'
 $UiBundle      = Join-Path $UiDir 'dist/index.mjs'
+
+# Host-provided assemblies that MUST NOT ship — the single source of truth shared with CI's
+# strip-verify gate (.github/workflows/build.yml), defined in .github/DLL_DENYLIST.json. Read here
+# (after $MonorepoRoot resolves) rather than hand-copied, so a host-dependency change updates one file.
+$DenylistPath = Join-Path $MonorepoRoot '.github/DLL_DENYLIST.json'
+if (-not (Test-Path $DenylistPath)) {
+    throw "Shared host-assembly denylist not found at $DenylistPath — cannot verify host-assembly " +
+          "stripping. Refusing to deploy (fail-closed)."
+}
+$HostProvidedAssemblies = Get-Content -Raw -Path $DenylistPath | ConvertFrom-Json
 
 if (-not (Test-Path $Csproj)) {
     throw "Cannot find project at $Csproj"

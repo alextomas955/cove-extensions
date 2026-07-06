@@ -1,0 +1,13 @@
+[
+  "Cove.Core",
+  "Cove.Plugins",
+  "Cove.Sdk",
+  "Microsoft.EntityFrameworkCore",
+  "Microsoft.EntityFrameworkCore.Abstractions",
+  "Microsoft.EntityFrameworkCore.Relational",
+  "Npgsql",
+  "Npgsql.EntityFrameworkCore.PostgreSQL",
+  "Pgvector",
+  "Pgvector.EntityFrameworkCore",
+  "MediatR.Contracts"
+]
