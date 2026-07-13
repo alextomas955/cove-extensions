@@ -219,8 +219,8 @@ export function ReconciliationSection() {
 
   // Counts over ALL rows (so segment labels are stable regardless of the active filter). The visible
   // list is filter → search → sort over the WHOLE diff (not a page) so the virtualized scroll reaches
-  // every matching row. Memoized so it only recomputes when an input actually changes.
-  const counts = rows ? bucketCounts(rows) : null;
+  // every matching row. Both are memoized so they only recompute when an input actually changes.
+  const counts = useMemo(() => (rows ? bucketCounts(rows) : null), [rows]);
   const visible = useMemo(() => {
     if (!rows) return [];
     return sortRows(searchRows(filterRows(rows, filter), search), sortColumn, sortDir);
@@ -293,10 +293,10 @@ export function ReconciliationSection() {
             </div>
           );
         }
-        if (rows === null) return null;
-        // Reached only with a loaded diff, so the counts are non-null — compute them here as a plain
-        // const (no non-null assertion) narrowed alongside the non-null `rows`.
-        const c = bucketCounts(rows);
+        // Reached only with a loaded diff, so `counts` is non-null; the null guard narrows it here so we
+        // reuse the memoized value (no recompute, no non-null assertion) alongside the non-null `rows`.
+        if (rows === null || counts === null) return null;
+        const c = counts;
         if (c.total === 0) {
           return (
             <div className="py-8 text-center">
