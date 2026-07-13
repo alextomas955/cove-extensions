@@ -1,11 +1,16 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Cove.Core.Auth;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Adapters;
 using WhisparrSync.Client;
+using WhisparrSync.Library;
+using WhisparrSync.Matching;
 using WhisparrSync.Options;
 using WhisparrSync.Webhook;
 
@@ -27,6 +32,15 @@ public sealed partial class WhisparrSync
     private const string QualityProfilesRoute = RouteBase + "/qualityprofiles";
     private const string WebhookUrlRoute = RouteBase + "/webhook-url";
     private const string RegisterWebhookRoute = RouteBase + "/register-webhook";
+
+    // The read-only reconciliation surface (02-03). /preview-sync computes the live diff (configure-gated —
+    // it reaches the stored creds to call Whisparr, CR-01); /reconciliation is a pure match-map read
+    // (read-gated); /match/confirm|reject validate a submitted pair against the fresh diff, then write ONLY
+    // the extension's own match store (configure-gated).
+    private const string PreviewSyncRoute = RouteBase + "/preview-sync";
+    private const string ReconciliationRoute = RouteBase + "/reconciliation";
+    private const string MatchConfirmRoute = RouteBase + "/match/confirm";
+    private const string MatchRejectRoute = RouteBase + "/match/reject";
 
     /// <summary>
     /// Contributes the Whisparr Sync settings tab as a full-page layout (like Renamer): the host renders
@@ -88,6 +102,23 @@ public sealed partial class WhisparrSync
         endpoints.MapPost(RegisterWebhookRoute,
             (HttpRequest http, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => RegisterWebhookAsync($"{http.Scheme}://{http.Host}", client, principal, ct));
+
+        // Preview-sync reads Cove + Whisparr and returns the zero-mutation diff; it takes no body (it uses the
+        // stored creds only — CR-01). Confirm/reject carry the {coveId, whisparrMovieId} pair in the body.
+        endpoints.MapPost(PreviewSyncRoute,
+            (WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => PreviewSyncAsync(client, principal, ct));
+
+        endpoints.MapGet(ReconciliationRoute,
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => ReconciliationAsync(principal, ct));
+
+        endpoints.MapPost(MatchConfirmRoute,
+            (MatchDecisionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => MatchConfirmAsync(req, client, principal, ct));
+
+        endpoints.MapPost(MatchRejectRoute,
+            (MatchDecisionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => MatchRejectAsync(req, client, principal, ct));
     }
 
     /// <summary>
@@ -307,6 +338,170 @@ public sealed partial class WhisparrSync
     }
 
     /// <summary>
+    /// Computes the read-only reconciliation diff (MATCH-03): reads Cove via <see cref="CoveLibraryPort"/>,
+    /// fetches the Whisparr movie set via the adapter, loads the persisted match map, and composes them with
+    /// <see cref="ReconciliationService"/>. Returns the diff as a flat list of rows (matched / needs-review /
+    /// unmatched) plus counts. Configure-gated (CR-01): it reaches the stored credentials to call Whisparr, so
+    /// a read-only principal must not reach it. ZERO mutation of Cove or Whisparr.
+    /// </summary>
+    internal async Task<IResult> PreviewSyncAsync(
+        WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
+        {
+            return denied;
+        }
+
+        var (error, diff) = await ComputeReconciliationAsync(client, ct);
+        return error ?? Results.Json(ToReconResponse(diff!), ReconciliationResponseJsonOptions);
+    }
+
+    /// <summary>
+    /// Returns the last persisted match map + status counts — a pure read of the extension's own match store,
+    /// reaching no credentials and opening no scope. Read-gated (<c>extensions.read</c>): the only reconciliation
+    /// route a read-only principal may reach.
+    /// </summary>
+    internal async Task<IResult> ReconciliationAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        if (Forbidden(principal, Permissions.ExtensionsRead) is { } denied)
+        {
+            return denied;
+        }
+
+        var persisted = await new MatchStateStore(Store).LoadAllAsync(ct);
+        var counts = new PersistedCounts(
+            Confirmed: persisted.Count(e => e.Status == MatchStatus.Confirmed),
+            NeedsReview: persisted.Count(e => e.Status == MatchStatus.NeedsReview),
+            Rejected: persisted.Count(e => e.Status == MatchStatus.Rejected),
+            Total: persisted.Count);
+        return Results.Json(new { entries = persisted, counts }, ReconciliationResponseJsonOptions);
+    }
+
+    /// <summary>
+    /// Promotes a needs-review suggestion to a confirmed link (MATCH-02): validates the submitted pair against
+    /// the freshly-computed diff, then upserts it into the match store as <see cref="MatchStatus.Confirmed"/>.
+    /// Configure-gated (it recomputes the diff, which reaches the stored creds). The ONLY write is to the
+    /// extension's own match map.
+    /// </summary>
+    internal async Task<IResult> MatchConfirmAsync(
+        MatchDecisionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
+        {
+            return denied;
+        }
+
+        var (error, diff) = await ComputeReconciliationAsync(client, ct);
+        return error ?? await ApplyMatchDecisionAsync(req, diff!, MatchStatus.Confirmed, ct);
+    }
+
+    /// <summary>
+    /// Marks a needs-review suggestion rejected (MATCH-02) so a re-run suppresses it. Same validate-then-write
+    /// shape as <see cref="MatchConfirmAsync"/>; the decision is <see cref="MatchStatus.Rejected"/>. The write
+    /// is reversible on the next Refresh (the store, never Cove or Whisparr).
+    /// </summary>
+    internal async Task<IResult> MatchRejectAsync(
+        MatchDecisionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
+        {
+            return denied;
+        }
+
+        var (error, diff) = await ComputeReconciliationAsync(client, ct);
+        return error ?? await ApplyMatchDecisionAsync(req, diff!, MatchStatus.Rejected, ct);
+    }
+
+    /// <summary>
+    /// Validates <paramref name="req"/> against <paramref name="diff"/> and, only on a match, upserts the
+    /// decision into the match store. Extracted from the routed handlers so the validation-before-write rule is
+    /// unit-testable host-free (no scope / no Whisparr).
+    /// </summary>
+    /// <remarks>
+    /// V5 input validation (T-02-03-C): the submitted <c>(coveId, whisparrMovieId)</c> pair MUST be a live
+    /// needs-review suggestion in the freshly-computed diff. A forged/stale id writes NOTHING — confirm/reject
+    /// only ever act on a suggestion the chain currently proposes, and the single write target is the
+    /// extension's own match map (never Cove or Whisparr).
+    /// </remarks>
+    internal async Task<IResult> ApplyMatchDecisionAsync(
+        MatchDecisionRequest req, ReconciliationDiff diff, MatchStatus decision, CancellationToken ct)
+    {
+        var row = diff.NeedsReview.FirstOrDefault(r =>
+            r.Movie.Id == req.WhisparrMovieId && r.MatchedVideo?.CoveId == req.CoveId);
+        if (row is null)
+        {
+            return Results.Json(new { code = "MATCH_NOT_IN_DIFF" }, statusCode: 400);
+        }
+
+        var state = new MatchState(
+            CoveId: req.CoveId,
+            WhisparrMovieId: req.WhisparrMovieId,
+            StashId: row.MatchedVideo!.StashIds.Count > 0 ? row.MatchedVideo.StashIds[0] : string.Empty,
+            MatchedBy: row.Leg ?? MatchedBy.Fuzzy,
+            MatchedAtUtcTicks: DateTime.UtcNow.Ticks,
+            Status: decision);
+
+        var store = new MatchStateStore(Store);
+        if (decision == MatchStatus.Confirmed)
+        {
+            await store.ConfirmAsync(state, ct);
+        }
+        else
+        {
+            await store.RejectAsync(state, ct);
+        }
+
+        return Results.Json(
+            new { ok = true, coveId = state.CoveId, whisparrMovieId = state.WhisparrMovieId, status = decision },
+            ReconciliationResponseJsonOptions);
+    }
+
+    /// <summary>
+    /// Loads Cove + Whisparr behind the 02-01 seams and composes the 02-02 diff. Returns a classified error
+    /// <see cref="IResult"/> (400 unsupported version / 502 transport) OR the diff — never both. Uses the
+    /// STORED creds only (<see cref="ResolveCredsAsync"/> with an empty request), so the stored key is never
+    /// paired with a caller-supplied host (CR-01). Opens a fresh scope per run for the scoped
+    /// <see cref="DbContext"/> and never mutates Cove or Whisparr.
+    /// </summary>
+    private async Task<(IResult? Error, ReconciliationDiff? Diff)> ComputeReconciliationAsync(
+        WhisparrClient client, CancellationToken ct)
+    {
+        var (options, baseUrl, apiKey) = await ResolveCredsAsync(new TestConnectionRequest(null, null), ct);
+        if (AdapterSelector.SelectForVersion(options.SelectedVersion, client) is not { } adapter)
+        {
+            return (Results.Json(new { code = "VERSION_UNSUPPORTED" }, statusCode: 400), null);
+        }
+
+        var movies = await adapter.ListMoviesAsync(baseUrl, apiKey, ct);
+        if (!movies.IsOk)
+        {
+            return (Results.Json(new { result = FailureDiscriminator(movies.State) }, statusCode: 502), null);
+        }
+
+        // The 02-01 scope capture wired to the 02-02 service: a fresh CreateAsyncScope() per run so the scoped
+        // DbContext has the correct lifetime (never a long-lived captured context), and the AsNoTracking port
+        // is the only DbContext-touching surface — a plain reconcile writes nothing.
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<DbContext>();
+        var port = new CoveLibraryPort(db, options.StashDbEndpoint);
+        var coveVideos = await port.LoadAllVideosAsync(ct);
+
+        var persisted = await new MatchStateStore(Store).LoadAllAsync(ct);
+        var diff = ReconciliationService.Reconcile(coveVideos, movies.Value!, persisted);
+        return (null, diff);
+    }
+
+    /// <summary>Flattens the bucketed diff into a single ordered row list (matched → needs-review → unmatched) + counts.</summary>
+    private static ReconResponse ToReconResponse(ReconciliationDiff diff)
+    {
+        var rows = new List<ReconRow>(diff.Counts.Total);
+        rows.AddRange(diff.Matched.Select(r => ReconRow.From(r, "matched")));
+        rows.AddRange(diff.NeedsReview.Select(r => ReconRow.From(r, "needsReview")));
+        rows.AddRange(diff.Unmatched.Select(r => ReconRow.From(r, "unmatched")));
+        return new ReconResponse(rows, diff.Counts);
+    }
+
+    /// <summary>
     /// Loads the options, minting + persisting a webhook secret when one is absent (so the URL is stable
     /// across calls). Returns the effective options and the secret.
     /// </summary>
@@ -385,6 +580,14 @@ public sealed partial class WhisparrSync
     // renders as `hasApiKey`. A default (non-Web) options instance applies no naming policy.
     private static readonly JsonSerializerOptions OptionsResponseJsonOptions = new();
 
+    // The reconciliation responses are a fresh UI contract (no stored-blob spelling to preserve), so they use
+    // the camelCase Web convention, and the JsonStringEnumConverter renders MatchedBy / MatchStatus as their
+    // string names ("StashId" / "Fuzzy" / "Confirmed" …) rather than integers the UI would have to decode.
+    private static readonly JsonSerializerOptions ReconciliationResponseJsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() },
+    };
+
     /// <summary>The Test-connection request body: the URL + key the user typed on the settings page.</summary>
     internal sealed record TestConnectionRequest(string? BaseUrl, string? ApiKey);
 
@@ -394,4 +597,41 @@ public sealed partial class WhisparrSync
     /// </summary>
     internal sealed record OptionsSaveRequest(
         string? BaseUrl, string? ApiKey, string? SelectedVersion, int RootFolderId, int QualityProfileId);
+
+    /// <summary>
+    /// The confirm/reject request body: the Cove video id + Whisparr movie id of the needs-review suggestion the
+    /// user is acting on. Validated against the freshly-computed diff before any write (a forged pair is refused).
+    /// </summary>
+    internal sealed record MatchDecisionRequest(int CoveId, int WhisparrMovieId);
+
+    /// <summary>One reconciliation row for the UI table — a flat projection of a <see cref="MatchResult"/>.</summary>
+    /// <remarks>
+    /// <c>Status</c> is the bucket (<c>"matched"</c> / <c>"needsReview"</c> / <c>"unmatched"</c>); <c>MatchMethod</c>
+    /// is the resolving leg (<c>"StashId"</c> / <c>"Path"</c> / <c>"Fuzzy"</c>) or null when unmatched; <c>CoveId</c>
+    /// / <c>CoveTitle</c> are null when the movie matched nothing.
+    /// </remarks>
+    internal sealed record ReconRow(
+        int WhisparrMovieId,
+        string? SceneTitle,
+        int? SceneYear,
+        int? CoveId,
+        string? CoveTitle,
+        string? MatchMethod,
+        string Status)
+    {
+        public static ReconRow From(MatchResult r, string status) => new(
+            WhisparrMovieId: r.Movie.Id,
+            SceneTitle: r.Movie.Title,
+            SceneYear: r.Movie.Year,
+            CoveId: r.MatchedVideo?.CoveId,
+            CoveTitle: r.MatchedVideo?.Title,
+            MatchMethod: r.Leg?.ToString(),
+            Status: status);
+    }
+
+    /// <summary>The <c>/preview-sync</c> response: the flat rows + the bucket counts.</summary>
+    internal sealed record ReconResponse(IReadOnlyList<ReconRow> Rows, ReconciliationCounts Counts);
+
+    /// <summary>The <c>/reconciliation</c> status counts over the persisted match map (by user-decision status).</summary>
+    internal sealed record PersistedCounts(int Confirmed, int NeedsReview, int Rejected, int Total);
 }
