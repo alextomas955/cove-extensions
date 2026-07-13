@@ -69,7 +69,8 @@ public sealed partial class WhisparrSync
 
         // Root-folder / quality-profile lists are POSTs carrying the connect creds in the BODY (never a
         // query string — CONN-06): a just-tested (unsaved) key populates the dropdowns immediately, and an
-        // empty submitted key on reload falls back to the stored key.
+        // empty submitted key on reload reuses the stored key ONLY against the stored host (CR-01 — the
+        // stored key is never sent to a caller-supplied foreign host). These require extensions.configure.
         endpoints.MapPost(RootFoldersRoute,
             (TestConnectionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => ListRootFoldersAsync(req, client, principal, ct));
@@ -159,14 +160,16 @@ public sealed partial class WhisparrSync
 
     /// <summary>
     /// Lists the instance's root folders for the settings dropdown (CONN-05). Resolves the connect creds
-    /// (submitted-or-stored), selects the adapter from the persisted version, and returns the fetched
-    /// <c>RootFolder[]</c> — or the classified error on a non-Ok transport result. 403-first on
-    /// <c>extensions.read</c>.
+    /// (submitted, or the stored key only against the stored host — see <see cref="ResolveCredsAsync"/>),
+    /// selects the adapter from the persisted version, and returns the fetched <c>RootFolder[]</c> — or the
+    /// classified error on a non-Ok transport result. 403-first on <c>extensions.configure</c> (CR-01):
+    /// populating the dropdowns is part of the configure flow and reaches the stored credentials, so a
+    /// read-only principal must not reach it.
     /// </summary>
     internal async Task<IResult> ListRootFoldersAsync(
         TestConnectionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
-        if (Forbidden(principal, Permissions.ExtensionsRead) is { } denied)
+        if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
         {
             return denied;
         }
@@ -185,12 +188,12 @@ public sealed partial class WhisparrSync
 
     /// <summary>
     /// Lists the instance's quality profiles for the settings dropdown (CONN-05). Same shape as
-    /// <see cref="ListRootFoldersAsync"/>. 403-first on <c>extensions.read</c>.
+    /// <see cref="ListRootFoldersAsync"/>. 403-first on <c>extensions.configure</c> (CR-01).
     /// </summary>
     internal async Task<IResult> ListQualityProfilesAsync(
         TestConnectionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
-        if (Forbidden(principal, Permissions.ExtensionsRead) is { } denied)
+        if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
         {
             return denied;
         }
@@ -208,16 +211,37 @@ public sealed partial class WhisparrSync
     }
 
     /// <summary>
-    /// Loads the stored options and resolves the effective connect creds: a submitted URL/key wins, an
-    /// empty submission falls back to the stored value (so an unsaved just-tested key works, and a reload
-    /// with no key in the form reuses the stored one — CONN-06 write-only key).
+    /// Loads the stored options and resolves the effective connect creds. Security invariant (CR-01): the
+    /// server-stored API key is NEVER sent to a caller-chosen host. A submitted key is always used as-is; an
+    /// empty submitted key falls back to the stored key ONLY when the effective base URL is the stored one
+    /// (the caller did not override it, or overrode it with the same host). If the caller overrides the base
+    /// URL with a different host and supplies no key, the stored key is withheld (empty) — so a low-privilege
+    /// request can never exfiltrate the stored key to <c>http://attacker</c>. This preserves the CONN-05
+    /// dropdown UX: on reload the UI sends the stored URL + an empty key (stored key reused against the stored
+    /// host), and after a test it sends the form URL + the form key (its own key used directly).
     /// </summary>
     private async Task<(WhisparrOptions Options, string BaseUrl, string ApiKey)> ResolveCredsAsync(
         TestConnectionRequest req, CancellationToken ct)
     {
         var options = await new OptionsStore(Store).LoadAsync(ct);
-        var baseUrl = string.IsNullOrWhiteSpace(req.BaseUrl) ? options.BaseUrl : req.BaseUrl;
-        var apiKey = string.IsNullOrEmpty(req.ApiKey) ? options.ApiKey : req.ApiKey;
+        var overrodeUrl = !string.IsNullOrWhiteSpace(req.BaseUrl);
+        var baseUrl = overrodeUrl ? req.BaseUrl! : options.BaseUrl;
+
+        string apiKey;
+        if (!string.IsNullOrEmpty(req.ApiKey))
+        {
+            apiKey = req.ApiKey!; // caller supplied its own key — use it as-is
+        }
+        else if (!overrodeUrl ||
+                 string.Equals(baseUrl.TrimEnd('/'), options.BaseUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+        {
+            apiKey = options.ApiKey; // stored key only ever paired with the stored host
+        }
+        else
+        {
+            apiKey = string.Empty; // refuse to send the stored key to a caller-chosen foreign host
+        }
+
         return (options, baseUrl, apiKey);
     }
 
@@ -232,12 +256,14 @@ public sealed partial class WhisparrSync
     /// <summary>
     /// Returns the ready-to-use webhook URL with the embedded secret (CONN-07). The secret is minted via
     /// <c>RandomNumberGenerator</c> and persisted once so the URL is stable across calls. 403-first on
-    /// <c>extensions.read</c>. The secret is shown for the user to paste; it is never logged.
+    /// <c>extensions.configure</c> (CR-01): minting/persisting the webhook secret is part of the configure
+    /// flow, so a read-only principal must not reach it. The secret is shown for the user to paste; it is
+    /// never logged.
     /// </summary>
     internal async Task<IResult> WebhookUrlAsync(
         string coveBaseUrl, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
-        if (Forbidden(principal, Permissions.ExtensionsRead) is { } denied)
+        if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
         {
             return denied;
         }

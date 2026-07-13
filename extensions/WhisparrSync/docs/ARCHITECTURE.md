@@ -50,18 +50,21 @@ The extension is in two halves:
 ## Endpoints
 
 All are mounted under `/api/extensions/com.alextomas955.whisparrsync/` and are permission-checked
-**in the handler** (the host's `[RequiresPermission]` filter is inert on minimal-API endpoints):
-reads gate on `extensions.read`, writes on `extensions.configure`.
+**in the handler** (the host's `[RequiresPermission]` filter is inert on minimal-API endpoints). Only
+the two side-effect-free read projections gate on `extensions.read`; every route that reaches the
+stored credentials or makes an outbound call gates on `extensions.configure` (CR-01 — the host
+confirms `extensions.configure` *implies* `extensions.read`, so a route that must exclude read-only
+users has to require `configure`).
 
 | Route | Method | Permission | Purpose |
 |-------|--------|-----------|---------|
 | `/test-connection` | POST | configure | Classify the connection; return version + instance name on success |
-| `/status` | GET | read | Whether the extension is configured + the detected version (no key) |
+| `/status` | GET | read | Whether the extension is configured (no key) |
 | `/options` | GET | read | The persisted options as a redaction-safe view (no key, only `hasApiKey`) |
 | `/options` | POST | configure | Persist URL / version / root folder / quality profile (write-only key) |
-| `/rootfolders` | POST | read | The instance's root folders (creds in the body) |
-| `/qualityprofiles` | POST | read | The instance's quality profiles (creds in the body) |
-| `/webhook-url` | GET | read | The ready-to-use webhook URL with the embedded secret |
+| `/rootfolders` | POST | configure | The instance's root folders (creds in the body) |
+| `/qualityprofiles` | POST | configure | The instance's quality profiles (creds in the body) |
+| `/webhook-url` | GET | configure | The ready-to-use webhook URL with the embedded secret |
 | `/register-webhook` | POST | configure | Best-effort auto-register of the Cove webhook in Whisparr |
 
 ## The API-key secret model (CONN-06)

@@ -28,4 +28,9 @@ User-facing changes, newest first.
   copy into Whisparr → Settings → Connections, or click **Register in Whisparr** to add it for you.
   If auto-register isn't accepted, the copy-paste URL always works. (The extension acting on webhook
   events arrives in a later phase.)
+- **Configuration actions require the manage-extensions permission.** Loading the root-folder /
+  quality-profile lists and generating the webhook URL now require `extensions.configure` (the same
+  permission as saving), not read-only access — these steps reach your stored Whisparr credentials,
+  so they are part of configuring the connection. A read-only user can still see whether the
+  extension is configured, but cannot trigger an outbound call with the stored API key.
 - **Requires Cove `0.9.0`** or newer (for the page-layout settings tab).

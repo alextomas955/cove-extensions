@@ -10,9 +10,11 @@ namespace WhisparrSync.Tests;
 /// <summary>
 /// Security-critical (T-03-03): the host's <c>[RequiresPermission]</c> filter is inert on minimal-API
 /// extension endpoints, so every settings handler enforces the permission itself via
-/// <see cref="ICurrentPrincipalAccessor"/>. These prove the deny/allow pair for each route — reads gate on
-/// <c>extensions.read</c>, writes on <c>extensions.configure</c> — and that the authorized list path
-/// returns the fetched rows, and the webhook-url / register-webhook routes gate the same way.
+/// <see cref="ICurrentPrincipalAccessor"/>. These prove the deny/allow pair for each route — <c>/status</c>
+/// and <c>GET /options</c> gate on <c>extensions.read</c>; the list, webhook-url, save, test-connection and
+/// register-webhook routes all gate on <c>extensions.configure</c> (CR-01: the list + webhook-url routes
+/// reach the stored credentials, so a read-only principal must not reach them) — plus that the authorized
+/// list path returns the fetched rows, and that the stored API key is never sent to a caller-supplied host.
 /// </summary>
 public sealed class EndpointAuthTests
 {
@@ -28,6 +30,26 @@ public sealed class EndpointAuthTests
 
     private static WhisparrClient ClientReturning(string json)
         => new(new HttpClient(FakeHttpMessageHandler.Json(json)));
+
+    // Exposes the handler so a test can assert the outbound request URL + X-Api-Key header (CR-01).
+    private static (WhisparrClient Client, FakeHttpMessageHandler Handler) ClientWithHandler(string json)
+    {
+        var handler = FakeHttpMessageHandler.Json(json);
+        return (new WhisparrClient(new HttpClient(handler)), handler);
+    }
+
+    private static async Task<FakeStore> StoreWith(string baseUrl, string apiKey)
+    {
+        var store = new FakeStore();
+        await store.SetAsync(
+            "options", $"{{\"BaseUrl\":\"{baseUrl}\",\"ApiKey\":\"{apiKey}\",\"SelectedVersion\":\"v3\"}}");
+        return store;
+    }
+
+    private static string SentApiKey(FakeHttpMessageHandler handler)
+        => handler.LastRequest!.Headers.TryGetValues("X-Api-Key", out var values)
+            ? string.Concat(values!)
+            : string.Empty;
 
     private static int StatusOf(IResult result)
         => Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode ?? 0;
@@ -99,7 +121,7 @@ public sealed class EndpointAuthTests
     }
 
     [Fact]
-    public async Task RootFolders_WithoutRead_Returns403()
+    public async Task RootFolders_WithoutConfigure_Returns403()
     {
         var result = await NewExtension().ListRootFoldersAsync(
             Creds(), ClientReturning("[]"), FakePrincipalAccessor.None(), default);
@@ -107,12 +129,22 @@ public sealed class EndpointAuthTests
     }
 
     [Fact]
-    public async Task RootFolders_WithRead_ReturnsTheFetchedRows()
+    public async Task RootFolders_WithReadOnly_Returns403()
+    {
+        // CR-01: extensions.read is a strictly lower privilege that must no longer reach this route.
+        var result = await NewExtension().ListRootFoldersAsync(
+            Creds(), ClientReturning("[]"),
+            FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsRead), default);
+        Assert.Equal(403, StatusOf(result));
+    }
+
+    [Fact]
+    public async Task RootFolders_WithConfigure_ReturnsTheFetchedRows()
     {
         var json = "[{\"id\":7,\"path\":\"/movies\",\"accessible\":true,\"freeSpace\":123}]";
         var result = await NewExtension().ListRootFoldersAsync(
             Creds(), ClientReturning(json),
-            FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsRead), default);
+            FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure), default);
 
         Assert.NotEqual(403, StatusOf(result));
         var value = Assert.IsAssignableFrom<IValueHttpResult>(result).Value;
@@ -121,7 +153,7 @@ public sealed class EndpointAuthTests
     }
 
     [Fact]
-    public async Task QualityProfiles_WithoutRead_Returns403()
+    public async Task QualityProfiles_WithoutConfigure_Returns403()
     {
         var result = await NewExtension().ListQualityProfilesAsync(
             Creds(), ClientReturning("[]"), FakePrincipalAccessor.None(), default);
@@ -129,12 +161,22 @@ public sealed class EndpointAuthTests
     }
 
     [Fact]
-    public async Task QualityProfiles_WithRead_ReturnsTheFetchedRows()
+    public async Task QualityProfiles_WithReadOnly_Returns403()
+    {
+        // CR-01: extensions.read must no longer reach this route.
+        var result = await NewExtension().ListQualityProfilesAsync(
+            Creds(), ClientReturning("[]"),
+            FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsRead), default);
+        Assert.Equal(403, StatusOf(result));
+    }
+
+    [Fact]
+    public async Task QualityProfiles_WithConfigure_ReturnsTheFetchedRows()
     {
         var json = "[{\"id\":4,\"name\":\"HD-1080p\"}]";
         var result = await NewExtension().ListQualityProfilesAsync(
             Creds(), ClientReturning(json),
-            FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsRead), default);
+            FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure), default);
 
         Assert.NotEqual(403, StatusOf(result));
         var value = Assert.IsAssignableFrom<IValueHttpResult>(result).Value;
@@ -143,17 +185,77 @@ public sealed class EndpointAuthTests
     }
 
     [Fact]
-    public async Task WebhookUrl_WithoutRead_Returns403()
+    public async Task RootFolders_CallerBaseUrl_WithEmptyKey_NeverSendsTheStoredKey()
+    {
+        // CR-01 regression guard: a request that overrides the base URL with a FOREIGN host and submits an
+        // empty key must NOT fall back to the stored key — otherwise a caller could exfiltrate the stored
+        // Whisparr key to an attacker-controlled server.
+        var store = await StoreWith("http://stored.local:6969", "STORED-KEY");
+        var (client, handler) = ClientWithHandler("[]");
+
+        var req = new Ext.TestConnectionRequest("http://attacker.example", "");
+        var result = await NewExtension(store).ListRootFoldersAsync(
+            req, client, FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure), default);
+
+        Assert.NotEqual(403, StatusOf(result));
+        Assert.NotNull(handler.LastRequest);
+        Assert.StartsWith("http://attacker.example/", handler.LastRequest!.RequestUri!.ToString());
+        // The stored key was withheld: the outbound X-Api-Key is empty, never "STORED-KEY".
+        Assert.NotEqual("STORED-KEY", SentApiKey(handler));
+        Assert.Equal(string.Empty, SentApiKey(handler));
+    }
+
+    [Fact]
+    public async Task RootFolders_StoredHost_WithEmptyKey_ReusesTheStoredKey()
+    {
+        // The legitimate reload path: the UI resends the STORED base URL with an empty key, so the stored
+        // key IS reused — but only because the effective host matches the stored host.
+        var store = await StoreWith("http://stored.local:6969", "STORED-KEY");
+        var (client, handler) = ClientWithHandler("[]");
+
+        var req = new Ext.TestConnectionRequest("http://stored.local:6969", "");
+        await NewExtension(store).ListRootFoldersAsync(
+            req, client, FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure), default);
+
+        Assert.Equal("STORED-KEY", SentApiKey(handler));
+    }
+
+    [Fact]
+    public async Task RootFolders_CallerBaseUrl_WithOwnKey_SendsTheSubmittedKey()
+    {
+        // The just-tested (unsaved) path: the caller supplies its own key with a new host — that key is used
+        // as-is (never the stored one), so the dropdown UX during setup keeps working.
+        var store = await StoreWith("http://stored.local:6969", "STORED-KEY");
+        var (client, handler) = ClientWithHandler("[]");
+
+        var req = new Ext.TestConnectionRequest("http://new.local:7878", "SUBMITTED-KEY");
+        await NewExtension(store).ListRootFoldersAsync(
+            req, client, FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure), default);
+
+        Assert.Equal("SUBMITTED-KEY", SentApiKey(handler));
+    }
+
+    [Fact]
+    public async Task WebhookUrl_WithoutConfigure_Returns403()
     {
         var result = await NewExtension().WebhookUrlAsync("http://cove.local", FakePrincipalAccessor.None(), default);
         Assert.Equal(403, StatusOf(result));
     }
 
     [Fact]
-    public async Task WebhookUrl_WithRead_IsNotForbidden()
+    public async Task WebhookUrl_WithReadOnly_Returns403()
     {
+        // CR-01: minting/persisting the webhook secret is a configure action; read-only must not reach it.
         var result = await NewExtension().WebhookUrlAsync(
             "http://cove.local", FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsRead), default);
+        Assert.Equal(403, StatusOf(result));
+    }
+
+    [Fact]
+    public async Task WebhookUrl_WithConfigure_IsNotForbidden()
+    {
+        var result = await NewExtension().WebhookUrlAsync(
+            "http://cove.local", FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure), default);
         Assert.NotEqual(403, StatusOf(result));
     }
 
