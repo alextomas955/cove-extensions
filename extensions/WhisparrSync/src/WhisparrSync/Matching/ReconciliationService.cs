@@ -55,9 +55,20 @@ internal static class ReconciliationService
                 .FirstOrDefault();
             if (confirmed is { } pinned)
             {
+                var pinnedVideo = coveById.GetValueOrDefault(pinned.CoveId);
+                if (pinnedVideo is null)
+                {
+                    // The confirmed Cove video was deleted since the link was made. Never emit a "matched"
+                    // row with a null MatchedVideo — that paints a green pill next to an empty Cove cell and
+                    // inflates the matched count. Degrade to unmatched: the Whisparr side is present, the
+                    // Cove side is gone (WR-02).
+                    unmatched.Add(result with { MatchedVideo = null, Leg = null, Outcome = MatchOutcome.Unmatched, AutoApplies = false });
+                    continue;
+                }
+
                 matched.Add(new MatchResult(
                     result.Movie,
-                    coveById.GetValueOrDefault(pinned.CoveId),
+                    pinnedVideo,
                     pinned.MatchedBy,
                     MatchOutcome.Matched,
                     AutoApplies: true));

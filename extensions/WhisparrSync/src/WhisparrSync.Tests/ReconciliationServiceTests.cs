@@ -77,6 +77,26 @@ public sealed class ReconciliationServiceTests
     }
 
     [Fact]
+    public void ReconciliationDiff_ConfirmedPair_WithDeletedCoveVideo_IsNotMatched()
+    {
+        // A Confirmed entry pins Movie 5 to Cove 10, but Cove 10 no longer exists in the library (deleted
+        // between confirm and re-run). The row must NOT be reported as Matched with a null Cove video — it
+        // degrades to unmatched and does not inflate the matched count (WR-02).
+        var cove = new[] { Cove(99, title: "Still Here", date: new DateOnly(2020, 1, 1)) };
+        var movies = new[] { Movie(5, title: "Nothing Alike", year: 2005) };
+        var persisted = new[] { Entry(10, 5, "uuid-x", MatchStatus.Confirmed, MatchedBy.Fuzzy) };
+
+        var diff = ReconciliationService.Reconcile(cove, movies, persisted);
+
+        Assert.Empty(diff.Matched);
+        var unmatched = Assert.Single(diff.Unmatched);
+        Assert.Equal(5, unmatched.Movie.Id);
+        Assert.Null(unmatched.MatchedVideo);
+        Assert.False(unmatched.AutoApplies);
+        Assert.Equal(new ReconciliationCounts(Matched: 0, Unmatched: 1, NeedsReview: 0, Total: 1), diff.Counts);
+    }
+
+    [Fact]
     public async Task ReconciliationDiff_PlainReconcile_WritesNothingToStore()
     {
         var store = new FakeStore();
