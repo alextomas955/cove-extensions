@@ -21,6 +21,9 @@ internal interface IWhisparrAdapter
     /// <summary>Lists the configured quality profiles (for the settings dropdown).</summary>
     Task<WhisparrResult<QualityProfile[]>> ListQualityProfilesAsync(string baseUrl, string apiKey, CancellationToken ct);
 
+    /// <summary>Lists the full Whisparr movie set (unpaged) — the MATCH-01 reconciliation data source.</summary>
+    Task<WhisparrResult<WhisparrMovie[]>> ListMoviesAsync(string baseUrl, string apiKey, CancellationToken ct);
+
     /// <summary>
     /// Registers the Cove webhook connection for <paramref name="webhookUrl"/>. The adapter owns the
     /// version-specific notification payload shape (implementation / configContract / fields). Best-effort

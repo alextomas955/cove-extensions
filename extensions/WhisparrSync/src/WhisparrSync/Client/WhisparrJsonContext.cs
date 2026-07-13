@@ -11,4 +11,5 @@ namespace WhisparrSync.Client;
 [JsonSerializable(typeof(SystemStatus))]
 [JsonSerializable(typeof(RootFolder[]))]
 [JsonSerializable(typeof(QualityProfile[]))]
+[JsonSerializable(typeof(WhisparrMovie[]))]
 internal sealed partial class WhisparrJsonContext : JsonSerializerContext;

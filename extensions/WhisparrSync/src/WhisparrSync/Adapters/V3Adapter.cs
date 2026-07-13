@@ -20,6 +20,9 @@ internal sealed class V3Adapter(WhisparrClient client) : IWhisparrAdapter
     public Task<WhisparrResult<QualityProfile[]>> ListQualityProfilesAsync(string baseUrl, string apiKey, CancellationToken ct)
         => client.ListQualityProfilesAsync(baseUrl, apiKey, ct);
 
+    public Task<WhisparrResult<WhisparrMovie[]>> ListMoviesAsync(string baseUrl, string apiKey, CancellationToken ct)
+        => client.ListMoviesAsync(baseUrl, apiKey, ct);
+
     public Task<WhisparrResult<bool>> RegisterWebhookAsync(string baseUrl, string apiKey, string webhookUrl, CancellationToken ct)
         => client.RegisterWebhookAsync(baseUrl, apiKey, BuildNotificationPayload(webhookUrl), ct);
 

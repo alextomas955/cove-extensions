@@ -53,6 +53,18 @@ internal sealed class WhisparrClient(HttpClient http)
             ct);
 
     /// <summary>
+    /// Reads <c>GET {baseUrl}/api/v3/movie</c> — the full movie set, unpaged (issue #218), for MATCH-01
+    /// reconciliation (idempotent; bounded retry). Transport-only: the classify-not-throw guards are
+    /// inherited from <see cref="SendAsync"/>.
+    /// </summary>
+    internal Task<WhisparrResult<WhisparrMovie[]>> ListMoviesAsync(string baseUrl, string apiKey, CancellationToken ct)
+        => SendAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, $"{baseUrl.TrimEnd('/')}/api/v3/movie"),
+            apiKey, GetMaxAttempts,
+            (resp, token) => DeserializeAsync(resp, WhisparrJsonContext.Default.WhisparrMovieArray, token),
+            ct);
+
+    /// <summary>
     /// Posts a pre-serialized notification payload to <c>POST {baseUrl}/api/v3/notification</c> to register
     /// the Cove webhook connection. The caller (the adapter) owns the payload shape; this method is
     /// transport-only and single-shot — a non-idempotent POST is never blind-retried. The full payload is
