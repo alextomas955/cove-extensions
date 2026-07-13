@@ -24,4 +24,10 @@ public sealed partial class WhisparrSync
         EventId = 2002, Level = LogLevel.Warning,
         Message = "[WhisparrSync] refused connection: detected Whisparr major version {DetectedMajor}, only v3 is supported")]
     private partial void LogVersionRefused(int detectedMajor);
+
+    // Logs only the outcome flag — never the webhook secret or the URL-with-token (CONN-06).
+    [LoggerMessage(
+        EventId = 2003, Level = LogLevel.Information,
+        Message = "[WhisparrSync] webhook auto-register attempted: registered={Registered}")]
+    private partial void LogWebhookRegistered(bool registered);
 }

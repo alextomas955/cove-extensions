@@ -12,18 +12,17 @@ namespace WhisparrSync.Tests;
 /// extension endpoints, so every settings handler enforces the permission itself via
 /// <see cref="ICurrentPrincipalAccessor"/>. These prove the deny/allow pair for each route — reads gate on
 /// <c>extensions.read</c>, writes on <c>extensions.configure</c> — and that the authorized list path
-/// returns the fetched rows. (The webhook-url / register-webhook auth pairs are added alongside those
-/// handlers in Task 3.)
+/// returns the fetched rows, and the webhook-url / register-webhook routes gate the same way.
 /// </summary>
 public sealed class EndpointAuthTests
 {
     private const string BaseUrl = "http://localhost:6969";
     private const string StatusJson = "{\"version\":\"3.3.4.808\",\"appName\":\"Whisparr\",\"instanceName\":\"My Whisparr\"}";
 
-    private static Ext NewExtension()
+    private static Ext NewExtension(FakeStore? store = null)
     {
         var ext = new Ext();
-        ((IStatefulExtension)ext).SetStore(new FakeStore());
+        ((IStatefulExtension)ext).SetStore(store ?? new FakeStore());
         return ext;
     }
 
@@ -141,5 +140,41 @@ public sealed class EndpointAuthTests
         var value = Assert.IsAssignableFrom<IValueHttpResult>(result).Value;
         var rows = Assert.IsType<QualityProfile[]>(value);
         Assert.Equal(4, Assert.Single(rows).Id);
+    }
+
+    [Fact]
+    public async Task WebhookUrl_WithoutRead_Returns403()
+    {
+        var result = await NewExtension().WebhookUrlAsync("http://cove.local", FakePrincipalAccessor.None(), default);
+        Assert.Equal(403, StatusOf(result));
+    }
+
+    [Fact]
+    public async Task WebhookUrl_WithRead_IsNotForbidden()
+    {
+        var result = await NewExtension().WebhookUrlAsync(
+            "http://cove.local", FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsRead), default);
+        Assert.NotEqual(403, StatusOf(result));
+    }
+
+    [Fact]
+    public async Task RegisterWebhook_WithoutConfigure_Returns403()
+    {
+        var result = await NewExtension().RegisterWebhookAsync(
+            "http://cove.local", ClientReturning("{}"), FakePrincipalAccessor.None(), default);
+        Assert.Equal(403, StatusOf(result));
+    }
+
+    [Fact]
+    public async Task RegisterWebhook_WithConfigure_IsNotForbidden()
+    {
+        // Register runs after a successful test/save, so a base URL is stored — seed one so the outbound
+        // POST targets an absolute URI (the deny path never reaches the client).
+        var store = new FakeStore();
+        await store.SetAsync("options", "{\"BaseUrl\":\"http://localhost:6969\",\"ApiKey\":\"k\",\"SelectedVersion\":\"v3\"}");
+        var result = await NewExtension(store).RegisterWebhookAsync(
+            "http://cove.local", ClientReturning("{\"id\":1}"),
+            FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure), default);
+        Assert.NotEqual(403, StatusOf(result));
     }
 }

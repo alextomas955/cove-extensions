@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Routing;
 using WhisparrSync.Adapters;
 using WhisparrSync.Client;
 using WhisparrSync.Options;
+using WhisparrSync.Webhook;
 
 namespace WhisparrSync;
 
@@ -24,6 +25,8 @@ public sealed partial class WhisparrSync
     private const string OptionsRoute = RouteBase + "/options";
     private const string RootFoldersRoute = RouteBase + "/rootfolders";
     private const string QualityProfilesRoute = RouteBase + "/qualityprofiles";
+    private const string WebhookUrlRoute = RouteBase + "/webhook-url";
+    private const string RegisterWebhookRoute = RouteBase + "/register-webhook";
 
     /// <summary>
     /// Contributes the Whisparr Sync settings tab as a full-page layout (like Renamer): the host renders
@@ -74,6 +77,16 @@ public sealed partial class WhisparrSync
         endpoints.MapPost(QualityProfilesRoute,
             (TestConnectionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => ListQualityProfilesAsync(req, client, principal, ct));
+
+        // The Cove host base for the webhook URL is derived from the inbound request (scheme + host) — the
+        // extension backend has no other authoritative view of its own public address.
+        endpoints.MapGet(WebhookUrlRoute,
+            (HttpRequest http, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => WebhookUrlAsync($"{http.Scheme}://{http.Host}", principal, ct));
+
+        endpoints.MapPost(RegisterWebhookRoute,
+            (HttpRequest http, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => RegisterWebhookAsync($"{http.Scheme}://{http.Host}", client, principal, ct));
     }
 
     /// <summary>
@@ -215,6 +228,69 @@ public sealed partial class WhisparrSync
         WhisparrResultState.NotWhisparr => "notWhisparr",
         _ => "unreachable",
     };
+
+    /// <summary>
+    /// Returns the ready-to-use webhook URL with the embedded secret (CONN-07). The secret is minted via
+    /// <c>RandomNumberGenerator</c> and persisted once so the URL is stable across calls. 403-first on
+    /// <c>extensions.read</c>. The secret is shown for the user to paste; it is never logged.
+    /// </summary>
+    internal async Task<IResult> WebhookUrlAsync(
+        string coveBaseUrl, ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        if (Forbidden(principal, Permissions.ExtensionsRead) is { } denied)
+        {
+            return denied;
+        }
+
+        var (_, secret) = await EnsureWebhookSecretAsync(ct);
+        return Results.Json(new { url = WebhookUrlBuilder.BuildUrl(coveBaseUrl, secret) }, OptionsResponseJsonOptions);
+    }
+
+    /// <summary>
+    /// Best-effort auto-register of the Cove webhook in Whisparr (CONN-07). Mints/persists the secret,
+    /// builds the URL, and posts the v3 Notification via the adapter. A non-2xx (or a refused version)
+    /// returns <c>registered:false</c> — the UI falls back to copy-paste, and the connect flow never fails.
+    /// 403-first on <c>extensions.configure</c>. The secret is never logged.
+    /// </summary>
+    internal async Task<IResult> RegisterWebhookAsync(
+        string coveBaseUrl, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
+        {
+            return denied;
+        }
+
+        var (options, secret) = await EnsureWebhookSecretAsync(ct);
+        var url = WebhookUrlBuilder.BuildUrl(coveBaseUrl, secret);
+
+        if (AdapterSelector.SelectForVersion(options.SelectedVersion, client) is not { } adapter)
+        {
+            LogWebhookRegistered(false);
+            return Results.Json(new { registered = false }, OptionsResponseJsonOptions);
+        }
+
+        var result = await adapter.RegisterWebhookAsync(options.BaseUrl, options.ApiKey, url, ct);
+        LogWebhookRegistered(result.IsOk);
+        return Results.Json(new { registered = result.IsOk }, OptionsResponseJsonOptions);
+    }
+
+    /// <summary>
+    /// Loads the options, minting + persisting a webhook secret when one is absent (so the URL is stable
+    /// across calls). Returns the effective options and the secret.
+    /// </summary>
+    private async Task<(WhisparrOptions Options, string Secret)> EnsureWebhookSecretAsync(CancellationToken ct)
+    {
+        var store = new OptionsStore(Store);
+        var options = await store.LoadAsync(ct);
+        var secret = WebhookUrlBuilder.EnsureSecret(options.WebhookSecret);
+        if (secret != options.WebhookSecret)
+        {
+            options = options with { WebhookSecret = secret };
+            await store.SaveAsync(options, ct);
+        }
+
+        return (options, secret);
+    }
 
     /// <summary>
     /// Runs the full connect flow against the supplied Whisparr URL + API key and returns a discriminated

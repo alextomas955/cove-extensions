@@ -1,3 +1,4 @@
+using System.Text.Json;
 using WhisparrSync.Client;
 
 namespace WhisparrSync.Adapters;
@@ -26,5 +27,20 @@ internal sealed class V3Adapter(WhisparrClient client) : IWhisparrAdapter
     // `fields` contract is best-effort — if this Whisparr build rejects it the connect flow still succeeds
     // via the copy-paste URL. `method` value 1 = POST (Servarr WebhookMethod enum).
     private static string BuildNotificationPayload(string webhookUrl)
-        => "{}"; // RED stub — GREEN builds the implementation/configContract/fields payload
+        => JsonSerializer.Serialize(new
+        {
+            name = "Cove Whisparr Sync",
+            implementation = "Webhook",
+            implementationName = "Webhook",
+            configContract = "WebhookSettings",
+            onGrab = false,
+            onDownload = true,
+            onUpgrade = true,
+            onRename = true,
+            fields = new object[]
+            {
+                new { name = "url", value = webhookUrl },
+                new { name = "method", value = 1 },
+            },
+        });
 }

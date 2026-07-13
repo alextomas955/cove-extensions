@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 namespace WhisparrSync.Webhook;
 
 /// <summary>
@@ -14,17 +16,24 @@ internal static class WebhookUrlBuilder
 
     private const int SecretByteLength = 32; // 256 bits of entropy
 
-    /// <summary>Mints a fresh URL-safe high-entropy secret via <see cref="System.Security.Cryptography.RandomNumberGenerator"/>.</summary>
-    internal static string MintSecret() => "STUB-SECRET"; // RED stub — GREEN generates a random token
+    /// <summary>Mints a fresh URL-safe (base64url, unpadded) high-entropy secret via <see cref="RandomNumberGenerator"/>.</summary>
+    internal static string MintSecret()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(SecretByteLength);
+        // URL-safe base64 (RFC 4648 §5), padding stripped, so the token is safe as a query value.
+        return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    }
 
     /// <summary>
-    /// Returns the existing secret when one is stored (stable URL across calls), otherwise mints a fresh one.
+    /// Returns the existing secret when one is stored (a stable URL across calls), otherwise mints a fresh one.
     /// </summary>
-    internal static string EnsureSecret(string? existing) => existing ?? ""; // RED stub — GREEN mints when empty
+    internal static string EnsureSecret(string? existing)
+        => string.IsNullOrEmpty(existing) ? MintSecret() : existing;
 
     /// <summary>
     /// Builds the copy-paste webhook URL against the Cove host base + the extension's webhook path, with the
     /// secret as a query token: <c>{coveBaseUrl}{WebhookPath}?token={secret}</c>.
     /// </summary>
-    internal static string BuildUrl(string coveBaseUrl, string secret) => ""; // RED stub — GREEN composes the URL
+    internal static string BuildUrl(string coveBaseUrl, string secret)
+        => $"{coveBaseUrl.TrimEnd('/')}{WebhookPath}?token={Uri.EscapeDataString(secret)}";
 }
