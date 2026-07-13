@@ -11,17 +11,30 @@ namespace WhisparrSync.Adapters;
 /// </summary>
 internal static class AdapterSelector
 {
-    // RED stub — the real fail-closed parse + gate land in the GREEN phase of this task.
+    /// <summary>The major-version sentinel returned for a null/empty/unparseable version (fail-closed).</summary>
+    private const int Unparseable = -1;
+
+    /// <summary>
+    /// Parses the leading dotted segment of a Whisparr version string (e.g. <c>"3.3.4.808"</c> → <c>3</c>).
+    /// Returns <see cref="Unparseable"/> (-1) for null/blank input or a non-numeric leading segment, so an
+    /// unrecognizable version fails closed at the gate rather than defaulting to any adapter (Assumption A2).
+    /// </summary>
     internal static int ParseMajor(string? version)
     {
-        _ = version;
-        return -1;
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            return Unparseable;
+        }
+
+        var leadingSegment = version.Split('.', 2)[0];
+        return int.TryParse(leadingSegment, out var major) && major >= 0 ? major : Unparseable;
     }
 
+    /// <summary>
+    /// Selects the adapter for the detected instance: a <see cref="V3Adapter"/> only when the parsed major
+    /// version is exactly 3, otherwise <c>null</c> (refuse). A <c>null</c> return is the VER-04 refusal —
+    /// the caller surfaces a typed version-mismatch, never a wrong-adapter call.
+    /// </summary>
     internal static IWhisparrAdapter? Select(SystemStatus status, WhisparrClient client)
-    {
-        _ = status;
-        _ = client;
-        return null;
-    }
+        => ParseMajor(status.Version) == 3 ? new V3Adapter(client) : null;
 }
