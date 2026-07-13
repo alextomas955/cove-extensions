@@ -1,78 +1,147 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace WhisparrSync.Client;
 
 /// <summary>
 /// Transport-only typed client for a Whisparr v3 instance. Attaches the <c>X-Api-Key</c> header, applies
 /// a per-call timeout, and — before deserializing — guards the status code and <c>Content-Type</c>, then
-/// classifies the outcome into a typed <see cref="WhisparrResult{T}"/> instead of throwing. Holds zero
-/// Whisparr-shape knowledge beyond the status DTO; all version/domain decisions live above it (adapter).
+/// classifies the outcome into a typed <see cref="WhisparrResult{T}"/> instead of throwing. Idempotent
+/// GETs retry a bounded number of times on a transient transport fault; the non-idempotent webhook POST is
+/// single-shot. Holds no Whisparr-shape knowledge beyond the endpoint paths + DTOs; all version/domain
+/// decisions live above it (the adapter).
 /// </summary>
 internal sealed class WhisparrClient(HttpClient http)
 {
     private static readonly TimeSpan CallTimeout = TimeSpan.FromSeconds(15);
 
+    // Idempotent GETs may re-issue once on a transient transport fault; a non-idempotent POST is never
+    // blind-retried (a retried notification POST could double-register a webhook).
+    private const int GetMaxAttempts = 2;
+    private const int PostMaxAttempts = 1;
+
     /// <summary>
-    /// Reads <c>GET {baseUrl}/api/v3/system/status</c>. Never throws for a transport/HTTP fault: a
-    /// 401/403 → <see cref="WhisparrResultState.BadKey"/>, a non-JSON body (reverse-proxy HTML/502) →
+    /// Reads <c>GET {baseUrl}/api/v3/system/status</c>. Never throws for a transport/HTTP fault: 401/403 →
+    /// <see cref="WhisparrResultState.BadKey"/>, a non-JSON body (reverse-proxy HTML/502) →
     /// <see cref="WhisparrResultState.NotWhisparr"/>, a timeout/refused connection →
     /// <see cref="WhisparrResultState.Unreachable"/>, otherwise <see cref="WhisparrResultState.Ok"/>.
     /// </summary>
-    internal async Task<WhisparrResult<SystemStatus>> GetStatusAsync(string baseUrl, string apiKey, CancellationToken ct)
+    internal Task<WhisparrResult<SystemStatus>> GetStatusAsync(string baseUrl, string apiKey, CancellationToken ct)
+        => SendAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, $"{baseUrl.TrimEnd('/')}/api/v3/system/status"),
+            apiKey, GetMaxAttempts,
+            (resp, token) => DeserializeAsync(resp, WhisparrJsonContext.Default.SystemStatus, token),
+            ct);
+
+    /// <summary>Reads <c>GET {baseUrl}/api/v3/rootfolder</c> (idempotent; bounded retry). Transport-only.</summary>
+    internal Task<WhisparrResult<RootFolder[]>> ListRootFoldersAsync(string baseUrl, string apiKey, CancellationToken ct)
+        => SendAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, $"{baseUrl.TrimEnd('/')}/api/v3/rootfolder"),
+            apiKey, GetMaxAttempts,
+            (resp, token) => DeserializeAsync(resp, WhisparrJsonContext.Default.RootFolderArray, token),
+            ct);
+
+    /// <summary>Reads <c>GET {baseUrl}/api/v3/qualityprofile</c> (idempotent; bounded retry). Transport-only.</summary>
+    internal Task<WhisparrResult<QualityProfile[]>> ListQualityProfilesAsync(string baseUrl, string apiKey, CancellationToken ct)
+        => SendAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, $"{baseUrl.TrimEnd('/')}/api/v3/qualityprofile"),
+            apiKey, GetMaxAttempts,
+            (resp, token) => DeserializeAsync(resp, WhisparrJsonContext.Default.QualityProfileArray, token),
+            ct);
+
+    /// <summary>
+    /// Posts a pre-serialized notification payload to <c>POST {baseUrl}/api/v3/notification</c> to register
+    /// the Cove webhook connection. The caller (the adapter) owns the payload shape; this method is
+    /// transport-only and single-shot — a non-idempotent POST is never blind-retried. The full payload is
+    /// wired in plan 01-03; on any 2xx JSON response this reports <see cref="WhisparrResultState.Ok"/>.
+    /// </summary>
+    internal Task<WhisparrResult<bool>> RegisterWebhookAsync(string baseUrl, string apiKey, string notificationJson, CancellationToken ct)
+        => SendAsync<bool>(
+            () => new HttpRequestMessage(HttpMethod.Post, $"{baseUrl.TrimEnd('/')}/api/v3/notification")
+            {
+                Content = new StringContent(notificationJson, Encoding.UTF8, "application/json"),
+            },
+            apiKey, PostMaxAttempts,
+            (_, _) => Task.FromResult(WhisparrResult<bool>.Ok(true)),
+            ct);
+
+    /// <summary>
+    /// The shared send loop: per-call timeout linked to the caller's token, the <c>X-Api-Key</c> header,
+    /// the status (401/403 → BadKey) and <c>Content-Type</c> (non-JSON → NotWhisparr) guards BEFORE any
+    /// deserialize, and a bounded retry on a transient transport fault (timeout / refused). A terminal
+    /// classification (BadKey / NotWhisparr / a non-2xx JSON response) returns immediately without retry;
+    /// only a thrown transport fault re-issues the request, and only while attempts remain.
+    /// </summary>
+    private async Task<WhisparrResult<T>> SendAsync<T>(
+        Func<HttpRequestMessage> requestFactory,
+        string apiKey,
+        int maxAttempts,
+        Func<HttpResponseMessage, CancellationToken, Task<WhisparrResult<T>>> onSuccess,
+        CancellationToken ct)
     {
-        // Per-call timeout, linked to the caller's token so either can cancel the outbound request.
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        linked.CancelAfter(CallTimeout);
-
-        using var req = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl.TrimEnd('/')}/api/v3/system/status");
-        req.Headers.TryAddWithoutValidation("X-Api-Key", apiKey);
-
-        try
+        var last = WhisparrResult<T>.Unreachable("no response");
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            using var resp = await http.SendAsync(req, linked.Token);
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            linked.CancelAfter(CallTimeout);
 
-            if (resp.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            using var req = requestFactory();
+            req.Headers.TryAddWithoutValidation("X-Api-Key", apiKey);
+
+            try
             {
-                return WhisparrResult<SystemStatus>.BadKey();
-            }
+                using var resp = await http.SendAsync(req, linked.Token);
 
-            // Guard Content-Type BEFORE deserializing so a reverse-proxy HTML landing page / 502 becomes a
-            // clean "not the Whisparr API" result rather than a confusing JSON-parse crash.
-            var contentType = resp.Content.Headers.ContentType?.MediaType;
-            if (contentType is not "application/json")
+                if (resp.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+                {
+                    return WhisparrResult<T>.BadKey();
+                }
+
+                // Guard Content-Type BEFORE deserializing so a reverse-proxy HTML landing page / 502 becomes
+                // a clean "not the Whisparr API" result rather than a confusing JSON-parse crash.
+                var contentType = resp.Content.Headers.ContentType?.MediaType;
+                if (contentType is not "application/json")
+                {
+                    return WhisparrResult<T>.NotWhisparr();
+                }
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    return WhisparrResult<T>.Unreachable($"HTTP {(int)resp.StatusCode}");
+                }
+
+                return await onSuccess(resp, linked.Token);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                return WhisparrResult<SystemStatus>.NotWhisparr();
+                // The linked token fired (per-call timeout) rather than the caller cancelling.
+                last = WhisparrResult<T>.Unreachable("timeout");
             }
-
-            if (!resp.IsSuccessStatusCode)
+            catch (HttpRequestException ex)
             {
-                return WhisparrResult<SystemStatus>.Unreachable($"HTTP {(int)resp.StatusCode}");
+                last = WhisparrResult<T>.Unreachable(ex.Message);
             }
+        }
 
-            var status = await resp.Content.ReadFromJsonAsync(WhisparrJsonContext.Default.SystemStatus, linked.Token);
-            return status is null
-                ? WhisparrResult<SystemStatus>.NotWhisparr()
-                : WhisparrResult<SystemStatus>.Ok(status);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            // The linked token fired (per-call timeout) rather than the caller cancelling.
-            return WhisparrResult<SystemStatus>.Unreachable("timeout");
-        }
-        catch (HttpRequestException ex)
-        {
-            return WhisparrResult<SystemStatus>.Unreachable(ex.Message);
-        }
+        return last;
     }
 
-    // RED stubs — implemented in the GREEN phase of this task.
-    internal Task<WhisparrResult<RootFolder[]>> ListRootFoldersAsync(string baseUrl, string apiKey, CancellationToken ct)
-        => throw new NotImplementedException();
-
-    internal Task<WhisparrResult<QualityProfile[]>> ListQualityProfilesAsync(string baseUrl, string apiKey, CancellationToken ct)
-        => throw new NotImplementedException();
-
-    internal Task<WhisparrResult<bool>> RegisterWebhookAsync(string baseUrl, string apiKey, string notificationJson, CancellationToken ct)
-        => throw new NotImplementedException();
+    private static async Task<WhisparrResult<T>> DeserializeAsync<T>(
+        HttpResponseMessage resp, JsonTypeInfo<T> typeInfo, CancellationToken ct)
+    {
+        try
+        {
+            var value = await resp.Content.ReadFromJsonAsync(typeInfo, ct);
+            return value is null ? WhisparrResult<T>.NotWhisparr() : WhisparrResult<T>.Ok(value);
+        }
+        catch (JsonException)
+        {
+            // The response claimed application/json but the body was not parseable — classify rather than
+            // let the parse exception escape the transport boundary.
+            return WhisparrResult<T>.NotWhisparr();
+        }
+    }
 }
