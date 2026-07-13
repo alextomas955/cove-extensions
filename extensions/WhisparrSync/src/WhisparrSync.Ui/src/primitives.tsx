@@ -186,18 +186,21 @@ export function Select<T extends string>({
   value,
   onChange,
   options,
+  disabled = false,
 }: {
   value: T;
   onChange: (value: T) => void;
   options: readonly { value: T; label: string }[];
+  disabled?: boolean;
 }) {
   return (
     <select
       value={value}
+      disabled={disabled}
       onChange={(e) => {
         onChange(e.target.value as T);
       }}
-      className={INPUT_CLASS}
+      className={`${INPUT_CLASS} disabled:opacity-60`}
     >
       {options.map((o) => (
         <option key={o.value} value={o.value}>
