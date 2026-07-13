@@ -66,6 +66,51 @@ users has to require `configure`).
 | `/qualityprofiles` | POST | configure | The instance's quality profiles (creds in the body) |
 | `/webhook-url` | GET | configure | The ready-to-use webhook URL with the embedded secret |
 | `/register-webhook` | POST | configure | Best-effort auto-register of the Cove webhook in Whisparr |
+| `/preview-sync` | POST | configure | The zero-mutation reconciliation diff (matched / needs-review / unmatched rows + counts) |
+| `/reconciliation` | GET | read | The last persisted match map + status counts (a pure store read) |
+| `/match/confirm` | POST | configure | Confirm a needs-review suggestion (writes only the match store) |
+| `/match/reject` | POST | configure | Reject a needs-review suggestion (writes only the match store) |
+
+`/preview-sync` is `configure`-gated even though it only *reads*: it reaches the stored credentials to
+call Whisparr, so a read-only user must not be able to trigger it (the same CR-01 rule as the list
+routes). `/reconciliation` is the only reconciliation route that is `read`-gated, because it reads the
+extension's own match store and never touches the credentials.
+
+## The reconciliation match model (MATCH-01/02/03)
+
+Reconciliation answers one question for every Whisparr scene: *which Cove item, if any, is the same
+thing?* It never mutates Cove or Whisparr — `/preview-sync` opens an `AsNoTracking` read over the Cove
+library, fetches the Whisparr movie list, and composes a diff. The only writes in the whole feature
+are Confirm/Reject, and they land solely in the extension's own match store.
+
+`IdentityMatcher` resolves a link through a **confidence-ordered chain**, stopping at the first leg
+that fires:
+
+1. **StashDB id (authoritative).** An exact, case-insensitive match on the StashDB UUID. This is the
+   durable identity key — a scene keeps its identity across renames and moves — so it is tried first
+   and trusted outright. A movie-typed id is never compared against a Cove scene UUID.
+2. **Content hash — a documented no-op.** Whisparr exposes no comparable content hash, so this leg is
+   present as an explicit placeholder rather than a working check.
+3. **Path (exact only).** A forward-slash-normalized path comparison. Because no root-translation map
+   is configured in this release, the path leg only connects a scene when Whisparr and Cove see it at
+   the *same* path — a containerized Whisparr (`/data/…`) and a Cove seeing `/mnt/media/…` will not
+   match on path and fall through to the next leg.
+4. **Fuzzy title + year — a suggestion only.** A title-token Jaccard similarity gated on an equal
+   year. This never links anything on its own: a fuzzy hit lands in **needs-review** with
+   `AutoApplies == false`, and `ReconciliationService` never promotes it. Only the user's **Confirm**
+   turns it into a match.
+
+Anything unresolved is **unmatched** — the safe default, never a silent guess.
+
+The match store is a single JSON blob over `IExtensionStore`, keyed on the **Whisparr movie id** (a
+fuzzy suggestion carries no StashDB UUID, so the movie id is the one durable handle every leg shares).
+Confirm upserts a `Confirmed` entry that is honored on the next reconcile; Reject records a `Rejected`
+entry that suppresses the suggestion on re-run. Both are reversible — a fresh `/preview-sync`
+recomputes the whole diff from the current library and Whisparr state.
+
+Confirm/Reject validate the submitted `{coveId, whisparrMovieId}` pair against the freshly computed
+diff before writing (V5): a forged pair that is not a current needs-review suggestion is refused with
+`MATCH_NOT_IN_DIFF`, so a caller cannot write an arbitrary link into the store.
 
 ## The API-key secret model (CONN-06)
 

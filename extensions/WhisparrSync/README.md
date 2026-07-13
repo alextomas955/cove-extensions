@@ -6,10 +6,12 @@ settings page, test the connection, and Cove reads the instance's version and na
 call to Whisparr's `GET /api/v3/system/status`. Your API key is stored server-side only — it is
 never returned to the browser and never written to logs.
 
-> **Status:** early foundation (0.1.0). This release is the connect experience: enter a URL + key,
+> **Status:** early foundation (0.1.0). This release is the connect experience — enter a URL + key,
 > test the connection, pick a root folder and quality profile from auto-populated dropdowns, and
-> generate (and optionally auto-register) a webhook URL. Library reconciliation and acquisition
-> auto-import arrive in later phases.
+> generate (and optionally auto-register) a webhook URL — plus a **read-only reconciliation view**:
+> compare what Whisparr tracks against your Cove library (matched / unmatched / needs-review) and
+> confirm or reject low-confidence matches. Acquisition auto-import (acting on the webhook) arrives in
+> a later phase.
 
 After a successful test you pick a **root folder** and **quality profile** from lists read live from
 your instance (no hand-typed paths or ids), and the page shows a ready-to-use **webhook URL** with an
@@ -22,8 +24,9 @@ User docs live on the docs site alongside the other extensions:
 
 - **[Whisparr Sync docs](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync)** — overview and index
 - **[Connect guide](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/guide)** — connect, pick a root folder / quality profile, add the webhook
+- **[Reconciliation](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/reconciliation)** — view matched / unmatched / needs-review and confirm or reject matches
 - **[Settings reference](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/settings)** — every setting, with defaults
-- **[Architecture](./docs/ARCHITECTURE.md)** — the connection / adapter / options / webhook design and the API-key secret model
+- **[Architecture](./docs/ARCHITECTURE.md)** — the connection / adapter / options / webhook / reconciliation design and the API-key secret model
 
 The rest of this file is for contributors working on the extension itself.
 
@@ -55,9 +58,10 @@ npm run verify   # typecheck + lint + format:check + class-discipline gate + bun
 
 - `src/WhisparrSync/` — the C# extension (`FullExtensionBase`): identity, the full-page settings tab
   manifest, the settings endpoints (`/test-connection`, `/status`, `/options`, `/rootfolders`,
-  `/qualityprofiles`, `/webhook-url`, `/register-webhook`), the version-adapter seam
-  (`Adapters/`), the options store (`Options/`), the webhook URL builder (`Webhook/`), and the
-  transport-only `Client/WhisparrClient`.
+  `/qualityprofiles`, `/webhook-url`, `/register-webhook`), the read-only reconciliation endpoints
+  (`/preview-sync`, `/reconciliation`, `/match/confirm`, `/match/reject`), the identity matcher and
+  match store (`Matching/`), the version-adapter seam (`Adapters/`), the options store (`Options/`),
+  the webhook URL builder (`Webhook/`), and the transport-only `Client/WhisparrClient`.
 - `src/WhisparrSync.Tests/` — xUnit tests; the outbound HTTP boundary is faked with
   `FakeHttpMessageHandler`, so the client is testable with no live Whisparr.
 - `src/WhisparrSync.Ui/` — the React/TypeScript settings page, built with Vite to `dist/index.mjs`.

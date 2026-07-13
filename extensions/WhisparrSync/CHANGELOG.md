@@ -4,6 +4,19 @@ User-facing changes, newest first.
 
 ## Unreleased
 
+- **Read-only reconciliation view.** The Whisparr Sync page now has a reconciliation section that
+  compares what Whisparr tracks against your Cove library and shows every scene as **matched**,
+  **unmatched**, or **needs review** — with counts, a search box, and sortable columns. Click
+  **Refresh reconciliation** to run it. Nothing is changed in Cove or Whisparr; it is a comparison
+  you can run any time.
+- **Confirm or reject low-confidence matches.** Fuzzy title-and-year guesses land in a **needs-review**
+  queue instead of being applied automatically. **Confirm** accepts a suggestion; **Reject** declines
+  it so it isn't offered again. Both write only to the extension's own match store — never to your Cove
+  library or to Whisparr — and are reversible on the next refresh.
+- **Identity matching on the StashDB id first.** Scenes match on their StashDB id (which survives
+  renames and moves), then on an exact file path, then — only as a suggestion — on a fuzzy title +
+  year. Anything unresolved stays unmatched rather than being guessed.
+
 - **New extension: Whisparr Sync (`com.alextomas955.whisparrsync`), 0.1.0.** Adds a settings page
   under Settings → Extensions → Whisparr Sync where you enter your Whisparr instance URL and API
   key and click **Test connection**. On success the page shows the detected instance name and
