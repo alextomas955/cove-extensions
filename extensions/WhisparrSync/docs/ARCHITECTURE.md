@@ -88,13 +88,17 @@ that fires:
 
 1. **StashDB id (authoritative).** An exact, case-insensitive match on the StashDB UUID. This is the
    durable identity key — a scene keeps its identity across renames and moves — so it is tried first
-   and trusted outright. A movie-typed id is never compared against a Cove scene UUID.
+   and trusted outright. A movie-typed id is never compared against a Cove scene UUID. A single
+   unambiguous hit auto-matches; if *two* Cove videos share the same StashDB id (Cove does not enforce
+   cross-video uniqueness), the scene is sent to **needs-review** instead of being matched to an
+   arbitrary one.
 2. **Content hash — a documented no-op.** Whisparr exposes no comparable content hash, so this leg is
    present as an explicit placeholder rather than a working check.
 3. **Path (exact only).** A forward-slash-normalized path comparison. Because no root-translation map
    is configured in this release, the path leg only connects a scene when Whisparr and Cove see it at
    the *same* path — a containerized Whisparr (`/data/…`) and a Cove seeing `/mnt/media/…` will not
-   match on path and fall through to the next leg.
+   match on path and fall through to the next leg. As with the StashDB leg, two Cove files that
+   normalize to the identical path are ambiguous and go to **needs-review** rather than an arbitrary pick.
 4. **Fuzzy title + year — a suggestion only.** A title-token Jaccard similarity gated on an equal
    year. This never links anything on its own: a fuzzy hit lands in **needs-review** with
    `AutoApplies == false`, and `ReconciliationService` never promotes it. Only the user's **Confirm**

@@ -15,7 +15,9 @@ User-facing changes, newest first.
   library or to Whisparr — and are reversible on the next refresh.
 - **Identity matching on the StashDB id first.** Scenes match on their StashDB id (which survives
   renames and moves), then on an exact file path, then — only as a suggestion — on a fuzzy title +
-  year. Anything unresolved stays unmatched rather than being guessed.
+  year. Anything unresolved stays unmatched rather than being guessed. When two library items share
+  the same StashDB id or file path, the scene goes to **needs review** instead of being matched to an
+  arbitrary one.
 
 - **New extension: Whisparr Sync (`com.alextomas955.whisparrsync`), 0.1.0.** Adds a settings page
   under Settings → Extensions → Whisparr Sync where you enter your Whisparr instance URL and API

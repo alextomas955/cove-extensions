@@ -51,11 +51,19 @@ internal static class IdentityMatcher
         var results = new List<MatchResult>(whisparrMovies.Count);
         foreach (var movie in whisparrMovies)
         {
-            // Leg 1 — StashDB UUID (exact, HIGH, auto).
-            var byStash = coveVideos.FirstOrDefault(c => StashMatches(c, movie));
-            if (byStash is not null)
+            // Leg 1 — StashDB UUID (exact, HIGH). A single unambiguous hit auto-applies; but if TWO Cove
+            // videos carry the same StashDB id for the endpoint (Cove does not enforce cross-video id
+            // uniqueness), the exact leg is ambiguous — degrade to needs-review so a human disambiguates
+            // rather than silently auto-matching an arbitrary first candidate (the safety model above).
+            var stashMatches = coveVideos.Where(c => StashMatches(c, movie)).ToList();
+            if (stashMatches.Count == 1)
             {
-                results.Add(new MatchResult(movie, byStash, MatchedBy.StashId, MatchOutcome.Matched, AutoApplies: true));
+                results.Add(new MatchResult(movie, stashMatches[0], MatchedBy.StashId, MatchOutcome.Matched, AutoApplies: true));
+                continue;
+            }
+            if (stashMatches.Count > 1)
+            {
+                results.Add(new MatchResult(movie, stashMatches[0], MatchedBy.StashId, MatchOutcome.NeedsReview, AutoApplies: false));
                 continue;
             }
 
@@ -63,11 +71,18 @@ internal static class IdentityMatcher
             // comparable file hash, so there is nothing to compare Cove's fingerprints against. Falls
             // through by design; it is NOT an omission.
 
-            // Leg 3 — normalized path with translation (MEDIUM, auto only on translated equality).
-            var byPath = coveVideos.FirstOrDefault(c => PathMatches(c, movie, pathTranslations));
-            if (byPath is not null)
+            // Leg 3 — normalized path with translation (MEDIUM, auto only on translated equality). Same
+            // ambiguity guard as the StashId leg: a single normalized-path hit auto-applies, but two Cove
+            // files normalizing to the identical path are ambiguous → needs-review, never an arbitrary pick.
+            var pathMatches = coveVideos.Where(c => PathMatches(c, movie, pathTranslations)).ToList();
+            if (pathMatches.Count == 1)
             {
-                results.Add(new MatchResult(movie, byPath, MatchedBy.Path, MatchOutcome.Matched, AutoApplies: true));
+                results.Add(new MatchResult(movie, pathMatches[0], MatchedBy.Path, MatchOutcome.Matched, AutoApplies: true));
+                continue;
+            }
+            if (pathMatches.Count > 1)
+            {
+                results.Add(new MatchResult(movie, pathMatches[0], MatchedBy.Path, MatchOutcome.NeedsReview, AutoApplies: false));
                 continue;
             }
 

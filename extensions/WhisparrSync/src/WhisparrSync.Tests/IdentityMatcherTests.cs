@@ -154,4 +154,50 @@ public sealed class IdentityMatcherTests
 
         Assert.Equal(MatchOutcome.Unmatched, result.Outcome);
     }
+
+    [Fact]
+    public void StashId_AmbiguousMultipleCandidates_IsNeedsReviewNotAuto()
+    {
+        // Two Cove videos share the same StashDB id (Cove does not enforce cross-video uniqueness).
+        // The exact leg must NOT silently auto-match an arbitrary first candidate — it degrades to
+        // needs-review so a human disambiguates (WR-01).
+        var coveA = Cove(10, stashIds: ["uuid-a"]);
+        var coveB = Cove(11, stashIds: ["uuid-a"]);
+        var movie = Movie(1, stashId: "uuid-a", itemType: "scene");
+
+        var result = Only(IdentityMatcher.Match([coveA, coveB], [movie]));
+
+        Assert.Equal(MatchOutcome.NeedsReview, result.Outcome);
+        Assert.Equal(MatchedBy.StashId, result.Leg);
+        Assert.False(result.AutoApplies);
+    }
+
+    [Fact]
+    public void StashId_SingleCandidate_StillAutoApplies()
+    {
+        // Regression guard for WR-01: the ambiguity check must not break the unambiguous single-hit auto path.
+        var cove = Cove(10, stashIds: ["uuid-a"]);
+        var movie = Movie(1, stashId: "uuid-a", itemType: "scene");
+
+        var result = Only(IdentityMatcher.Match([cove], [movie]));
+
+        Assert.Equal(MatchOutcome.Matched, result.Outcome);
+        Assert.True(result.AutoApplies);
+    }
+
+    [Fact]
+    public void Path_AmbiguousMultipleCandidates_IsNeedsReviewNotAuto()
+    {
+        // Two Cove files normalize to the identical path → ambiguous, needs-review, never an arbitrary pick (WR-01).
+        var coveA = Cove(10, paths: ["/mnt/tank/media/x.mkv"]);
+        var coveB = Cove(11, paths: ["/mnt/tank/media/x.mkv"]);
+        var movie = Movie(1, path: "/data/media/x.mkv");
+        var translations = new Dictionary<string, string> { ["/data/media"] = "/mnt/tank/media" };
+
+        var result = Only(IdentityMatcher.Match([coveA, coveB], [movie], translations));
+
+        Assert.Equal(MatchOutcome.NeedsReview, result.Outcome);
+        Assert.Equal(MatchedBy.Path, result.Leg);
+        Assert.False(result.AutoApplies);
+    }
 }
