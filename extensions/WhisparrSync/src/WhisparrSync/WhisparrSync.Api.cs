@@ -4,6 +4,7 @@ using Cove.Plugins;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using WhisparrSync.Adapters;
 using WhisparrSync.Client;
 
 namespace WhisparrSync;
@@ -50,10 +51,14 @@ public sealed partial class WhisparrSync
     }
 
     /// <summary>
-    /// Tests the connection to the supplied Whisparr URL + API key and returns the detected version +
-    /// instance name on success. 403-first on <c>extensions.configure</c> (the host
-    /// <c>[RequiresPermission]</c> filter is inert on minimal-API, so re-check here BEFORE any outbound
-    /// call). The API key is used server-side only and is never included in the response (CONN-06).
+    /// Runs the full connect flow against the supplied Whisparr URL + API key and returns a discriminated
+    /// result the UI branches on (CONN-02): <c>ok</c> (with version + instance name), <c>badKey</c>,
+    /// <c>unreachable</c> (with a short reason), <c>notWhisparr</c> (HTML/502), or <c>versionMismatch</c>
+    /// (with the detected version — the fail-closed VER-04 refusal when the major version is not 3). The
+    /// adapter is chosen from the parsed status via <see cref="AdapterSelector"/>, never from the status
+    /// code (both v2 and v3 answer <c>/api/v3</c>). 403-first on <c>extensions.configure</c> (the host
+    /// <c>[RequiresPermission]</c> filter is inert on minimal-API). The API key is used server-side only
+    /// and is never included in the response (CONN-06).
     /// </summary>
     internal async Task<IResult> TestConnectionAsync(
         TestConnectionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
@@ -64,19 +69,37 @@ public sealed partial class WhisparrSync
         }
 
         var result = await client.GetStatusAsync(req.BaseUrl ?? string.Empty, req.ApiKey ?? string.Empty, ct);
-        if (result.IsOk)
-        {
-            var status = result.Value!;
-            LogConnectTested(status.Version ?? "unknown", status.InstanceName ?? "unknown");
-            return Results.Json(
-                new { status = "connected", version = status.Version, instanceName = status.InstanceName },
-                TestConnectionResponseJsonOptions);
-        }
 
-        LogWhisparrUnreachable(result.Reason ?? result.State.ToString());
-        return Results.Json(
-            new { status = "error", error = result.State.ToString(), reason = result.Reason },
-            TestConnectionResponseJsonOptions);
+        switch (result.State)
+        {
+            case WhisparrResultState.Ok:
+                var status = result.Value!;
+                // Branch on the parsed version, never the 200 status: a v2 instance also answers /api/v3.
+                if (AdapterSelector.Select(status, client) is null)
+                {
+                    LogVersionRefused(AdapterSelector.ParseMajor(status.Version));
+                    return Results.Json(
+                        new { result = "versionMismatch", detected = status.Version },
+                        TestConnectionResponseJsonOptions);
+                }
+
+                LogConnectTested(status.Version ?? "unknown", status.InstanceName ?? "unknown");
+                return Results.Json(
+                    new { result = "ok", version = status.Version, instanceName = status.InstanceName },
+                    TestConnectionResponseJsonOptions);
+
+            case WhisparrResultState.BadKey:
+                return Results.Json(new { result = "badKey" }, TestConnectionResponseJsonOptions);
+
+            case WhisparrResultState.NotWhisparr:
+                return Results.Json(new { result = "notWhisparr" }, TestConnectionResponseJsonOptions);
+
+            default:
+                LogWhisparrUnreachable(result.Reason ?? result.State.ToString());
+                return Results.Json(
+                    new { result = "unreachable", reason = result.Reason },
+                    TestConnectionResponseJsonOptions);
+        }
     }
 
     // Serialize responses with the extension's own web-convention options so the wire shape (camelCase)

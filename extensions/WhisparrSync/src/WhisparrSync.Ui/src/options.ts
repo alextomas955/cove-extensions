@@ -1,19 +1,24 @@
 /**
- * TS mirror of the server-side WhisparrSync options. This phase (the walking skeleton) models only the
- * connection basics — the full option set (version, root folder, quality profile, webhook secret) is
- * expanded in plan 01-03. Property names are PascalCase to match the C# spelling.
+ * TS mirror of the server-side WhisparrSync options. This phase models the connection basics + the
+ * selected Whisparr version — the full option set (root folder, quality profile, webhook secret) expands
+ * in plan 01-03. Property names are PascalCase to match the C# spelling.
  *
  * CONN-06: the API key is NEVER modeled on the client. The server returns only a `hasApiKey` boolean;
  * the value stays server-side and is never echoed back into the UI.
  */
+import type { WhisparrVersion } from "./connectionResult";
+
 export interface WhisparrOptions {
   BaseUrl: string;
+  /** The selected Whisparr API generation; auto-set to the detected version after a successful test (CONN-04). */
+  SelectedVersion: WhisparrVersion;
   /** True when a key is stored server-side; the value itself is never returned to the UI (CONN-06). */
   hasApiKey: boolean;
 }
 
 export const DEFAULT_OPTIONS: WhisparrOptions = {
   BaseUrl: "",
+  SelectedVersion: "v3",
   hasApiKey: false,
 };
 

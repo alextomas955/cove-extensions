@@ -19,4 +19,9 @@ public sealed partial class WhisparrSync
         EventId = 2001, Level = LogLevel.Warning,
         Message = "[WhisparrSync] Whisparr not reachable/usable: {Reason}")]
     private partial void LogWhisparrUnreachable(string reason);
+
+    [LoggerMessage(
+        EventId = 2002, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] refused connection: detected Whisparr major version {DetectedMajor}, only v3 is supported")]
+    private partial void LogVersionRefused(int detectedMajor);
 }

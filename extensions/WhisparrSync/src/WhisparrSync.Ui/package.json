@@ -9,11 +9,13 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "check-classes": "node scripts/check-classes.cjs",
+    "check-connection-result": "node scripts/check-connection-result.mjs",
+    "test": "node scripts/check-connection-result.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "verify": "npm run typecheck && npm run lint && npm run format:check && npm run check-classes && npm run build"
+    "verify": "npm run typecheck && npm run lint && npm run format:check && npm run check-classes && npm run test && npm run build"
   },
   "dependencies": {
     "@cove/extension-sdk": "file:vendor/cove-extension-sdk-0.1.0.tgz"
