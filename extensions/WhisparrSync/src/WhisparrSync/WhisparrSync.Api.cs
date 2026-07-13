@@ -102,10 +102,16 @@ public sealed partial class WhisparrSync
             : null;
 
     /// <summary>
-    /// Returns whether the extension is configured (a base URL and a stored key are present) plus the last
-    /// detected version — the redaction-safe status projection (CONN-06: never the raw key). 403-first on
-    /// <c>extensions.read</c>.
+    /// Returns whether the extension is configured (a base URL and a stored key are present) — the
+    /// redaction-safe status projection (CONN-06: never the raw key). 403-first on <c>extensions.read</c>.
     /// </summary>
+    /// <remarks>
+    /// WR-03: <c>detectedVersion</c> is intentionally NOT projected here. Nothing in this phase ever persists
+    /// <see cref="WhisparrOptions.DetectedVersion"/> (a successful test returns it to the UI in the
+    /// test-connection response but never writes it), so exposing it on <c>/status</c> would advertise a
+    /// permanently-empty field a downstream consumer could wrongly trust. The field is re-added to this
+    /// projection once a later phase wires its persistence.
+    /// </remarks>
     internal async Task<IResult> StatusAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         if (Forbidden(principal, Permissions.ExtensionsRead) is { } denied)
@@ -116,7 +122,7 @@ public sealed partial class WhisparrSync
         var options = await new OptionsStore(Store).LoadAsync(ct);
         var configured = !string.IsNullOrWhiteSpace(options.BaseUrl) && !string.IsNullOrEmpty(options.ApiKey);
         return Results.Json(
-            new { configured, detectedVersion = options.DetectedVersion, hasApiKey = !string.IsNullOrEmpty(options.ApiKey) },
+            new { configured, hasApiKey = !string.IsNullOrEmpty(options.ApiKey) },
             OptionsResponseJsonOptions);
     }
 
