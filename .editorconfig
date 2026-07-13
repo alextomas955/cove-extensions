@@ -109,3 +109,10 @@ dotnet_diagnostic.CA2007.severity = none
 # inline literal arrays in test arrange/assert (e.g. Assert.Equal(new[] { 3, 2, 1 }, ...)); test
 # readability wins over a non-measurable allocation in a unit test.
 dotnet_diagnostic.CA1861.severity = none
+
+# Same test-rule relaxations for the WhisparrSync test project.
+[extensions/WhisparrSync/src/WhisparrSync.Tests/**.cs]
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1822.severity = none
+dotnet_diagnostic.CA2007.severity = none
+dotnet_diagnostic.CA1861.severity = none
