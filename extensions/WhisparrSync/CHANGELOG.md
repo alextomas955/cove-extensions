@@ -12,7 +12,8 @@ User-facing changes, newest first.
 - **Confirm or reject low-confidence matches.** Fuzzy title-and-year guesses land in a **needs-review**
   queue instead of being applied automatically. **Confirm** accepts a suggestion; **Reject** declines
   it so it isn't offered again. Both write only to the extension's own match store — never to your Cove
-  library or to Whisparr — and are reversible on the next refresh.
+  library or to Whisparr. Note that in this release a decision is one-way: once you confirm or reject a
+  scene it leaves the needs-review queue, and there is not yet an in-app way to undo it.
 - **Identity matching on the StashDB id first.** Scenes match on their StashDB id (which survives
   renames and moves), then on an exact file path, then — only as a suggestion — on a fuzzy title +
   year. Anything unresolved stays unmatched rather than being guessed. When two library items share

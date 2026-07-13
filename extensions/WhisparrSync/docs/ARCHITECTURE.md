@@ -109,8 +109,11 @@ Anything unresolved is **unmatched** — the safe default, never a silent guess.
 The match store is a single JSON blob over `IExtensionStore`, keyed on the **Whisparr movie id** (a
 fuzzy suggestion carries no StashDB UUID, so the movie id is the one durable handle every leg shares).
 Confirm upserts a `Confirmed` entry that is honored on the next reconcile; Reject records a `Rejected`
-entry that suppresses the suggestion on re-run. Both are reversible — a fresh `/preview-sync`
-recomputes the whole diff from the current library and Whisparr state.
+entry that suppresses the suggestion on re-run. A fresh `/preview-sync` recomputes the whole diff from
+the current library and Whisparr state, but a persisted decision is **one-way in this phase**: a
+confirmed pair becomes `Matched` and a rejected one is suppressed to `Unmatched`, so neither returns to
+`NeedsReview` and there is no un-confirm / un-reject endpoint yet (a clear/reset path is deferred to a
+later phase).
 
 Confirm/Reject validate the submitted `{coveId, whisparrMovieId}` pair against the freshly computed
 diff before writing (V5): a forged pair that is not a current needs-review suggestion is refused with

@@ -397,8 +397,11 @@ public sealed partial class WhisparrSync
 
     /// <summary>
     /// Marks a needs-review suggestion rejected (MATCH-02) so a re-run suppresses it. Same validate-then-write
-    /// shape as <see cref="MatchConfirmAsync"/>; the decision is <see cref="MatchStatus.Rejected"/>. The write
-    /// is reversible on the next Refresh (the store, never Cove or Whisparr).
+    /// shape as <see cref="MatchConfirmAsync"/>; the decision is <see cref="MatchStatus.Rejected"/>. The only
+    /// write is to the extension's own match map (never Cove or Whisparr). NOTE: this phase has no un-reject /
+    /// un-confirm path — once written, a decision moves the pair out of needs-review (rejected → suppressed to
+    /// unmatched, confirmed → matched), so it cannot be reversed from the UI until a later phase adds a
+    /// clear/reset endpoint (IN-05).
     /// </summary>
     internal async Task<IResult> MatchRejectAsync(
         MatchDecisionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
