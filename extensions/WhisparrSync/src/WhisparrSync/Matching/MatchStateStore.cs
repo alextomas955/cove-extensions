@@ -48,11 +48,48 @@ internal sealed class MatchStateStore(IExtensionStore store)
 
     /// <summary>Upserts <paramref name="state"/> keyed on its StashDB UUID with <see cref="MatchStatus.Confirmed"/> — a re-run then reuses the link.</summary>
     public Task ConfirmAsync(MatchState state, CancellationToken ct = default)
-        => throw new NotImplementedException();
+        => UpsertAsync(state with { Status = MatchStatus.Confirmed }, ct);
 
     /// <summary>Upserts <paramref name="state"/> keyed on its StashDB UUID with <see cref="MatchStatus.Rejected"/> — a re-run then suppresses the suggestion.</summary>
     public Task RejectAsync(MatchState state, CancellationToken ct = default)
-        => throw new NotImplementedException();
+        => UpsertAsync(state with { Status = MatchStatus.Rejected }, ct);
+
+    // Gated read-modify-write: an existing entry for the same movie is replaced (keyed on the movie id,
+    // which every leg has — a fuzzy suggestion carries no StashDB UUID), else the entry is appended. The
+    // whole critical section holds the gate so a concurrent confirm/reject cannot tear the shared blob.
+    private async Task UpsertAsync(MatchState state, CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            var current = Parse(await store.GetAsync(Key, ct));
+            var next = new List<MatchState>(current.Length + 1);
+            var replaced = false;
+            foreach (var existing in current)
+            {
+                if (existing.WhisparrMovieId == state.WhisparrMovieId)
+                {
+                    next.Add(state);
+                    replaced = true;
+                }
+                else
+                {
+                    next.Add(existing);
+                }
+            }
+
+            if (!replaced)
+            {
+                next.Add(state);
+            }
+
+            await PersistAsync(next, ct);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
 
     private static MatchState[] Parse(string? json)
     {
