@@ -28,6 +28,15 @@
     -->
     <PackageReference Include="Xunit.SkippableFact" Version="1.5.61" />
     <PackageReference Include="coverlet.collector" Version="10.0.1" />
+    <!--
+      TEST-ONLY runtime closure: EndpointAuthTests instantiates the FullExtensionBase subclass, whose type
+      surface (IDataExtension.ConfigureModel(ModelBuilder)) references EF Core. Cove.Sdk marks EF Core as
+      host-provided (ExcludeAssets=runtime), so it is not copied to consumers — xUnit then fails to load the
+      type at reflection time ("Could not load file or assembly 'Microsoft.EntityFrameworkCore'"). Add the
+      base EF Core assembly here with runtime copy ENABLED. Binary-compatible within the host's 10.0.x line
+      (EF Core patch releases are ABI-stable). Never part of the deployed WhisparrSync.dll (IsPackable=false).
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
   </ItemGroup>
 
   <ItemGroup>
@@ -68,5 +77,7 @@
   -->
   <ItemGroup Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Core\Cove.Core.csproj')">
     <Compile Remove="TestSupport\FakePrincipalAccessor.cs" />
+    <!-- EndpointAuthTests injects a FakePrincipalAccessor (Cove.Core auth types) → drops out on a bare CI runner. -->
+    <Compile Remove="EndpointAuthTests.cs" />
   </ItemGroup>
 </Project>

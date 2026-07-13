@@ -37,4 +37,12 @@ internal static class AdapterSelector
     /// </summary>
     internal static IWhisparrAdapter? Select(SystemStatus status, WhisparrClient client)
         => ParseMajor(status.Version) == 3 ? new V3Adapter(client) : null;
+
+    /// <summary>
+    /// Selects the adapter for an already-persisted selection (the settings endpoints run after a
+    /// successful test, so the version is known): a <see cref="V3Adapter"/> for <c>"v3"</c>, otherwise
+    /// <c>null</c> (refuse — VER-04). Case-insensitive.
+    /// </summary>
+    internal static IWhisparrAdapter? SelectForVersion(string? selectedVersion, WhisparrClient client)
+        => string.Equals(selectedVersion, "v3", StringComparison.OrdinalIgnoreCase) ? new V3Adapter(client) : null;
 }

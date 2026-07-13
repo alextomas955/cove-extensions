@@ -22,6 +22,8 @@ public sealed partial class WhisparrSync
     private const string TestConnectionRoute = RouteBase + "/test-connection";
     private const string StatusRoute = RouteBase + "/status";
     private const string OptionsRoute = RouteBase + "/options";
+    private const string RootFoldersRoute = RouteBase + "/rootfolders";
+    private const string QualityProfilesRoute = RouteBase + "/qualityprofiles";
 
     /// <summary>
     /// Contributes the Whisparr Sync settings tab as a full-page layout (like Renamer): the host renders
@@ -61,6 +63,17 @@ public sealed partial class WhisparrSync
         endpoints.MapPost(OptionsRoute,
             (OptionsSaveRequest req, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => SaveOptionsAsync(req, principal, ct));
+
+        // Root-folder / quality-profile lists are POSTs carrying the connect creds in the BODY (never a
+        // query string — CONN-06): a just-tested (unsaved) key populates the dropdowns immediately, and an
+        // empty submitted key on reload falls back to the stored key.
+        endpoints.MapPost(RootFoldersRoute,
+            (TestConnectionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => ListRootFoldersAsync(req, client, principal, ct));
+
+        endpoints.MapPost(QualityProfilesRoute,
+            (TestConnectionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => ListQualityProfilesAsync(req, client, principal, ct));
     }
 
     /// <summary>
@@ -130,6 +143,68 @@ public sealed partial class WhisparrSync
 
         return Results.Json(OptionsView.From(updated), OptionsResponseJsonOptions);
     }
+
+    /// <summary>
+    /// Lists the instance's root folders for the settings dropdown (CONN-05). Resolves the connect creds
+    /// (submitted-or-stored), selects the adapter from the persisted version, and returns the fetched
+    /// <c>RootFolder[]</c> — or the classified error on a non-Ok transport result. 403-first on
+    /// <c>extensions.read</c>.
+    /// </summary>
+    internal async Task<IResult> ListRootFoldersAsync(
+        TestConnectionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        var (options, baseUrl, apiKey) = await ResolveCredsAsync(req, ct);
+        if (AdapterSelector.SelectForVersion(options.SelectedVersion, client) is not { } adapter)
+        {
+            return Results.Json(new { code = "VERSION_UNSUPPORTED" }, statusCode: 400);
+        }
+
+        var result = await adapter.ListRootFoldersAsync(baseUrl, apiKey, ct);
+        return result.IsOk
+            ? Results.Json(result.Value, OptionsResponseJsonOptions)
+            : Results.Json(new { result = FailureDiscriminator(result.State) }, statusCode: 502);
+    }
+
+    /// <summary>
+    /// Lists the instance's quality profiles for the settings dropdown (CONN-05). Same shape as
+    /// <see cref="ListRootFoldersAsync"/>. 403-first on <c>extensions.read</c>.
+    /// </summary>
+    internal async Task<IResult> ListQualityProfilesAsync(
+        TestConnectionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        var (options, baseUrl, apiKey) = await ResolveCredsAsync(req, ct);
+        if (AdapterSelector.SelectForVersion(options.SelectedVersion, client) is not { } adapter)
+        {
+            return Results.Json(new { code = "VERSION_UNSUPPORTED" }, statusCode: 400);
+        }
+
+        var result = await adapter.ListQualityProfilesAsync(baseUrl, apiKey, ct);
+        return result.IsOk
+            ? Results.Json(result.Value, OptionsResponseJsonOptions)
+            : Results.Json(new { result = FailureDiscriminator(result.State) }, statusCode: 502);
+    }
+
+    /// <summary>
+    /// Loads the stored options and resolves the effective connect creds: a submitted URL/key wins, an
+    /// empty submission falls back to the stored value (so an unsaved just-tested key works, and a reload
+    /// with no key in the form reuses the stored one — CONN-06 write-only key).
+    /// </summary>
+    private async Task<(WhisparrOptions Options, string BaseUrl, string ApiKey)> ResolveCredsAsync(
+        TestConnectionRequest req, CancellationToken ct)
+    {
+        var options = await new OptionsStore(Store).LoadAsync(ct);
+        var baseUrl = string.IsNullOrWhiteSpace(req.BaseUrl) ? options.BaseUrl : req.BaseUrl;
+        var apiKey = string.IsNullOrEmpty(req.ApiKey) ? options.ApiKey : req.ApiKey;
+        return (options, baseUrl, apiKey);
+    }
+
+    /// <summary>Maps a non-Ok transport state to the UI's error discriminator (never leaks the key/reason).</summary>
+    private static string FailureDiscriminator(WhisparrResultState state) => state switch
+    {
+        WhisparrResultState.BadKey => "badKey",
+        WhisparrResultState.NotWhisparr => "notWhisparr",
+        _ => "unreachable",
+    };
 
     /// <summary>
     /// Runs the full connect flow against the supplied Whisparr URL + API key and returns a discriminated
