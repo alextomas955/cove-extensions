@@ -9,4 +9,6 @@ namespace WhisparrSync.Client;
 /// </summary>
 [JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(SystemStatus))]
+[JsonSerializable(typeof(RootFolder[]))]
+[JsonSerializable(typeof(QualityProfile[]))]
 internal sealed partial class WhisparrJsonContext : JsonSerializerContext;

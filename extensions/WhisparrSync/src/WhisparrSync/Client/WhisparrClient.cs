@@ -65,4 +65,14 @@ internal sealed class WhisparrClient(HttpClient http)
             return WhisparrResult<SystemStatus>.Unreachable(ex.Message);
         }
     }
+
+    // RED stubs — implemented in the GREEN phase of this task.
+    internal Task<WhisparrResult<RootFolder[]>> ListRootFoldersAsync(string baseUrl, string apiKey, CancellationToken ct)
+        => throw new NotImplementedException();
+
+    internal Task<WhisparrResult<QualityProfile[]>> ListQualityProfilesAsync(string baseUrl, string apiKey, CancellationToken ct)
+        => throw new NotImplementedException();
+
+    internal Task<WhisparrResult<bool>> RegisterWebhookAsync(string baseUrl, string apiKey, string notificationJson, CancellationToken ct)
+        => throw new NotImplementedException();
 }
