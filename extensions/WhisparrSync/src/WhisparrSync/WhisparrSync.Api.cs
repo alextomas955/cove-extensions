@@ -153,6 +153,11 @@ public sealed partial class WhisparrSync
     internal async Task<IResult> ListRootFoldersAsync(
         TestConnectionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
+        if (Forbidden(principal, Permissions.ExtensionsRead) is { } denied)
+        {
+            return denied;
+        }
+
         var (options, baseUrl, apiKey) = await ResolveCredsAsync(req, ct);
         if (AdapterSelector.SelectForVersion(options.SelectedVersion, client) is not { } adapter)
         {
@@ -172,6 +177,11 @@ public sealed partial class WhisparrSync
     internal async Task<IResult> ListQualityProfilesAsync(
         TestConnectionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
+        if (Forbidden(principal, Permissions.ExtensionsRead) is { } denied)
+        {
+            return denied;
+        }
+
         var (options, baseUrl, apiKey) = await ResolveCredsAsync(req, ct);
         if (AdapterSelector.SelectForVersion(options.SelectedVersion, client) is not { } adapter)
         {
@@ -241,7 +251,7 @@ public sealed partial class WhisparrSync
 
                 LogConnectTested(status.Version ?? "unknown", status.InstanceName ?? "unknown");
                 return Results.Json(
-                    new { result = "ok", version = status.Version, instanceName = status.InstanceName },
+                    new { result = "success", version = status.Version, instanceName = status.InstanceName },
                     TestConnectionResponseJsonOptions);
 
             case WhisparrResultState.BadKey:
