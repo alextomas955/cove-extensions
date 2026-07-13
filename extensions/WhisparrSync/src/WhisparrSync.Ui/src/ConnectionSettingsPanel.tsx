@@ -10,10 +10,11 @@
  *
  * CONN-06: the API-key input is `type="password"` and is NEVER pre-filled from the server — the panel only
  * learns whether a key is stored (`hasApiKey`) and shows a "Key is set" pill; a blank field on save preserves
- * the stored key (write-only). The webhook section arrives in plan 01-03 Task 3.
+ * the stored key (write-only). After a successful test the webhook section reveals a ready-to-use URL with an
+ * embedded secret (CONN-07) to copy or best-effort auto-register into Whisparr.
  */
 import { useEffect, useState } from "react";
-import { CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, Copy } from "lucide-react";
 import { request } from "@cove/extension-sdk";
 import { Badge, Button, Chip, Field, Select, Spinner, StatusText, TextInput } from "./primitives";
 import { DEFAULT_OPTIONS, optionsFromServer, type WhisparrOptions } from "./options";
@@ -69,6 +70,12 @@ async function fetchLists(
   return { folders, profiles };
 }
 
+/** Fetch the ready-to-use webhook URL (the server mints + persists the embedded secret on first read). */
+async function fetchWebhookUrl(): Promise<string> {
+  const resp = await request<{ url: string }>(`/extensions/${EXTENSION_ID}/webhook-url`);
+  return resp.url;
+}
+
 function ToneIcon({ tone }: { tone: ConnectionTone }) {
   if (tone === "success") {
     return <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-400" />;
@@ -116,6 +123,11 @@ export function ConnectionSettingsPanel() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
 
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [registerMsg, setRegisterMsg] = useState<string | null>(null);
+
   // Load the persisted options once on mount; if a key is already stored, populate the dropdowns from the
   // live API using the stored creds (an empty submitted key falls back to the stored one server-side).
   useEffect(() => {
@@ -133,6 +145,7 @@ export function ConnectionSettingsPanel() {
           setRootFolders(folders);
           setQualityProfiles(profiles);
           setListsLoaded(true);
+          setWebhookUrl(await fetchWebhookUrl());
         }
       } catch {
         // First run or unreachable: keep defaults; the dropdowns stay in their disabled empty state.
@@ -169,6 +182,7 @@ export function ConnectionSettingsPanel() {
             setRootFolders(folders);
             setQualityProfiles(profiles);
             setListsLoaded(true);
+            setWebhookUrl(await fetchWebhookUrl());
           } catch {
             setListsLoaded(false);
           }
@@ -229,6 +243,40 @@ export function ConnectionSettingsPanel() {
       setSaveError(err instanceof Error ? err.message : "unknown error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function copyWebhookUrl() {
+    try {
+      await navigator.clipboard.writeText(webhookUrl);
+      setCopied(true);
+      window.setTimeout(() => {
+        setCopied(false);
+      }, 1500);
+    } catch {
+      // Clipboard access denied (e.g. non-secure context): the URL is still visible to select manually.
+    }
+  }
+
+  async function registerWebhook() {
+    setRegistering(true);
+    setRegisterMsg(null);
+    try {
+      const resp = await request<{ registered: boolean }>(
+        `/extensions/${EXTENSION_ID}/register-webhook`,
+        { method: "POST" },
+      );
+      setRegisterMsg(
+        resp.registered
+          ? "Registered ✓"
+          : "Couldn't auto-register — paste the URL into Whisparr → Settings → Connections instead.",
+      );
+    } catch {
+      setRegisterMsg(
+        "Couldn't auto-register — paste the URL into Whisparr → Settings → Connections instead.",
+      );
+    } finally {
+      setRegistering(false);
     }
   }
 
@@ -340,6 +388,44 @@ export function ConnectionSettingsPanel() {
           disabled={!listsLoaded}
         />
       </Field>
+
+      {webhookUrl ? (
+        <Field
+          label="Webhook URL"
+          helper="Paste this into Whisparr → Settings → Connections → Webhook (On Import). Or let us add it for you."
+        >
+          <div className="space-y-2">
+            <input
+              type="text"
+              value={webhookUrl}
+              readOnly
+              className="w-full rounded-xl border border-border bg-card px-3 py-2 font-mono text-sm text-foreground focus:border-accent focus:outline-none"
+            />
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  void copyWebhookUrl();
+                }}
+              >
+                <Copy className="h-4 w-4" />
+                {copied ? "Copied" : "Copy webhook URL"}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  void registerWebhook();
+                }}
+                disabled={registering}
+              >
+                {registering ? <Spinner /> : null}
+                Register in Whisparr
+              </Button>
+              {registerMsg ? <StatusText kind="muted">{registerMsg}</StatusText> : null}
+            </div>
+          </div>
+        </Field>
+      ) : null}
 
       {dirty ? (
         <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 py-4">

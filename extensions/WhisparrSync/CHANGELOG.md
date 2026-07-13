@@ -18,4 +18,14 @@ User-facing changes, newest first.
 - **Whisparr version selector with auto-detect.** Pick your Whisparr version (v3 (Eros) / v2); a
   successful test auto-selects the detected version. Connecting to a non-v3 instance is refused with
   a clear advisory rather than silently connecting with the wrong behavior.
+- **Pick a root folder and quality profile from lists.** After a successful test, the page loads
+  your instance's root folders and quality profiles into dropdowns — no hand-typed paths or numeric
+  ids. Your selections are saved and restored on reload.
+- **Save your configuration.** A save bar persists your URL, version, root folder, and quality
+  profile. Your API key is write-only — leaving the field blank on save keeps the stored key, and
+  the key is never shown back to you.
+- **Ready-to-use webhook URL.** The page generates a webhook URL with an embedded secret you can
+  copy into Whisparr → Settings → Connections, or click **Register in Whisparr** to add it for you.
+  If auto-register isn't accepted, the copy-paste URL always works. (The extension acting on webhook
+  events arrives in a later phase.)
 - **Requires Cove `0.9.0`** or newer (for the page-layout settings tab).
