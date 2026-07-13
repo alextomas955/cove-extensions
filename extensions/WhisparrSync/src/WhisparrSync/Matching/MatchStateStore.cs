@@ -6,7 +6,7 @@ namespace WhisparrSync.Matching;
 
 /// <summary>
 /// Persists the Cove↔Whisparr match map (MATCH-04) as a SINGLE JSON-array blob under one
-/// <see cref="IExtensionStore"/> key, keyed on the StashDB UUID. Mirrors <c>RevertLog</c>'s single-writer
+/// <see cref="IExtensionStore"/> key, keyed on the Whisparr movie id. Mirrors <c>RevertLog</c>'s single-writer
 /// gate and <c>OptionsStore</c>'s defensive parse: a corrupt/hand-edited blob loads as an empty map and
 /// never throws, and every write is a gated read-modify-write so concurrent confirm/reject cannot tear
 /// the blob. Takes <see cref="IExtensionStore"/> directly so it is unit-testable host-free against a fake.
@@ -46,11 +46,11 @@ internal sealed class MatchStateStore(IExtensionStore store)
         }
     }
 
-    /// <summary>Upserts <paramref name="state"/> keyed on its StashDB UUID with <see cref="MatchStatus.Confirmed"/> — a re-run then reuses the link.</summary>
+    /// <summary>Upserts <paramref name="state"/> keyed on its Whisparr movie id with <see cref="MatchStatus.Confirmed"/> — a re-run then reuses the link.</summary>
     public Task ConfirmAsync(MatchState state, CancellationToken ct = default)
         => UpsertAsync(state with { Status = MatchStatus.Confirmed }, ct);
 
-    /// <summary>Upserts <paramref name="state"/> keyed on its StashDB UUID with <see cref="MatchStatus.Rejected"/> — a re-run then suppresses the suggestion.</summary>
+    /// <summary>Upserts <paramref name="state"/> keyed on its Whisparr movie id with <see cref="MatchStatus.Rejected"/> — a re-run then suppresses the suggestion.</summary>
     public Task RejectAsync(MatchState state, CancellationToken ct = default)
         => UpsertAsync(state with { Status = MatchStatus.Rejected }, ct);
 
