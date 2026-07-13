@@ -19,6 +19,13 @@ internal sealed class FakeHttpMessageHandler : HttpMessageHandler
     /// <summary>The last request this handler saw, for URL + header assertions. Null until a call is made.</summary>
     public HttpRequestMessage? LastRequest { get; private set; }
 
+    /// <summary>
+    /// The last request's body, captured while the request is still alive (the client disposes the request
+    /// after the send, so reading <see cref="LastRequest"/>.Content afterwards would throw). Null for a
+    /// bodiless request.
+    /// </summary>
+    public string? LastRequestBody { get; private set; }
+
     /// <summary>How many times the handler has been invoked — a retry probe.</summary>
     public int CallCount { get; private set; }
 
@@ -62,6 +69,8 @@ internal sealed class FakeHttpMessageHandler : HttpMessageHandler
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         LastRequest = request;
+        // Capture the body now — the client disposes the request after this returns, so a later read throws.
+        LastRequestBody = request.Content?.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult();
         CallCount++;
         var step = _steps[Math.Min(_index, _steps.Count - 1)];
         _index++;

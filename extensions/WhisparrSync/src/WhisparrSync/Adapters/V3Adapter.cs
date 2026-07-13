@@ -19,6 +19,12 @@ internal sealed class V3Adapter(WhisparrClient client) : IWhisparrAdapter
     public Task<WhisparrResult<QualityProfile[]>> ListQualityProfilesAsync(string baseUrl, string apiKey, CancellationToken ct)
         => client.ListQualityProfilesAsync(baseUrl, apiKey, ct);
 
-    public Task<WhisparrResult<bool>> RegisterWebhookAsync(string baseUrl, string apiKey, string notificationJson, CancellationToken ct)
-        => client.RegisterWebhookAsync(baseUrl, apiKey, notificationJson, ct);
+    public Task<WhisparrResult<bool>> RegisterWebhookAsync(string baseUrl, string apiKey, string webhookUrl, CancellationToken ct)
+        => client.RegisterWebhookAsync(baseUrl, apiKey, BuildNotificationPayload(webhookUrl), ct);
+
+    // The v3 Webhook connection payload (RESEARCH.md §Webhook auto-register / Assumption A1). The exact
+    // `fields` contract is best-effort — if this Whisparr build rejects it the connect flow still succeeds
+    // via the copy-paste URL. `method` value 1 = POST (Servarr WebhookMethod enum).
+    private static string BuildNotificationPayload(string webhookUrl)
+        => "{}"; // RED stub — GREEN builds the implementation/configContract/fields payload
 }

@@ -22,8 +22,10 @@ internal interface IWhisparrAdapter
     Task<WhisparrResult<QualityProfile[]>> ListQualityProfilesAsync(string baseUrl, string apiKey, CancellationToken ct);
 
     /// <summary>
-    /// Registers the Cove webhook connection from a pre-serialized notification payload. Single-shot: the
-    /// underlying transport never blind-retries this non-idempotent call.
+    /// Registers the Cove webhook connection for <paramref name="webhookUrl"/>. The adapter owns the
+    /// version-specific notification payload shape (implementation / configContract / fields). Best-effort
+    /// and single-shot: the underlying transport never blind-retries this non-idempotent call, and a non-2xx
+    /// response is a non-Ok result the caller falls back on (copy-paste), never a thrown failure.
     /// </summary>
-    Task<WhisparrResult<bool>> RegisterWebhookAsync(string baseUrl, string apiKey, string notificationJson, CancellationToken ct);
+    Task<WhisparrResult<bool>> RegisterWebhookAsync(string baseUrl, string apiKey, string webhookUrl, CancellationToken ct);
 }
