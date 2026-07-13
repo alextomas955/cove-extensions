@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using WhisparrSync.Adapters;
 using WhisparrSync.Client;
+using WhisparrSync.Options;
 
 namespace WhisparrSync;
 
@@ -19,6 +20,8 @@ public sealed partial class WhisparrSync
     // The route prefix mirrors how the host mounts an extension's endpoints: /api/extensions/{id}/…
     private const string RouteBase = "/api/extensions/com.alextomas955.whisparrsync";
     private const string TestConnectionRoute = RouteBase + "/test-connection";
+    private const string StatusRoute = RouteBase + "/status";
+    private const string OptionsRoute = RouteBase + "/options";
 
     /// <summary>
     /// Contributes the Whisparr Sync settings tab as a full-page layout (like Renamer): the host renders
@@ -48,6 +51,84 @@ public sealed partial class WhisparrSync
         endpoints.MapPost(TestConnectionRoute,
             (TestConnectionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => TestConnectionAsync(req, client, principal, ct));
+
+        endpoints.MapGet(StatusRoute,
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => StatusAsync(principal, ct));
+
+        endpoints.MapGet(OptionsRoute,
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => GetOptionsAsync(principal, ct));
+
+        endpoints.MapPost(OptionsRoute,
+            (OptionsSaveRequest req, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => SaveOptionsAsync(req, principal, ct));
+    }
+
+    /// <summary>
+    /// The 403-first permission gate every settings handler shares: returns a <c>403 FORBIDDEN</c> result
+    /// when the principal is null or lacks <paramref name="permission"/>, otherwise <c>null</c> (proceed).
+    /// The host <c>[RequiresPermission]</c> filter is inert on minimal-API endpoints, so each handler must
+    /// re-check itself.
+    /// </summary>
+    private static IResult? Forbidden(ICurrentPrincipalAccessor principal, string permission)
+        => principal.Current is null || !principal.Current.Has(permission)
+            ? Results.Json(new { code = "FORBIDDEN" }, statusCode: 403)
+            : null;
+
+    /// <summary>
+    /// Returns whether the extension is configured (a base URL and a stored key are present) plus the last
+    /// detected version — the redaction-safe status projection (CONN-06: never the raw key). 403-first on
+    /// <c>extensions.read</c>.
+    /// </summary>
+    internal async Task<IResult> StatusAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        if (Forbidden(principal, Permissions.ExtensionsRead) is { } denied)
+        {
+            return denied;
+        }
+
+        var options = await new OptionsStore(Store).LoadAsync(ct);
+        var configured = !string.IsNullOrWhiteSpace(options.BaseUrl) && !string.IsNullOrEmpty(options.ApiKey);
+        return Results.Json(
+            new { configured, detectedVersion = options.DetectedVersion, hasApiKey = !string.IsNullOrEmpty(options.ApiKey) },
+            OptionsResponseJsonOptions);
+    }
+
+    /// <summary>
+    /// Returns the persisted options as a redaction-safe <see cref="OptionsView"/> — every field except the
+    /// API key, which is projected to a <c>hasApiKey</c> boolean (CONN-06). 403-first on <c>extensions.read</c>.
+    /// </summary>
+    internal async Task<IResult> GetOptionsAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        if (Forbidden(principal, Permissions.ExtensionsRead) is { } denied)
+        {
+            return denied;
+        }
+
+        var options = await new OptionsStore(Store).LoadAsync(ct);
+        return Results.Json(OptionsView.From(options), OptionsResponseJsonOptions);
+    }
+
+    /// <summary>
+    /// Persists the submitted URL / API key / version / root folder / quality profile. Write-only key
+    /// semantics: an empty submitted key preserves the stored one (<see cref="WhisparrOptions.WithSubmitted"/>),
+    /// so saving from a UI that never held the key does not blank it (CONN-06). The server-managed
+    /// <c>DetectedVersion</c>/<c>WebhookSecret</c> are left untouched. 403-first on <c>extensions.configure</c>.
+    /// </summary>
+    internal async Task<IResult> SaveOptionsAsync(
+        OptionsSaveRequest req, ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
+        {
+            return denied;
+        }
+
+        var store = new OptionsStore(Store);
+        var current = await store.LoadAsync(ct);
+        var updated = current.WithSubmitted(
+            req.BaseUrl, req.ApiKey, req.SelectedVersion, req.RootFolderId, req.QualityProfileId);
+        await store.SaveAsync(updated, ct);
+
+        return Results.Json(OptionsView.From(updated), OptionsResponseJsonOptions);
     }
 
     /// <summary>
@@ -106,6 +187,18 @@ public sealed partial class WhisparrSync
     // matches what the UI reads; the host's default minimal-API serializer is not relied on here.
     private static readonly JsonSerializerOptions TestConnectionResponseJsonOptions = new(JsonSerializerDefaults.Web);
 
+    // The options / list responses keep property names AS DECLARED (PascalCase — the stored-blob spelling
+    // the UI models), with the one deliberate exception the [JsonPropertyName] on OptionsView.HasApiKey
+    // renders as `hasApiKey`. A default (non-Web) options instance applies no naming policy.
+    private static readonly JsonSerializerOptions OptionsResponseJsonOptions = new();
+
     /// <summary>The Test-connection request body: the URL + key the user typed on the settings page.</summary>
     internal sealed record TestConnectionRequest(string? BaseUrl, string? ApiKey);
+
+    /// <summary>
+    /// The options-save request body. Case-insensitive minimal-API binding maps the UI's PascalCase JSON
+    /// onto these. An empty/absent <see cref="ApiKey"/> preserves the stored key (write-only; CONN-06).
+    /// </summary>
+    internal sealed record OptionsSaveRequest(
+        string? BaseUrl, string? ApiKey, string? SelectedVersion, int RootFolderId, int QualityProfileId);
 }

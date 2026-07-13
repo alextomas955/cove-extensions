@@ -39,7 +39,15 @@ public sealed record WhisparrOptions
     /// </summary>
     public WhisparrOptions WithSubmitted(
         string? baseUrl, string? apiKey, string? selectedVersion, int rootFolderId, int qualityProfileId)
-        => this; // RED stub — GREEN applies the submitted values with write-only key semantics
+        => this with
+        {
+            BaseUrl = baseUrl ?? BaseUrl,
+            // Write-only: a blank submission means "unchanged" (the UI never had the key to resend).
+            ApiKey = string.IsNullOrEmpty(apiKey) ? ApiKey : apiKey,
+            SelectedVersion = string.IsNullOrWhiteSpace(selectedVersion) ? SelectedVersion : selectedVersion,
+            RootFolderId = rootFolderId,
+            QualityProfileId = qualityProfileId,
+        };
 }
 
 /// <summary>
@@ -58,5 +66,5 @@ public sealed record OptionsView(
     /// <summary>Projects the stored options to the redaction-safe view (the raw key is dropped here).</summary>
     public static OptionsView From(WhisparrOptions options)
         => new(options.BaseUrl, options.SelectedVersion, options.DetectedVersion,
-            options.RootFolderId, options.QualityProfileId, HasApiKey: false); // RED stub — GREEN derives from ApiKey
+            options.RootFolderId, options.QualityProfileId, HasApiKey: !string.IsNullOrEmpty(options.ApiKey));
 }
