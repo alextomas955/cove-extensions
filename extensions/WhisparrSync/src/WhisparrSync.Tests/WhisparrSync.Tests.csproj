@@ -1,0 +1,72 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <!-- inherits net10.0 / nullable / implicitusings from Directory.Build.props -->
+    <!-- a test project is never a Cove plugin: neutralize the inherited dynamic-loading flag -->
+    <EnableDynamicLoading>false</EnableDynamicLoading>
+    <!--
+      A test project is NOT a deployed plugin: it must RUN, so it needs its full runtime closure copied
+      local (and — on the cove-ABSENT CI path — the Cove.Plugins NuGet assembly FakeStore references).
+      On that path WhisparrSync.csproj's transitive Cove.Sdk PackageReference imports Cove.Sdk.targets,
+      whose CoveStripHostProvidedCopyLocal target would strip Cove.Plugins.dll from THIS project's output
+      too — making xUnit fail to reflect over the assembly at runtime. Empty the host-provided denylist
+      here so nothing is stripped. The value must be NON-EMPTY (Cove.Sdk.targets re-applies its full
+      default denylist when the property is empty); a sentinel matching no real assembly name disables the
+      strip without re-triggering the default.
+    -->
+    <CoveHostProvidedAssemblies>;__whisparrsync_tests_no_strip__;</CoveHostProvidedAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <!--
+      TEST-ONLY: runtime Skip.IfNot(...) with a visible reason on xUnit v2 (Assert.Skip is v3-only, and
+      this project pins xunit 2.9.3). Reserved for live-instance-gated tests so they skip WITH a reason
+      rather than silently. Never bundled into the deployed WhisparrSync.dll (IsPackable=false).
+    -->
+    <PackageReference Include="Xunit.SkippableFact" Version="1.5.61" />
+    <PackageReference Include="coverlet.collector" Version="10.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- reference the extension's CODE; tests run pure logic (no live Whisparr, no host). Always resolves. -->
+    <ProjectReference Include="..\WhisparrSync\WhisparrSync.csproj" />
+    <!--
+      TEST-ONLY: CovePrincipal / ICurrentPrincipalAccessor / Permissions live in Cove.Core (SOURCE-ONLY,
+      NOT on nuget.org). It sits outside the Cove.Sdk chain the root Directory.Build.targets wires up, so
+      it stays an explicit Exists(...)-guarded reference here: with the cove monorepo checked out beside
+      this repo the ref resolves and the full suite (incl. the endpoint-permission tier) compiles + runs
+      locally. On a bare CI runner with NO cove checkout the ref drops out and the cove-referencing source
+      below is Compile-Removed, so the project still compiles to the pure-unit tier (WhisparrClient
+      classification via FakeHttpMessageHandler needs no cove type).
+    -->
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Core\Cove.Core.csproj" Condition="Exists('$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Core\Cove.Core.csproj')" />
+  </ItemGroup>
+
+  <!--
+    COVE-ABSENT (CI) RUNTIME DEP: when cove is NOT on disk the cove ProjectReference above drops out, so
+    Cove.Plugins (which FakeStore.cs references via IExtensionStore) is no longer supplied transitively at
+    runtime. Cove.Plugins IS on nuget.org, so add it here with runtime copy ENABLED — guarded by the SAME
+    !Exists key so it is INACTIVE locally and ACTIVE on a bare CI runner.
+  -->
+  <ItemGroup Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Core\Cove.Core.csproj')">
+    <PackageReference Include="Cove.Plugins" Version="$(CoveSdkVersion)" />
+  </ItemGroup>
+
+  <!--
+    COVE-ABSENT (CI) UNIT-TIER COMPILE SET: FakePrincipalAccessor references Cove.Core auth types
+    (CovePrincipal / Permissions) that are unavailable on a bare runner, so it is Compile-Removed there.
+    It is unused this phase (no endpoint-permission test in this slice) so removing it is harmless; the
+    pure-unit tier (StatusProjectionTests over FakeHttpMessageHandler, FakeStore over Cove.Plugins) still
+    compiles and runs. INACTIVE locally (cove present → all files compile).
+  -->
+  <ItemGroup Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Core\Cove.Core.csproj')">
+    <Compile Remove="TestSupport\FakePrincipalAccessor.cs" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Provenance + license metadata. The extension ships as a folder, not a NuGet package, so these are
+    informational rather than packaging-critical, but they keep authorship and the AGPL-3.0 license
+    honest in the assembly + any future packaging. RepositoryUrl mirrors the manifest/class Url.
+  -->
+  <PropertyGroup>
+    <Authors>alextomas955</Authors>
+    <RepositoryUrl>https://github.com/alextomas955/cove-extensions</RepositoryUrl>
+    <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="extension.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
+  </ItemGroup>
+
+  <!--
+    This phase hashes nothing, so (unlike Renamer) there is NO System.IO.Hashing PackageReference and
+    NO other bundled runtime dependency: the outbound HTTP stack (System.Net.Http, System.Text.Json,
+    System.Net.Http.Json, Microsoft.Extensions.Http) is all host-provided shared framework carried by
+    the FrameworkReference above and is never copy-local/bundled.
+
+    Cove SDK resolution (local ProjectReference vs. NuGet PackageReference) is centralized in the root
+    Directory.Build.targets — this project restates neither a direct Cove reference nor the sibling
+    ../cove relative-path math (CLAUDE.md build-wiring rules).
+  -->
+</Project>
