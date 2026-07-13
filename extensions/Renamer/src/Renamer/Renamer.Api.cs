@@ -91,23 +91,22 @@ public sealed partial class Renamer
                 handlerName: "renamerSelected",
                 order: 100,
                 requiredPermission: Permissions.ImagesWrite)
-            // The renamer UI's home is a DEDICATED SETTINGS TAB under the Settings → Extensions group
-            // (owner's choice: in Settings, not the top nav bar, and not the crowded "Installed" list).
-            // AddSettingsTab registers the tab; AddSettingsSection(targetTab:"renamer") fills it with the
-            // RenamerPage component. componentName "RenamerPage" MUST equal the bundle's defineExtension
-            // components map key. The host renders the section's component inside the matching tab
-            // (getSettingsPanelsForTab → targetTab). The bulk action above is unaffected.
+            // The renamer UI's home is a DEDICATED SETTINGS PAGE under the Settings → Extensions group.
+            // Renamer is an app-like configurator (template editor, live preview, whole-library run,
+            // undo) that doesn't fit a stack of uniform section cards, so the tab uses page layout:
+            // the host renders the tab's panel full-width with no card chrome, and this extension owns
+            // the whole canvas (see Cove's SettingsTabLayout.Page). A page sources its content from the
+            // panels targeting it exactly like the default layout — only the chrome differs — so the
+            // "RenamerPage" component is contributed as a section, whose componentName MUST equal the
+            // key in the bundle's defineExtension components map. The bulk action above is unaffected.
+            // (Requires the host's page-layout settings support — see minCoveVersion.)
             .AddSettingsTab(
                 key: "renamer",
                 label: "Renamer",
                 description: "Build a filename from each item's metadata. Preview before it touches disk.",
-                order: 100)
-            .AddSettingsSection(
-                targetTab: "renamer",
-                label: "Renamer",
-                componentName: "RenamerPage",
-                id: "renamer-page",
-                order: 100)
+                order: 100,
+                layout: SettingsTabLayout.Page)
+            .AddSettingsSection(targetTab: "renamer", label: "Renamer", componentName: "RenamerPage")
             .WithJsBundle("index.mjs")
             .Build();
 

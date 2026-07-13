@@ -759,7 +759,7 @@ export function RenamePanelBody() {
         height, not the whole page. Standard grid-cols-3 + col-span-2 only — the host Tailwind never
         compiles arbitrary [..] values for this bundle (verified live; check-classes enforces). */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="col-span-2">
+        <div className="col-span-2 space-y-6">
           {recoveredFromBadBlob ? (
             <StatusText kind="error">
               Your saved settings couldn't be read and have been reset to defaults. Review the
@@ -773,7 +773,7 @@ export function RenamePanelBody() {
 
           <SectionCard
             title="Filename & destination"
-            description="Set how files are named and where they go — pick a preset or write your own template."
+            description="Set how each file is named — pick a preset or write your own template."
           >
             <PresetRow
               onApply={(t) => {
@@ -794,29 +794,28 @@ export function RenamePanelBody() {
             </Field>
             <TemplateValidation value={options.FilenameTemplate} emptySamples={emptySamples} />
             <TokenLegend onInsert={insertToken} />
+          </SectionCard>
 
-            <div className="border-t border-border pt-4">
-              <div className="text-base font-semibold text-foreground">Where files go</div>
-              <p className="mb-4 mt-1 text-sm text-secondary">
-                Folder path template — moves files on rename.
-              </p>
-              <Field
-                label="Folder template"
-                helper="Blank = no folder move (rename in place). Use / for sub-folders, e.g. $studio / $year."
-              >
-                <TextInput
-                  value={options.FolderTemplate}
-                  onChange={(v) => {
-                    set("FolderTemplate", v);
-                  }}
-                  onFocus={() => (activeTemplateRef.current = "folder")}
-                  inputRef={folderRef}
-                  mono
-                  placeholder="$studio / $year"
-                />
-              </Field>
-              <TemplateValidation value={options.FolderTemplate} />
-            </div>
+          <SectionCard
+            title="Where files go"
+            description="Folder path template — moves files on rename."
+          >
+            <Field
+              label="Folder template"
+              helper="Blank = no folder move (rename in place). Use / for sub-folders, e.g. $studio / $year."
+            >
+              <TextInput
+                value={options.FolderTemplate}
+                onChange={(v) => {
+                  set("FolderTemplate", v);
+                }}
+                onFocus={() => (activeTemplateRef.current = "folder")}
+                inputRef={folderRef}
+                mono
+                placeholder="$studio / $year"
+              />
+            </Field>
+            <TemplateValidation value={options.FolderTemplate} />
           </SectionCard>
         </div>
 

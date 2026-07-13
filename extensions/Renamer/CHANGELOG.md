@@ -2,6 +2,17 @@
 
 User-facing changes, newest first.
 
+## Unreleased
+
+- **Settings render as a full page.** The Rename settings tab now uses Cove's page-layout settings
+  (`SettingsTabLayout.Page`): the extension owns the whole tab canvas — one flat page with
+  section-divider headers and the live preview — instead of the host wrapping it in a "Settings
+  provided by…" card. Same location (Settings → Extensions → Rename) and same controls; only the
+  container changed.
+- **Requires Cove with settings page-layout support.** `minCoveVersion` is now `0.9.0`; on an older
+  host without the page-layout capability the tab would render empty. (The exact required version is
+  finalized by the Cove release that ships the page-layout setting.)
+
 ## 0.1.0 — Initial release
 
 The first release of Renamer — bulk-rename and optionally relocate your Cove media from metadata,
