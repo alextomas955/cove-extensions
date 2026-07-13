@@ -25,6 +25,14 @@ public sealed record WhisparrOptions
     public string WebhookSecret { get; init; } = "";
 
     /// <summary>
+    /// The Cove metadata-server GraphQL URL whose <c>VideoRemoteId</c>s are the StashDB match key
+    /// (MATCH-01). A configurable URL, NOT a fixed literal: Cove stores each metadata server's own
+    /// endpoint (ThePornDB — <c>https://theporndb.net/graphql</c> — shares the identical field), so the
+    /// reconciliation filters remote ids on THIS value case-insensitively. A plain non-secret setting.
+    /// </summary>
+    public string StashDbEndpoint { get; init; } = "https://stashdb.org/graphql";
+
+    /// <summary>
     /// Shared serializer settings for the load/save round-trip: case-insensitive property names so a
     /// hand-edited blob still binds. <c>OptionsStore</c> reuses this exact instance.
     /// </summary>
@@ -38,7 +46,8 @@ public sealed record WhisparrOptions
     /// stored value.
     /// </summary>
     public WhisparrOptions WithSubmitted(
-        string? baseUrl, string? apiKey, string? selectedVersion, int rootFolderId, int qualityProfileId)
+        string? baseUrl, string? apiKey, string? selectedVersion, int rootFolderId, int qualityProfileId,
+        string? stashDbEndpoint = null)
         => this with
         {
             BaseUrl = baseUrl ?? BaseUrl,
@@ -47,6 +56,8 @@ public sealed record WhisparrOptions
             SelectedVersion = string.IsNullOrWhiteSpace(selectedVersion) ? SelectedVersion : selectedVersion,
             RootFolderId = rootFolderId,
             QualityProfileId = qualityProfileId,
+            // Preserve-on-blank like the other string fields: a null/blank submission keeps the stored endpoint.
+            StashDbEndpoint = string.IsNullOrWhiteSpace(stashDbEndpoint) ? StashDbEndpoint : stashDbEndpoint,
         };
 }
 

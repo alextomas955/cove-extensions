@@ -39,6 +39,16 @@ public sealed partial class WhisparrSync : FullExtensionBase
     private ILogger _log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
 
     /// <summary>
+    /// The host scope factory, captured in <see cref="InitializeAsync"/>. A reconciliation opens a fresh
+    /// <c>CreateAsyncScope()</c> per run and resolves the scoped <c>DbContext</c> from it to construct the
+    /// <c>CoveLibraryPort</c> — the correct lifetime for a scoped context (never a long-lived captured one).
+    /// </summary>
+    private IServiceScopeFactory? _scopeFactory;
+
+    private IServiceScopeFactory ScopeFactory => _scopeFactory
+        ?? throw new InvalidOperationException("ScopeFactory used before InitializeAsync captured IServiceScopeFactory");
+
+    /// <summary>
     /// Registers the typed <see cref="WhisparrClient"/> on the host's pooled <c>IHttpClientFactory</c>
     /// (the overlay's <c>AddHttpClient()</c> supports an extension's own <c>AddHttpClient&lt;T&gt;()</c>).
     /// The client is resolved per request in the settings endpoints; nothing here is copy-local/bundled.
@@ -51,6 +61,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
         // Logging is optional: keep the NullLogger default when the host supplies none (GetService, not
         // GetRequiredService) so a settings-only extension still loads.
         _log = services.GetService<ILogger<WhisparrSync>>() ?? _log;
+        _scopeFactory = services.GetRequiredService<IServiceScopeFactory>();
         return base.InitializeAsync(services, ct);
     }
 }
