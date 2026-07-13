@@ -83,6 +83,31 @@ API key as a credential that stays server-side:
 - **No log line takes the key or a URL-with-key.** The source-generated `[LoggerMessage]` templates
   accept only the version, instance name, an unreachable reason, and the webhook outcome flag.
 
+## Network posture and residual SSRF
+
+The base URL is user-supplied and the extension manifest requests `network: ["*"]`, because Whisparr
+is typically self-hosted on the LAN (`http://localhost:6969`, a Docker bridge address, a private
+`192.168.*` / `10.*` host). The extension therefore makes an authenticated outbound request to an
+address the operator chooses, which is an inherent server-side request forgery (SSRF) surface: a
+`configure` user can point it at an internal host and read reachability / timing from the classified
+result (`unreachable` vs `notWhisparr` vs `badKey`).
+
+This is bounded rather than eliminated, because a full private-range block would break the intended
+LAN use case:
+
+- **The stored API key never leaves with a caller-chosen host (CR-01).** `ResolveCredsAsync` only
+  ever pairs the stored key with the stored host; a request that overrides the base URL must carry
+  its own key. So the SSRF probe cannot also exfiltrate the stored credential.
+- **Only `configure` users reach the outbound routes.** The list, test-connection, webhook-url, and
+  register routes all require `extensions.configure` — a read-only user cannot drive an outbound call.
+- **The transport edge validates the URL (WR-02).** `WhisparrClient` rejects a relative, malformed,
+  or non-`http(s)` base URL as `Unreachable` before dispatching, so `file://` and similar schemes
+  never reach the socket.
+
+Blocking specific link-local / metadata addresses (e.g. `169.254.169.254`) or adding an opt-in
+"allow private targets" posture is a possible future hardening; it is deliberately not done here so
+the common LAN-Whisparr configuration keeps working out of the box.
+
 ## The webhook (CONN-07)
 
 The webhook secret is a 256-bit token minted with `System.Security.Cryptography.RandomNumberGenerator`
