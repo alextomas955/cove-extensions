@@ -11,7 +11,8 @@
     "check-classes": "node scripts/check-classes.cjs",
     "check-connection-result": "node scripts/check-connection-result.mjs",
     "check-hasapikey": "node scripts/check-hasapikey-invariant.mjs",
-    "test": "node scripts/check-connection-result.mjs && node scripts/check-hasapikey-invariant.mjs",
+    "check-reconciliation-logic": "node scripts/check-reconciliation-logic.mjs",
+    "test": "node scripts/check-connection-result.mjs && node scripts/check-hasapikey-invariant.mjs && node scripts/check-reconciliation-logic.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -19,7 +20,8 @@
     "verify": "npm run typecheck && npm run lint && npm run format:check && npm run check-classes && npm run test && npm run build"
   },
   "dependencies": {
-    "@cove/extension-sdk": "file:vendor/cove-extension-sdk-0.1.0.tgz"
+    "@cove/extension-sdk": "file:vendor/cove-extension-sdk-0.1.0.tgz",
+    "@tanstack/react-virtual": "3.14.5"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
