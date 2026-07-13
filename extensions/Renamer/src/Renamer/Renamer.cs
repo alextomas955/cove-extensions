@@ -21,12 +21,12 @@ public sealed partial class Renamer : FullExtensionBase
     // comes from the release tag (build.yml's -p:Version= and the packaged extension.json/
     // package.json stamps). scripts/check-version-parity.mjs reconciles these against
     // extension.json, package.json, and the catalog registry manifest so they can't drift.
-    public override string Version => "0.1.0";
+    public override string Version => "0.2.0";
     public override string? Description => "Bulk-renames Cove library items using configurable patterns.";
     public override string? Author => "alextomas955";
     public override string? Url => "https://github.com/alextomas955/renamer";
     public override IReadOnlyList<string> Categories => [ExtensionCategories.Tools, ExtensionCategories.Automation];
-    public override string? MinCoveVersion => "0.7.1";
+    public override string? MinCoveVersion => "1.0.0";
 
     // ── Executor wiring ───────────────────────────────────────────────────────
     // The executor needs a SCOPED CoveContext per run (a DbContext is scoped, not singleton) and the
