@@ -88,11 +88,24 @@ internal sealed class WhisparrClient(HttpClient http)
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
             linked.CancelAfter(CallTimeout);
 
-            using var req = requestFactory();
-            req.Headers.TryAddWithoutValidation("X-Api-Key", apiKey);
-
             try
             {
+                using var req = requestFactory();
+
+                // Guard the target URI at the transport edge (WR-02): a malformed absolute URL throws
+                // UriFormatException from the request factory, and an empty/relative base URL yields a
+                // relative RequestUri that http.SendAsync rejects with InvalidOperationException (no
+                // BaseAddress). Reject both — plus any non-http(s) scheme — as a classified Unreachable
+                // instead of letting the exception escape the classify-not-throw boundary as a 500. This
+                // is deterministic, so it returns immediately rather than consuming a retry.
+                if (req.RequestUri is not { IsAbsoluteUri: true } uri ||
+                    (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                {
+                    return WhisparrResult<T>.Unreachable("invalid url");
+                }
+
+                req.Headers.TryAddWithoutValidation("X-Api-Key", apiKey);
+
                 using var resp = await http.SendAsync(req, linked.Token);
 
                 if (resp.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
@@ -123,6 +136,12 @@ internal sealed class WhisparrClient(HttpClient http)
             catch (HttpRequestException ex)
             {
                 last = WhisparrResult<T>.Unreachable(ex.Message);
+            }
+            catch (Exception ex) when (ex is UriFormatException or InvalidOperationException)
+            {
+                // A malformed absolute URL (thrown while building the request) or a relative request URI
+                // with no BaseAddress — deterministic, so classify and return without retrying.
+                return WhisparrResult<T>.Unreachable("invalid url");
             }
         }
 

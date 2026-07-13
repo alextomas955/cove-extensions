@@ -176,4 +176,42 @@ public sealed class WhisparrClientClassifyTests
         Assert.True(handler.LastRequest.Headers.TryGetValues("X-Api-Key", out var values));
         Assert.Equal(ApiKey, Assert.Single(values!));
     }
+
+    [Fact]
+    public async Task Empty_base_url_classifies_as_unreachable_without_calling_out()
+    {
+        // WR-02: an empty base URL yields a relative request URI (no BaseAddress). It must classify as
+        // Unreachable at the transport edge — never escape as an unhandled 500 — and never hit the network.
+        var handler = FakeHttpMessageHandler.Json("[]");
+        var result = await ClientFor(handler).GetStatusAsync(string.Empty, ApiKey, CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.Unreachable, result.State);
+        Assert.Equal("invalid url", result.Reason);
+        Assert.Equal(0, handler.CallCount);
+    }
+
+    [Fact]
+    public async Task Empty_base_url_on_register_webhook_classifies_as_unreachable()
+    {
+        // WR-02's widened trigger: the register path uses the STORED base URL, which the UI can invoke
+        // (Register button) before a Save while it is still empty. It must not 500.
+        var handler = FakeHttpMessageHandler.Json("{}");
+        var result = await ClientFor(handler).RegisterWebhookAsync(string.Empty, ApiKey, "{}", CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.Unreachable, result.State);
+        Assert.Equal("invalid url", result.Reason);
+        Assert.Equal(0, handler.CallCount);
+    }
+
+    [Fact]
+    public async Task Non_http_scheme_classifies_as_unreachable()
+    {
+        // A non-http(s) base URL (e.g. file://) is rejected at the transport edge rather than dispatched.
+        var handler = FakeHttpMessageHandler.Json("[]");
+        var result = await ClientFor(handler).GetStatusAsync("file:///etc/passwd", ApiKey, CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.Unreachable, result.State);
+        Assert.Equal("invalid url", result.Reason);
+        Assert.Equal(0, handler.CallCount);
+    }
 }
