@@ -53,3 +53,25 @@ internal sealed record WhisparrMovie(
 /// is the source of the reconciliation path leg; nullable because a not-yet-downloaded movie has none.
 /// </summary>
 internal sealed record WhisparrMovieFile(int Id, string? Path);
+
+/// <summary>
+/// One page of the Whisparr v3 <c>GET /api/v3/history</c> envelope (VERIFIED live shape:
+/// <c>{ page, pageSize, totalRecords, records[] }</c>). The reconcile backstop (IMPT-02) pages this
+/// newest-first until it reaches the stored checkpoint. <see cref="Records"/> is nullable so an empty or
+/// partial envelope still deserializes to a no-op.
+/// </summary>
+internal sealed record WhisparrHistoryPage(int Page, int PageSize, int TotalRecords, WhisparrHistoryRecord[]? Records);
+
+/// <summary>
+/// A single Whisparr history row. Parsed defensively (every field nullable, unknown props ignored) against
+/// the Radarr-family contract — the reconcile filters on <see cref="EventType"/> (the import type is
+/// <c>downloadFolderImported</c>) and reads the imported path + download id out of the free-form
+/// <see cref="Data"/> map (<c>importedPath</c> / <c>droppedPath</c> / <c>downloadId</c>). <see cref="Id"/>
+/// is the stable, monotonically-increasing record id the checkpoint high-water mark tracks.
+/// </summary>
+internal sealed record WhisparrHistoryRecord(
+    int Id,
+    int MovieId,
+    string? Date,
+    string? EventType,
+    Dictionary<string, string>? Data);

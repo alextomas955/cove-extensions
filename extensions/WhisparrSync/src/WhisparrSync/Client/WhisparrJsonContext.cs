@@ -12,4 +12,5 @@ namespace WhisparrSync.Client;
 [JsonSerializable(typeof(RootFolder[]))]
 [JsonSerializable(typeof(QualityProfile[]))]
 [JsonSerializable(typeof(WhisparrMovie[]))]
+[JsonSerializable(typeof(WhisparrHistoryPage))]
 internal sealed partial class WhisparrJsonContext : JsonSerializerContext;

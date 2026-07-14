@@ -65,6 +65,22 @@ internal sealed class WhisparrClient(HttpClient http)
             ct);
 
     /// <summary>
+    /// Reads one page of <c>GET {baseUrl}/api/v3/history</c> newest-first — the IMPT-02 reconcile backstop's
+    /// data source (idempotent; bounded retry). The caller pages until it reaches the stored checkpoint, so a
+    /// full history is never pulled at once. Transport-only: the classify-not-throw guards are inherited from
+    /// <see cref="SendAsync"/>.
+    /// </summary>
+    internal Task<WhisparrResult<WhisparrHistoryPage>> ListHistoryAsync(
+        string baseUrl, string apiKey, int page, int pageSize, CancellationToken ct)
+        => SendAsync(
+            () => new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{baseUrl.TrimEnd('/')}/api/v3/history?page={page}&pageSize={pageSize}&sortKey=date&sortDirection=descending"),
+            apiKey, GetMaxAttempts,
+            (resp, token) => DeserializeAsync(resp, WhisparrJsonContext.Default.WhisparrHistoryPage, token),
+            ct);
+
+    /// <summary>
     /// Posts a pre-serialized notification payload to <c>POST {baseUrl}/api/v3/notification</c> to register
     /// the Cove webhook connection. The caller (the adapter) owns the payload shape; this method is
     /// transport-only and single-shot — a non-idempotent POST is never blind-retried. The full payload is
