@@ -115,5 +115,7 @@
     <Compile Remove="TestSupport\FakeScanService.cs" />
     <Compile Remove="WebhookReceiverTests.cs" />
     <Compile Remove="IngestCoordinatorTests.cs" />
+    <!-- The reconcile tier drives IngestCoordinator + FakeScanService (Cove.Core.Interfaces) → drops out on a bare CI runner. -->
+    <Compile Remove="ReconcileTests.cs" />
   </ItemGroup>
 </Project>
