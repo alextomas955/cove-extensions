@@ -3,10 +3,11 @@ id: index
 title: Whisparr Sync
 ---
 
-Whisparr Sync connects Cove to a self-hosted [Whisparr](https://whisparr.com) v3 (Eros) instance.
-You enter your Whisparr URL and API key on a settings page, test the connection, pick a root folder
-and quality profile from auto-populated lists, and generate a webhook URL Whisparr can call. Your
-API key is stored server-side only — it is never shown back to you and never written to logs.
+Whisparr Sync connects Cove to a self-hosted [Whisparr](https://whisparr.com) v3 (Eros) or v2
+instance. You enter your Whisparr URL and API key on a settings page, test the connection, pick a
+root folder and quality profile from auto-populated lists, and generate a webhook URL Whisparr can
+call. Your API key is stored server-side only — it is never shown back to you and never written to
+logs.
 
 ## In this section
 
@@ -29,5 +30,6 @@ settings later phases build on, and shows a read-only reconciliation of your lib
 - A ready-to-use webhook URL with an embedded secret, with best-effort auto-register.
 - A read-only reconciliation view — matched / unmatched / needs-review, with inline confirm/reject
   for low-confidence matches — that changes nothing in Cove or Whisparr.
-
-Acquisition auto-import (acting on the webhook) arrives in a later phase.
+- Automatic import of what Whisparr acquires, on both **v3 (Eros)** and **v2**. On v2, scenes match
+  by file path and fuzzy title/year rather than by StashDB id — see
+  [Reconciliation](./reconciliation#matching-on-whisparr-v2).

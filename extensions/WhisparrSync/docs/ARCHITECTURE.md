@@ -37,10 +37,12 @@ The extension is in two halves:
   outcome into a typed `WhisparrResult<T>` instead of throwing (bad key / unreachable / not-Whisparr
   / ok). Idempotent GETs retry a bounded number of times; the non-idempotent notification POST is
   single-shot.
-- **`Adapters/IWhisparrAdapter` + `V3Adapter`** — the version-adapter boundary (VER-01). All
-  v3-specific wire knowledge (endpoint paths, the webhook notification payload shape) lives in
-  `V3Adapter`; the handlers never hold it. `AdapterSelector` picks the adapter from the detected
-  major version and **refuses** anything but v3 (VER-04) — never a silent wrong-adapter call.
+- **`Adapters/IWhisparrAdapter` + `V3Adapter` / `V2Adapter`** — the version-adapter boundary (VER-01).
+  Each adapter owns its version's wire knowledge (endpoint paths, the content-enumeration shape, the
+  webhook notification payload); the handlers never hold it. `AdapterSelector` picks the adapter from
+  the detected major version — `3 → V3Adapter`, `2 → V2Adapter` — and **refuses** any other version
+  (VER-04) — never a silent wrong-adapter call. The v2 mapping is detailed in
+  [Whisparr v2 adapter](#whisparr-v2-adapter) below.
 - **`Options/WhisparrOptions` + `OptionsStore`** — a single JSON blob persisted over Cove's
   `IExtensionStore` under the `"options"` key (URL, API key, selected/detected version, root-folder
   id, quality-profile id, webhook secret). A corrupt or absent blob loads as safe defaults.
@@ -122,6 +124,56 @@ later phase).
 Confirm/Reject validate the submitted `{coveId, whisparrMovieId}` pair against the freshly computed
 diff before writing (V5): a forged pair that is not a current needs-review suggestion is refused with
 `MATCH_NOT_IN_DIFF`, so a caller cannot write an arbitrary link into the store.
+
+## Whisparr v2 adapter
+
+Whisparr v2 is a **Sonarr fork**: content is modeled as **series (a studio/site) → episodes (scenes)**,
+sourced from **ThePornDB (TPDB)**, and served under the *same* `/api/v3` path prefix as v3. `V2Adapter`
+sits behind the same `IWhisparrAdapter` port as `V3Adapter` and reuses the whole pipeline — the
+transport client, options, identity matcher, ingest coordinator, webhook receiver, and reconcile job
+are all version-agnostic. Only two things are genuinely v2-shaped.
+
+### Scene enumeration (series → episode → episodefile)
+
+v2 has no `/movie` entity, so `V2Adapter.ListMoviesAsync` is the one substantive method: it reads
+`GET /series`, then per series `GET /episode?seriesId=N` and `GET /episodefile?seriesId=N`, and
+synthesizes one normalized `WhisparrMovie` per episode (joining `episode.episodeFileId → episodefile.path`
+for the on-disk path). The five connect-level calls (status, root folders, quality profiles, history,
+webhook register) are byte-identical envelopes on v2, so they delegate to `WhisparrClient` unchanged. A
+non-Ok read at any level propagates as the same-state result rather than a partial scene list.
+
+### Why the StashDB match leg cannot fire for v2 (a permanent limitation)
+
+Every synthesized v2 row is built with `StashId = null` and `ItemType = "v2scene"` (never `"scene"`).
+That is deliberate: `IdentityMatcher` only reads a StashDB-comparable id on `"scene"`-typed rows, so the
+authoritative StashDB leg **no-ops by design** for v2 and matching degrades cleanly to the path and
+fuzzy legs (both identity-agnostic).
+
+This is not a deferred TODO — it is a property of v2's data model. Whisparr v2 scenes carry a **TPDB
+scene id** (in Sonarr's `tvdbId` field) and no StashDB id anywhere (VERIFIED: 0 StashDB ids across 627
+scenes of a real studio; a TPDB scene's own links expose no scene-level StashDB id either — only
+*performers* carry StashDB links). So there is no `v2 scene → StashDB scene` join to make. The adapter
+carries the TPDB id in `ForeignId` for possible future use, but the `"v2scene"` sentinel keeps it out of
+the StashDB leg so a TPDB integer id can never be compared to — and falsely matched against — a Cove
+StashDB UUID.
+
+The only route to id-grade matching for v2 is an **oshash/phash bridge through the TPDB API** (TPDB
+scenes carry OSHASH/PHASH arrays that line up with Cove's fingerprint types). That is a sizeable
+standalone integration (a new TPDB client, token storage, per-scene lookups, rate-limit handling) and is
+scoped as a **future milestone**, not part of this release. See `.planning/phases/04-whisparr-v2-adapter/04-RESEARCH.md`
+for the full evidence.
+
+### Version-blind import (episodeFile fallback)
+
+The webhook receiver parses the raw POST body directly — it is **not** behind the adapter seam and has
+no idea which Whisparr version posted. A v2 On-Download body carries `series` + `episodes[]` +
+`episodeFile` where v3 carries `movie` + `movieFile`, so `WebhookPayload` gained additive nullable
+`EpisodeFile` / `Series` / `Episodes` fields and `WebhookReceiver` resolves the path version-blind:
+`payload.MovieFile?.Path ?? payload.EpisodeFile?.Path` (and the upgrade id via
+`Movie?.Id ?? Episodes?[0].Id`). Everything else — the token gate, ledger idempotency, audit log, root
+guard, and coordinator — is reused verbatim. A malformed or path-less v2 body degrades to a 200 no-op,
+never a silent half-ingest. The polling reconcile reads the same `downloadFolderImported` history rows
+(`importedPath` / `droppedPath` / `downloadId`) on v2 as on v3.
 
 ## The API-key secret model (CONN-06)
 

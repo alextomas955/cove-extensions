@@ -4,6 +4,13 @@ User-facing changes, newest first.
 
 ## Unreleased
 
+- **Whisparr v2 is supported.** Pick **v2** in the version selector, connect, and Cove imports what
+  Whisparr v2 acquires (webhook and polling reconcile) and reconciles your library against it — the
+  same connect, root-folder / quality-profile, webhook, and import experience as v3. One thing works
+  differently by design: v2 matches scenes by **file path and fuzzy title/year**, not by StashDB id.
+  Whisparr v2 is ThePornDB-native and carries no StashDB id on any scene, so the authoritative
+  StashDB-id match that v3 leads with cannot apply to v2. This is a permanent property of v2's data
+  model, not a missing feature — expect more v2 scenes in unmatched / needs-review than on v3.
 - **Auto-import hardening.** Fixed three correctness bugs and three security issues found in review:
   a concurrent webhook and poll for the same import could create two Cove items (now claimed atomically,
   so an import is ingested exactly once); a first run while Whisparr was unreachable could later
@@ -76,8 +83,9 @@ User-facing changes, newest first.
   a web page where the Whisparr API should be (a reverse-proxy landing page / 502), or a version
   this build can't manage yet.
 - **Whisparr version selector with auto-detect.** Pick your Whisparr version (v3 (Eros) / v2); a
-  successful test auto-selects the detected version. Connecting to a non-v3 instance is refused with
-  a clear advisory rather than silently connecting with the wrong behavior.
+  successful test auto-selects the detected version. An instance whose major version this build
+  cannot manage is refused with a clear advisory rather than silently connecting with the wrong
+  behavior.
 - **Pick a root folder and quality profile from lists.** After a successful test, the page loads
   your instance's root folders and quality profiles into dropdowns — no hand-typed paths or numeric
   ids. Your selections are saved and restored on reload.

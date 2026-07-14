@@ -54,3 +54,15 @@ The path check only matches when Whisparr and Cove see a scene at the **same** p
 in a container and sees `/data/...` while Cove sees `/mnt/media/...`, the path check won't connect
 them — matching then relies on the StashDB id (the authoritative key) or falls to a fuzzy suggestion.
 A root-path translation map is not configured in this release.
+
+## Matching on Whisparr v2
+
+On **Whisparr v2**, reconciliation uses the **path** leg and the **fuzzy title/year** leg only — the
+StashDB-id leg never fires. Whisparr v2 is ThePornDB-native and carries no StashDB id on any scene, so
+there is no authoritative id to match on. This is a permanent property of v2's data model, not a
+missing feature.
+
+The practical effect: with no durable id to lead with, a v2 scene matches only when Whisparr and Cove
+see it at the same path, or when you **Confirm** a fuzzy suggestion. Expect more v2 scenes in
+**unmatched** or **needs review** than on v3, especially when Whisparr and Cove see files at different
+paths. Everything else — connect, import, confirm/reject — behaves the same as on v3.

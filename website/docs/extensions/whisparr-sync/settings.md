@@ -21,6 +21,13 @@ is set** pill. Typing a new value replaces the stored key; leaving the field bla
 existing key. This is why the field is always empty on reload — the value stays on the server (see
 [Architecture](https://github.com/alextomas955/cove-extensions/blob/main/extensions/WhisparrSync/docs/ARCHITECTURE.md)).
 
+### Whisparr version
+
+Both **v3 (Eros)** and **v2** are supported; a successful test auto-selects the detected version.
+Connect, import, and reconciliation work on both. On **v2**, reconciliation matches scenes by **file
+path and fuzzy title/year** — Whisparr v2 carries no StashDB id, so the authoritative StashDB-id match
+does not apply (see [Reconciliation](./reconciliation#matching-on-whisparr-v2)).
+
 ## Library placement
 
 Both dropdowns are disabled until a successful test, then populate from your instance.

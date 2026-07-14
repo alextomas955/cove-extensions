@@ -1,8 +1,8 @@
 # Whisparr Sync
 
 A Cove extension (`com.alextomas955.whisparrsync`) that connects Cove to a
-[Whisparr](https://whisparr.com) v3 (Eros) instance. You enter your Whisparr URL and API key on a
-settings page, test the connection, and Cove reads the instance's version and name back over a real
+[Whisparr](https://whisparr.com) v3 (Eros) or v2 instance. You enter your Whisparr URL and API key on
+a settings page, test the connection, and Cove reads the instance's version and name back over a real
 call to Whisparr's `GET /api/v3/system/status`. Your API key is stored server-side only — it is
 never returned to the browser and never written to logs.
 
@@ -17,6 +17,17 @@ After a successful test you pick a **root folder** and **quality profile** from 
 your instance (no hand-typed paths or ids), and the page shows a ready-to-use **webhook URL** with an
 embedded secret that you can copy into Whisparr or let the extension add for you. The webhook
 *receiver* (auto-import on a Whisparr event) is a later phase.
+
+## Whisparr v2
+
+Both **v3 (Eros)** and **v2** are supported. On v2 the extension connects, imports what Whisparr
+acquires (webhook + polling reconcile), and reconciles by **file path and fuzzy title/year**.
+
+The one difference is match precision: Whisparr v2 is ThePornDB-native and carries **no StashDB id**
+on any scene, so the authoritative StashDB-id match — the durable identity key v3 matching leads with
+— cannot apply to v2. This is a permanent property of v2's data model, not a missing feature: more v2
+scenes land in unmatched / needs-review than on v3. See
+[Architecture](./docs/ARCHITECTURE.md#whisparr-v2-adapter) for why.
 
 ## Documentation
 
