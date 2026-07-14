@@ -4,6 +4,17 @@ User-facing changes, newest first.
 
 ## Unreleased
 
+- **Import activity log on the settings page.** The Whisparr Sync page now has a read-only **Import
+  activity** section listing every file that was auto-imported — with its result (imported,
+  skipped-duplicate, or flagged for manual scan), source (webhook or reconcile), time, file, and Cove
+  item — plus counts, a search box, and sortable columns. Click **Refresh activity** to load it. It is
+  strictly a record: nothing here changes your library.
+- **Polling reconcile catches imports the webhook missed.** In addition to the webhook, the extension
+  now polls Whisparr's import history every 15 minutes and ingests anything the webhook didn't — so a
+  dropped or missed webhook no longer means a missing import. The reconcile keeps a checkpoint so it
+  never re-imports the whole history, and it shares the webhook's duplicate detection, so an import that
+  arrives on both channels is still ingested exactly once. On first run it starts from "now", so your
+  existing Whisparr history is not bulk-imported.
 - **Automatic import when Whisparr finishes a download.** When Whisparr imports a finished grab it
   now calls Cove's webhook and Cove ingests the new file in place — no manual scan or import. The
   webhook is authenticated by the shared secret in your webhook URL (an unsigned or wrong-token
@@ -11,8 +22,7 @@ User-facing changes, newest first.
   never ingested twice. If the file can't be read, its type isn't recognised, or its path falls
   outside a known Whisparr root, Cove falls back to a scoped library scan and flags the attempt
   rather than failing silently. Every attempt — imported, skipped-duplicate, or flagged — is recorded
-  in an audit log. (The in-app log view and the polling backstop for missed webhooks arrive in a
-  following update.)
+  in an audit log you can review in the Import activity section above.
 
 - **Read-only reconciliation view.** The Whisparr Sync page now has a reconciliation section that
   compares what Whisparr tracks against your Cove library and shows every scene as **matched**,

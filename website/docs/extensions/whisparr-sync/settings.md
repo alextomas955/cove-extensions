@@ -38,4 +38,22 @@ Both dropdowns are disabled until a successful test, then populate from your ins
 
 **Copy webhook URL** copies it to your clipboard; **Register in Whisparr** best-effort adds the
 connection to Whisparr for you. The embedded secret is a high-entropy token generated once and reused
-so the URL is stable. The endpoint that *receives* these events arrives in a later phase.
+so the URL is stable. Cove receives events at this URL and ingests the imported file in place; see the
+[Connect guide](./guide) for the host-reachability note and how auto-import behaves.
+
+## Import activity
+
+A read-only section listing every auto-import, below Reconciliation. It has no editable settings — it
+is a record of what the webhook and the periodic reconcile did.
+
+| Control | What it does |
+|---------|--------------|
+| Refresh activity | Loads the current audit log from the server (a pure read; nothing is changed). |
+| Filter chips (All / Imported / Skipped / Flagged) | Narrows the list to one result; a zero-count chip is disabled. |
+| Search | Case-insensitive match over the file path, kind, source, event type, and reason. |
+| Column headers (When / Scene · file / Source / Result) | Click to sort; click again to reverse. |
+
+Each row shows **When** the import happened (relative time), the **file**, the **Source** (Webhook or
+Reconcile), the **Result** (Imported, Skipped — duplicate, or Flagged for manual scan), and a link to
+the **Cove item** when one was created. The reconcile interval is fixed at 15 minutes and is not a
+configurable setting in this release.

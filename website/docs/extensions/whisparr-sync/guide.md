@@ -45,8 +45,44 @@ The **Webhook URL** field shows a ready-to-use URL with an embedded secret. Eith
 
 If auto-register isn't accepted by your build, the copy-paste URL always works.
 
+:::warning This URL must be reachable by Whisparr, not from your browser
+Whisparr calls this URL from wherever it runs. If Whisparr is on another host or in a container,
+`localhost` points at Whisparr's own machine, not Cove. Use the address Whisparr can reach — for
+example `http://host.docker.internal:5073` from a Docker container — not `http://localhost:5073`.
+:::
+
+:::note Run Cove with authentication enabled
+If Cove is running with authentication disabled, the first inbound webhook from a remote host trips
+Cove's outside-IP failsafe and is rejected while Cove auto-enables auth. Run Cove auth-enabled (the
+recommended production posture) so the webhook reaches the extension normally.
+:::
+
 ## Save
 
 Click **Save** in the bar at the bottom. Your URL, version, root folder, and quality profile are
 stored. Your API key is kept server-side — the field stays empty on reload and shows a "Key is set"
 pill; leaving it blank on a later save keeps the stored key.
+
+## What happens on an import
+
+Once the webhook is registered, auto-import runs on its own:
+
+- **When Whisparr finishes a grab**, it calls the webhook and Cove ingests the new file **in place** —
+  no manual scan or import. The file stays exactly where Whisparr put it; Cove only records it.
+- **A periodic reconcile is the safety net.** Every 15 minutes the extension also checks Whisparr's
+  import history and ingests anything the webhook missed (a dropped delivery, Cove briefly down). An
+  import that arrives on both channels is still ingested only once, and existing history from before you
+  set this up is not bulk-imported.
+
+## Review what was imported
+
+Scroll to the **Import activity** section on the same page and click **Refresh activity**. It lists
+every auto-import with its result, source, time, file, and Cove item:
+
+- **Imported** — the file was added to Cove.
+- **Skipped — duplicate** — the same import already arrived (a harmless no-op).
+- **Flagged for manual scan** — Cove couldn't import the file directly (it was gone, an unrecognised
+  type, or outside a known Whisparr root) and fell back to a library scan. These are worth a look.
+
+Use the filter chips and search to narrow the list. The section is read-only — it changes nothing in
+your library.

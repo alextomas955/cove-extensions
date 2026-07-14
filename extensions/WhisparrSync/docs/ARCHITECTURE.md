@@ -50,11 +50,12 @@ The extension is in two halves:
 ## Endpoints
 
 All are mounted under `/api/extensions/com.alextomas955.whisparrsync/` and are permission-checked
-**in the handler** (the host's `[RequiresPermission]` filter is inert on minimal-API endpoints). Only
-the two side-effect-free read projections gate on `extensions.read`; every route that reaches the
-stored credentials or makes an outbound call gates on `extensions.configure` (CR-01 — the host
-confirms `extensions.configure` *implies* `extensions.read`, so a route that must exclude read-only
-users has to require `configure`).
+**in the handler** (the host's `[RequiresPermission]` filter is inert on minimal-API endpoints). The
+side-effect-free read projections gate on `extensions.read`; every route that reaches the stored
+credentials or makes an outbound call gates on `extensions.configure` (CR-01 — the host confirms
+`extensions.configure` *implies* `extensions.read`, so a route that must exclude read-only users has to
+require `configure`). The one deliberate exception is the inbound `/webhook` route, which carries no Cove
+principal at all — a shared-secret token is its auth (SEC-01), so it omits the principal gate entirely.
 
 | Route | Method | Permission | Purpose |
 |-------|--------|-----------|---------|
@@ -70,6 +71,8 @@ users has to require `configure`).
 | `/reconciliation` | GET | read | The last persisted match map + status counts (a pure store read) |
 | `/match/confirm` | POST | configure | Confirm a needs-review suggestion (writes only the match store) |
 | `/match/reject` | POST | configure | Reject a needs-review suggestion (writes only the match store) |
+| `/webhook` | POST | anonymous (token) | Inbound Whisparr On-Import receiver — ingests the imported file (SEC-01) |
+| `/import-log` | GET | read | The auto-import audit log: every attempt with its result, source, time, path, and Cove item + counts |
 
 `/preview-sync` is `configure`-gated even though it only *reads*: it reaches the stored credentials to
 call Whisparr, so a read-only user must not be able to trigger it (the same CR-01 rule as the list
@@ -173,6 +176,41 @@ refused version) returns `registered: false` and the UI falls back to copy-paste
 never fails on it. The exact `fields` contract is confirmed against a live instance; the copy-paste
 URL is the guaranteed path regardless.
 
-The webhook **receiver** that consumes this URL (the inbound endpoint that imports items on a
-Whisparr event) is not part of this phase — it arrives in a later phase with its own token
-authentication.
+## Auto-import: webhook + polling-reconcile backstop (IMPT-01/02/03/05)
+
+The webhook **receiver** consumes the URL above and turns a Whisparr On-Import into a Cove item. Two
+independent channels drive it, and they are idempotent with each other so an import is ingested exactly
+once no matter how it arrives:
+
+- **Webhook (primary).** `POST /webhook` is the one anonymous route: the shared-secret token is validated
+  FIRST, in constant time (`CryptographicOperations.FixedTimeEquals`), BEFORE the body is parsed — there
+  is no Cove principal on a Whisparr request, so the usual `Forbidden(principal,…)` gate is deliberately
+  omitted. A valid `Test` ping answers 200 with no ingest; a valid `Download` routes to the coordinator;
+  an unknown event is a 200 no-op; a missing/wrong token (or an unconfigured secret) is a fail-closed 401.
+- **Polling reconcile (backstop).** A self-scheduled `PeriodicTimer` loop (started in `InitializeAsync`,
+  cancelled in `ShutdownAsync`) enqueues an EXCLUSIVE `IJobService` reconcile job every 15 minutes. The
+  job pages `GET /api/v3/history` newest-first since a stored **checkpoint**, feeds each new
+  `downloadFolderImported` record through the SAME coordinator, and advances the checkpoint so a re-run is
+  incremental. On the first run it seeds the checkpoint at the newest existing record and ingests nothing,
+  so the whole prior history is never retro-ingested. This is the guarantee the extension is never
+  webhook-only — an On-Import the webhook dropped is still caught here.
+
+Both channels converge on:
+
+- **`IngestCoordinator`** — resolves the scoped host `IScanService` from a fresh `CreateAsyncScope()` and
+  imports the file **in place** via the kind-appropriate `ImportDownloaded*` (SEC-03 — never moved or
+  deleted). A `WhisparrRootGuard` runs FIRST: a path that does not canonicalize inside a known Whisparr
+  root (or an unavailable root set) is rejected fail-closed (T-03-PT). A gone/kind-unresolvable in-root
+  path falls back to a scoped `StartScan` and is flagged rather than failing silently (IMPT-05).
+- **`EventLedger`** — the ONE cross-channel idempotency key, `SHA-256(downloadId | NormalizePath(path))`.
+  Both channels derive the identical key from the fields they both carry (download id + the imported
+  path), so a webhook-then-poll overlap of the same import is a Skipped no-op (IMPT-03). The reconcile
+  additionally records a `hist:{record.id}` self-key so a re-poll of the same page is cheap — but the
+  cross-channel dedup is always the shared key.
+- **`ImportLog`** — a single-blob audit journal over `IExtensionStore`. Every attempt (Imported / Skipped
+  / Flagged) appends exactly one entry with server UTC ticks, source (`webhook` / `poll`), event type,
+  path, kind, Cove id, result, reason, and the ledger key. `GET /import-log` reads it back (read-gated)
+  for the settings-page **Import activity** section (IMPT-04).
+
+The secret is never logged; the raw webhook body is never logged; the audit log stores paths/ids/results
+but never the API key or the webhook token.
