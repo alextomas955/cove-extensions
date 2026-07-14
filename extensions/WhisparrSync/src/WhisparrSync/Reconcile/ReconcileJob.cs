@@ -153,12 +153,32 @@ internal sealed class ReconcileJob(
         // supplementary poll-self key so a re-poll of the same page is cheap.
         var key = EventLedger.ImportKey(ValueOf(record, "downloadId"), path);
         var histKey = $"hist:{record.Id}";
-        if (await ledger.SeenAsync(key, ct) || await ledger.SeenAsync(histKey, ct))
+        if (await ledger.SeenAsync(histKey, ct))
+        {
+            return; // this exact history row was already processed by a prior poll — a cheap re-poll no-op
+        }
+
+        // Atomically CLAIM the shared key: this races the webhook path's TryClaimAsync in one gated critical
+        // section, so a webhook-then-poll overlap of the same import has exactly one winner and ingests once
+        // (IMPT-03). The loser lost the race — the webhook already claimed it — so it skips without a second entity.
+        if (!await ledger.TryClaimAsync(key, ct))
         {
             return; // already ingested via the webhook or a prior poll — a duplicate no-op (IMPT-03)
         }
 
-        var outcome = await coordinator.IngestAsync(path, existingId: null, ct);
+        IngestOutcome outcome;
+        try
+        {
+            outcome = await coordinator.IngestAsync(path, existingId: null, ct);
+        }
+        catch
+        {
+            // An unexpected ingest fault must not permanently swallow the import: release the shared claim so a
+            // later poll (or the webhook) re-processes it rather than skipping it forever (IMPT-02).
+            await ledger.ReleaseAsync(key, ct);
+            throw;
+        }
+
         var result = outcome.Result == IngestResult.Imported ? "Imported" : "Flagged";
         await log.AppendAsync(
             new ImportLogEntry(
@@ -166,9 +186,8 @@ internal sealed class ReconcileJob(
                 outcome.Kind?.ToString(), outcome.CoveEntityId, result, outcome.Reason, key),
             ct);
 
-        // Record the shared key (whether imported or flagged) so a webhook retry / re-poll is a Skipped no-op,
-        // plus the poll-self key for the cheap re-poll short-circuit.
-        await ledger.RecordAsync(key, ct);
+        // The shared key is already recorded by the claim; record the poll-self key so a re-poll of the same
+        // page short-circuits cheaply above.
         await ledger.RecordAsync(histKey, ct);
     }
 

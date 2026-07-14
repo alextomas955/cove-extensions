@@ -68,25 +68,37 @@ internal sealed class WebhookReceiver(IExtensionStore store, IngestCoordinator c
         var log = new ImportLog(store);
         var key = EventLedger.ImportKey(payload.DownloadId, path);
 
-        // Check-before-ingest on the cross-channel key so a redelivery (at-least-once webhook + poll overlap)
-        // is a duplicate no-op, not a second entity — audited as Skipped (IMPT-03 + IMPT-04).
-        if (await ledger.SeenAsync(key, ct))
+        // Atomically CLAIM-before-ingest on the cross-channel key (IMPT-03): the claim's check-and-insert runs
+        // in one gated critical section, so a redelivery (at-least-once webhook + poll overlap) has exactly one
+        // winner. A loser lost the race — the import is already claimed by the other channel — so it is a
+        // duplicate no-op, audited as Skipped, never a second entity. Claiming BEFORE ingest (not recording
+        // after) is what closes the old TOCTOU where two concurrent flows both saw "not seen" and double-imported.
+        if (!await ledger.TryClaimAsync(key, ct))
         {
             await log.AppendAsync(Entry(payload, path, kind: null, coveId: null, "Skipped", "duplicate delivery", key), ct);
             return;
         }
 
         var existingId = payload.IsUpgrade ? await ResolveExistingCoveIdAsync(payload.Movie?.Id, ct) : null;
-        var outcome = await coordinator.IngestAsync(path, existingId, ct);
-        var result = outcome.Result == IngestResult.Imported ? "Imported" : "Flagged";
+        IngestOutcome outcome;
+        try
+        {
+            outcome = await coordinator.IngestAsync(path, existingId, ct);
+        }
+        catch
+        {
+            // An UNEXPECTED ingest fault (not the classified Imported/Flagged outcome) must not permanently
+            // swallow the import: release the claim so a retry / the poll backstop re-processes it (IMPT-02).
+            await ledger.ReleaseAsync(key, ct);
+            throw;
+        }
 
+        // The claim already recorded the key. The event is audited once (imported OR flagged), so a Whisparr
+        // retry or the 03-02 poll overlap is a Skipped no-op rather than a re-flag; the reconcile backstop keys
+        // the same ImportKey, so it will not re-process it.
+        var result = outcome.Result == IngestResult.Imported ? "Imported" : "Flagged";
         await log.AppendAsync(
             Entry(payload, path, outcome.Kind?.ToString(), outcome.CoveEntityId, result, outcome.Reason, key), ct);
-
-        // Record the processed key whether imported or flagged: the event is audited once, so a Whisparr retry
-        // or the 03-02 poll overlap is a Skipped no-op rather than a re-flag. The audit log surfaces a flagged
-        // outcome for the user; the reconcile backstop keys the same ImportKey, so it will not re-process it.
-        await ledger.RecordAsync(key, ct);
     }
 
     private static ImportLogEntry Entry(
