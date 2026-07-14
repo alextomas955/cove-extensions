@@ -50,6 +50,32 @@ public sealed class ReconcileTests
         return (job, scan, store);
     }
 
+    // A job whose page-fetch delegate is a caller-supplied fake so a test can script transport faults / caps
+    // per page (host-free — no HttpClient), sharing one store/scan across runs so checkpoint state persists.
+    private static (ReconcileJob Job, FakeScanService Scan, FakeStore Store) NewJob(
+        Func<int, CancellationToken, Task<WhisparrResult<WhisparrHistoryPage>>> listHistoryPage)
+    {
+        var scan = new FakeScanService();
+        var services = new ServiceCollection();
+        services.AddScoped<IScanService>(_ => scan);
+        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+        var coordinator = new IngestCoordinator(
+            scopeFactory, _ => ValueTask.FromResult<IReadOnlyList<string>>([Root]));
+        var store = new FakeStore();
+        return (new ReconcileJob(store, coordinator, listHistoryPage), scan, store);
+    }
+
+    private static WhisparrHistoryRecord ImportRecord(int id, string path)
+        => new(id, id, null, "downloadFolderImported", new Dictionary<string, string>
+        {
+            ["importedPath"] = path,
+            ["downloadId"] = $"dl-{id}",
+        });
+
+    private static WhisparrResult<WhisparrHistoryPage> OkPage(params WhisparrHistoryRecord[] records)
+        => WhisparrResult<WhisparrHistoryPage>.Ok(
+            new WhisparrHistoryPage(1, ReconcileJob.PageSize, records.Length, records));
+
     // A checkpoint seeded at record 0 so every fixture record (id > 0) is a NEW record to process.
     private static async Task SeedAtZeroAsync(FakeStore store)
         => await new Checkpoint(store).SaveAsync(new CheckpointState(0, DateTime.UtcNow.Ticks, Seeded: true));
@@ -122,6 +148,33 @@ public sealed class ReconcileTests
         var seeded = await new Checkpoint(store).LoadAsync();
         Assert.True(seeded.Seeded);
         Assert.Equal(5, seeded.LastRecordId); // seeded at the newest existing record
+    }
+
+    [Fact]
+    public async Task FirstRun_SeedFetchFails_DoesNotSeed_AndIngestsNothing_ThenSeedsOnNextSuccess()
+    {
+        // CR-02 regression: a first-tick Whisparr-unreachable must NOT seed (Seeded=false), else the next tick
+        // would treat the failed seed as an empty instance and retro-ingest the entire prior library.
+        var failFirst = true;
+        var (job, scan, store) = NewJob((page, _) =>
+            Task.FromResult(failFirst
+                ? WhisparrResult<WhisparrHistoryPage>.Unreachable("connection refused")
+                : OkPage(ImportRecord(42, "/data/media/A/A.mkv"))));
+
+        await job.RunAsync(default);
+
+        Assert.Empty(scan.Imports); // ingested nothing on the failed seed
+        var afterFail = await new Checkpoint(store).LoadAsync();
+        Assert.False(afterFail.Seeded); // NOT seeded — the seed is deferred, not falsely completed at 0
+
+        // Next tick: Whisparr is reachable → seed at the newest existing record, still ingesting nothing.
+        failFirst = false;
+        await job.RunAsync(default);
+
+        Assert.Empty(scan.Imports); // the prior library is still not retro-ingested
+        var afterSeed = await new Checkpoint(store).LoadAsync();
+        Assert.True(afterSeed.Seeded);
+        Assert.Equal(42, afterSeed.LastRecordId); // seeded at "now", so only later imports are caught
     }
 
     [Fact]

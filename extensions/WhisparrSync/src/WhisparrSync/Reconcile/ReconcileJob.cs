@@ -78,9 +78,20 @@ internal sealed class ReconcileJob(
     // so subsequent runs process only records that arrive AFTER now — the whole prior history is not ingested.
     private async Task SeedAsync(Checkpoint checkpoint, CancellationToken ct)
     {
-        var newest = 0;
         var first = await listHistoryPage(1, ct);
-        if (first.IsOk && first.Value is { Records: { Length: > 0 } records })
+        if (!first.IsOk || first.Value is null)
+        {
+            // Could NOT read history (Whisparr unreachable/rejecting — a common boot-order state). Do NOT seed:
+            // leave the checkpoint unseeded so the seed is DEFERRED to the next tick, not falsely completed at 0.
+            // Seeding at 0 here would be indistinguishable from a legitimately-empty instance and would make the
+            // next successful tick retro-ingest the ENTIRE prior library (CR-02). Seed nothing, ingest nothing.
+            return;
+        }
+
+        // The genuine empty-instance case (a successful fetch with zero records) still seeds at 0 so the next
+        // real import is caught; only a FETCH FAILURE is excluded from seeding.
+        var newest = 0;
+        if (first.Value.Records is { Length: > 0 } records)
         {
             foreach (var record in records)
             {
