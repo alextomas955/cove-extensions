@@ -32,8 +32,12 @@ internal sealed class V3Adapter(WhisparrClient client) : IWhisparrAdapter
 
     // The v3 Webhook connection payload (RESEARCH.md §Webhook auto-register / Assumption A1). The exact
     // `fields` contract is best-effort — if this Whisparr build rejects it the connect flow still succeeds
-    // via the copy-paste URL. `method` value 1 = POST (Servarr WebhookMethod enum).
-    private static string BuildNotificationPayload(string webhookUrl)
+    // via the copy-paste URL. `method` value 1 = POST (Servarr WebhookMethod enum). The secret is delivered
+    // as the `X-Cove-Token` HEADER (VERIFIED delivered live): Whisparr's Test ping posts to the URL with the
+    // configured headers, so the receiver (03-01) sees the token and the ping succeeds — closing the Phase-1
+    // 403 finding. The bare URL keeps its `?token=` for the copy-paste path, so both channels authenticate.
+    // Exposed internally so the register-payload contract is unit-testable host-free.
+    internal static string BuildNotificationPayload(string webhookUrl)
         => JsonSerializer.Serialize(new
         {
             name = "Cove Whisparr Sync",
@@ -48,6 +52,28 @@ internal sealed class V3Adapter(WhisparrClient client) : IWhisparrAdapter
             {
                 new { name = "url", value = webhookUrl },
                 new { name = "method", value = 1 },
+                new { name = "headers", value = new object[] { new { key = "X-Cove-Token", value = ExtractToken(webhookUrl) } } },
             },
         });
+
+    // The secret is embedded in the URL's `?token=` query (WebhookUrlBuilder); lift it back out so the header
+    // carries the identical value the receiver validates. Returns empty when no token query is present.
+    private static string ExtractToken(string webhookUrl)
+    {
+        const string marker = "?token=";
+        var start = webhookUrl.IndexOf(marker, StringComparison.Ordinal);
+        if (start < 0)
+        {
+            return string.Empty;
+        }
+
+        var raw = webhookUrl[(start + marker.Length)..];
+        var amp = raw.IndexOf('&');
+        if (amp >= 0)
+        {
+            raw = raw[..amp];
+        }
+
+        return Uri.UnescapeDataString(raw);
+    }
 }
