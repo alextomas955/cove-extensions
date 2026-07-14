@@ -13,6 +13,8 @@ using WhisparrSync.Ingest;
 using WhisparrSync.Library;
 using WhisparrSync.Matching;
 using WhisparrSync.Options;
+using WhisparrSync.Reconcile;
+using WhisparrSync.State;
 using WhisparrSync.Webhook;
 
 namespace WhisparrSync;
@@ -38,6 +40,10 @@ public sealed partial class WhisparrSync
     // it deliberately OMITS the Forbidden(principal,…) gate every other route uses — the shared-secret token
     // validated inside WebhookReceiver is its auth (SEC-01).
     private const string WebhookRoute = RouteBase + "/webhook";
+
+    // The read-only import-activity log (IMPT-04 review half): a pure read of the extension's own audit
+    // journal, read-gated (extensions.read) exactly like /reconciliation.
+    private const string ImportLogRoute = RouteBase + "/import-log";
 
     // The read-only reconciliation surface (02-03). /preview-sync computes the live diff (configure-gated —
     // it reaches the stored creds to call Whisparr, CR-01); /reconciliation is a pure match-map read
@@ -134,6 +140,54 @@ public sealed partial class WhisparrSync
             (HttpContext http, WhisparrClient client, CancellationToken ct)
                 => new WebhookReceiver(Store, new IngestCoordinator(ScopeFactory, c => GetWhisparrRootsAsync(client, c)))
                     .HandleAsync(http, ct));
+
+        // Read-only audit log (IMPT-04): a pure store read, 403-first on extensions.read.
+        endpoints.MapGet(ImportLogRoute,
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => ImportLogAsync(principal, ct));
+    }
+
+    /// <summary>
+    /// Returns the auto-import audit log — every attempt with its result, source, time, path, and Cove item —
+    /// plus imported/skipped/flagged/total counts (IMPT-04 review half). A pure read of the extension's own
+    /// journal (reaches no credentials, opens no scope). 403-first on <c>extensions.read</c>.
+    /// </summary>
+    internal async Task<IResult> ImportLogAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        if (Forbidden(principal, Permissions.ExtensionsRead) is { } denied)
+        {
+            return denied;
+        }
+
+        var entries = await new ImportLog(Store).LoadAllAsync(ct);
+        var counts = new ImportLogCounts(
+            Imported: entries.Count(e => e.Result == "Imported"),
+            Skipped: entries.Count(e => e.Result == "Skipped"),
+            Flagged: entries.Count(e => e.Result == "Flagged"),
+            Total: entries.Count);
+        return Results.Json(new { entries, counts }, ImportLogResponseJsonOptions);
+    }
+
+    /// <summary>
+    /// One reconcile pass, run inside the enqueued exclusive job (the scheduler's work delegate). Resolves the
+    /// stored creds (CR-01 — stored key only against the stored host) and the request-scoped
+    /// <see cref="WhisparrClient"/>, then runs the <see cref="ReconcileJob"/> over the SAME
+    /// <see cref="IngestCoordinator"/> + Whisparr-root guard the webhook uses. A no-op until configured.
+    /// </summary>
+    internal async Task RunReconcileAsync(CancellationToken ct)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var client = scope.ServiceProvider.GetRequiredService<WhisparrClient>();
+
+        var (_, baseUrl, apiKey) = await ResolveCredsAsync(new TestConnectionRequest(null, null), ct);
+        if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrEmpty(apiKey))
+        {
+            return; // not configured yet — nothing to reconcile against
+        }
+
+        var coordinator = new IngestCoordinator(ScopeFactory, c => GetWhisparrRootsAsync(client, c));
+        var job = new ReconcileJob(
+            Store, coordinator, (page, c) => client.ListHistoryAsync(baseUrl, apiKey, page, ReconcileJob.PageSize, c));
+        await job.RunAsync(ct);
     }
 
     // A short in-memory cache of the Whisparr root folders (they change rarely): the webhook ingest guard
@@ -653,6 +707,13 @@ public sealed partial class WhisparrSync
         Converters = { new JsonStringEnumConverter() },
     };
 
+    // The import-log is a fresh UI contract (no stored-blob spelling to preserve), so it uses the camelCase
+    // Web convention; the JsonStringEnumConverter renders any enum-typed field as its string name for the UI.
+    private static readonly JsonSerializerOptions ImportLogResponseJsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() },
+    };
+
     /// <summary>The Test-connection request body: the URL + key the user typed on the settings page.</summary>
     internal sealed record TestConnectionRequest(string? BaseUrl, string? ApiKey);
 
@@ -699,4 +760,7 @@ public sealed partial class WhisparrSync
 
     /// <summary>The <c>/reconciliation</c> status counts over the persisted match map (by user-decision status).</summary>
     internal sealed record PersistedCounts(int Confirmed, int NeedsReview, int Rejected, int Total);
+
+    /// <summary>The <c>/import-log</c> counts over the audit journal (by ingest result).</summary>
+    internal sealed record ImportLogCounts(int Imported, int Skipped, int Flagged, int Total);
 }

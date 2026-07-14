@@ -30,4 +30,11 @@ public sealed partial class WhisparrSync
         EventId = 2003, Level = LogLevel.Information,
         Message = "[WhisparrSync] webhook auto-register attempted: registered={Registered}")]
     private partial void LogWebhookRegistered(bool registered);
+
+    // The reconcile loop is a best-effort backstop; a fault stops it (webhook stays primary) but must never
+    // crash the host. Logs the terse reason only — never a path or secret.
+    [LoggerMessage(
+        EventId = 2004, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] reconcile loop stopped on an unexpected fault: {Reason}")]
+    private partial void LogReconcileLoopFault(string reason);
 }

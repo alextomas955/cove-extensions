@@ -1,8 +1,10 @@
+using Cove.Core.Interfaces;
 using Cove.Plugins;
 using Cove.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Client;
+using WhisparrSync.Reconcile;
 
 namespace WhisparrSync;
 
@@ -12,7 +14,7 @@ namespace WhisparrSync;
 /// manifest + minimal-API endpoints) and the typed-client registration live in the sibling
 /// <c>WhisparrSync.Api.cs</c> / <c>WhisparrSync.Logging.cs</c> partials.
 /// </summary>
-public sealed partial class WhisparrSync : FullExtensionBase
+public sealed partial class WhisparrSync : FullExtensionBase, IDisposable
 {
     public override string Id => "com.alextomas955.whisparrsync";
     public override string Name => "Whisparr Sync";
@@ -49,6 +51,21 @@ public sealed partial class WhisparrSync : FullExtensionBase
         ?? throw new InvalidOperationException("ScopeFactory used before InitializeAsync captured IServiceScopeFactory");
 
     /// <summary>
+    /// The host job queue, captured (optional — null-guarded like the logger) in
+    /// <see cref="InitializeAsync"/>. The self-scheduled reconcile loop enqueues an exclusive reconcile job
+    /// through it each tick; a host that supplies none simply runs webhook-only until restart.
+    /// </summary>
+    private IJobService? _jobs;
+
+    // Cancels the fire-and-forget reconcile loop on ShutdownAsync. Nulled/created once so InitializeAsync is
+    // idempotent (a re-init never starts a second loop).
+    private CancellationTokenSource? _reconcileCts;
+
+    // The reconcile cadence (IMPT-02). Fixed at 15 min this phase (RESEARCH Open Q3 — Claude's discretion);
+    // not surfaced as a UI setting, so no options field / doc row is added for it yet.
+    private const int DefaultReconcileIntervalMinutes = 15;
+
+    /// <summary>
     /// Registers the typed <see cref="WhisparrClient"/> on the host's pooled <c>IHttpClientFactory</c>
     /// (the overlay's <c>AddHttpClient()</c> supports an extension's own <c>AddHttpClient&lt;T&gt;()</c>).
     /// The client is resolved per request in the settings endpoints; nothing here is copy-local/bundled.
@@ -56,12 +73,60 @@ public sealed partial class WhisparrSync : FullExtensionBase
     public override void ConfigureServices(IServiceCollection services, ExtensionContext context)
         => services.AddHttpClient<WhisparrClient>();
 
-    public override Task InitializeAsync(IServiceProvider services, CancellationToken ct = default)
+    public override async Task InitializeAsync(IServiceProvider services, CancellationToken ct = default)
     {
         // Logging is optional: keep the NullLogger default when the host supplies none (GetService, not
         // GetRequiredService) so a settings-only extension still loads.
         _log = services.GetService<ILogger<WhisparrSync>>() ?? _log;
         _scopeFactory = services.GetRequiredService<IServiceScopeFactory>();
-        return base.InitializeAsync(services, ct);
+        _jobs = services.GetService<IJobService>();
+        await base.InitializeAsync(services, ct);
+        StartReconcileLoop();
+    }
+
+    /// <summary>Cancels the reconcile loop so the host can unload the extension cleanly.</summary>
+    public override Task ShutdownAsync(CancellationToken ct = default)
+    {
+        _reconcileCts?.Cancel();
+        return base.ShutdownAsync(ct);
+    }
+
+    /// <summary>Cancels and releases the reconcile loop's cancellation source (idempotent).</summary>
+    public void Dispose()
+    {
+        _reconcileCts?.Cancel();
+        _reconcileCts?.Dispose();
+        _reconcileCts = null;
+    }
+
+    // Start the self-scheduled reconcile loop fire-and-forget (IMPT-02). Idempotent (a second Initialize is a
+    // no-op). Guarded so a loop fault never propagates out of Initialize and never crashes the host.
+    private void StartReconcileLoop()
+    {
+        if (_reconcileCts is not null)
+        {
+            return;
+        }
+
+        _reconcileCts = new CancellationTokenSource();
+        _ = RunReconcileLoopAsync(_reconcileCts.Token);
+    }
+
+    private async Task RunReconcileLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            var scheduler = new ReconcileScheduler(
+                _jobs, (_, c) => RunReconcileAsync(c), TimeSpan.FromMinutes(DefaultReconcileIntervalMinutes));
+            await scheduler.RunLoopAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal shutdown — the CTS was cancelled in ShutdownAsync.
+        }
+        catch (Exception ex)
+        {
+            LogReconcileLoopFault(ex.Message); // never silent, never rethrown out of the fire-and-forget loop
+        }
     }
 }
