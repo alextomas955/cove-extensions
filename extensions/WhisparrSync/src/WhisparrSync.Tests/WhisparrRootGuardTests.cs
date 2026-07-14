@@ -32,11 +32,16 @@ public sealed class WhisparrRootGuardTests
         => Assert.False(WhisparrRootGuard.IsWithinAnyRoot("/data/media/x.mkv", []));
 
     [Fact]
-    public void CaseVariants_AreContained()
-        // NormalizePath case-folds both sides, so a differently-cased path still resolves inside the root.
-        // (Separator unification also happens, but Path.GetFullPath only treats '\' as a separator on Windows,
-        // so a cross-OS backslash path is not portably assertable here.)
-        => Assert.True(WhisparrRootGuard.IsWithinAnyRoot("/data/Media/Scene/SCENE.MKV", Roots));
+    public void CaseVariantOfRoot_IsNotWithin_CaseSensitive()
+        // WR-01: containment is case-SENSITIVE. On the Linux/Docker target /data/Media is a different directory
+        // than the allow-listed /data/media, so a differently-cased path must NOT match (case-folding would let
+        // a path resolve into a root the admin never allow-listed — a security weakening).
+        => Assert.False(WhisparrRootGuard.IsWithinAnyRoot("/data/Media/Scene/SCENE.MKV", Roots));
+
+    [Fact]
+    public void ExactCasePathInsideRoot_IsWithin()
+        // The same path with the root's exact casing is still contained — only the case MISMATCH is rejected.
+        => Assert.True(WhisparrRootGuard.IsWithinAnyRoot("/data/media/Scene/SCENE.MKV", Roots));
 
     [Fact]
     public void MatchesAnyOfMultipleRoots()

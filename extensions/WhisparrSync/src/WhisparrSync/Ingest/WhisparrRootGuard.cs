@@ -49,8 +49,10 @@ internal static class WhisparrRootGuard
     {
         try
         {
-            // NormalizePath (separator-unify + case-fold + trailing-trim) makes the prefix compare stable
+            // NormalizePath (separator-unify + trailing-trim, CASE-SENSITIVE) makes the prefix compare stable
             // and the trailing-'/' segment boundary meaningful; GetFullPath collapses any ../ traversal first.
+            // Case-sensitive containment is deliberate (WR-01): on the Linux/Docker target /data/Media and
+            // /data/media are different directories, so a differently-cased path must NOT match an allow-listed root.
             canonical = EventLedger.NormalizePath(Path.GetFullPath(value));
             return true;
         }

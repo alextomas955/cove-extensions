@@ -10,8 +10,8 @@ namespace WhisparrSync.Tests;
 
 /// <summary>
 /// SEC-02: the root-overlap warning. The pure <see cref="RootOverlapDetector"/> flags a Cove library root
-/// that contains — or is contained by — a Whisparr root (either direction), normalizes separators and case
-/// before comparing, and reports nothing for disjoint roots. The <c>/root-overlap</c> endpoint is a
+/// that contains — or is contained by — a Whisparr root (either direction), normalizes separators
+/// (case-sensitive — the Linux/Docker target) before comparing, and reports nothing for disjoint roots. The <c>/root-overlap</c> endpoint is a
 /// best-effort advisory read: 403-first on <c>extensions.read</c>, and when authorized returns the
 /// <c>{ overlaps, warning }</c> shape. The warning is advisory only (never a hard gate), so a host with no
 /// resolvable Cove roots still answers 200 with an empty overlap set.
@@ -82,12 +82,17 @@ public sealed class RootOverlapTests
     }
 
     [Fact]
-    public void ComparisonIsSeparatorNormalizedAndCaseFolded()
+    public void ComparisonIsSeparatorNormalized_CaseSensitive()
     {
+        // Separators unify (\ → /), so a Windows-style root overlaps its forward-slash child.
         var overlaps = RootOverlapDetector.Detect(
-            whisparrRoots: [@"C:\Data\Media"], coveRoots: ["c:/data/media/Movies"]);
-
+            whisparrRoots: [@"C:\Data\Media"], coveRoots: ["C:/Data/Media/Movies"]);
         Assert.Single(overlaps);
+
+        // But comparison is case-SENSITIVE (WR-01): a case-mismatched pair is NOT treated as the same root.
+        var caseMismatch = RootOverlapDetector.Detect(
+            whisparrRoots: [@"C:\Data\Media"], coveRoots: ["c:/data/media/Movies"]);
+        Assert.Empty(caseMismatch);
     }
 
     [Fact]

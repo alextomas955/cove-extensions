@@ -97,7 +97,13 @@ internal sealed class EventLedger(IExtensionStore store)
 
     /// <summary>
     /// The single shared path-normalizer applied on BOTH sides before hashing so the key is byte-stable
-    /// across delivery channels: separators unified to <c>/</c>, trailing separators trimmed, case-folded.
+    /// across delivery channels: separators unified to <c>/</c> and trailing separators trimmed, but
+    /// CASE-SENSITIVE. The deployment target is Linux/Docker (a case-sensitive filesystem), where
+    /// <c>/data/Media/A.mkv</c> and <c>/data/media/a.mkv</c> are DISTINCT files — case-folding here would
+    /// (1) let the containment guard over-match a differently-cased root the admin never allow-listed
+    /// (a security weakening, WR-01) and (2) collide two distinct files onto one idempotency key, silently
+    /// skipping the second import. Both Whisparr channels report the same path casing, so the cross-channel
+    /// key still dedups without folding.
     /// </summary>
     public static string NormalizePath(string path)
     {
@@ -106,7 +112,7 @@ internal sealed class EventLedger(IExtensionStore store)
             return string.Empty;
         }
 
-        return path.Replace('\\', '/').TrimEnd('/').ToLowerInvariant();
+        return path.Replace('\\', '/').TrimEnd('/');
     }
 
     /// <summary>Records <paramref name="key"/> as processed (gated, idempotent — recording the same key twice is a no-op).</summary>

@@ -103,12 +103,23 @@ public sealed class EventLedgerTests
     public void ImportKey_CrossChannel_WebhookAndHistory_ProduceIdenticalKey()
     {
         // The webhook carries movieFile.path (forward slashes); the /history record's importedPath may use
-        // OS separators / a trailing slash / different case. Both go through NormalizePath before hashing, so
-        // the same physical import derives ONE key regardless of channel (IMPT-03 / 03-02 overlap dedup).
+        // OS separators / a trailing slash — but the SAME case (both Whisparr channels report one path casing).
+        // Both go through NormalizePath (separator-unify + trailing-trim) before hashing, so the same physical
+        // import derives ONE key regardless of channel (IMPT-03 / 03-02 overlap dedup).
         var webhook = EventLedger.ImportKey("ABCDEF0123", "/data/media/Scene (2024)/Scene.mkv");
-        var history = EventLedger.ImportKey("ABCDEF0123", "\\data\\media\\Scene (2024)\\Scene.MKV\\");
+        var history = EventLedger.ImportKey("ABCDEF0123", "\\data\\media\\Scene (2024)\\Scene.mkv\\");
 
         Assert.Equal(webhook, history);
+    }
+
+    [Fact]
+    public void ImportKey_IsCaseSensitive_DistinctFilesDoNotCollide()
+    {
+        // WR-01: on the Linux/Docker target /data/media/A.mkv and /data/media/a.mkv are DIFFERENT files, so
+        // their idempotency keys must differ — case-folding here would skip the second file as a false duplicate.
+        Assert.NotEqual(
+            EventLedger.ImportKey("dl-1", "/data/media/A.mkv"),
+            EventLedger.ImportKey("dl-1", "/data/media/a.mkv"));
     }
 
     [Fact]
@@ -121,10 +132,16 @@ public sealed class EventLedgerTests
     }
 
     [Fact]
-    public void NormalizePath_UnifiesSeparators_TrimsTrailing_AndCaseFolds()
+    public void NormalizePath_UnifiesSeparators_TrimsTrailing_CaseSensitive()
     {
+        // Separators unify and a trailing slash is trimmed, but case is PRESERVED (WR-01).
         Assert.Equal(
             EventLedger.NormalizePath("/data/Media/Scene.mkv"),
-            EventLedger.NormalizePath("\\data\\media\\SCENE.MKV\\"));
+            EventLedger.NormalizePath("\\data\\Media\\Scene.mkv\\"));
+
+        // A case difference is NOT normalized away — two distinct files stay distinct.
+        Assert.NotEqual(
+            EventLedger.NormalizePath("/data/Media/Scene.mkv"),
+            EventLedger.NormalizePath("/data/media/scene.mkv"));
     }
 }

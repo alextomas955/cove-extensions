@@ -245,7 +245,7 @@ If a Cove library root and a Whisparr root are the same directory (or one contai
 import-in-place can look to Whisparr like a brand-new file and be re-grabbed — a feedback loop.
 `RootOverlapDetector` compares the Whisparr roots (`GET /api/v3/rootfolder`) against the Cove library
 roots (`CoveConfiguration.CovePaths` when the host injects it, otherwise the distinct folders of the
-library's own files) using the same separator-normalized, case-folded, segment-bounded containment as
+library's own files) using the same separator-normalized, case-sensitive, segment-bounded containment as
 the ingest guard, in **both** directions. `GET /root-overlap` surfaces the result. It is a
 **best-effort advisory, never a hard gate**: cross-mount or containerized deployments legitimately see
 the same library at different paths, so a non-overlap is not a guarantee and an overlap is not an

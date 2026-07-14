@@ -14,7 +14,7 @@ internal sealed record RootOverlap(string WhisparrRoot, string CoveRoot);
 ///
 /// Comparison mirrors the <c>WhisparrRootGuard</c> discipline: both sides are normalized through the
 /// shared <see cref="EventLedger.NormalizePath"/> (separators unified to <c>/</c>, trailing separators
-/// trimmed, case-folded), then containment is tested at a SEGMENT BOUNDARY so a sibling like
+/// trimmed, case-SENSITIVE — the Linux/Docker target, WR-01), then containment is tested at a SEGMENT BOUNDARY so a sibling like
 /// <c>/data/media-evil</c> is not treated as inside <c>/data/media</c>. The warning is advisory only —
 /// cross-mount / cross-container deployments legitimately see the same library at different paths, so a
 /// non-overlap here is not a guarantee and an overlap is not a hard error.
