@@ -76,6 +76,12 @@ public sealed class ReconcileTests
         => WhisparrResult<WhisparrHistoryPage>.Ok(
             new WhisparrHistoryPage(1, ReconcileJob.PageSize, records.Length, records));
 
+    // A descending run of import records (newest-first, like Whisparr's history), ids startId..startId-count+1.
+    private static WhisparrHistoryRecord[] PageOf(int startId, int count)
+        => Enumerable.Range(0, count)
+            .Select(i => ImportRecord(startId - i, $"/data/media/r{startId - i}.mkv"))
+            .ToArray();
+
     // A checkpoint seeded at record 0 so every fixture record (id > 0) is a NEW record to process.
     private static async Task SeedAtZeroAsync(FakeStore store)
         => await new Checkpoint(store).SaveAsync(new CheckpointState(0, DateTime.UtcNow.Ticks, Seeded: true));
@@ -175,6 +181,37 @@ public sealed class ReconcileTests
         var afterSeed = await new Checkpoint(store).LoadAsync();
         Assert.True(afterSeed.Seeded);
         Assert.Equal(42, afterSeed.LastRecordId); // seeded at "now", so only later imports are caught
+    }
+
+    [Fact]
+    public async Task MidPagingFault_DoesNotAdvanceCheckpointPastUnfetchedWindow_ReFetchedNextRun()
+    {
+        // CR-03 regression: page 1 is a FULL page (forces a page-2 fetch); page 2 faults on the first run. The
+        // newest ids loaded on page 1 must NOT become the new checkpoint, or the older un-fetched window would
+        // fall permanently below it and be silently dropped. The checkpoint must stay put and re-fetch next run.
+        var recovered = false;
+        var (job, scan, store) = NewJob((page, _) => page switch
+        {
+            1 => Task.FromResult(OkPage(PageOf(200, ReconcileJob.PageSize))), // ids 200..151 (a full page)
+            _ when !recovered => Task.FromResult(WhisparrResult<WhisparrHistoryPage>.Unreachable("boom")),
+            _ => Task.FromResult(OkPage(PageOf(150, 2))), // ids 150,149 — a short (final) page → clean completion
+        });
+        await SeedAtZeroAsync(store);
+
+        await job.RunAsync(default);
+
+        Assert.Equal(ReconcileJob.PageSize, scan.Imports.Count); // page-1 imports were ingested
+        var afterFault = await new Checkpoint(store).LoadAsync();
+        Assert.Equal(0, afterFault.LastRecordId); // checkpoint did NOT jump to 200 past the un-fetched window
+
+        // Next run: page 2 now loads, so the pass completes; the missed older window is re-fetched (deduped),
+        // the checkpoint advances to the true high-water mark, and page-1 rows are NOT ingested twice.
+        recovered = true;
+        await job.RunAsync(default);
+
+        var afterRecovery = await new Checkpoint(store).LoadAsync();
+        Assert.Equal(200, afterRecovery.LastRecordId); // advanced only after a fully-traversed pass
+        Assert.Equal(ReconcileJob.PageSize + 2, scan.Imports.Count); // +2 new rows, page-1 rows deduped
     }
 
     [Fact]

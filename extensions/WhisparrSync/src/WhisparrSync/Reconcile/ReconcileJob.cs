@@ -57,7 +57,7 @@ internal sealed class ReconcileJob(
             return;
         }
 
-        var (newImports, highWater) = await CollectNewRecordsAsync(current.LastRecordId, ct);
+        var (newImports, highWater, completed) = await CollectNewRecordsAsync(current.LastRecordId, ct);
 
         // Ingest oldest-first: the pages arrive newest-first, so reverse to import in the order Whisparr did.
         newImports.Reverse();
@@ -68,7 +68,13 @@ internal sealed class ReconcileJob(
             await IngestRecordAsync(record, ledger, log, ct);
         }
 
-        if (highWater != current.LastRecordId)
+        // Advance the checkpoint ONLY when the pass fully traversed newest-first down to the prior checkpoint
+        // (or exhausted the history). A mid-paging transport fault or the MaxPages cap leaves `completed=false`:
+        // the pages that DID load are the newest, so their max id (highWater) sits ABOVE an un-fetched OLDER
+        // window — advancing to it would push that window permanently below the checkpoint and silently drop
+        // those import events (defeating the IMPT-02 "never webhook-only" backstop). Keeping the checkpoint
+        // re-fetches the window next run; the already-ingested newest rows are deduped cheaply by the ledger.
+        if (completed && highWater != current.LastRecordId)
         {
             await checkpoint.SaveAsync(current with { LastRecordId = highWater }, ct);
         }
@@ -105,11 +111,12 @@ internal sealed class ReconcileJob(
         await checkpoint.SaveAsync(new CheckpointState(newest, DateTime.UtcNow.Ticks, Seeded: true), ct);
     }
 
-    // Page newest-first, gathering every record above the checkpoint; stop at the first record already seen,
-    // a short (final) page, an empty/failed fetch, or the page cap. Returns the new IMPORT records plus the
-    // new high-water mark (the max id seen this pass, regardless of eventType, so non-import rows are not
-    // re-fetched next run).
-    private async Task<(List<WhisparrHistoryRecord> Imports, int HighWater)> CollectNewRecordsAsync(
+    // Page newest-first, gathering every record above the checkpoint. Returns the new IMPORT records, the new
+    // high-water mark (the max id seen this pass, regardless of eventType), and whether the pass COMPLETED a
+    // clean traversal — true when it reached the prior checkpoint, saw a short (final) page, or exhausted the
+    // history on a successful empty page; false on a transport fault or the MaxPages cap. Only a completed pass
+    // may advance the checkpoint (see RunAsync) — an aborted pass would jump past an un-fetched older window.
+    private async Task<(List<WhisparrHistoryRecord> Imports, int HighWater, bool Completed)> CollectNewRecordsAsync(
         int lastRecordId, CancellationToken ct)
     {
         var imports = new List<WhisparrHistoryRecord>();
@@ -118,9 +125,17 @@ internal sealed class ReconcileJob(
         for (var page = 1; page <= MaxPages; page++)
         {
             var result = await listHistoryPage(page, ct);
-            if (!result.IsOk || result.Value is not { Records: { Length: > 0 } records })
+            if (!result.IsOk)
             {
-                break; // transport fault / empty page → stop, keep the checkpoint for the next run
+                // Transport fault mid-paging: the older records on the pages that never loaded are NOT covered.
+                // Report NOT completed so RunAsync keeps the checkpoint and re-fetches the gap next run (CR-03).
+                return (imports, highWater, Completed: false);
+            }
+
+            if (result.Value is not { Records: { Length: > 0 } records })
+            {
+                // A successful but empty page means there are no more history rows — a clean full traversal.
+                return (imports, highWater, Completed: true);
             }
 
             var reachedCheckpoint = false;
@@ -145,11 +160,13 @@ internal sealed class ReconcileJob(
 
             if (reachedCheckpoint || records.Length < PageSize)
             {
-                break;
+                return (imports, highWater, Completed: true); // reached the checkpoint or a short final page
             }
         }
 
-        return (imports, highWater);
+        // Fell out of the loop by hitting the MaxPages cap (T-03-10 DoS guard) WITHOUT reaching the checkpoint:
+        // an older window is still un-fetched, so this is NOT a clean traversal — do not advance past the gap.
+        return (imports, highWater, Completed: false);
     }
 
     private async Task IngestRecordAsync(WhisparrHistoryRecord record, EventLedger ledger, ImportLog log, CancellationToken ct)
