@@ -1,4 +1,5 @@
 using System.Net;
+using WhisparrSync.Adapters;
 using WhisparrSync.Client;
 using WhisparrSync.Tests.TestSupport;
 
@@ -130,5 +131,144 @@ public sealed class V2ClientTests
             .ListEpisodeFilesAsync(BaseUrl, ApiKey, 1, CancellationToken.None);
 
         Assert.Equal(WhisparrResultState.NotWhisparr, result.State);
+    }
+}
+
+/// <summary>
+/// The V2Adapter port contract (VER-03): the five connect-level methods are pure pass-throughs to the shared
+/// <see cref="WhisparrClient"/> (proven by feeding a fake handler and asserting the adapter surfaces the same
+/// result at the same endpoint), and <c>ListMoviesAsync</c> synthesizes the normalized <c>WhisparrMovie[]</c>
+/// from <c>series → episode → episodefile</c> with the Pitfall-1 guard load-bearing: <c>StashId == null</c>
+/// and <c>ItemType == "v2scene"</c> (never <c>"scene"</c>) so the StashDB matcher leg no-ops for v2, and
+/// <c>MovieFile.Path</c> joined from the episodefile row. A non-Ok series read propagates without a partial synth.
+/// </summary>
+public sealed class V2AdapterTests
+{
+    private const string BaseUrl = "http://localhost:6970";
+    private const string ApiKey = "test-api-key";
+
+    private static V2Adapter AdapterFor(FakeHttpMessageHandler handler) => new(new WhisparrClient(new HttpClient(handler)));
+
+    private static Func<HttpResponseMessage> Json(string body)
+        => FakeHttpMessageHandler.Respond(HttpStatusCode.OK, "application/json", body);
+
+    // --- Delegation: the five connect-level methods pass through to the client unchanged ---
+
+    [Fact]
+    public async Task GetStatus_DelegatesToClient()
+    {
+        const string status = """{"version":"2.2.0.108","appName":"Whisparr","instanceName":"Whisparr","branch":"v2"}""";
+        var handler = FakeHttpMessageHandler.Json(status);
+
+        var result = await AdapterFor(handler).GetStatusAsync(BaseUrl, ApiKey, CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.Ok, result.State);
+        Assert.Equal("2.2.0.108", result.Value!.Version);
+        Assert.EndsWith("/api/v3/system/status", handler.LastRequest!.RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task ListRootFolders_DelegatesToClient()
+    {
+        var handler = FakeHttpMessageHandler.Json("""[{"id":1,"path":"/config/media","accessible":true,"freeSpace":123}]""");
+
+        var result = await AdapterFor(handler).ListRootFoldersAsync(BaseUrl, ApiKey, CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.Ok, result.State);
+        Assert.Equal("/config/media", Assert.Single(result.Value!).Path);
+        Assert.EndsWith("/api/v3/rootfolder", handler.LastRequest!.RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task ListQualityProfiles_DelegatesToClient()
+    {
+        var handler = FakeHttpMessageHandler.Json("""[{"id":7,"name":"HD-1080p"}]""");
+
+        var result = await AdapterFor(handler).ListQualityProfilesAsync(BaseUrl, ApiKey, CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.Ok, result.State);
+        Assert.Equal("HD-1080p", Assert.Single(result.Value!).Name);
+        Assert.EndsWith("/api/v3/qualityprofile", handler.LastRequest!.RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task ListHistory_DelegatesToClient()
+    {
+        var handler = FakeHttpMessageHandler.Json("""{"page":1,"pageSize":10,"totalRecords":0,"records":[]}""");
+
+        var result = await AdapterFor(handler).ListHistoryAsync(BaseUrl, ApiKey, 1, 10, CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.Ok, result.State);
+        Assert.Equal(1, result.Value!.Page);
+        Assert.StartsWith("/api/v3/history", handler.LastRequest!.RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task RegisterWebhook_DelegatesToClient_PostsNotification()
+    {
+        var handler = FakeHttpMessageHandler.Json("{}");
+
+        var result = await AdapterFor(handler)
+            .RegisterWebhookAsync(BaseUrl, ApiKey, "http://cove/webhook?token=secret", CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.Ok, result.State);
+        Assert.True(result.Value);
+        Assert.Equal(HttpMethod.Post, handler.LastRequest!.Method);
+        Assert.EndsWith("/api/v3/notification", handler.LastRequest.RequestUri!.AbsolutePath);
+        Assert.Contains("X-Cove-Token", handler.LastRequestBody);
+    }
+
+    // --- The one substantive method: the series -> episode -> episodefile synth ---
+
+    [Fact]
+    public async Task ListMovies_SynthesizesScenes_StashIdNull_ItemTypeV2Scene_PathJoined()
+    {
+        // series -> episode?seriesId=1 -> episodefile?seriesId=1 (one series => three calls in order).
+        var handler = FakeHttpMessageHandler.Sequence(
+            Json(V2Fixtures.SeriesArray),
+            Json(V2Fixtures.EpisodesSeries1),
+            Json(V2Fixtures.EpisodeFilesSeries1));
+
+        var result = await AdapterFor(handler).ListMoviesAsync(BaseUrl, ApiKey, CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.Ok, result.State);
+        var movies = result.Value!;
+        Assert.Equal(3, movies.Length);
+
+        // Pitfall 1 guard holds for EVERY synthesized row: never a StashDB-comparable identity.
+        Assert.All(movies, m =>
+        {
+            Assert.Null(m.StashId);
+            Assert.Equal("v2scene", m.ItemType);
+            Assert.NotEqual("scene", m.ItemType);
+        });
+
+        // Episode 1: undownloaded (episodeFileId=0, hasFile=false) => MovieFile null, year from releaseDate.
+        var undownloaded = movies[0];
+        Assert.Equal(1, undownloaded.Id);
+        Assert.Equal("Payment Extension", undownloaded.Title);
+        Assert.Equal(2016, undownloaded.Year);
+        Assert.Equal("1010276", undownloaded.ForeignId); // TPDB scene id carried in a non-Stash field
+        Assert.Null(undownloaded.MovieFile);
+        Assert.False(undownloaded.HasFile);
+
+        // Episode 2: downloaded => MovieFile.Path joined from episodefile id 5001.
+        var downloaded = movies[1];
+        Assert.Equal(2, downloaded.Id);
+        Assert.Equal(2017, downloaded.Year);
+        Assert.True(downloaded.HasFile);
+        Assert.Equal(5001, downloaded.MovieFile!.Id);
+        Assert.Equal("/config/media/Vixen/second-scene.mkv", downloaded.MovieFile.Path);
+    }
+
+    [Fact]
+    public async Task ListMovies_NotOkSeries_PropagatesWithoutPartialSynth()
+    {
+        // The very first call (/series) is 401 => the whole synth surfaces BadKey, never a partial array.
+        var result = await AdapterFor(FakeHttpMessageHandler.Status(HttpStatusCode.Unauthorized))
+            .ListMoviesAsync(BaseUrl, ApiKey, CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.BadKey, result.State);
+        Assert.Null(result.Value);
     }
 }
