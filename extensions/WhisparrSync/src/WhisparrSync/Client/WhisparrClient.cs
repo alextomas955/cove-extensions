@@ -81,6 +81,42 @@ internal sealed class WhisparrClient(HttpClient http)
             ct);
 
     /// <summary>
+    /// Reads <c>GET {baseUrl}/api/v3/series</c> — the Whisparr v2 studio/site list (idempotent; bounded
+    /// retry). The v2 adapter walks these into scenes; v2 has no <c>/movie</c> entity. Transport-only: the
+    /// classify-not-throw guards are inherited from <see cref="SendAsync"/>.
+    /// </summary>
+    internal Task<WhisparrResult<WhisparrSeries[]>> ListSeriesAsync(string baseUrl, string apiKey, CancellationToken ct)
+        => SendAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, $"{baseUrl.TrimEnd('/')}/api/v3/series"),
+            apiKey, GetMaxAttempts,
+            (resp, token) => DeserializeAsync(resp, WhisparrJsonContext.Default.WhisparrSeriesArray, token),
+            ct);
+
+    /// <summary>
+    /// Reads <c>GET {baseUrl}/api/v3/episode?seriesId={seriesId}</c> — the scenes under a v2 series (the
+    /// <c>seriesId</c> query is REQUIRED; idempotent, bounded retry). Transport-only: the classify-not-throw
+    /// guards are inherited from <see cref="SendAsync"/>.
+    /// </summary>
+    internal Task<WhisparrResult<WhisparrEpisode[]>> ListEpisodesAsync(string baseUrl, string apiKey, int seriesId, CancellationToken ct)
+        => SendAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, $"{baseUrl.TrimEnd('/')}/api/v3/episode?seriesId={seriesId}"),
+            apiKey, GetMaxAttempts,
+            (resp, token) => DeserializeAsync(resp, WhisparrJsonContext.Default.WhisparrEpisodeArray, token),
+            ct);
+
+    /// <summary>
+    /// Reads <c>GET {baseUrl}/api/v3/episodefile?seriesId={seriesId}</c> — the on-disk files for a v2 series
+    /// (the <c>seriesId</c> query is REQUIRED; idempotent, bounded retry). Source of the path leg. Transport-
+    /// only: the classify-not-throw guards are inherited from <see cref="SendAsync"/>.
+    /// </summary>
+    internal Task<WhisparrResult<WhisparrEpisodeFile[]>> ListEpisodeFilesAsync(string baseUrl, string apiKey, int seriesId, CancellationToken ct)
+        => SendAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, $"{baseUrl.TrimEnd('/')}/api/v3/episodefile?seriesId={seriesId}"),
+            apiKey, GetMaxAttempts,
+            (resp, token) => DeserializeAsync(resp, WhisparrJsonContext.Default.WhisparrEpisodeFileArray, token),
+            ct);
+
+    /// <summary>
     /// Posts a pre-serialized notification payload to <c>POST {baseUrl}/api/v3/notification</c> to register
     /// the Cove webhook connection. The caller (the adapter) owns the payload shape; this method is
     /// transport-only and single-shot — a non-idempotent POST is never blind-retried. The full payload is

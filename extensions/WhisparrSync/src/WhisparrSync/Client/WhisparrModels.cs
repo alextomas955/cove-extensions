@@ -75,3 +75,37 @@ internal sealed record WhisparrHistoryRecord(
     string? Date,
     string? EventType,
     Dictionary<string, string>? Data);
+
+/// <summary>
+/// A Whisparr v2 <c>GET /api/v3/series</c> row — a studio/site (Whisparr v2 is Sonarr-based, so content is
+/// modeled as series → episodes). v2 has no <c>/movie</c> entity, so <c>V2Adapter</c> walks
+/// series → episode → episodefile to synthesize the normalized <c>WhisparrMovie[]</c>. Field set VERIFIED
+/// against the live v2 2.2.0.108 instance (04-RESEARCH.md §Endpoint shape parity); nullable-friendly so a
+/// partial row still deserializes. <see cref="TvdbId"/> is the TPDB *site* id — v2 carries no StashDB id.
+/// </summary>
+internal sealed record WhisparrSeries(int Id, int? TvdbId, string? Title, string? TitleSlug, string? Path);
+
+/// <summary>
+/// A Whisparr v2 <c>GET /api/v3/episode?seriesId=N</c> row — one scene under a series. Key set VERIFIED
+/// against the live v2 instance (04-RESEARCH.md §"The scene identity crux"): the only scene identity is
+/// <see cref="TvdbId"/> (a TPDB *scene* id repurposed into Sonarr's <c>tvdbId</c> field) — there is no
+/// <c>stashId</c>/<c>foreignId</c>/<c>imdbId</c> anywhere (0/627 scenes). <see cref="EpisodeFileId"/> joins
+/// to the <see cref="WhisparrEpisodeFile"/> that carries the on-disk path (0 when not downloaded).
+/// Nullable-friendly so a partial row still deserializes.
+/// </summary>
+internal sealed record WhisparrEpisode(
+    int Id,
+    string? Title,
+    string? ReleaseDate,
+    int EpisodeFileId,
+    int? TvdbId,
+    int SeriesId,
+    bool HasFile,
+    bool Monitored);
+
+/// <summary>
+/// A Whisparr v2 <c>GET /api/v3/episodefile?seriesId=N</c> row — the on-disk file of an episode (scene),
+/// the source of the reconciliation path leg. <see cref="Path"/> is nullable because a partial/absent row
+/// still deserializes; the adapter joins <see cref="Id"/> back to the episode's <c>episodeFileId</c>.
+/// </summary>
+internal sealed record WhisparrEpisodeFile(int Id, int SeriesId, string? Path);
