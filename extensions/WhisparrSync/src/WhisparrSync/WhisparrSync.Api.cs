@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Adapters;
 using WhisparrSync.Client;
+using WhisparrSync.Ingest;
 using WhisparrSync.Library;
 using WhisparrSync.Matching;
 using WhisparrSync.Options;
@@ -32,6 +33,11 @@ public sealed partial class WhisparrSync
     private const string QualityProfilesRoute = RouteBase + "/qualityprofiles";
     private const string WebhookUrlRoute = RouteBase + "/webhook-url";
     private const string RegisterWebhookRoute = RouteBase + "/register-webhook";
+
+    // The ONE anonymous route (03-01): inbound Whisparr On-Import events. It carries no Cove principal, so
+    // it deliberately OMITS the Forbidden(principal,…) gate every other route uses — the shared-secret token
+    // validated inside WebhookReceiver is its auth (SEC-01).
+    private const string WebhookRoute = RouteBase + "/webhook";
 
     // The read-only reconciliation surface (02-03). /preview-sync computes the live diff (configure-gated —
     // it reaches the stored creds to call Whisparr, CR-01); /reconciliation is a pure match-map read
@@ -119,6 +125,13 @@ public sealed partial class WhisparrSync
         endpoints.MapPost(MatchRejectRoute,
             (MatchDecisionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => MatchRejectAsync(req, client, principal, ct));
+
+        // Anonymous inbound webhook (SEC-01): bind the raw HttpContext so the receiver reads the token
+        // (X-Cove-Token header or ?token= query) and body itself. NO principal parameter, NO Forbidden gate —
+        // the token is the auth. The coordinator resolves the scoped IScanService from the captured factory.
+        endpoints.MapPost(WebhookRoute,
+            (HttpContext http, CancellationToken ct)
+                => new WebhookReceiver(Store, new IngestCoordinator(ScopeFactory)).HandleAsync(http, ct));
     }
 
     /// <summary>
