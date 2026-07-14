@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Ingest;
 using WhisparrSync.Matching;
 using WhisparrSync.Options;
+using WhisparrSync.State;
 using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests;
@@ -28,13 +29,15 @@ public sealed class WebhookReceiverTests
         return store;
     }
 
-    private static (WebhookReceiver Receiver, FakeScanService Scan) NewReceiver(FakeStore store)
+    private static (WebhookReceiver Receiver, FakeScanService Scan) NewReceiver(FakeStore store, params string[] roots)
     {
+        roots = roots.Length == 0 ? ["/data/media"] : roots; // the default root contains VideoPath
         var scan = new FakeScanService();
         var services = new ServiceCollection();
         services.AddScoped<IScanService>(_ => scan);
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
-        var coordinator = new IngestCoordinator(scopeFactory);
+        var coordinator = new IngestCoordinator(
+            scopeFactory, _ => ValueTask.FromResult<IReadOnlyList<string>>(roots));
         return (new WebhookReceiver(store, coordinator), scan);
     }
 
@@ -188,5 +191,56 @@ public sealed class WebhookReceiverTests
         Assert.Equal(200, StatusOf(result));
         var call = Assert.Single(scan.Imports);
         Assert.Equal(55, call.EntityId);
+    }
+
+    [Fact]
+    public async Task Download_Imported_WritesOneImportLogEntry()
+    {
+        var store = await StoreWithSecret();
+        var (receiver, _) = NewReceiver(store);
+
+        await receiver.HandleAsync(Context(WebhookPayloads.Download(VideoPath, downloadId: "DL-1"), headerToken: Secret), default);
+
+        var entry = Assert.Single(await new ImportLog(store).LoadAllAsync());
+        Assert.Equal("webhook", entry.Source);
+        Assert.Equal("Download", entry.EventType);
+        Assert.Equal(VideoPath, entry.Path);
+        Assert.Equal("Video", entry.Kind);
+        Assert.Equal("Imported", entry.Result);
+        Assert.True(entry.UtcTicks > 0); // server-written, never a browser value
+        Assert.Equal(EventLedger.ImportKey("DL-1", VideoPath), entry.LedgerKey);
+    }
+
+    [Fact]
+    public async Task Download_Duplicate_WritesSkippedEntry()
+    {
+        var store = await StoreWithSecret();
+        var (receiver, _) = NewReceiver(store);
+        var body = WebhookPayloads.Download(VideoPath, downloadId: "DL-DUP2");
+
+        await receiver.HandleAsync(Context(body, headerToken: Secret), default);
+        await receiver.HandleAsync(Context(body, headerToken: Secret), default);
+
+        var all = await new ImportLog(store).LoadAllAsync();
+        Assert.Equal(2, all.Count);
+        Assert.Equal("Imported", all[0].Result);
+        Assert.Equal("Skipped", all[1].Result);
+    }
+
+    [Fact]
+    public async Task Download_OutOfRoot_WritesFlaggedEntry_AndDoesNotIngest()
+    {
+        var store = await StoreWithSecret();
+        var (receiver, scan) = NewReceiver(store, "/some/other/root");
+
+        var result = await receiver.HandleAsync(
+            Context(WebhookPayloads.Download(VideoPath, downloadId: "DL-OOR"), headerToken: Secret), default);
+
+        Assert.Equal(200, StatusOf(result)); // the receiver always answers 200 to an authenticated event
+        Assert.Empty(scan.Imports);
+        Assert.Empty(scan.Scans);
+        var entry = Assert.Single(await new ImportLog(store).LoadAllAsync());
+        Assert.Equal("Flagged", entry.Result);
+        Assert.Contains("outside", entry.Reason, StringComparison.OrdinalIgnoreCase);
     }
 }
