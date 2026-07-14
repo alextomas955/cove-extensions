@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Cove.Core.Auth;
+using Cove.Core.Interfaces;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -14,6 +15,7 @@ using WhisparrSync.Library;
 using WhisparrSync.Matching;
 using WhisparrSync.Options;
 using WhisparrSync.Reconcile;
+using WhisparrSync.Safety;
 using WhisparrSync.State;
 using WhisparrSync.Webhook;
 
@@ -44,6 +46,10 @@ public sealed partial class WhisparrSync
     // The read-only import-activity log (IMPT-04 review half): a pure read of the extension's own audit
     // journal, read-gated (extensions.read) exactly like /reconciliation.
     private const string ImportLogRoute = RouteBase + "/import-log";
+
+    // The read-only root-overlap advisory (SEC-02): compares the Whisparr roots against the Cove library
+    // roots and warns when they overlap (a re-grab-loop risk). Read-gated exactly like /reconciliation.
+    private const string RootOverlapRoute = RouteBase + "/root-overlap";
 
     // The read-only reconciliation surface (02-03). /preview-sync computes the live diff (configure-gated —
     // it reaches the stored creds to call Whisparr, CR-01); /reconciliation is a pure match-map read
@@ -144,6 +150,84 @@ public sealed partial class WhisparrSync
         // Read-only audit log (IMPT-04): a pure store read, 403-first on extensions.read.
         endpoints.MapGet(ImportLogRoute,
             (ICurrentPrincipalAccessor principal, CancellationToken ct) => ImportLogAsync(principal, ct));
+
+        // Read-only root-overlap advisory (SEC-02): reads the Whisparr roots (stored creds) + the Cove
+        // library roots and reports any overlap. 403-first on extensions.read.
+        endpoints.MapGet(RootOverlapRoute,
+            (WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => RootOverlapAsync(client, principal, ct));
+    }
+
+    /// <summary>
+    /// Reports whether any Cove library root overlaps a Whisparr root — a re-grab-loop risk (SEC-02). Reads
+    /// the Whisparr roots (via the stored creds, cached) and the Cove roots (from <c>CoveConfiguration</c> if
+    /// the host injects it into the extension scope — 03-RESEARCH Open Q1 — otherwise derived from the
+    /// library's own file folders), then composes them with <see cref="RootOverlapDetector"/>. The result is
+    /// a best-effort ADVISORY only: cross-mount / cross-container deployments legitimately see the same
+    /// library at different paths, so the warning says so and is never a hard gate. 403-first on
+    /// <c>extensions.read</c> — a pure read that mutates nothing.
+    /// </summary>
+    internal async Task<IResult> RootOverlapAsync(
+        WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        if (Forbidden(principal, Permissions.ExtensionsRead) is { } denied)
+        {
+            return denied;
+        }
+
+        var whisparrRoots = await GetWhisparrRootsAsync(client, ct);
+        var coveRoots = await GetCoveRootsAsync(ct);
+        var overlaps = RootOverlapDetector.Detect(whisparrRoots, coveRoots);
+
+        var warning = overlaps.Count == 0
+            ? null
+            : "One or more Cove library roots overlap a Whisparr root. Because Cove imports files in place " +
+              "(never moving or deleting them), a shared root can let an import echo back to Whisparr as a new " +
+              "grab. This is a best-effort advisory: cross-mount or containerized deployments may legitimately " +
+              "see the same library at different paths, so verify against your own layout.";
+
+        return Results.Json(new { overlaps, warning }, ImportLogResponseJsonOptions);
+    }
+
+    /// <summary>
+    /// Resolves the Cove library roots for the SEC-02 overlap check. Preferred source (03-RESEARCH Open Q1):
+    /// <c>CoveConfiguration.CovePaths</c> resolved from a fresh scope when the host injects it. Fallback: the
+    /// distinct parent folders of the library's own file paths via <see cref="CoveLibraryPort"/> — enough for
+    /// an advisory containment comparison. Returns an empty set (no warning) when neither source is available;
+    /// the overlap warning is advisory, so an unavailable source degrades to silence, never an error.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> GetCoveRootsAsync(CancellationToken ct)
+    {
+        if (_scopeFactory is null)
+        {
+            return [];
+        }
+
+        await using var scope = _scopeFactory.CreateAsyncScope();
+
+        // Preferred: the host-configured media-library roots ScanService scans (VERIFIED to exist).
+        if (scope.ServiceProvider.GetService<CoveConfiguration>() is { CovePaths: { Count: > 0 } covePaths })
+        {
+            return [.. covePaths
+                .Select(p => p.Path)
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Distinct(StringComparer.OrdinalIgnoreCase)];
+        }
+
+        // Fallback: derive distinct folders from the library's own files (needs no host-config access).
+        if (scope.ServiceProvider.GetService<DbContext>() is not { } db)
+        {
+            return [];
+        }
+
+        var options = await new OptionsStore(Store).LoadAsync(ct);
+        var videos = await new CoveLibraryPort(db, options.StashDbEndpoint).LoadAllVideosAsync(ct);
+        return [.. videos
+            .SelectMany(v => v.FilePaths)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => Path.GetDirectoryName(p) ?? p)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
     }
 
     /// <summary>
