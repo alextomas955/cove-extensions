@@ -4,6 +4,17 @@ User-facing changes, newest first.
 
 ## Unreleased
 
+- **Whisparr's Test button now succeeds.** Auto-register sends the webhook secret as an `X-Cove-Token`
+  request header, so Whisparr's **Test** ping reaches Cove authenticated and returns success instead of
+  being rejected. The copy-paste URL still carries the token too, so either way of adding the webhook
+  works.
+- **A heads-up if your libraries share a folder.** The page now warns when a Cove library root overlaps
+  a Whisparr root — a setup that can cause Whisparr to re-grab a file Cove just imported. It is advisory
+  only (containerized setups can legitimately see the same files at different paths), and auto-import
+  never moves or deletes files inside a Whisparr root — it only imports them in place.
+- **Honest webhook status and reachability help.** Under the webhook URL, a status line shows whether the
+  webhook is registered and when the last event arrived, plus a reminder that the URL must be reachable
+  by Whisparr (for example `http://host.docker.internal:5073`), not from your browser.
 - **Import activity log on the settings page.** The Whisparr Sync page now has a read-only **Import
   activity** section listing every file that was auto-imported — with its result (imported,
   skipped-duplicate, or flagged for manual scan), source (webhook or reconcile), time, file, and Cove

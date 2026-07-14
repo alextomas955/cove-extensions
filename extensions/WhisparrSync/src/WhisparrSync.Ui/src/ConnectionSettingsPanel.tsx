@@ -25,6 +25,7 @@ import {
   type ConnectionTone,
   type WhisparrVersion,
 } from "./connectionResult";
+import { relativeTime, ticksToEpochMs, type ImportLogRow } from "./importLogLogic";
 
 const EXTENSION_ID = "com.alextomas955.whisparrsync";
 
@@ -74,6 +75,69 @@ async function fetchLists(
 async function fetchWebhookUrl(): Promise<string> {
   const resp = await request<{ url: string }>(`/extensions/${EXTENSION_ID}/webhook-url`);
   return resp.url;
+}
+
+/**
+ * The server ticks of the most recent webhook-sourced import, or null if none. A received webhook event is
+ * proof the receiver was registered and reachable at least once — the honest "events seen" signal for the
+ * status line (there is no separate "is registered" flag; registration into Whisparr is best-effort).
+ */
+async function fetchLastWebhookEventTicks(): Promise<number | null> {
+  try {
+    const resp = await request<{ entries: ImportLogRow[] }>(
+      `/extensions/${EXTENSION_ID}/import-log`,
+    );
+    const ticks = resp.entries.filter((e) => e.source === "webhook").map((e) => e.utcTicks);
+    return ticks.length > 0 ? Math.max(...ticks) : null;
+  } catch {
+    return null; // the log read failing is not a connection error — degrade to "no events seen"
+  }
+}
+
+/**
+ * The honest webhook status + the always-shown host-reachability helper (SEC-04 / UI-SPEC locked copy).
+ * "Registered" is inferred from either a successful auto-register this session or a received webhook event
+ * (the durable proof of reachability). Never color-only — each state pairs a StatusText with a lucide glyph.
+ */
+function WebhookStatus({
+  registered,
+  lastEventTicks,
+}: {
+  registered: boolean;
+  lastEventTicks: number | null;
+}) {
+  const hasEvents = lastEventTicks !== null;
+  const isRegistered = registered || hasEvents;
+  return (
+    <div className="space-y-1">
+      {isRegistered ? (
+        hasEvents ? (
+          <div className="flex items-start gap-2">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-400" />
+            <StatusText kind="success">
+              Webhook registered · last event {relativeTime(ticksToEpochMs(lastEventTicks))}
+            </StatusText>
+          </div>
+        ) : (
+          <StatusText kind="muted">Webhook registered · no events received yet</StatusText>
+        )
+      ) : (
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+          <StatusText kind="warning">
+            Webhook not registered yet — Register in Whisparr, or paste the URL into Whisparr →
+            Settings → Connections → Webhook (On Import).
+          </StatusText>
+        </div>
+      )}
+      <StatusText kind="muted">
+        This URL must be reachable by Whisparr, not from your browser. If Whisparr runs on another
+        host or in a container, use the address it can reach (for example{" "}
+        <span className="font-mono">http://host.docker.internal:5073</span>), not{" "}
+        <span className="font-mono">localhost</span>.
+      </StatusText>
+    </div>
+  );
 }
 
 function ToneIcon({ tone }: { tone: ConnectionTone }) {
@@ -127,6 +191,8 @@ export function ConnectionSettingsPanel() {
   const [copied, setCopied] = useState(false);
   const [registering, setRegistering] = useState(false);
   const [registerMsg, setRegisterMsg] = useState<string | null>(null);
+  const [registered, setRegistered] = useState(false);
+  const [lastWebhookEventTicks, setLastWebhookEventTicks] = useState<number | null>(null);
 
   // Load the persisted options once on mount; if a key is already stored, populate the dropdowns from the
   // live API using the stored creds (an empty submitted key falls back to the stored one server-side).
@@ -146,6 +212,7 @@ export function ConnectionSettingsPanel() {
           setQualityProfiles(profiles);
           setListsLoaded(true);
           setWebhookUrl(await fetchWebhookUrl());
+          setLastWebhookEventTicks(await fetchLastWebhookEventTicks());
         }
       } catch {
         // First run or unreachable: keep defaults; the dropdowns stay in their disabled empty state.
@@ -266,6 +333,7 @@ export function ConnectionSettingsPanel() {
         `/extensions/${EXTENSION_ID}/register-webhook`,
         { method: "POST" },
       );
+      setRegistered(resp.registered);
       setRegisterMsg(
         resp.registered
           ? "Registered ✓"
@@ -423,6 +491,7 @@ export function ConnectionSettingsPanel() {
               </Button>
               {registerMsg ? <StatusText kind="muted">{registerMsg}</StatusText> : null}
             </div>
+            <WebhookStatus registered={registered} lastEventTicks={lastWebhookEventTicks} />
           </div>
         </Field>
       ) : null}

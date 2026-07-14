@@ -73,6 +73,7 @@ principal at all — a shared-secret token is its auth (SEC-01), so it omits the
 | `/match/reject` | POST | configure | Reject a needs-review suggestion (writes only the match store) |
 | `/webhook` | POST | anonymous (token) | Inbound Whisparr On-Import receiver — ingests the imported file (SEC-01) |
 | `/import-log` | GET | read | The auto-import audit log: every attempt with its result, source, time, path, and Cove item + counts |
+| `/root-overlap` | GET | read | A best-effort advisory: whether a Cove library root overlaps a Whisparr root (a re-grab-loop risk, SEC-02) |
 
 `/preview-sync` is `configure`-gated even though it only *reads*: it reaches the stored credentials to
 call Whisparr, so a read-only user must not be able to trigger it (the same CR-01 rule as the list
@@ -176,6 +177,13 @@ refused version) returns `registered: false` and the UI falls back to copy-paste
 never fails on it. The exact `fields` contract is confirmed against a live instance; the copy-paste
 URL is the guaranteed path regardless.
 
+The notification also carries the secret as an **`X-Cove-Token` request header** (a `headers`
+key-value entry in the payload), not only in the URL query. This is what makes Whisparr's **Test**
+button succeed: the Test ping POSTs to the configured URL with the configured headers, so the
+receiver sees the token in the header it validates and answers 200 instead of the 401 an unheadered
+ping would get. The bare URL keeps its `?token=` for the copy-paste path, so both channels
+authenticate the same secret.
+
 ## Auto-import: webhook + polling-reconcile backstop (IMPT-01/02/03/05)
 
 The webhook **receiver** consumes the URL above and turns a Whisparr On-Import into a Cove item. Two
@@ -214,3 +222,47 @@ Both channels converge on:
 
 The secret is never logged; the raw webhook body is never logged; the audit log stores paths/ids/results
 but never the API key or the webhook token.
+
+## The safety model (SEC-02/03/04)
+
+Auto-import means Cove and Whisparr both act on the same files, so the extension is built around three
+guarantees that keep the two systems from fighting each other.
+
+### Never move or delete inside a Whisparr root (SEC-03)
+
+`IngestCoordinator` **imports in place**: it hands the imported path to the host `IScanService`
+(`ImportDownloaded*`) or, on a gone/kind-unresolvable in-root path, a scoped `StartScan`. It holds no
+filesystem-relocation primitive at all — Cove records the path, and the bytes stay exactly where
+Whisparr put them. This is a structural property, not a runtime check, so it is enforced by a
+**contract test** (`NoMutationTests`): driving a full webhook Download and a fallback records only
+`IScanService` import/scan calls on the recording fake, and a source-level guard asserts the
+coordinator source contains no `File.Move`/`File.Delete`/`Directory.*` API. If someone ever adds one,
+that test fails.
+
+### Warn on a re-grab feedback loop (SEC-02)
+
+If a Cove library root and a Whisparr root are the same directory (or one contains the other), an
+import-in-place can look to Whisparr like a brand-new file and be re-grabbed — a feedback loop.
+`RootOverlapDetector` compares the Whisparr roots (`GET /api/v3/rootfolder`) against the Cove library
+roots (`CoveConfiguration.CovePaths` when the host injects it, otherwise the distinct folders of the
+library's own files) using the same separator-normalized, case-folded, segment-bounded containment as
+the ingest guard, in **both** directions. `GET /root-overlap` surfaces the result. It is a
+**best-effort advisory, never a hard gate**: cross-mount or containerized deployments legitimately see
+the same library at different paths, so a non-overlap is not a guarantee and an overlap is not an
+error — the warning says as much.
+
+### An honest manifest (SEC-04)
+
+Cove does not enforce the manifest's `permissions.network` — it is a declaration for the operator and
+reviewer. The manifest therefore states the real surface honestly: the **outbound** authenticated
+calls to the configured Whisparr host, and the **inbound** token-gated `/webhook` receiver that accepts
+On-Import events. The API key and webhook secret are described as server-side-only and never logged.
+
+### Pitfall: an auth-disabled Cove and the first remote webhook
+
+Cove has a security failsafe that can lock down when it first sees a request from an unexpected remote
+address with authentication disabled. Because the webhook is exactly such a request (Whisparr calls in
+from another host/container), a Cove deployment running with **authentication disabled** can trip that
+lockdown on the first webhook. This is outside the extension's control — the recommendation is to run
+Cove **auth-enabled** in any deployment that receives remote webhooks (the token still authenticates
+the webhook itself). It is an advisory, not something the extension can prevent.

@@ -41,6 +41,29 @@ connection to Whisparr for you. The embedded secret is a high-entropy token gene
 so the URL is stable. Cove receives events at this URL and ingests the imported file in place; see the
 [Connect guide](./guide) for the host-reachability note and how auto-import behaves.
 
+Below the buttons a **status line** tells you honestly where the webhook stands: *registered, last
+event {time} ago* once events have arrived, *registered, no events received yet* after you register
+but before the first import, or an amber *not registered yet* prompt otherwise. A muted helper line is
+always shown: the URL must be reachable **by Whisparr, not from your browser** — if Whisparr runs on
+another host or in a container, use an address it can reach (for example
+`http://host.docker.internal:5073`), not `localhost`.
+
+:::note Webhook host is not overridable this release
+There is no separate "webhook host" setting. The URL is derived from the address you open Cove at,
+plus the host-reachability guidance above; a dedicated override is intentionally deferred. If the
+derived host is not the one Whisparr can reach, edit the copied URL's host before pasting it into
+Whisparr.
+:::
+
+### Root-overlap advisory
+
+The extension also checks whether a Cove library root overlaps a Whisparr root — if they are the same
+directory (or one contains the other), an import-in-place can look to Whisparr like a new file and be
+re-grabbed. This is surfaced as a **best-effort advisory only**, never a block: cross-mount or
+containerized setups legitimately see the same library at different paths, so treat it as a prompt to
+check your layout rather than an error. (Auto-import never moves or deletes files inside a Whisparr
+root — it only imports them in place.)
+
 ## Import activity
 
 A read-only section listing every auto-import, below Reconciliation. It has no editable settings — it

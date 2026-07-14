@@ -2,7 +2,7 @@
   "id": "com.alextomas955.whisparrsync",
   "name": "Whisparr Sync",
   "version": "0.1.0",
-  "description": "Connects Cove to a Whisparr v3 (Eros) instance. Makes outbound HTTP calls to the Whisparr URL you configure (default port 6969) with an API key you supply, starting with a Test connection that reads GET /api/v3/system/status. The API key is stored server-side only, never returned to the browser and never written to logs. Exposes settings endpoints under /api/extensions/com.alextomas955.whisparrsync. Runs no scraper or downloader code.",
+  "description": "Connects Cove to a Whisparr v3 (Eros) instance for automatic import. OUTBOUND: makes authenticated HTTP calls to the Whisparr URL you configure (default port 6969) with an API key you supply — a Test connection (GET /api/v3/system/status), root-folder/quality-profile reads, a movie/history read for reconciliation, and a best-effort webhook auto-register (POST /api/v3/notification). INBOUND: exposes a token-gated webhook receiver at POST /api/extensions/com.alextomas955.whisparrsync/webhook that accepts Whisparr On-Import events and imports the finished file into Cove in place (never moving or deleting Whisparr's files); the shared webhook secret authenticates every request (an unsigned or wrong-token request is rejected). The Whisparr API key and the webhook secret are stored server-side only, never returned to the browser and never written to logs. All settings endpoints are mounted under /api/extensions/com.alextomas955.whisparrsync. Runs no scraper or downloader code.",
   "author": "alextomas955",
   "url": "https://github.com/alextomas955/cove-extensions",
   "categories": ["tools", "automation"],
