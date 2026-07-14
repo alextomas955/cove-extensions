@@ -267,4 +267,87 @@ public sealed class WebhookReceiverTests
         Assert.Equal("Flagged", entry.Result);
         Assert.Contains("outside", entry.Reason, StringComparison.OrdinalIgnoreCase);
     }
+
+    // ── Whisparr v2 (Sonarr-shaped) On-Import: the version-blind receiver ingests episodeFile.path exactly
+    //    like the v3 movieFile.path, through the SAME token gate / ledger / audit / root guard / coordinator.
+
+    [Fact]
+    public async Task ValidToken_DownloadV2_IngestsTheEpisodeFilePathAsVideo()
+    {
+        // VER-03: a v2 On-Download (series + episodes[] + episodeFile) ingests episodeFile.path via IScanService
+        // exactly like the v3 movieFile case — the path fallback is version-blind.
+        var (receiver, scan) = NewReceiver(await StoreWithSecret());
+
+        var result = await receiver.HandleAsync(Context(WebhookPayloads.DownloadV2(VideoPath), headerToken: Secret), default);
+
+        Assert.Equal(200, StatusOf(result));
+        var call = Assert.Single(scan.Imports);
+        Assert.Equal("Video", call.Kind);
+        Assert.Equal(VideoPath, call.Path);
+    }
+
+    [Fact]
+    public async Task DownloadV2_IsUpgrade_WithConfirmedMatch_UpgradesInPlaceWithExistingCoveId()
+    {
+        // A v2 upgrade resolves the existing Cove id from the EPISODE id (v2's match handle = WhisparrMovieId
+        // per 04-01), so ImportDownloaded* upgrades in place rather than creating a second entity.
+        var store = await StoreWithSecret();
+        await new MatchStateStore(store).ConfirmAsync(new MatchState(
+            CoveId: 55, WhisparrMovieId: 7, StashId: "uuid-x", MatchedBy: MatchedBy.StashId,
+            MatchedAtUtcTicks: 638_000_000_000_000_000L, Status: MatchStatus.Confirmed));
+        var (receiver, scan) = NewReceiver(store);
+
+        var body = WebhookPayloads.DownloadV2(VideoPath, downloadId: "V2-UP", isUpgrade: true, episodeId: 7);
+        var result = await receiver.HandleAsync(Context(body, headerToken: Secret), default);
+
+        Assert.Equal(200, StatusOf(result));
+        var call = Assert.Single(scan.Imports);
+        Assert.Equal(55, call.EntityId);
+    }
+
+    [Fact]
+    public async Task DownloadV2_OutOfRoot_WritesFlaggedEntry_AndDoesNotIngest()
+    {
+        // The v2 imported path is subject to the SAME reused root guard — an out-of-root path is Flagged, never ingested.
+        var store = await StoreWithSecret();
+        var (receiver, scan) = NewReceiver(store, "/some/other/root");
+
+        var result = await receiver.HandleAsync(
+            Context(WebhookPayloads.DownloadV2(VideoPath, downloadId: "V2-OOR"), headerToken: Secret), default);
+
+        Assert.Equal(200, StatusOf(result));
+        Assert.Empty(scan.Imports);
+        Assert.Empty(scan.Scans);
+        var entry = Assert.Single(await new ImportLog(store).LoadAllAsync());
+        Assert.Equal("Flagged", entry.Result);
+        Assert.Contains("outside", entry.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task MalformedV2Body_Is200NoOp_AndDoesNotIngest()
+    {
+        // Schema drift / a truncated v2 body must degrade to a 200 no-op (never a 500, never a half-ingest).
+        var (receiver, scan) = NewReceiver(await StoreWithSecret());
+
+        var result = await receiver.HandleAsync(
+            Context("{ \"eventType\": \"Download\", \"episodeFile\": { \"path\": ", headerToken: Secret), default);
+
+        Assert.Equal(200, StatusOf(result));
+        Assert.Empty(scan.Imports);
+    }
+
+    [Fact]
+    public async Task DownloadV2_WithNoPathAnywhere_Is200NoOp_AndDoesNotIngest()
+    {
+        // A well-formed v2 Download carrying no importable path is a safe 200 no-op — nothing to ingest, nothing audited.
+        var store = await StoreWithSecret();
+        var (receiver, scan) = NewReceiver(store);
+
+        var result = await receiver.HandleAsync(
+            Context(WebhookPayloads.DownloadV2(path: string.Empty, downloadId: "V2-NOPATH"), headerToken: Secret), default);
+
+        Assert.Equal(200, StatusOf(result));
+        Assert.Empty(scan.Imports);
+        Assert.Empty(await new ImportLog(store).LoadAllAsync()); // no-path returns before claim/audit — no ledger, no log entry
+    }
 }

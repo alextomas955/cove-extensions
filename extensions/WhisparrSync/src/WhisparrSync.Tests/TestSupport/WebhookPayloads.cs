@@ -39,6 +39,29 @@ internal static class WebhookPayloads
         }
         """;
 
+    /// <summary>
+    /// A Whisparr <b>v2</b> On-Import (<c>eventType:"Download"</c>) body: the Sonarr-shaped envelope posts
+    /// <c>series</c> + <c>episodes[]</c> + <c>episodeFile</c> (where v3 posts <c>movie</c> + <c>movieFile</c>),
+    /// so the receiver's version-blind path/upgrade-id fallback must ingest <paramref name="path"/> from
+    /// <c>episodeFile.path</c> and resolve an upgrade from <paramref name="episodeId"/>.
+    /// </summary>
+    public static string DownloadV2(
+        string path, string downloadId = "V2-DL", bool isUpgrade = false,
+        int episodeId = 1, int episodeFileId = 42, int seriesId = 1)
+        => $$"""
+        {
+          "series": { "id": {{seriesId}}, "title": "Some Site", "path": "/data/media", "tvdbId": 1234, "type": "standard" },
+          "episodes": [ { "id": {{episodeId}}, "episodeNumber": 1, "seasonNumber": 1, "episodeFileId": {{episodeFileId}} } ],
+          "episodeFile": { "id": {{episodeFileId}}, "relativePath": "Scene.mkv", "path": {{Json(path)}},
+                           "quality": "WEBDL-1080p", "size": 123456789 },
+          "isUpgrade": {{(isUpgrade ? "true" : "false")}},
+          "downloadId": "{{downloadId}}",
+          "downloadClient": "qBittorrent",
+          "eventType": "Download",
+          "instanceName": "Whisparr"
+        }
+        """;
+
     /// <summary>A valid-token body with an <paramref name="eventType"/> the receiver does not act on (ignored → 200).</summary>
     public static string WithEventType(string eventType)
         => $$"""

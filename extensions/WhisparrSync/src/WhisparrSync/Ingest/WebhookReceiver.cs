@@ -74,7 +74,8 @@ internal sealed class WebhookReceiver(
 
     private async Task HandleDownloadAsync(WebhookPayload payload, CancellationToken ct)
     {
-        var path = payload.MovieFile?.Path;
+        // Version-blind: v3 posts movieFile, v2 posts episodeFile — prefer movieFile, then fall back to episodeFile.
+        var path = payload.MovieFile?.Path ?? payload.EpisodeFile?.Path;
         if (string.IsNullOrWhiteSpace(path))
         {
             return; // a Download with no imported path is malformed — nothing to ingest, nothing to audit
@@ -95,7 +96,10 @@ internal sealed class WebhookReceiver(
             return;
         }
 
-        var existingId = payload.IsUpgrade ? await ResolveExistingCoveIdAsync(payload.Movie?.Id, ct) : null;
+        // The upgrade handle is version-blind too: v3 keys on movie.id, v2 on the first episode id (its WhisparrMovieId per 04-01).
+        var existingId = payload.IsUpgrade
+            ? await ResolveExistingCoveIdAsync(payload.Movie?.Id ?? payload.Episodes?.FirstOrDefault()?.Id, ct)
+            : null;
         IngestOutcome outcome;
         try
         {
