@@ -3,6 +3,7 @@ using Cove.Core.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Ingest;
+using WhisparrSync.Matching;
 using WhisparrSync.Options;
 using WhisparrSync.Tests.TestSupport;
 
@@ -152,5 +153,40 @@ public sealed class WebhookReceiverTests
         Assert.Equal(200, StatusOf(result));
         var call = Assert.Single(scan.Imports);
         Assert.Equal(VideoPath, call.Path);
+    }
+
+    [Fact]
+    public async Task Download_DeliveredTwice_IngestsOnce_SecondIsDuplicateNoOp()
+    {
+        // At-least-once webhooks + poll overlap WILL redeliver the same import; the ledger dedups it.
+        var store = await StoreWithSecret();
+        var (receiver, scan) = NewReceiver(store);
+        var body = WebhookPayloads.Download(VideoPath, downloadId: "DL-DUP");
+
+        var first = await receiver.HandleAsync(Context(body, headerToken: Secret), default);
+        var second = await receiver.HandleAsync(Context(body, headerToken: Secret), default);
+
+        Assert.Equal(200, StatusOf(first));
+        Assert.Equal(200, StatusOf(second));
+        Assert.Single(scan.Imports); // the second delivery ingested nothing
+    }
+
+    [Fact]
+    public async Task Download_IsUpgrade_WithConfirmedMatch_UpgradesInPlaceWithExistingCoveId()
+    {
+        // An upgrade re-import of an already-matched movie passes its Cove id so ImportDownloaded* upgrades
+        // in place rather than creating a second entity (IMPT-03 / Pitfall 3).
+        var store = await StoreWithSecret();
+        await new MatchStateStore(store).ConfirmAsync(new MatchState(
+            CoveId: 55, WhisparrMovieId: 7, StashId: "uuid-x", MatchedBy: MatchedBy.StashId,
+            MatchedAtUtcTicks: 638_000_000_000_000_000L, Status: MatchStatus.Confirmed));
+        var (receiver, scan) = NewReceiver(store);
+
+        var body = WebhookPayloads.Download(VideoPath, downloadId: "DL-UP", isUpgrade: true, movieId: 7);
+        var result = await receiver.HandleAsync(Context(body, headerToken: Secret), default);
+
+        Assert.Equal(200, StatusOf(result));
+        var call = Assert.Single(scan.Imports);
+        Assert.Equal(55, call.EntityId);
     }
 }
