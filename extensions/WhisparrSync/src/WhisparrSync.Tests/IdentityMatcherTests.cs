@@ -200,4 +200,53 @@ public sealed class IdentityMatcherTests
         Assert.Equal(MatchedBy.Path, result.Leg);
         Assert.False(result.AutoApplies);
     }
+
+    // --- v2-shaped rows (VER-03): StashId=null + ItemType="v2scene" => the StashDB leg MUST no-op ---
+
+    [Fact]
+    public void V2Row_StashDbLegNoOps_EvenWhenForeignIdEqualsACoveStashId()
+    {
+        // A v2 synthesized row carries the TPDB scene id in ForeignId with ItemType="v2scene" (never
+        // "scene"). Even when a Cove video's StashId string-equals that TPDB id, the StashDB leg must NOT
+        // fire — a TPDB id is never a StashDB UUID (Pitfall 1). No other leg corresponds => Unmatched.
+        var cove = Cove(10, stashIds: ["1010276"]);
+        var movie = Movie(1, stashId: null, foreignId: "1010276", itemType: "v2scene");
+
+        var result = Only(IdentityMatcher.Match([cove], [movie]));
+
+        Assert.Equal(MatchOutcome.Unmatched, result.Outcome);
+        Assert.Null(result.Leg);
+    }
+
+    [Fact]
+    public void V2Row_StillMatchesViaTranslatedPath()
+    {
+        // Same v2 row (StashDB leg dead) still classifies via the identity-agnostic path leg. The Cove
+        // video even shares the TPDB id as a StashId to prove the match came from PATH, not StashDB.
+        var cove = Cove(10, stashIds: ["1010276"], paths: ["/mnt/tank/media/scene.mkv"]);
+        var movie = Movie(1, foreignId: "1010276", itemType: "v2scene", path: "/config/media/scene.mkv");
+        var translations = new Dictionary<string, string> { ["/config/media"] = "/mnt/tank/media" };
+
+        var result = Only(IdentityMatcher.Match([cove], [movie], translations));
+
+        Assert.Equal(MatchOutcome.Matched, result.Outcome);
+        Assert.Equal(MatchedBy.Path, result.Leg);
+        Assert.True(result.AutoApplies);
+        Assert.Equal(10, result.MatchedVideo!.CoveId);
+    }
+
+    [Fact]
+    public void V2Row_SurfacesViaFuzzyAsNeedsReview()
+    {
+        // With no StashDB id and no path, a v2 row still surfaces via the fuzzy title+year leg — strictly
+        // needs-review, never auto-applied (MATCH-02), exactly like any other row.
+        var cove = Cove(10, title: "The Great Scene", date: new DateOnly(2017, 4, 20));
+        var movie = Movie(1, title: "Great Scene", year: 2017, foreignId: "1010277", itemType: "v2scene");
+
+        var result = Only(IdentityMatcher.Match([cove], [movie]));
+
+        Assert.Equal(MatchOutcome.NeedsReview, result.Outcome);
+        Assert.Equal(MatchedBy.Fuzzy, result.Leg);
+        Assert.False(result.AutoApplies);
+    }
 }

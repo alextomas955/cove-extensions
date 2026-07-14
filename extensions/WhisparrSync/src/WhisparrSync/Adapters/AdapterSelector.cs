@@ -3,11 +3,12 @@ using WhisparrSync.Client;
 namespace WhisparrSync.Adapters;
 
 /// <summary>
-/// The fail-closed major-version gate (VER-04). Both Whisparr v2 and v3 answer <c>/api/v3/system/status</c>
-/// with a parseable body, so a "200 OK ⇒ connected" check would silently misclassify a v2 instance — the
-/// gate MUST branch on the parsed major version, never the status code. A version this build cannot manage
-/// (anything but 3) or an unparseable version is refused (returns <c>null</c>), never a silent
-/// wrong-adapter call.
+/// The fail-closed major-version gate (VER-03/VER-04). Both Whisparr v2 and v3 answer
+/// <c>/api/v3/system/status</c> with a parseable body, so a "200 OK ⇒ connected" check would silently
+/// misclassify an instance — the gate MUST branch on the parsed major version, never the status code.
+/// major==3 selects the <see cref="V3Adapter"/>, major==2 selects the <see cref="V2Adapter"/>; a version
+/// this build cannot manage (anything else) or an unparseable version is refused (returns <c>null</c>),
+/// never a silent wrong-adapter call.
 /// </summary>
 internal static class AdapterSelector
 {
@@ -31,18 +32,36 @@ internal static class AdapterSelector
     }
 
     /// <summary>
-    /// Selects the adapter for the detected instance: a <see cref="V3Adapter"/> only when the parsed major
-    /// version is exactly 3, otherwise <c>null</c> (refuse). A <c>null</c> return is the VER-04 refusal —
-    /// the caller surfaces a typed version-mismatch, never a wrong-adapter call.
+    /// Selects the adapter for the detected instance: a <see cref="V3Adapter"/> when the parsed major
+    /// version is exactly 3, a <see cref="V2Adapter"/> when it is exactly 2, otherwise <c>null</c> (refuse).
+    /// A <c>null</c> return is the VER-04 refusal — the caller surfaces a typed version-mismatch, never a
+    /// wrong-adapter call.
     /// </summary>
     internal static IWhisparrAdapter? Select(SystemStatus status, WhisparrClient client)
-        => ParseMajor(status.Version) == 3 ? new V3Adapter(client) : null;
+        => ParseMajor(status.Version) switch
+        {
+            3 => new V3Adapter(client),
+            2 => new V2Adapter(client),
+            _ => null,
+        };
 
     /// <summary>
     /// Selects the adapter for an already-persisted selection (the settings endpoints run after a
-    /// successful test, so the version is known): a <see cref="V3Adapter"/> for <c>"v3"</c>, otherwise
-    /// <c>null</c> (refuse — VER-04). Case-insensitive.
+    /// successful test, so the version is known): a <see cref="V3Adapter"/> for <c>"v3"</c>, a
+    /// <see cref="V2Adapter"/> for <c>"v2"</c>, otherwise <c>null</c> (refuse — VER-04). Case-insensitive.
     /// </summary>
     internal static IWhisparrAdapter? SelectForVersion(string? selectedVersion, WhisparrClient client)
-        => string.Equals(selectedVersion, "v3", StringComparison.OrdinalIgnoreCase) ? new V3Adapter(client) : null;
+    {
+        if (string.Equals(selectedVersion, "v3", StringComparison.OrdinalIgnoreCase))
+        {
+            return new V3Adapter(client);
+        }
+
+        if (string.Equals(selectedVersion, "v2", StringComparison.OrdinalIgnoreCase))
+        {
+            return new V2Adapter(client);
+        }
+
+        return null;
+    }
 }
