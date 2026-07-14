@@ -106,5 +106,14 @@
     <!-- The CoveLibraryPort integration tier needs a real CoveContext (Cove.Data) → drops out on a bare CI runner. -->
     <Compile Remove="CoveLibraryPortTests.cs" />
     <Compile Remove="TestSupport\CoveContextFactory.cs" />
+    <!--
+      The ingest tier's fake IScanService (and the receiver/coordinator tests that drive it) reference
+      Cove.Core.Interfaces types (IScanService / ScanOperationOptions) that are unavailable on a bare
+      runner → Compile-Removed there, exactly like the Cove.Core auth-type files above. The store-only
+      ingest tests (EventLedger / ImportLog over FakeStore) need no Cove.Core type and still compile.
+    -->
+    <Compile Remove="TestSupport\FakeScanService.cs" />
+    <Compile Remove="WebhookReceiverTests.cs" />
+    <Compile Remove="IngestCoordinatorTests.cs" />
   </ItemGroup>
 </Project>
