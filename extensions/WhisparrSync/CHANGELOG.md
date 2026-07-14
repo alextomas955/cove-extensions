@@ -4,6 +4,19 @@ User-facing changes, newest first.
 
 ## Unreleased
 
+- **Auto-import hardening.** Fixed three correctness bugs and three security issues found in review:
+  a concurrent webhook and poll for the same import could create two Cove items (now claimed atomically,
+  so an import is ingested exactly once); a first run while Whisparr was unreachable could later
+  bulk-import your entire existing library (the reconcile now seeds only after a successful history read);
+  and a dropped page during a large catch-up could permanently skip older imports (the checkpoint now
+  advances only after a complete pass). Path handling is now case-sensitive to match Linux/Docker, so
+  differently-cased files are no longer treated as the same file, and a symlink pointing outside a
+  Whisparr root is rejected rather than followed.
+- **The webhook prefers the `X-Cove-Token` header.** The header (which **Register in Whisparr**
+  configures automatically) is the recommended way to authenticate the webhook, because it is not
+  captured by proxy or access logs. The `?token=` URL still works for hand-pasted setups, but since a
+  secret in a URL can be recorded by intermediaries, the extension now logs a one-time warning when the
+  webhook authenticates that way — prefer **Register in Whisparr**.
 - **Whisparr's Test button now succeeds.** Auto-register sends the webhook secret as an `X-Cove-Token`
   request header, so Whisparr's **Test** ping reaches Cove authenticated and returns success instead of
   being rejected. The copy-paste URL still carries the token too, so either way of adding the webhook

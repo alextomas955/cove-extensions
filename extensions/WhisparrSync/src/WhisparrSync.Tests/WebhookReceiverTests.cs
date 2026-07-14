@@ -30,6 +30,10 @@ public sealed class WebhookReceiverTests
     }
 
     private static (WebhookReceiver Receiver, FakeScanService Scan) NewReceiver(FakeStore store, params string[] roots)
+        => NewReceiver(store, onQueryTokenFallback: null, roots);
+
+    private static (WebhookReceiver Receiver, FakeScanService Scan) NewReceiver(
+        FakeStore store, Action? onQueryTokenFallback, params string[] roots)
     {
         roots = roots.Length == 0 ? ["/data/media"] : roots; // the default root contains VideoPath
         var scan = new FakeScanService();
@@ -38,7 +42,7 @@ public sealed class WebhookReceiverTests
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
         var coordinator = new IngestCoordinator(
             scopeFactory, _ => ValueTask.FromResult<IReadOnlyList<string>>(roots));
-        return (new WebhookReceiver(store, coordinator), scan);
+        return (new WebhookReceiver(store, coordinator, onQueryTokenFallback), scan);
     }
 
     private static DefaultHttpContext Context(string body, string? headerToken = null, string? queryToken = null)
@@ -147,15 +151,35 @@ public sealed class WebhookReceiverTests
     }
 
     [Fact]
-    public async Task QueryToken_Fallback_IsAccepted()
+    public async Task QueryToken_Fallback_IsAccepted_ButWarnsOnce()
     {
-        var (receiver, scan) = NewReceiver(await StoreWithSecret());
+        // WR-03: the ?token= query still authenticates (hand-pasted webhook fallback), but because a secret in
+        // a URL query leaks to proxy/access logs, the receiver signals the host so it can warn about the risk.
+        var store = await StoreWithSecret();
+        var warnings = 0;
+        var (receiver, scan) = NewReceiver(store, onQueryTokenFallback: () => warnings++);
 
         var result = await receiver.HandleAsync(Context(WebhookPayloads.Download(VideoPath), queryToken: Secret), default);
 
         Assert.Equal(200, StatusOf(result));
-        var call = Assert.Single(scan.Imports);
-        Assert.Equal(VideoPath, call.Path);
+        Assert.Equal(VideoPath, Assert.Single(scan.Imports).Path);
+        Assert.Equal(1, warnings); // the query-token channel fired the log-exposure warning
+    }
+
+    [Fact]
+    public async Task HeaderToken_IsPreferred_AndDoesNotWarn()
+    {
+        // The header is the preferred channel: a header-authenticated request never triggers the WR-03 warning,
+        // even when a query token is also present (the header is checked first).
+        var store = await StoreWithSecret();
+        var warnings = 0;
+        var (receiver, _) = NewReceiver(store, onQueryTokenFallback: () => warnings++);
+
+        var ctx = Context(WebhookPayloads.Download(VideoPath), headerToken: Secret, queryToken: Secret);
+        var result = await receiver.HandleAsync(ctx, default);
+
+        Assert.Equal(200, StatusOf(result));
+        Assert.Equal(0, warnings); // authenticated on the header — no query-channel warning
     }
 
     [Fact]

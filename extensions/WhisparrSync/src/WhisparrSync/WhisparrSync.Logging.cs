@@ -37,4 +37,27 @@ public sealed partial class WhisparrSync
         EventId = 2004, Level = LogLevel.Warning,
         Message = "[WhisparrSync] reconcile loop stopped on an unexpected fault: {Reason}")]
     private partial void LogReconcileLoopFault(string reason);
+
+    // WR-03: a webhook authenticated via the ?token= query string rather than the X-Cove-Token header. The
+    // secret in a URL query is routinely captured by Kestrel/proxy/access logs, so the header is preferred
+    // (auto-register uses it). The message never contains the secret itself. Guarded to warn ONCE per process
+    // (WarnQueryTokenChannelOnce) so a busy webhook does not spam the log.
+    [LoggerMessage(
+        EventId = 2005, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] a webhook authenticated via the ?token= query string; that secret can be "
+                + "captured by reverse-proxy/access logs. Prefer the X-Cove-Token header (Register in Whisparr "
+                + "configures it automatically).")]
+    private partial void LogWebhookTokenInQuery();
+
+    // Warn at most once per process that the insecure query-token channel was used (called from the webhook
+    // wiring in WhisparrSync.Api.cs). Interlocked makes the one-time guard safe under concurrent requests.
+    private int _warnedQueryTokenChannel;
+
+    internal void WarnQueryTokenChannelOnce()
+    {
+        if (Interlocked.Exchange(ref _warnedQueryTokenChannel, 1) == 0)
+        {
+            LogWebhookTokenInQuery();
+        }
+    }
 }

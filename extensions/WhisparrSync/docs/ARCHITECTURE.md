@@ -184,6 +184,13 @@ receiver sees the token in the header it validates and answers 200 instead of th
 ping would get. The bare URL keeps its `?token=` for the copy-paste path, so both channels
 authenticate the same secret.
 
+**The header is the preferred channel (WR-03).** The receiver checks `X-Cove-Token` first and only
+falls back to the `?token=` query when the header is absent. A secret in a URL query string is
+routinely captured by Kestrel/reverse-proxy/access logs outside this extension's control, so the
+query fallback exists only for hand-pasted webhooks — when it is used, the extension logs a one-time
+warning. **Register in Whisparr** (auto-register) always configures the header, so the recommended
+setup never relies on the query token.
+
 ## Auto-import: webhook + polling-reconcile backstop (IMPT-01/02/03/05)
 
 The webhook **receiver** consumes the URL above and turns a Whisparr On-Import into a Cove item. Two

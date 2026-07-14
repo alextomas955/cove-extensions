@@ -14,8 +14,15 @@ namespace WhisparrSync.Ingest;
 /// carries NO Cove principal (Whisparr has none), so it does NOT use the shared <c>Forbidden(principal,…)</c>
 /// gate — the shared-secret token IS the auth. The token is validated FIRST, in constant time, BEFORE the
 /// body is parsed; only then is the event routed. The token and the raw body are never logged.
+///
+/// The <c>X-Cove-Token</c> HEADER is the PREFERRED token channel (auto-register configures it, and it is not
+/// captured by request logging). The <c>?token=</c> query string is a documented fallback for hand-pasted
+/// webhooks ONLY: a secret in a URL query is routinely recorded by proxy/access logs (WR-03), so when it is
+/// used <paramref name="onQueryTokenFallback"/> fires (the host logs a one-time warning). The header is
+/// always checked first, so a request that presents both authenticates on the header.
 /// </summary>
-internal sealed class WebhookReceiver(IExtensionStore store, IngestCoordinator coordinator)
+internal sealed class WebhookReceiver(
+    IExtensionStore store, IngestCoordinator coordinator, Action? onQueryTokenFallback = null)
 {
     private const string TokenHeader = "X-Cove-Token";
 
@@ -29,16 +36,25 @@ internal sealed class WebhookReceiver(IExtensionStore store, IngestCoordinator c
     /// </summary>
     public async Task<IResult> HandleAsync(HttpContext http, CancellationToken ct)
     {
+        // Prefer the X-Cove-Token header; the ?token= query is a fallback for hand-pasted webhooks only (WR-03).
         var presented = http.Request.Headers[TokenHeader].ToString();
+        var fromQueryFallback = false;
         if (string.IsNullOrEmpty(presented))
         {
             presented = http.Request.Query["token"].ToString();
+            fromQueryFallback = !string.IsNullOrEmpty(presented);
         }
 
         var expected = (await new OptionsStore(store).LoadAsync(ct)).WebhookSecret;
         if (expected.Length == 0 || !FixedTimeEquals(presented, expected))
         {
             return Results.Json(new { code = "UNAUTHORIZED" }, ResponseJsonOptions, statusCode: 401);
+        }
+
+        // Authenticated via the query string: signal the host so it warns (once) about the log-exposure risk.
+        if (fromQueryFallback)
+        {
+            onQueryTokenFallback?.Invoke();
         }
 
         var payload = await ParseAsync(http.Request.Body, ct);

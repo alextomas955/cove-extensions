@@ -45,6 +45,11 @@ The **Webhook URL** field shows a ready-to-use URL with an embedded secret. Eith
 
 If auto-register isn't accepted by your build, the copy-paste URL always works.
 
+**Prefer Register in Whisparr.** It configures the secret as an `X-Cove-Token` request header, which
+is not recorded by proxy or access logs. The copy-paste URL carries the same secret in the `?token=`
+query, which some intermediaries can log; it authenticates fine, but Cove logs a one-time warning when
+a webhook arrives that way, so the header (auto-register) is the recommended setup.
+
 :::warning This URL must be reachable by Whisparr, not from your browser
 Whisparr calls this URL from wherever it runs. If Whisparr is on another host or in a container,
 `localhost` points at Whisparr's own machine, not Cove. Use the address Whisparr can reach — for

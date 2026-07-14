@@ -139,12 +139,17 @@ public sealed partial class WhisparrSync
                 => MatchRejectAsync(req, client, principal, ct));
 
         // Anonymous inbound webhook (SEC-01): bind the raw HttpContext so the receiver reads the token
-        // (X-Cove-Token header or ?token= query) and body itself. NO principal parameter, NO Forbidden gate —
-        // the token is the auth. The coordinator resolves the scoped IScanService from the captured factory and
-        // gates every ingest on the cached Whisparr root set (T-03-PT, fail-closed when roots are unavailable).
+        // (X-Cove-Token header preferred; ?token= query is a documented fallback) and body itself. NO principal
+        // parameter, NO Forbidden gate — the token is the auth. The coordinator resolves the scoped IScanService
+        // from the captured factory and gates every ingest on the cached Whisparr root set (T-03-PT, fail-closed
+        // when roots are unavailable). WarnQueryTokenChannelOnce logs a one-time WR-03 warning if the insecure
+        // query-token channel is used.
         endpoints.MapPost(WebhookRoute,
             (HttpContext http, WhisparrClient client, CancellationToken ct)
-                => new WebhookReceiver(Store, new IngestCoordinator(ScopeFactory, c => GetWhisparrRootsAsync(client, c)))
+                => new WebhookReceiver(
+                        Store,
+                        new IngestCoordinator(ScopeFactory, c => GetWhisparrRootsAsync(client, c)),
+                        WarnQueryTokenChannelOnce)
                     .HandleAsync(http, ct));
 
         // Read-only audit log (IMPT-04): a pure store read, 403-first on extensions.read.
