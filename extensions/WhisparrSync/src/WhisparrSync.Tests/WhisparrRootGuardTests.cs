@@ -47,4 +47,38 @@ public sealed class WhisparrRootGuardTests
     public void MatchesAnyOfMultipleRoots()
         => Assert.True(WhisparrRootGuard.IsWithinAnyRoot(
             "/mnt/library/a.mp4", ["/data/media", "/mnt/library"]));
+
+    [Fact]
+    public void SymlinkInsideRoot_WhoseTargetEscapes_IsNotWithin()
+    {
+        // WR-02: a symlink INSIDE a root pointing OUT of it (e.g. /root/link -> /outside) must not let a path
+        // through it (/root/link/secret.txt) pass containment — Path.GetFullPath is lexical and would wrongly
+        // accept it; real-path resolution follows the link to /outside and rejects it.
+        var baseDir = Path.Combine(Path.GetTempPath(), "wsg-" + Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(baseDir, "root");
+        var outside = Path.Combine(baseDir, "outside");
+        var link = Path.Combine(root, "link");
+        try
+        {
+            Directory.CreateDirectory(root);
+            Directory.CreateDirectory(outside);
+            File.WriteAllText(Path.Combine(outside, "secret.txt"), "secret");
+            Directory.CreateSymbolicLink(link, outside);
+
+            var throughSymlink = Path.Combine(link, "secret.txt"); // /root/link/secret.txt → really /outside/secret.txt
+
+            Assert.False(WhisparrRootGuard.IsWithinAnyRoot(throughSymlink, [root]));
+            // A real (non-symlinked) file directly inside the root is still accepted.
+            var realInside = Path.Combine(root, "ok.txt");
+            File.WriteAllText(realInside, "ok");
+            Assert.True(WhisparrRootGuard.IsWithinAnyRoot(realInside, [root]));
+        }
+        finally
+        {
+            if (Directory.Exists(baseDir))
+            {
+                Directory.Delete(baseDir, recursive: true);
+            }
+        }
+    }
 }
