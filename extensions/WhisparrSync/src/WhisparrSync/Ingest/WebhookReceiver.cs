@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
+using WhisparrSync.Matching;
 using WhisparrSync.Options;
 using WhisparrSync.State;
 
@@ -63,7 +64,39 @@ internal sealed class WebhookReceiver(IExtensionStore store, IngestCoordinator c
             return;
         }
 
-        await coordinator.IngestAsync(kind, path, existingId: null, ct);
+        // Check-before-ingest on the cross-channel key so a redelivery (at-least-once webhook + poll overlap)
+        // is a duplicate no-op, not a second entity (IMPT-03).
+        var ledger = new EventLedger(store);
+        var key = EventLedger.ImportKey(payload.DownloadId, path);
+        if (await ledger.SeenAsync(key, ct))
+        {
+            return;
+        }
+
+        var existingId = payload.IsUpgrade ? await ResolveExistingCoveIdAsync(payload.Movie?.Id, ct) : null;
+        await coordinator.IngestAsync(kind, path, existingId, ct);
+        await ledger.RecordAsync(key, ct);
+    }
+
+    // An upgrade re-imports an already-matched movie: pass its Cove id so ImportDownloaded* upgrades in place
+    // rather than creating a duplicate. The Phase-2 match map is the only durable WhisparrMovieId → Cove id
+    // handle; an unmatched upgrade falls back to a create (null), which the ledger still dedups on replay.
+    private async Task<int?> ResolveExistingCoveIdAsync(int? whisparrMovieId, CancellationToken ct)
+    {
+        if (whisparrMovieId is not { } movieId)
+        {
+            return null;
+        }
+
+        foreach (var match in await new MatchStateStore(store).LoadAllAsync(ct))
+        {
+            if (match.WhisparrMovieId == movieId)
+            {
+                return match.CoveId;
+            }
+        }
+
+        return null;
     }
 
     private static async Task<WebhookPayload?> ParseAsync(Stream body, CancellationToken ct)
