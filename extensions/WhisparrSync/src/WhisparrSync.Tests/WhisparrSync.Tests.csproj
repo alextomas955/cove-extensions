@@ -121,5 +121,9 @@
     <Compile Remove="IngestCoordinatorTests.cs" />
     <!-- The reconcile tier drives IngestCoordinator + FakeScanService (Cove.Core.Interfaces) → drops out on a bare CI runner. -->
     <Compile Remove="ReconcileTests.cs" />
+    <!-- NoMutationTests drives the coordinator/receiver + FakeScanService (Cove.Core.Interfaces) → drops out on a bare CI runner. -->
+    <Compile Remove="NoMutationTests.cs" />
+    <!-- WebhookRegisterHeaderTests drives the receiver + FakeScanService (Cove.Core.Interfaces) → drops out on a bare CI runner. -->
+    <Compile Remove="WebhookRegisterHeaderTests.cs" />
   </ItemGroup>
 </Project>
