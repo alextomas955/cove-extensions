@@ -103,6 +103,8 @@
     <Compile Remove="EndpointAuthTests.cs" />
     <!-- ReconEndpointAuthTests injects a FakePrincipalAccessor (Cove.Core auth types) → drops out on a bare CI runner. -->
     <Compile Remove="ReconEndpointAuthTests.cs" />
+    <!-- ImportLogEndpointAuthTests injects a FakePrincipalAccessor + a fake IJobService (Cove.Core types) → drops out on a bare CI runner. -->
+    <Compile Remove="ImportLogEndpointAuthTests.cs" />
     <!-- The CoveLibraryPort integration tier needs a real CoveContext (Cove.Data) → drops out on a bare CI runner. -->
     <Compile Remove="CoveLibraryPortTests.cs" />
     <Compile Remove="TestSupport\CoveContextFactory.cs" />
