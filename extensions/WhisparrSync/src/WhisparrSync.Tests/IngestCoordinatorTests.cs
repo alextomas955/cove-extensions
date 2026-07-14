@@ -1,4 +1,3 @@
-using System.IO;
 using Cove.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Ingest;

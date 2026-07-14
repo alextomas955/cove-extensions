@@ -32,8 +32,11 @@ public sealed class WhisparrRootGuardTests
         => Assert.False(WhisparrRootGuard.IsWithinAnyRoot("/data/media/x.mkv", []));
 
     [Fact]
-    public void SeparatorAndCaseVariants_AreContained()
-        => Assert.True(WhisparrRootGuard.IsWithinAnyRoot("\\data\\media\\Scene\\SCENE.MKV", Roots));
+    public void CaseVariants_AreContained()
+        // NormalizePath case-folds both sides, so a differently-cased path still resolves inside the root.
+        // (Separator unification also happens, but Path.GetFullPath only treats '\' as a separator on Windows,
+        // so a cross-OS backslash path is not portably assertable here.)
+        => Assert.True(WhisparrRootGuard.IsWithinAnyRoot("/data/Media/Scene/SCENE.MKV", Roots));
 
     [Fact]
     public void MatchesAnyOfMultipleRoots()

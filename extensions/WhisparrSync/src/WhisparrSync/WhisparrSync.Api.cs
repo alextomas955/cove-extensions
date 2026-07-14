@@ -128,10 +128,59 @@ public sealed partial class WhisparrSync
 
         // Anonymous inbound webhook (SEC-01): bind the raw HttpContext so the receiver reads the token
         // (X-Cove-Token header or ?token= query) and body itself. NO principal parameter, NO Forbidden gate —
-        // the token is the auth. The coordinator resolves the scoped IScanService from the captured factory.
+        // the token is the auth. The coordinator resolves the scoped IScanService from the captured factory and
+        // gates every ingest on the cached Whisparr root set (T-03-PT, fail-closed when roots are unavailable).
         endpoints.MapPost(WebhookRoute,
-            (HttpContext http, CancellationToken ct)
-                => new WebhookReceiver(Store, new IngestCoordinator(ScopeFactory)).HandleAsync(http, ct));
+            (HttpContext http, WhisparrClient client, CancellationToken ct)
+                => new WebhookReceiver(Store, new IngestCoordinator(ScopeFactory, c => GetWhisparrRootsAsync(client, c)))
+                    .HandleAsync(http, ct));
+    }
+
+    // A short in-memory cache of the Whisparr root folders (they change rarely): the webhook ingest guard
+    // consults this per event, so it must never issue an uncached GET per event. Fail-closed — a failed fetch
+    // leaves the cache untouched and returns no roots, so the containment guard rejects until roots are known.
+    private IReadOnlyList<string>? _cachedWhisparrRoots;
+    private DateTime _whisparrRootsCachedAtUtc;
+    // Static (process-lifetime, never disposed): the extension instance is a long-lived host singleton, and a
+    // static gate avoids owning a disposable instance field (CA1001) while still serializing the cache refill.
+    private static readonly SemaphoreSlim WhisparrRootsGate = new(1, 1);
+    private static readonly TimeSpan WhisparrRootsCacheTtl = TimeSpan.FromMinutes(5);
+
+    private async ValueTask<IReadOnlyList<string>> GetWhisparrRootsAsync(WhisparrClient client, CancellationToken ct)
+    {
+        if (_cachedWhisparrRoots is { } fresh && DateTime.UtcNow - _whisparrRootsCachedAtUtc < WhisparrRootsCacheTtl)
+        {
+            return fresh;
+        }
+
+        await WhisparrRootsGate.WaitAsync(ct);
+        try
+        {
+            if (_cachedWhisparrRoots is { } cached && DateTime.UtcNow - _whisparrRootsCachedAtUtc < WhisparrRootsCacheTtl)
+            {
+                return cached;
+            }
+
+            // Stored creds only (CR-01): the root fetch reuses the saved host/key, never a caller-supplied host.
+            var (_, baseUrl, apiKey) = await ResolveCredsAsync(new TestConnectionRequest(null, null), ct);
+            var result = await client.ListRootFoldersAsync(baseUrl, apiKey, ct);
+            if (!result.IsOk || result.Value is not { } rows)
+            {
+                return []; // fail-closed: no roots → the guard rejects; cache untouched so the next event retries
+            }
+
+            var roots = rows
+                .Where(r => !string.IsNullOrWhiteSpace(r.Path))
+                .Select(r => r.Path!)
+                .ToArray();
+            _cachedWhisparrRoots = roots;
+            _whisparrRootsCachedAtUtc = DateTime.UtcNow;
+            return roots;
+        }
+        finally
+        {
+            WhisparrRootsGate.Release();
+        }
     }
 
     /// <summary>

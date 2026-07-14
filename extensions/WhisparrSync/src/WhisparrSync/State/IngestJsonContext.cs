@@ -13,4 +13,5 @@ namespace WhisparrSync.State;
 [JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(WebhookPayload))]
 [JsonSerializable(typeof(string[]))]
+[JsonSerializable(typeof(ImportLogEntry[]))]
 internal sealed partial class IngestJsonContext : JsonSerializerContext;

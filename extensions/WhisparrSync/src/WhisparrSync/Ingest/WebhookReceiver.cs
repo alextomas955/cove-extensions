@@ -59,24 +59,39 @@ internal sealed class WebhookReceiver(IExtensionStore store, IngestCoordinator c
     private async Task HandleDownloadAsync(WebhookPayload payload, CancellationToken ct)
     {
         var path = payload.MovieFile?.Path;
-        if (string.IsNullOrWhiteSpace(path) || !FileKindResolver.TryResolve(path, out var kind))
+        if (string.IsNullOrWhiteSpace(path))
         {
-            return;
+            return; // a Download with no imported path is malformed — nothing to ingest, nothing to audit
         }
 
-        // Check-before-ingest on the cross-channel key so a redelivery (at-least-once webhook + poll overlap)
-        // is a duplicate no-op, not a second entity (IMPT-03).
         var ledger = new EventLedger(store);
+        var log = new ImportLog(store);
         var key = EventLedger.ImportKey(payload.DownloadId, path);
+
+        // Check-before-ingest on the cross-channel key so a redelivery (at-least-once webhook + poll overlap)
+        // is a duplicate no-op, not a second entity — audited as Skipped (IMPT-03 + IMPT-04).
         if (await ledger.SeenAsync(key, ct))
         {
+            await log.AppendAsync(Entry(payload, path, kind: null, coveId: null, "Skipped", "duplicate delivery", key), ct);
             return;
         }
 
         var existingId = payload.IsUpgrade ? await ResolveExistingCoveIdAsync(payload.Movie?.Id, ct) : null;
-        await coordinator.IngestAsync(kind, path, existingId, ct);
+        var outcome = await coordinator.IngestAsync(path, existingId, ct);
+        var result = outcome.Result == IngestResult.Imported ? "Imported" : "Flagged";
+
+        await log.AppendAsync(
+            Entry(payload, path, outcome.Kind?.ToString(), outcome.CoveEntityId, result, outcome.Reason, key), ct);
+
+        // Record the processed key whether imported or flagged: the event is audited once, so a Whisparr retry
+        // or the 03-02 poll overlap is a Skipped no-op rather than a re-flag. The audit log surfaces a flagged
+        // outcome for the user; the reconcile backstop keys the same ImportKey, so it will not re-process it.
         await ledger.RecordAsync(key, ct);
     }
+
+    private static ImportLogEntry Entry(
+        WebhookPayload payload, string path, string? kind, int? coveId, string result, string? reason, string ledgerKey)
+        => new(DateTime.UtcNow.Ticks, "webhook", payload.EventType, path, kind, coveId, result, reason, ledgerKey);
 
     // An upgrade re-imports an already-matched movie: pass its Cove id so ImportDownloaded* upgrades in place
     // rather than creating a duplicate. The Phase-2 match map is the only durable WhisparrMovieId → Cove id
