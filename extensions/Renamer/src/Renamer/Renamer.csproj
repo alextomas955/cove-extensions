@@ -32,7 +32,7 @@
     present in the publish set.
   -->
   <ItemGroup>
-    <PackageReference Include="System.IO.Hashing" Version="10.0.9" />
+    <PackageReference Include="System.IO.Hashing" Version="10.0.10" />
   </ItemGroup>
 
   <!--
