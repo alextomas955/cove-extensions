@@ -11,19 +11,35 @@ pre-commit:
   parallel: true
   commands:
     # --- TypeScript: prettier + type-aware eslint on staged UI files ---
-    frontend-format:
+    # One trio per extension UI bundle (each has its own node_modules + eslint/prettier config; `root:`
+    # makes `npx` resolve that package's local binaries). Add a matching trio when a new extension ships a UI.
+    frontend-format-renamer:
       root: extensions/Renamer/src/Renamer.Ui/
       glob: "*.{ts,tsx,json,jsonc,css,md}"
       run: npx prettier --write {staged_files}
       stage_fixed: true
-    frontend-lint:
+    frontend-lint-renamer:
       root: extensions/Renamer/src/Renamer.Ui/
       glob: "*.{ts,tsx}"
       run: npx eslint --fix {staged_files}
       stage_fixed: true
     # The host-JIT-Tailwind + XSS guard (never skipped; owns a concern no linter knows).
-    check-classes:
+    check-classes-renamer:
       root: extensions/Renamer/src/Renamer.Ui/
+      glob: "*.tsx"
+      run: node scripts/check-classes.cjs
+    frontend-format-whisparr:
+      root: extensions/WhisparrSync/src/WhisparrSync.Ui/
+      glob: "*.{ts,tsx,json,jsonc,css,md}"
+      run: npx prettier --write {staged_files}
+      stage_fixed: true
+    frontend-lint-whisparr:
+      root: extensions/WhisparrSync/src/WhisparrSync.Ui/
+      glob: "*.{ts,tsx}"
+      run: npx eslint --fix {staged_files}
+      stage_fixed: true
+    check-classes-whisparr:
+      root: extensions/WhisparrSync/src/WhisparrSync.Ui/
       glob: "*.tsx"
       run: node scripts/check-classes.cjs
 
@@ -48,3 +64,9 @@ pre-commit:
     # extensions). Drop --warn to make it a hard fail once the maintainer wants drift to block.
     docs-drift-check:
       run: node scripts/check-docs-drift.mjs --warn {staged_files}
+
+    # Flags added comments in the staged diff that read as narrative (change-story, consumer-behavior,
+    # author voice) instead of a non-obvious why (the CLAUDE.md rule). Heuristic, so it WARNS only; drop
+    # --warn to make narrative comments a hard fail.
+    comment-hygiene:
+      run: node scripts/check-comment-hygiene.mjs --warn

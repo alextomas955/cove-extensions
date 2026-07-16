@@ -30,7 +30,7 @@ public sealed class CaseOnlyRenamerTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, videoId, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "movie.mkv", "My Film");
 
             // Disk: only the lower-case source exists. On a case-insensitive volume File.Exists of the

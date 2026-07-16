@@ -26,7 +26,7 @@ public sealed partial class Renamer : FullExtensionBase
     public override string? Author => "alextomas955";
     public override string? Url => "https://github.com/alextomas955/renamer";
     public override IReadOnlyList<string> Categories => [ExtensionCategories.Tools, ExtensionCategories.Automation];
-    public override string? MinCoveVersion => "0.7.1";
+    public override string? MinCoveVersion => "0.9.0";
 
     // ── Executor wiring ───────────────────────────────────────────────────────
     // The executor needs a SCOPED CoveContext per run (a DbContext is scoped, not singleton) and the

@@ -186,18 +186,21 @@ export function Select<T extends string>({
   value,
   onChange,
   options,
+  disabled = false,
 }: {
   value: T;
   onChange: (value: T) => void;
   options: readonly { value: T; label: string }[];
+  disabled?: boolean;
 }) {
   return (
     <select
       value={value}
+      disabled={disabled}
       onChange={(e) => {
         onChange(e.target.value as T);
       }}
-      className={INPUT_CLASS}
+      className={`${INPUT_CLASS} disabled:opacity-60`}
     >
       {options.map((o) => (
         <option key={o.value} value={o.value}>
@@ -225,7 +228,7 @@ export interface ExampleOption {
  * string. On a value that matches no known option, `Custom…` is auto-selected and the input shown
  * (so a previously-customised value is never lost). Below the select, a `font-mono` helper line
  * restates the currently-selected option's example. All text renders as React text nodes
- * (auto-escaped; T-10-03) — no raw-HTML rendering.
+ * (auto-escaped) — no raw-HTML rendering.
  */
 export function ExampleSelect({
   value,

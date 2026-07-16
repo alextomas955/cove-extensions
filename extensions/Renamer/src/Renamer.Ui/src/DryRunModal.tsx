@@ -18,7 +18,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, ArrowUp, Search } from "lucide-react";
 
 import { Dialog, ErrorBox } from "./dialog";
-import { Button, ProgressBar, Spinner } from "./primitives";
+import { Button, ProgressBar, Spinner } from "@cove-ext/ui-shared";
 import { WarningBadges } from "./WarningBadge";
 import type { ScanItem } from "./preview";
 import type { RenamerOptions } from "./options";

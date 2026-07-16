@@ -14,12 +14,16 @@ into a single multi-extension repo following [yourcove](https://github.com/yourc
 ## Extensions
 
 Extensions are registered in [`extensions/catalog.json`](extensions/catalog.json), the source of
-truth CI reads to compute its build matrix. Today the catalog holds one entry:
+truth CI reads to compute its build matrix. The catalog currently ships:
 
-- **Renamer** (`extensions/Renamer/`) — a file-renaming extension for a self-hosted Cove media
-  library.
+- **Renamer** ([`extensions/Renamer/`](extensions/Renamer/)) — bulk metadata-driven rename and
+  relocate for a self-hosted Cove media library.
+  [Docs](https://alextomas955.github.io/cove-extensions/extensions/renamer).
+- **WhisparrSync** ([`extensions/WhisparrSync/`](extensions/WhisparrSync/)) — connects a Cove
+  library to a [Whisparr](https://whisparr.com) acquisition pipeline.
+  [Docs](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync).
 
-This list will grow as more entries are added to `extensions/catalog.json`.
+This list grows as more entries are added to `extensions/catalog.json`.
 
 ## Building
 
@@ -32,7 +36,16 @@ dotnet build CoveExtensions.slnx
 `Directory.Build.props`/`Directory.Build.targets` at this root auto-wire every project against
 `Cove.Sdk` (transitively `Cove.Plugins` + `Cove.Core`), either from a local sibling `../cove`
 checkout (if present) or from NuGet — individual extensions do not declare their own Cove
-reference.
+reference. Package versions are centralized via NuGet Central Package Management in the root
+`Directory.Packages.props`; the `Cove.Sdk` pin stays the `$(CoveSdkVersion)` property that the
+extension-repo validator reads as the host-SDK version floor.
+
+## Adding an extension
+
+Every extension is a dynamically-loaded `Cove.Sdk` plugin: implement `IExtension` (via
+`FullExtensionBase`), ship an `extension.json` manifest, and register the extension in
+[`extensions/catalog.json`](extensions/catalog.json). See
+[`CONTRIBUTING.md`](CONTRIBUTING.md#adding-or-extending-an-extension) for the full contract.
 
 ## Docs
 

@@ -1,0 +1,41 @@
+# Build-only check for the Docusaurus docs site (website/) on pull requests.
+#
+# Companion to docs.yml (which builds AND deploys to Pages on push to main). This one runs the SAME
+# build on PRs that touch the docs so a dependency bump — e.g. a Dependabot @docusaurus/* PR — is
+# proven to still build BEFORE merge, instead of only failing after it reaches main. Deliberately
+# build-only: it grants NO Pages/OIDC permissions and never deploys, so a PR (including one from a
+# fork) can never publish. Mirrors docs.yml's toolchain pins (actions/checkout@v7, actions/setup-node@v6,
+# node 24.11.0, npm cache keyed on website/package-lock.json).
+
+name: Build docs site (PR check)
+
+on:
+  pull_request:
+    paths:
+      - 'website/**'
+      - '.github/workflows/docs.yml'
+      - '.github/workflows/docs-build.yml'
+
+# Least-privilege: read the repo to build. No pages:write / id-token:write — this job cannot deploy.
+permissions:
+  contents: read
+
+# One build per PR ref; supersede an in-flight build when the branch is pushed again.
+concurrency:
+  group: docs-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.11.0'
+          cache: 'npm'
+          cache-dependency-path: website/package-lock.json
+
+      - name: Build the docs site
+        run: npm --prefix website ci && npm --prefix website run build

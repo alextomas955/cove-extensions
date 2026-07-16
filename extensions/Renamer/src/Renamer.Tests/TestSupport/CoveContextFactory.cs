@@ -5,16 +5,15 @@ using Microsoft.EntityFrameworkCore;
 namespace Renamer.Tests.TestSupport;
 
 /// <summary>
-/// Stands up a real <see cref="CoveContext"/> for the integration tier in two shapes. Mirrors
-/// Cove's own proven patterns: <c>AiCoreControllerTests</c> (SQLite-in-memory) and
-/// <c>CoveContextDerivedMetricsTests</c> (EF-InMemory).
+/// Stands up a real <see cref="CoveContext"/> for the integration tier over SQLite-in-memory, mirroring
+/// Cove's own proven <c>AiCoreControllerTests</c> pattern.
 ///
-/// WHY two providers: the EF-InMemory provider does NOT enforce the
-/// <c>(ParentFolderId, Basename)</c> unique index and treats transactions as a silent no-op,
-/// so any test asserting <em>collision-on-save throws</em> or <em>rollback</em> would
-/// false-green on it. Those tests MUST use <see cref="CreateSqliteContextAsync"/> (relational,
-/// <c>EnsureCreatedAsync</c> materializes the unique index + real transactions). Use
-/// <see cref="CreateInMemoryContext"/> only for projection / <c>ComputeFilePaths</c> tests.
+/// WHY relational SQLite (not EF-InMemory): the EF-InMemory provider does NOT enforce the
+/// <c>(ParentFolderId, Basename)</c> unique index and treats transactions as a silent no-op, so any test
+/// asserting <em>collision-on-save throws</em> or <em>rollback</em> would false-green on it.
+/// <see cref="CreateSqliteContextAsync"/> is relational (<c>EnsureCreatedAsync</c> materializes the unique
+/// index + real transactions), so it is correct for both those tests and the projection /
+/// <c>ComputeFilePaths</c> assertions.
 /// </summary>
 internal static class CoveContextFactory
 {
@@ -40,20 +39,5 @@ internal static class CoveContextFactory
         var db = new CoveContext(options, principalAccessor: null);
         await db.Database.EnsureCreatedAsync();
         return (db, connection);
-    }
-
-    /// <summary>
-    /// Builds a fast EF-InMemory <see cref="CoveContext"/> with a unique database name per call.
-    /// <c>CoveContext.ComputeFilePaths</c> still runs on save under this provider (proven by
-    /// Cove's own metric tests), so it is correct for Path-recompute/projection assertions —
-    /// but NOT for constraint or transaction behavior (see class remarks). The caller disposes it.
-    /// </summary>
-    public static CoveContext CreateInMemoryContext()
-    {
-        var options = new DbContextOptionsBuilder<CoveContext>()
-            .UseInMemoryDatabase($"renamer-{Guid.NewGuid():N}")
-            .Options;
-
-        return new CoveContext(options, principalAccessor: null);
     }
 }

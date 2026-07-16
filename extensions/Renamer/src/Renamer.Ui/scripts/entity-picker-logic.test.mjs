@@ -13,7 +13,6 @@ const {
   isResolvedStudioId,
   canonicalTagName,
   excludeEntities,
-  availableOptions,
 } = mod;
 
 const studios = [
@@ -103,20 +102,6 @@ test("excludeEntities with nothing excluded returns the full list unmutated", ()
   assert.deepEqual(studios, snapshot);
   out.length = 0; // a copy, not the input
   assert.deepEqual(studios, snapshot);
-});
-
-test("availableOptions offers only not-yet-picked options, in the canonical order", () => {
-  const opts = [
-    { value: "Male", label: "Male" },
-    { value: "Female", label: "Female" },
-    { value: "Intersex", label: "Intersex" },
-  ];
-  assert.deepEqual(
-    availableOptions(opts, ["Female"]).map((o) => o.value),
-    ["Male", "Intersex"],
-  );
-  assert.deepEqual(availableOptions(opts, []), opts);
-  assert.deepEqual(availableOptions(opts, ["Male", "Female", "Intersex"]), []);
 });
 
 test("an empty fetched list resolves any stored value as missing without throwing", () => {

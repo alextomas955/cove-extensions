@@ -1,0 +1,63 @@
+[
+  {
+    "id": "scene-alpha",
+    "title": "Scene Alpha",
+    "whisparrState": "downloaded",
+    "stashId": "stash-synthetic-0001",
+    "path": "/synthetic/scene-alpha/scene-alpha.mp4",
+    "studio": "studio-aurora",
+    "performers": [
+      "performer-ava-bennett"
+    ],
+    "thumbnail": "thumbnails/scene-alpha.png"
+  },
+  {
+    "id": "scene-beta",
+    "title": "Scene Beta",
+    "whisparrState": "monitored",
+    "stashId": "stash-synthetic-0002",
+    "path": "/synthetic/scene-beta/scene-beta.mp4",
+    "studio": "studio-aurora",
+    "performers": [
+      "performer-ivy-calloway"
+    ],
+    "thumbnail": "thumbnails/scene-beta.png"
+  },
+  {
+    "id": "scene-gamma",
+    "title": "Scene Gamma",
+    "whisparrState": "unmonitored",
+    "stashId": "stash-synthetic-0003",
+    "path": "/synthetic/scene-gamma/scene-gamma.mp4",
+    "studio": "studio-borealis",
+    "performers": [
+      "performer-mia-nakamura"
+    ],
+    "thumbnail": "thumbnails/scene-gamma.png"
+  },
+  {
+    "id": "scene-delta",
+    "title": "Scene Delta",
+    "whisparrState": "not-added",
+    "stashId": "stash-synthetic-0004",
+    "path": "/synthetic/scene-delta/scene-delta.mp4",
+    "studio": "studio-borealis",
+    "performers": [
+      "performer-ava-bennett",
+      "performer-ivy-calloway"
+    ],
+    "thumbnail": "thumbnails/scene-delta.png"
+  },
+  {
+    "id": "scene-epsilon",
+    "title": "Scene Epsilon",
+    "whisparrState": "excluded",
+    "stashId": "stash-synthetic-0005",
+    "path": "/synthetic/scene-epsilon/scene-epsilon.mp4",
+    "studio": "studio-aurora",
+    "performers": [
+      "performer-mia-nakamura"
+    ],
+    "thumbnail": "thumbnails/scene-epsilon.png"
+  }
+]

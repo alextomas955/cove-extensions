@@ -1,0 +1,27 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Cove.Sdk/Cove.Plugins version is the $(CoveSdkVersion) property in Directory.Build.props — the
+      single source of truth scripts/validate-extension-repo.mjs reads as the host-SDK version floor.
+      Cove.Sdk is hand-bumped in lockstep with the local ../cove host (Dependabot cannot bump a
+      property indirection), so this stays a property reference rather than a Dependabot-managed literal.
+    -->
+    <PackageVersion Include="Cove.Sdk" Version="$(CoveSdkVersion)" />
+    <PackageVersion Include="Cove.Plugins" Version="$(CoveSdkVersion)" />
+
+    <PackageVersion Include="System.IO.Hashing" Version="10.0.9" />
+
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="Xunit.SkippableFact" Version="1.5.61" />
+    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.9" />
+  </ItemGroup>
+</Project>

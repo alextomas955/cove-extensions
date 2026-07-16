@@ -13,7 +13,7 @@
     "check-entity-picker-logic": "node scripts/check-entity-picker-logic.mjs",
     "check-dry-run-logic": "node scripts/check-dry-run-logic.mjs",
     "check-template-validation": "node scripts/check-template-validation.mjs",
-    "test": "node scripts/check-options-roundtrip.mjs && node scripts/check-primitives-logic.mjs && node scripts/check-entity-picker-logic.mjs && node scripts/check-studio-map.mjs && node scripts/check-dry-run-logic.mjs && node scripts/check-template-validation.mjs",
+    "test": "node scripts/check-options-roundtrip.mjs && node scripts/check-primitives-logic.mjs && node scripts/check-entity-picker-logic.mjs && node ../../../../shared/cove-extensions-ui/scripts/check-entity-picker-logic.mjs && node scripts/check-studio-map.mjs && node scripts/check-dry-run-logic.mjs && node scripts/check-template-validation.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
