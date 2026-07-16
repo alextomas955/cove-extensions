@@ -426,7 +426,7 @@ jobs:
           node-version: "24.11.0"
 
       - name: Build extension UI bundle
-        if: steps.check.outputs.has_suite == 'true' && matrix.extension.uiPath != ''
+        if: (steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true') && matrix.extension.uiPath != ''
         working-directory: ${{ matrix.extension.uiPath }}
         run: |
           npm ci
@@ -446,7 +446,7 @@ jobs:
       # registry when it is not, so an install failure upstream of this line turns into a download
       # nobody declared instead of an error. A workspace script can only run what the lockfile placed.
       - name: Install harness dependencies
-        if: steps.check.outputs.has_suite == 'true'
+        if: steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true'
         run: |
           npm ci
           npm run install:browsers --workspace @cove-extensions/e2e
@@ -484,6 +484,18 @@ jobs:
           E2E_PROJECT: ${{ matrix.extension.e2eProject }}
           COVE_E2E_TAG: ${{ matrix.cove.tag }}
           COVE_ROLE: ${{ matrix.cove.role }}
+
+      # The container-correctness tier: the extension's non-browser API/webhook/sync specs run against
+      # a real Whisparr container whose metadata source is a committed offline replay stub. It reads no
+      # repository secret — identities resolve through the stub and the Whisparr images are public — so
+      # it runs on fork pull requests, where secrets are never provided. The glob is required: `node
+      # --test <dir>` treats a bare directory as a module entry point on current Node and fails, so the
+      # run must enumerate the spec files. Files run serially (--test-concurrency=1): each spec boots its
+      # own Cove + Whisparr + stub stack, and running them in parallel starves the runner's Docker host.
+      - name: Run node:test correctness tier (offline, no secret)
+        id: node_tests
+        if: steps.check.outputs.has_node_tests == 'true'
+        run: node --test --test-concurrency=1 ${{ matrix.extension.e2eNodeTestsPath }}/*.test.mjs
 
       # The `list` reporter's stdout only ever shows pass/fail + duration, never the actual
       # assertion/stack-trace detail, which otherwise only reaches the Upload Playwright report
