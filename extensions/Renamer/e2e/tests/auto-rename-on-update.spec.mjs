@@ -9,13 +9,12 @@
 import { test as base, expect } from '@cove-extensions/e2e';
 import { startHarness } from '@cove-extensions/e2e/harness';
 import { seedVideo } from '@cove-extensions/e2e/seed-media';
-import { pollUntil } from '@cove-extensions/e2e/poll';
 import { RENAMER_EXTENSION } from '../lib/renamer-fixtures.mjs';
 import { RenamerSettingsPage } from '../lib/pages/renamer-settings-page.mjs';
 import { VideoDetailPage } from '../lib/pages/video-detail-page.mjs';
+import { assertRenamedTo } from '../lib/rename-assertions.mjs';
 
 const test = base.extend({
-  // eslint-disable-next-line no-empty-pattern
   isolatedHarness: [
     async ({}, use) => {
       const isolatedHarness = await startHarness();
@@ -54,30 +53,36 @@ test('enabling Auto-rename on update and editing a title through the UI renames 
   const settingsPage = new RenamerSettingsPage(page, baseUrl);
   await settingsPage.goto();
   await settingsPage.enableAutoRenameOnUpdate();
+  // A "$title"-only template over a safe title makes the auto-produced name deterministic, so the
+  // EXACT resulting basename can be asserted rather than merely "the path changed".
+  await settingsPage.setFilenameTemplate('$title');
   await settingsPage.save();
 
   const video = await seedVideo({ container: isolatedHarness.container, baseUrl });
   const originalPath = video.files[0].path;
 
+  const title = 'Auto Rename Test Title';
   const detailPage = new VideoDetailPage(page, baseUrl);
   await detailPage.goto(video.id);
   await detailPage.openEditTab();
-  await detailPage.setTitle('Auto Rename Test Title');
+  await detailPage.setTitle(title);
 
   // No "Rename selected" click anywhere in this test — the hook alone must produce the rename.
-  const afterEdit = await pollUntil(
-    () => api.get(`/api/videos/${video.id}`).then((r) => r.json),
-    (v) => v.files[0].path !== originalPath,
-    { label: 'video to be auto-renamed after a title edit', timeoutMs: 20_000 }
-  );
-  expect(afterEdit.files[0].path).not.toBe(originalPath);
-  expect(afterEdit.title).toBe('Auto Rename Test Title');
+  await assertRenamedTo({
+    api,
+    container: isolatedHarness.container,
+    videoId: video.id,
+    expectedBasename: `${title}.mp4`,
+    originalPath,
+  });
+  const afterEdit = await api.get(`/api/videos/${video.id}`).then((r) => r.json);
+  expect(afterEdit.title).toBe(title);
 
   // And the grid reflects it too, same as a real user would see without refreshing anything special.
   await page.goto(`${baseUrl}/videos`);
   await page.waitForLoadState('networkidle');
   const filenames = await page.locator('main p').allTextContents();
-  expect(filenames).toContain('Auto Rename Test Title');
+  expect(filenames).toContain(title);
 });
 
 test('with Auto-rename on update left OFF (the default), editing a title does not rename the file', async ({

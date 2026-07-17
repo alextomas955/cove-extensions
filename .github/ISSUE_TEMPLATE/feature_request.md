@@ -8,7 +8,7 @@ assignees: ''
 
 ## Which extension
 
-e.g. Renamer
+Which extension in this monorepo the request is for — e.g. Renamer or WhisparrSync.
 
 ## What problem does this solve
 

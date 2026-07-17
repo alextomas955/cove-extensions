@@ -11,7 +11,7 @@
 // "components-only file" rule's premise does not apply. The `TOKENS` table is intentionally
 // co-located with the component that renders it; splitting it out would be pure churn.
 /* eslint-disable react-refresh/only-export-components */
-import { Chip } from "./primitives";
+import { Chip } from "@cove-ext/ui-shared";
 
 /**
  * A legend entry. `kind` drives insertion style; `insert` is the EXACT string spliced at the

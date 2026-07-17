@@ -60,7 +60,7 @@ function run() {
   return test.status ?? 1;
 }
 
-let code = 1;
+let code;
 try {
   code = run();
 } finally {

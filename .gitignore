@@ -21,3 +21,11 @@ CLAUDE.local.md
 # Docusaurus build output — website/ is a standalone package (see website/package.json);
 # node_modules/ is already covered by the existing root rule above.
 website/build/
+
+# Local manual-test scratch that must never be committed: screenshots dropped at the repo root,
+# stray browser-snapshot dumps, and the runtime-populated E2E media dir (the E2E uses SkyHook JSON
+# fixtures, not committed media). Docs images live under website/static/img and are unaffected.
+/*.png
+/*.jpg
+/*.jpeg
+tests/e2e/docker/shared-media/

@@ -1,13 +1,11 @@
-// Phase 62 — Core Path Coverage. Automated replacement for the manual "live-verified on the
-// running dev host" checks recorded throughout Renamer's milestone history (see PROJECT.md).
-//
-// Rename/undo/preview are driven through the REAL UI (Videos grid + Renamer settings panel), not
-// the REST API: "Rename selected" raises a native confirm() with the real computed preview text,
-// then a native alert() confirming the job was queued; "Undo last rename" opens an in-app (React)
-// confirm modal, not a native dialog. See lib/pages/ for the Page Object Model.
-import { test, expect, seedVideo, pollUntil } from '../lib/renamer-fixtures.mjs';
+// Core rename/undo/preview coverage driven through the REAL UI (Videos grid + Renamer settings
+// panel), not the REST API: "Rename selected" raises a native confirm() with the real computed
+// preview text, then a native alert() confirming the job was queued; "Undo last rename" opens an
+// in-app (React) confirm modal, not a native dialog. See lib/pages/ for the Page Object Model.
+import { test, expect, seedVideo } from '../lib/renamer-fixtures.mjs';
 import { VideosPage } from '../lib/pages/videos-page.mjs';
 import { RenamerSettingsPage } from '../lib/pages/renamer-settings-page.mjs';
+import { assertRenamedTo, assertRestoredTo } from '../lib/rename-assertions.mjs';
 
 const EXTENSION_ID = 'com.alextomas955.renamer';
 
@@ -87,39 +85,53 @@ test('selecting a video and clicking Rename selected renames it on disk and in t
   const originalFilename = video.files[0].path.split('/').pop();
   const originalPath = video.files[0].path;
 
+  // A "$title"-only template over a safe title (letters + spaces only, which the sanitizer passes
+  // through unchanged) makes the resulting name deterministic and independent of date/resolution
+  // metadata, so the EXACT resulting basename can be asserted, not merely "the path changed".
+  const title = 'Core Path Rename Test';
+  const expectedBasename = `${title}.mp4`;
+
+  const settingsPage = new RenamerSettingsPage(page, baseUrl);
+  await settingsPage.goto();
+  await settingsPage.setFilenameTemplate('$title');
+  await settingsPage.save();
+
   const videosPage = new VideosPage(page, baseUrl);
   await videosPage.goto();
+  // Select the card by its filename BEFORE setting a Title: the grid card's accessible name follows
+  // the item's title once one is set, so selecting first keeps the filename-based lookup valid.
   await videosPage.selectCard(originalFilename);
+
+  const setTitle = await api.put(`/api/videos/${video.id}`, { Title: title });
+  expect(setTitle.ok).toBe(true);
 
   const dialogMessages = await videosPage.renameSelected();
   // The confirm() dialog shows the real computed preview — assert on it, not just that a dialog
   // fired, so this test would catch a regression in what the preview text itself says.
   expect(dialogMessages[0]).toContain(originalFilename);
-  expect(dialogMessages[1]).toMatch(/queued for 1 video/i);
 
-  // Verify the mutation's OUTCOME via the DB record for this specific video, not by re-scraping
-  // the grid — the worker-shared instance can have other tests' videos on the same page, making
-  // "the first .mp4 in the grid" an unreliable signal once more than one card exists.
-  const afterRename = await pollUntil(
-    () => api.get(`/api/videos/${video.id}`).then((r) => r.json),
-    (v) => v.files[0].path !== originalPath,
-    { label: 'video record to reflect the UI-triggered rename' }
-  );
-  expect(afterRename.files[0].path).not.toBe(originalPath);
+  await assertRenamedTo({
+    api,
+    container: harness.container,
+    videoId: video.id,
+    expectedBasename,
+    originalPath,
+  });
 
-  const settingsPage = new RenamerSettingsPage(page, baseUrl);
   await settingsPage.goto();
   await settingsPage.undoLastRename();
 
-  const afterUndo = await pollUntil(
-    () => api.get(`/api/videos/${video.id}`).then((r) => r.json),
-    (v) => v.files[0].path === originalPath,
-    { label: 'video record to be restored by the UI-triggered undo' }
-  );
-  expect(afterUndo.files[0].path).toBe(originalPath);
+  await assertRestoredTo({ api, container: harness.container, videoId: video.id, originalPath });
 
-  // Confirm the restored state is visible in the grid too — the point of this test is that a real
-  // user driving the UI sees the file's name return to normal, not just that the DB agrees.
+  // Confirm the item still renders in the grid after the undo round-trip — a real user driving the
+  // UI sees the card come back (labeled by its title, which the grid shows once one is set). The
+  // restored filename itself is proven on disk and in the DB by assertRestoredTo above.
   await videosPage.goto();
-  expect(await videosPage.visibleFilenames()).toContain(originalFilename);
+  await expect(page.getByRole('link', { name: `Open video ${title}` })).toBeVisible();
+
+  // Restore the default template so a bare "$title" (a no-op for an untitled item) does not leak
+  // into a sibling test sharing this worker's Cove instance.
+  await settingsPage.goto();
+  await settingsPage.setFilenameTemplate('{$date - }$title{ [$resolution]}');
+  await settingsPage.save();
 });

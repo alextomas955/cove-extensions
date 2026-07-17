@@ -36,7 +36,7 @@ public sealed class AssociatedExtensionSidecarTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, videoId, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "Film A");
 
             File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
@@ -73,7 +73,7 @@ public sealed class AssociatedExtensionSidecarTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, videoId, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "Film A");
 
             File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
@@ -104,7 +104,7 @@ public sealed class AssociatedExtensionSidecarTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, videoId, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "Film A");
 
             File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
@@ -134,7 +134,7 @@ public sealed class AssociatedExtensionSidecarTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, videoId, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "Film A");
 
             File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
@@ -168,7 +168,7 @@ public sealed class AssociatedExtensionSidecarTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, videoId, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "Film A");
 
             db.Set<VideoCaption>().Add(new VideoCaption { FileId = fileId, Filename = "clip.en.vtt", LanguageCode = "en", CaptionType = "vtt" });
@@ -206,7 +206,7 @@ public sealed class AssociatedExtensionSidecarTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, videoId, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "Film A");
 
             File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
@@ -280,7 +280,7 @@ public sealed class AssociatedExtensionSidecarTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, videoId, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "Film A");
 
             // A stem-only caption whose source path equals what the extension probe would build.
@@ -317,7 +317,7 @@ public sealed class AssociatedExtensionSidecarTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, videoId, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "clip");
 
             string primary = Path.Combine(dir.Root, "clip.mkv");
@@ -359,7 +359,7 @@ public sealed class AssociatedExtensionSidecarTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, videoId, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "Film A");
 
             File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");

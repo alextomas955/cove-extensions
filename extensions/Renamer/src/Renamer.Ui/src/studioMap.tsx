@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import { request } from "@cove/extension-sdk";
 
-import { KeyValueMapEditor, TextInput, PathShapeHint } from "./primitives";
+import { KeyValueMapEditor, TextInput, PathShapeHint } from "@cove-ext/ui-shared";
 import { StudioPicker } from "./entityPicker";
 import { resolveStudioLabel, type EntityRef } from "./entityPickerLogic";
 import { toStringKeyed, fromStringKeyed } from "./studioMapLogic";

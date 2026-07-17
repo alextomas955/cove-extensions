@@ -1,0 +1,18 @@
+{
+  "name": "@cove-ext/ui-shared",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Shared TS/React UI code (field primitives + their pure logic) consumed by the Cove extensions' Vite bundles. Not published; each bundle resolves it through a Vite resolve.alias + tsconfig paths alias into this src/ — never a network install.",
+  "license": "AGPL-3.0",
+  "exports": {
+    ".": "./src/index.ts",
+    "./primitivesLogic": "./src/primitivesLogic.ts",
+    "./primitives": "./src/primitives.tsx",
+    "./entityPickerLogic": "./src/entityPickerLogic.ts"
+  },
+  "scripts": {
+    "check-entity-picker-logic": "node scripts/check-entity-picker-logic.mjs",
+    "test": "node scripts/check-entity-picker-logic.mjs"
+  }
+}

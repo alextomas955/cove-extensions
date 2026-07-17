@@ -14,6 +14,19 @@ import path from "node:path";
 // (omitted from `external`). Externalizing it would 404 at runtime.
 export default defineConfig({
   plugins: [react()],
+  // The shared UI module (`shared/cove-extensions-ui/`) is resolved from its raw TS source through
+  // this alias — not a node_modules install — so Vite transforms it through the same pipeline as
+  // this package's own `src/`, and its `react`/`lucide-react` imports stay externalized by the
+  // rollup `external` list below (nothing host-provided is bundled). Kept identical to the sibling
+  // extension's config and mirrored by the tsconfig `paths` entry.
+  resolve: {
+    alias: {
+      "@cove-ext/ui-shared": path.resolve(
+        __dirname,
+        "../../../../shared/cove-extensions-ui/src/index.ts",
+      ),
+    },
+  },
   // Bundled deps that branch on `process.env.NODE_ENV` (e.g. @tanstack/react-virtual's dev-only
   // warnings) would otherwise ship a live `process` reference — undefined in the browser, so the
   // panel throws `ReferenceError: process is not defined` on mount. Vite's library mode does NOT

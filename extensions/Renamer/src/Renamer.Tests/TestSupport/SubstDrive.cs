@@ -37,19 +37,6 @@ public sealed class SubstDrive : IDisposable
         Root = _letter + ":\\";
     }
 
-    /// <summary>
-    /// Creates a file at <paramref name="relativePath"/> under the mapped <see cref="Root"/>
-    /// (creating intermediate dirs) and writes <paramref name="content"/>. Returns the absolute path
-    /// on the mapped drive (so its <see cref="Path.GetPathRoot(string)"/> is the subst letter).
-    /// </summary>
-    public string Touch(string relativePath, string content = "x")
-    {
-        var full = Path.Combine(Root, relativePath);
-        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
-        File.WriteAllText(full, content);
-        return full;
-    }
-
     public void Dispose()
     {
         if (_mapped)

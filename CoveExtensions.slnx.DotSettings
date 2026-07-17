@@ -1,0 +1,18 @@
+<wpf:ResourceDictionary xml:space="preserve" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:ss="urn:shemas-jetbrains-com:settings-storage-xaml" xmlns:wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+	<!--
+	  Shared ReSharper / InspectCode profile. Purpose: make `jb inspectcode` a signal-clean dead-code finder
+	  by disabling ONLY the inspections that are structurally false-positive in this repo, while keeping the
+	  high-signal ones (UnusedMember.Global, UnusedType.Global, UnusedVariable, UnusedParameter.*) on.
+
+	  Disabled and why (all are "used" in ways ReSharper's static pass cannot see):
+	    - NotAccessedPositionalProperty.Global : request/response + options records are read via JSON
+	      (System.Text.Json) and IExtensionStore persistence — the reflecting serializer accesses them.
+	    - ClassNeverInstantiated.Global        : minimal-API request records are instantiated by the ASP.NET
+	      model binder, never `new`'d in our code.
+	    - UnusedMemberInSuper.Global           : port/adapter interface methods (IRenamerDataPort,
+	      IWhisparrAdapter) are called via the concrete type; the interface exists for DI + the test fakes.
+	-->
+	<s:String x:Key="/Default/CodeInspection/Highlighting/InspectionSeverities/=NotAccessedPositionalProperty_002EGlobal/@EntryIndexedValue">DO_NOT_SHOW</s:String>
+	<s:String x:Key="/Default/CodeInspection/Highlighting/InspectionSeverities/=ClassNeverInstantiated_002EGlobal/@EntryIndexedValue">DO_NOT_SHOW</s:String>
+	<s:String x:Key="/Default/CodeInspection/Highlighting/InspectionSeverities/=UnusedMemberInSuper_002EGlobal/@EntryIndexedValue">DO_NOT_SHOW</s:String>
+</wpf:ResourceDictionary>

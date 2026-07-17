@@ -146,7 +146,7 @@ public sealed class EmptySourceFolderCleanerTests
             string srcFolder = Path.Combine(dir.Root, "src").Replace('\\', '/');
             string dstFolder = Path.Combine(dir.Root, "dst").Replace('\\', '/');
             Directory.CreateDirectory(dstFolder.Replace('/', Path.DirectorySeparatorChar));
-            var (folderId, videoId, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
 
             string oldFull = Path.Combine(dir.Root, "src", "clip.mkv");
@@ -192,7 +192,7 @@ public sealed class EmptySourceFolderCleanerTests
             string dstRoot = Path.Combine(dir.Root, "dst").Replace('\\', '/');
             Directory.CreateDirectory(dstRoot.Replace('/', Path.DirectorySeparatorChar));
             string srcFolder = Path.Combine(dir.Root, "src").Replace('\\', '/');
-            var (folderId, videoId, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
 
             string oldFull = Path.Combine(dir.Root, "src", "clip.mkv");
@@ -239,7 +239,7 @@ public sealed class EmptySourceFolderCleanerTests
             string srcFolder = Path.Combine(dir.Root, "src").Replace('\\', '/');
             string dstFolder = Path.Combine(dir.Root, "dst").Replace('\\', '/');
             Directory.CreateDirectory(dstFolder.Replace('/', Path.DirectorySeparatorChar));
-            var (folderId, videoId, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
 
             string oldFull = Path.Combine(dir.Root, "src", "clip.mkv");
@@ -285,7 +285,7 @@ public sealed class EmptySourceFolderCleanerTests
             // too, so the distinguishing observation is that the folder (still holding the renamed file)
             // is intact and the move stayed in-place.
             string folder = dir.Root.Replace('\\', '/');
-            var (folderId, videoId, fileId) =
+            var (_, videoId, _) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folder, "raw clip.mkv", "My Film");
 
             string oldFull = Path.Combine(dir.Root, "raw clip.mkv");
@@ -329,7 +329,7 @@ public sealed class EmptySourceFolderCleanerTests
             string srcFolder = Path.Combine(dir.Root, "src").Replace('\\', '/');
             string dstFolder = Path.Combine(dir.Root, "dst").Replace('\\', '/');
             Directory.CreateDirectory(dstFolder.Replace('/', Path.DirectorySeparatorChar));
-            var (folderId, videoId, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
 
             string oldFull = Path.Combine(dir.Root, "src", "clip.mkv");

@@ -16,6 +16,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const SRC_DIR = path.resolve(__dirname, "..", "src");
+// The shared UI module holds the field primitives this bundle consumes; class-discipline + XSS must
+// hold over them here too (this bundle renders them), so its src/ is scanned alongside this one's.
+const SHARED_SRC_DIR = path.resolve(__dirname, "..", "..", "..", "..", "..", "shared", "cove-extensions-ui", "src");
 
 // Scan ALL .tsx sources (not a hardcoded list — so new components like RenamePage.tsx are covered too).
 function tsxFiles(dir) {
@@ -29,7 +32,7 @@ function tsxFiles(dir) {
           : [],
     );
 }
-const PANEL_FILES = tsxFiles(SRC_DIR);
+const PANEL_FILES = [...tsxFiles(SRC_DIR), ...tsxFiles(SHARED_SRC_DIR)];
 
 // Host-absent Tailwind classes (verified 0× in cove-ui).
 const FORBIDDEN = [

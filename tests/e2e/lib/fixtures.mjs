@@ -12,9 +12,8 @@ import { startHarness } from './harness.mjs';
 export const test = base.extend({
   extension: [undefined, { option: true }],
 
-  // eslint-disable-next-line no-empty-pattern
   harness: [
-    async ({}, use, workerInfo) => {
+    async ({}, use) => {
       const harness = await startHarness();
       // Cove's frontend hard-gates the ENTIRE app behind a first-run setup wizard until an owner
       // account exists — there is no way to dismiss it otherwise (confirmed directly). Every
@@ -34,7 +33,7 @@ export const test = base.extend({
     await use(harness.baseUrl);
   },
 
-  page: async ({ page, baseUrl, harness }, use) => {
+  page: async ({ page, baseUrl }, use) => {
     // Two independent gates hide the real app behind a first-run wizard (App.tsx `showSetupWizard`):
     // `ownerMissing` (fixed by bootstrapOwner() in the `harness` fixture — confirmed via GET
     // /api/auth/bootstrap-status returning ownerExists:true after it runs) and `needsSetup`

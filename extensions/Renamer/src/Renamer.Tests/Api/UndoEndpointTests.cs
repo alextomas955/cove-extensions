@@ -191,7 +191,7 @@ public sealed class UndoEndpointTests
         {
             string srcPath = srcDir.Root.Replace('\\', '/');
             string destPath = destDir.Root.Replace('\\', '/');
-            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, srcPath, "raw clip.mkv", "My Film");
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, srcPath, "raw clip.mkv", "My Film");
 
             string oldFull = Path.Combine(srcDir.Root, "raw clip.mkv");
             string newFull = Path.Combine(destDir.Root, "My Film.mkv");

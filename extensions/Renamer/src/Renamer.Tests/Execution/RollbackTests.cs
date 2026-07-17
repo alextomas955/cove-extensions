@@ -1,5 +1,4 @@
 using Cove.Core.Entities;
-using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
@@ -35,7 +34,7 @@ public sealed class RollbackTests
             var (folderId, videoId, fileA) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A");
             // A second row occupies "taken.mkv" so the save of a→taken hits the unique index.
-            var fileTaken = await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "taken.mkv");
+            await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "taken.mkv");
 
             // Disk: "a.mkv" exists; "taken.mkv" does NOT (so the disk move succeeds first).
             string oldA = Path.Combine(dir.Root, "a.mkv");
@@ -95,7 +94,6 @@ public sealed class RollbackTests
             await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "taken.mkv");
 
             // Seed a caption sidecar on file A.
-            var vfA = await db.Set<VideoFile>().FirstAsync(f => f.Id == fileA);
             db.Set<VideoCaption>().Add(new VideoCaption { FileId = fileA, Filename = "a.en.vtt", LanguageCode = "en", CaptionType = "vtt" });
             await db.SaveChangesAsync();
 
@@ -146,7 +144,7 @@ public sealed class RollbackTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, videoId, fileA) =
+            var (_, videoId, fileA) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A");
 
             // Disk: "a.mkv" exists; the target "b.mkv" is free so the disk move succeeds first.

@@ -9,7 +9,7 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Api;
 
 /// <summary>
-/// CR-01 regression: <c>/preview</c> must route through the SAME <c>RouteLookups</c> the manual batch
+/// Regression: <c>/preview</c> must route through the SAME <c>RouteLookups</c> the manual batch
 /// builds, so the dry-run reflects the routed destination the batch will execute. Before the fix
 /// <c>PreviewAsync</c> called the empty-lookups overload and reported every item as an in-place
 /// source-confine renamer even when a destination rule was configured — preview lied about where files

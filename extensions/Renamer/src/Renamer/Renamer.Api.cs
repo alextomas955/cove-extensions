@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Cove.Core.Auth;
 using Cove.Core.Entities;
 using Cove.Core.Interfaces;
+using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Cove.Sdk;
 using Microsoft.AspNetCore.Builder;
@@ -16,6 +17,7 @@ using Renamer.Execution;
 using Renamer.Jobs;
 using Renamer.Options;
 using Renamer.Planner;
+using static Cove.Extensions.Shared.MinimalApiPermissions;
 
 namespace Renamer;
 
@@ -80,7 +82,10 @@ public sealed partial class Renamer
                 apiEndpoint: null,
                 handlerName: "renamerSelected",
                 order: 100,
-                requiredPermission: Permissions.VideosWrite)
+                requiredPermission: Permissions.VideosWrite,
+                // The rename runs as a job (showInTaskList) that reports into the top-right Job Drawer, so the
+                // host's queued-success window.alert is suppressed. The before-disk window.confirm gate stays.
+                suppressSuccessAlert: true)
             .AddAction(
                 id: "renamer-selected-image",
                 label: "Rename selected",
@@ -90,7 +95,8 @@ public sealed partial class Renamer
                 apiEndpoint: null,
                 handlerName: "renamerSelected",
                 order: 100,
-                requiredPermission: Permissions.ImagesWrite)
+                requiredPermission: Permissions.ImagesWrite,
+                suppressSuccessAlert: true)
             // The renamer UI's home is a DEDICATED SETTINGS TAB under the Settings → Extensions group
             // (owner's choice: in Settings, not the top nav bar, and not the crowded "Installed" list).
             // AddSettingsTab registers the tab; AddSettingsSection(targetTab:"renamer") fills it with the
@@ -202,9 +208,9 @@ public sealed partial class Renamer
         }
 
         var (readPermission, _) = PermissionsFor(kind);
-        if (principal.Current is null || !principal.Current.Has(readPermission))
+        if (Forbidden(principal, readPermission) is { } denied)
         {
-            return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
+            return denied;
         }
 
         // Reject an oversized id array before any per-id DB work (see MaxEntityIdsPerRequest).
@@ -264,10 +270,7 @@ public sealed partial class Renamer
     /// wire convention (and the UI's <c>PreviewItem</c> field names) plus a
     /// <see cref="JsonStringEnumConverter"/> so <c>status</c> serializes as the string the UI matches.
     /// </summary>
-    private static readonly JsonSerializerOptions PreviewResponseJsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        Converters = { new JsonStringEnumConverter() },
-    };
+    private static readonly JsonSerializerOptions PreviewResponseJsonOptions = CoveJsonOptions.WebWithEnumStrings();
 
     /// <summary>
     /// Enqueues the batch-renamer job: encodes the request into the job params and hands the host
@@ -285,9 +288,9 @@ public sealed partial class Renamer
         }
 
         var (_, writePermission) = PermissionsFor(kind);
-        if (principal.Current is null || !principal.Current.Has(writePermission))
+        if (Forbidden(principal, writePermission) is { } denied)
         {
-            return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
+            return denied;
         }
 
         // Reject an oversized id array before encoding/enqueuing the job (see MaxEntityIdsPerRequest).
@@ -361,9 +364,9 @@ public sealed partial class Renamer
         // checked after the batch read (needed to learn the kind) but BEFORE the options load, scope
         // open, or any disk touch, so an under-permissioned caller still mutates nothing.
         var (_, undoWritePermission) = PermissionsFor(batch.Kind);
-        if (principal.Current?.Has(undoWritePermission) != true)
+        if (Forbidden(principal, undoWritePermission) is { } denied)
         {
-            return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
+            return denied;
         }
 
         // Load the configured options AFTER the 403-first check and the empty-batch early-return (so an
@@ -613,7 +616,7 @@ public sealed partial class Renamer
 
     /// <summary>
     /// Parses a caller-supplied options blob for the dry-run override, returning null when the blob is
-    /// absent, blank, or unparseable. Mirrors <see cref="OptionsStore.LoadAsync"/>'s tolerant read
+    /// absent, blank, or unparseable. Mirrors <c>OptionsStore</c>'s tolerant read
     /// (<c>RenamerOptions.JsonOptions</c> + catch <see cref="JsonException"/>): a corrupt override
     /// silently falls back to the saved options rather than failing the scan.
     /// </summary>

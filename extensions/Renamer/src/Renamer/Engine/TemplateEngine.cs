@@ -341,7 +341,7 @@ public static class TemplateEngine
         RenamerOptions options)
     {
         var resolved = BuildResolvedMap(tokens, multiValues, options);
-        string raw = RenderRaw(options.FilenameTemplate, resolved, options, suppressExt: true, null);
+        string raw = RenderRaw(options.FilenameTemplate, resolved, suppressExt: true, null);
         raw = ApplyTransforms(raw, options);
         return Sanitizer.CleanSegment(raw, options) != raw;
     }
@@ -357,7 +357,7 @@ public static class TemplateEngine
         RenamerOptions options,
         Action<string>? logUnbalanced)
     {
-        string raw = RenderRaw(template, resolved, options, suppressExt: true, logUnbalanced);
+        string raw = RenderRaw(template, resolved, suppressExt: true, logUnbalanced);
         raw = ApplyTransforms(raw, options);
         return Sanitizer.CleanSegment(raw, options);
     }
@@ -378,7 +378,7 @@ public static class TemplateEngine
             return string.Empty;
         }
 
-        string raw = RenderRaw(template, resolved, options, suppressExt: false, logUnbalanced);
+        string raw = RenderRaw(template, resolved, suppressExt: false, logUnbalanced);
         raw = ApplyTransforms(raw, options);
 
         var cleaned = raw
@@ -403,7 +403,6 @@ public static class TemplateEngine
     private static string RenderRaw(
         string template,
         IReadOnlyDictionary<string, string> resolved,
-        RenamerOptions options,
         bool suppressExt,
         Action<string>? logUnbalanced)
     {

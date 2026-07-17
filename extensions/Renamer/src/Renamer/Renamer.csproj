@@ -20,6 +20,15 @@
   </ItemGroup>
 
   <!--
+    Shared first-party code (generic options store, minimal-API permission gate, JSON factory). Copies
+    local and ships bundled as Cove.Extensions.Shared.dll — it is NOT Private=false (that is only for the
+    host-provided Cove refs) and is absent from the host-assembly strip denylist, so it survives the strip.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\shared\Cove.Extensions.Shared\Cove.Extensions.Shared.csproj" />
+  </ItemGroup>
+
+  <!--
     BUNDLED dependency (NOT host-provided): the cross-volume mover hashes copies with
     System.IO.Hashing.XxHash3 for its size+hash verify. This is a first-party Microsoft BCL
     extension package (net10.0, no transitive deps) and is ABSENT from the Cove.Sdk.targets
@@ -32,7 +41,7 @@
     present in the publish set.
   -->
   <ItemGroup>
-    <PackageReference Include="System.IO.Hashing" Version="10.0.9" />
+    <PackageReference Include="System.IO.Hashing" />
   </ItemGroup>
 
   <!--

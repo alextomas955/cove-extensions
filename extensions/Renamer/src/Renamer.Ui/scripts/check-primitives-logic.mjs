@@ -16,7 +16,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const uiRoot = path.resolve(here, "..");
 const tsc = path.join(uiRoot, "node_modules", "typescript", "bin", "tsc");
-const logicTs = path.join(uiRoot, "src", "primitivesLogic.ts");
+// primitivesLogic.ts is byte-identical across both extensions, so it now lives once in the shared
+// UI module; this offline gate compiles that single shared source in isolation.
+const sharedSrc = path.resolve(uiRoot, "../../../../shared/cove-extensions-ui/src");
+const logicTs = path.join(sharedSrc, "primitivesLogic.ts");
 const testFile = path.join(here, "primitives-logic.test.mjs");
 
 const outDir = mkdtempSync(path.join(tmpdir(), "rename-primitives-"));
@@ -34,7 +37,7 @@ function run() {
         target: "ESNext",
         module: "ESNext",
         moduleResolution: "bundler",
-        rootDir: path.join(uiRoot, "src"),
+        rootDir: sharedSrc,
         types: [],
         skipLibCheck: true,
         outDir,
@@ -60,7 +63,7 @@ function run() {
   return test.status ?? 1;
 }
 
-let code = 1;
+let code;
 try {
   code = run();
 } finally {

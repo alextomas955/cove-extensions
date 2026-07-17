@@ -1,31 +1,37 @@
 # lefthook — one pre-commit gate spanning the mixed C# + TypeScript repo (plan §4.3).
 #
 # Why lefthook (not husky+lint-staged): a single language-agnostic YAML runs the .NET and Node
-# checks together. The dev box has the @cove/extension-sdk resolved, so this is also where the
-# FULL, type-aware frontend gate runs — covering the subset CI can't (CI uses the non-type-aware
-# eslint.config.ci.js fallback because a bare runner can't install the file: SDK).
+# checks together. ESLint is one repo-root config (eslint.config.mjs) covering every extension's UI
+# and all .mjs/.cjs scripts; the same type-aware gate runs here and in CI (lint.yml's js-lint job),
+# since the vendored @cove/extension-sdk is committed and installs offline in both.
 #
 # Keep it lightweight: format/lint only STAGED files; no full build or test run on commit.
 
 pre-commit:
   parallel: true
   commands:
-    # --- TypeScript: prettier + type-aware eslint on staged UI files ---
-    frontend-format:
+    # --- TypeScript/JS: prettier + per-UI class guard, then one repo-root ESLint ---
+    # Per extension UI bundle: Prettier formatting + the host-JIT-Tailwind/XSS class guard (`root:`
+    # makes `npx`/node resolve that package's local binaries). Add a matching pair when a new
+    # extension ships a UI. ESLint is deliberately NOT here — it is the single repo-root js-lint gate
+    # below, covering every extension's UI and all .mjs/.cjs scripts from one config.
+    frontend-format-renamer:
       root: extensions/Renamer/src/Renamer.Ui/
       glob: "*.{ts,tsx,json,jsonc,css,md}"
       run: npx prettier --write {staged_files}
       stage_fixed: true
-    frontend-lint:
-      root: extensions/Renamer/src/Renamer.Ui/
-      glob: "*.{ts,tsx}"
-      run: npx eslint --fix {staged_files}
-      stage_fixed: true
-    # The host-JIT-Tailwind + XSS guard (never skipped; owns a concern no linter knows).
-    check-classes:
+    check-classes-renamer:
       root: extensions/Renamer/src/Renamer.Ui/
       glob: "*.tsx"
       run: node scripts/check-classes.cjs
+
+    # Single monorepo-wide ESLint (root eslint.config.mjs): every extension's TS/React UI + all
+    # first-party .mjs/.cjs helper/build/test scripts. Type-aware, so it resolves each UI's installed
+    # deps on the dev box.
+    js-lint:
+      glob: "*.{ts,tsx,mjs,cjs}"
+      run: npx eslint --fix {staged_files}
+      stage_fixed: true
 
     # --- C#: format-verify changed projects (cheap; no full build) ---
     csharp-format:
@@ -48,3 +54,9 @@ pre-commit:
     # extensions). Drop --warn to make it a hard fail once the maintainer wants drift to block.
     docs-drift-check:
       run: node scripts/check-docs-drift.mjs --warn {staged_files}
+
+    # Flags added comments in the staged diff that read as narrative (change-story, consumer-behavior,
+    # author voice) instead of a non-obvious why (the CLAUDE.md rule). Heuristic, so it WARNS only; drop
+    # --warn to make narrative comments a hard fail.
+    comment-hygiene:
+      run: node scripts/check-comment-hygiene.mjs --warn

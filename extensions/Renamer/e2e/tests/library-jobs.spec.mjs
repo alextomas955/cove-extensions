@@ -1,15 +1,14 @@
-// Phase 63 — Whole-Library Job Flow Coverage. Covers the v1.13 scan-library/renamer-library job
-// pair (whole-library Dry Run + Rename All), the first job-polling UI Renamer shipped.
-import { test as base, expect, pollJob, pollUntil } from '../lib/renamer-fixtures.mjs';
+// Whole-library job flow coverage: the scan-library (whole-library Dry Run) and renamer-library
+// (Rename All) job pair, driven through the job-polling API.
+import { test as base, expect, pollJob, RENAMER_EXTENSION } from '../lib/renamer-fixtures.mjs';
 import { startHarness } from '@cove-extensions/e2e/harness';
 import { seedVideo } from '@cove-extensions/e2e/seed-media';
-import { RENAMER_EXTENSION } from '../lib/renamer-fixtures.mjs';
+import { assertRenamedTo } from '../lib/rename-assertions.mjs';
 
 const EXTENSION_ID = 'com.alextomas955.renamer';
 const ROUTE = `/api/extensions/${EXTENSION_ID}`;
 
 const test = base.extend({
-  // eslint-disable-next-line no-empty-pattern
   isolatedHarness: [
     async ({}, use) => {
       const isolatedHarness = await startHarness();
@@ -60,6 +59,7 @@ test('scan-library reports every seeded item without mutating any of them', asyn
 // job's "whole library" scope, occasionally missing the polling window for its own rename.
 test('renamer-library renames every seeded item in one run', async ({ isolatedHarness }) => {
   const baseUrl = isolatedHarness.baseUrl;
+  const container = isolatedHarness.container;
   async function callApi(method, path, body) {
     const res = await fetch(`${baseUrl}${path}`, {
       method,
@@ -78,14 +78,26 @@ test('renamer-library renames every seeded item in one run', async ({ isolatedHa
   const api = {
     get: (p) => callApi('GET', p),
     post: (p, b) => callApi('POST', p, b),
+    put: (p, b) => callApi('PUT', p, b),
   };
 
+  // A "$title"-only template over distinct safe titles makes each item's computed name deterministic,
+  // so each EXACT resulting basename can be asserted rather than merely "the path changed".
+  const setTemplate = await api.put(`${ROUTE}/data/options`, JSON.stringify({ FilenameTemplate: '$title' }));
+  expect(setTemplate.ok).toBe(true);
+
   const videos = await Promise.all([
-    seedVideo({ container: isolatedHarness.container, baseUrl, destName: `lib-a-${Date.now()}.mp4` }),
-    seedVideo({ container: isolatedHarness.container, baseUrl, destName: `lib-b-${Date.now()}.mp4` }),
-    seedVideo({ container: isolatedHarness.container, baseUrl, destName: `lib-c-${Date.now()}.mp4` }),
+    seedVideo({ container, baseUrl, destName: `lib-a-${Date.now()}.mp4` }),
+    seedVideo({ container, baseUrl, destName: `lib-b-${Date.now()}.mp4` }),
+    seedVideo({ container, baseUrl, destName: `lib-c-${Date.now()}.mp4` }),
   ]);
   const originalPaths = videos.map((v) => v.files[0].path);
+
+  const titles = ['Library Item Alpha', 'Library Item Bravo', 'Library Item Charlie'];
+  for (let i = 0; i < videos.length; i++) {
+    const update = await api.put(`/api/videos/${videos[i].id}`, { Title: titles[i] });
+    expect(update.ok).toBe(true);
+  }
 
   const enqueue = await api.post(`${ROUTE}/renamer-library`);
   expect(enqueue.status).toBe(202);
@@ -94,11 +106,12 @@ test('renamer-library renames every seeded item in one run', async ({ isolatedHa
   expect(job.status.toLowerCase()).toBe('completed');
 
   for (let i = 0; i < videos.length; i++) {
-    const current = await pollUntil(
-      () => api.get(`/api/videos/${videos[i].id}`).then((r) => r.json),
-      (v) => v.files[0].path !== originalPaths[i],
-      { label: `video ${videos[i].id} to be renamed by renamer-library` }
-    );
-    expect(current.files[0].path).not.toBe(originalPaths[i]);
+    await assertRenamedTo({
+      api,
+      container,
+      videoId: videos[i].id,
+      expectedBasename: `${titles[i]}.mp4`,
+      originalPath: originalPaths[i],
+    });
   }
 });

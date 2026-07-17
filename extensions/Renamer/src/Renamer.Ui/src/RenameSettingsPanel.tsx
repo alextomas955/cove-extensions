@@ -64,10 +64,10 @@ import {
   OrderedPickToAdd,
   type ExampleOption,
   type SeparatorOption,
-} from "./primitives";
-import { extensionShapeAdvisory } from "./primitivesLogic";
+  extensionShapeAdvisory,
+  type ValueOption,
+} from "@cove-ext/ui-shared";
 import { StudioPicker, TagPicker, PerformerPicker } from "./entityPicker";
-import { type ValueOption } from "./entityPickerLogic";
 import { StudioDestinationsEditor } from "./studioMap";
 import { TokenLegend } from "./TokenLegend";
 import { PreviewCard, type PreviewSampleResult } from "./PreviewCard";
