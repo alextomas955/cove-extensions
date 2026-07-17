@@ -38,7 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24.11.0'
 
@@ -166,7 +166,7 @@ jobs:
       # Conditional frontend build — only extensions with a uiPath field ship a frontend bundle.
       - name: Setup Node
         if: ${{ matrix.extension.uiPath != '' }}
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           # Pin matches the UI package.json volta pin for a reproducible build.
           node-version: '24.11.0'
@@ -286,7 +286,7 @@ jobs:
 
       - name: Setup Node
         if: steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24.11.0'
 
