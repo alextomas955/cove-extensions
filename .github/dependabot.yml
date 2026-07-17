@@ -3,14 +3,24 @@ updates:
   # All C# NuGet versions live in the single root Directory.Packages.props (Central Package
   # Management), so ONE root-scoped block watches the whole solution — a new extension following the
   # template shape is covered with no dependabot edit (additive-by-config, mirroring the catalog-driven
-  # CI matrix). Cove.Sdk/Cove.Plugins are pinned via the $(CoveSdkVersion) MSBuild property (hand-bumped
-  # in lockstep with the host); Dependabot cannot bump a property indirection, so that is a documented,
-  # intentional gap — not a missing watch.
+  # CI matrix).
   - package-ecosystem: "nuget"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # Host-provided / host-ABI-critical packages are hand-bumped in lockstep with the deployed Cove
+    # host, NEVER by Dependabot: Cove.Sdk/Cove.Plugins/Cove.Core ARE the host SDK (version pinned to
+    # the $(CoveSdkVersion) property and coupled to each extension's minCoveVersion), and EF Core is
+    # referenced Private=false so its version MUST equal the host's runtime (a mismatch is an
+    # AssemblyLoadContext type-identity break). Dependabot does not respect the $(CoveSdkVersion)
+    # property indirection — it rewrote the property + injected a VersionOverride — so it opened
+    # exactly these wrong PRs (#62/#82/#83) until this explicit ignore.
+    ignore:
+      - dependency-name: "Cove.Sdk"
+      - dependency-name: "Cove.Plugins"
+      - dependency-name: "Cove.Core"
+      - dependency-name: "Microsoft.EntityFrameworkCore*"
     groups:
       test-analysis:
         patterns:
@@ -18,7 +28,6 @@ updates:
           - "Microsoft.NET.Test.Sdk"
           - "coverlet.*"
           - "Xunit.SkippableFact"
-          - "Microsoft.EntityFrameworkCore*"
 
   # Every extension's frontend panel (glob, GA June 2024). @cove/extension-sdk is a file:vendor/...
   # dependency (a committed tarball, not a registry package), so Dependabot does not — and cannot —
