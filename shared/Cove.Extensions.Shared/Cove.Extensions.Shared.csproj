@@ -25,6 +25,7 @@
     this csproj therefore restates neither a direct Cove reference nor the sibling ../cove path math.
   -->
   <ItemGroup>
+    <PackageReference Include="Cove.Plugins" VersionOverride="0.9.0" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 </Project>
