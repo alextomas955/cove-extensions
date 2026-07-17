@@ -29,9 +29,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
-    <PackageReference Include="xunit" Version="2.9.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
     <!--
       TEST-ONLY: runtime Skip.IfNot(...) with a visible reason on xUnit v2 (Assert.Skip is v3-only,
       and this project pins xunit 2.9.3). Used ONLY by the privilege-gated symlink adversarial test
@@ -39,8 +39,8 @@
       early-return. Verified on nuget.org + github.com/AArnott/Xunit.SkippableFact; never bundled into
       the deployed Renamer.dll (IsPackable=false test project).
     -->
-    <PackageReference Include="Xunit.SkippableFact" Version="1.5.61" />
-    <PackageReference Include="coverlet.collector" Version="10.0.1" />
+    <PackageReference Include="Xunit.SkippableFact" />
+    <PackageReference Include="coverlet.collector" />
     <!--
       TEST-ONLY: the integration tier stands up a real CoveContext on SQLite-in-memory
       (constraint/transaction fidelity) and EF-InMemory (fast Path-recompute). These EF
@@ -50,8 +50,8 @@
       two already exists and works fine, since EF Core patch releases are binary-compatible within
       a major.minor line. Dependabot may bump these freely.
     -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
   </ItemGroup>
 
   <ItemGroup>
@@ -87,7 +87,7 @@
     compile, with no cove checkout.
   -->
   <ItemGroup Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')">
-    <PackageReference Include="Cove.Plugins" Version="$(CoveSdkVersion)" />
+    <PackageReference Include="Cove.Plugins" />
   </ItemGroup>
 
   <!--
@@ -125,7 +125,6 @@
     <Compile Remove="TestSupport\CoveContextFactory.cs" />
     <Compile Remove="TestSupport\FakePrincipalAccessor.cs" />
     <Compile Remove="TestSupport\CapturingEventBus.cs" />
-    <Compile Remove="TestSupport\ScopedCoveContextProvider.cs" />
     <Compile Remove="TestSupport\SharedCacheSqlite.cs" />
   </ItemGroup>
 </Project>

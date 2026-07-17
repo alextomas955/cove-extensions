@@ -129,9 +129,6 @@ public sealed class CrossVolumeMover
         /// was rejected, the suspect destination deleted, and the source left intact.</summary>
         VerifyFailed,
 
-        /// <summary>The destination volume lacked free space. Reserved here; whole-batch free-space accounting lives in <see cref="FreeSpaceGuard"/>.</summary>
-        InsufficientSpace,
-
         /// <summary>The caller cancelled the <see cref="CancellationToken"/> mid-move. The in-flight
         /// <c>.partial</c> is cleaned up and the source is left untouched — a cancel never loses or
         /// duplicates a file and never throws out (classify-not-throw).</summary>

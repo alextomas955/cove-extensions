@@ -3,4 +3,7 @@
     <Project Path="extensions/Renamer/src/Renamer/Renamer.csproj" />
     <Project Path="extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj" />
   </Folder>
+  <Folder Name="/shared/">
+    <Project Path="shared/Cove.Extensions.Shared/Cove.Extensions.Shared.csproj" />
+  </Folder>
 </Solution>

@@ -1,27 +1,43 @@
 version: 2
 updates:
-  # Renamer extension assembly — Cove.Sdk and any other NuGet deps.
+  # All C# NuGet versions live in the single root Directory.Packages.props (Central Package
+  # Management), so ONE root-scoped block watches the whole solution — a new extension following the
+  # template shape is covered with no dependabot edit (additive-by-config, mirroring the catalog-driven
+  # CI matrix). Cove.Sdk/Cove.Plugins are pinned via the $(CoveSdkVersion) MSBuild property (hand-bumped
+  # in lockstep with the host); Dependabot cannot bump a property indirection, so that is a documented,
+  # intentional gap — not a missing watch.
   - package-ecosystem: "nuget"
-    directory: "/extensions/Renamer/src/Renamer"
+    directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      test-analysis:
+        patterns:
+          - "xunit*"
+          - "Microsoft.NET.Test.Sdk"
+          - "coverlet.*"
+          - "Xunit.SkippableFact"
+          - "Microsoft.EntityFrameworkCore*"
 
-  # Renamer test project NuGet deps (xUnit and friends).
-  - package-ecosystem: "nuget"
-    directory: "/extensions/Renamer/src/Renamer.Tests"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-
-  # Renamer frontend panel. @cove/extension-sdk is a file:vendor/... dependency (a committed
-  # tarball, not a registry package), so Dependabot does not — and cannot — bump it;
-  # it is updated by re-vendoring. The registry deps here are updated normally.
+  # Every extension's frontend panel (glob, GA June 2024). @cove/extension-sdk is a file:vendor/...
+  # dependency (a committed tarball, not a registry package), so Dependabot does not — and cannot —
+  # bump it; it is updated by re-vendoring. The registry deps are updated normally; a new extension's
+  # *.Ui package is covered automatically. This glob does NOT overlap the root "/" npm-workspace block
+  # below: the UI packages are standalone (own lockfile, vendored SDK), not workspace members.
   - package-ecosystem: "npm"
-    directory: "/extensions/Renamer/src/Renamer.Ui"
+    directories:
+      - "/extensions/*/src/*.Ui"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react*"
+          - "@tanstack/*"
 
   # JS workspaces root — the single root package-lock.json owns the shared E2E harness (tests/e2e:
   # Testcontainers, Playwright + transitive deps) and every extension's e2e workspace. Dependabot's

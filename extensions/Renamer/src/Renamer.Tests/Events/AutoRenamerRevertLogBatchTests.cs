@@ -45,7 +45,7 @@ public sealed class AutoRenamerRevertLogBatchTests
                 AutoRenamerOnUpdate = true,
                 FilenameTemplate = "$title",
             };
-            var (ext, bus, store) = await EventTestHarness.BuildAsync(db, options);
+            var (ext, _, store) = await EventTestHarness.BuildAsync(db, options);
 
             // Drive the hook for the one entity that WILL act: raw.mkv → My Film.mkv.
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);

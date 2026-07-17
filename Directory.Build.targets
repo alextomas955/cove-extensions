@@ -30,7 +30,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(UseLocalCoveSource)' == 'false' AND !$(MSBuildProjectName.EndsWith('.Tests'))">
-    <PackageReference Include="Cove.Sdk" Version="$(CoveSdkVersion)" />
+    <PackageReference Include="Cove.Sdk" />
   </ItemGroup>
 
   <!--

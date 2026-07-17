@@ -29,7 +29,7 @@ public sealed class RenamerExecutorIntegrationTests
         {
             // The Folder.Path is the real temp-dir root so disk + DB align on one absolute location.
             string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, videoId, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw clip.mkv", "My Film");
 
             // Real on-disk source matching the seeded row.
@@ -100,7 +100,7 @@ public sealed class RenamerExecutorIntegrationTests
         {
             // Seed the Folder + VideoFile on the real temp-dir root, but write NO on-disk source file.
             string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, videoId, fileId) =
+            var (_, videoId, _) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "gone.mkv", "My Film");
 
             var port = new CoveRenamerDataPort(db);
@@ -149,7 +149,7 @@ public sealed class RenamerExecutorIntegrationTests
         {
             string srcFolder = src.Root.Replace('\\', '/');
             string dstFolder = dst.Root.Replace('\\', '/').TrimEnd('/'); // "P:" (root, distinct from src)
-            var (folderId, videoId, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
 
             string oldFull = Path.Combine(src.Root, "clip.mkv");
@@ -224,7 +224,7 @@ public sealed class RenamerExecutorIntegrationTests
             string srcFolder = src.Root.Replace('\\', '/');
             string dstFolder = dst.Root.Replace('\\', '/').TrimEnd('/');
 
-            var (srcFolderId, videoId, fileA) =
+            var (_, videoId, fileA) =
                 await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "a.mkv", "Film A");
 
             // Pre-seed the DEST folder (same Path the executor will GetOrCreate) holding a row that
@@ -300,12 +300,11 @@ public sealed class RenamerExecutorIntegrationTests
             string srcFolder = src.Root.Replace('\\', '/');
             string dstFolder = dst.Root.Replace('\\', '/').TrimEnd('/');
 
-            var (srcFolderId, videoId, fileA) =
+            var (_, videoId, fileA) =
                 await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "a.mkv", "Film A");
 
             string oldA = Path.Combine(src.Root, "a.mkv");
             File.WriteAllText(oldA, "A-bytes");
-            string newOnDisk = Path.Combine(dst.Root, "My Film.mkv");
 
             string newFull = dstFolder + "/My Film.mkv";
             Assert.False(VolumeClassifier.SameVolume(srcFolder + "/a.mkv", newFull),

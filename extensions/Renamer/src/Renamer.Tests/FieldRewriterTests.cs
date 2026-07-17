@@ -98,7 +98,7 @@ public class FieldRewriterTests
     [Fact]
     public void Replacer_EmptyFind_IsNoOp()
     {
-        // Threat T-17-04: an empty Find must not loop/throw — the rule is skipped.
+        // An empty Find must not loop/throw — the rule is skipped.
         var o = new RenamerOptions
         {
             FieldReplacers = [new FieldReplaceRule { TargetToken = "title", Find = "", Replace = "X" }],
@@ -243,7 +243,7 @@ public class FieldRewriterTests
     [Fact]
     public void DropPerformers_EmptyOrWhitespaceName_NeverDropped()
     {
-        // Threat T-17-06: a trimmed-empty name short-circuits to a no-op (never matches everything).
+        // A trimmed-empty name short-circuits to a no-op (never matches everything).
         var o = new RenamerOptions { PreventTitlePerformer = true };
         var result = FieldRewriter.DropPerformersInTitle(["", "  ", "Bob"], "Any Title", o);
         Assert.Equal(["", "  ", "Bob"], result);
