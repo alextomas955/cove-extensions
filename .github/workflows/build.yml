@@ -117,7 +117,7 @@ jobs:
 
       - name: Setup .NET
         if: ${{ !matrix.extension.manifestOnly }}
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -270,7 +270,7 @@ jobs:
 
       - name: Setup .NET
         if: (steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true') && !matrix.extension.manifestOnly
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
