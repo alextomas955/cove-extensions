@@ -33,7 +33,7 @@ public sealed class UndoReplayerTests
             // whole point of the entityId-on-row design is that the published event uses the ENTITY
             // id, not the file id, so the test data must make them distinguishable.
             await SeedDecoyVideoAsync(db);
-            var (folderId, videoId, fileId) =
+            var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw clip.mkv", "My Film");
 
             // The whole point: the video id and the file id differ. Prove it before relying on it.
@@ -153,8 +153,8 @@ public sealed class UndoReplayerTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, video1, file1) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "one.mkv", "First");
-            var (video2, file2) = await SeedSecondVideoInFolderAsync(db, folderId, "two.mkv", "Second");
+            var (folderId, video1, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "one.mkv", "First");
+            var (video2, _) = await SeedSecondVideoInFolderAsync(db, folderId, "two.mkv", "Second");
 
             File.WriteAllText(Path.Combine(dir.Root, "one.mkv"), "1");
             File.WriteAllText(Path.Combine(dir.Root, "two.mkv"), "2");
@@ -207,7 +207,7 @@ public sealed class UndoReplayerTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, videoId, fileId) =
+            var (_, videoId, _) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film");
 
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
@@ -255,7 +255,7 @@ public sealed class UndoReplayerTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            var (folderId, videoId, fileId) =
+            var (_, videoId, _) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw clip.mkv", "My Film");
 
             string oldFull = Path.Combine(dir.Root, "raw clip.mkv");

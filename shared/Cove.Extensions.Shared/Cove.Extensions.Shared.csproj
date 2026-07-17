@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Provenance + license metadata, mirroring the extension projects. This library ships bundled
+    (copy-local, first-party) inside each extension's package as Cove.Extensions.Shared.dll.
+  -->
+  <PropertyGroup>
+    <Authors>alextomas955</Authors>
+    <RepositoryUrl>https://github.com/alextomas955/cove-extensions</RepositoryUrl>
+    <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+
+    <!--
+      CA1716 flags the "Shared" namespace segment as a VB reserved keyword (a cross-language-interop
+      concern). These assemblies are C#-only, host-loaded Cove plugins never consumed from VB, so the
+      rule does not apply; scoped here (not root config) to keep the chosen namespace name.
+    -->
+    <NoWarn>$(NoWarn);CA1716</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    Needed only for the minimal-API IResult type used by the shared permission gate. This is
+    host-provided shared framework, never copy-local/bundled.
+
+    Cove.Sdk (transitively Cove.Plugins + Cove.Core, Private=false) and the host-assembly strip
+    target are wired here by the root Directory.Build.targets because this is a non-.Tests project —
+    this csproj therefore restates neither a direct Cove reference nor the sibling ../cove path math.
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+</Project>

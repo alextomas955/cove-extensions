@@ -37,34 +37,31 @@ export class VideosPage {
   }
 
   /**
-   * Clicks "Rename selected" and accepts both native dialogs it raises: a confirm() showing the
-   * real computed preview, then an alert() confirming the job was queued. Returns both dialog
-   * messages so a test can assert on the preview text if it needs to.
+   * Clicks "Rename selected" and accepts the confirm() preview dialog it raises. The rename then
+   * runs as a job surfaced in the Job Drawer, so the host suppresses the queued-success alert
+   * (suppressSuccessAlert) — there is no second dialog. Returns the accepted dialog message(s) so a
+   * test can assert on the preview text; the rename outcome itself is verified by polling the API/disk.
    */
   async renameSelected() {
     const messages = [];
-    let resolveSecondDialog;
-    const secondDialogSeen = new Promise((resolve) => {
-      resolveSecondDialog = resolve;
+    let resolveConfirm;
+    const confirmSeen = new Promise((resolve) => {
+      resolveConfirm = resolve;
     });
     const handler = async (dialog) => {
       messages.push(dialog.message());
       await dialog.accept();
-      if (messages.length >= 2) {
-        resolveSecondDialog();
-      }
+      resolveConfirm();
     };
     this.page.on('dialog', handler);
     try {
       await this.renameSelectedButton.click();
-      // The alert() confirming the job was queued fires only after the confirm() dialog's accept
-      // triggers an async rename-job-enqueue call — waiting on a fixed sleep here was flaky under
-      // CI resource contention (confirmed: the alert can arrive well after 500ms on a loaded
-      // runner). Wait for the second dialog to actually resolve instead.
+      // Only the before-disk confirm() gate fires; wait for it to be accepted (a fixed sleep was
+      // flaky under CI load), then let the caller poll the API/disk for the job's result.
       await Promise.race([
-        secondDialogSeen,
+        confirmSeen,
         this.page.waitForTimeout(10_000).then(() => {
-          throw new Error('renameSelected: second dialog (queued alert) never fired within 10s');
+          throw new Error('renameSelected: confirm dialog never fired within 10s');
         }),
       ]);
     } finally {

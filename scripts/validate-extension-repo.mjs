@@ -26,7 +26,7 @@ const buildPropsPath = path.join(root, "Directory.Build.props");
 const errors = [];
 
 function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^﻿/, ""));
+  return JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
 }
 
 function isLowerKebab(value) {

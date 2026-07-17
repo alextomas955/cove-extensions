@@ -12,12 +12,12 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Concurrency;
 
 /// <summary>
-/// CR-01 / CR-02 regression locks for the two-phase parallel batch. CR-01: many parallel workers
+/// Regression locks for the two-phase parallel batch. Concurrent-folder lock: many parallel workers
 /// routing MULTIPLE items to the SAME not-yet-created destination folder must end with EXACTLY ONE
 /// <see cref="Folder"/> row for that path — never a duplicate row (silent disk/DB divergence) and
 /// never an unhandled throw. The fix pre-creates every distinct destination folder ONCE in the
 /// sequential PHASE A and hands the resolved id to each worker, so the parallel PHASE B never does a
-/// check-then-act create on a shared <see cref="Folder"/> row. CR-02: a duplicate <c>OldFullPath</c>
+/// check-then-act create on a shared <see cref="Folder"/> row. Duplicate-path lock: a duplicate <c>OldFullPath</c>
 /// across acting units must not make the PHASE B lookup throw and abort the whole batch after the
 /// RevertLog header is open.
 /// </summary>
@@ -73,7 +73,7 @@ public sealed class ParallelFolderCreationTests
             // Route every item from the one source folder into the SAME new "sorted" subfolder under the
             // (allowed) temp root, via an exact source-path rule + a constant folder template. Every
             // acting item therefore has the identical TargetFolderPath = "<root>/sorted", which does not
-            // yet exist in the DB — the exact CR-01 trigger.
+            // yet exist in the DB — the exact duplicate-folder race trigger.
             var options = new RenamerOptions
             {
                 FilenameTemplate = "$title",
@@ -155,7 +155,7 @@ public sealed class ParallelFolderCreationTests
         var shared = await SharedCacheSqlite.CreateAsync();
         try
         {
-            // CR-02: the same entity id listed twice in one batch (a caller / host re-enqueue passing a
+            // The same entity id listed twice in one batch (a caller / host re-enqueue passing a
             // duplicate id — Decode does NOT dedupe) plans the SAME file twice, producing two acting
             // units with the IDENTICAL OldFullPath. PHASE B used to build its move→unit lookup with
             // ToDictionary, which throws ArgumentException on the duplicate key and aborts the WHOLE
