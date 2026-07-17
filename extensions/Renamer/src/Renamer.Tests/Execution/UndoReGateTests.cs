@@ -150,7 +150,7 @@ public sealed class UndoReGateTests
     }
 
     /// <summary>
-    /// CR-01 regression: a CONFIGURED allowlist must NOT make an IN-PLACE renamer non-undoable when the
+    /// Regression: a CONFIGURED allowlist must NOT make an IN-PLACE renamer non-undoable when the
     /// file's folder is OUTSIDE the allowlist. The forward executor never gates in-place renames
     /// (`isMove` only), and AllowedRoots is an opt-in widening for relocation DESTINATIONS — not a
     /// confinement of the library's existing folders. An in-place restore (OLD and NEW share the same

@@ -13,10 +13,35 @@ From the repo root:
 dotnet build CoveExtensions.slnx
 ```
 
-Each extension has its own build/test/verify commands — see that extension's own README (e.g.
-[`extensions/Renamer/README.md`](extensions/Renamer/README.md)) and
+Each extension has its own build/test/verify commands — see that extension's own README
+([`extensions/Renamer/README.md`](extensions/Renamer/README.md),
+[`extensions/WhisparrSync/README.md`](extensions/WhisparrSync/README.md)) and
 [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) for what a PR is expected to
 verify before it's opened.
+
+## Adding or extending an extension
+
+Every extension in this monorepo is a dynamically-loaded `Cove.Sdk` plugin. To add a new one (or
+extend an existing one), you work against the same contract:
+
+- Implement `IExtension` from `Cove.Plugins`, typically by subclassing `FullExtensionBase`.
+- Ship an `extension.json` load manifest (`id`, `name`, `entryDll`, `jsBundle`, `minCoveVersion`).
+  Its `entryDll` must match the built assembly name.
+- Do not add your own Cove reference or a per-project `Directory.Build.props`. The `Cove.Sdk`
+  reference and the source-selection math are wired once at the repo root
+  (`Directory.Build.props`/`Directory.Build.targets`); your extension inherits it.
+- Never bundle host-provided assemblies (`Cove.Core`/`Cove.Plugins`/`Cove.Sdk`, EF Core, Npgsql,
+  Pgvector) — the host provides them, and shipping them causes runtime type-identity mismatches.
+- Never write to Cove's database directly; go through `CoveContext` and `SaveChangesAsync`.
+
+Register the extension in [`extensions/catalog.json`](extensions/catalog.json) so CI can build and
+release it. Each entry declares `name`, `id`, `path`, `tagPrefix`, `projectPath`, `manifestPath`,
+`versionSourcePath`, and the optional `testProjectPath`, `uiPath`, and `e2ePath`/`e2eProject`.
+Adding an extension's build and release capability is a catalog edit, not a workflow-logic change.
+
+For the full authoring rules and a real layout to copy (`src/<Name>/`, `src/<Name>.Tests/`,
+`src/<Name>.Ui/`), read the existing extension READMEs above and the Contributing guides on the
+[docs site](https://alextomas955.github.io/cove-extensions/).
 
 ## Documentation
 

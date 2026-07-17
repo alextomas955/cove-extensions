@@ -29,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       # Formatting/style check — reads root .editorconfig.
@@ -40,8 +40,9 @@ jobs:
       - name: Build with analyzers (warnings = errors)
         run: dotnet build CoveExtensions.slnx -c Release -p:UseLocalCoveSource=false
 
-  # ---- Windows build + unit-test signal (monorepo-wide, hardcodes today's single Renamer project
-  # path — same convention as csharp-format above). Scoped to .NET build/test only, NOT the full
+  # ---- Windows build + unit-test signal (monorepo-wide). The whole-slnx Build step below compiles
+  # every solution member; the unit-test step then runs each catalog entry's testProjectPath, read
+  # from extensions/catalog.json, so adding an extension is a catalog edit. Scoped to .NET build/test only, NOT the full
   # containerized E2E suite: GitHub-hosted windows-latest runners' Docker daemon is fixed to Windows
   # containers mode, with no supported way to switch to Linux containers (would need nested
   # virtualization, which the standard hosted fleet does not enable) — so Testcontainers'
@@ -56,13 +57,28 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - name: Build
         run: dotnet build CoveExtensions.slnx -c Release -p:UseLocalCoveSource=false
+      # The whole-slnx Build above already compiled every test project, so --no-build still holds.
       - name: Test (unit tier)
-        run: dotnet test extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj -c Release --no-build
+        shell: bash
+        run: |
+          mapfile -t tests < <(node -e '
+            const fs = require("fs");
+            const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
+            for (const entry of catalog.extensions) {
+              if (entry.manifestOnly === true) continue;
+              if (entry.testProjectPath) console.log(entry.testProjectPath);
+            }
+          ')
+          for test in "${tests[@]}"; do
+            echo "::group::dotnet test $test"
+            dotnet test "$test" -c Release --no-build
+            echo "::endgroup::"
+          done
 
   # ---- Markdown docs (repo-wide). Scoped to README.md only — no CHANGELOG.md/docs/**/*.md exist
   # yet at the monorepo root; Phase 13 (DOC-04) will expand both this glob and the root docs. ----
@@ -74,3 +90,36 @@ jobs:
         uses: DavidAnson/markdownlint-cli2-action@v24
         with:
           globs: 'README.md'
+
+  # ---- Monorepo-wide ESLint (single root config at eslint.config.mjs): every extension's TS/React
+  # UI bundle plus all first-party .mjs/.cjs helper/build/test scripts. The type-aware UI rules need
+  # each extension's UI deps installed to build the TypeScript program, so this installs the root
+  # lint tooling and each catalog `uiPath` before running `eslint .` once from the repo root. There
+  # is no per-extension ESLint config — adding an extension needs no change here beyond its catalog
+  # entry. ----
+  js-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.11.0'
+      - name: Install root lint tooling
+        run: npm install --no-workspaces
+      - name: Install each extension's UI deps (type-aware program inputs)
+        shell: bash
+        run: |
+          mapfile -t uiPaths < <(node -e '
+            const fs = require("fs");
+            const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
+            for (const entry of catalog.extensions) {
+              if (entry.uiPath) console.log(entry.uiPath);
+            }
+          ')
+          for ui in "${uiPaths[@]}"; do
+            echo "::group::npm install $ui"
+            (cd "$ui" && npm install)
+            echo "::endgroup::"
+          done
+      - name: ESLint (whole monorepo)
+        run: npm run lint

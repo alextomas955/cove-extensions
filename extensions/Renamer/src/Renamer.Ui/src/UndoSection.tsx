@@ -12,7 +12,7 @@ import { request, ApiError } from "@cove/extension-sdk";
 import { Undo2 } from "lucide-react";
 
 import { Dialog } from "./dialog";
-import { Button, StatusText, Spinner } from "./primitives";
+import { Button, StatusText, Spinner } from "@cove-ext/ui-shared";
 
 const EXTENSION_ID = "com.alextomas955.renamer";
 const LAST_BATCH_PATH = `/extensions/${EXTENSION_ID}/last-batch`;
@@ -21,7 +21,7 @@ const UNDO_PATH = `/extensions/${EXTENSION_ID}/undo`;
 const UNDO_TITLE_ID = "rename-undo-confirm-title";
 const UNDO_DESC_ID = "rename-undo-confirm-message";
 
-/** GET /last-batch (07-02). */
+/** GET /last-batch. */
 interface LastBatchSummary {
   hasBatch: boolean;
   count: number;
@@ -29,7 +29,7 @@ interface LastBatchSummary {
   consumed: boolean;
 }
 
-/** POST /undo (07-02): failed/skipped entries are { fileId, oldPath, newPath, reason }. */
+/** POST /undo: failed/skipped entries are { fileId, oldPath, newPath, reason }. */
 interface UndoEntryError {
   fileId: number;
   oldPath: string;

@@ -5,10 +5,9 @@
 # restore from nuget.org. The local-source build property is deliberately NOT used here — it needs
 # a Cove checkout the runner does not have.
 #
-# This is a root-level job (not matrix-driven), hardcoding today's single Renamer project path —
-# acceptable per RESEARCH.md's note that .slnx-inclusion is a documented process convention, not a
-# scaling mechanism for CodeQL specifically. When a second extension arrives, add its project path
-# to this same build step (or generalize the step to loop the catalog).
+# The C# leg builds every catalog extension's project (skipping manifestOnly entries), reading the
+# project paths from extensions/catalog.json, so CodeQL's manual build traces each extension's
+# compilation. Adding an extension is a catalog edit — no change here.
 
 name: CodeQL
 
@@ -45,7 +44,7 @@ jobs:
 
       - name: Setup .NET
         if: matrix.language == 'csharp'
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
@@ -55,10 +54,25 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
 
-      # NuGet build path — works on a bare runner with no Cove checkout.
+      # NuGet build path — works on a bare runner with no Cove checkout. Iterates the catalog's
+      # projectPaths so every extension's compilation is traced.
       - name: Build C#
         if: matrix.language == 'csharp'
-        run: dotnet build extensions/Renamer/src/Renamer/Renamer.csproj -c Release -p:UseLocalCoveSource=false
+        shell: bash
+        run: |
+          mapfile -t projects < <(node -e '
+            const fs = require("fs");
+            const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
+            for (const entry of catalog.extensions) {
+              if (entry.manifestOnly === true) continue;
+              if (entry.projectPath) console.log(entry.projectPath);
+            }
+          ')
+          for project in "${projects[@]}"; do
+            echo "::group::dotnet build $project"
+            dotnet build "$project" -c Release -p:UseLocalCoveSource=false
+            echo "::endgroup::"
+          done
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4

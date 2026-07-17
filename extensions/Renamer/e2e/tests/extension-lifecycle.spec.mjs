@@ -17,7 +17,6 @@ import { RENAMER_EXTENSION } from '../lib/renamer-fixtures.mjs';
 const EXTENSION_ID = 'com.alextomas955.renamer';
 
 const test = base.extend({
-  // eslint-disable-next-line no-empty-pattern
   isolatedHarness: [
     async ({}, use) => {
       const isolatedHarness = await startHarness();

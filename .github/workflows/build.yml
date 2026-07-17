@@ -117,7 +117,7 @@ jobs:
 
       - name: Setup .NET
         if: ${{ !matrix.extension.manifestOnly }}
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -142,65 +142,17 @@ jobs:
         if: ${{ !matrix.extension.manifestOnly }}
         run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o artifacts/${{ matrix.extension.name }} --no-build -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
 
-      # Strip-verify gate (ported from the old rename repo, generalized to the matrix artifacts
-      # dir). Runs on every build (not tag-gated), so a host-assembly leak fails the build before
-      # anything is zipped. The denylist is the single shared source at .github/DLL_DENYLIST.json —
-      # both CI (here) and the local deploy script (deploy-dev.ps1) read it, so there is no
-      # hand-sync drift when the host adds a provided dependency.
+      # Catalog-driven strip-verify gate: proves the publish set carries no host-provided
+      # (denylisted) assembly, carries the entry assembly plus any first-party runtime dependency
+      # the catalog entry declares in requiredBundledDlls, and leaks no absolute build path in its
+      # json. Runs on every build (not tag-gated), so a leak fails the build before anything is
+      # zipped. scripts/strip-verify.mjs is the single shared implementation both this job and the
+      # local release-proof harness call, and it reads the shared .github/DLL_DENYLIST.json — so
+      # there is no drift between what CI enforces and what a local run proves, nor when the host
+      # adds a provided dependency.
       - name: Strip-verify (no host assemblies, no absolute paths)
         if: ${{ !matrix.extension.manifestOnly }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-
-          dir="artifacts/${{ matrix.extension.name }}"
-          mapfile -t denylist < <(jq -r '.[]' .github/DLL_DENYLIST.json)
-
-          fail=0
-
-          for dll in "$dir"/*.dll; do
-            base=$(basename "$dll" .dll)
-            for banned in "${denylist[@]}"; do
-              if [[ "$base" == "$banned" ]]; then
-                echo "LEAK: host-provided assembly present: $(basename "$dll")"
-                fail=1
-              fi
-            done
-          done
-
-          if [[ ! -f "$dir/${{ matrix.extension.name }}.dll" ]]; then
-            echo "MISSING: ${{ matrix.extension.name }}.dll is absent from the publish set — build produced no extension assembly."
-            fail=1
-          fi
-
-          if [[ ! -f "$dir/System.IO.Hashing.dll" ]]; then
-            echo "MISSING: System.IO.Hashing.dll is absent — Renamer's bundled cross-volume-mover dependency did not ship."
-            fail=1
-          fi
-
-          # Materialize the Windows drive-root marker (I: followed by a backslash). The backslash is
-          # written as printf's octal escape \134 so it survives YAML+bash quoting intact with no
-          # backslash adjacent to a quote (which shellcheck would flag).
-          win_marker=$(printf 'I:\134')
-          jsons=("$dir"/*.json)
-          if [[ ${#jsons[@]} -gt 0 ]]; then
-            if matches=$(grep -F -n -e "$win_marker" -e '/home/' -e '/Users/' "${jsons[@]}"); then
-              echo "LEAK: absolute path found in publish-set json:"
-              echo "$matches"
-              fail=1
-            fi
-          fi
-
-          if [[ "$fail" -ne 0 ]]; then
-            echo "Strip-verify FAILED."
-            exit 1
-          fi
-
-          echo "Strip-verify PASS — approved publish set:"
-          for f in "$dir"/*; do
-            echo "  $(basename "$f")"
-          done
+        run: node scripts/strip-verify.mjs artifacts/${{ matrix.extension.name }} ${{ matrix.extension.id }}
 
       - name: Copy manifest
         if: ${{ !matrix.extension.manifestOnly }}
@@ -248,10 +200,12 @@ jobs:
         if: ${{ matrix.extension.uiPath != '' }}
         run: cp ${{ matrix.extension.uiPath }}/dist/index.mjs artifacts/${{ matrix.extension.name }}/
 
-      # Version parity: the version the manifest, the assembly, the UI package, and the catalog
-      # registry manifest declare must agree, so a release can't ship a manifest that disagrees
-      # with the binary. The 4th arg is the catalog registry manifest, derived from the entry's
-      # own path/id (<path>/extensions/<id>.json) rather than a new catalog.json field.
+      # Version parity: the version the manifest, the assembly, the UI package, and (when it exists)
+      # the catalog registry manifest declare must agree, so a release can't ship a manifest that
+      # disagrees with the binary. The registry manifest (<path>/extensions/<id>.json) is the
+      # optional 4th arg and is passed ONLY when that file exists — an extension not yet registered
+      # in the store has no such file, and check-version-parity.mjs would otherwise crash on the
+      # missing path before packaging.
       # PR-excluded like Package/Upload artifact below: on a PR build steps.check.outputs.version
       # is the "0.0.0" placeholder (no real tag), which the "Stamp source package.json version"
       # step above writes into package.json — but extension.json's own version is left at its real
@@ -260,7 +214,14 @@ jobs:
       # fail this gate. The real check only makes sense once there's a real version being released.
       - name: Check version parity
         if: ${{ matrix.extension.versionSourcePath != '' && github.event_name != 'pull_request' }}
-        run: node scripts/check-version-parity.mjs ${{ matrix.extension.manifestPath }} ${{ matrix.extension.versionSourcePath }} ${{ matrix.extension.uiPath }}/package.json ${{ matrix.extension.path }}/extensions/${{ matrix.extension.id }}.json
+        shell: bash
+        run: |
+          registry="${{ matrix.extension.path }}/extensions/${{ matrix.extension.id }}.json"
+          args=("${{ matrix.extension.manifestPath }}" "${{ matrix.extension.versionSourcePath }}" "${{ matrix.extension.uiPath }}/package.json")
+          if [[ -f "$registry" ]]; then
+            args+=("$registry")
+          fi
+          node scripts/check-version-parity.mjs "${args[@]}"
 
       - name: Package
         if: ${{ github.event_name != 'pull_request' }}
@@ -301,10 +262,15 @@ jobs:
             echo "has_suite=false" >> "$GITHUB_OUTPUT"
             echo "::notice::${{ matrix.extension.name }} has no e2ePath/e2eProject in catalog.json (or the directory is missing) — skipping E2E for this extension."
           fi
+          if [[ -n "${{ matrix.extension.e2eNodeTestsPath }}" && -d "${{ matrix.extension.e2eNodeTestsPath }}" ]]; then
+            echo "has_node_tests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_node_tests=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup .NET
-        if: steps.check.outputs.has_suite == 'true' && !matrix.extension.manifestOnly
-        uses: actions/setup-dotnet@v5
+        if: (steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true') && !matrix.extension.manifestOnly
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -315,11 +281,11 @@ jobs:
       # "publishDir does not exist" — found via this repo's actual first CI run, since this job's
       # own publish path was never exercised against the real fixtures before.
       - name: Build extension (publish output for the harness to install)
-        if: steps.check.outputs.has_suite == 'true' && !matrix.extension.manifestOnly
+        if: (steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true') && !matrix.extension.manifestOnly
         run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o ${{ matrix.extension.path }}/artifacts/publish -p:UseLocalCoveSource=false
 
       - name: Setup Node
-        if: steps.check.outputs.has_suite == 'true'
+        if: steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: '24.11.0'
@@ -328,7 +294,7 @@ jobs:
       # `npm ci` in this nested non-workspace UI package once a root workspace exists. No-op on an
       # in-sync lockfile.
       - name: Build extension UI bundle
-        if: steps.check.outputs.has_suite == 'true' && matrix.extension.uiPath != ''
+        if: (steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true') && matrix.extension.uiPath != ''
         working-directory: ${{ matrix.extension.uiPath }}
         run: |
           npm install
@@ -338,7 +304,7 @@ jobs:
       # tests/e2e) + the single hoisted @playwright/test are established before the suite runs. A
       # `cd tests/e2e && npm ci` would ignore the root lockfile/workspaces and is wrong now.
       - name: Install harness dependencies
-        if: steps.check.outputs.has_suite == 'true'
+        if: steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true'
         run: |
           npm ci
           npx playwright install --with-deps chromium
@@ -348,6 +314,18 @@ jobs:
         if: steps.check.outputs.has_suite == 'true'
         working-directory: tests/e2e
         run: npx playwright test --project=${{ matrix.extension.e2eProject }}
+
+      # The container-correctness tier: the extension's non-browser API/webhook/sync specs run against
+      # a real Whisparr container whose metadata source is a committed offline replay stub. It reads no
+      # repository secret — identities resolve through the stub and the Whisparr images are public — so
+      # it runs on fork pull requests, where secrets are never provided. The glob is required: `node
+      # --test <dir>` treats a bare directory as a module entry point on current Node and fails, so the
+      # run must enumerate the spec files. Files run serially (--test-concurrency=1): each spec boots its
+      # own Cove + Whisparr + stub stack, and running them in parallel starves the runner's Docker host.
+      - name: Run node:test correctness tier (offline, no secret)
+        id: node_tests
+        if: steps.check.outputs.has_node_tests == 'true'
+        run: node --test --test-concurrency=1 ${{ matrix.extension.e2eNodeTestsPath }}/*.test.mjs
 
       # The `list` reporter's stdout only ever shows pass/fail + duration, never the actual
       # assertion/stack-trace detail, which otherwise only reaches the Upload Playwright report
@@ -384,7 +362,7 @@ jobs:
           merge-multiple: true
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b  # v3
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228  # v3
         with:
           files: '*.zip'
           generate_release_notes: true

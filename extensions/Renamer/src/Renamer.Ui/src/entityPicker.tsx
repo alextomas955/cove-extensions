@@ -13,7 +13,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { request } from "@cove/extension-sdk";
 
-import { Field, StatusText, Spinner } from "./primitives";
+import { Field, StatusText, Spinner } from "@cove-ext/ui-shared";
 import {
   filterEntities,
   excludeEntities,

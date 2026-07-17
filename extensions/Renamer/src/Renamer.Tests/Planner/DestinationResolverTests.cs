@@ -250,7 +250,7 @@ public sealed class DestinationResolverSourcePathRoutingTests
 }
 
 /// <summary>
-/// CR-02: a valid-but-backtracking source-path regex must be treated as "no match" (skip the rule,
+/// A valid-but-backtracking source-path regex must be treated as "no match" (skip the rule,
 /// keep cascading) when it times out at match time — NEVER an uncaught throw that aborts the batch.
 /// The build-time guard only catches a SYNTAX-invalid pattern (ArgumentException); a pattern that
 /// compiles fine then exhibits catastrophic backtracking throws RegexMatchTimeoutException at IsMatch
