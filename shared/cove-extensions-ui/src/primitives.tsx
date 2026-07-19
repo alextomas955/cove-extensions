@@ -1107,24 +1107,25 @@ export function PathShapeHint({ value }: { value: string }) {
 export function GroupCard({
   title,
   description,
+  badge,
   headerRight,
   children,
 }: {
   title: string;
   description?: string;
+  badge?: ReactNode;
   headerRight?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
-      {headerRight ? (
-        <div className="flex items-center justify-between gap-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-2">
+          {badge ? <span className="mt-0.5 shrink-0">{badge}</span> : null}
           <h3 className="text-base font-semibold text-foreground">{title}</h3>
-          {headerRight}
         </div>
-      ) : (
-        <h3 className="text-base font-semibold text-foreground">{title}</h3>
-      )}
+        {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
+      </div>
       {description ? (
         <p className="mb-4 mt-1 text-sm text-secondary">{description}</p>
       ) : (
@@ -1166,42 +1167,69 @@ export function SectionGroupHeader({ title, hint }: { title: string; hint?: stri
 }
 
 /**
- * An elevated content card — the design's primary section container (surface fill, rounded, subtle
- * shadow). `title`/`description`/`badge`/`headerRight` render a bordered header row; omit them all
- * for a bare padded card. `flush` drops the body padding (for cards whose child manages its own
- * padding, e.g. a two-column grid section). Presentational only.
+ * The primary settings section container. Chrome is matched to Cove's own `SettingsSection`
+ * (`components/SettingsPrimitives.tsx`) so extension sections are indistinguishable from native
+ * ones: same `rounded-2xl border-border bg-surface p-5` fill and long soft drop shadow, and a
+ * MARGIN header (no divider rule) — not the heavier `shadow-sm` + `border-b` header the extension
+ * used before. `badge` is the one addition core lacks: an inline `$token` marker for the
+ * token-settings cards. Presentational only.
  */
 export function SectionCard({
   title,
   description,
   badge,
   headerRight,
-  accent = false,
   children,
 }: {
   title?: string;
   description?: string;
   badge?: ReactNode;
   headerRight?: ReactNode;
-  accent?: boolean;
   children: ReactNode;
 }) {
-  const border = accent ? "border-accent/30" : "border-border";
   const hasHeader = Boolean(title) || badge != null || headerRight != null;
   return (
-    <section className={`overflow-hidden rounded-2xl border ${border} bg-surface shadow-sm`}>
+    <section className="rounded-2xl border border-border bg-surface p-5 shadow-[0_12px_30px_-20px_rgba(0,0,0,0.7)]">
       {hasHeader ? (
-        <div className="flex items-start gap-3 border-b border-border px-5 py-4">
-          {badge ? <span className="mt-0.5">{badge}</span> : null}
-          <div className="min-w-0 flex-1">
-            {title ? <h3 className="text-base font-semibold text-foreground">{title}</h3> : null}
-            {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
+        <header className="mb-4 flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            {badge ? <span className="mt-0.5 shrink-0">{badge}</span> : null}
+            <div className="min-w-0">
+              {title ? <h3 className="text-base font-semibold text-foreground">{title}</h3> : null}
+              {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
+            </div>
           </div>
           {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
-        </div>
+        </header>
       ) : null}
-      <div className="space-y-4 p-5">{children}</div>
+      <div className="space-y-4">{children}</div>
     </section>
+  );
+}
+
+/**
+ * A titled sub-section INSIDE a {@link SectionCard}: a title-case bold heading with an optional
+ * one-line description, then its controls. Groups related fields within one card (e.g. "Filename"
+ * and "Where files go" under a single card) without nesting another bordered card — the pattern
+ * Cove core uses for sub-groups within a settings section. Presentational.
+ */
+export function Subsection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+        {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
+      </div>
+      {children}
+    </div>
   );
 }
 
@@ -1225,8 +1253,8 @@ export function ToggleHeaderCard({
   children: ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
-      <div className="flex items-center gap-3 px-5 py-4">
+    <section className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex items-center gap-3 px-4 py-3">
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold text-foreground">{title}</h3>
           {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
@@ -1236,7 +1264,7 @@ export function ToggleHeaderCard({
         </div>
       </div>
       {enabled ? (
-        <div className="space-y-4 border-t border-border px-5 pb-5 pt-4">{children}</div>
+        <div className="space-y-4 border-t border-border px-4 pb-4 pt-4">{children}</div>
       ) : null}
     </section>
   );
@@ -1282,7 +1310,7 @@ export function CollapsibleSection({
           <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
         )}
       </button>
-      {open ? <div className="space-y-4 border-t border-border px-4 py-4">{children}</div> : null}
+      {open ? <div className="space-y-4 border-t border-border px-4 py-3">{children}</div> : null}
     </div>
   );
 }
