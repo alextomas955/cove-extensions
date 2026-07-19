@@ -1,7 +1,7 @@
 /**
  * Bundle entry. The default export is the extension module; the
  * `components` map KEY `RenamerPage` MUST equal the C# manifest `componentName`
- * so the host resolves the registered component to render in the settings section.
+ * so the host resolves the registered component to render for the settings page.
  *
  * The default export ALSO carries an `actionHandlers` map. The SDK `ExtensionModule`
  * type does NOT declare `actionHandlers` (see sdk/frontend/dist/types.d.ts), but the host

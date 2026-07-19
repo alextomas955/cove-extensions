@@ -7,6 +7,12 @@
   "categories": ["tools", "automation"],
   "versions": [
     {
+      "version": "0.2.0",
+      "downloadUrl": "https://github.com/alextomas955/cove-extensions/releases/download/renamer/v0.2.0/com.alextomas955.renamer-0.2.0.zip",
+      "minCoveVersion": "1.0.0",
+      "changelog": "Settings now render as a full page using Cove's page-layout settings tab — the extension owns the whole tab canvas instead of the host's card chrome. Requires Cove 1.0.0."
+    },
+    {
       "version": "0.1.0",
       "downloadUrl": "https://github.com/alextomas955/cove-extensions/releases/download/renamer/v0.1.0/com.alextomas955.renamer-0.1.0.zip",
       "minCoveVersion": "0.7.1",

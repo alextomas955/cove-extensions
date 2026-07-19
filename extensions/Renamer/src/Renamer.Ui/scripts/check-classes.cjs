@@ -49,6 +49,14 @@ const RAW_HTML_RE = /dangerouslySetInnerHTML\s*[:=]/;
 // host Tailwind JIT never scans this bundle (Phase-9 finding). Flag any `prefix-[...]` arbitrary utility
 // appearing inside a className string literal. Allows bracket usage OUTSIDE className (e.g. TS index types).
 const ARBITRARY_CLASS_RE = /\b[a-z][a-z0-9:-]*-\[[^\]]+\]/g;
+
+// Exception: an arbitrary value IS host-emitted when Cove core's OWN source uses it verbatim (the host
+// Tailwind JIT scans core, so the class ships in wwwroot's stylesheet). Re-implemented primitives that
+// mirror core may use these to match it exactly. Each entry must be verified present in the host CSS.
+const HOST_EMITTED_ARBITRARY = new Set([
+  // core `components/SettingsPrimitives.tsx` SettingsSection card shadow (verified in wwwroot CSS).
+  "shadow-[0_12px_30px_-20px_rgba(0,0,0,0.7)]",
+]);
 function classNameLiterals(text) {
   // crude but effective: capture the string contents of className="..." and className={`...`}
   const out = [];
@@ -76,8 +84,8 @@ for (const full of PANEL_FILES) {
     failed = true;
   }
   for (const cls of classNameLiterals(text)) {
-    const hits = cls.match(ARBITRARY_CLASS_RE);
-    if (hits) {
+    const hits = (cls.match(ARBITRARY_CLASS_RE) ?? []).filter((h) => !HOST_EMITTED_ARBITRARY.has(h));
+    if (hits.length) {
       console.error(`ARBITRARY Tailwind class ${JSON.stringify(hits)} in src/${file} — host JIT won't emit it; use a standard utility.`);
       failed = true;
     }

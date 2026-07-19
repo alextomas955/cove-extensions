@@ -45,7 +45,7 @@ import {
   CollapsibleSection,
   GroupCard,
   SectionCard,
-  SectionGroupHeader,
+  Subsection,
   ToggleHeaderCard,
   Badge,
   KeyValueMapEditor,
@@ -419,7 +419,6 @@ export function RenamePanelBody() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
-  const [firstRun, setFirstRun] = useState(false);
   // Set when a stored blob could not be parsed and we fell back to defaults. Non-blocking: the panel
   // still renders so a Save rewrites a clean blob and clears the bad data.
   const [recoveredFromBadBlob, setRecoveredFromBadBlob] = useState(false);
@@ -572,14 +571,12 @@ export function RenamePanelBody() {
       // null/empty guard below stays meaningful rather than being treated as dead by the type.
       const blob: string | undefined = all[OPTIONS_KEY];
       if (!blob) {
-        // missing key (undefined) or empty stored blob → first run
-        setFirstRun(true);
+        // missing key (undefined) or empty stored blob → load defaults
         preservedExtras.current = {};
         const d = cloneDefaults();
         setOptions(d);
         setSaved(d);
       } else {
-        setFirstRun(false);
         // Parse defensively. A blob written by an older version (or hand-edited) can be invalid JSON
         // — e.g. a value with single backslashes that aren't valid JSON escapes. Rather than blocking
         // the whole panel, fall back to defaults and flag it; the next Save rewrites a clean blob.
@@ -664,7 +661,6 @@ export function RenamePanelBody() {
     try {
       await saveOptions(options, preservedExtras.current);
       setSaved(options);
-      setFirstRun(false);
       setRecoveredFromBadBlob(false);
       setSavedFlash(true);
       setTimeout(() => {
@@ -759,47 +755,46 @@ export function RenamePanelBody() {
         height, not the whole page. Standard grid-cols-3 + col-span-2 only — the host Tailwind never
         compiles arbitrary [..] values for this bundle (verified live; check-classes enforces). */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="col-span-2">
+        <div className="col-span-2 space-y-6">
           {recoveredFromBadBlob ? (
             <StatusText kind="error">
               Your saved settings couldn't be read and have been reset to defaults. Review the
               options below and save to store a clean copy.
             </StatusText>
-          ) : firstRun ? (
-            <StatusText kind="muted">
-              Using default settings — pick a preset or write a template, then save.
-            </StatusText>
           ) : null}
 
           <SectionCard
-            title="Filename & destination"
-            description="Set how files are named and where they go — pick a preset or write your own template."
+            title="Filename & folder"
+            description="The name each file gets, and where it lands."
           >
-            <PresetRow
-              onApply={(t) => {
-                set("FilenameTemplate", t);
-              }}
-            />
-            <Field label="Filename template">
-              <TextInput
-                value={options.FilenameTemplate}
-                onChange={(v) => {
-                  set("FilenameTemplate", v);
+            <Subsection
+              title="Filename"
+              description="Pick a preset or write your own. Click a token to insert it."
+            >
+              <PresetRow
+                onApply={(t) => {
+                  set("FilenameTemplate", t);
                 }}
-                onFocus={() => (activeTemplateRef.current = "filename")}
-                inputRef={filenameRef}
-                mono
-                placeholder="$title"
               />
-            </Field>
-            <TemplateValidation value={options.FilenameTemplate} emptySamples={emptySamples} />
-            <TokenLegend onInsert={insertToken} />
-
-            <div className="border-t border-border pt-4">
-              <div className="text-base font-semibold text-foreground">Where files go</div>
-              <p className="mb-4 mt-1 text-sm text-secondary">
-                Folder path template — moves files on rename.
-              </p>
+              <Field label="Filename template">
+                <TextInput
+                  value={options.FilenameTemplate}
+                  onChange={(v) => {
+                    set("FilenameTemplate", v);
+                  }}
+                  onFocus={() => (activeTemplateRef.current = "filename")}
+                  inputRef={filenameRef}
+                  mono
+                  placeholder="$title"
+                />
+              </Field>
+              <TemplateValidation value={options.FilenameTemplate} emptySamples={emptySamples} />
+              <TokenLegend onInsert={insertToken} />
+            </Subsection>
+            <Subsection
+              title="Where files go"
+              description="Folder path template — moves files on rename."
+            >
               <Field
                 label="Folder template"
                 helper="Blank = no folder move (rename in place). Use / for sub-folders, e.g. $studio / $year."
@@ -816,7 +811,7 @@ export function RenamePanelBody() {
                 />
               </Field>
               <TemplateValidation value={options.FolderTemplate} />
-            </div>
+            </Subsection>
           </SectionCard>
         </div>
 
@@ -825,7 +820,7 @@ export function RenamePanelBody() {
             height (default align-items:stretch — do NOT use self-start, which collapses the column to
             content height and defeats position:sticky); the inner CARD is the sticky element. ── */}
         <div>
-          <div className="space-y-4 rounded-2xl border border-border bg-surface p-5 shadow-sm lg:sticky lg:top-16">
+          <div className="space-y-4 rounded-2xl border border-border bg-surface p-5 shadow-[0_12px_30px_-20px_rgba(0,0,0,0.7)] lg:sticky lg:top-16">
             <div className="text-base font-semibold text-foreground">Live preview</div>
             <p className="mb-4 mt-1 text-sm text-secondary">
               Old → new for sample items, before anything touches disk.
@@ -849,15 +844,17 @@ export function RenamePanelBody() {
         </div>
       </div>
 
-      <SectionGroupHeader title="What gets renamed" hint="Scope and required fields" />
-      <SectionCard>
+      <SectionCard
+        title="What gets renamed"
+        description="Which items are eligible, and the fields they must have."
+      >
         <Toggle
           label="Only rename organized items"
           checked={options.OnlyOrganized}
           onChange={(v) => {
             set("OnlyOrganized", v);
           }}
-          helper="Only rename items you've marked Organized — skips un-curated items so they don't get junk names."
+          helper="Only touches items you've marked Organized — un-curated files are skipped."
         />
         <Toggle
           label="Use filename as title when none is set"
@@ -894,15 +891,17 @@ export function RenamePanelBody() {
         </Field>
       </SectionCard>
 
-      <SectionGroupHeader title="Run & automation" hint="When renames happen" />
-      <SectionCard>
+      <SectionCard
+        title="Run & automation"
+        description="When renames happen — on metadata update, or on demand."
+      >
         <Toggle
           label="Auto-rename on update"
           checked={options.AutoRenamerOnUpdate}
           onChange={(v) => {
             set("AutoRenamerOnUpdate", v);
           }}
-          helper="When on, renames a video or image automatically whenever its metadata changes — respects every gating and routing rule below. The core of a hands-off library. Off by default."
+          helper="Renames an item automatically whenever its metadata changes, following the rules below. Off by default."
         />
         <div className="border-t border-border pt-4">
           <div className="flex flex-wrap items-start gap-4">
@@ -985,10 +984,12 @@ export function RenamePanelBody() {
         />
       ) : null}
 
-      <SectionGroupHeader title="Token settings" hint="Appear only for tokens you're using" />
-      <div className="space-y-4">
+      <SectionCard
+        title="Token settings"
+        description="Formatting for individual tokens. Only shown for tokens your template uses."
+      >
         {usesPerformers ? (
-          <SectionCard title="Performers" badge={<Badge mono>$performers</Badge>} accent>
+          <GroupCard title="Performers" badge={<Badge mono>$performers</Badge>}>
             <Field label="Separator">
               <SeparatorChips
                 value={mv("Performers").Separator}
@@ -999,45 +1000,49 @@ export function RenamePanelBody() {
                 customPlaceholder="Custom separator"
               />
             </Field>
-            <Field label="Max count" helper="0 = unlimited">
-              <NumberInput
-                value={mv("Performers").MaxCount}
-                min={0}
-                onChange={(v) => {
-                  setMulti("Performers", { MaxCount: v });
-                }}
-              />
-            </Field>
-            <Field label="On overflow">
-              <Select
-                value={mv("Performers").OnOverflow}
-                onChange={(v) => {
-                  setMulti("Performers", { OnOverflow: v });
-                }}
-                options={OVERFLOW_OPTIONS}
-              />
-            </Field>
-            <Field label="Sort" helper="The id and favorite orders apply to performers only.">
-              <Select
-                value={mv("Performers").Sort}
-                onChange={(v) => {
-                  setMulti("Performers", { Sort: v });
-                }}
-                options={PERFORMER_SORT_OPTIONS}
-              />
-            </Field>
-            <Field
-              label="Ignore genders"
-              helper="Drop performers of these genders before the max-count limit. A performer with no gender is always kept. None selected = off."
-            >
-              <ChipMultiSelect
-                options={GENDER_OPTIONS}
-                values={mv("Performers").IgnoreGenders}
-                onChange={(v) => {
-                  setMulti("Performers", { IgnoreGenders: v });
-                }}
-              />
-            </Field>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Max count" helper="0 = unlimited">
+                <NumberInput
+                  value={mv("Performers").MaxCount}
+                  min={0}
+                  onChange={(v) => {
+                    setMulti("Performers", { MaxCount: v });
+                  }}
+                />
+              </Field>
+              <Field label="On overflow">
+                <Select
+                  value={mv("Performers").OnOverflow}
+                  onChange={(v) => {
+                    setMulti("Performers", { OnOverflow: v });
+                  }}
+                  options={OVERFLOW_OPTIONS}
+                />
+              </Field>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Sort" helper="The id and favorite orders apply to performers only.">
+                <Select
+                  value={mv("Performers").Sort}
+                  onChange={(v) => {
+                    setMulti("Performers", { Sort: v });
+                  }}
+                  options={PERFORMER_SORT_OPTIONS}
+                />
+              </Field>
+              <Field
+                label="Ignore genders"
+                helper="Removed before the max-count cap. Performers with no gender are always kept. None = off."
+              >
+                <ChipMultiSelect
+                  options={GENDER_OPTIONS}
+                  values={mv("Performers").IgnoreGenders}
+                  onChange={(v) => {
+                    setMulti("Performers", { IgnoreGenders: v });
+                  }}
+                />
+              </Field>
+            </div>
             <Field
               label="Gender order"
               helper="Preferred gender order, most-preferred first. Empty = off."
@@ -1069,11 +1074,11 @@ export function RenamePanelBody() {
               }}
               placeholder="Search performers…"
             />
-          </SectionCard>
+          </GroupCard>
         ) : null}
 
         {usesTags ? (
-          <SectionCard title="Tags" badge={<Badge mono>$tags</Badge>} accent>
+          <GroupCard title="Tags" badge={<Badge mono>$tags</Badge>}>
             <Field label="Separator">
               <SeparatorChips
                 value={mv("Tags").Separator}
@@ -1084,24 +1089,26 @@ export function RenamePanelBody() {
                 customPlaceholder="Custom separator"
               />
             </Field>
-            <Field label="Max count" helper="0 = unlimited">
-              <NumberInput
-                value={mv("Tags").MaxCount}
-                min={0}
-                onChange={(v) => {
-                  setMulti("Tags", { MaxCount: v });
-                }}
-              />
-            </Field>
-            <Field label="On overflow">
-              <Select
-                value={mv("Tags").OnOverflow}
-                onChange={(v) => {
-                  setMulti("Tags", { OnOverflow: v });
-                }}
-                options={OVERFLOW_OPTIONS}
-              />
-            </Field>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Max count" helper="0 = unlimited">
+                <NumberInput
+                  value={mv("Tags").MaxCount}
+                  min={0}
+                  onChange={(v) => {
+                    setMulti("Tags", { MaxCount: v });
+                  }}
+                />
+              </Field>
+              <Field label="On overflow">
+                <Select
+                  value={mv("Tags").OnOverflow}
+                  onChange={(v) => {
+                    setMulti("Tags", { OnOverflow: v });
+                  }}
+                  options={OVERFLOW_OPTIONS}
+                />
+              </Field>
+            </div>
             <Field label="Sort">
               <Select
                 value={mv("Tags").Sort}
@@ -1129,12 +1136,11 @@ export function RenamePanelBody() {
               }}
               placeholder="Search tags…"
             />
-          </SectionCard>
+          </GroupCard>
         ) : null}
 
         {usesDate || usesDuration ? (
-          <SectionCard
-            accent
+          <GroupCard
             badge={
               <Badge mono>
                 {usesDate && usesDuration ? "$date · $duration" : usesDate ? "$date" : "$duration"}
@@ -1172,7 +1178,7 @@ export function RenamePanelBody() {
                 />
               </Field>
             ) : null}
-          </SectionCard>
+          </GroupCard>
         ) : null}
 
         {!usesPerformers && !usesTags && !usesDate && !usesDuration ? (
@@ -1224,17 +1230,22 @@ export function RenamePanelBody() {
             </div>
           </div>
         ) : null}
-      </div>
+      </SectionCard>
 
-      <SectionGroupHeader title="Destination routing" hint="Where renamed files land" />
       {/* Destination routing — where matched items move to. Card ORDER follows the design mock
             (default & unorganized first, then per-studio, per-tag, advanced routing & safety, then
             sidecar and empty-folder). This is presentation order only: it does NOT set the engine's
             rule-evaluation precedence, which is decided server-side, so reordering these cards is
             safe. Each per-* card carries its enable toggle in its header (ToggleHeaderCard); all
             fields flow through set() like every other control. */}
-      <div className="space-y-4">
-        <GroupCard title="Default & unorganized destinations">
+      <SectionCard
+        title="Destination routing"
+        description="Where renamed files land. Per-studio and per-tag rules override the default."
+      >
+        <GroupCard
+          title="Default destination"
+          description="The root most of your library lands in."
+        >
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Field
               label="Default destination"
@@ -1269,7 +1280,7 @@ export function RenamePanelBody() {
             onChange={(v) => {
               set("EnableDefaultRelocate", v);
             }}
-            helper="With this on, any item matching no rule is moved to the default destination — whole-library reach. Undo is the only recovery. Off by default."
+            helper="Moves every item matching no rule to the default destination. Undo is the only recovery. Off by default."
           />
         </GroupCard>
 
@@ -1398,7 +1409,7 @@ export function RenamePanelBody() {
 
         <GroupCard
           title="Sidecar files"
-          description="Files sharing the primary's basename with one of these extensions move and rename with it; a target that already exists is left untouched, never overwritten. Captions Cove tracks always move regardless."
+          description="Files sharing the primary's basename with these extensions move and rename with it — an existing target is never overwritten. Cove-tracked captions always move."
         >
           <Field label="Also move sidecar files with these extensions">
             <TagListInput
@@ -1427,13 +1438,12 @@ export function RenamePanelBody() {
             onChange={(v) => {
               set("RemoveEmptyFolder", v);
             }}
-            helper="Deletes a source folder only when a move empties it completely — never a non-empty folder or a root. Undo won't move the file back into a deleted folder; the file stays at its new location. Off by default."
+            helper="Deletes a source folder only when a move leaves it empty — never a non-empty folder or a root. Undo won't recreate a deleted folder. Off by default."
           />
         </div>
-      </div>
+      </SectionCard>
 
-      <SectionGroupHeader title="Advanced" hint="Power-user controls — collapsed by default" />
-      <div className="space-y-3">
+      <SectionCard title="Advanced" description="Power-user controls — collapsed by default.">
         <CollapsibleSection
           title="Clean up the name"
           summary="Illegal-character and space handling, case, ASCII"
@@ -1574,7 +1584,7 @@ export function RenamePanelBody() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Field
               label="Cross-volume concurrency"
-              helper="How many files to copy across drives at once. Leave at 2 for regular hard drives; raise to 4–8 if both drives are SSDs. Higher is not always faster — on spinning disks it can be slower."
+              helper="Files copied across drives at once. 2 for hard drives; 4–8 if both are SSDs. Higher isn't always faster."
             >
               <NumberInput
                 value={options.CrossVolumeConcurrency}
@@ -1745,7 +1755,7 @@ export function RenamePanelBody() {
               onChange={(v) => {
                 set("StripLeadingArticles", v);
               }}
-              helper="Removes a single leading article and the whitespace after it from the title, at most once (case-insensitive) — a word merely starting with an article, and a mid-title article, are left alone."
+              helper="Removes one leading article from the title (case-insensitive). A mid-title article, or a word merely starting with one, is left alone."
             />
             <Field label="Articles">
               <TagListInput
@@ -1783,7 +1793,7 @@ export function RenamePanelBody() {
             helper="Collapses consecutive duplicate folder path segments to one — affects the folder path, not the filename."
           />
         </CollapsibleSection>
-      </div>
+      </SectionCard>
 
       {/* ── UNDO — the action surface, distinct from configuration, at the bottom. ── */}
       <div id="rename-undo-section">
