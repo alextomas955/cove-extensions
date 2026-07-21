@@ -76,6 +76,7 @@ principal at all — a shared-secret token is its auth, so it omits the principa
 | `/webhook` | POST | anonymous (token) | Inbound Whisparr On-Import receiver — ingests the imported file |
 | `/import-log` | GET | read | The auto-import audit log: every attempt with its result, source, time, path, and Cove item + counts |
 | `/root-overlap` | GET | read | A best-effort advisory: whether a Cove library root overlaps a Whisparr root (a re-grab-loop risk) |
+| `/scene-folder-overlap` | GET | configure | A best-effort **v3-only** advisory: whether a Whisparr root's trailing segment doubles the Scene Folder Format's leading literal (Eros path-doubling); quiet 200 empty set on v2 or any failed read |
 | `/monitor` | POST | configure | Toggle a studio/performer's monitored state in Whisparr (add-then-flip); body carries the entity's remote ids only |
 | `/monitor-status` | POST | configure | The quiet-status projection for a studio/performer: added / monitored / scenesPresent / scenesTotal (Whisparr's own present-in-library / catalog counts) |
 | `/scene-add` | POST | configure | Register one scene in Whisparr as non-grabbing (`searchForMovie:false`, origin-tagged); body carries the Cove id only |
@@ -577,6 +578,28 @@ the ingest guard, in **both** directions. `GET /root-overlap` surfaces the resul
 **best-effort advisory, never a hard gate**: cross-mount or containerized deployments legitimately see
 the same library at different paths, so a non-overlap is not a guarantee and an overlap is not an
 error — the warning says as much.
+
+### Warn on a root × Scene Folder Format overlap
+
+Whisparr Eros builds each scene's movie folder as `<root folder>` + the **Scene Folder Format**
+output, and that format always begins with a literal path segment (the default is `scenes/…`). So when
+the configured root folder's trailing segment equals the format's leading literal, the segment is
+doubled — root `/data/media/scenes` + format `scenes/…` writes to `/data/media/scenes/scenes/…`, an
+unfindable path where every scene reports "Missing" (the exact Phase-34 misconfiguration this guards
+against). `SceneFolderOverlapDetector` — a pure, host-free sibling of `RootOverlapDetector` — reads the
+connected instance's format via `GetNamingConfigAsync` (`GET /api/v3/config/naming` →
+`sceneFolderFormat`), extracts its leading LITERAL segment with `LeadingLiteralSegment` (the first
+segment when it is a pure literal, else null — a token-leading or empty format yields nothing), and
+`Detect` flags any root (`ListRootFoldersAsync`) whose trailing segment equals it, using the same
+separator-normalized, case-sensitive, segment-bounded comparison as the ingest guard. Each hit carries
+the offending root, the doubled `prefix`, and a `suggestedRoot` (the parent — the root with the
+overlapping segment stripped). `GET /scene-folder-overlap` surfaces the result.
+
+The check is **v3/Eros-only** — the Scene Folder Format is an Eros concept, so a v2 connection is a
+quiet 200 empty set (never `VERSION_UNSUPPORTED`), and a failed or absent naming/root read degrades to
+the same empty advisory rather than an error. Like the root-overlap check it is a **best-effort
+advisory, never a hard gate**: the extension cannot change Whisparr's config, so it names the fix (set
+the root to the level above) and leaves the correction to the user.
 
 ### An honest manifest
 

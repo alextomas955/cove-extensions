@@ -43,6 +43,22 @@ available on Whisparr v3 (Eros)" and their card badges are not shown. See the
 [status reference](./status#per-card-badges).
 :::
 
+### Scene folder format overlap advisory
+
+If your Whisparr root folder ends in the same segment the **Scene Folder Format** begins with, the
+extension shows an amber advisory above the connection panel. For example, with the root
+`/data/media/scenes` and the default format `scenes/…`, Whisparr Eros builds each scene folder as the
+root plus the format output and writes to `/data/media/scenes/scenes/…` — a doubled path where Cove
+can't find the files and every scene shows as missing. The advisory names the offending root, shows
+the doubled path it would produce, and suggests setting the root to the level above (here,
+`/data/media`).
+
+The advisory is guidance only: it never blocks any action and never changes Whisparr's config for you,
+so fix the root in Whisparr yourself. It appears on **Whisparr v3 (Eros)** only — the Scene Folder
+Format is an Eros concept — and stays quiet on v2, when there is no overlap, and when the check can't
+read Whisparr. Dismiss it and it stays hidden for the session, returning next session while the root
+is still doubled.
+
 ## Storage requirement
 
 Whisparr and Cove must see the media library at the **same path**. When Whisparr finishes a download
