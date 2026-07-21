@@ -223,10 +223,41 @@ internal sealed class WhisparrClient(HttpClient http)
             ct);
 
     /// <summary>
+    /// Reads <c>GET {baseUrl}/api/v3/notification</c> — Whisparr's own notification/connection list
+    /// (idempotent; bounded retry). The connector-sourced register finds the Cove connection by name and
+    /// reads its webhook URL out of the row's fields. Returns the (possibly empty)
+    /// <see cref="WhisparrNotification"/> array; an empty array is a valid <see cref="WhisparrResultState.Ok"/>
+    /// result meaning "no connections". Transport-only. Mirrors <see cref="ListTagsAsync"/>.
+    /// </summary>
+    internal Task<WhisparrResult<WhisparrNotification[]>> ListNotificationsAsync(string baseUrl, string apiKey, CancellationToken ct)
+        => SendAsync(
+            () => new HttpRequestMessage(HttpMethod.Get, $"{baseUrl.TrimEnd('/')}/api/v3/notification"),
+            apiKey, GetMaxAttempts,
+            (resp, token) => DeserializeAsync(resp, WhisparrJsonContext.Default.WhisparrNotificationArray, token),
+            ct);
+
+    /// <summary>
+    /// Puts the caller-serialized notification body to <c>PUT {baseUrl}/api/v3/notification/{id}</c> — the
+    /// idempotent-register update step that rewrites the existing Cove connection in place (single-shot). A
+    /// 2xx returns the updated <see cref="WhisparrNotification"/>. The adapter owns the payload shape
+    /// (mirrors <see cref="UpdateStudioAsync"/>).
+    /// </summary>
+    internal Task<WhisparrResult<WhisparrNotification>> UpdateNotificationAsync(string baseUrl, string apiKey, int id, string notificationJson, CancellationToken ct)
+        => SendAsync(
+            () => new HttpRequestMessage(HttpMethod.Put, $"{baseUrl.TrimEnd('/')}/api/v3/notification/{id}")
+            {
+                Content = new StringContent(notificationJson, Encoding.UTF8, "application/json"),
+            },
+            apiKey, PostMaxAttempts,
+            (resp, token) => DeserializeAsync(resp, WhisparrJsonContext.Default.WhisparrNotification, token),
+            ct);
+
+    /// <summary>
     /// Posts a pre-serialized notification payload to <c>POST {baseUrl}/api/v3/notification</c> to register
     /// the Cove webhook connection. The caller (the adapter) owns the payload shape; this method is
     /// transport-only and single-shot — a non-idempotent POST is never blind-retried. On any 2xx JSON
-    /// response this reports <see cref="WhisparrResultState.Ok"/>.
+    /// response this reports <see cref="WhisparrResultState.Ok"/>; a duplicate-name rejection is classified
+    /// <see cref="WhisparrResultState.Conflict"/> (the same idempotent outcome a 409 yields).
     /// </summary>
     internal Task<WhisparrResult<bool>> RegisterWebhookAsync(string baseUrl, string apiKey, string notificationJson, CancellationToken ct)
         => SendAsync<bool>(
@@ -236,7 +267,17 @@ internal sealed class WhisparrClient(HttpClient http)
             },
             apiKey, PostMaxAttempts,
             (_, _) => Task.FromResult(WhisparrResult<bool>.Ok(true)),
-            ct);
+            ct,
+            conflictCodes: CreateConflictCodes,
+            conflictBodyMatch: IsNotificationNameConflictBody);
+
+    // Whisparr answers a duplicate-name notification with a 400 unique-name validation body, not a 409, so
+    // the Conflict must be recognised from the body; an unrelated 400 (no unique-name/already marker) stays
+    // Unreachable.
+    private static bool IsNotificationNameConflictBody(string body)
+        => body.Contains("Should be unique", StringComparison.OrdinalIgnoreCase)
+            || body.Contains("ShouldBeUnique", StringComparison.OrdinalIgnoreCase)
+            || body.Contains("already", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Reads <c>GET {baseUrl}/api/v3/studio?stashId={stashId}</c> — the studio identity lookup by
