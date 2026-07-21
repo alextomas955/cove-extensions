@@ -1,0 +1,14 @@
+{
+  "name": "@cove-extensions/whisparrsync-e2e",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "WhisparrSync's own end-to-end tests. Registered as a project in the shared tests/e2e/playwright.config.mjs — see tests/e2e/README.md for why this isn't its own separate Playwright install.",
+  "scripts": {
+    "test": "cd ../../../tests/e2e && npx playwright test --project=whisparrsync",
+    "test:node": "node --test --test-concurrency=1 node-tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@cove-extensions/e2e": "*"
+  }
+}

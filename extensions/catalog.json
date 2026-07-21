@@ -14,6 +14,21 @@
       "requiredBundledDlls": ["System.IO.Hashing"],
       "e2ePath": "extensions/Renamer/e2e",
       "e2eProject": "renamer"
+    },
+    {
+      "name": "WhisparrSync",
+      "id": "com.alextomas955.whisparrsync",
+      "path": "extensions/WhisparrSync",
+      "tagPrefix": "whisparrsync/",
+      "projectPath": "extensions/WhisparrSync/src/WhisparrSync/WhisparrSync.csproj",
+      "testProjectPath": "extensions/WhisparrSync/src/WhisparrSync.Tests/WhisparrSync.Tests.csproj",
+      "manifestPath": "extensions/WhisparrSync/src/WhisparrSync/extension.json",
+      "uiPath": "extensions/WhisparrSync/src/WhisparrSync.Ui",
+      "versionSourcePath": "extensions/WhisparrSync/src/WhisparrSync/WhisparrSync.cs",
+      "requiredBundledDlls": [],
+      "e2ePath": "extensions/WhisparrSync/e2e",
+      "e2eProject": "whisparrsync",
+      "e2eNodeTestsPath": "extensions/WhisparrSync/e2e/node-tests"
     }
   ]
 }

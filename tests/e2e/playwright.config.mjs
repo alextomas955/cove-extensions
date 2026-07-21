@@ -50,5 +50,9 @@ export default defineConfig({
       name: 'renamer',
       testDir: join(__dirname, '..', '..', 'extensions', 'Renamer', 'e2e', 'tests'),
     },
+    {
+      name: 'whisparrsync',
+      testDir: join(__dirname, '..', '..', 'extensions', 'WhisparrSync', 'e2e', 'tests'),
+    },
   ],
 });
