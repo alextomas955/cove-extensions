@@ -29,6 +29,9 @@ public sealed class SyncLibraryJobTests
     private static IReadOnlyList<int> AddCoveIdsOf(IEnumerable<Ext.SyncUnit> units)
         => [.. units.Where(u => u.Op == Ext.SyncOp.Add).Select(u => u.CoveId)];
 
+    private static IReadOnlyList<int> RegisterCoveIdsOf(IEnumerable<Ext.SyncUnit> units)
+        => CoveIdsOf(units, Ext.SyncOp.RegisterEntity, EntityKind.Studio);
+
     [Fact]
     public void BuildSyncUnits_V3_WithMonitor_PlansReflectAddAndScopedMonitor_SkippingIdLess()
     {
@@ -50,6 +53,9 @@ public sealed class SyncLibraryJobTests
         Assert.Equal(new[] { 1, 2 }, CoveIdsOf(units, Ext.SyncOp.Monitor, EntityKind.Studio));
         Assert.Equal(new[] { 10 }, CoveIdsOf(units, Ext.SyncOp.Monitor, EntityKind.Performer));
         Assert.All(units.Where(u => u.Op == Ext.SyncOp.Monitor), u => Assert.Equal(MonitorScope.AllScenes, u.Scope));
+
+        // v3 registers presence via its per-scene add — the v2-only RegisterEntity verb is never planned here.
+        Assert.DoesNotContain(units, u => u.Op == Ext.SyncOp.RegisterEntity);
     }
 
     [Fact]
@@ -70,7 +76,7 @@ public sealed class SyncLibraryJobTests
     }
 
     [Fact]
-    public void BuildSyncUnits_V2_IsStudiosOnly_NoPerformerNoSceneAdd()
+    public void BuildSyncUnits_V2_WithMonitor_RegistersBeforeReflect_StudiosOnly()
     {
         // v2 studios resolve by ThePornDB id; the StashDB ids on the performer/scenes must NOT plan a unit,
         // because v2 has no performer entity and no per-scene add.
@@ -81,11 +87,40 @@ public sealed class SyncLibraryJobTests
         var units = Ext.BuildSyncUnits(
             studios, performers, videos, alsoMonitor: true, MonitorScope.NewReleases, Options("v2"), Adapter("v2"));
 
+        // Register + reflect + monitor per studio carrying a TPDB id (the id-less 3 plans no unit at all).
+        Assert.Equal(new[] { 1, 2 }, RegisterCoveIdsOf(units));
         Assert.Equal(new[] { 1, 2 }, CoveIdsOf(units, Ext.SyncOp.ReflectOwned, EntityKind.Studio));
         Assert.Equal(new[] { 1, 2 }, CoveIdsOf(units, Ext.SyncOp.Monitor, EntityKind.Studio));
+
+        // Register precedes reflect for the SAME studio: v2 reflect-owned can only attach files to a site that
+        // ALREADY exists, so the site must be registered first (the job runs units in list order).
+        var list = units.ToList();
+        foreach (var coveId in new[] { 1, 2 })
+        {
+            var registerAt = list.FindIndex(u => u.Op == Ext.SyncOp.RegisterEntity && u.CoveId == coveId);
+            var reflectAt = list.FindIndex(u => u.Op == Ext.SyncOp.ReflectOwned && u.CoveId == coveId);
+            Assert.True(registerAt >= 0 && registerAt < reflectAt);
+        }
+
         // No performer units (reflect or monitor), and no scene-add units — none are a v2 concept.
         Assert.DoesNotContain(units, u => u.Kind == EntityKind.Performer && u.Video is null);
         Assert.DoesNotContain(units, u => u.Op == Ext.SyncOp.Add);
+    }
+
+    [Fact]
+    public void BuildSyncUnits_V2_WithoutMonitor_StillRegistersAndReflects_ButNoMonitor()
+    {
+        var studios = new[] { Entity(1, null, "t-1"), Entity(2, null, "t-2"), Entity(3, null, null) };
+
+        var units = Ext.BuildSyncUnits(
+            studios, [], [], alsoMonitor: false, MonitorScope.NewReleases, Options("v2"), Adapter("v2"));
+
+        // Registering presence is decoupled from monitoring: monitor OFF still plans register + reflect (the
+        // clean-v2 gap fix — a monitor-OFF sync must create the site) with the id-less 3 skipped...
+        Assert.Equal(new[] { 1, 2 }, RegisterCoveIdsOf(units));
+        Assert.Equal(new[] { 1, 2 }, CoveIdsOf(units, Ext.SyncOp.ReflectOwned, EntityKind.Studio));
+        // ...but no monitor units.
+        Assert.DoesNotContain(units, u => u.Op == Ext.SyncOp.Monitor);
     }
 
     [Fact]
