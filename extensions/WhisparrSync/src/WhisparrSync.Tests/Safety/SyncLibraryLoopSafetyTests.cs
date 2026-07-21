@@ -26,9 +26,14 @@ public sealed class SyncLibraryLoopSafetyTests
     [Fact]
     public void SyncOp_HasNoGrabMember()
     {
-        // The three loop-safe verbs and nothing else: a future grab op cannot slip in un-noticed.
+        // The loop-safe verbs and nothing else: a future grab op cannot slip in un-noticed. RegisterEntity is a
+        // non-grabbing site-add, so it is a member; a "Search" member never is.
         Assert.Equal(
-            new[] { nameof(Ext.SyncOp.ReflectOwned), nameof(Ext.SyncOp.Monitor), nameof(Ext.SyncOp.Add) },
+            new[]
+            {
+                nameof(Ext.SyncOp.ReflectOwned), nameof(Ext.SyncOp.Monitor),
+                nameof(Ext.SyncOp.Add), nameof(Ext.SyncOp.RegisterEntity),
+            },
             Enum.GetNames<Ext.SyncOp>());
         Assert.DoesNotContain(Enum.GetNames<Ext.SyncOp>(), n => n.Contains("Search", StringComparison.OrdinalIgnoreCase));
     }
@@ -45,7 +50,8 @@ public sealed class SyncLibraryLoopSafetyTests
             new WhisparrOptions { SelectedVersion = "v3" }, Adapter("v3"));
 
         Assert.NotEmpty(units);
-        Assert.All(units, u => Assert.True(u.Op is Ext.SyncOp.ReflectOwned or Ext.SyncOp.Monitor or Ext.SyncOp.Add));
+        Assert.All(units, u => Assert.True(
+            u.Op is Ext.SyncOp.ReflectOwned or Ext.SyncOp.Monitor or Ext.SyncOp.Add or Ext.SyncOp.RegisterEntity));
     }
 
     [Fact]
