@@ -134,6 +134,20 @@ internal sealed record WhisparrPerformer(
 internal sealed record WhisparrTag(int Id, string? Label);
 
 /// <summary>
+/// A Whisparr <c>GET /api/v3/notification</c> row — a configured notification/connection (also the POST/PUT
+/// projection). <see cref="Name"/> is the connection name the register matches ("Cove Whisparr Sync") and
+/// <see cref="Fields"/> carries the webhook URL. Nullable-friendly so a partial row still binds.
+/// </summary>
+internal sealed record WhisparrNotification(int Id, string? Name, WhisparrNotificationField[]? Fields);
+
+/// <summary>
+/// One <c>field</c> of a <see cref="WhisparrNotification"/> — a name/value pair. <see cref="Value"/> stays a
+/// raw <see cref="JsonElement"/> because Whisparr's field values are polymorphic (string / number / bool /
+/// array); the adapter reads the string when <see cref="Name"/> is <c>"url"</c>.
+/// </summary>
+internal sealed record WhisparrNotificationField(string? Name, JsonElement Value);
+
+/// <summary>
 /// The on-disk file of a <see cref="WhisparrMovie"/> (the <c>movieFile</c> sub-resource). <see cref="Path"/>
 /// is the source of the reconciliation path leg; nullable because a not-yet-downloaded movie has none.
 /// <see cref="Quality"/> is the append-only quality leg (<c>movieFile.quality.quality.name</c>),
