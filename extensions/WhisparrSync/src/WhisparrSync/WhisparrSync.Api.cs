@@ -38,6 +38,11 @@ public sealed partial class WhisparrSync
     // roots and warns when they overlap (a re-grab-loop risk). Read-gated exactly like /reconciliation.
     private const string RootOverlapRoute = RouteBase + "/root-overlap";
 
+    // The read-only scene-folder-format overlap advisory (v3/Eros only): flags a Whisparr root whose trailing
+    // segment doubles the Scene Folder Format's leading literal. Configure-gated (not read-gated like /root-overlap):
+    // it reaches the stored creds to read Whisparr's naming config, the same posture as /file-settings.
+    private const string SceneFolderOverlapRoute = RouteBase + "/scene-folder-overlap";
+
     // The read-only reconciliation surface. /preview-sync computes the live diff (configure-gated —
     // it reaches the stored creds to call Whisparr); /reconciliation is a pure match-map read
     // (read-gated); /match/confirm|reject validate a submitted pair against the fresh diff, then write ONLY
@@ -317,6 +322,12 @@ public sealed partial class WhisparrSync
         endpoints.MapGet(RootOverlapRoute,
             (WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => RootOverlapAsync(client, principal, ct));
+
+        // Scene-folder-format overlap advisory: v3/Eros only (quiet empty set on v2), configure-gated —
+        // it reaches the stored creds to read the naming config + root folders.
+        endpoints.MapGet(SceneFolderOverlapRoute,
+            (WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => SceneFolderOverlapAsync(client, principal, ct));
 
         // Studio/performer monitor toggle + status. Both POST (they carry the entity's
         // Cove remoteIds in the body) and delegate to an extracted instance handler so they are unit-testable
