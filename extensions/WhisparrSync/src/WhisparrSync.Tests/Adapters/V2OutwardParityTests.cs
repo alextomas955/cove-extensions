@@ -256,6 +256,83 @@ public sealed class V2OutwardParityTests
         Assert.Empty(handler.Requests);
     }
 
+    // GO 5 (register — the monitor-independent site-add): an absent site is registered PRESENT yet inert —
+    // monitored:false, monitor/monitorNewItems "none", searchForMissingEpisodes:false, origin-tagged — with no
+    // flip, no episode cascade, and no grab command. This is the primitive the monitor-OFF bulk sync needs.
+    [Fact]
+    public async Task Register_V2_AbsentSite_AddsNonGrabbing_NoFlipNoCommand()
+    {
+        var (adapter, handler) = AdapterOn(FakeHttpMessageHandler.Sequence(
+            Respond(HttpStatusCode.OK, V2Fixtures.SeriesArray),             // GET /series -> 3417 absent
+            Respond(HttpStatusCode.OK, V2Fixtures.SeriesLookup),            // lookup tpdb:3417
+            Respond(HttpStatusCode.Created, V2Fixtures.SeriesAddResponse))); // POST /series (created id 3, monitored:false)
+
+        var result = await adapter.RegisterEntityAsync(
+            BaseUrl, ApiKey, EntityKind.Studio, AbsentTpdb,
+            rootFolderPath: "/config/media", qualityProfileId: 1, OriginTag, CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.Ok, result.State);
+        Assert.True(result.Value!.Added);
+        Assert.False(result.Value.Monitored);
+
+        var add = Assert.Single(handler.Requests, r => r.Method == HttpMethod.Post && r.Url.EndsWith("/api/v3/series", StringComparison.Ordinal));
+        Assert.Contains("\"monitored\":false", add.Body);
+        Assert.Contains("\"monitor\":\"none\"", add.Body);
+        Assert.Contains("\"monitorNewItems\":\"none\"", add.Body);
+        Assert.Contains("\"searchForMissingEpisodes\":false", add.Body);
+        Assert.Contains("\"tags\":[1]", add.Body);
+
+        // Register never flips (no PUT), never cascades episode monitors, and never grabs (no command).
+        Assert.DoesNotContain(handler.Requests, r => r.Method == HttpMethod.Put);
+        Assert.DoesNotContain(handler.Requests, r => r.Url.EndsWith("/api/v3/episode/monitor", StringComparison.Ordinal));
+        Assert.DoesNotContain(handler.Requests, r => r.Url.Contains("/api/v3/command", StringComparison.Ordinal));
+    }
+
+    // GO 5 (register idempotency spine): a duplicate add (400 SeriesExistsValidator) is success, resolved by
+    // re-read — never a second POST /series.
+    [Fact]
+    public async Task Register_V2_DuplicateAdd_IsIdempotentSuccess_SinglePost()
+    {
+        const string addedTushy = """
+            [ { "id": 5, "tvdbId": 3417, "title": "Tushy", "titleSlug": "tushy", "path": "/config/media/Tushy", "monitored": false, "tags": [] } ]
+            """;
+        var (adapter, handler) = AdapterOn(FakeHttpMessageHandler.Sequence(
+            Respond(HttpStatusCode.OK, V2Fixtures.SeriesArray),
+            Respond(HttpStatusCode.OK, V2Fixtures.SeriesLookup),
+            Respond(HttpStatusCode.BadRequest, V2Fixtures.SeriesExistsError),
+            Respond(HttpStatusCode.OK, addedTushy)));
+
+        var result = await adapter.RegisterEntityAsync(
+            BaseUrl, ApiKey, EntityKind.Studio, AbsentTpdb,
+            rootFolderPath: "/config/media", qualityProfileId: 1, OriginTag, CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.Ok, result.State);
+        Assert.False(result.Value!.Added);
+        Assert.Single(handler.Requests, r => r.Method == HttpMethod.Post && r.Url.EndsWith("/api/v3/series", StringComparison.Ordinal));
+        Assert.DoesNotContain(handler.Requests, r => r.Url.Contains("/api/v3/command", StringComparison.Ordinal));
+    }
+
+    // GO 5 (register no-op): an already-present site is a success with NO create — only the single GET /series
+    // ran (no lookup, no POST, no PUT, no command), and it reports the site's existing monitored state.
+    [Fact]
+    public async Task Register_V2_AlreadyPresent_IsNoOpSuccess_OnlyGet()
+    {
+        var (adapter, handler) = AdapterOn(FakeHttpMessageHandler.Sequence(
+            Respond(HttpStatusCode.OK, V2Fixtures.SeriesArray)));
+
+        var result = await adapter.RegisterEntityAsync(
+            BaseUrl, ApiKey, EntityKind.Studio, AddedTpdb, // 3372 seeded present + monitored:true
+            rootFolderPath: "/config/media", qualityProfileId: 1, OriginTag, CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.Ok, result.State);
+        Assert.False(result.Value!.Added);
+        Assert.True(result.Value.Monitored);
+
+        var only = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Get, only.Method);
+        Assert.EndsWith("/api/v3/series", only.Url, StringComparison.Ordinal);
+    }
+
     // === DEFER — capability-specific, each with a real reason; a clean refusal with zero wire calls ===
 
     // v2 has NO performer entity: performers are embedded episode.actors[] metadata with no monitorable
@@ -290,6 +367,20 @@ public sealed class V2OutwardParityTests
 
         var result = await adapter.ListAttributedMovieIdsAsync(
             BaseUrl, ApiKey, EntityKind.Performer, AbsentTpdb, monitoredOnly: true, CancellationToken.None);
+
+        AssertCleanRefusal(result, handler);
+    }
+
+    // A performer has no v2 SITE to register, so the register verb refuses before any wire call — no stray
+    // cove-sync tag, no create.
+    [Fact]
+    public async Task PerformerRegister_V2_DefersCleanly_NoWireCall()
+    {
+        var (adapter, handler) = Tripwire();
+
+        var result = await adapter.RegisterEntityAsync(
+            BaseUrl, ApiKey, EntityKind.Performer, AbsentTpdb,
+            rootFolderPath: "/config/media", qualityProfileId: 1, OriginTag, CancellationToken.None);
 
         AssertCleanRefusal(result, handler);
     }
