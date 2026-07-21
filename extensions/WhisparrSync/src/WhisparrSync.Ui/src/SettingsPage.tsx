@@ -14,7 +14,7 @@
  * token classes only (no hex, no CSS bundle).
  */
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { request } from "@cove/extension-sdk";
 import { Button, Spinner, StatusText } from "@cove-ext/ui-shared";
 import { ConnectionSettingsPanel } from "./ConnectionSettingsPanel";
@@ -50,6 +50,13 @@ import {
   syncProblemSummary,
   type SyncHealth,
 } from "./syncHealthLogic";
+import {
+  doubledPathDisplay,
+  hasSceneFolderOverlap,
+  sceneFolderOverlapSummary,
+  sceneFolderOverlapsFromServer,
+  type SceneFolderOverlap,
+} from "./sceneFolderOverlapLogic";
 import { clearMonitorStatusCache } from "./monitorStatusStore";
 import { clearSceneStatusCaches } from "./sceneStatusStore";
 import { clearCardStatusCache } from "./cardStatusStore";
@@ -102,6 +109,24 @@ async function fetchImportStatus(): Promise<{ lastTicks: number | null; syncHeal
   }
 }
 
+/**
+ * The v3-only scene-folder-format overlap advisory facts; `[]` on any thrown read. A failed advisory read is not
+ * a settings error (same catch posture as fetchImportStatus), and the endpoint is a quiet empty set on v2.
+ */
+async function fetchSceneFolderOverlap(): Promise<SceneFolderOverlap[]> {
+  try {
+    return sceneFolderOverlapsFromServer(
+      await request(`/extensions/${EXTENSION_ID}/scene-folder-overlap`),
+    );
+  } catch {
+    return [];
+  }
+}
+
+// sessionStorage (not localStorage): a dismissed advisory should reappear next session if the root is still
+// misconfigured, so the guidance is not lost forever behind one click.
+const OVERLAP_DISMISSED_KEY = "whisparr:scene-folder-overlap-dismissed";
+
 /** Order-insensitive tag-list equality for the dirty check. */
 function sameTags(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;
@@ -148,6 +173,14 @@ export function SettingsPage() {
   const [registered, setRegistered] = useState(false);
   const [lastWebhookEventTicks, setLastWebhookEventTicks] = useState<number | null>(null);
   const [syncHealth, setSyncHealth] = useState<SyncHealth>(NO_SYNC_PROBLEMS);
+  const [sceneFolderOverlaps, setSceneFolderOverlaps] = useState<SceneFolderOverlap[]>([]);
+  const [overlapDismissed, setOverlapDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem(OVERLAP_DISMISSED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
 
   // Whisparr's own file-affecting toggles (v3 only). null = not loaded (no connection) — the section shows a
   // "Test the connection" affordance rather than a guessed all-off state. Folded into the page dirty check +
@@ -201,6 +234,7 @@ export function SettingsPage() {
           const status = await fetchImportStatus();
           setLastWebhookEventTicks(status.lastTicks);
           setSyncHealth(status.syncHealth);
+          setSceneFolderOverlaps(await fetchSceneFolderOverlap());
           // The live-Whisparr probe: a failure here is what "unreachable" means for a saved connection.
           try {
             setQualityProfiles(await fetchQualityProfiles(opts.BaseUrl, ""));
@@ -479,8 +513,50 @@ export function SettingsPage() {
     }
   }
 
+  function dismissSceneFolderOverlap() {
+    try {
+      sessionStorage.setItem(OVERLAP_DISMISSED_KEY, "1");
+    } catch {
+      // sessionStorage unavailable (private mode / disabled): still hide it for the rest of this render.
+    }
+    setOverlapDismissed(true);
+  }
+
   return (
     <div className="space-y-6" style={{ paddingBottom: dirty ? "5rem" : undefined }}>
+      {hasSceneFolderOverlap(sceneFolderOverlaps) && !overlapDismissed ? (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3"
+        >
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <p className="text-sm font-semibold text-foreground">
+              Whisparr root doubles the scene folder — files will be unfindable
+            </p>
+            {sceneFolderOverlaps.map((o) => (
+              <div key={o.root} className="space-y-1">
+                <p className="truncate font-mono text-xs text-muted" title={o.root}>
+                  Root: {o.root}
+                </p>
+                <p className="truncate font-mono text-xs text-muted" title={doubledPathDisplay(o)}>
+                  Whisparr writes: {doubledPathDisplay(o)}
+                </p>
+                <p className="text-sm text-secondary">{sceneFolderOverlapSummary(o)}</p>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={dismissSceneFolderOverlap}
+            className="shrink-0 rounded-md p-1 text-muted hover:text-foreground"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ) : null}
+
       {hasSyncProblem(syncHealth) ? (
         <div
           role="alert"
