@@ -78,6 +78,39 @@ internal sealed class EntityMonitor(WhisparrClient client, WhisparrOptions optio
     }
 
     /// <summary>
+    /// Registers a studio's PRESENCE (a v2/site add) with monitoring OFF and grabbing disarmed. Resolves the
+    /// fallback root + ensures the origin tag — the same attribution spine <see cref="SetMonitorAsync"/> uses on
+    /// its ON leg — then delegates to <see cref="IWhisparrAdapter.RegisterEntityAsync"/>. Returns the adapter's
+    /// classified result verbatim (a v3 no-op / a v2 performer deferral surface unchanged).
+    /// </summary>
+    internal async Task<WhisparrResult<EntityMonitorResult>> RegisterEntityAsync(
+        EntityKind kind, string stashId, CancellationToken ct)
+    {
+        var adapter = SelectAdapter();
+        if (adapter is null || !adapter.SupportsOwnedImport)
+        {
+            return WhisparrResult<EntityMonitorResult>.VersionMismatch(options.DetectedVersion);
+        }
+
+        // Loop-safety: register only makes the site PRESENT — it never flips monitoring on nor searches.
+        var rootResult = await _addContext.ResolveFallbackRootAsync(ct);
+        if (!rootResult.IsOk)
+        {
+            return Propagate<string, EntityMonitorResult>(rootResult);
+        }
+
+        var tagResult = await _addContext.EnsureOriginTagAsync(ct);
+        if (!tagResult.IsOk)
+        {
+            return Propagate<int, EntityMonitorResult>(tagResult);
+        }
+
+        return await adapter.RegisterEntityAsync(
+            options.BaseUrl, options.ApiKey, kind, stashId,
+            rootResult.Value!, options.QualityProfileId, [tagResult.Value], ct);
+    }
+
+    /// <summary>
     /// Projects the quiet-status for a studio/performer by delegating to the version adapter (which
     /// derives the counts from its already-fetched Whisparr movie set — no StashDB call).
     /// </summary>
