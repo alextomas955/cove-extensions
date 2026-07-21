@@ -67,6 +67,10 @@ public sealed partial class WhisparrSync
         public Task<IReadOnlyList<CoveEntityIdentity>> LoadAllEntityIdentitiesAsync(
             EntityKind kind, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<CoveEntityIdentity>>([]);
+
+        public Task<IReadOnlyList<CoveEntityRef>> LoadAllEntityRefsAsync(
+            EntityKind kind, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<CoveEntityRef>>([]);
     }
 
     // The first of the scene's StashDB ids that indexes a Whisparr movie (id order preserved), or null when
