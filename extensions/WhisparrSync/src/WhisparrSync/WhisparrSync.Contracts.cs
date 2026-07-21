@@ -195,6 +195,18 @@ public sealed partial class WhisparrSync
     /// many are monitored in Whisparr.</summary>
     internal sealed record EntityLibrarySummary(int Total, int Monitored);
 
+    /// <summary>One <c>/sync-preview</c> bucket: how many entities of a kind carry a connected-version id (WILL
+    /// sync) vs carry none (skipped). A bucket the connected version does not support is all-zero.</summary>
+    internal sealed record SyncPreviewCount(int WithId, int Skipped);
+
+    /// <summary>
+    /// The <c>/sync-preview</c> response: the sync-able-vs-skipped split per bucket, computed from a
+    /// whole-library System-principal read. <see cref="Performers"/> and <see cref="Scenes"/> are all-zero on
+    /// v2 (no performer entity, no per-scene add); <see cref="Studios"/> counts on both versions.
+    /// </summary>
+    internal sealed record SyncPreviewResponse(
+        SyncPreviewCount Studios, SyncPreviewCount Performers, SyncPreviewCount Scenes);
+
     /// <summary>
     /// The <c>/videos-batch</c> response: the resolved <see cref="Op"/> plus the aggregate counts —
     /// <see cref="Total"/> selected, <see cref="Succeeded"/>, <see cref="Skipped"/> (no StashDB identity, or —
