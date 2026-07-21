@@ -116,6 +116,10 @@ public sealed partial class WhisparrSync
     private const string EntitiesBatchRoute = RouteBase + "/entities-batch";
     private const string EntitiesBatchHandlerName = "whisparrEntitiesBatchSelected";
 
+    // The bulk "Sync my library to Whisparr" preview: a configure-gated, bodiless GET returning the
+    // sync-able-vs-skipped counts over a whole-library System-principal read (stored creds only).
+    private const string SyncPreviewRoute = RouteBase + "/sync-preview";
+
     // A bulk action enqueues a background IJobService job so the Job Drawer (not a window.alert) carries the
     // progress + summary; the queued-success alert is suppressed on the action.
     private const string VideosBatchJobType = "whisparr-videos-batch";
@@ -400,6 +404,12 @@ public sealed partial class WhisparrSync
         endpoints.MapPost(EntitiesBatchRoute,
             (EntitiesBatchRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => EntitiesBatchAsync(req, client, principal, ct));
+
+        // The bulk "Sync my library to Whisparr" preview: a bodiless GET (stored creds only) returning the
+        // sync-able-vs-skipped counts.
+        endpoints.MapGet(SyncPreviewRoute,
+            (WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => SyncPreviewAsync(client, principal, ct));
 
         // The Whisparr file-settings read (GET) + write (POST). Neither carries a url/key — the handler uses the
         // stored creds only; the write honors ONLY the four whitelisted booleans (read-modify-write in the adapter).
