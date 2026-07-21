@@ -84,4 +84,23 @@ internal sealed class FakeCoveLibraryPort : ICoveLibraryPort
         EntityKind kind, CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<CoveEntityIdentity>>(
             [.. _entityIdentities.Where(kv => kv.Key.Kind == kind).Select(kv => kv.Value)]);
+
+    private readonly Dictionary<EntityKind, List<CoveEntityRef>> _entityRefs = new();
+
+    /// <summary>Seeds the refs <see cref="LoadAllEntityRefsAsync"/> returns for one <paramref name="kind"/> (additive across calls).</summary>
+    public void SeedEntityRefs(EntityKind kind, params CoveEntityRef[] refs)
+    {
+        if (!_entityRefs.TryGetValue(kind, out var list))
+        {
+            list = new List<CoveEntityRef>();
+            _entityRefs[kind] = list;
+        }
+
+        list.AddRange(refs);
+    }
+
+    public Task<IReadOnlyList<CoveEntityRef>> LoadAllEntityRefsAsync(
+        EntityKind kind, CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<CoveEntityRef>>(
+            _entityRefs.TryGetValue(kind, out var seeded) ? [.. seeded] : []);
 }

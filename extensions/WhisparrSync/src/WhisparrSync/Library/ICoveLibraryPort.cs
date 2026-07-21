@@ -65,6 +65,19 @@ internal interface ICoveLibraryPort
     /// </summary>
     Task<IReadOnlyList<CoveEntityIdentity>> LoadAllEntityIdentitiesAsync(
         EntityKind kind, CancellationToken ct = default);
+
+    /// <summary>
+    /// Loads every Cove studio's / performer's Cove id alongside its OWN metadata-server ids in ONE query — the
+    /// whole-library enumeration for the bulk "Sync my library to Whisparr" surface. Each entity yields one
+    /// <see cref="CoveEntityRef"/> (its Cove PK + its StashDB/TPDB ids); an entity with no remote id yields empty
+    /// id lists and is never omitted. Read-only (<c>AsNoTracking</c>); never mutates.
+    /// </summary>
+    /// <remarks>
+    /// CoveContext applies per-principal authz query filters that undercount a library-wide read under a
+    /// non-request principal; the call site sets <c>CovePrincipal.System()</c> to bypass them.
+    /// </remarks>
+    Task<IReadOnlyList<CoveEntityRef>> LoadAllEntityRefsAsync(
+        EntityKind kind, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -74,6 +87,18 @@ internal interface ICoveLibraryPort
 /// <param name="StashIds">The entity's StashDB ids (its <c>RemoteIds</c> filtered to the configured StashDB endpoint) — the v3 key.</param>
 /// <param name="TpdbIds">The entity's ThePornDB ids (filtered to the configured TPDB endpoint) — the v2 key.</param>
 internal sealed record CoveEntityIdentity(
+    IReadOnlyList<string> StashIds,
+    IReadOnlyList<string> TpdbIds);
+
+/// <summary>
+/// One studio's / performer's Cove id + its metadata-server ids. It carries the Cove PK that
+/// <see cref="CoveEntityIdentity"/> omits — the id a bulk action addresses the entity by.
+/// </summary>
+/// <param name="CoveId">The Cove <c>Studio.Id</c> / <c>Performer.Id</c>.</param>
+/// <param name="StashIds">The entity's StashDB ids (its <c>RemoteIds</c> filtered to the configured StashDB endpoint) — the v3 key.</param>
+/// <param name="TpdbIds">The entity's ThePornDB ids (filtered to the configured TPDB endpoint) — the v2 key.</param>
+internal sealed record CoveEntityRef(
+    int CoveId,
     IReadOnlyList<string> StashIds,
     IReadOnlyList<string> TpdbIds);
 

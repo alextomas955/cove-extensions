@@ -121,16 +121,49 @@ internal sealed class CoveLibraryPort(DbContext db, string stashEndpoint, string
         return [.. performers.Select(p => MapEntity(p.RemoteIds.Select(r => (r.Endpoint, r.RemoteId))))];
     }
 
-    // The entity-identity mapper: the SAME endpoint-filter split as Map (StashDB vs TPDB), so a studio's/
-    // performer's ids resolve by the connected version exactly as a video's do.
+    public async Task<IReadOnlyList<CoveEntityRef>> LoadAllEntityRefsAsync(
+        EntityKind kind, CancellationToken ct = default)
+    {
+        // One AsNoTracking pass over the whole kind, projecting the Cove PK + endpoint-split ids.
+        if (kind == EntityKind.Studio)
+        {
+            var studios = await db.Set<Studio>()
+                .AsNoTracking()
+                .Include(s => s.RemoteIds)
+                .ToListAsync(ct);
+            return [.. studios.Select(s => MapEntityRef(s.Id, s.RemoteIds.Select(r => (r.Endpoint, r.RemoteId))))];
+        }
+
+        var performers = await db.Set<Performer>()
+            .AsNoTracking()
+            .Include(p => p.RemoteIds)
+            .ToListAsync(ct);
+        return [.. performers.Select(p => MapEntityRef(p.Id, p.RemoteIds.Select(r => (r.Endpoint, r.RemoteId))))];
+    }
+
     private CoveEntityIdentity MapEntity(IEnumerable<(string Endpoint, string RemoteId)> remoteIds)
     {
+        var (stashIds, tpdbIds) = SplitByEndpoint(remoteIds);
+        return new CoveEntityIdentity(stashIds, tpdbIds);
+    }
+
+    private CoveEntityRef MapEntityRef(int coveId, IEnumerable<(string Endpoint, string RemoteId)> remoteIds)
+    {
+        var (stashIds, tpdbIds) = SplitByEndpoint(remoteIds);
+        return new CoveEntityRef(coveId, stashIds, tpdbIds);
+    }
+
+    // Compared case-insensitively: Cove dedups endpoints with ToUpperInvariant, and the one RemoteIds list stores
+    // both providers' ids — the endpoint match is what keeps StashDB ids out of the TPDB list and vice versa.
+    private (IReadOnlyList<string> StashIds, IReadOnlyList<string> TpdbIds) SplitByEndpoint(
+        IEnumerable<(string Endpoint, string RemoteId)> remoteIds)
+    {
         var list = remoteIds.ToList();
-        return new CoveEntityIdentity(
-            StashIds: [.. list
+        return (
+            [.. list
                 .Where(r => string.Equals(r.Endpoint, stashEndpoint, StringComparison.OrdinalIgnoreCase))
                 .Select(r => r.RemoteId)],
-            TpdbIds: [.. list
+            [.. list
                 .Where(r => string.Equals(r.Endpoint, tpdbEndpoint, StringComparison.OrdinalIgnoreCase))
                 .Select(r => r.RemoteId)]);
     }

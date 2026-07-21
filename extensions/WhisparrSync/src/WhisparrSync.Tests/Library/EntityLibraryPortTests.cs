@@ -106,4 +106,63 @@ public sealed class EntityLibraryPortTests
             await conn.DisposeAsync();
         }
     }
+
+    [Fact]
+    public async Task LoadAllEntityRefs_Studio_ProjectsCoveIdAndEndpointSplitIds_KeepingIdlessStudios()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            var withBoth = new Studio { Name = "IEnergy" };
+            var idless = new Studio { Name = "No remote ids" };
+            db.Set<Studio>().Add(withBoth);
+            db.Set<Studio>().Add(idless);
+            withBoth.RemoteIds.Add(new StudioRemoteId { Endpoint = StashEndpoint, RemoteId = "studio-uuid" });
+            withBoth.RemoteIds.Add(new StudioRemoteId { Endpoint = TpdbEndpoint, RemoteId = "studio-tpdb" });
+            await db.SaveChangesAsync();
+
+            var port = new CoveLibraryPort(db, StashEndpoint, TpdbEndpoint);
+            var refs = await port.LoadAllEntityRefsAsync(EntityKind.Studio);
+
+            Assert.Equal(2, refs.Count); // the id-less studio is counted, never dropped
+            var mapped = refs.Single(r => r.CoveId == withBoth.Id);
+            Assert.Equal(["studio-uuid"], mapped.StashIds); // endpoint-split: StashDB id only
+            Assert.Equal(["studio-tpdb"], mapped.TpdbIds); // endpoint-split: TPDB id only
+            var empty = refs.Single(r => r.CoveId == idless.Id);
+            Assert.Empty(empty.StashIds);
+            Assert.Empty(empty.TpdbIds);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task LoadAllEntityRefs_Performer_ProjectsCoveIdAndEndpointSplitIds()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            var performer = new Performer { Name = "Miyu Aizawa" };
+            db.Set<Performer>().Add(performer);
+            performer.RemoteIds.Add(new PerformerRemoteId { Endpoint = StashEndpoint, RemoteId = "perf-uuid" });
+            performer.RemoteIds.Add(new PerformerRemoteId { Endpoint = TpdbEndpoint, RemoteId = "perf-tpdb" });
+            await db.SaveChangesAsync();
+
+            var port = new CoveLibraryPort(db, StashEndpoint, TpdbEndpoint);
+            var refs = await port.LoadAllEntityRefsAsync(EntityKind.Performer);
+
+            var mapped = Assert.Single(refs);
+            Assert.Equal(performer.Id, mapped.CoveId);
+            Assert.Equal(["perf-uuid"], mapped.StashIds);
+            Assert.Equal(["perf-tpdb"], mapped.TpdbIds);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
 }
