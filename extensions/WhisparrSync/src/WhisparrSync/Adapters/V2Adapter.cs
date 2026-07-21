@@ -78,6 +78,41 @@ internal sealed class V2Adapter(WhisparrClient client, TimeSpan? monitorSettleDe
             // monitorable resource, so there is nothing to add or flip.
             : Task.FromResult(WhisparrResult<EntityMonitorResult>.VersionMismatch("v2"));
 
+    // A distinct site-add verb because SetSiteMonitorAsync only creates a site while turning monitor ON, leaving a
+    // monitor-OFF caller with no add path. Shares the create spine (EnsureSiteAddedAsync); a present site short-
+    // circuits to an idempotent no-op (no create/PUT). Loop-safety: the register add-body forces monitor and
+    // monitorNewItems "none" + searchForMissingEpisodes false and this path issues no /command and no monitor
+    // flip, so the unmonitored site can neither want nor grab an episode.
+    public async Task<WhisparrResult<EntityMonitorResult>> RegisterEntityAsync(
+        string baseUrl, string apiKey, EntityKind kind, string stashId,
+        string rootFolderPath, int qualityProfileId, IReadOnlyList<int> tagIds, CancellationToken ct)
+    {
+        // DEFER before any wire call: only a studio maps to a v2 SITE; a performer has no v2 entity to register.
+        if (kind != EntityKind.Studio)
+        {
+            return WhisparrResult<EntityMonitorResult>.VersionMismatch("v2");
+        }
+
+        var listResult = await client.ListSeriesAsync(baseUrl, apiKey, ct);
+        if (!listResult.IsOk)
+        {
+            return Propagate<WhisparrSeries[], EntityMonitorResult>(listResult);
+        }
+
+        var existing = FindByTpdb(listResult.Value!, stashId);
+        if (existing is not null)
+        {
+            return WhisparrResult<EntityMonitorResult>.Ok(new EntityMonitorResult(Added: false, existing.Monitored));
+        }
+
+        var ensured = await EnsureSiteAddedAsync(
+            baseUrl, apiKey, stashId,
+            addable => BuildSiteRegisterBody(addable, stashId, rootFolderPath, qualityProfileId, tagIds), ct);
+        return ensured.IsOk
+            ? WhisparrResult<EntityMonitorResult>.Ok(new EntityMonitorResult(ensured.Value!.Added, Monitored: false))
+            : Propagate<SiteAddOutcome, EntityMonitorResult>(ensured);
+    }
+
     public Task<WhisparrResult<EntityStatus>> GetEntityStatusAsync(
         string baseUrl, string apiKey, EntityKind kind, string stashId, CancellationToken ct)
         => kind == EntityKind.Studio
@@ -425,44 +460,16 @@ internal sealed class V2Adapter(WhisparrClient client, TimeSpan? monitorSettleDe
                 return WhisparrResult<EntityMonitorResult>.Ok(new EntityMonitorResult(Added: false, Monitored: false));
             }
 
-            var lookupResult = await client.LookupSeriesAsync(baseUrl, apiKey, $"tpdb:{tpdbId}", ct);
-            if (!lookupResult.IsOk)
+            var ensured = await EnsureSiteAddedAsync(
+                baseUrl, apiKey, tpdbId,
+                addable => BuildSiteAddBody(addable, tpdbId, scope, rootFolderPath, qualityProfileId, tagIds), ct);
+            if (!ensured.IsOk)
             {
-                return Propagate<WhisparrSeries[], EntityMonitorResult>(lookupResult);
+                return Propagate<SiteAddOutcome, EntityMonitorResult>(ensured);
             }
 
-            var addable = FindByTpdb(lookupResult.Value!, tpdbId);
-            if (addable is null)
-            {
-                return WhisparrResult<EntityMonitorResult>.Unreachable($"no v2 site matches tpdb:{tpdbId}");
-            }
-
-            var createResult = await client.CreateSeriesAsync(
-                baseUrl, apiKey, BuildSiteAddBody(addable, tpdbId, scope, rootFolderPath, qualityProfileId, tagIds), ct);
-
-            if (createResult.State == WhisparrResultState.Conflict)
-            {
-                var reread = await client.ListSeriesAsync(baseUrl, apiKey, ct);
-                if (!reread.IsOk)
-                {
-                    return Propagate<WhisparrSeries[], EntityMonitorResult>(reread);
-                }
-
-                existing = FindByTpdb(reread.Value!, tpdbId);
-                if (existing is null)
-                {
-                    return WhisparrResult<EntityMonitorResult>.Unreachable("series create conflicted but no row on re-read");
-                }
-            }
-            else if (createResult.IsOk)
-            {
-                existing = createResult.Value!;
-                added = true;
-            }
-            else
-            {
-                return Propagate<WhisparrSeries, EntityMonitorResult>(createResult);
-            }
+            existing = ensured.Value!.Series;
+            added = ensured.Value.Added;
         }
         else if (!monitored && !existing.Monitored)
         {
@@ -496,6 +503,51 @@ internal sealed class V2Adapter(WhisparrClient client, TimeSpan? monitorSettleDe
 
         return WhisparrResult<EntityMonitorResult>.Ok(new EntityMonitorResult(added, monitored));
     }
+
+    // The shared site-create spine both the monitor add-then-flip and the register verb call: look the addable
+    // site up by TPDB, create it with the CALLER'S add-body (the monitor path and the register path differ ONLY
+    // in that body's monitor/grab levers), and treat a duplicate (400 SeriesExistsValidator classified Conflict)
+    // as success by re-reading the existing row — never a second POST. Returns the resolved row plus whether THIS
+    // call created it. Issues no /command (loop-safety parity both callers rely on). `buildAddBody` is invoked
+    // with the resolved lookup row because the v2 add-body needs its tvdbId/title/titleSlug identity.
+    private async Task<WhisparrResult<SiteAddOutcome>> EnsureSiteAddedAsync(
+        string baseUrl, string apiKey, string tpdbId, Func<WhisparrSeries, string> buildAddBody, CancellationToken ct)
+    {
+        var lookupResult = await client.LookupSeriesAsync(baseUrl, apiKey, $"tpdb:{tpdbId}", ct);
+        if (!lookupResult.IsOk)
+        {
+            return Propagate<WhisparrSeries[], SiteAddOutcome>(lookupResult);
+        }
+
+        var addable = FindByTpdb(lookupResult.Value!, tpdbId);
+        if (addable is null)
+        {
+            return WhisparrResult<SiteAddOutcome>.Unreachable($"no v2 site matches tpdb:{tpdbId}");
+        }
+
+        var createResult = await client.CreateSeriesAsync(baseUrl, apiKey, buildAddBody(addable), ct);
+
+        if (createResult.State == WhisparrResultState.Conflict)
+        {
+            var reread = await client.ListSeriesAsync(baseUrl, apiKey, ct);
+            if (!reread.IsOk)
+            {
+                return Propagate<WhisparrSeries[], SiteAddOutcome>(reread);
+            }
+
+            var existing = FindByTpdb(reread.Value!, tpdbId);
+            return existing is null
+                ? WhisparrResult<SiteAddOutcome>.Unreachable("series create conflicted but no row on re-read")
+                : WhisparrResult<SiteAddOutcome>.Ok(new SiteAddOutcome(existing, Added: false));
+        }
+
+        return createResult.IsOk
+            ? WhisparrResult<SiteAddOutcome>.Ok(new SiteAddOutcome(createResult.Value!, Added: true))
+            : Propagate<WhisparrSeries, SiteAddOutcome>(createResult);
+    }
+
+    // The resolved site plus whether THIS EnsureSiteAddedAsync call created it (false when it re-read a duplicate).
+    private sealed record SiteAddOutcome(WhisparrSeries Series, bool Added);
 
     // Create-path monitor verify: after the flip on a freshly-created site, v2's async refresh can reset
     // `monitored`. Settle, re-read the site (list + find by id — v2 has no by-id GET verb and few sites), and if
@@ -667,6 +719,32 @@ internal sealed class V2Adapter(WhisparrClient client, TimeSpan? monitorSettleDe
             addOptions = new
             {
                 monitor = scope == MonitorScope.AllScenes ? "all" : "none",
+                searchForMissingEpisodes = false,
+                searchForCutoffUnmetEpisodes = false,
+            },
+        });
+
+    // The v2 SITE REGISTER body: BuildSiteAddBody with EVERY monitor/grab lever forced OFF (loop-safety). Unlike
+    // the monitor add-body's scope-driven monitor:"all"/"none", here monitored:false + addOptions.monitor:"none" +
+    // monitorNewItems:"none" leave the site, its back-catalogue, and future episodes all unmonitored, and
+    // searchForMissingEpisodes/searchForCutoffUnmetEpisodes false keep the add from grabbing — nothing is armed.
+    // The origin tags keep the registered site attributable (cove-sync) and the create idempotent.
+    private static string BuildSiteRegisterBody(
+        WhisparrSeries addable, string tpdbId, string rootFolderPath, int qualityProfileId, IReadOnlyList<int> tagIds)
+        => JsonSerializer.Serialize(new
+        {
+            tvdbId = addable.TvdbId ?? ParseTpdb(tpdbId),
+            title = addable.Title,
+            titleSlug = addable.TitleSlug,
+            qualityProfileId,
+            rootFolderPath,
+            monitored = false,
+            monitorNewItems = "none",
+            seasonFolder = true,
+            tags = tagIds,
+            addOptions = new
+            {
+                monitor = "none",
                 searchForMissingEpisodes = false,
                 searchForCutoffUnmetEpisodes = false,
             },

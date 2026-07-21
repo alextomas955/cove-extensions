@@ -343,6 +343,14 @@ internal sealed class V3Adapter(WhisparrClient client, TimeSpan? monitorSettleDe
         return await client.BulkMonitorMoviesAsync(baseUrl, apiKey, unmonitorBody, ct);
     }
 
+    // v3 registers a scene's presence through its per-scene movie add (AddSceneAsync, searchForMovie:false), so
+    // the bulk-sync fan-out never plans a RegisterEntity op on v3 — this is a defensive Ok no-op that makes no
+    // wire call (the v2/site register verb has no v3 counterpart to fall back on).
+    public Task<WhisparrResult<EntityMonitorResult>> RegisterEntityAsync(
+        string baseUrl, string apiKey, EntityKind kind, string stashId,
+        string rootFolderPath, int qualityProfileId, IReadOnlyList<int> tagIds, CancellationToken ct)
+        => Task.FromResult(WhisparrResult<EntityMonitorResult>.Ok(new EntityMonitorResult(Added: false, Monitored: false)));
+
     public Task<WhisparrResult<EntityStatus>> GetEntityStatusAsync(
         string baseUrl, string apiKey, EntityKind kind, string stashId, CancellationToken ct)
         => kind == EntityKind.Studio

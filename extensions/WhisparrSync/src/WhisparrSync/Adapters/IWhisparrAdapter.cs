@@ -126,6 +126,31 @@ internal interface IWhisparrAdapter
         CancellationToken ct);
 
     /// <summary>
+    /// Registers a studio's PRESENCE in Whisparr with monitoring OFF and grabbing disarmed: created
+    /// <c>monitored:false</c>, no episode/movie search, no monitor cascade, no <c>/command</c>, origin-tagged via
+    /// <paramref name="tagIds"/>. Distinct from <see cref="SetEntityMonitorAsync"/> — which only ever creates an
+    /// entity while turning monitoring ON, so a monitor-OFF caller has no other add path.
+    /// </summary>
+    /// <remarks>
+    /// Idempotent: an entity already present, and a create that returns 409/exists, both resolve to
+    /// <see cref="WhisparrResultState.Ok"/> with no duplicate and no state change — the result's <c>Added</c> is
+    /// true ONLY on a fresh create, and <c>Monitored</c> reflects the existing row when already present (false on
+    /// a fresh register, which never arms monitoring). NEVER issues a search or command. Only a studio maps to a
+    /// registrable v2 SITE; a performer has no v2 entity and DEFERs
+    /// (<see cref="WhisparrResultState.VersionMismatch"/> "v2", no wire call). On v3 presence is registered by the
+    /// per-scene add (<see cref="AddSceneAsync"/>), so this op is never planned there and is a defensive Ok no-op.
+    /// </remarks>
+    Task<WhisparrResult<EntityMonitorResult>> RegisterEntityAsync(
+        string baseUrl,
+        string apiKey,
+        EntityKind kind,
+        string stashId,
+        string rootFolderPath,
+        int qualityProfileId,
+        IReadOnlyList<int> tagIds,
+        CancellationToken ct);
+
+    /// <summary>
     /// Projects the quiet-status for a studio/performer: whether it is added + currently monitored,
     /// plus the "grabbed of total" counts computed ONLY from the adapter's existing Whisparr movie set
     /// (a studio is attributed by movie <c>studioTitle</c>, a performer by <c>performerForeignIds</c>) — it
