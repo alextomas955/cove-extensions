@@ -214,4 +214,87 @@ public sealed class WhisparrClientClassifyTests
         Assert.Equal("invalid url", result.Reason);
         Assert.Equal(0, handler.CallCount);
     }
+
+    private const string TwoNotificationsJson = """
+        [
+          {"id":7,"name":"Cove Whisparr Sync","fields":[{"name":"url","value":"http://host.docker.internal:5073/webhook"}]},
+          {"id":9,"name":"Some Other Connection","fields":[{"name":"url","value":"http://example.test/other"}]}
+        ]
+        """;
+
+    [Fact]
+    public async Task List_notifications_deserializes_rows_with_url_field()
+    {
+        var result = await ClientFor(FakeHttpMessageHandler.Json(TwoNotificationsJson)).ListNotificationsAsync(BaseUrl, ApiKey, CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.Ok, result.State);
+        Assert.Equal(2, result.Value!.Length);
+        Assert.Equal("Cove Whisparr Sync", result.Value[0].Name);
+        Assert.Equal("http://host.docker.internal:5073/webhook", result.Value[0].Fields![0].Value.GetString());
+        Assert.Equal("Some Other Connection", result.Value[1].Name);
+    }
+
+    [Fact]
+    public async Task List_notifications_empty_array_classifies_as_ok()
+    {
+        // No connections yet is a valid Ok (empty array), never NotWhisparr — a genuine first-run.
+        var result = await ClientFor(FakeHttpMessageHandler.Json("[]")).ListNotificationsAsync(BaseUrl, ApiKey, CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.Ok, result.State);
+        Assert.Empty(result.Value!);
+    }
+
+    [Fact]
+    public async Task Update_notification_targets_put_endpoint_by_id()
+    {
+        var handler = FakeHttpMessageHandler.Json("""{"id":7,"name":"Cove Whisparr Sync","fields":[]}""");
+        var result = await ClientFor(handler).UpdateNotificationAsync(BaseUrl, ApiKey, 7, "{}", CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.Ok, result.State);
+        Assert.Equal($"{BaseUrl}/api/v3/notification/7", handler.LastRequest!.RequestUri!.ToString());
+        Assert.Equal(HttpMethod.Put, handler.LastRequest.Method);
+    }
+
+    [Fact]
+    public async Task Update_notification_accepts_202()
+    {
+        var handler = FakeHttpMessageHandler.Sequence(
+            FakeHttpMessageHandler.Respond(HttpStatusCode.Accepted, "application/json", """{"id":7}"""));
+        var result = await ClientFor(handler).UpdateNotificationAsync(BaseUrl, ApiKey, 7, "{}", CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.Ok, result.State);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task Update_notification_401_or_403_classifies_as_bad_key(HttpStatusCode status)
+    {
+        var result = await ClientFor(FakeHttpMessageHandler.Status(status)).UpdateNotificationAsync(BaseUrl, ApiKey, 7, "{}", CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.BadKey, result.State);
+    }
+
+    [Fact]
+    public async Task Register_webhook_unique_name_400_classifies_as_conflict()
+    {
+        // Whisparr's duplicate-connection-name rejection: a 400 validation body, not a 409 — must classify
+        // as the idempotent Conflict so a re-register never errors.
+        var body = """[{"propertyName":"Name","errorMessage":"Should be unique","severity":"error"}]""";
+        var handler = FakeHttpMessageHandler.Respond(HttpStatusCode.BadRequest, "application/json", body);
+        var result = await ClientFor(FakeHttpMessageHandler.Sequence(handler)).RegisterWebhookAsync(BaseUrl, ApiKey, "{\"name\":\"Cove Whisparr Sync\"}", CancellationToken.None);
+
+        Assert.Equal(WhisparrResultState.Conflict, result.State);
+    }
+
+    [Fact]
+    public async Task Register_webhook_unrelated_400_does_not_classify_as_conflict()
+    {
+        // A genuine bad-body 400 (no unique-name/already marker) must NOT masquerade as an idempotent success.
+        var body = """[{"propertyName":"Fields","errorMessage":"Webhook URL is invalid","severity":"error"}]""";
+        var handler = FakeHttpMessageHandler.Respond(HttpStatusCode.BadRequest, "application/json", body);
+        var result = await ClientFor(FakeHttpMessageHandler.Sequence(handler)).RegisterWebhookAsync(BaseUrl, ApiKey, "{}", CancellationToken.None);
+
+        Assert.NotEqual(WhisparrResultState.Conflict, result.State);
+    }
 }
