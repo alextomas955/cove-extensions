@@ -17,6 +17,7 @@
     "check-identity-guard-logic": "node scripts/check-identity-guard-logic.mjs",
     "check-file-settings-logic": "node scripts/check-file-settings-logic.mjs",
     "check-connection-availability-logic": "node scripts/check-connection-availability-logic.mjs",
+    "check-sync-library-logic": "node scripts/check-sync-library-logic.mjs",
     "check-scene-status-logic": "node scripts/check-scene-status-logic.mjs",
     "check-scene-actions-logic": "node scripts/check-scene-actions-logic.mjs",
     "check-action-failure-logic": "node scripts/check-action-failure-logic.mjs",
@@ -24,7 +25,7 @@
     "check-error-code-logic": "node scripts/check-error-code-logic.mjs",
     "check-batch-coalescer-logic": "node scripts/check-batch-coalescer-logic.mjs",
     "check-resource-entry-logic": "node scripts/check-resource-entry-logic.mjs",
-    "test": "node scripts/check-connection-result.mjs && node scripts/check-hasapikey-invariant.mjs && node scripts/check-reconciliation-logic.mjs && node scripts/check-importlog-logic.mjs && node scripts/check-monitor-logic.mjs && node scripts/check-scene-status-logic.mjs && node scripts/check-scene-actions-logic.mjs && node scripts/check-action-failure-logic.mjs && node scripts/check-entities-batch-logic.mjs && node scripts/check-sync-health-logic.mjs && node scripts/check-error-code-logic.mjs && node scripts/check-batch-coalescer-logic.mjs && node scripts/check-resource-entry-logic.mjs && node scripts/check-identity-guard-logic.mjs && node scripts/check-file-settings-logic.mjs && node scripts/check-connection-availability-logic.mjs",
+    "test": "node scripts/check-connection-result.mjs && node scripts/check-hasapikey-invariant.mjs && node scripts/check-reconciliation-logic.mjs && node scripts/check-importlog-logic.mjs && node scripts/check-monitor-logic.mjs && node scripts/check-scene-status-logic.mjs && node scripts/check-scene-actions-logic.mjs && node scripts/check-action-failure-logic.mjs && node scripts/check-entities-batch-logic.mjs && node scripts/check-sync-health-logic.mjs && node scripts/check-error-code-logic.mjs && node scripts/check-batch-coalescer-logic.mjs && node scripts/check-resource-entry-logic.mjs && node scripts/check-identity-guard-logic.mjs && node scripts/check-file-settings-logic.mjs && node scripts/check-connection-availability-logic.mjs && node scripts/check-sync-library-logic.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "verify": "npm run typecheck && npm run format:check && npm run check-classes && npm run test && npm run build"
