@@ -357,16 +357,18 @@ public sealed class EndpointAuthTests
     [Fact]
     public async Task WebhookUrl_WithoutConfigure_Returns403()
     {
-        var result = await NewExtension().WebhookUrlAsync("http://cove.local", FakePrincipalAccessor.None(), default);
+        var result = await NewExtension().WebhookUrlAsync(
+            "http://cove.local", ClientReturning("[]"), FakePrincipalAccessor.None(), default);
         Assert.Equal(403, StatusOf(result));
     }
 
     [Fact]
     public async Task WebhookUrl_WithReadOnly_Returns403()
     {
-        // minting/persisting the webhook secret is a configure action; read-only must not reach it.
+        // minting/persisting the webhook secret + reaching Whisparr is a configure action; read-only must not reach it.
         var result = await NewExtension().WebhookUrlAsync(
-            "http://cove.local", FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsRead), default);
+            "http://cove.local", ClientReturning("[]"),
+            FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsRead), default);
         Assert.Equal(403, StatusOf(result));
     }
 
@@ -374,7 +376,8 @@ public sealed class EndpointAuthTests
     public async Task WebhookUrl_WithConfigure_IsNotForbidden()
     {
         var result = await NewExtension().WebhookUrlAsync(
-            "http://cove.local", FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure), default);
+            "http://cove.local", ClientReturning("[]"),
+            FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure), default);
         Assert.NotEqual(403, StatusOf(result));
     }
 

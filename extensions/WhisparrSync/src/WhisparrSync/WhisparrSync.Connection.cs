@@ -194,36 +194,54 @@ public sealed partial class WhisparrSync
     };
 
     /// <summary>
-    /// Returns the ready-to-use webhook URL with the embedded secret. The secret is minted via
-    /// <c>RandomNumberGenerator</c> and persisted once so the URL is stable across calls. 403-first on
-    /// <c>extensions.configure</c>: minting/persisting the webhook secret is part of the configure
-    /// flow, so a read-only principal must not reach it. The secret is shown for the user to paste; it is
-    /// never logged.
+    /// Returns the webhook URL + an authoritative <c>registered</c> flag sourced from Whisparr's own
+    /// "Cove Whisparr Sync" connection: present → its url + <c>registered:true</c>; absent → the derived default
+    /// (persisted <see cref="WhisparrOptions.WebhookHost"/>, else the request host) + <c>registered:false</c>.
+    /// 403-first on <c>extensions.configure</c> — it mints the secret and reaches the stored creds to call
+    /// Whisparr. The secret is never logged.
     /// </summary>
     internal async Task<IResult> WebhookUrlAsync(
-        string coveBaseUrl, ICurrentPrincipalAccessor principal, CancellationToken ct)
+        string coveBaseUrl, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
         {
             return denied;
         }
 
-        var (_, secret) = await EnsureWebhookSecretAsync(ct);
-        return Results.Json(new { url = WebhookUrlBuilder.BuildUrl(coveBaseUrl, secret) }, OptionsResponseJsonOptions);
+        var (options, secret) = await EnsureWebhookSecretAsync(ct);
+        var origin = string.IsNullOrWhiteSpace(options.WebhookHost) ? coveBaseUrl : options.WebhookHost;
+        var derivedUrl = WebhookUrlBuilder.BuildUrl(origin, secret);
+
+        // A non-Ok list must degrade to the derived default (never 500): a down Whisparr cannot block the
+        // settings page from loading and offering copy-paste + register.
+        if (AdapterSelector.SelectForVersion(options.SelectedVersion, client) is { } adapter)
+        {
+            var found = await adapter.FindWebhookConnectionAsync(options.BaseUrl, options.ApiKey, ct);
+            if (found is { IsOk: true, Value: { } connection })
+            {
+                var url = string.IsNullOrWhiteSpace(connection.Url) ? derivedUrl : connection.Url;
+                return Results.Json(new WebhookUrlResponse(url, Registered: true), OptionsResponseJsonOptions);
+            }
+        }
+
+        return Results.Json(new WebhookUrlResponse(derivedUrl, Registered: false), OptionsResponseJsonOptions);
     }
 
     /// <summary>
-    /// Best-effort auto-register of the Cove webhook in Whisparr. Mints/persists the secret,
-    /// builds the URL, and posts the v3 Notification via the adapter. A non-2xx (or a refused version)
-    /// returns <c>registered:false</c> — the UI falls back to copy-paste, and the connect flow never fails.
-    /// 403-first on <c>extensions.configure</c>. The secret is never logged.
+    /// Idempotent auto-register of the Cove webhook in Whisparr, persisting the resolved host. Mints/persists
+    /// the secret, resolves + stores the origin, and delegates to the update-or-create adapter register. An
+    /// already-existing connection (including a unique-name 400/409) resolves to <c>registered:true</c> — a
+    /// re-register never errors and never falsely reports "not registered". A refused version or a non-Ok
+    /// transport returns <c>registered:false</c> — the UI falls back to copy-paste, and the connect flow never
+    /// fails. 403-first on <c>extensions.configure</c>. The secret is never logged.
     /// </summary>
     /// <remarks>
-    /// The webhook URL defaults to the request's own scheme+host (<paramref name="coveBaseUrl"/>), but a
-    /// containerized Whisparr cannot reach a <c>localhost</c> the admin happens to browse Cove at. So when the UI
-    /// forwards the (possibly hand-edited) URL in <paramref name="overrideUrl"/>, ONLY its origin (scheme+host+port)
-    /// is honored — the token is always re-minted from the stored secret via <see cref="WebhookUrlBuilder.BuildUrl"/>,
-    /// so an edited host can never register a URL carrying a wrong or absent secret.
+    /// A containerized Whisparr cannot reach the <c>localhost</c> the admin browses Cove at, so when the UI
+    /// forwards a hand-edited URL in <paramref name="overrideUrl"/> ONLY its origin is honored — the token is
+    /// always re-minted from the stored secret via <see cref="WebhookUrlBuilder.BuildUrl"/>, so an edited host
+    /// can never carry a wrong or forged token. That origin is persisted to
+    /// <see cref="WhisparrOptions.WebhookHost"/> so a pre-connector edit survives a refresh; persisting only the
+    /// origin (not the token) keeps a forged token out of the stored host.
     /// </remarks>
     internal async Task<IResult> RegisterWebhookAsync(
         string coveBaseUrl, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct,
@@ -241,6 +259,12 @@ public sealed partial class WhisparrSync
             && (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps))
         {
             origin = parsed.GetLeftPart(UriPartial.Authority);
+        }
+
+        if (!string.Equals(origin, options.WebhookHost, StringComparison.Ordinal))
+        {
+            options = options with { WebhookHost = origin };
+            await new OptionsStore(Store).SaveAsync(options, ct);
         }
 
         var url = WebhookUrlBuilder.BuildUrl(origin, secret);

@@ -61,6 +61,15 @@ public sealed partial class WhisparrSync
     internal sealed record WebhookRegisterRequest(string? Url);
 
     /// <summary>
+    /// The <c>/webhook-url</c> response: the webhook <see cref="Url"/> to show and whether Whisparr's own
+    /// "Cove Whisparr Sync" connection currently exists (<see cref="Registered"/>). When that connection is
+    /// present the URL is ITS stored url — Whisparr is the source of truth — and <see cref="Registered"/> is
+    /// true; otherwise the URL is the derived default (the persisted host, else the request host) and
+    /// <see cref="Registered"/> is false.
+    /// </summary>
+    internal sealed record WebhookUrlResponse(string Url, bool Registered);
+
+    /// <summary>
     /// The options-save request body. Case-insensitive minimal-API binding maps the UI's PascalCase JSON
     /// onto these. An empty/absent <see cref="ApiKey"/> preserves the stored key (write-only). The
     /// add-defaults (<see cref="TagsOnAdd"/>, <see cref="MonitorNewByDefault"/>,
