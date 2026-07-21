@@ -75,13 +75,20 @@ It clears itself as soon as one import succeeds.
 
 | Setting | What it does | Default | Values |
 | --------- | -------------- | --------- | -------- |
-| Webhook URL | A ready-to-use URL with an embedded secret that Whisparr posts events to. Editable so you can correct the host to one Whisparr can reach. | generated on first connect | Editable |
+| Webhook URL | A ready-to-use URL with an embedded secret that Whisparr posts events to. Editable so you can set a host Whisparr can reach. | read from Whisparr, or derived on first connect | Editable |
 
-**Copy URL** copies it to your clipboard; **Register in Whisparr** best-effort adds the connection to
-Whisparr for you, using the URL as shown (edits included). The embedded secret is a high-entropy token
-generated once and reused so the URL is stable — when you edit the URL only its host is used; the token
-is always the stored secret. Cove receives events at this URL and ingests the imported file in place;
-see the [Connect guide](./guide) for the host-reachability note and how auto-import behaves.
+The URL and its **Registered** status are read from the **"Cove Whisparr Sync"** connection in your
+Whisparr instance. When that connection exists, the URL and status shown are Whisparr's own — the
+address it will actually post to, marked **Registered**. Before it exists (a genuine first run, or when
+Whisparr is unreachable), the URL is derived from the host you last set — or the address you open Cove
+at — and the status reads **Not registered yet**.
+
+**Copy URL** copies it to your clipboard. **Register in Whisparr** adds the connection to Whisparr, or
+updates the existing one in place — so re-registering is safe: it never reports an error and never
+leaves a duplicate. When you edit the URL only its host is used; the embedded secret is always Cove's
+own, re-applied on every register. The host you set is remembered, so a refresh keeps your edit instead
+of reverting to the browser address. Cove receives events at this URL and ingests the imported file in
+place; see the [Connect guide](./guide) for the host-reachability note and how auto-import behaves.
 
 Below the buttons a **status line** tells you honestly where the webhook stands: *registered, last
 event `{time}` ago* once events have arrived, *registered, no events received yet* after you register
@@ -95,11 +102,13 @@ another host or in a container, use an address it can reach (for example
 *The Import webhook section: the read-only webhook URL, its Copy URL and Register in Whisparr buttons, and the registration status line.*
 
 :::note Correcting the webhook host
-The URL is first derived from the address you open Cove at, which is not always the address Whisparr
-can reach (for example if you browse Cove at `localhost` but Whisparr runs in a container or on another
-host). The field is editable, so you can set the host Whisparr can reach — then **Register in Whisparr**
-or copy it. Only the host you set is used; the secret token is always Cove's own. The registration
-status line ("no events received yet" until the first import arrives) is the real confirmation it works.
+Before a connection exists, the URL is derived from the address you open Cove at, which is not always
+the address Whisparr can reach (for example if you browse Cove at `localhost` but Whisparr runs in a
+container or on another host). The field is editable, so you can set the host Whisparr can reach — then
+**Register in Whisparr** or copy it. Your edit is remembered across a refresh, and once the connection
+is registered the URL and status shown come from Whisparr's own connection. Only the host you set is
+used; the secret token is always Cove's own. The registration status line ("no events received yet"
+until the first import arrives) is the real confirmation it works.
 :::
 
 ### Root-overlap advisory

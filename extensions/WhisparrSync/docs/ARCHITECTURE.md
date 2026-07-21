@@ -67,8 +67,8 @@ principal at all — a shared-secret token is its auth, so it omits the principa
 | `/options` | POST | configure | Persist URL / version / root folder / quality profile (write-only key) |
 | `/rootfolders` | POST | configure | The instance's root folders (creds in the body) |
 | `/qualityprofiles` | POST | configure | The instance's quality profiles (creds in the body) |
-| `/webhook-url` | GET | configure | The ready-to-use webhook URL with the embedded secret |
-| `/register-webhook` | POST | configure | Best-effort auto-register of the Cove webhook in Whisparr |
+| `/webhook-url` | GET | configure | The webhook URL + `registered` status, read from Whisparr's own "Cove Whisparr Sync" connection (`GET /api/v3/notification`, find-by-name); a derived default + `registered:false` when the connection is absent or Whisparr is unreachable |
+| `/register-webhook` | POST | configure | Idempotent update-or-create of the Cove webhook connection (find → PUT-update else POST-create; a unique-name 400 / 409 is success), persisting the resolved host; v3 and v2 |
 | `/preview-sync` | POST | configure | The zero-mutation reconciliation diff (matched / needs-review / unmatched rows + counts) |
 | `/reconciliation` | GET | read | The last persisted match map + status counts (a pure store read) |
 | `/match/confirm` | POST | configure | Confirm a needs-review suggestion (writes only the match store) |
@@ -492,11 +492,28 @@ The webhook secret is a 256-bit token minted with `System.Security.Cryptography.
 copy-paste URL is
 `{coveBase}/api/extensions/com.alextomas955.whisparrsync/webhook?token={secret}`.
 
-Auto-register posts a v3 Notification (`implementation: "Webhook"`, `configContract:
-"WebhookSettings"`) to `POST /api/v3/notification`. It is **best-effort**: a non-2xx response (or a
-refused version) returns `registered: false` and the UI falls back to copy-paste — the connect flow
-never fails on it. The exact `fields` contract is confirmed against a live instance; the copy-paste
-URL is the guaranteed path regardless.
+**Whisparr's own connection is the source of truth.** The connection the extension manages is named
+**"Cove Whisparr Sync"**, single-sourced across the read and the write so the two agree. `GET
+/webhook-url` lists Whisparr's notifications (`GET /api/v3/notification`, matched by that name) and
+returns `{ url, registered }`: when the connection exists, its own `url` field and `registered:true` are
+authoritative; when it is absent the URL falls back to the derived default (the persisted
+`WhisparrOptions.WebhookHost`, else the request host) with `registered:false`. A not-found result — or a
+Whisparr that is unreachable — degrades to that same success response (a 200, `registered:false`), never
+a 500, so the settings page always loads.
+
+Register is an **idempotent update-or-create**: `GET /notification` to find the row by name, then `PUT
+/notification/{id}` when it exists, else `POST /notification` to create it (`implementation: "Webhook"`,
+`configContract: "WebhookSettings"`). A unique-name `400` / a `409` resolves to success, so re-clicking
+Register never errors and never leaves a duplicate. The token is always re-minted from the stored secret
+onto the resolved URL, never read back from the existing row, and `/register-webhook` persists the
+resolved host to `WhisparrOptions.WebhookHost` (preserve-on-blank) so a pre-registration host edit
+survives a refresh. Both the read and the register work on **v3 and v2** — v2's notification endpoint is
+the same `/api/v3/notification` in the Sonarr-shaped API. The copy-paste URL remains the guaranteed path
+when auto-register cannot reach Whisparr.
+
+The inbound `/webhook` receiver and its `X-Cove-Token` token auth are **unchanged**: this behavior
+touches only how the URL is read back and how the connection is created or updated, not how events are
+received or authenticated.
 
 The notification also carries the secret as an **`X-Cove-Token` request header** (a `headers`
 key-value entry in the payload), not only in the URL query. This is what makes Whisparr's **Test**
