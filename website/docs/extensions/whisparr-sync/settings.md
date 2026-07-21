@@ -141,6 +141,56 @@ points you at **Test connection** to retry (rather than implying setup isn't don
 available on **Whisparr v3 (Eros)** only — on v2 the section shows a version note (v2's config field
 names diverge).
 
+## Sync my library to Whisparr
+
+A one-click way to tell Whisparr about everything Cove already owns, so a first-time setup doesn't
+mean hand-selecting every studio one at a time. It runs across your whole library as a single
+background job and **never downloads anything** — it registers what you have as present/owned, the
+same non-grabbing registration the per-entity [monitor](./monitoring) and push actions use.
+
+Before you run it, the section shows a **preview**: how many studios, performers, and (on Whisparr v3)
+owned scenes will sync, and how many are **skipped** for carrying no metadata id yet. Only entities
+Cove has identified — with a StashDB id on v3 or a ThePornDB id on v2 — can be registered in Whisparr;
+anything unidentified is counted as skipped and left untouched until you identify it. Click **Refresh**
+to recount after identifying more of your library.
+
+The feature is two decoupled steps:
+
+- **Add what we have** — the primary **Sync my library to Whisparr** button registers the studios and
+  performers (and, on v3, the owned scenes) that carry a metadata id into Whisparr as **present /
+  owned**. It tells Whisparr you already have these; it never starts a download.
+- **Also monitor what I sync** — a **separate, off-by-default** toggle. Turn it on only if you also
+  want Whisparr to keep watching these entities. Adding and monitoring are not fused: you can register
+  your library as owned without arming any monitoring.
+
+| Control | What it does | Default | Values |
+| --------- | -------------- | --------- | -------- |
+| Sync my library to Whisparr | Registers every identified studio/performer (and v3 owned scene) in Whisparr as present, non-grabbing. | — | Button |
+| Also monitor what I sync | Whether the sync also sets the synced entities monitored. | off | on / off |
+| Monitor scope | When monitoring is on, how much Whisparr watches. | New releases only | New releases only / All releases |
+
+If **Also monitor what I sync** is on, pick a **scope**. **New releases only** (the default) monitors
+each entity for genuinely new future scenes while leaving its existing back-catalogue visible but
+unarmed, so a sync can't silently turn into "grab everything." **All releases** monitors the whole
+back-catalogue as well. The scope maps to Whisparr's own monitor modes and matches the per-entity
+[monitoring](./monitoring) choice.
+
+The sync runs as a **background job**: click the button and track it in the **Job Drawer** — it is not
+a blocking dialog, so you can keep working while it pages through the library. Re-running is safe:
+every registration is idempotent, so an already-present entity is left as-is and no duplicates or new
+downloads result.
+
+On **Whisparr v2** the sync is **studio (site) level only** — v2 has no per-scene add and no performer
+entity, so the preview and the sync cover studios (sites) alone. On **v3** it also registers owned
+scenes and performers.
+
+:::note No auto-sync, no schedule, no banner (advanced)
+This is a **user-invoked** action only. There is **no** automatic sync when you add something in Cove,
+**no** scheduler or recurring sync, and **no** nag banner prompting you to run it — the sync happens
+only when you click the button. As with every outward action, adding registers without grabbing; only
+an explicit **Search** ever starts a download.
+:::
+
 ## Import activity
 
 A read-only section listing every auto-import, below Reconciliation. It has no editable settings — it

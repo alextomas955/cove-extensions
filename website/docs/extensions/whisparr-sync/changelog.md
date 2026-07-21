@@ -36,6 +36,13 @@ automatically and the extension keys on the id each carries (StashDB on v3, TheP
   interactive release search, or exclude / un-exclude. Adding never downloads — only an explicit search
   does — so pushing your library to Whisparr can't start a download loop. Every action reports a
   plain-English reason if it fails.
+- **Sync my library to Whisparr** — one click on the settings page registers everything Cove already
+  owns (studios and performers, plus owned scenes on v3) in Whisparr as present, so a first-time setup
+  doesn't mean hand-selecting every studio. A preview counts what will sync versus what's skipped for
+  lacking a metadata id; a separate, off-by-default toggle also monitors what you sync at a scope you
+  pick (New releases only or All releases). It runs as a background job you track in the Job Drawer,
+  it's safe to re-run, and — like every add — it registers without downloading. On Whisparr v2 it
+  covers studios (sites) only.
 - **Edit Whisparr's file settings from Cove** — because sync is in-place, the settings page surfaces
   Whisparr's own file-affecting toggles (rename movie files, replace illegal characters, auto-rename
   folders, delete empty folders) with a warning that they act on Cove's real files. Available on
