@@ -11,7 +11,7 @@ namespace WhisparrSync.Tests.Safety;
 /// <summary>
 /// The library-sync loop-safety contract (SYNC-ALL-04): the "Sync my library to Whisparr" fan-out can NEVER
 /// grab. Proven three ways — the op discriminant has no grab member, no planned unit ever carries one, and
-/// (the strongest, a structural source guard mirroring <see cref="NoMutationTests"/>) the fan-out DISPATCH
+/// (the strongest, a structural source guard mirroring <c>NoMutationTests</c>) the fan-out DISPATCH
 /// source dispatches only the non-grabbing runner verbs, so it cannot reach a search/grab path.
 /// </summary>
 public sealed class SyncLibraryLoopSafetyTests
