@@ -1,0 +1,40 @@
+{
+ "endpoint": "https://stashdb.org/graphql",
+ "entries": [
+  {
+   "kind": "studio",
+   "name": "Tushy Raw",
+   "description": "Studio (site) on StashDB, part of the Vixen Media Group network.",
+   "stashId": "be4be46f-692f-4509-ba23-90a96abf0b16",
+   "whisparrTmdbId": 117838,
+   "lookupPath": "/site/be4be46f-692f-4509-ba23-90a96abf0b16",
+   "recording": "../skyhook/v3-site-tushy-raw.json"
+  },
+  {
+   "kind": "scene-search",
+   "name": "Tushy Raw (scene search)",
+   "description": "Text scene search returning monitorable scene rows for the Tushy Raw catalog.",
+   "term": "Tushy",
+   "lookupPath": "/movie/search?q=tushy&year=",
+   "recording": "../skyhook/v3-movie-search-tushy.json"
+  },
+  {
+   "kind": "performer",
+   "name": "Lilly Bell",
+   "description": "A performer on StashDB, resolvable as a Whisparr v3 performer by its StashDB id (ForeignIds.StashId). Recording scrubbed: images + tattoos/piercings emptied.",
+   "stashId": "7cf21be7-2a8e-44de-b19a-fa38aca6137c",
+   "whisparrTmdbId": 2873851,
+   "lookupPath": "/performer/7cf21be7-2a8e-44de-b19a-fa38aca6137c",
+   "recording": "../skyhook/v3-performer-lilly-bell.json"
+  },
+  {
+   "kind": "scene",
+   "name": "Tushy Raw Scene 1",
+   "description": "A single scene in the Tushy Raw catalog, resolvable as a Whisparr v3 movie by its StashDB scene id (ForeignIds.StashId).",
+   "stashId": "019f3391-e257-7dd7-8c79-e399f2ad6ca5",
+   "whisparrTmdbId": 0,
+   "lookupPath": "/scene/019f3391-e257-7dd7-8c79-e399f2ad6ca5",
+   "recording": "../skyhook/v3-scene-tushy-raw.json"
+  }
+ ]
+}

@@ -1,0 +1,12 @@
+[
+  {
+    "id": "studio-aurora",
+    "name": "Studio Aurora",
+    "thumbnail": "thumbnails/studio-aurora.png"
+  },
+  {
+    "id": "studio-borealis",
+    "name": "Studio Borealis",
+    "thumbnail": "thumbnails/studio-borealis.png"
+  }
+]

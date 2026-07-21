@@ -1,0 +1,22 @@
+{
+ "endpoint": "https://theporndb.net",
+ "entries": [
+  {
+   "kind": "site",
+   "name": "Tushy",
+   "description": "Site (v2 = Sonarr series) on ThePornDB, part of the Vixen Media Group network.",
+   "tpdbId": 3417,
+   "tvdbIdSlot": 3417,
+   "lookupPath": "/site/3417",
+   "recording": "../skyhook/v2-site-3417.json"
+  },
+  {
+   "kind": "site-search",
+   "name": "Tushy (site search)",
+   "description": "Text site search returning monitorable site rows including the Tushy site (tvdbId 3417).",
+   "term": "Tushy",
+   "lookupPath": "/site/search?q=tushy",
+   "recording": "../skyhook/v2-site-search-tushy.json"
+  }
+ ]
+}
