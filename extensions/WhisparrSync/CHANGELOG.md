@@ -51,4 +51,8 @@ automatically and the extension keys on the id each carries (StashDB on v3, TheP
 **Safety.** Every outward action is idempotent and tagged as Cove-originated, adding never triggers a
 download (only an explicit search does), the inbound webhook is authenticated with a generated secret,
 and the extension never moves or deletes files inside a Whisparr-managed folder. It warns if a Cove
-library root overlaps a Whisparr root.
+library root overlaps a Whisparr root. On Whisparr v3 it also warns — advisory only, never blocking —
+when a root folder's trailing segment matches the start of the Scene Folder Format (for example root
+`/data/media/scenes` with the default `scenes/…` format), which would make Whisparr write to a doubled
+`/data/media/scenes/scenes/…` path where Cove can't find the files, and it suggests the root to use
+instead (`/data/media`).
