@@ -42,7 +42,8 @@ automatically and the extension keys on the id each carries (StashDB on v3, TheP
   lacking a metadata id; a separate, off-by-default toggle also monitors what you sync at a scope you
   pick (New releases only or All releases). It runs as a background job you track in the Job Drawer,
   it's safe to re-run, and — like every add — it registers without downloading. On Whisparr v2 it
-  covers studios (sites) only.
+  covers studios (sites) only, and it registers each owned studio's site even with "Also monitor" off
+  (previously a clean v2 registered nothing) — the registration never grabs and is safe to re-run.
 - **Edit Whisparr's file settings from Cove** — because sync is in-place, the settings page surfaces
   Whisparr's own file-affecting toggles (rename movie files, replace illegal characters, auto-rename
   folders, delete empty folders) with a warning that they act on Cove's real files. Available on

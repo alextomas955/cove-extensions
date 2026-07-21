@@ -321,17 +321,32 @@ runners. Two `configure`-gated, stored-creds-only endpoints back it:
 
 `RunSyncLibraryJobAsync` opens a fresh scope, sets `CovePrincipal.System()` around the whole
 enumerate-and-fan-out (restoring the prior principal in a `finally`), and builds the unit list with the
-pure `BuildSyncUnits`: a reflect-owned unit per identified studio (both versions) and per performer
-(v3 only), an add unit per identified v3 scene, and — only when the user opted into monitoring — a
-monitor unit per entity carrying the chosen scope (New releases only [default] / All releases). It then
-dispatches every unit through the **existing** `RunEntityOpAsync` / `RunVideoOpAsync` batch runners via
-a single `maxInFlight:1` `RunBatchAsync`, so the sync inherits the batch surface's pacing, capability
-gating (unsupported `(kind, op, version)` combos are skipped cleanly, never a false success), and
-job-unit outcome mapping. No id-less entity ever makes an outbound call.
+pure `BuildSyncUnits`. On **v2**, where there is no per-scene add, the fan-out first plans a
+non-grabbing **register-site** unit per identified studio — gated on the v2/site capability
+(`!SupportsSceneAdd && SupportsOwnedImport`), ordered **before** the reflect-owned units, and
+**independent of the monitor toggle** — because v2 reflect-owned can only attach owned files to a site
+that already exists, so a clean v2 needs its sites registered first (units run in list order at
+`maxInFlight:1`, so emitting register ahead of reflect is what makes register precede reflect for the
+same studio). The rest of the list is a reflect-owned unit per identified studio (both versions) and
+per performer (v3 only), an add unit per identified v3 scene, and — only when the user opted into
+monitoring — a monitor unit per entity carrying the chosen scope (New releases only [default] / All
+releases). It then dispatches every unit through the **existing** `RunEntityOpAsync` / `RunVideoOpAsync`
+batch runners via a single `maxInFlight:1` `RunBatchAsync`, so the sync inherits the batch surface's
+pacing, capability gating (unsupported `(kind, op, version)` combos are skipped cleanly, never a false
+success), and job-unit outcome mapping. No id-less entity ever makes an outbound call.
+
+Registering a v2 site does not give it episodes at once: Whisparr fetches the site's episodes
+asynchronously (a Sonarr-style refresh), so a just-registered site can still be fileless when the same
+run's reflect-owned pass reaches it. The sync does not treat that as a failure — a reflect-owned over an
+episode-less site returns a clean Empty/Ok, and the owned files attach on a later idempotent
+reflect-owned pass or via the webhook / reconcile backstop. Registering the site present is the success.
 
 **Loop-safety.** The job reuses only the non-grabbing verbs: every registration issues
 `searchForMovie:false` (v2 `searchForMissingEpisodes:false`), is origin-tagged `cove-sync`, and treats
-a 409/exists as success — so a re-run is idempotent and adding never grabs. `SyncOp` has no grab
+a 409/exists as success — so a re-run is idempotent and adding never grabs. The v2 register-site verb
+holds the same line: it adds the site `monitored:false` with `addOptions.monitor:"none"`,
+`monitorNewItems:"none"`, and `searchForMissingEpisodes:false`, and issues no `/command` — creating the
+site present-yet-inert, never arming a future grab and never flipping monitoring. `SyncOp` has no grab
 member, and a structural source guard (alongside `NoMutationTests`) asserts the dispatch reaches only
 the non-grabbing runner verbs, never a `Search` path. There is no auto-sync on Cove-add, no scheduler,
 and no nag banner: the job runs only when the user clicks Sync.
@@ -386,6 +401,12 @@ add-then-flip that mirrors `V3Adapter.SetStudioMonitorAsync` — resolve the sit
 duplicate is idempotent success. Status is grabbed-of-total over the site's episodes, "search all
 monitored" posts `EpisodeSearch` (the one grab-capable v2 verb), and only that explicit search grabs.
 `V2OutwardParityTests` proves both the GO flows and every defer.
+
+The site-add spine — resolve by TPDB id → add the lookup row → treat a `SeriesExistsValidator`
+duplicate as an idempotent re-read — is factored into one `EnsureSiteAddedAsync` helper shared by two
+callers: this monitor add-then-flip, and the monitor-independent **register-site** verb the bulk sync
+uses to seed a clean v2 (`monitored:false`, grabbing disarmed). Only the wire add-body differs; the
+lookup / create / 409-reread is identical, so both paths add a site the same way.
 
 The capabilities with no v2 analog DEFER on v2 — a classified `VersionMismatch("v2")` **before the
 transport** (zero wire calls, no stray `cove-sync` tag; the seam reads the adapter's `SupportsSceneAdd`
