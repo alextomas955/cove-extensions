@@ -208,6 +208,15 @@ public sealed partial class WhisparrSync
         SyncPreviewCount Studios, SyncPreviewCount Performers, SyncPreviewCount Scenes);
 
     /// <summary>
+    /// The <c>/sync-library</c> request body: whether to also monitor (<see cref="AlsoMonitor"/>, decoupled
+    /// from the add legs — the add runs regardless) and, when monitoring, the user-selected monitor
+    /// <see cref="Scope"/> (<c>NewReleases</c>/<c>AllScenes</c>, case-insensitive). A null/absent
+    /// <see cref="Scope"/> falls back to the stored <see cref="WhisparrOptions.DefaultMonitorScope"/>; the scope
+    /// choice does not affect loop-safety (an add never grabs on either scope).
+    /// </summary>
+    internal sealed record SyncLibraryRequest(bool AlsoMonitor, string? Scope = null);
+
+    /// <summary>
     /// The <c>/videos-batch</c> response: the resolved <see cref="Op"/> plus the aggregate counts —
     /// <see cref="Total"/> selected, <see cref="Succeeded"/>, <see cref="Skipped"/> (no StashDB identity, or —
     /// for a search op — not yet an added Whisparr movie), and <see cref="Failed"/>. Carries no scene id/key.

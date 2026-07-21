@@ -1,4 +1,5 @@
 using Cove.Core.Auth;
+using Cove.Core.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,6 +8,7 @@ using WhisparrSync.Client;
 using WhisparrSync.Library;
 using WhisparrSync.Monitor;
 using WhisparrSync.Options;
+using WhisparrSync.Push;
 using static Cove.Extensions.Shared.MinimalApiPermissions;
 
 namespace WhisparrSync;
@@ -130,5 +132,230 @@ public sealed partial class WhisparrSync
         {
             principals?.Set(previousPrincipal);
         }
+    }
+
+    /// <summary>
+    /// The <c>/sync-library</c> handler: configure-gated + stored-creds-only. Enqueues ONE exclusive
+    /// <c>whisparr-sync-library</c> job and returns <c>{ jobId, description }</c>.
+    /// </summary>
+    /// <remarks>
+    /// Job-only by design: a whole-library fan-out is too long to run inline on the request thread, so it never
+    /// falls back to an inline run — a host with no job service is a handled 400, not an inline sync.
+    /// </remarks>
+    internal async Task<IResult> SyncLibraryAsync(
+        SyncLibraryRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
+        {
+            return denied;
+        }
+
+        var (options, _, _) = await ResolveCredsAsync(new TestConnectionRequest(null, null), ct);
+        if (AdapterSelector.SelectForVersion(options.SelectedVersion, client) is null)
+        {
+            return Results.Json(new { code = "VERSION_UNSUPPORTED" }, statusCode: 400);
+        }
+
+        var scope = ParseMonitorScope(req.Scope, options.DefaultMonitorScope);
+        if (_jobs is null)
+        {
+            return Results.Json(new { code = "JOB_SERVICE_UNAVAILABLE" }, statusCode: 400);
+        }
+
+        var description = DescribeSyncLibrary(req.AlsoMonitor);
+        var jobId = _jobs.Enqueue(
+            SyncLibraryJobType, description,
+            (progress, jobCt) => RunSyncLibraryJobAsync(req.AlsoMonitor, scope, options, progress, jobCt),
+            exclusive: true); // one library-wide sync at a time — no concurrent full-library fan-out
+        return Results.Json(new { jobId, description }, MonitorResponseJsonOptions);
+    }
+
+    // Runs the library sync as a background job: a fresh scope + client (this outlives the request). The whole
+    // enumerate+fan-out runs under CovePrincipal.System() — CoveContext's per-principal authz filters would
+    // undercount a library-wide read otherwise (IngestCoordinator pattern) — restoring the prior principal in
+    // finally. Builds the unified SyncUnit list and drives each unit through the EXISTING reflect-owned/add/
+    // monitor runners via ONE maxInFlight:1 RunBatchAsync — no new mutation spine, no grab path.
+    private async Task RunSyncLibraryJobAsync(
+        bool alsoMonitor, MonitorScope scope, WhisparrOptions options, IJobProgress progress, CancellationToken ct)
+    {
+        await using var dbScope = ScopeFactory.CreateAsyncScope();
+        var client = dbScope.ServiceProvider.GetRequiredService<WhisparrClient>();
+        if (AdapterSelector.SelectForVersion(options.SelectedVersion, client) is not { } adapter)
+        {
+            progress.Report(1d, "This Whisparr version is not supported.");
+            return;
+        }
+
+        var library = dbScope.ServiceProvider.GetService<DbContext>() is { } db
+            ? new CoveLibraryPort(db, options.StashDbEndpoint, options.TpdbEndpoint)
+            : (ICoveLibraryPort)EmptyCoveLibraryPort.Instance;
+
+        var principals = dbScope.ServiceProvider.GetService<ICurrentPrincipalAccessor>();
+        var previousPrincipal = principals?.Current;
+        principals?.Set(CovePrincipal.System());
+        try
+        {
+            var studioRefs = await library.LoadAllEntityRefsAsync(EntityKind.Studio, ct);
+            var performerRefs = await library.LoadAllEntityRefsAsync(EntityKind.Performer, ct);
+            var videos = await library.LoadAllVideosAsync(ct);
+            var units = BuildSyncUnits(studioRefs, performerRefs, videos, alsoMonitor, scope, options, adapter);
+
+            var isV2 = string.Equals(options.SelectedVersion, "v2", StringComparison.OrdinalIgnoreCase);
+            var monitor = new EntityMonitor(client, options);
+            var actions = new SceneActions(client, options, library);
+
+            var batch = await _jobs!.RunBatchAsync(
+                units,
+                // maxInFlight MUST stay 1: a reflect-owned/monitor unit can originate a targeted metadata
+                // refresh, so a parallel whole-library fan-out would burst faster than Whisparr's command queue
+                // drains — the refresh storm this phase forbids.
+                maxInFlight: 1,
+                async (unit, jobUnit, unitCt) =>
+                    jobUnit.Complete(ToJobUnitOutcome(await DispatchSyncUnitAsync(unit, isV2, monitor, actions, library, unitCt))),
+                progress,
+                unitIdFactory: (unit, _) => SyncUnitId(unit),
+                labelFactory: SyncUnitLabel,
+                ct: ct);
+
+            LogSyncLibrary(batch.TotalUnits, batch.SucceededUnits, batch.FailedUnits, batch.SkippedUnits);
+        }
+        finally
+        {
+            principals?.Set(previousPrincipal);
+        }
+    }
+
+    /// <summary>
+    /// The pure fan-out planner: turns the enumerated library into the ordered list of units the job runs.
+    /// Extracted so the fan-out shape is unit-testable host-free (the batch aggregators' posture).
+    /// </summary>
+    /// <remarks>
+    /// Gating is loop-safety, not cosmetics: an unsupported (kind, op, version) combo or an id-less entity is
+    /// never planned, so it can make no outbound call. The list carries NO search op — the whole pass
+    /// registers/monitors without grabbing (the LOCKED boundary). Monitor units are planned ONLY when
+    /// <paramref name="alsoMonitor"/> is set (add and monitor are decoupled). A performer entity and per-scene
+    /// add exist on v3 only; a studio reflects + monitors on both versions.
+    /// </remarks>
+    internal static IReadOnlyList<SyncUnit> BuildSyncUnits(
+        IReadOnlyList<CoveEntityRef> studioRefs,
+        IReadOnlyList<CoveEntityRef> performerRefs,
+        IReadOnlyList<CoveVideo> videos,
+        bool alsoMonitor,
+        MonitorScope scope,
+        WhisparrOptions options,
+        IWhisparrAdapter adapterCaps)
+    {
+        var useTpdb = string.Equals(options.SelectedVersion, "v2", StringComparison.OrdinalIgnoreCase);
+        var units = new List<SyncUnit>();
+
+        if (adapterCaps.SupportsOwnedImport)
+        {
+            foreach (var studio in studioRefs.Where(r => HasConnectedId(r.StashIds, r.TpdbIds, useTpdb)))
+            {
+                units.Add(SyncUnit.EntityOp(SyncOp.ReflectOwned, EntityKind.Studio, studio.CoveId, scope));
+            }
+
+            // Performer reflect-owned only where the version HAS a performer entity (v3); v2 has none.
+            if (adapterCaps.SupportsEntityMonitor(EntityKind.Performer))
+            {
+                foreach (var performer in performerRefs.Where(r => HasConnectedId(r.StashIds, r.TpdbIds, useTpdb)))
+                {
+                    units.Add(SyncUnit.EntityOp(SyncOp.ReflectOwned, EntityKind.Performer, performer.CoveId, scope));
+                }
+            }
+        }
+
+        if (adapterCaps.SupportsSceneAdd)
+        {
+            foreach (var video in videos.Where(v => HasConnectedId(v.StashIds, v.TpdbIds, useTpdb)))
+            {
+                units.Add(SyncUnit.SceneAdd(video));
+            }
+        }
+
+        if (alsoMonitor && adapterCaps.SupportsEntityMonitor(EntityKind.Studio))
+        {
+            foreach (var studio in studioRefs.Where(r => HasConnectedId(r.StashIds, r.TpdbIds, useTpdb)))
+            {
+                units.Add(SyncUnit.EntityOp(SyncOp.Monitor, EntityKind.Studio, studio.CoveId, scope));
+            }
+        }
+
+        if (alsoMonitor && adapterCaps.SupportsEntityMonitor(EntityKind.Performer))
+        {
+            foreach (var performer in performerRefs.Where(r => HasConnectedId(r.StashIds, r.TpdbIds, useTpdb)))
+            {
+                units.Add(SyncUnit.EntityOp(SyncOp.Monitor, EntityKind.Performer, performer.CoveId, scope));
+            }
+        }
+
+        return units;
+    }
+
+    // An entity/scene is sync-able only when it carries a non-empty id on the CONNECTED version's endpoint
+    // (StashDB on v3, ThePornDB on v2) — the same identity rule the runners resolve by; the rest are skipped
+    // with no outbound call.
+    private static bool HasConnectedId(IReadOnlyList<string> stashIds, IReadOnlyList<string> tpdbIds, bool useTpdb)
+        => (useTpdb ? tpdbIds : stashIds).Any(id => !string.IsNullOrEmpty(id));
+
+    // Dispatches ONE planned unit through the EXISTING per-entity / per-scene runners (RunEntityOpAsync /
+    // RunVideoOpAsync). The op is one of the three loop-safe verbs — reflect-owned / monitor / non-grabbing add —
+    // never a search, so this fan-out can never start a grab.
+    private static async Task<BatchUnitOutcome> DispatchSyncUnitAsync(
+        SyncUnit unit, bool isV2, EntityMonitor monitor, SceneActions actions, ICoveLibraryPort library, CancellationToken ct)
+        => unit.Op switch
+        {
+            SyncOp.Add => await RunVideoOpAsync(BatchOp.Add, unit.Video!, movieIndex: null, actions, ct),
+            SyncOp.Monitor => await RunEntityOpAsync(
+                unit.Kind, EntityBatchOp.Monitor, unit.Scope, unit.CoveId, isV2, monitor, actions, library, ct),
+            _ => await RunEntityOpAsync(
+                unit.Kind, EntityBatchOp.ReflectOwned, unit.Scope, unit.CoveId, isV2, monitor, actions, library, ct),
+        };
+
+    private static string SyncUnitId(SyncUnit unit) => unit.Op switch
+    {
+        SyncOp.Add => $"scene:{unit.CoveId}",
+        SyncOp.Monitor => $"monitor:{unit.Kind}:{unit.CoveId}",
+        _ => $"reflect:{unit.Kind}:{unit.CoveId}",
+    };
+
+    private static string SyncUnitLabel(SyncUnit unit) => unit.Op switch
+    {
+        SyncOp.Add => unit.Video?.Title ?? $"Scene #{unit.CoveId}",
+        SyncOp.Monitor => $"Monitor {unit.Kind} #{unit.CoveId}",
+        _ => $"Reflect owned {unit.Kind} #{unit.CoveId}",
+    };
+
+    // The Job-Drawer description, e.g. "Whisparr: sync my library" (+ " and monitor" when the user opted in).
+    private static string DescribeSyncLibrary(bool alsoMonitor)
+        => alsoMonitor ? "Whisparr: sync my library and monitor" : "Whisparr: sync my library";
+
+    /// <summary>
+    /// The loop-safe fan-out verbs — the ONLY three ops a library sync ever plans. There is deliberately no
+    /// search/grab member, so the whole pass cannot start a download; a grab verb here would break the LOCKED
+    /// loop-safety contract.
+    /// </summary>
+    internal enum SyncOp
+    {
+        ReflectOwned,
+        Monitor,
+        Add,
+    }
+
+    /// <summary>
+    /// One planned fan-out unit: an entity op (reflect-owned / monitor over a studio or performer addressed by
+    /// its <see cref="Kind"/> + <see cref="CoveId"/>) or a scene <see cref="SyncOp.Add"/> carrying its
+    /// <see cref="Video"/>. <see cref="Op"/> is the discriminant the dispatcher and the loop-safety guard read;
+    /// <see cref="Scope"/> is honored only by a monitor unit.
+    /// </summary>
+    internal readonly record struct SyncUnit(SyncOp Op, EntityKind Kind, int CoveId, CoveVideo? Video, MonitorScope Scope)
+    {
+        public static SyncUnit EntityOp(SyncOp op, EntityKind kind, int coveId, MonitorScope scope)
+            => new(op, kind, coveId, null, scope);
+
+        // Kind is unused for a scene add (a scene is not a studio/performer); it defaults to Studio to satisfy
+        // the struct, and the dispatcher keys on Op, never Kind, for an add.
+        public static SyncUnit SceneAdd(CoveVideo video)
+            => new(SyncOp.Add, EntityKind.Studio, video.CoveId, video, MonitorScope.NewReleases);
     }
 }
