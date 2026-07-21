@@ -83,6 +83,8 @@ principal at all — a shared-secret token is its auth, so it omits the principa
 | `/scene-monitor` | POST | configure | Set one scene's monitored state (add-then-flip when not-added); Cove id + target flag |
 | `/bulk-add-missing` | POST | configure | Register every Cove scene not yet in Whisparr for the entity, as a local diff (no StashDB GraphQL), all non-grabbing; kind + Cove entity id |
 | `/bulk-search-monitored` | POST | configure | Trigger a Whisparr search across the entity's monitored scenes; kind + the entity's remote ids |
+| `/sync-preview` | GET | configure | Whole-library counts of what will register vs be skipped (no metadata id), read under `CovePrincipal.System()` |
+| `/sync-library` | POST | configure | Enqueue the exclusive `whisparr-sync-library` job that registers the whole library as owned (+ optional monitor) |
 
 `/monitor` and `/monitor-status` are `configure`-gated for the same reason as the list routes:
 they reach the stored credentials to call Whisparr. Both are POST because each carries a `RemoteIds`
@@ -299,6 +301,40 @@ grabbing**. Only the explicit "Search for this scene" / "Search all monitored" a
 explicit search, it imports into Cove through the **same** On-Import webhook + polling reconcile as any
 other Whisparr grab — there is no second ingest path, and that path is already idempotent
 (`EventLedger`), so a Cove-initiated add can never feed a re-ingest loop.
+
+## Bulk library sync ("Sync my library to Whisparr")
+
+The settings page offers a one-click "Sync my library to Whisparr" that applies the same
+reflect-owned / (v3) scene-add / optional-monitor primitives across the **whole** Cove library in one
+paced background job — so a first-time user need not hand-select every studio. It adds **no** new
+mutation spine and **no** grab path; it enumerates the library and drives the existing per-entity
+runners. Two `configure`-gated, stored-creds-only endpoints back it:
+
+- `GET /sync-preview` — a pre-run count of how many studios / performers / (v3) owned scenes carry a
+  connected-version id and will register, versus how many are **skipped** for carrying none. The count
+  is computed from a whole-library read taken under `CovePrincipal.System()` (set on a fresh scope and
+  restored in a `finally`), because Cove's per-principal authz filters would otherwise undercount a
+  background read. `SyncPreviewCore` is pure and gates each bucket on the adapter's capability flags,
+  so a v2 preview reports **studios only** (no performer, no per-scene add).
+- `POST /sync-library` — enqueues one **exclusive** `whisparr-sync-library` job and returns its
+  `{ jobId, description }`. A library-wide sync is job-only; it never runs inline.
+
+`RunSyncLibraryJobAsync` opens a fresh scope, sets `CovePrincipal.System()` around the whole
+enumerate-and-fan-out (restoring the prior principal in a `finally`), and builds the unit list with the
+pure `BuildSyncUnits`: a reflect-owned unit per identified studio (both versions) and per performer
+(v3 only), an add unit per identified v3 scene, and — only when the user opted into monitoring — a
+monitor unit per entity carrying the chosen scope (New releases only [default] / All releases). It then
+dispatches every unit through the **existing** `RunEntityOpAsync` / `RunVideoOpAsync` batch runners via
+a single `maxInFlight:1` `RunBatchAsync`, so the sync inherits the batch surface's pacing, capability
+gating (unsupported `(kind, op, version)` combos are skipped cleanly, never a false success), and
+job-unit outcome mapping. No id-less entity ever makes an outbound call.
+
+**Loop-safety.** The job reuses only the non-grabbing verbs: every registration issues
+`searchForMovie:false` (v2 `searchForMissingEpisodes:false`), is origin-tagged `cove-sync`, and treats
+a 409/exists as success — so a re-run is idempotent and adding never grabs. `SyncOp` has no grab
+member, and a structural source guard (alongside `NoMutationTests`) asserts the dispatch reaches only
+the non-grabbing runner verbs, never a `Search` path. There is no auto-sync on Cove-add, no scheduler,
+and no nag banner: the job runs only when the user clicks Sync.
 
 ## Whisparr v2 adapter
 
