@@ -4,6 +4,7 @@
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "prepare": "lefthook install",
     "test": "node --test scripts/*.test.mjs"
   },
   "devDependencies": {
@@ -13,6 +14,7 @@
     "eslint-plugin-react-hooks": "7.1.1",
     "eslint-plugin-react-refresh": "0.5.3",
     "globals": "17.7.0",
+    "lefthook": "2.1.10",
     "typescript": "6.0.3",
     "typescript-eslint": "8.64.0"
   },
