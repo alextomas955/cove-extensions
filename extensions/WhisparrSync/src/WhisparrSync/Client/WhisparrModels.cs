@@ -305,9 +305,11 @@ internal sealed record WhisparrManualImportItem(
 /// <see cref="Extra"/> as a raw <see cref="JsonElement"/> (the same verbatim round-trip
 /// <see cref="WhisparrManualImportItem"/> uses for <c>Quality</c>/<c>Languages</c>), so re-serializing after
 /// flipping one boolean re-emits every field the <c>GET</c> returned — the unknown fields survive byte-for-
-/// value. Only the two file-affecting booleans are typed; the field names are the assumed Radarr/Whisparr
-/// Eros contract (confirmed live at the phase gate). Both bind case-insensitively and default off, so a
-/// partial/odd body still binds.
+/// value. Three fields are typed: the two file-affecting booleans, plus <see cref="SceneFolderFormat"/>, whose
+/// leading literal the scene-folder-overlap advisory reads. Promoting it from the <see cref="Extra"/> bucket to a
+/// typed member does not change the write round-trip — the <c>with</c>-copy still re-emits it verbatim. The
+/// field names are the Radarr/Whisparr Eros contract (confirmed live at the phase gate). All bind
+/// case-insensitively; the booleans default off and the format defaults null, so a partial/odd body still binds.
 /// </remarks>
 internal sealed record NamingConfig
 {
@@ -316,6 +318,14 @@ internal sealed record NamingConfig
 
     [JsonPropertyName("replaceIllegalCharacters")]
     public bool ReplaceIllegalCharacters { get; init; }
+
+    /// <summary>
+    /// Eros's Scene Folder Format template (e.g. <c>scenes/{Studio CleanNetwork}/{Studio CleanTitle}</c>) — the
+    /// per-movie folder Eros appends to the root. Its leading literal segment is what the scene-folder-overlap
+    /// advisory compares against each root's trailing segment. Nullable: a v2 body or a partial config omits it.
+    /// </summary>
+    [JsonPropertyName("sceneFolderFormat")]
+    public string? SceneFolderFormat { get; init; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> Extra { get; set; } = [];
