@@ -39,9 +39,11 @@ test("resolveWebhookStatus: an authoritative registered flag reads registered ev
   assert.equal(s.hasEvents, false);
 });
 
-test("resolveWebhookStatus: a received event strengthens an unregistered flag to registered", () => {
+test("resolveWebhookStatus: a stale event never makes an absent connector read registered", () => {
+  // The connector is authoritative: a past import-log event with registered:false (connection deleted) must
+  // NOT report registered — it only enriches the status text when the connection actually exists.
   const s = resolveWebhookStatus(false, 123);
-  assert.equal(s.isRegistered, true);
+  assert.equal(s.isRegistered, false);
   assert.equal(s.hasEvents, true);
 });
 
@@ -50,7 +52,7 @@ test("resolveWebhookStatus: an absent event never downgrades a true registered f
   assert.equal(s.isRegistered, true);
   assert.equal(s.hasEvents, true);
 
-  // registered:true with no event is still registered — the event only strengthens, never overrides.
+  // registered:true with no event is still registered — the event only enriches, never overrides.
   assert.equal(resolveWebhookStatus(true, null).isRegistered, true);
 });
 

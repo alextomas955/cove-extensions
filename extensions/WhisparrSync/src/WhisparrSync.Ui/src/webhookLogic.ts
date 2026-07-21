@@ -36,16 +36,17 @@ export interface WebhookStatusView {
 }
 
 /**
- * Combine the authoritative registered flag with the received-event signal. A received event strengthens the
- * status to registered, but an absent event never downgrades a `registered:true` from the connector — the
- * connection's existence is the authoritative proof, the event is only extra confirmation.
+ * The connector's registered flag is authoritative: "registered" means the "Cove Whisparr Sync" connection
+ * currently exists in Whisparr, nothing else. A past import event does NOT imply the connection still exists
+ * (it can be deleted while old import-log rows remain), so `hasEvents` only enriches the status text ("· last
+ * event …") — it never upgrades an absent connector to "registered".
  */
 export function resolveWebhookStatus(
   registered: boolean,
   lastEventTicks: number | null,
 ): WebhookStatusView {
   const hasEvents = lastEventTicks !== null;
-  return { isRegistered: registered || hasEvents, hasEvents };
+  return { isRegistered: registered, hasEvents };
 }
 
 function firstString(...values: unknown[]): string | undefined {
