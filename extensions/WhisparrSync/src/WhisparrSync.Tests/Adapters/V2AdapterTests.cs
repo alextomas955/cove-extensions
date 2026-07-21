@@ -205,9 +205,9 @@ public sealed class V2AdapterTests
     }
 
     [Fact]
-    public async Task RegisterWebhook_DelegatesToClient_PostsNotification()
+    public async Task RegisterWebhook_NoExistingConnection_GetThenPostsNotification()
     {
-        var handler = FakeHttpMessageHandler.Json("{}");
+        var handler = FakeHttpMessageHandler.Sequence(Json("[]"), Json("{}"));
 
         var result = await AdapterFor(handler)
             .RegisterWebhookAsync(BaseUrl, ApiKey, "http://cove/webhook?token=secret", CancellationToken.None);

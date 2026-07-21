@@ -47,7 +47,9 @@ public sealed class WebhookUrlTests
     [Fact]
     public async Task RegisterWebhook_posts_a_well_formed_v3_notification_payload()
     {
-        var handler = FakeHttpMessageHandler.Json("{\"id\":1}");
+        var handler = FakeHttpMessageHandler.Sequence(
+            FakeHttpMessageHandler.Respond(HttpStatusCode.OK, "application/json", "[]"),
+            FakeHttpMessageHandler.Respond(HttpStatusCode.OK, "application/json", "{\"id\":1}"));
         var adapter = new V3Adapter(new WhisparrClient(new HttpClient(handler)));
 
         var result = await adapter.RegisterWebhookAsync(
