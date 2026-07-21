@@ -57,6 +57,7 @@ import {
   sceneFolderOverlapsFromServer,
   type SceneFolderOverlap,
 } from "./sceneFolderOverlapLogic";
+import { webhookUrlFromServer, type WebhookUrlView } from "./webhookLogic";
 import { clearMonitorStatusCache } from "./monitorStatusStore";
 import { clearSceneStatusCaches } from "./sceneStatusStore";
 import { clearCardStatusCache } from "./cardStatusStore";
@@ -87,10 +88,14 @@ async function fetchQualityProfiles(baseUrl: string, apiKey: string): Promise<Qu
   });
 }
 
-/** Fetch the ready-to-use webhook URL (the server mints + persists the embedded secret on first read). */
-async function fetchWebhookUrl(): Promise<string> {
-  const resp = await request<{ url: string }>(`/extensions/${EXTENSION_ID}/webhook-url`);
-  return resp.url;
+/**
+ * Read the webhook view from the connector: Whisparr's own "Cove Whisparr Sync" connection is the source of
+ * truth for both the URL and the registered flag, so a refresh reflects the live connection rather than a
+ * browser-derived localhost. The server degrades to the derived default + registered:false when no connection
+ * exists (or Whisparr is down).
+ */
+async function fetchWebhookUrl(): Promise<WebhookUrlView> {
+  return webhookUrlFromServer(await request(`/extensions/${EXTENSION_ID}/webhook-url`));
 }
 
 /** The most recent webhook import ticks + the sync-health signal, from one `/import-log` read. */
@@ -224,12 +229,14 @@ export function SettingsPage() {
         setSavedConnections(opts.SavedConnections);
         setSaved(opts);
         if (opts.hasApiKey && opts.BaseUrl) {
-          // Webhook URL + import status are local reads (the secret is minted server-side, no
-          // Whisparr call), so they load independently of the live probe below.
+          // The webhook read is connector-sourced but degrades server-side to a derived default, so it loads
+          // independently of the live probe below; a thrown read is non-fatal and leaves the first-run copy.
           try {
-            setWebhookUrl(await fetchWebhookUrl());
+            const wh = await fetchWebhookUrl();
+            setWebhookUrl(wh.url);
+            setRegistered(wh.registered); // authoritative from Whisparr's own connection, not session-inferred
           } catch {
-            // Local mint; a failure is non-fatal and leaves the first-run copy.
+            // Non-fatal: leave the first-run copy.
           }
           const status = await fetchImportStatus();
           setLastWebhookEventTicks(status.lastTicks);
@@ -276,7 +283,9 @@ export function SettingsPage() {
           try {
             setQualityProfiles(await fetchQualityProfiles(baseUrl, apiKey));
             setListsLoaded(true);
-            setWebhookUrl(await fetchWebhookUrl());
+            const wh = await fetchWebhookUrl();
+            setWebhookUrl(wh.url);
+            setRegistered(wh.registered);
             await loadFileSettings(detected ?? selectedVersion);
           } catch {
             setListsLoaded(false);
@@ -401,7 +410,9 @@ export function SettingsPage() {
     setRegisterMsg(null);
     try {
       // Forward the shown (possibly hand-edited) URL so the server registers the host Whisparr can actually
-      // reach; the server keeps only its origin and re-mints the token from the stored secret.
+      // reach; the server keeps only its origin and re-mints the token from the stored secret. The backend is
+      // idempotent (update-or-create; 409/unique-name is success), so re-registering an existing connection
+      // returns registered:true and never surfaces an error — only a thrown request (Whisparr unreachable) does.
       const resp = await request<{ registered: boolean }>(
         `/extensions/${EXTENSION_ID}/register-webhook`,
         { method: "POST", body: JSON.stringify({ Url: webhookUrl }) },
