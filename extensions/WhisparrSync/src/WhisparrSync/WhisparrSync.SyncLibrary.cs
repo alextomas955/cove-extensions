@@ -235,6 +235,11 @@ public sealed partial class WhisparrSync
     /// registers/monitors without grabbing (the LOCKED boundary). Monitor units are planned ONLY when
     /// <paramref name="alsoMonitor"/> is set (add and monitor are decoupled). A performer entity and per-scene
     /// add exist on v3 only; a studio reflects + monitors on both versions.
+    /// A <see cref="SyncOp.RegisterEntity"/> studio unit is emitted (v2/site only, gated
+    /// <c>!SupportsSceneAdd &amp;&amp; SupportsOwnedImport</c>) BEFORE that studio's reflect-owned unit and
+    /// INDEPENDENT of <paramref name="alsoMonitor"/>: v2 reflect-owned can only attach files to an ALREADY-present
+    /// site, and a clean v2 with monitor OFF creates none, so the register verb makes the site present first. v3
+    /// registers presence via its per-scene add, so RegisterEntity is never planned there.
     /// </remarks>
     internal static IReadOnlyList<SyncUnit> BuildSyncUnits(
         IReadOnlyList<CoveEntityRef> studioRefs,
@@ -247,6 +252,19 @@ public sealed partial class WhisparrSync
     {
         var useTpdb = string.Equals(options.SelectedVersion, "v2", StringComparison.OrdinalIgnoreCase);
         var units = new List<SyncUnit>();
+
+        // v2/site register-then-reflect: reflect-owned attaches owned files only to a site that ALREADY exists,
+        // but a clean v2 (no per-scene add) registers no site — so plan a non-grabbing RegisterEntity per owned
+        // studio FIRST. Emitting it before the reflect-owned loop guarantees register precedes reflect for the
+        // same studio in list order (the job runs units in order at maxInFlight:1). Independent of alsoMonitor:
+        // registering presence is decoupled from monitoring. v3 registers presence via its per-scene add.
+        if (!adapterCaps.SupportsSceneAdd && adapterCaps.SupportsOwnedImport)
+        {
+            foreach (var studio in studioRefs.Where(r => HasConnectedId(r.StashIds, r.TpdbIds, useTpdb)))
+            {
+                units.Add(SyncUnit.EntityOp(SyncOp.RegisterEntity, EntityKind.Studio, studio.CoveId, scope));
+            }
+        }
 
         if (adapterCaps.SupportsOwnedImport)
         {
@@ -308,6 +326,8 @@ public sealed partial class WhisparrSync
             SyncOp.Add => await RunVideoOpAsync(BatchOp.Add, unit.Video!, movieIndex: null, actions, ct),
             SyncOp.Monitor => await RunEntityOpAsync(
                 unit.Kind, EntityBatchOp.Monitor, unit.Scope, unit.CoveId, isV2, monitor, actions, library, ct),
+            SyncOp.RegisterEntity => await RunEntityOpAsync(
+                unit.Kind, EntityBatchOp.RegisterEntity, unit.Scope, unit.CoveId, isV2, monitor, actions, library, ct),
             _ => await RunEntityOpAsync(
                 unit.Kind, EntityBatchOp.ReflectOwned, unit.Scope, unit.CoveId, isV2, monitor, actions, library, ct),
         };
@@ -316,6 +336,7 @@ public sealed partial class WhisparrSync
     {
         SyncOp.Add => $"scene:{unit.CoveId}",
         SyncOp.Monitor => $"monitor:{unit.Kind}:{unit.CoveId}",
+        SyncOp.RegisterEntity => $"register:{unit.Kind}:{unit.CoveId}",
         _ => $"reflect:{unit.Kind}:{unit.CoveId}",
     };
 
@@ -323,6 +344,7 @@ public sealed partial class WhisparrSync
     {
         SyncOp.Add => unit.Video?.Title ?? $"Scene #{unit.CoveId}",
         SyncOp.Monitor => $"Monitor {unit.Kind} #{unit.CoveId}",
+        SyncOp.RegisterEntity => $"Register {unit.Kind} #{unit.CoveId}",
         _ => $"Reflect owned {unit.Kind} #{unit.CoveId}",
     };
 
@@ -331,15 +353,17 @@ public sealed partial class WhisparrSync
         => alsoMonitor ? "Whisparr: sync my library and monitor" : "Whisparr: sync my library";
 
     /// <summary>
-    /// The loop-safe fan-out verbs — the ONLY three ops a library sync ever plans. There is deliberately no
-    /// search/grab member, so the whole pass cannot start a download; a grab verb here would break the LOCKED
-    /// loop-safety contract.
+    /// The loop-safe fan-out verbs a library sync plans. There is deliberately no search/grab member, so the
+    /// whole pass cannot start a download; a grab verb here would break the LOCKED loop-safety contract.
+    /// <see cref="RegisterEntity"/> is a non-grabbing v2/site registration verb (add-a-site-present with monitor
+    /// and grabbing disarmed), not a search.
     /// </summary>
     internal enum SyncOp
     {
         ReflectOwned,
         Monitor,
         Add,
+        RegisterEntity,
     }
 
     /// <summary>

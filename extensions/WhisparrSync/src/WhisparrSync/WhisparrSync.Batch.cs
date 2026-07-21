@@ -421,6 +421,7 @@ public sealed partial class WhisparrSync
             EntityBatchOp.AddMissing => "add missing scenes for",
             EntityBatchOp.Search => "search monitored scenes for",
             EntityBatchOp.ReflectOwned => "reflect owned scenes for",
+            EntityBatchOp.RegisterEntity => "register",
             _ => "process",
         };
         var noun = kind == EntityKind.Studio
@@ -490,6 +491,7 @@ public sealed partial class WhisparrSync
                 {
                     EntityBatchOp.Monitor => (await monitor.SetMonitorAsync(kind, idKey, true, scope, ct)).IsOk,
                     EntityBatchOp.Unmonitor => (await monitor.SetMonitorAsync(kind, idKey, false, scope, ct)).IsOk,
+                    EntityBatchOp.RegisterEntity => (await monitor.RegisterEntityAsync(kind, idKey, ct)).IsOk,
                     _ => (await actions.SearchAllMonitoredAsync(kind, idKey, ct)).IsOk,
                 };
                 return ok ? BatchUnitOutcome.Succeeded : BatchUnitOutcome.Failed;
@@ -529,6 +531,7 @@ public sealed partial class WhisparrSync
         EntityBatchOp.AddMissing => "addMissing",
         EntityBatchOp.Search => "search",
         EntityBatchOp.ReflectOwned => "reflectOwned",
+        EntityBatchOp.RegisterEntity => "registerEntity",
         _ => "unknown",
     };
 }

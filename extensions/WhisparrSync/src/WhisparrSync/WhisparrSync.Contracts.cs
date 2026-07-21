@@ -257,6 +257,7 @@ public sealed partial class WhisparrSync
         AddMissing,
         Search,
         ReflectOwned,
+        RegisterEntity,
     }
 
     /// <summary>
