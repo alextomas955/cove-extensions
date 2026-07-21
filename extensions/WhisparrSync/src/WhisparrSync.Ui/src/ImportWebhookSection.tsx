@@ -7,20 +7,19 @@
  * states the rule and the "no events received yet" / "last event" status is the real proof. Presentational — the
  * webhook URL, the copy/register state, and the last-event timestamp are owned by {@link ./SettingsPage}.
  *
- * "Registered" is inferred from either a successful auto-register this session or a received webhook event (the
- * durable proof of reachability — there is no separate "is registered" flag). There is deliberately NO path
- * mapping: the import flow uses Whisparr's reported path as-is, so Cove and Whisparr must see the library at the
- * same path — the always-shown reachability helper states the one thing a mis-set host actually needs.
+ * "Registered" is sourced from the extension's own "Cove Whisparr Sync" connection in Whisparr (authoritative,
+ * carried in on the `registered` prop), with a received webhook event as extra proof — an absent event never
+ * downgrades a live connection. There is deliberately NO path mapping: the import flow uses Whisparr's reported
+ * path as-is, so Cove and Whisparr must see the library at the same path — the always-shown reachability helper
+ * states the one thing a mis-set host actually needs.
  * Never color-only — each state pairs a StatusText with a lucide glyph. Host token classes only; no raw HTML.
  */
 import { CheckCircle2, AlertTriangle, Copy } from "lucide-react";
 import { Button, Field, SectionCard, Spinner, StatusText } from "@cove-ext/ui-shared";
 import { relativeTime, ticksToEpochMs } from "./importLogLogic";
+import { resolveWebhookStatus } from "./webhookLogic";
 
-/**
- * The honest webhook status + the always-shown host-reachability helper (fixed copy).
- * "Registered" is inferred from a successful auto-register this session or a received webhook event.
- */
+/** The webhook status + the always-shown host-reachability helper (fixed copy). */
 function WebhookStatus({
   registered,
   lastEventTicks,
@@ -28,12 +27,12 @@ function WebhookStatus({
   registered: boolean;
   lastEventTicks: number | null;
 }) {
-  const hasEvents = lastEventTicks !== null;
-  const isRegistered = registered || hasEvents;
+  const { isRegistered } = resolveWebhookStatus(registered, lastEventTicks);
   return (
     <div className="space-y-1">
       {isRegistered ? (
-        hasEvents ? (
+        // Inline null check (not the resolver's hasEvents) so TS narrows lastEventTicks for ticksToEpochMs.
+        lastEventTicks !== null ? (
           <div className="flex items-start gap-2">
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-400" />
             <StatusText kind="success">
