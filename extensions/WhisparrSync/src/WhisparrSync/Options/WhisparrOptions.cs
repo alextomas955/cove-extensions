@@ -94,6 +94,16 @@ public sealed record WhisparrOptions
     public string TpdbEndpoint { get; init; } = "https://theporndb.net/graphql";
 
     /// <summary>
+    /// The persisted webhook origin (scheme + host + port) the read endpoint falls back to BEFORE a Whisparr
+    /// connector exists, so a pre-registration edit survives a settings refresh instead of reverting to the
+    /// browser-derived request host. Empty on first run (no persisted host → the read derives the default from
+    /// the request). Once a connector is registered the connector's own <c>url</c> is authoritative and this
+    /// seeds only the first-run / pre-registration default. A plain non-secret setting, modeled on
+    /// <see cref="StashDbEndpoint"/>/<see cref="TpdbEndpoint"/> (preserve-on-blank).
+    /// </summary>
+    public string WebhookHost { get; init; } = "";
+
+    /// <summary>
     /// Cove→Whisparr path-prefix rewrites for the Docker-vs-local deployment, applied before a Cove file path is
     /// prefix-matched against Whisparr's own root list. Empty (the default) is identity — the two see the library
     /// at the same mount. A plain non-secret setting, modeled on <see cref="StashDbEndpoint"/>/<see cref="TpdbEndpoint"/>;
@@ -131,6 +141,7 @@ public sealed record WhisparrOptions
         string? baseUrl, string? apiKey, string? selectedVersion, int qualityProfileId,
         string? stashDbEndpoint = null,
         string? tpdbEndpoint = null,
+        string? webhookHost = null,
         IReadOnlyList<PathTranslationRule>? pathTranslation = null,
         IReadOnlyList<string>? tagsOnAdd = null,
         bool? monitorNewByDefault = null,
@@ -177,6 +188,7 @@ public sealed record WhisparrOptions
             // Preserve-on-blank like the other string fields: a null/blank submission keeps the stored endpoint.
             StashDbEndpoint = string.IsNullOrWhiteSpace(stashDbEndpoint) ? StashDbEndpoint : stashDbEndpoint,
             TpdbEndpoint = string.IsNullOrWhiteSpace(tpdbEndpoint) ? TpdbEndpoint : tpdbEndpoint,
+            WebhookHost = string.IsNullOrWhiteSpace(webhookHost) ? WebhookHost : webhookHost,
             // Preserve-on-null: an absent PathTranslation keeps the stored table (a partial save never wipes it).
             PathTranslation = pathTranslation ?? PathTranslation,
             // The add-defaults preserve-on-null so a partial save never resets an unrelated toggle.
@@ -220,6 +232,7 @@ public sealed record OptionsView(
     bool MonitorNewByDefault,
     bool AllowQualityUpgrades,
     string TpdbEndpoint,
+    string WebhookHost,
     [property: JsonConverter(typeof(JsonStringEnumConverter<MonitorScope>))] MonitorScope DefaultMonitorScope,
     IReadOnlyDictionary<string, ConnectionView> SavedConnections)
 {
@@ -243,6 +256,7 @@ public sealed record OptionsView(
             options.QualityProfileId, HasApiKey: !string.IsNullOrEmpty(options.ApiKey),
             TagsOnAdd: options.TagsOnAdd, MonitorNewByDefault: options.MonitorNewByDefault,
             AllowQualityUpgrades: options.AllowQualityUpgrades, TpdbEndpoint: options.TpdbEndpoint,
+            WebhookHost: options.WebhookHost,
             DefaultMonitorScope: options.DefaultMonitorScope, SavedConnections: connections);
     }
 }
