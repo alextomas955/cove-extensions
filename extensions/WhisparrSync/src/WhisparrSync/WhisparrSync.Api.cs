@@ -275,8 +275,8 @@ public sealed partial class WhisparrSync
         // The Cove host base for the webhook URL is derived from the inbound request (scheme + host) — the
         // extension backend has no other authoritative view of its own public address.
         endpoints.MapGet(WebhookUrlRoute,
-            (HttpRequest http, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => WebhookUrlAsync($"{http.Scheme}://{http.Host}", principal, ct));
+            (HttpRequest http, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => WebhookUrlAsync($"{http.Scheme}://{http.Host}", client, principal, ct));
 
         endpoints.MapPost(RegisterWebhookRoute,
             (WebhookRegisterRequest? req, HttpRequest http, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
