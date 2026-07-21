@@ -120,6 +120,13 @@ public sealed partial class WhisparrSync
         Message = "[WhisparrSync] videos batch: op={Op} total={Total} succeeded={Succeeded} skipped={Skipped} failed={Failed}")]
     private partial void LogVideosBatch(string op, int total, int succeeded, int skipped, int failed);
 
+    // Records the whole-library "Sync my library to Whisparr" job outcome: the aggregate unit counts across
+    // studios/performers/scenes ONLY — never an entity/scene id/title/path, the Whisparr host, or the API key.
+    [LoggerMessage(
+        EventId = 2016, Level = LogLevel.Information,
+        Message = "[WhisparrSync] library sync: total={Total} succeeded={Succeeded} failed={Failed} skipped={Skipped}")]
+    private partial void LogSyncLibrary(int total, int succeeded, int failed, int skipped);
+
     // Warn at most once per process that the insecure query-token channel was used (called from the webhook
     // wiring in WhisparrSync.Api.cs). Interlocked makes the one-time guard safe under concurrent requests.
     private int _warnedQueryTokenChannel;

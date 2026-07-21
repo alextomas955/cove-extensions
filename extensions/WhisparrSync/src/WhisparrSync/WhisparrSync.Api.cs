@@ -120,10 +120,16 @@ public sealed partial class WhisparrSync
     // sync-able-vs-skipped counts over a whole-library System-principal read (stored creds only).
     private const string SyncPreviewRoute = RouteBase + "/sync-preview";
 
+    // The bulk "Sync my library to Whisparr" action: a configure-gated POST that enqueues ONE exclusive
+    // background job enumerating the whole library and fanning out over the existing reflect-owned/add/monitor
+    // runners. It never runs inline (a library-wide sync is job-only).
+    private const string SyncLibraryRoute = RouteBase + "/sync-library";
+
     // A bulk action enqueues a background IJobService job so the Job Drawer (not a window.alert) carries the
     // progress + summary; the queued-success alert is suppressed on the action.
     private const string VideosBatchJobType = "whisparr-videos-batch";
     private const string EntitiesBatchJobType = "whisparr-entities-batch";
+    private const string SyncLibraryJobType = "whisparr-sync-library";
 
     /// <summary>
     /// Contributes the Whisparr Sync settings tab as a full-page layout (like Renamer): the host renders
@@ -410,6 +416,12 @@ public sealed partial class WhisparrSync
         endpoints.MapGet(SyncPreviewRoute,
             (WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => SyncPreviewAsync(client, principal, ct));
+
+        // The bulk "Sync my library to Whisparr" action: POSTs {AlsoMonitor, Scope} and enqueues one exclusive
+        // background job (stored creds only). Returns { jobId, description } — never a synchronous fan-out.
+        endpoints.MapPost(SyncLibraryRoute,
+            (SyncLibraryRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => SyncLibraryAsync(req, client, principal, ct));
 
         // The Whisparr file-settings read (GET) + write (POST). Neither carries a url/key — the handler uses the
         // stored creds only; the write honors ONLY the four whitelisted booleans (read-modify-write in the adapter).
