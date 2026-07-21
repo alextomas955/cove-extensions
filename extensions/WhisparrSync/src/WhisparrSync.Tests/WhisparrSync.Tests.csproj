@@ -107,6 +107,8 @@
     <Compile Remove="Api\ImportLogEndpointAuthTests.cs" />
     <!-- RootOverlapTests injects a FakePrincipalAccessor + drives the /root-overlap endpoint (Cove.Core types) → drops out on a bare CI runner. -->
     <Compile Remove="Safety\RootOverlapTests.cs" />
+    <!-- SceneFolderOverlapEndpointTests injects a FakePrincipalAccessor + drives the /scene-folder-overlap endpoint (Cove.Core types) → drops out on a bare CI runner. The pure SceneFolderOverlapDetectorTests is cove-free and stays compiled. -->
+    <Compile Remove="Safety\SceneFolderOverlapEndpointTests.cs" />
     <!-- The endpoint-permission + batch-endpoint tier all inject a FakePrincipalAccessor (Cove.Core auth types) → drops out on a bare CI runner. -->
     <Compile Remove="Api\MonitorEndpointTests.cs" />
     <Compile Remove="Api\MonitorEndpointAuthTests.cs" />
