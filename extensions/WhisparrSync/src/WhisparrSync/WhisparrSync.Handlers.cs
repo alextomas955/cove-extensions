@@ -52,6 +52,51 @@ public sealed partial class WhisparrSync
     }
 
     /// <summary>
+    /// Reports any Whisparr root whose trailing segment doubles the Scene Folder Format's leading literal — the
+    /// Eros misconfiguration where <c>&lt;root&gt;</c> + <c>&lt;format&gt;</c> yields <c>…/scenes/scenes/…</c> and
+    /// every scene lands at an unfindable path. Reads the stored instance's naming config + root folders and
+    /// composes them with <see cref="SceneFolderOverlapDetector"/>. Returns facts only (root/prefix/suggestedRoot);
+    /// the display copy is built in the settings page.
+    /// </summary>
+    /// <remarks>
+    /// Configure-gated (not read-gated like <see cref="RootOverlapAsync"/>): it reaches the stored credentials to
+    /// call Whisparr, the same posture as <see cref="FileSettingsGetAsync"/>. The Scene Folder Format is an Eros
+    /// concept, so a non-v3 (v2/Sonarr) connection is QUIET — a 200 with an empty overlap set, never a
+    /// VERSION_UNSUPPORTED error. Best-effort advisory: a failed naming/rootfolder read is also a quiet empty set,
+    /// never a hard error. Mutates nothing.
+    /// </remarks>
+    internal async Task<IResult> SceneFolderOverlapAsync(
+        WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        if (Forbidden(principal, Permissions.ExtensionsConfigure) is { } denied)
+        {
+            return denied;
+        }
+
+        var (options, baseUrl, apiKey) = await ResolveCredsAsync(new TestConnectionRequest(null, null), ct);
+        if (AdapterSelector.SelectForVersion(options.SelectedVersion, client) is not V3Adapter)
+        {
+            return Results.Json(new { overlaps = Array.Empty<SceneFolderOverlap>() }, ImportLogResponseJsonOptions);
+        }
+
+        var roots = await client.ListRootFoldersAsync(baseUrl, apiKey, ct);
+        var naming = await client.GetNamingConfigAsync(baseUrl, apiKey, ct);
+        if (!roots.IsOk || !naming.IsOk)
+        {
+            return Results.Json(new { overlaps = Array.Empty<SceneFolderOverlap>() }, ImportLogResponseJsonOptions);
+        }
+
+        var rootPaths = roots.Value!
+            .Where(r => !string.IsNullOrWhiteSpace(r.Path))
+            .Select(r => r.Path!)
+            .ToArray();
+        var overlaps = SceneFolderOverlapDetector.Detect(naming.Value!.SceneFolderFormat, rootPaths)
+            .Select(o => new { root = o.Root, prefix = o.Prefix, suggestedRoot = o.SuggestedRoot });
+
+        return Results.Json(new { overlaps }, ImportLogResponseJsonOptions);
+    }
+
+    /// <summary>
     /// Toggles the monitor state of a studio or performer in Whisparr via the
     /// add-then-flip semantics (<see cref="EntityMonitor.SetMonitorAsync"/>). Configure-gated: this
     /// mutation reaches the stored credentials, so a read-only principal must not reach it. Stored creds ONLY:
