@@ -1,7 +1,8 @@
 /**
  * SettingsPage — the component the host mounts inside the "Whisparr Sync" SETTINGS TAB. It owns the shared
- * connection + add-defaults form state and the single floating save bar, and stacks the six sections in a
- * fixed order: Connection · Library path · Import webhook · Add defaults · Reconciliation · Import activity.
+ * connection + add-defaults form state and the single floating save bar, and stacks the sections in a fixed
+ * order: Connection · Import webhook · Add defaults · Whisparr file settings · Sync my library · Reconciliation ·
+ * Import activity.
  *
  * A SINGLE save spans Connection + Library-path + Add-defaults on purpose: the server's SaveOptions writes
  * QualityProfileId UNCONDITIONALLY (it is non-nullable), so a per-section partial save would wipe the stored
@@ -22,6 +23,7 @@ import { AddDefaultsSection } from "./AddDefaultsSection";
 import { ImportLogSection } from "./ImportLogSection";
 import { ReconciliationSection } from "./ReconciliationSection";
 import { WhisparrFileSettingsSection } from "./WhisparrFileSettingsSection";
+import { SyncLibrarySection } from "./SyncLibrarySection";
 import {
   fileSettingsFromServer,
   fileSettingsWriteBody,
@@ -559,6 +561,12 @@ export function SettingsPage() {
         versionSupported={selectedVersion !== "v2"}
         unreachable={connectionUnreachable}
         onChange={setFileSettings}
+      />
+
+      <SyncLibrarySection
+        connected={listsLoaded}
+        isV2={selectedVersion === "v2"}
+        unreachable={connectionUnreachable}
       />
 
       <ReconciliationSection />
