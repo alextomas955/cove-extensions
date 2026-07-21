@@ -47,6 +47,45 @@ public sealed class WhisparrOptionsTests
         Assert.Equal("https://theporndb.net/graphql", view.TpdbEndpoint);
     }
 
+    // WebhookHost is the persisted pre-registration webhook origin: empty on first run, set on a non-blank
+    // submit, and preserved on a blank submit so a partial save (or a UI that never held the host) never blanks
+    // a stored host — the fix for a refresh reverting the webhook URL to the browser-derived request host.
+
+    [Fact]
+    public void WebhookHost_DefaultsToEmpty()
+        => Assert.Equal("", new WhisparrOptions().WebhookHost);
+
+    [Fact]
+    public void WithSubmitted_WebhookHost_SetsThenPreservesOnBlank()
+    {
+        var updated = new WhisparrOptions().WithSubmitted(
+            baseUrl: null, apiKey: null, selectedVersion: null, qualityProfileId: 0,
+            webhookHost: "http://host.docker.internal:5073");
+        Assert.Equal("http://host.docker.internal:5073", updated.WebhookHost);
+
+        var unchanged = updated.WithSubmitted(
+            baseUrl: null, apiKey: null, selectedVersion: null, qualityProfileId: 0,
+            webhookHost: "   ");
+        Assert.Equal("http://host.docker.internal:5073", unchanged.WebhookHost); // blank submit preserves the stored host
+    }
+
+    [Fact]
+    public void OptionsView_CarriesWebhookHost_AndStillRedactsApiKey()
+    {
+        var view = OptionsView.From(new WhisparrOptions
+        {
+            WebhookHost = "http://host.docker.internal:5073",
+            ApiKey = "super-secret-value-123",
+        });
+
+        Assert.Equal("http://host.docker.internal:5073", view.WebhookHost);
+        Assert.True(view.HasApiKey);
+        Assert.Null(typeof(OptionsView).GetProperty("ApiKey")); // the raw key never appears on the projection
+
+        var json = JsonSerializer.Serialize(view);
+        Assert.DoesNotContain("super-secret-value-123", json, StringComparison.Ordinal);
+    }
+
 
     // The single server-side rule the outward endpoints key on: the identity endpoint follows the CONNECTED
     // version, so a v3 (Eros) instance resolves by the StashDB id and a v2 (Sonarr) instance by the TPDB id.
