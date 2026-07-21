@@ -1,0 +1,37 @@
+{
+  "Created": "2020-04-07T11:25:44.204405Z",
+  "Updated": "2026-03-24T18:32:36.885618Z",
+  "ExtractedAt": "2026-07-08T23:12:08Z",
+  "Name": "Lilly Bell",
+  "Disambiguation": null,
+  "Aliases": [
+    "Lilly Belle",
+    "Lily Bell"
+  ],
+  "Gender": "FEMALE",
+  "BirthDate": "1996-01-11T00:00:00",
+  "DeathDate": null,
+  "Age": 30,
+  "Ethnicity": "CAUCASIAN",
+  "Country": "US",
+  "EysColor": "BLUE",
+  "HairColor": "VARIOUS",
+  "Height": 157,
+  "CupSize": "C",
+  "BandSize": 32,
+  "WaistSize": 24,
+  "HipSize": 34,
+  "BreastType": "NATURAL",
+  "CareerStart": 2019,
+  "CareerEnd": null,
+  "Tattoos": [],
+  "Piercings": [],
+  "Status": 0,
+  "Images": [],
+  "MergedIntoId": null,
+  "ForeignIds": {
+    "TmdbId": 2873851,
+    "StashId": "7cf21be7-2a8e-44de-b19a-fa38aca6137c",
+    "TpdbId": "c730ce66-f84d-4a95-95ac-4cb9c0e0a281"
+  }
+}

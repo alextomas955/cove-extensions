@@ -12,6 +12,8 @@ node_modules/
 
 # Local planning / AI-assistant scaffolding — not part of the published extension.
 .planning/
+# Durable local keepsakes (milestone screenshots, research snapshots) — never published.
+.archive/
 .claude/
 .agents/
 .cursor/
@@ -21,6 +23,7 @@ CLAUDE.local.md
 # Docusaurus build output — website/ is a standalone package (see website/package.json);
 # node_modules/ is already covered by the existing root rule above.
 website/build/
+.whisparr-audit/
 
 # Local manual-test scratch that must never be committed: screenshots dropped at the repo root,
 # stray browser-snapshot dumps, and the runtime-populated E2E media dir (the E2E uses SkyHook JSON
@@ -28,4 +31,5 @@ website/build/
 /*.png
 /*.jpg
 /*.jpeg
+/settings-whisparr.yml
 tests/e2e/docker/shared-media/

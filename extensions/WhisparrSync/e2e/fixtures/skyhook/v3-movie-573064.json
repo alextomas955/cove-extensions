@@ -1,0 +1,56 @@
+{
+ "Created": null,
+ "Updated": null,
+ "ExtractedAt": "2026-07-15T23:32:11.7573103Z",
+ "ItemType": "Movie",
+ "Year": 2015,
+ "AlternativeTitles": [],
+ "Title": "Tushy Raw 1",
+ "Code": null,
+ "Slug": "tushy-scene-1",
+ "Overview": "",
+ "Directors": [],
+ "Credits": [],
+ "ReleaseDate": "2015-09-30",
+ "ReleaseDateUtc": "2015-09-30T00:00:00Z",
+ "Images": [],
+ "Duration": 178,
+ "Deleted": null,
+ "Trailer": null,
+ "Genres": [],
+ "Ratings": null,
+ "Studio": {
+  "Created": "2020-04-07T11:25:44Z",
+  "Updated": "2025-03-31T13:01:48.396038Z",
+  "ExtractedAt": "2026-07-15T23:32:11.7575545Z",
+  "Overview": "",
+  "Title": "Tushy",
+  "Aliases": [],
+  "Slug": "tushy",
+  "Images": [],
+  "Year": 0,
+  "Network": "Vixen Media Group",
+  "NetworkForeignIds": {
+   "TmdbId": 0,
+   "StashId": "b62bc449-c3d9-49ff-9a16-8f5b1bfa20b9",
+   "TpdbId": null
+  },
+  "Status": "Active",
+  "OriginalLanguage": null,
+  "Homepage": null,
+  "SubStudios": [],
+  "ForeignIds": {
+   "TmdbId": 72478,
+   "StashId": "eb58505f-428e-4a30-a151-bfab62b2694a",
+   "TpdbId": null
+  }
+ },
+ "Tags": [],
+ "Collection": null,
+ "Homepage": null,
+ "ForeignIds": {
+  "TmdbId": 573064,
+  "StashId": null,
+  "TpdbId": null
+ }
+}

@@ -2,6 +2,8 @@
   <Folder Name="/extensions/">
     <Project Path="extensions/Renamer/src/Renamer/Renamer.csproj" />
     <Project Path="extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj" />
+    <Project Path="extensions/WhisparrSync/src/WhisparrSync/WhisparrSync.csproj" />
+    <Project Path="extensions/WhisparrSync/src/WhisparrSync.Tests/WhisparrSync.Tests.csproj" />
   </Folder>
   <Folder Name="/shared/">
     <Project Path="shared/Cove.Extensions.Shared/Cove.Extensions.Shared.csproj" />

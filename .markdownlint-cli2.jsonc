@@ -10,5 +10,5 @@
   // Lint only user-facing docs. .planning/** is internal research/spec; CLAUDE.md files are
   // AI-assistant instruction files (managed separately from product docs) — excluded from the
   // CI markdown-lint glob too.
-  "ignores": ["**/node_modules/**", "**/dist/**", "**/.planning/**", "**/CLAUDE.md"]
+  "ignores": ["**/node_modules/**", "**/dist/**", "**/.planning/**", "**/.archive/**", "**/CLAUDE.md", "**/e2e/fixtures/**"]
 }

@@ -1,0 +1,52 @@
+{
+  "name": "whisparr-sync-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "WhisparrSync settings page — the Cove Whisparr Sync extension's connection/setup frontend (Vite library bundle → index.mjs).",
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "check-classes": "node scripts/check-classes.cjs",
+    "check-connection-result": "node scripts/check-connection-result.mjs",
+    "check-hasapikey": "node scripts/check-hasapikey-invariant.mjs",
+    "check-reconciliation-logic": "node scripts/check-reconciliation-logic.mjs",
+    "check-importlog-logic": "node scripts/check-importlog-logic.mjs",
+    "check-monitor-logic": "node scripts/check-monitor-logic.mjs",
+    "check-identity-guard-logic": "node scripts/check-identity-guard-logic.mjs",
+    "check-guided-setup-logic": "node scripts/check-guided-setup-logic.mjs",
+    "check-file-settings-logic": "node scripts/check-file-settings-logic.mjs",
+    "check-connection-availability-logic": "node scripts/check-connection-availability-logic.mjs",
+    "check-scene-status-logic": "node scripts/check-scene-status-logic.mjs",
+    "check-scene-actions-logic": "node scripts/check-scene-actions-logic.mjs",
+    "check-action-failure-logic": "node scripts/check-action-failure-logic.mjs",
+    "check-sync-health-logic": "node scripts/check-sync-health-logic.mjs",
+    "check-error-code-logic": "node scripts/check-error-code-logic.mjs",
+    "check-batch-coalescer-logic": "node scripts/check-batch-coalescer-logic.mjs",
+    "check-resource-entry-logic": "node scripts/check-resource-entry-logic.mjs",
+    "test": "node scripts/check-connection-result.mjs && node scripts/check-hasapikey-invariant.mjs && node scripts/check-reconciliation-logic.mjs && node scripts/check-importlog-logic.mjs && node scripts/check-monitor-logic.mjs && node scripts/check-scene-status-logic.mjs && node scripts/check-scene-actions-logic.mjs && node scripts/check-action-failure-logic.mjs && node scripts/check-entities-batch-logic.mjs && node scripts/check-sync-health-logic.mjs && node scripts/check-error-code-logic.mjs && node scripts/check-batch-coalescer-logic.mjs && node scripts/check-resource-entry-logic.mjs && node scripts/check-identity-guard-logic.mjs && node scripts/check-guided-setup-logic.mjs && node scripts/check-file-settings-logic.mjs && node scripts/check-connection-availability-logic.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "verify": "npm run typecheck && npm run format:check && npm run check-classes && npm run test && npm run build"
+  },
+  "dependencies": {
+    "@cove/extension-sdk": "file:vendor/cove-extension-sdk-0.1.0.tgz",
+    "@tanstack/react-virtual": "3.14.5"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.0",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.3",
+    "lucide-react": "0.513.0",
+    "prettier": "3.9.4",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "typescript": "6.0.3",
+    "vite": "8.1.3"
+  },
+  "volta": {
+    "node": "24.11.0"
+  }
+}
