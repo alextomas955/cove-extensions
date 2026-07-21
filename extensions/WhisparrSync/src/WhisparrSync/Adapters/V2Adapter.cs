@@ -63,8 +63,63 @@ internal sealed class V2Adapter(WhisparrClient client, TimeSpan? monitorSettleDe
         string baseUrl, string apiKey, int page, int pageSize, CancellationToken ct)
         => client.ListHistoryAsync(baseUrl, apiKey, page, pageSize, ct);
 
-    public Task<WhisparrResult<bool>> RegisterWebhookAsync(string baseUrl, string apiKey, string webhookUrl, CancellationToken ct)
-        => client.RegisterWebhookAsync(baseUrl, apiKey, BuildNotificationPayload(webhookUrl), ct);
+    // v2 reads the SAME Sonarr-shaped /api/v3/notification endpoint as v3.
+    public async Task<WhisparrResult<WebhookConnection?>> FindWebhookConnectionAsync(
+        string baseUrl, string apiKey, CancellationToken ct)
+    {
+        var listResult = await client.ListNotificationsAsync(baseUrl, apiKey, ct);
+        if (!listResult.IsOk)
+        {
+            return Propagate<WhisparrNotification[], WebhookConnection?>(listResult);
+        }
+
+        var match = Array.Find(
+            listResult.Value!,
+            n => string.Equals(n.Name, WebhookConnectionName, StringComparison.OrdinalIgnoreCase));
+        return match is null
+            ? WhisparrResult<WebhookConnection?>.Ok(null)
+            : WhisparrResult<WebhookConnection?>.Ok(new WebhookConnection(match.Id, ReadUrlField(match)));
+    }
+
+    // Token safety: BuildNotificationPayload re-mints the token from webhookUrl; the existing row's token is
+    // never read back or trusted. Idempotency: a unique-name 400 / 409 is a success outcome (the connection
+    // already exists — a concurrent create can also race to that conflict), not an error.
+    public async Task<WhisparrResult<bool>> RegisterWebhookAsync(string baseUrl, string apiKey, string webhookUrl, CancellationToken ct)
+    {
+        var existing = await FindWebhookConnectionAsync(baseUrl, apiKey, ct);
+        if (!existing.IsOk)
+        {
+            return Propagate<WebhookConnection?, bool>(existing);
+        }
+
+        if (existing.Value is { } connection)
+        {
+            var update = await client.UpdateNotificationAsync(
+                baseUrl, apiKey, connection.Id, BuildNotificationPayload(webhookUrl, connection.Id), ct);
+            return update.IsOk || update.State == WhisparrResultState.Conflict
+                ? WhisparrResult<bool>.Ok(true)
+                : Propagate<WhisparrNotification, bool>(update);
+        }
+
+        var create = await client.RegisterWebhookAsync(baseUrl, apiKey, BuildNotificationPayload(webhookUrl), ct);
+        return create.IsOk || create.State == WhisparrResultState.Conflict
+            ? WhisparrResult<bool>.Ok(true)
+            : Propagate<bool, bool>(create);
+    }
+
+    // Whisparr's notification field values are polymorphic (string / number / bool / array), so read the "url"
+    // field's string ONLY when the raw JsonElement actually holds one; null when the row carries no url field.
+    private static string? ReadUrlField(WhisparrNotification notification)
+    {
+        if (notification.Fields is null)
+        {
+            return null;
+        }
+
+        var urlField = Array.Find(
+            notification.Fields, f => string.Equals(f.Name, "url", StringComparison.OrdinalIgnoreCase));
+        return urlField is { Value.ValueKind: JsonValueKind.String } ? urlField.Value.GetString() : null;
+    }
 
     // A Cove studio maps to a v2 SITE (series); a performer has no v2 analog. On v2 the stashId parameter
     // carries the TPDB site id (the resolution rule that fills it lives elsewhere), matched against the site's
@@ -794,27 +849,50 @@ internal sealed class V2Adapter(WhisparrClient client, TimeSpan? monitorSettleDe
     private static WhisparrResult<TTo> Propagate<TFrom, TTo>(WhisparrResult<TFrom> source)
         => WhisparrResult<TTo>.PropagateFrom(source);
 
+    // Single-sourced connection name: the register write and the find read must key off one literal to agree.
+    internal const string WebhookConnectionName = "Cove Whisparr Sync";
+
     // The v2 Webhook connection payload — identical to v3's (the toggle set is a superset on v2). See the
     // class <remarks> for why this is duplicated rather than shared. `method` value 1 = POST; the secret is
     // delivered as the `X-Cove-Token` header so the receiver authenticates the Test ping.
-    internal static string BuildNotificationPayload(string webhookUrl)
-        => JsonSerializer.Serialize(new
+    // The PUT-update body MUST carry the row id (Whisparr rejects a notification PUT whose body id is absent /
+    // does not match the {id} path segment); the POST-create body omits it so Whisparr assigns one.
+    internal static string BuildNotificationPayload(string webhookUrl, int? id = null)
+    {
+        var fields = new object[]
         {
-            name = "Cove Whisparr Sync",
-            implementation = "Webhook",
-            implementationName = "Webhook",
-            configContract = "WebhookSettings",
-            onGrab = false,
-            onDownload = true,
-            onUpgrade = true,
-            onRename = true,
-            fields = new object[]
+            new { name = "url", value = webhookUrl },
+            new { name = "method", value = 1 },
+            new { name = "headers", value = new object[] { new { key = "X-Cove-Token", value = ExtractToken(webhookUrl) } } },
+        };
+
+        return id is { } rowId
+            ? JsonSerializer.Serialize(new
             {
-                new { name = "url", value = webhookUrl },
-                new { name = "method", value = 1 },
-                new { name = "headers", value = new object[] { new { key = "X-Cove-Token", value = ExtractToken(webhookUrl) } } },
-            },
-        });
+                id = rowId,
+                name = WebhookConnectionName,
+                implementation = "Webhook",
+                implementationName = "Webhook",
+                configContract = "WebhookSettings",
+                onGrab = false,
+                onDownload = true,
+                onUpgrade = true,
+                onRename = true,
+                fields,
+            })
+            : JsonSerializer.Serialize(new
+            {
+                name = WebhookConnectionName,
+                implementation = "Webhook",
+                implementationName = "Webhook",
+                configContract = "WebhookSettings",
+                onGrab = false,
+                onDownload = true,
+                onUpgrade = true,
+                onRename = true,
+                fields,
+            });
+    }
 
     // Lift the `?token=` query value back out so the header carries the identical secret the receiver
     // validates. Returns empty when no token query is present.

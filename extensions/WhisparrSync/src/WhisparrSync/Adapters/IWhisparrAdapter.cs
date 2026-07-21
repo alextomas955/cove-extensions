@@ -93,10 +93,22 @@ internal interface IWhisparrAdapter
         string baseUrl, string apiKey, int page, int pageSize, CancellationToken ct);
 
     /// <summary>
-    /// Registers the Cove webhook connection for <paramref name="webhookUrl"/>. The adapter owns the
-    /// version-specific notification payload shape (implementation / configContract / fields). Best-effort
-    /// and single-shot: the underlying transport never blind-retries this non-idempotent call, and a non-2xx
-    /// response is a non-Ok result the caller falls back on (copy-paste), never a thrown failure.
+    /// Reads the extension's own "Cove Whisparr Sync" connection from Whisparr's notification list and projects
+    /// it to a <see cref="WebhookConnection"/> (its row id + the URL embedded in the <c>url</c> field) — the
+    /// connector-sourced source of truth the settings read reports. Matches on the SAME connection-name literal
+    /// <see cref="RegisterWebhookAsync"/> writes — one single-sourced name shared by the read and the write. An
+    /// empty/non-matching list is an <see cref="WhisparrResultState.Ok"/> result with a <c>null</c> connection
+    /// ("not registered yet"); a non-Ok list propagates. Both v3 and v2 read the Sonarr-shaped <c>/api/v3/notification</c>.
+    /// </summary>
+    Task<WhisparrResult<WebhookConnection?>> FindWebhookConnectionAsync(string baseUrl, string apiKey, CancellationToken ct);
+
+    /// <summary>
+    /// Idempotently registers the Cove webhook connection for <paramref name="webhookUrl"/> (update-or-create):
+    /// PUT-updates the existing "Cove Whisparr Sync" connection in place when present, else POST-creates it. The
+    /// token is ALWAYS re-minted from <paramref name="webhookUrl"/> — never read back from the existing
+    /// connection (a re-register never carries a stale or hand-edited token) — and a unique-name 400 / 409
+    /// resolves to success (the connection exists), never an error. The adapter owns the version-specific
+    /// notification payload shape (implementation / configContract / fields).
     /// </summary>
     Task<WhisparrResult<bool>> RegisterWebhookAsync(string baseUrl, string apiKey, string webhookUrl, CancellationToken ct);
 
