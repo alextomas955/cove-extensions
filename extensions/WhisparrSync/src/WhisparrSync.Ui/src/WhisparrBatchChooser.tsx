@@ -1,8 +1,9 @@
 /**
  * WhisparrBatchChooser — the videos-list bulk chooser. The host dispatches the single "Whisparr"
  * bulk action to the {@link ./whisparrBatchSelected} handler with the selection; a flat bulk-action button can't
- * itself present the design's four ordered sub-items (Add · Search now · Search for upgrades · Exclude), so the
- * handler mounts THIS chooser imperatively via {@link presentBatchChooser} and awaits the user's pick.
+ * itself present the design's six ordered sub-items (Add · Monitor · Unmonitor · Search now · Search for
+ * upgrades · Exclude), so the handler mounts THIS chooser imperatively via {@link presentBatchChooser} and
+ * awaits the user's pick.
  *
  * It reuses the {@link ./WhisparrMenu} interaction contract — a branded popover that closes on Escape +
  * outside-click and is arrow-key navigable — but has no trigger to anchor to (it's opened from a host action,
@@ -17,13 +18,15 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useLayoutEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import { Ban, Plus, Search, TrendingUp } from "lucide-react";
+import { Ban, CircleSlash, Plus, Radar, Search, TrendingUp } from "lucide-react";
 import { WhisparrLogo } from "./WhisparrLogo";
 import { BATCH_MENU_ITEMS, type BatchOp } from "./sceneActionsLogic";
 
-/** The lucide glyph for each batch op — glyph + label, never color-only. */
+/** The lucide glyph for each batch op — glyph + label, never color-only. Monitor/Unmonitor mirror the entity batch chooser's glyphs. */
 const OP_ICON: Record<BatchOp, typeof Plus> = {
   add: Plus,
+  monitor: Radar,
+  unmonitor: CircleSlash,
   search: Search,
   searchUpgrades: TrendingUp,
   exclude: Ban,
