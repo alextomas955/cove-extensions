@@ -184,52 +184,6 @@ internal static class SceneStatusProjector
         return new SceneStatusCounts(monitored, unmonitored, notAdded, excluded, inLibrary, total);
     }
 
-    /// <summary>
-    /// Classifies a Whisparr movie ROW directly (the reconciliation-row case). A recon row is
-    /// always a present Whisparr movie, so it is inherently "added" — this NEVER yields
-    /// <see cref="SceneWhisparrState.NotAdded"/> (unlike <see cref="Classify"/>, which is scene-centric and
-    /// returns NotAdded when a scene's ids index no movie). Exclusion-first precedence: if the
-    /// movie's own StashDB id — its <see cref="WhisparrMovie.StashId"/>, or its
-    /// <see cref="WhisparrMovie.ForeignId"/> when the row is <c>scene</c>-typed — is in
-    /// <paramref name="excludedSet"/> → <see cref="SceneWhisparrState.Excluded"/>; else keyed on the movie's
-    /// <c>monitored</c> flag alone → <see cref="SceneWhisparrState.Monitored"/> /
-    /// <see cref="SceneWhisparrState.Unmonitored"/>. Keeps the same StashDB keying rule as
-    /// <see cref="BuildMovieIndex"/> so the recon column agrees with the scene panel/summary.
-    /// </summary>
-    /// <remarks>
-    /// Same monitored-primary rule as <see cref="Classify"/>: a downloaded-and-monitored row is
-    /// <see cref="SceneWhisparrState.Monitored"/>, not a separate file state; the recon row carries
-    /// <c>hasFile</c> as a distinct secondary column.
-    /// </remarks>
-    public static SceneWhisparrState ClassifyMovie(WhisparrMovie movie, IReadOnlySet<string> excludedSet)
-    {
-        foreach (var id in MovieStashIds(movie))
-        {
-            if (excludedSet.Contains(id))
-            {
-                return SceneWhisparrState.Excluded;
-            }
-        }
-
-        return movie.Monitored ? SceneWhisparrState.Monitored : SceneWhisparrState.Unmonitored;
-    }
-
-    // A movie's own StashDB-comparable ids: its stashId, plus its foreignId ONLY for a scene-typed row (the
-    // same field-polymorphism rule BuildMovieIndex keys on — a movie-typed foreignId is a tmdbId, not a UUID).
-    private static IEnumerable<string> MovieStashIds(WhisparrMovie movie)
-    {
-        if (!string.IsNullOrEmpty(movie.StashId))
-        {
-            yield return movie.StashId;
-        }
-
-        if (string.Equals(movie.ItemType, "scene", StringComparison.OrdinalIgnoreCase)
-            && !string.IsNullOrEmpty(movie.ForeignId))
-        {
-            yield return movie.ForeignId;
-        }
-    }
-
     // The first StashDB id that indexes a Whisparr movie (id order preserved), or null when none match.
     private static WhisparrMovie? FindMovie(
         IReadOnlyList<string> stashIds,
