@@ -34,8 +34,10 @@ automatically and the extension keys on the id each carries (StashDB on v3, TheP
   into "grab everything." On Whisparr v2 a studio monitors as its site (series) by ThePornDB id, and
   "Search all monitored" runs the episode search. Adding never grabs.
 - **Push, search & exclude** — from a scene's Whisparr panel or in bulk (across a studio/performer, or
-  a multi-selection on the videos list): add a scene, search for it, grab quality upgrades, run an
-  interactive release search, or exclude / un-exclude. Adding never downloads — only an explicit search
+  a multi-selection on the videos list): add a scene, monitor or unmonitor it, search for it, grab
+  quality upgrades, run an interactive release search, or exclude / un-exclude. Monitoring never
+  downloads — a scene not yet in Whisparr is registered search-free first, and unmonitoring a scene
+  Whisparr doesn't have is simply skipped. Adding never downloads either — only an explicit search
   does — so pushing your library to Whisparr can't start a download loop. Every action reports a
   plain-English reason if it fails.
 - **Sync my library to Whisparr** — one click on the settings page registers everything Cove already

@@ -73,9 +73,12 @@ removable view option, like Cove's other toolbar toggles.
 *The library status pill and its per-state count row, shown against a synthetic fixture library — no real media.*
 
 When you multi-select scenes in the library, the selection bar's **Whisparr** action opens the batch
-menu with its four ordered actions:
+menu with its six ordered actions — Add to Whisparr, Monitor, Unmonitor, Search now, Search for
+upgrades, and Exclude. Monitor and Unmonitor flip the selected scenes' monitored state without
+downloading anything: a scene not yet in Whisparr is registered first, search-free, and Unmonitor
+skips scenes that are not in Whisparr.
 
-![The videos-list selection bar in Cove with the Whisparr batch menu open, showing the Add, Search now, Search for upgrades, and Exclude actions.](/img/whisparr-sync/videos-batch.png)
+![The videos-list selection bar in Cove with the Whisparr batch menu open, showing the Add to Whisparr, Monitor, Unmonitor, Search now, Search for upgrades, and Exclude actions.](/img/whisparr-sync/videos-batch.png)
 
 *The videos-list Whisparr batch menu, shown against a synthetic fixture library — no real media.*
 
