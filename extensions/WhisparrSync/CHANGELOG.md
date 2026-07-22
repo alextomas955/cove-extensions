@@ -17,15 +17,13 @@ automatically and the extension keys on the id each carries (StashDB on v3, TheP
   Imported scenes are auto-identified by the StashDB/ThePornDB id Whisparr already carries — title,
   date, studio, performers, tags, and cover, creating the studio and performers when missing and
   generating covers/previews/phashes — so you never land a blank item. Enrichment runs once per scene
-  and never overwrites your edits. Every import is recorded in an auditable log. Setting up the import
-  webhook is friendlier too: the settings page reads its URL and registered status from Whisparr's own
+  and never overwrites your edits. If Cove can't find an imported file — for example when Whisparr and
+  Cove see the library at different paths — the settings page flags it with a warning banner that
+  clears as soon as an import succeeds. Setting up the import webhook is friendlier too: the settings
+  page reads its URL and registered status from Whisparr's own
   connection, so it shows the address Whisparr actually posts to and whether it's registered; Register
   updates the existing connection in place — re-registering never errors or creates a duplicate — and
   the host you set is remembered across a refresh.
-- **Reconciliation** — see what Whisparr has versus what Cove already holds (matched / unmatched /
-  needs-review), matched purely on the StashDB (v3) or ThePornDB (v2) id the two already share. A file
-  with no id yet shows as unmatched until you identify it; an id shared by two Cove videos waits in
-  needs-review for you to confirm or reject.
 - **Monitor from Cove** — turn Whisparr monitoring on for a studio or performer from its Cove page, or
   in bulk across the studios/performers list, with a quiet "Monitored · present / catalogue" status
   line. Choose the scope — **All scenes** or **New releases only**, mapped to Whisparr's own modes;

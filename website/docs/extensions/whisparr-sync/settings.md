@@ -216,34 +216,13 @@ only when you click the button. As with every outward action, adding registers w
 an explicit **Search** ever starts a download.
 :::
 
-## Import activity
-
-A read-only section listing every auto-import, below Reconciliation. It has no editable settings — it
-is a record of what the webhook and the periodic reconcile did.
-
-| Control | What it does |
-| --------- | -------------- |
-| Refresh activity | Loads the current audit log from the server (a pure read; nothing is changed). |
-| Filter chips (All / Imported / Skipped / Flagged) | Narrows the list to one result; a zero-count chip is disabled. |
-| Search | Case-insensitive match over the file path, kind, source, event type, and reason. |
-| Column headers (When / Scene · file / Source / Result) | Click to sort; click again to reverse. |
-
-Each row shows **When** the import happened (relative time), the **file**, the **Source** (Webhook or
-Reconcile), the **Result** (Imported, Skipped — duplicate, or Flagged for manual scan), and a link to
-the **Cove item** when one was created. The reconcile interval is fixed at 15 minutes and is not a
-configurable setting in this release.
-
-![The Import activity section of the Whisparr Sync settings page, filtered to imported events, showing the summary line, the All / Imported / Skipped / Flagged chips, the search box, and a table of synthetic file names with their source, result, and Cove item.](/img/whisparr-sync/settings-import-activity.png)
-
-*The Import activity log, filtered to imported events against a synthetic fixture library — no real media.*
-
 ## Whisparr status (view option, not a settings-page setting) (advanced)
 
 :::note Library Whisparr status is a view toggle, off by default
 Whisparr status for your library is **not** a setting on this page — it is a **view toggle** in the
 videos, studios, and performers library toolbars, off by default. Turning it on paints a status badge
 on each card and reveals a compact count summary for the current view. Per-scene status also appears
-in the scene detail Whisparr tab and in the reconciliation table's Whisparr column. All status reads
-reuse the reconciliation movie set and a single exclusion read — they make **no StashDB calls** and
-change nothing. See the [Whisparr status reference](./status) for the full picture.
+in the scene detail Whisparr tab. All status reads reuse the reconciliation movie set and a single
+exclusion read — they make **no StashDB calls** and change nothing. See the
+[Whisparr status reference](./status) for the full picture.
 :::
