@@ -3,7 +3,7 @@
  * the "should this line even render" gate, the top-level-prop entity reader (the slot contract
  * — read `props.studio` / `props.performer`, NEVER `props.context.*`), and the two request-body shapers
  * for the `/monitor` and `/monitor-status` endpoints. Kept import-free (no React, no DOM, no SDK)
- * so the offline gate can compile it in isolation exactly like reconciliationLogic.ts / connectionResult.ts.
+ * so the offline gate can compile it in isolation exactly like connectionResult.ts.
  */
 
 /** The two entities the monitor button/status-line target. Mirrors the C# `EntityKind`. */

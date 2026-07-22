@@ -1,9 +1,8 @@
 /**
- * Pure, DOM-free logic behind the Import-activity section: result classification, count aggregation, and
- * client-side filter/search/sort over the /import-log rows, plus the relative-time helpers. Kept import-free
- * (no React, no DOM, no SDK) so the offline test runner compiles it in isolation exactly like
- * reconciliationLogic.ts. The `relativeTime` / `ticksToEpochMs` helpers are ported from Renamer's
- * UndoSection (the "When" column).
+ * Pure, DOM-free logic over the /import-log rows: result classification, count aggregation, and
+ * client-side filter/search/sort, plus the relative-time helpers. Kept import-free (no React, no DOM,
+ * no SDK) so the offline test runner compiles it in isolation exactly like connectionResult.ts. The
+ * `relativeTime` / `ticksToEpochMs` helpers are ported from Renamer's UndoSection (the "When" column).
  */
 
 /**

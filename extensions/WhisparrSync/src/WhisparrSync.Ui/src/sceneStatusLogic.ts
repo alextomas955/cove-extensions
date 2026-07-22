@@ -2,7 +2,7 @@
  * Pure, DOM-free logic behind the scene-status UI: the state→label map + legend order, the two
  * `{ CoveId }` request-body shapers for the `/scene-detail` + `/scene-releases` endpoints, the glyph+label
  * badge descriptor, and the Whisparr-only quality/cutoff line. Kept import-free (no React, no DOM, no SDK) so
- * the offline gate can compile it in isolation exactly like monitorLogic.ts / reconciliationLogic.ts.
+ * the offline gate can compile it in isolation exactly like monitorLogic.ts / connectionResult.ts.
  *
  * The `SceneWhisparrState` union is the camelCase MIRROR of the C# `SceneWhisparrState` enum's
  * JsonStringEnumConverter output — PINNED to exactly these four strings. It is the management axis
