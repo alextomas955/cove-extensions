@@ -338,7 +338,14 @@ internal sealed record NamingConfig
     /// per-movie folder Eros appends to the root. Its leading literal segment is what the scene-folder-overlap
     /// advisory compares against each root's trailing segment. Nullable: a v2 body or a partial config omits it.
     /// </summary>
+    /// <remarks>
+    /// Omitted-when-null on write so the read-modify-write in <c>EditFileSettingsAsync</c> never ADDS a
+    /// <c>sceneFolderFormat</c> key a GET didn't return — a naming config PUT is a whole-object replace, so
+    /// emitting <c>null</c> for a body that lacked the field would wipe it. A GET that carries it round-trips
+    /// verbatim.
+    /// </remarks>
     [JsonPropertyName("sceneFolderFormat")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? SceneFolderFormat { get; init; }
 
     [JsonExtensionData]
