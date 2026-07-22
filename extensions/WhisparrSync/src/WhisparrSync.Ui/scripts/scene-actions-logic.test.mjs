@@ -126,6 +126,9 @@ test("sceneControlState truth table: add/monitor/search/interactive/upgrades/exc
 test("videosBatchBody shapes { Op, CoveIds } (PascalCase wire, matches /videos-batch)", () => {
   assert.deepEqual(videosBatchBody("add", [1, 2, 3]), { Op: "add", CoveIds: [1, 2, 3] });
   assert.deepEqual(videosBatchBody("searchUpgrades", []), { Op: "searchUpgrades", CoveIds: [] });
+  // The monitor spellings ride the body verbatim — byte-identical to the C# TryParseBatchOp cases.
+  assert.deepEqual(videosBatchBody("monitor", [1, 2]), { Op: "monitor", CoveIds: [1, 2] });
+  assert.deepEqual(videosBatchBody("unmonitor", [3]), { Op: "unmonitor", CoveIds: [3] });
   const body = videosBatchBody("exclude", [9]);
   assert.equal("BaseUrl" in body, false);
   assert.equal("ApiKey" in body, false);
@@ -146,14 +149,21 @@ test("sceneGrabReleaseBody shapes { CoveId, Guid, IndexerId }; null indexerId co
   assert.deepEqual(sceneGrabReleaseBody(1, "g", undefined), { CoveId: 1, Guid: "g", IndexerId: 0 });
 });
 
-test("BATCH_MENU_ITEMS is the ordered design menu (Add · Search now · Search for upgrades · Exclude)", () => {
+test("BATCH_MENU_ITEMS is the ordered six-item design menu (Add · Monitor · Unmonitor · Search now · Search for upgrades · Exclude)", () => {
   assert.deepEqual(
     BATCH_MENU_ITEMS.map((i) => i.op),
-    ["add", "search", "searchUpgrades", "exclude"],
+    ["add", "monitor", "unmonitor", "search", "searchUpgrades", "exclude"],
   );
   assert.deepEqual(
     BATCH_MENU_ITEMS.map((i) => i.label),
-    ["Add to Whisparr", "Search now", "Search for upgrades", "Exclude from Whisparr"],
+    [
+      "Add to Whisparr",
+      "Monitor",
+      "Unmonitor",
+      "Search now",
+      "Search for upgrades",
+      "Exclude from Whisparr",
+    ],
   );
 });
 
