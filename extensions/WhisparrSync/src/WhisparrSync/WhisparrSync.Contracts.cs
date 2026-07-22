@@ -219,8 +219,9 @@ public sealed partial class WhisparrSync
 
     /// <summary>
     /// The <c>/videos-batch</c> response: the resolved <see cref="Op"/> plus the aggregate counts —
-    /// <see cref="Total"/> selected, <see cref="Succeeded"/>, <see cref="Skipped"/> (no StashDB identity, or —
-    /// for a search op — not yet an added Whisparr movie), and <see cref="Failed"/>. Carries no scene id/key.
+    /// <see cref="Total"/> selected, <see cref="Succeeded"/>, <see cref="Skipped"/> (no StashDB identity; for a
+    /// search op not yet an added Whisparr movie; for unmonitor a not-added scene — nothing to unmonitor, never
+    /// an add), and <see cref="Failed"/>. Carries no scene id/key.
     /// </summary>
     internal sealed record VideosBatchResult(string Op, int Total, int Succeeded, int Skipped, int Failed);
 
@@ -228,6 +229,8 @@ public sealed partial class WhisparrSync
     internal enum BatchOp
     {
         Add,
+        Monitor,
+        Unmonitor,
         Search,
         SearchUpgrades,
         Exclude,
