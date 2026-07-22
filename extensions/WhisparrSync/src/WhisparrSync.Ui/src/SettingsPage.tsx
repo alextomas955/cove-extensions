@@ -1,8 +1,7 @@
 /**
  * SettingsPage — the component the host mounts inside the "Whisparr Sync" SETTINGS TAB. It owns the shared
  * connection + add-defaults form state and the single floating save bar, and stacks the sections in a fixed
- * order: Connection · Import webhook · Add defaults · Whisparr file settings · Sync my library · Reconciliation ·
- * Import activity.
+ * order: Connection · Import webhook · Add defaults · Whisparr file settings · Sync my library.
  *
  * A SINGLE save spans Connection + Library-path + Add-defaults on purpose: the server's SaveOptions writes
  * QualityProfileId UNCONDITIONALLY (it is non-nullable), so a per-section partial save would wipe the stored
@@ -20,8 +19,6 @@ import { Button, Spinner, StatusText } from "@cove-ext/ui-shared";
 import { ConnectionSettingsPanel } from "./ConnectionSettingsPanel";
 import { ImportWebhookSection } from "./ImportWebhookSection";
 import { AddDefaultsSection } from "./AddDefaultsSection";
-import { ImportLogSection } from "./ImportLogSection";
-import { ReconciliationSection } from "./ReconciliationSection";
 import { WhisparrFileSettingsSection } from "./WhisparrFileSettingsSection";
 import { SyncLibrarySection } from "./SyncLibrarySection";
 import {
@@ -655,9 +652,6 @@ export function SettingsPage() {
         isV2={selectedVersion === "v2"}
         unreachable={connectionUnreachable}
       />
-
-      <ReconciliationSection />
-      <ImportLogSection />
 
       {dirty ? (
         <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 py-4">
