@@ -81,6 +81,7 @@ principal at all — a shared-secret token is its auth, so it omits the principa
 | `/scene-monitor` | POST | configure | Set one scene's monitored state (add-then-flip when not-added); Cove id + target flag |
 | `/bulk-add-missing` | POST | configure | Register every Cove scene not yet in Whisparr for the entity, as a local diff (no StashDB GraphQL), all non-grabbing; kind + Cove entity id |
 | `/bulk-search-monitored` | POST | configure | Trigger a Whisparr search across the entity's monitored scenes; kind + the entity's remote ids |
+| `/videos-batch` | POST | configure | One batch op — add / monitor / unmonitor / search / searchUpgrades / exclude — over a capped selection of Cove video ids from the videos-list multi-selection; **v3-only**, stored creds only, each id resolved to a scene server-side, run as a Job-Drawer job |
 | `/sync-preview` | GET | configure | Whole-library counts of what will register vs be skipped (no metadata id), read under `CovePrincipal.System()` |
 | `/sync-library` | POST | configure | Enqueue the exclusive `whisparr-sync-library` job that registers the whole library as owned (+ optional monitor) |
 
@@ -260,7 +261,7 @@ on a v2 connection and their slots are simply not registered there.
 
 ## The outward scene & bulk mutation surface
 
-The scene panel's controls are live and there are bulk actions, all through the five
+The scene panel's controls are live and there are bulk actions, all through the
 `configure`-gated, stored-creds-only endpoints above. The frontend holds no wire or loop-safety
 knowledge: it shapes the request bodies in the import-free `sceneActionsLogic.ts` (offline-gated) and
 POSTs them; each handler resolves the Whisparr identity server-side and delegates to `SceneActions`.
@@ -278,12 +279,23 @@ POSTs them; each handler resolves the Whisparr identity server-side and delegate
   (`/bulk-add-missing`, a local Cove-vs-Whisparr diff with no StashDB GraphQL), and "Search all
   monitored" (`/bulk-search-monitored`), with the two bulk items shown only when the entity is
   monitored (quiet by default).
+- **Bulk, from the videos-list selection bar.** Multi-selecting scenes and picking the selection
+  bar's Whisparr action opens a chooser with six ordered items — Add to Whisparr · Monitor ·
+  Unmonitor · Search now · Search for upgrades · Exclude — each running one `/videos-batch` op as a
+  Job-Drawer job with an outcome per selected id. Monitor and Unmonitor dispatch per scene through
+  the same `SceneActions.SetSceneMonitorAsync` add-then-monitor spine the detail-rail toggle uses:
+  Monitor on a not-added scene registers it non-grabbing first, then flips `monitored`; Unmonitor on
+  a not-added scene is reported Skipped rather than adding it. There is no scope prompt at scene
+  level — MonitorScope (New releases only / All scenes) is an entity concept, and a scene is one
+  Whisparr movie with a boolean `monitored`, so there is nothing to scope.
 
-**Loop-safety.** Every *add* — per-scene add, add-all-missing, and owned-scene availability
-registration — issues `searchForMovie:false`, so it registers the movie in Whisparr **without
-grabbing**. Only the explicit "Search for this scene" / "Search all monitored" actions ever issue a
-`MoviesSearch`, so only a deliberate user click can start a grab. Every mutation is origin-tagged
-(`cove-sync`) and idempotent (a 409/exists is treated as success). When a grab does result from an
+**Loop-safety.** Every *add* — per-scene add, add-all-missing, bulk Monitor's register-first leg,
+and owned-scene availability registration — issues `searchForMovie:false`, so it registers the
+movie in Whisparr **without grabbing**; a monitor flip itself is a PUT, never a `/command`. Only the
+explicit Search actions — "Search for this scene", "Search all monitored", and the bulk Search now /
+Search for upgrades — ever issue a `MoviesSearch`, so only a deliberate user click can start a grab.
+Every mutation is origin-tagged (`cove-sync`) and idempotent (a 409/exists is treated as success).
+When a grab does result from an
 explicit search, it imports into Cove through the **same** On-Import webhook + polling reconcile as any
 other Whisparr grab — there is no second ingest path, and that path is already idempotent
 (`EventLedger`), so a Cove-initiated add can never feed a re-ingest loop.
