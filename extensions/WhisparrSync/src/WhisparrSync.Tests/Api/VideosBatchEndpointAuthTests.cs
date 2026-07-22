@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Plugins;
@@ -6,6 +7,7 @@ using WhisparrSync.Adapters;
 using WhisparrSync.Client;
 using WhisparrSync.Library;
 using WhisparrSync.Options;
+using WhisparrSync.Push;
 using WhisparrSync.Tests.TestSupport;
 using Ext = global::WhisparrSync.WhisparrSync;
 
@@ -18,8 +20,9 @@ namespace WhisparrSync.Tests.Api;
 /// The ROUTED tier proves the deny trio / allow / unknown-op-400 / oversized-400 / v2-400 / no-scope-all-skipped
 /// matrix with no host DB scope. The CORE tier drives the extracted <see cref="Ext.VideosBatchCoreAsync"/> with a
 /// seeded <see cref="FakeCoveLibraryPort"/> + a fake-HTTP <see cref="V3Adapter"/> to prove server-side scene
-/// resolution, mixed-selection skip counting, the per-op grab boundary (add/exclude/un-exclude issue NO
-/// MoviesSearch command; search/search-upgrades DO), stored-creds usage, and that the key is never echoed.
+/// resolution, mixed-selection skip counting, the per-op grab boundary (add/monitor/unmonitor/exclude issue NO
+/// MoviesSearch command — monitor's add leg carries <c>searchForMovie:false</c> and its flip is a PUT;
+/// search/search-upgrades DO grab), stored-creds usage, and that the key is never echoed.
 /// </summary>
 public sealed class VideosBatchEndpointAuthTests
 {
@@ -38,6 +41,43 @@ public sealed class VideosBatchEndpointAuthTests
         var handler = FakeHttpMessageHandler.Json(json);
         return (new WhisparrClient(new HttpClient(handler)), handler);
     }
+
+    private static (WhisparrClient Client, FakeHttpMessageHandler Handler) ClientWithSequence(
+        params Func<HttpResponseMessage>[] steps)
+    {
+        var handler = FakeHttpMessageHandler.Sequence(steps);
+        return (new WhisparrClient(new HttpClient(handler)), handler);
+    }
+
+    private static Func<HttpResponseMessage> Ok(string body)
+        => FakeHttpMessageHandler.Respond(HttpStatusCode.OK, "application/json", body);
+
+    private static Func<HttpResponseMessage> Created(string body)
+        => FakeHttpMessageHandler.Respond(HttpStatusCode.Created, "application/json", body);
+
+    private static string RootFolderList => JsonSerializer.Serialize(new[]
+    {
+        new { id = 1, path = "/data/media", accessible = true, freeSpace = 1L },
+    });
+
+    private static string TagListWithOrigin => JsonSerializer.Serialize(new[]
+    {
+        new { id = 5, label = AddContextResolver.OriginTagLabel },
+    });
+
+    private static string MovieRow(int id, string stashId, bool monitored) => JsonSerializer.Serialize(new
+    {
+        id,
+        foreignId = stashId,
+        stashId,
+        title = "A Scene",
+        monitored,
+        hasFile = false,
+        itemType = "scene",
+        qualityProfileId = 4,
+        rootFolderPath = "/data/media",
+        tags = new[] { 5 },
+    });
 
     private static async Task<FakeStore> StoreWith(string baseUrl, string apiKey, string version = "v3")
     {
@@ -72,6 +112,8 @@ public sealed class VideosBatchEndpointAuthTests
 
     [Theory]
     [InlineData("add")]
+    [InlineData("monitor")]
+    [InlineData("unmonitor")]
     [InlineData("search")]
     [InlineData("exclude")]
     public async Task VideosBatch_WithoutConfigure_Returns403(string op)
@@ -133,14 +175,16 @@ public sealed class VideosBatchEndpointAuthTests
         Assert.Equal(0, handler.CallCount);
     }
 
-    [Fact]
-    public async Task VideosBatch_V2Instance_ReturnsVersionUnsupported400()
+    [Theory]
+    [InlineData("add")]
+    [InlineData("monitor")]
+    public async Task VideosBatch_V2Instance_ReturnsVersionUnsupported400(string op)
     {
         var store = await StoreWith(StoredBaseUrl, StoredKey, version: "v2");
         var (client, handler) = ClientWithHandler("[]");
 
         var result = await NewExtension(store).VideosBatchAsync(
-            new Ext.VideosBatchRequest("add", [1, 2]), client,
+            new Ext.VideosBatchRequest(op, [1, 2]), client,
             FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure), default);
 
         Assert.Equal(400, StatusOf(result));
@@ -148,15 +192,17 @@ public sealed class VideosBatchEndpointAuthTests
         Assert.Equal(0, handler.CallCount);
     }
 
-    [Fact]
-    public async Task VideosBatch_NoDbScope_SkipsEveryId_WithNoOutboundCall()
+    [Theory]
+    [InlineData("exclude")]
+    [InlineData("unmonitor")]
+    public async Task VideosBatch_NoDbScope_SkipsEveryId_WithNoOutboundCall(string op)
     {
         // With no host DB scope every id is unresolvable, so all are skipped before any Whisparr call.
         var store = await StoreWith(StoredBaseUrl, StoredKey);
         var (client, handler) = ClientWithHandler("[]");
 
         var result = await NewExtension(store).VideosBatchAsync(
-            new Ext.VideosBatchRequest("exclude", [1, 2, 3]), client,
+            new Ext.VideosBatchRequest(op, [1, 2, 3]), client,
             FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure), default);
 
         Assert.NotEqual(403, StatusOf(result));
@@ -226,6 +272,105 @@ public sealed class VideosBatchEndpointAuthTests
 
         Assert.True(result.IsOk);
         Assert.True(IssuedGrab(handler)); // search-for-upgrades may grab (AllowQualityUpgrades is on)
+    }
+
+    [Fact]
+    public async Task Core_Monitor_NotAddedScene_RegistersNonGrabbing_ThenFlipsViaPut_WithNoCommand()
+    {
+        // The absent+ON spine: root + origin-tag resolve, GET by stashid (absent), a non-grabbing POST add,
+        // then the PUT flip — never a /command (loop-safety LOCKED).
+        var (client, handler) = ClientWithSequence(
+            Ok(RootFolderList),
+            Ok(TagListWithOrigin),
+            Ok("[]"),
+            Created(MovieRow(99, "uuid-a", monitored: false)),
+            Ok(MovieRow(99, "uuid-a", monitored: true)));
+        var adapter = new V3Adapter(client);
+        var library = new FakeCoveLibraryPort();
+        library.Seed(Video(1, "uuid-a"));
+
+        var result = await Ext.VideosBatchCoreAsync(
+            Ext.BatchOp.Monitor, [1], client, adapter, library, OptionsV3(StoredBaseUrl, StoredKey),
+            StoredBaseUrl, StoredKey, default);
+
+        Assert.True(result.IsOk);
+        Assert.Equal("monitor", result.Value!.Op);
+        Assert.Equal(1, result.Value.Succeeded);
+        Assert.Equal(0, result.Value.Failed);
+
+        var post = Assert.Single(handler.Requests, r => r.Method == HttpMethod.Post);
+        Assert.Contains("\"searchForMovie\":false", post.Body); // the add leg registers, never grabs
+        Assert.Single(handler.Requests, r => r.Method == HttpMethod.Put); // the flip is a PUT, not a command
+        Assert.False(IssuedGrab(handler));
+        Assert.Equal(StoredKey, SentApiKey(handler)); // the outbound calls carry the stored key
+        Assert.All(handler.Requests, r => Assert.StartsWith(StoredBaseUrl + "/", r.Url)); // stored host only
+    }
+
+    [Fact]
+    public async Task Core_Monitor_AlreadyMonitoredScene_IsIdempotentSuccess_WithNoAddAndNoGrab()
+    {
+        var (client, handler) = ClientWithSequence(
+            Ok(RootFolderList),
+            Ok(TagListWithOrigin),
+            Ok($"[{MovieRow(7, "uuid-a", monitored: true)}]"),
+            Ok(MovieRow(7, "uuid-a", monitored: true)));
+        var adapter = new V3Adapter(client);
+        var library = new FakeCoveLibraryPort();
+        library.Seed(Video(1, "uuid-a"));
+
+        var result = await Ext.VideosBatchCoreAsync(
+            Ext.BatchOp.Monitor, [1], client, adapter, library, OptionsV3(StoredBaseUrl, StoredKey),
+            StoredBaseUrl, StoredKey, default);
+
+        Assert.True(result.IsOk);
+        Assert.Equal(1, result.Value!.Succeeded); // re-monitoring a monitored scene is a success no-op
+        Assert.DoesNotContain(handler.Requests, r => r.Method == HttpMethod.Post); // present scene: no add
+        Assert.False(IssuedGrab(handler));
+    }
+
+    [Fact]
+    public async Task Core_Unmonitor_NotAddedScene_IsSkipped_WithNoAddNoPutNoGrab()
+    {
+        // Absent + OFF is "nothing to unmonitor, nothing to add" — a Skip, never an add or a false success.
+        var (client, handler) = ClientWithSequence(Ok("[]"));
+        var adapter = new V3Adapter(client);
+        var library = new FakeCoveLibraryPort();
+        library.Seed(Video(1, "uuid-a"));
+
+        var result = await Ext.VideosBatchCoreAsync(
+            Ext.BatchOp.Unmonitor, [1], client, adapter, library, OptionsV3(StoredBaseUrl, StoredKey),
+            StoredBaseUrl, StoredKey, default);
+
+        Assert.True(result.IsOk);
+        Assert.Equal(0, result.Value!.Succeeded);
+        Assert.Equal(1, result.Value.Skipped);
+        Assert.DoesNotContain(handler.Requests, r => r.Method == HttpMethod.Post);
+        Assert.DoesNotContain(handler.Requests, r => r.Method == HttpMethod.Put);
+        var get = Assert.Single(handler.Requests); // only the movie-by-stashid probe went out
+        Assert.Equal(HttpMethod.Get, get.Method);
+        Assert.False(IssuedGrab(handler));
+    }
+
+    [Fact]
+    public async Task Core_Unmonitor_PresentMonitoredScene_FlipsViaPut_WithNoGrab()
+    {
+        var (client, handler) = ClientWithSequence(
+            Ok($"[{MovieRow(7, "uuid-a", monitored: true)}]"),
+            Ok(MovieRow(7, "uuid-a", monitored: false)));
+        var adapter = new V3Adapter(client);
+        var library = new FakeCoveLibraryPort();
+        library.Seed(Video(1, "uuid-a"));
+
+        var result = await Ext.VideosBatchCoreAsync(
+            Ext.BatchOp.Unmonitor, [1], client, adapter, library, OptionsV3(StoredBaseUrl, StoredKey),
+            StoredBaseUrl, StoredKey, default);
+
+        Assert.True(result.IsOk);
+        Assert.Equal("unmonitor", result.Value!.Op);
+        Assert.Equal(1, result.Value.Succeeded);
+        Assert.DoesNotContain(handler.Requests, r => r.Method == HttpMethod.Post); // unmonitor never adds
+        Assert.Single(handler.Requests, r => r.Method == HttpMethod.Put);
+        Assert.False(IssuedGrab(handler));
     }
 
     // Serializes the VideosBatchResult exactly as the endpoint would, for the no-echo assertion.
