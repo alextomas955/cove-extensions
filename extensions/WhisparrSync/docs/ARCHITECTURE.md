@@ -69,10 +69,7 @@ principal at all — a shared-secret token is its auth, so it omits the principa
 | `/qualityprofiles` | POST | configure | The instance's quality profiles (creds in the body) |
 | `/webhook-url` | GET | configure | The webhook URL + `registered` status, read from Whisparr's own "Cove Whisparr Sync" connection (`GET /api/v3/notification`, find-by-name); a derived default + `registered:false` when the connection is absent or Whisparr is unreachable |
 | `/register-webhook` | POST | configure | Idempotent update-or-create of the Cove webhook connection (find → PUT-update else POST-create; a unique-name 400 / 409 is success), persisting the resolved host; v3 and v2 |
-| `/preview-sync` | POST | configure | The zero-mutation reconciliation diff (matched / needs-review / unmatched rows + counts) |
 | `/reconciliation` | GET | read | The last persisted match map + status counts (a pure store read) |
-| `/match/confirm` | POST | configure | Confirm a needs-review suggestion (writes only the match store) |
-| `/match/reject` | POST | configure | Reject a needs-review suggestion (writes only the match store) |
 | `/webhook` | POST | anonymous (token) | Inbound Whisparr On-Import receiver — ingests the imported file |
 | `/import-log` | GET | read | The auto-import audit log: every attempt with its result, source, time, path, and Cove item + counts |
 | `/root-overlap` | GET | read | A best-effort advisory: whether a Cove library root overlaps a Whisparr root (a re-grab-loop risk) |
@@ -92,17 +89,16 @@ they reach the stored credentials to call Whisparr. Both are POST because each c
 body (a complex payload that cannot ride a GET under minimal-API binding), and neither ever accepts a
 url or key from the caller — the handler pairs the stored key with the stored host only.
 
-`/preview-sync` is `configure`-gated even though it only *reads*: it reaches the stored credentials to
-call Whisparr, so a read-only user must not be able to trigger it (the same rule as the list
-routes). `/reconciliation` is the only reconciliation route that is `read`-gated, because it reads the
-extension's own match store and never touches the credentials.
+`/reconciliation` is `read`-gated (not `configure`), because it reads the extension's own persisted
+match store and never touches the stored credentials.
 
 ## The reconciliation match model
 
 Reconciliation answers one question for every Whisparr scene: *which Cove item, if any, is the same
-thing?* It never mutates Cove or Whisparr — `/preview-sync` opens an `AsNoTracking` read over the Cove
-library, fetches the Whisparr movie list, and composes a diff. The only writes in the whole feature
-are Confirm/Reject, and they land solely in the extension's own match store.
+thing?* It never mutates Cove or Whisparr: the matching engine reads the Cove library `AsNoTracking`,
+correlates it against the Whisparr movie list, and persists the result in the extension's own match
+store, which `/reconciliation` reads back. The matching engine also feeds the read-only per-scene
+Whisparr status surfaces.
 
 `IdentityMatcher` matches on the **one remote id both systems already key on** — the StashDB UUID for
 a v3 scene, the ThePornDB id for a v2 scene. Cove owns content identification: its own Identify
@@ -125,17 +121,9 @@ them apart). That is why the design stays id-only rather than adding either back
 
 The match store is a single JSON blob over `IExtensionStore`, keyed on the **Whisparr movie id** (a
 ThePornDB-matched row also carries no StashDB UUID, so the movie id is the one durable handle every
-row shares).
-Confirm upserts a `Confirmed` entry that is honored on the next reconcile; Reject records a `Rejected`
-entry that suppresses the suggestion on re-run. A fresh `/preview-sync` recomputes the whole diff from
-the current library and Whisparr state, but a persisted decision is **one-way in this release**: a
-confirmed pair becomes `Matched` and a rejected one is suppressed to `Unmatched`, so neither returns to
-`NeedsReview` and there is no un-confirm / un-reject endpoint yet (a clear/reset path is a possible
-future addition).
-
-Confirm/Reject validate the submitted `{coveId, whisparrMovieId}` pair against the freshly computed
-diff before writing: a forged pair that is not a current needs-review suggestion is refused with
-`MATCH_NOT_IN_DIFF`, so a caller cannot write an arbitrary link into the store.
+row shares). `MatchState` / `MatchStatus`, `ReconciliationService`, and `IdentityMatcher` make up the
+match engine; `/reconciliation` returns the persisted match map plus its status counts as a pure store
+read.
 
 ## The studio/performer monitor flow
 
@@ -242,12 +230,12 @@ Every `NO_STASHDB_IDENTITY` response now also carries a `provider` field derived
 version (`StashDB` on v3, `ThePornDB` on v2) so the UI names the provider without hardcoding it.
 
 The `SceneWhisparrState` enum's wire casing is **pinned to camelCase** by a property-level
-`[JsonConverter]` on `SceneDetail.State` and `ReconRow.WhisparrState` — a property attribute out-ranks
-the plain `JsonStringEnumConverter` the response options register, which would otherwise emit
-PascalCase. The frontend logic (`sceneStatusLogic.ts`, `reconciliationLogic.ts`) keys its label maps on
-those exact camelCase strings, so any drift fails the offline gate rather than silently blanking rows.
+`[JsonConverter]` on `SceneDetail.State` — a property attribute out-ranks the plain
+`JsonStringEnumConverter` the response options register, which would otherwise emit PascalCase. The
+frontend logic (`sceneStatusLogic.ts`) keys its label maps on those exact camelCase strings, so any
+drift fails the offline gate rather than silently blanking rows.
 
-### Where status shows (cards, tab, reconciliation)
+### Where status shows (cards, tab)
 
 Whisparr status paints **directly on library cards**, gated by an off-by-default toolbar pill so the
 cards stay clean until the user opts in. The host exposes the card slots this rides on and contains
@@ -264,9 +252,6 @@ silent no-op, so the badge renders in the card CONTENT area rather than by repla
    tab (`WhisparrScenePanel`). It shows the status badge + Whisparr-only facts, and its Monitor /
    Search / Add controls are live (see
    [The outward scene & bulk mutation surface](#the-outward-scene--bulk-mutation-surface)).
-3. **Reconciliation Whisparr column — the settings-tab per-scene list.** The reconciliation
-   table lines every Whisparr scene up against the Cove library, so its Whisparr column is the full
-   per-scene 4-state (incl. excluded) status list.
 
 **Version / entity gating.** The studio badge + row register on **both** v2 and v3; the performer and
 per-scene surfaces are **v3-only** (v2 has no performer entity and no scene-level id). A v2 studio
@@ -563,7 +548,8 @@ Both channels converge on:
 - **`ImportLog`** — a single-blob audit journal over `IExtensionStore`. Every attempt (Imported / Skipped
   / Flagged) appends exactly one entry with server UTC ticks, source (`webhook` / `poll`), event type,
   path, kind, Cove id, result, reason, and the ledger key. `GET /import-log` reads it back (read-gated)
-  for the settings-page **Import activity** section.
+  to feed the settings-page sync-health failure banner, which surfaces unresolved path-mismatch import
+  failures and stays silent when imports are healthy.
 
 The secret is never logged; the raw webhook body is never logged; the audit log stores paths/ids/results
 but never the API key or the webhook token.
