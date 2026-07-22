@@ -21,14 +21,15 @@ namespace WhisparrSync;
 public sealed partial class WhisparrSync
 {
     /// <summary>
-    /// Runs one batch op (<c>add</c>/<c>search</c>/<c>searchUpgrades</c>/<c>exclude</c>/<c>unExclude</c>)
-    /// over a selection of Cove video ids from the videos-list bulk action. Configure-gated +
+    /// Runs one batch op (<c>add</c>/<c>monitor</c>/<c>unmonitor</c>/<c>search</c>/<c>searchUpgrades</c>/
+    /// <c>exclude</c>) over a selection of Cove video ids from the videos-list bulk action. Configure-gated +
     /// stored-creds-only (the body carries no url/key) + v3-only (v2 → 400). The id list is capped BEFORE
     /// any per-item work (fan-out containment); an unknown op is a clean 400. Each id is resolved to a
     /// scene SERVER-SIDE inside a fresh DB scope, and an id with no StashDB identity (or, for a search
     /// op, not yet an added Whisparr movie) is counted as skipped with no outbound call. Only
-    /// <c>search</c>/<c>searchUpgrades</c> may grab; <c>add</c>/<c>exclude</c>/<c>unExclude</c> never search
-    /// (loop-safety is LOCKED). Returns the aggregate <see cref="VideosBatchResult"/> (never the key).
+    /// <c>search</c>/<c>searchUpgrades</c> may grab; the other ops never search — monitor's add leg registers
+    /// with <c>searchForMovie:false</c> and its flip is a PUT, no command (loop-safety is LOCKED). Returns the
+    /// aggregate <see cref="VideosBatchResult"/> (never the key).
     /// </summary>
     internal async Task<IResult> VideosBatchAsync(
         VideosBatchRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
@@ -138,6 +139,8 @@ public sealed partial class WhisparrSync
         var verb = op switch
         {
             BatchOp.Add => "add",
+            BatchOp.Monitor => "monitor",
+            BatchOp.Unmonitor => "unmonitor",
             BatchOp.Exclude => "exclude",
             BatchOp.SearchUpgrades => "search upgrades for",
             _ => "search",
@@ -150,11 +153,13 @@ public sealed partial class WhisparrSync
     /// unit-testable host-free with a seeded <see cref="ICoveLibraryPort"/> + a fake-HTTP <see cref="V3Adapter"/>
     /// (no DB scope, no live Whisparr). Resolves each Cove id to a scene via the injected
     /// <paramref name="library"/> (skipping ids with no StashDB identity), then dispatches the batch to the
-    /// <see cref="SceneActions"/> helpers — add/exclude/un-exclude by <see cref="SceneRef"/>/stashId,
-    /// and search/search-upgrades by the movie ids resolved from the fetched movie set (a not-added scene is
-    /// skipped). Aggregates total/succeeded/skipped/failed; a transport failure on the movie read or a batch leg
-    /// propagates verbatim (mapped to a 400/502 by <see cref="ToMonitorResult{T}"/>). Only search/search-upgrades
-    /// issue a command — the grab boundary is LOCKED here as in the service.
+    /// <see cref="SceneActions"/> helpers — add/exclude by <see cref="SceneRef"/>/stashId,
+    /// monitor/unmonitor per scene through the <see cref="SceneActions.SetSceneMonitorAsync"/> add-then-flip
+    /// spine (unmonitor of a not-added scene is skipped, never an add), and search/search-upgrades by the movie
+    /// ids resolved from the fetched movie set (a not-added scene is skipped). Aggregates
+    /// total/succeeded/skipped/failed; a transport failure on the movie read or a batch leg propagates verbatim
+    /// (mapped to a 400/502 by <see cref="ToMonitorResult{T}"/>). Only search/search-upgrades issue a command —
+    /// the grab boundary is LOCKED here as in the service.
     /// </summary>
     internal static async Task<WhisparrResult<VideosBatchResult>> VideosBatchCoreAsync(
         BatchOp op, IReadOnlyList<int> coveIds, WhisparrClient client, V3Adapter adapter, ICoveLibraryPort library,
@@ -231,9 +236,10 @@ public sealed partial class WhisparrSync
 
     // One scene's op — the single source both the aggregator (VideosBatchCoreAsync, unit-tested) and the job run.
     // Add/exclude reuse the batched helpers with a ONE-scene list so the payload (title + year) is byte-identical
-    // to the multi-scene path; search resolves the scene's Whisparr movie from the pre-fetched index (a not-added
-    // scene is Skipped, never a false success). Only search/search-upgrades issue a grab — the loop-safety
-    // boundary is LOCKED here as in the service.
+    // to the multi-scene path; monitor/unmonitor dispatch through the SetSceneMonitorAsync add-then-flip spine
+    // (never a search — the add leg carries searchForMovie:false, the flip is a PUT); search resolves the scene's
+    // Whisparr movie from the pre-fetched index (a not-added scene is Skipped, never a false success). Only
+    // search/search-upgrades issue a grab — the loop-safety boundary is LOCKED here as in the service.
     private static async Task<BatchUnitOutcome> RunVideoOpAsync(
         BatchOp op, CoveVideo video, IReadOnlyDictionary<string, WhisparrMovie>? movieIndex,
         SceneActions actions, CancellationToken ct)
@@ -244,6 +250,22 @@ public sealed partial class WhisparrSync
                 return SucceededIfOne(await actions.AddScenesAsync([ToSceneRef(video)], ct));
             case BatchOp.Exclude:
                 return SucceededIfOne(await actions.ExcludeScenesAsync([ToSceneRef(video)], ct));
+            case BatchOp.Monitor:
+            case BatchOp.Unmonitor:
+                var monitorResult = await actions.SetSceneMonitorAsync(
+                    video.StashIds[0], SceneActions.ResolveTitle(video.Title, video.FilePaths, video.StashIds[0]),
+                    monitored: op == BatchOp.Monitor, ct);
+                if (!monitorResult.IsOk)
+                {
+                    return BatchUnitOutcome.Failed;
+                }
+
+                // The adapter's absent+OFF no-op (MovieId 0: nothing to unmonitor, nothing to add) counts as a
+                // Skip, mirroring how a not-added scene skips on the search ops — never an add, never a false
+                // success. Every other Ok (add-then-flip, plain flip, already-in-state no-op) succeeded.
+                return op == BatchOp.Unmonitor && monitorResult.Value!.MovieId == 0
+                    ? BatchUnitOutcome.Skipped
+                    : BatchUnitOutcome.Succeeded;
             default:
                 if (ResolveMovieForScene(video.StashIds, movieIndex!) is not { } movie)
                 {
@@ -283,6 +305,8 @@ public sealed partial class WhisparrSync
         switch (op?.Trim().ToLowerInvariant())
         {
             case "add": batchOp = BatchOp.Add; return true;
+            case "monitor": batchOp = BatchOp.Monitor; return true;
+            case "unmonitor": batchOp = BatchOp.Unmonitor; return true;
             case "search": batchOp = BatchOp.Search; return true;
             case "searchupgrades": batchOp = BatchOp.SearchUpgrades; return true;
             case "exclude": batchOp = BatchOp.Exclude; return true;
@@ -294,6 +318,8 @@ public sealed partial class WhisparrSync
     private static string WireOp(BatchOp op) => op switch
     {
         BatchOp.Add => "add",
+        BatchOp.Monitor => "monitor",
+        BatchOp.Unmonitor => "unmonitor",
         BatchOp.Search => "search",
         BatchOp.SearchUpgrades => "searchUpgrades",
         BatchOp.Exclude => "exclude",
