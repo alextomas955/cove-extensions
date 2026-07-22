@@ -103,8 +103,6 @@
     <Compile Remove="Api\EndpointAuthTests.cs" />
     <!-- WebhookEndpointTests injects a FakePrincipalAccessor (Cove.Core auth types) → drops out on a bare CI runner. -->
     <Compile Remove="Api\WebhookEndpointTests.cs" />
-    <!-- ReconEndpointAuthTests injects a FakePrincipalAccessor (Cove.Core auth types) → drops out on a bare CI runner. -->
-    <Compile Remove="Api\ReconEndpointAuthTests.cs" />
     <!-- ImportLogEndpointAuthTests injects a FakePrincipalAccessor + a fake IJobService (Cove.Core types) → drops out on a bare CI runner. -->
     <Compile Remove="Api\ImportLogEndpointAuthTests.cs" />
     <!-- RootOverlapTests injects a FakePrincipalAccessor + drives the /root-overlap endpoint (Cove.Core types) → drops out on a bare CI runner. -->
