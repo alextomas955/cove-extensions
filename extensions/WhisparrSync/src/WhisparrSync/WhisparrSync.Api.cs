@@ -43,14 +43,9 @@ public sealed partial class WhisparrSync
     // it reaches the stored creds to read Whisparr's naming config, the same posture as /file-settings.
     private const string SceneFolderOverlapRoute = RouteBase + "/scene-folder-overlap";
 
-    // The read-only reconciliation surface. /preview-sync computes the live diff (configure-gated —
-    // it reaches the stored creds to call Whisparr); /reconciliation is a pure match-map read
-    // (read-gated); /match/confirm|reject validate a submitted pair against the fresh diff, then write ONLY
-    // the extension's own match store (configure-gated).
-    private const string PreviewSyncRoute = RouteBase + "/preview-sync";
+    // The read-only reconciliation surface: a pure match-map read (read-gated) over the extension's own
+    // match store, reaching no credentials.
     private const string ReconciliationRoute = RouteBase + "/reconciliation";
-    private const string MatchConfirmRoute = RouteBase + "/match/confirm";
-    private const string MatchRejectRoute = RouteBase + "/match/reject";
 
     // The studio/performer monitor surface. /monitor toggles the monitored state
     // (add-then-flip via EntityMonitor); /monitor-status projects the quiet-status counts. Both are
@@ -282,22 +277,9 @@ public sealed partial class WhisparrSync
             (WebhookRegisterRequest? req, HttpRequest http, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => RegisterWebhookAsync($"{http.Scheme}://{http.Host}", client, principal, ct, req?.Url));
 
-        // Preview-sync reads Cove + Whisparr and returns the zero-mutation diff; it takes no body (it uses the
-        // stored creds only). Confirm/reject carry the {coveId, whisparrMovieId} pair in the body.
-        endpoints.MapPost(PreviewSyncRoute,
-            (WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => PreviewSyncAsync(client, principal, ct));
-
+        // Read-only reconciliation: a pure match-store read, 403-first on extensions.read.
         endpoints.MapGet(ReconciliationRoute,
             (ICurrentPrincipalAccessor principal, CancellationToken ct) => ReconciliationAsync(principal, ct));
-
-        endpoints.MapPost(MatchConfirmRoute,
-            (MatchDecisionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => MatchConfirmAsync(req, client, principal, ct));
-
-        endpoints.MapPost(MatchRejectRoute,
-            (MatchDecisionRequest req, WhisparrClient client, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => MatchRejectAsync(req, client, principal, ct));
 
         // Anonymous inbound webhook: bind the raw HttpContext so the receiver reads the token
         // (X-Cove-Token header preferred; ?token= query is a documented fallback) and body itself. NO principal

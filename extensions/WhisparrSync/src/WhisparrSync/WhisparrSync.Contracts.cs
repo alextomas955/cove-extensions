@@ -1,7 +1,5 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Cove.Extensions.Shared;
-using WhisparrSync.Matching;
 using WhisparrSync.Options;
 using WhisparrSync.Scene;
 
@@ -82,12 +80,6 @@ public sealed partial class WhisparrSync
         string? BaseUrl, string? ApiKey, string? SelectedVersion, int QualityProfileId,
         IReadOnlyList<PathTranslationRule>? PathTranslation = null,
         IReadOnlyList<string>? TagsOnAdd = null, bool? MonitorNewByDefault = null, bool? AllowQualityUpgrades = null);
-
-    /// <summary>
-    /// The confirm/reject request body: the Cove video id + Whisparr movie id of the needs-review suggestion the
-    /// user is acting on. Validated against the freshly-computed diff before any write (a forged pair is refused).
-    /// </summary>
-    internal sealed record MatchDecisionRequest(int CoveId, int WhisparrMovieId);
 
     /// <summary>
     /// The <c>/monitor</c> request body: the entity <see cref="Kind"/> (<c>"studio"</c> /
@@ -276,42 +268,6 @@ public sealed partial class WhisparrSync
     /// Whisparr lookup id — so the StashDB-endpoint match stays a single server-side source of truth.
     /// </summary>
     internal sealed record RemoteIdInput(string? Endpoint, string? RemoteId);
-
-    /// <summary>One reconciliation row for the UI table — a flat projection of a <see cref="MatchResult"/>.</summary>
-    /// <remarks>
-    /// <c>Status</c> is the bucket (<c>"matched"</c> / <c>"needsReview"</c> / <c>"unmatched"</c>); <c>MatchMethod</c>
-    /// is the resolving leg (<c>"StashId"</c> / <c>"Tpdb"</c>) or null when unmatched; <c>CoveId</c>
-    /// / <c>CoveTitle</c> are null when the movie matched nothing.
-    /// </remarks>
-    internal sealed record ReconRow(
-        int WhisparrMovieId,
-        string? SceneTitle,
-        int? SceneYear,
-        int? CoveId,
-        string? CoveTitle,
-        string? MatchMethod,
-        string Status,
-        [property: JsonConverter(typeof(SceneWhisparrStateJsonConverter))] SceneWhisparrState WhisparrState,
-        bool WhisparrHasFile)
-    {
-        public static ReconRow From(MatchResult r, string status, IReadOnlySet<string> excludedSet) => new(
-            WhisparrMovieId: r.Movie.Id,
-            SceneTitle: r.Movie.Title,
-            SceneYear: r.Movie.Year,
-            CoveId: r.MatchedVideo?.CoveId,
-            CoveTitle: r.MatchedVideo?.Title,
-            MatchMethod: r.Leg?.ToString(),
-            Status: status,
-            // A recon row is a present Whisparr movie (always "added"). WhisparrState is the PRIMARY
-            // management axis — monitored/unmonitored keyed on the row's monitored flag, or excluded when the
-            // movie's StashId is in the exclusion read (camelCase wire string pinned by the converter).
-            // WhisparrHasFile is the SECONDARY file fact carried alongside, never folded into the state.
-            WhisparrState: SceneStatusProjector.ClassifyMovie(r.Movie, excludedSet),
-            WhisparrHasFile: r.Movie.HasFile);
-    }
-
-    /// <summary>The <c>/preview-sync</c> response: the flat rows + the bucket counts.</summary>
-    internal sealed record ReconResponse(IReadOnlyList<ReconRow> Rows, ReconciliationCounts Counts);
 
     /// <summary>The <c>/reconciliation</c> status counts over the persisted match map (by user-decision status).</summary>
     internal sealed record PersistedCounts(int Confirmed, int NeedsReview, int Rejected, int Total);
