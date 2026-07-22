@@ -3,8 +3,8 @@
  * handler (index.ts) so the host's HandlerName dispatch invokes it for the bulk "Whisparr" action — the key
  * MUST equal the C# manifest HandlerName byte-for-byte. Modeled on Renamer's `renameSelected`.
  *
- * Flow: present the chooser (Add · Search now · Search for upgrades · Exclude) → POST /videos-batch with the
- * chosen op over the REAL selection.
+ * Flow: present the chooser (Add · Monitor · Unmonitor · Search now · Search for upgrades · Exclude) →
+ * POST /videos-batch with the chosen op over the REAL selection.
  *   - Empty selection   → return { cancelled: true } (no chooser, no POST).
  *   - Cancel the chooser → return { cancelled: true } (no POST, host suppresses the toast).
  *   - Pick an op         → POST /videos-batch → return { jobId, description }.

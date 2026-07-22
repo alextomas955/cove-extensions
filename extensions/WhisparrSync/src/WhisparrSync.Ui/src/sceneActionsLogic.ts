@@ -82,7 +82,7 @@ export interface BulkSearchMonitoredBody {
 }
 
 /** The videos-batch operations. camelCase — byte-identical to the C# `VideosBatchRequest.Op` parse. */
-export type BatchOp = "add" | "search" | "searchUpgrades" | "exclude";
+export type BatchOp = "add" | "monitor" | "unmonitor" | "search" | "searchUpgrades" | "exclude";
 
 /** The PascalCase `/videos-batch` body — the op + the selected Cove video ids (matches `VideosBatchRequest`). */
 export interface VideosBatchBody {
@@ -138,11 +138,14 @@ export const EXCLUDE_LABEL = "Exclude from Whisparr";
 export const REMOVE_EXCLUSION_LABEL = "Remove exclusion";
 
 /**
- * The videos-list bulk chooser items, in a fixed order: Add · Search now · Search for upgrades ·
- * Exclude. The "search" op is labeled "Search now" and "exclude" is the batch exclude.
+ * The videos-list bulk chooser items, in a fixed order: Add · Monitor · Unmonitor · Search now ·
+ * Search for upgrades · Exclude. Monitoring sits next to Add because both are non-grabbing
+ * registration-tier actions; the grab ops sit below, exclude last.
  */
 export const BATCH_MENU_ITEMS: readonly BatchMenuItem[] = [
   { op: "add", label: "Add to Whisparr" },
+  { op: "monitor", label: "Monitor" },
+  { op: "unmonitor", label: "Unmonitor" },
   { op: "search", label: "Search now" },
   { op: "searchUpgrades", label: "Search for upgrades" },
   { op: "exclude", label: "Exclude from Whisparr" },
