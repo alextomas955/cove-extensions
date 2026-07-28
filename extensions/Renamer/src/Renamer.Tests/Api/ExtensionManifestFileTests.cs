@@ -10,6 +10,7 @@ namespace Renamer.Tests;
 /// silently dropping at install time. It also pins the runtime-permissions posture and the richer
 /// admin-facing description.
 /// </summary>
+[Trait("Tier", "L0")]
 public sealed class ExtensionManifestFileTests
 {
     // The manifest is copied next to the test assembly via the Renamer project reference's

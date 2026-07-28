@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <!-- Test-support only: never a deployed Cove plugin, so neutralize the inherited dynamic-loading flag. -->
+    <EnableDynamicLoading>false</EnableDynamicLoading>
+    <!--
+      This project is consumed by the two *.Tests projects (via ProjectReference) and its FakeStore /
+      ConcurrentFakeStore implement IExtensionStore from Cove.Plugins. It is a NON-.Tests project, so the
+      root Directory.Build.targets wires Cove.Sdk into it (transitively carrying Cove.Plugins) — a
+      ProjectReference on the local-cove path, a Cove.Sdk PackageReference on the bare (NuGet) path. On
+      BOTH paths the Cove.Sdk strip target runs (imported explicitly on the local path, transitively from
+      the package on the NuGet path) and would strip Cove.Plugins.dll from THIS project's output. Empty the
+      host-provided denylist so nothing is stripped: the value must be NON-EMPTY (Cove.Sdk.targets re-applies
+      its full default denylist when the property is empty), so a sentinel matching no real assembly name
+      disables the strip without re-triggering the default — the same guard WhisparrSync.Tests.csproj uses.
+    -->
+    <CoveHostProvidedAssemblies>;__cove_extensions_shared_testing_no_strip__;</CoveHostProvidedAssemblies>
+    <!--
+      CA1716 flags the "Shared" namespace segment as a VB reserved keyword (a cross-language-interop
+      concern). This is a C#-only test-support assembly consumed solely by the *.Tests projects, never
+      from VB, so the rule does not apply; scoped here (not root config) to keep the chosen namespace name.
+      Mirrors the same suppression on Cove.Extensions.Shared.csproj.
+    -->
+    <NoWarn>$(NoWarn);CA1716</NoWarn>
+  </PropertyGroup>
+</Project>

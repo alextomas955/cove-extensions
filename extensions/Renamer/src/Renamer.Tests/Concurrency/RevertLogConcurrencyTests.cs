@@ -1,6 +1,5 @@
 using Renamer.Execution;
 using Renamer.Planner;
-using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Concurrency;
 
@@ -14,7 +13,7 @@ namespace Renamer.Tests.Concurrency;
 /// the proof isolates the RevertLog gate, not the store. Both tests would fail (count &lt; N, rows
 /// dropped) if the per-store SemaphoreSlim serialization were removed.
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L0")]
 public sealed class RevertLogConcurrencyTests
 {
     private const int N = 200;
@@ -35,8 +34,7 @@ public sealed class RevertLogConcurrencyTests
             await log.AppendAsync(
                 entityId: 1000 + i,
                 fileId: 5000 + i,
-                oldPath: $"media/old-{i}.mkv",
-                newPath: $"media/new-{i}.mkv");
+                oldPath: $"media/old-{i}.mkv");
         }));
 
         var batch = await log.ReadLastOpenBatchAsync();
@@ -47,7 +45,7 @@ public sealed class RevertLogConcurrencyTests
         Assert.Equal(N, batch.Entries.Count);
 
         // Every expected fileId present exactly once, every row well-formed (entityId pairs with its
-        // fileId, both non-default paths). This catches an interleaved/torn line that happened to
+        // fileId, the old path intact). This catches an interleaved/torn line that happened to
         // keep the count right but corrupt a field.
         var byFileId = batch.Entries.ToDictionary(e => e.FileId);
         Assert.Equal(N, byFileId.Count);
@@ -56,7 +54,6 @@ public sealed class RevertLogConcurrencyTests
             Assert.True(byFileId.TryGetValue(5000 + i, out var e), $"missing fileId {5000 + i}");
             Assert.Equal(1000 + i, e.EntityId);
             Assert.Equal($"media/old-{i}.mkv", e.OldPath);
-            Assert.Equal($"media/new-{i}.mkv", e.NewPath);
         }
 
         // The in-memory row list also did not race.
@@ -81,13 +78,13 @@ public sealed class RevertLogConcurrencyTests
         {
             await Task.Yield();
             await jobA.AppendAsync(entityId: 2000 + i, fileId: 6000 + i,
-                oldPath: $"media/a-old-{i}.mkv", newPath: $"media/a-new-{i}.mkv");
+                oldPath: $"media/a-old-{i}.mkv");
         });
         var appendsB = Enumerable.Range(0, perJob).Select(async i =>
         {
             await Task.Yield();
             await jobB.AppendAsync(entityId: 3000 + i, fileId: 7000 + i,
-                oldPath: $"media/b-old-{i}.mkv", newPath: $"media/b-new-{i}.mkv");
+                oldPath: $"media/b-old-{i}.mkv");
         });
 
         await Task.WhenAll(appendsA.Concat(appendsB));

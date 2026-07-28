@@ -1,0 +1,11 @@
+{
+  "kind": "audio",
+  "entityId": 5,
+  "fileId": 42,
+  "oldFullPath": "/lib/a.mp3",
+  "newFullPath": "/music/Artist - Song.mp3",
+  "status": "move",
+  "reason": null,
+  "suffixed": false,
+  "sanitized": false
+}

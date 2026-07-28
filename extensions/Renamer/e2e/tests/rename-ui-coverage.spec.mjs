@@ -5,7 +5,7 @@
 // is exact on-disk + DB state (assertRenamedTo), never the panel's own success banner.
 import { test as base, expect, seedVideo, RENAMER_EXTENSION } from '../lib/renamer-fixtures.mjs';
 import { startHarness } from '@cove-extensions/e2e/harness';
-import { VideosPage } from '../lib/pages/videos-page.mjs';
+import { VideosPage } from '@cove-extensions/e2e/pages/videos-page';
 import { RenamerSettingsPage } from '../lib/pages/renamer-settings-page.mjs';
 import { assertRenamedTo } from '../lib/rename-assertions.mjs';
 

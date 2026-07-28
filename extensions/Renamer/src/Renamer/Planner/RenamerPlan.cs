@@ -1,5 +1,7 @@
 using Renamer.Options;
 
+using static global::Renamer.Execution.PathOps;
+
 namespace Renamer.Planner;
 
 /// <summary>
@@ -278,7 +280,6 @@ public static class PathConfinement
     private static string Combine(string a, string b)
         => a.TrimEnd('/', '\\') + "/" + b.TrimStart('/', '\\');
 
-    private static string NormalizeSlash(string p) => p.Replace('\\', '/');
 
     /// <summary>
     /// True iff <paramref name="candidate"/> is <paramref name="root"/> itself or lies under it.

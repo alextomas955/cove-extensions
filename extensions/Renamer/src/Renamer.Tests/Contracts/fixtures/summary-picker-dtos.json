@@ -1,0 +1,30 @@
+{
+  "lastBatch": {
+    "hasBatch": true,
+    "count": 3,
+    "writtenAtUtcTicks": 638000000000000000,
+    "consumed": false
+  },
+  "undoResult": {
+    "undone": 2,
+    "failed": [
+      {
+        "fileId": 7,
+        "oldPath": "/new/a.mkv",
+        "newPath": "/old/a.mkv",
+        "reason": "locked"
+      }
+    ],
+    "skipped": []
+  },
+  "previewSample": {
+    "sampleLabel": "Video",
+    "oldName": "raw.mkv",
+    "newName": "Title.mkv",
+    "folder": "Studio/2021",
+    "flags": [
+      "sanitized"
+    ],
+    "droppedFields": []
+  }
+}

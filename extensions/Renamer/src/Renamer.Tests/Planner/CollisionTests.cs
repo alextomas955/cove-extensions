@@ -10,6 +10,7 @@ namespace Renamer.Tests.Planner;
 /// counter until free and the resulting NewFullPath carries the suffix; if no free name is found
 /// within a sane bound the item is <see cref="RenamerStatus.SkipCollision"/>. NO mutation.
 /// </summary>
+[Trait("Tier", "L0")]
 public sealed class CollisionTests
 {
     private static RenamerFile File(int id, string basename, int folderId = 5) =>

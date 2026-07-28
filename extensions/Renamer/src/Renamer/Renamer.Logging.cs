@@ -95,14 +95,28 @@ public sealed partial class Renamer
 
     [LoggerMessage(
         EventId = 1052, Level = LogLevel.Information,
-        Message = "[Renamer] scan library: complete — {Rows} row(s) from {Total} item(s)")]
-    private partial void LogScanDone(int rows, int total);
+        Message = "[Renamer] scan library: complete — {Files} file(s) planned from {Total} item(s)")]
+    private partial void LogScanDone(int files, int total);
+
+    [LoggerMessage(
+        EventId = 1053, Level = LogLevel.Warning,
+        Message = "[Renamer] could not delete the legacy per-file scan result; the settings page may stay unreadable")]
+    private partial void LogLegacyScanPurgeFailed(Exception ex);
+
+    [LoggerMessage(
+        EventId = 1054, Level = LogLevel.Warning,
+        Message = "[Renamer] could not discard the pre-upgrade undo journal; the settings page may stay unreadable until the next load retries")]
+    private partial void LogRevertLogPurgeFailed(Exception ex);
+
+    [LoggerMessage(
+        EventId = 1055, Level = LogLevel.Information,
+        Message = "[Renamer] batch {RunId}: {Files} file(s) exceeds the {Cap}-file undo cap — this batch is not undoable")]
+    private partial void LogBatchNotJournalled(string runId, int files, int cap);
 
     [LoggerMessage(
         EventId = 1010, Level = LogLevel.Information,
-        Message = "[Renamer] undo {RunId}: {Kind} id={EntityId} restored '{New}' -> '{Old}'")]
-    private partial void LogUndoRestored(
-        string runId, RenamerFileKind kind, int entityId, string @new, string old);
+        Message = "[Renamer] undo {RunId}: {Kind} id={EntityId} restored to '{Old}'")]
+    private partial void LogUndoRestored(string runId, RenamerFileKind kind, int entityId, string old);
 
     [LoggerMessage(
         EventId = 1011, Level = LogLevel.Information,

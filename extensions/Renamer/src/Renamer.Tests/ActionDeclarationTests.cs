@@ -9,6 +9,7 @@ namespace Renamer.Tests;
 /// <c>IActionExtension</c>), and the <c>renamer-batch</c> job is registered via <c>DefineJobs()</c>.
 /// These assert the exact contributed shape the host renders/dispatches against.
 /// </summary>
+[Trait("Tier", "L1")]
 public sealed class ActionDeclarationTests
 {
     private static global::Renamer.Renamer NewExtension() => new();

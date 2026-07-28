@@ -12,6 +12,7 @@ namespace Renamer.Tests.Planner;
 /// the candidate name is collision-free and the item still plans as a Move. Folder creation is the
 /// executor's job, exercised only on a real renamer.
 /// </summary>
+[Trait("Tier", "L0")]
 public sealed class PreviewPurityTests
 {
     private static RenamerFile File(int id, string basename, int folderId = 5) =>

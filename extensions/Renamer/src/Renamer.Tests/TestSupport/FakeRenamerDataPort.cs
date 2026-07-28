@@ -63,7 +63,20 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     }
 
     public Task<IReadOnlyList<int>> LoadAllEntityIdsAsync(RenamerFileKind kind, CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyList<int>>(_allIds.TryGetValue(kind, out var ids) ? ids : []);
+        => Task.FromResult<IReadOnlyList<int>>(
+            _allIds.TryGetValue(kind, out var ids) ? [.. ids.OrderBy(id => id)] : []);
+
+    public Task<IReadOnlyList<int>> LoadEntityIdPageAsync(
+        RenamerFileKind kind, int afterEntityId, int take, CancellationToken ct = default)
+    {
+        if (take <= 0 || !_allIds.TryGetValue(kind, out var ids))
+        {
+            return Task.FromResult<IReadOnlyList<int>>([]);
+        }
+
+        return Task.FromResult<IReadOnlyList<int>>(
+            [.. ids.Where(id => id > afterEntityId).OrderBy(id => id).Take(take)]);
+    }
 
     public Task<bool> CollisionExistsAsync(int folderId, string basename, int selfFileId, CancellationToken ct = default)
     {
@@ -96,5 +109,26 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     {
         SaveCalls.Add(mutations);
         return Task.FromResult(mutations.Count);
+    }
+
+    /// <summary>When set, <see cref="ApplyAndSaveAsync"/> throws this — the seam that drives the executor's rollback-on-save-failure path with no live DB.</summary>
+    public Exception? ApplyAndSaveThrow { get; set; }
+
+    /// <summary>Per-file <c>RecomputedPath</c> a successful <see cref="ApplyAndSaveAsync"/> returns; a file id absent here echoes its new basename.</summary>
+    public Dictionary<int, string> RecomputedPaths { get; } = new();
+
+    /// <summary>Every <see cref="ApplyAndSaveAsync"/> call's mutations, in order, for assertions.</summary>
+    public List<IReadOnlyList<RenamerFileMutation>> ApplyAndSaveCalls { get; } = new();
+
+    public Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
+    {
+        ApplyAndSaveCalls.Add(mutations);
+        if (ApplyAndSaveThrow is not null)
+        {
+            throw ApplyAndSaveThrow;
+        }
+
+        return Task.FromResult<IReadOnlyList<SavedFile>>(
+            [.. mutations.Select(m => new SavedFile(m.FileId, RecomputedPaths.GetValueOrDefault(m.FileId, m.NewBasename)))]);
     }
 }

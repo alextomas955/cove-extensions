@@ -21,7 +21,7 @@ namespace Renamer.Tests.Api;
 /// methods (no HTTP host) with a real SQLite <c>CoveContext</c> and real on-disk files, mirroring
 /// <c>RenamerBatchJobTests</c>/<c>EntityIdsCapTests</c>.
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L1")]
 public sealed class RenamerLibraryEndpointTests
 {
     /// <summary>Records every <c>Enqueue</c> call; all other members are unused and throw.</summary>
@@ -140,20 +140,21 @@ public sealed class RenamerLibraryEndpointTests
             Assert.Equal("Film.mkv", videoBasename);
             Assert.Equal("Pic.jpg", imageBasename);
 
-            // Exactly two open batches (one per kind-with-candidates) — never a single combined batch.
-            // RevertLog.ReadLastOpenBatchAsync only ever returns the LAST one, so read the raw blob's
-            // header count directly to assert both batches actually opened, not just the most recent.
+            // One batch PER KIND, never one combined batch across kinds. The journal retains only the
+            // newest batch, so what survives is the second kind's: one header, its kind alone, and only
+            // that kind's row. A combined batch would instead show one header carrying BOTH files.
             var blob = await store.GetAsync(RevertLog.Key);
             Assert.NotNull(blob);
-            int headerCount = blob!.Split('\n').Count(line => line.StartsWith("#batch", StringComparison.Ordinal));
-            Assert.Equal(2, headerCount);
+            var lines = blob!.Split('\n');
+            int headerCount = lines.Count(line => line.StartsWith("#batch", StringComparison.Ordinal));
+            Assert.Equal(1, headerCount);
+            Assert.StartsWith("#batch|", lines[0]);
+            Assert.Equal("Image", lines[0].Split('|')[3]);
 
-            // Each header carries exactly one RenamerFileKind — never a synthetic combined kind.
-            var kindsInHeaders = blob.Split('\n')
-                .Where(line => line.StartsWith("#batch", StringComparison.Ordinal))
-                .Select(line => line.Split('|')[3])
-                .ToArray();
-            Assert.Equal(new[] { "Video", "Image" }, kindsInHeaders);
+            var batch = await new RevertLog(store).ReadLastOpenBatchAsync();
+            Assert.NotNull(batch);
+            Assert.Equal(RenamerFileKind.Image, batch!.Kind);
+            Assert.Equal(imageFileId, Assert.Single(batch.Entries).FileId);
 
             Assert.Equal(1d, progress.LastPercent);
         }

@@ -66,81 +66,10 @@ public static class DestinationResolver
     /// <param name="lk">The per-batch hoisted lookups (studio-id, tag-name, path-exact, pre-parsed regex).</param>
     public static RouteResult Resolve(RenamerEntity e, RenamerOptions o, RouteLookups lk)
     {
-        // 1. Excludes — run FIRST, beating every routing category INCLUDING Unorganized. A matching
-        //    tag NAME, studio id (direct OR any ParentStudios ancestor id), or source-path (exact then
-        //    regex) returns (Excluded, "Exclude:…", null). The exclude lookups arrive PRE-PARSED in the
-        //    RouteLookups (a null member = none configured = legacy behavior, no regression). The
-        //    match-time RegexMatchTimeoutException on an exclude regex is treated as no-match (classify,
-        //    don't throw), exactly like the source-path routing regex below.
-
-        // 1a. Tag exclude (case-insensitive on the tag NAME, mirroring tag routing).
-        if (lk.ExcludeTagNames is { Count: > 0 } excludeTags)
+        // 1. Excludes run FIRST, beating every routing category INCLUDING Unorganized.
+        if (ResolveExclusion(e, lk) is { } excluded)
         {
-            foreach (var tag in e.Tags)
-            {
-                if (excludeTags.Contains(tag))
-                {
-                    return new RouteResult(RouteCategory.Excluded, $"Exclude:Tag:{tag}", null);
-                }
-            }
-        }
-
-        // 1b. Studio exclude (direct outranks ancestor; keyed on the stable id, NEVER the name).
-        if (lk.ExcludeStudioIds is { Count: > 0 } excludeStudios)
-        {
-            if (e.StudioId is int directStudio && excludeStudios.Contains(directStudio))
-            {
-                return new RouteResult(RouteCategory.Excluded, $"Exclude:Studio:{directStudio}(direct)", null);
-            }
-
-            if (e.ParentStudios is { } excludeAncestors)
-            {
-                // ParentStudios is NEAREST-FIRST; the first excluded ancestor wins.
-                foreach (var (ancestorId, _) in excludeAncestors)
-                {
-                    if (excludeStudios.Contains(ancestorId))
-                    {
-                        return new RouteResult(RouteCategory.Excluded, $"Exclude:Studio:{ancestorId}(ancestor)", null);
-                    }
-                }
-            }
-        }
-
-        // 1c. Source-path exclude: exact FIRST, then the first matching pre-parsed exclude regex.
-        if (e.Files.Count > 0
-            && (lk.ExcludePathsExact is { Count: > 0 } || lk.ExcludePathRegex is { Count: > 0 }))
-        {
-            var excludeSrc = e.Files[0].ParentFolderPath;
-
-            if (lk.ExcludePathsExact is { Count: > 0 } excludeExact
-                && excludeExact.Contains(NormalizeSourcePath(excludeSrc)))
-            {
-                return new RouteResult(RouteCategory.Excluded, "Exclude:Path:exact", null);
-            }
-
-            if (lk.ExcludePathRegex is { Count: > 0 } excludeRegex)
-            {
-                foreach (var pattern in excludeRegex)
-                {
-                    // Classify, don't throw: a match-time catastrophic-backtracking timeout is treated
-                    // as "this rule did not match" — skip it, never an uncaught throw that aborts the
-                    // batch. The build-time guard already rejected syntax-invalid patterns.
-                    bool excluded;
-                    try
-                    {
-                        excluded = pattern.IsMatch(excludeSrc);
-                    }
-                    catch (System.Text.RegularExpressions.RegexMatchTimeoutException)
-                    {
-                        continue;
-                    }
-
-                    if (excluded)
-                    {
-                        return new RouteResult(RouteCategory.Excluded, "Exclude:Path:regex", null);
-                    }
-                }
-            }
+            return excluded;
         }
 
         // 2. Unorganized: its own route, BEFORE the tag/studio/path cascade.
@@ -229,5 +158,91 @@ public static class DestinationResolver
         // 5. No route → source-confine. The default-relocate-disabled false branch lands HERE, so an
         //    unmatched item keeps its own parent-folder anchor and does not relocate.
         return new RouteResult(RouteCategory.SourceConfine, "InPlace", null);
+    }
+
+    /// <summary>
+    /// The exclude cascade — tag NAME, studio id (direct OR any ParentStudios ancestor id), then
+    /// source-path (exact FIRST, then the first matching pre-parsed regex). Returns the
+    /// <see cref="RouteCategory.Excluded"/> result on the first match, or <c>null</c> when nothing
+    /// excludes the entity.
+    /// </summary>
+    /// <remarks>
+    /// The exclude lookups arrive PRE-PARSED in the <see cref="RouteLookups"/> (a null/empty member =
+    /// none configured = legacy behavior, no regression). A match-time <c>RegexMatchTimeoutException</c>
+    /// on an exclude regex is treated as no-match (classify, don't throw), like the routing regex.
+    /// </remarks>
+    private static RouteResult? ResolveExclusion(RenamerEntity e, RouteLookups lk)
+    {
+        // Tag exclude (case-insensitive on the tag NAME, mirroring tag routing).
+        if (lk.ExcludeTagNames is { Count: > 0 } excludeTags)
+        {
+            foreach (var tag in e.Tags)
+            {
+                if (excludeTags.Contains(tag))
+                {
+                    return new RouteResult(RouteCategory.Excluded, $"Exclude:Tag:{tag}", null);
+                }
+            }
+        }
+
+        // Studio exclude (direct outranks ancestor; keyed on the stable id, NEVER the name).
+        if (lk.ExcludeStudioIds is { Count: > 0 } excludeStudios)
+        {
+            if (e.StudioId is int directStudio && excludeStudios.Contains(directStudio))
+            {
+                return new RouteResult(RouteCategory.Excluded, $"Exclude:Studio:{directStudio}(direct)", null);
+            }
+
+            if (e.ParentStudios is { } excludeAncestors)
+            {
+                // ParentStudios is NEAREST-FIRST; the first excluded ancestor wins.
+                foreach (var (ancestorId, _) in excludeAncestors)
+                {
+                    if (excludeStudios.Contains(ancestorId))
+                    {
+                        return new RouteResult(RouteCategory.Excluded, $"Exclude:Studio:{ancestorId}(ancestor)", null);
+                    }
+                }
+            }
+        }
+
+        // Source-path exclude: exact FIRST, then the first matching pre-parsed exclude regex.
+        if (e.Files.Count > 0
+            && (lk.ExcludePathsExact is { Count: > 0 } || lk.ExcludePathRegex is { Count: > 0 }))
+        {
+            var excludeSrc = e.Files[0].ParentFolderPath;
+
+            if (lk.ExcludePathsExact is { Count: > 0 } excludeExact
+                && excludeExact.Contains(NormalizeSourcePath(excludeSrc)))
+            {
+                return new RouteResult(RouteCategory.Excluded, "Exclude:Path:exact", null);
+            }
+
+            if (lk.ExcludePathRegex is { Count: > 0 } excludeRegex)
+            {
+                foreach (var pattern in excludeRegex)
+                {
+                    // Classify, don't throw: a match-time catastrophic-backtracking timeout is treated
+                    // as "this rule did not match" — skip it, never an uncaught throw that aborts the
+                    // batch. The build-time guard already rejected syntax-invalid patterns.
+                    bool matched;
+                    try
+                    {
+                        matched = pattern.IsMatch(excludeSrc);
+                    }
+                    catch (System.Text.RegularExpressions.RegexMatchTimeoutException)
+                    {
+                        continue;
+                    }
+
+                    if (matched)
+                    {
+                        return new RouteResult(RouteCategory.Excluded, "Exclude:Path:regex", null);
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 }

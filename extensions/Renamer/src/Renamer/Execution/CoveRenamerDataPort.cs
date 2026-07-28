@@ -192,11 +192,36 @@ public class CoveRenamerDataPort : IRenamerDataPort
     /// </summary>
     public async Task<IReadOnlyList<int>> LoadAllEntityIdsAsync(RenamerFileKind kind, CancellationToken ct = default)
     {
+        // The ORDER BY is load-bearing, not tidiness: the whole-library dry run's paged readback walks
+        // this same id space as a keyset cursor (LoadEntityIdPageAsync), and the scan job re-orders its
+        // batch loads by this list. Without an explicit ordering the ids arrive in provider order — an
+        // implementation accident a cursor cannot rest on.
         return kind switch
         {
-            RenamerFileKind.Video => await _db.Set<Video>().AsNoTracking().Select(v => v.Id).ToArrayAsync(ct),
-            RenamerFileKind.Image => await _db.Set<Image>().AsNoTracking().Select(i => i.Id).ToArrayAsync(ct),
-            RenamerFileKind.Audio => await _db.Set<Audio>().AsNoTracking().Select(a => a.Id).ToArrayAsync(ct),
+            RenamerFileKind.Video => await _db.Set<Video>().AsNoTracking().OrderBy(v => v.Id).Select(v => v.Id).ToArrayAsync(ct),
+            RenamerFileKind.Image => await _db.Set<Image>().AsNoTracking().OrderBy(i => i.Id).Select(i => i.Id).ToArrayAsync(ct),
+            RenamerFileKind.Audio => await _db.Set<Audio>().AsNoTracking().OrderBy(a => a.Id).Select(a => a.Id).ToArrayAsync(ct),
+            _ => [],
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<int>> LoadEntityIdPageAsync(
+        RenamerFileKind kind, int afterEntityId, int take, CancellationToken ct = default)
+    {
+        if (take <= 0)
+        {
+            return [];
+        }
+
+        return kind switch
+        {
+            RenamerFileKind.Video => await _db.Set<Video>().AsNoTracking()
+                .Where(v => v.Id > afterEntityId).OrderBy(v => v.Id).Take(take).Select(v => v.Id).ToArrayAsync(ct),
+            RenamerFileKind.Image => await _db.Set<Image>().AsNoTracking()
+                .Where(i => i.Id > afterEntityId).OrderBy(i => i.Id).Take(take).Select(i => i.Id).ToArrayAsync(ct),
+            RenamerFileKind.Audio => await _db.Set<Audio>().AsNoTracking()
+                .Where(a => a.Id > afterEntityId).OrderBy(a => a.Id).Take(take).Select(a => a.Id).ToArrayAsync(ct),
             _ => [],
         };
     }
@@ -248,11 +273,6 @@ public class CoveRenamerDataPort : IRenamerDataPort
         => (await ApplyAndSaveAsync(mutations, ct)).Count;
 
     // ── Executor-facing primitives ───────────────────────────────────────────
-
-    /// <summary>The recomputed identity of a saved file row, read back after a save for the Path assertion + event.</summary>
-    /// <param name="FileId">The file row id.</param>
-    /// <param name="RecomputedPath">The <c>BaseFileEntity.Path</c> Cove recomputed on save (forward-slash).</param>
-    public readonly record struct SavedFile(int FileId, string RecomputedPath);
 
     /// <summary>Resolves an existing <see cref="Folder"/> by path or creates+saves one for its Id. Returns the tracked entity.</summary>
     public async Task<Folder> GetOrCreateFolderAsync(string folderPath, CancellationToken ct = default)

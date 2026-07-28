@@ -9,6 +9,7 @@ namespace Renamer.Tests;
 /// bulk action. It is NOT a top-nav page and NOT under the shared Installed list. The live half (the
 /// tab actually renders) is verified by the live browser pass.
 /// </summary>
+[Trait("Tier", "L1")]
 public sealed class SettingsManifestTests
 {
     private static global::Renamer.Renamer NewExtension() => new();

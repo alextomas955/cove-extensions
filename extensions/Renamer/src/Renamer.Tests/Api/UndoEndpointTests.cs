@@ -6,7 +6,7 @@ using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Renamer.Api;
+using Renamer.Contracts;
 using Renamer.Jobs;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
@@ -24,7 +24,7 @@ namespace Renamer.Tests.Api;
 /// + correct entity event), header-driven kind (an image batch publishes ImageUpdated — never a Video
 /// default), consume-on-undo (second undo + empty-log are no-ops), and the summary read shape.
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L2")]
 public sealed class UndoEndpointTests
 {
     /// <summary>

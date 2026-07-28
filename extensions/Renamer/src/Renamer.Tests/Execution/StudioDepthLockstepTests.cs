@@ -3,7 +3,6 @@ using Cove.Data;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Execution;
 using Renamer.Planner;
-using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution;
 
@@ -16,7 +15,7 @@ namespace Renamer.Tests.Execution;
 /// SQLite-backed <see cref="CoveContext"/> so the self-referencing Studio parent FK hydrates as
 /// production would.
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L1")]
 public sealed class StudioDepthLockstepTests
 {
     [Fact]

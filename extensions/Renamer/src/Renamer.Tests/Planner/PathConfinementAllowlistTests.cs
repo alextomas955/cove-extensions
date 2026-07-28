@@ -11,6 +11,7 @@ namespace Renamer.Tests.Planner;
 /// the only root is rejected. The empty-roots fallback reproduces the original source-confine
 /// behavior verbatim. PURE — no disk access.
 /// </summary>
+[Trait("Tier", "L0")]
 public sealed class PathConfinementAllowlistTests
 {
     // An absolute allowed root that exists in path-syntax terms on the current OS.
@@ -48,7 +49,7 @@ public sealed class PathConfinementAllowlistTests
     public void RootedTarget_ParentTraversal_CollapsesThenFailsContainment_Rejected()
     {
         // "D:/media/../../etc" collapses to "D:/etc" (or "/srv/media/../../etc" -> "/etc"), which is
-        // NOT under the allowed root — the ".." is resolved BEFORE the containment check (GATE-02).
+        // NOT under the allowed root — the ".." is resolved BEFORE the containment check.
         var dest = OperatingSystem.IsWindows() ? @"D:\media\..\..\etc" : "/srv/media/../../etc";
 
         var r = PathConfinement.Resolve(

@@ -10,12 +10,14 @@ namespace Renamer.Tests.Execution;
 /// <c>System.Diagnostics.Process</c> API — it never tries to force a lock open).
 /// Exercised against the real filesystem via the <see cref="TempDir"/> fixture.
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L1")]
 public sealed class LockedFileTests
 {
-    [Fact]
+    [SkippableFact]
     public void LockedSource_FileShareNone_SkippedNotThrown_SourceIntact()
     {
+        Skip.IfNot(OperatingSystem.IsWindows(), "needs Windows mandatory locking — FileShare.None does not block a reader on Unix");
+
         using var dir = new TempDir();
         var old = dir.Touch("clip.mkv", "data");
         var dest = Path.Combine(dir.Root, "Renamed.mkv");

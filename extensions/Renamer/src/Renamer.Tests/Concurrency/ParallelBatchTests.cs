@@ -11,7 +11,7 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Concurrency;
 
 /// <summary>
-/// Parallel-batch correctness under the two-phase rewrite (SPACE-04). Proves: every acting item
+/// Parallel-batch correctness under the two-phase rewrite. Proves: every acting item
 /// renames and the shared RevertLog blob holds exactly one well-formed row per success (no torn/lost
 /// append under real parallel workers); a per-item fault is an isolated skip while the rest succeed
 /// and the batch still reports the final <c>1.0</c> (classify-not-throw under parallelism); a
@@ -21,7 +21,7 @@ namespace Renamer.Tests.Concurrency;
 /// the parsed RevertLog blob) — never on an EF exception. The store is a thread-safe
 /// <see cref="ConcurrentFakeStore"/> so it is not a confounder.
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L1")]
 public sealed class ParallelBatchTests
 {
     /// <summary>Wires the extension over a SCOPED DbContext factory so each worker gets its OWN context over the shared DB.</summary>
@@ -89,7 +89,6 @@ public sealed class ParallelBatchTests
             {
                 Assert.NotEqual(0, e.FileId);
                 Assert.False(string.IsNullOrEmpty(e.OldPath));
-                Assert.False(string.IsNullOrEmpty(e.NewPath));
             });
 
             Assert.Equal(1d, progress.LastPercent);

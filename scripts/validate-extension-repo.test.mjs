@@ -1,4 +1,4 @@
-// Subprocess-fixture test suite for scripts/validate-extension-repo.mjs (INFRA-03).
+// Subprocess-fixture test suite for scripts/validate-extension-repo.mjs.
 //
 // This suite does NOT import or refactor the validator. It drives the REAL, unmodified
 // validate-extension-repo.mjs as a child process against deliberately-malformed catalog

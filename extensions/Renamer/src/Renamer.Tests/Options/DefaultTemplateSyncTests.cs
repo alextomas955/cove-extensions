@@ -15,6 +15,7 @@ namespace Renamer.Tests.Options;
 /// <see cref="RenamerOptions.FolderTemplate"/> stays <c>""</c> — folder move remains opt-in. The two
 /// cosmetic flags default on, asserted here as the C#-side default-parity lock against the TS mirror.
 /// </summary>
+[Trait("Tier", "L0")]
 public sealed class DefaultTemplateSyncTests
 {
     [Fact]

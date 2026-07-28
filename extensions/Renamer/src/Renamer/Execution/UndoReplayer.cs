@@ -1,6 +1,8 @@
 using Cove.Core.Events;
 using Renamer.Planner;
 
+using static global::Renamer.Execution.PathOps;
+
 namespace Renamer.Execution;
 
 /// <summary>
@@ -9,17 +11,23 @@ namespace Renamer.Execution;
 /// synthesize a <see cref="RenamerPlan"/> nor reuse <see cref="RenamerExecutor"/>, because the
 /// original metadata may have changed since the renamer; replaying recorded paths is the only safe
 /// way to undo). It composes the SAME collaborators the forward executor uses:
-/// <see cref="CoveRenamerDataPort"/>, <see cref="IEventBus"/>, <see cref="DiskMover"/>.
+/// <see cref="IRenamerDataPort"/>, <see cref="IEventBus"/>, <see cref="DiskMover"/>.
+///
+/// The file's CURRENT path comes from Cove's database, not the journal. That is exact rather than
+/// approximate: the forward executor appends a row only after asserting the recomputed database path
+/// equals the location it just moved to, and its one branch that lets disk and database diverge
+/// writes no row at all.
 ///
 /// For each entry it mirrors <see cref="RenamerExecutor.ExecuteItemAsync"/> REVERSED, over the same
 /// safety spine:
 /// <list type="number">
-/// <item>resolve the OLD directory + OLD basename from <c>entry.OldPath</c> and the old folder id;</item>
+/// <item>resolve the file's current path from the database, and the OLD directory + OLD basename from
+/// <c>entry.OldPath</c> and the old folder id;</item>
 /// <item>collision re-check the OLD slot is free on BOTH disk and DB → skip+report on conflict
 /// (never clobber an existing file);</item>
 /// <item>disk move NEW→OLD with the 2-arg never-overwrite <see cref="DiskMover.Move"/> → a non-moved
 /// result is a skip+report (locked/exists);</item>
-/// <item>set Basename/ParentFolderId back via <see cref="CoveRenamerDataPort.ApplyAndSaveAsync"/>; on a
+/// <item>set Basename/ParentFolderId back via <see cref="IRenamerDataPort.ApplyAndSaveAsync"/>; on a
 /// save throw, <see cref="DiskMover.Rollback"/> puts the file back at NEW and the entry is reported
 /// failed (no half-state where disk and DB disagree);</item>
 /// <item>on success, assert the recomputed Path equals the OLD path and publish
@@ -33,7 +41,7 @@ namespace Renamer.Execution;
 /// </summary>
 public sealed class UndoReplayer
 {
-    private readonly CoveRenamerDataPort _port;
+    private readonly IRenamerDataPort _port;
     private readonly IEventBus _eventBus;
     private readonly DiskMover _disk;
     private readonly CrossVolumeMover _cross;
@@ -50,7 +58,7 @@ public sealed class UndoReplayer
     // additive AFTER the cross param so every existing 3-/4-arg call site stays source-compatible;
     // omitted (or null) → an empty list, which makes the re-gate a no-op (an undo with no configured
     // allowlist is unaffected). The /undo endpoint passes options.AllowedRoots.
-    public UndoReplayer(CoveRenamerDataPort port, IEventBus eventBus, DiskMover disk,
+    public UndoReplayer(IRenamerDataPort port, IEventBus eventBus, DiskMover disk,
         CrossVolumeMover? cross = null, IReadOnlyList<string>? allowedRoots = null)
     {
         _port = port;
@@ -63,7 +71,7 @@ public sealed class UndoReplayer
     /// <summary>One failed/skipped reverse-replay entry surfaced in the run result's buckets.</summary>
     /// <param name="FileId">The file row.</param>
     /// <param name="OldPath">The path the reverse move targeted (the original location).</param>
-    /// <param name="NewPath">The path the file currently sits at (its renamed location).</param>
+    /// <param name="NewPath">The path the file currently sits at; empty when it is no longer in the library.</param>
     /// <param name="Reason">A human-readable note for the skip/failure.</param>
     public sealed record UndoFailure(int FileId, string OldPath, string NewPath, string Reason);
 
@@ -84,12 +92,36 @@ public sealed class UndoReplayer
         var failed = new List<UndoFailure>();
         var skipped = new List<UndoFailure>();
 
+        // One load per ENTITY, not per row: a multi-file item costs one query, not one per file.
+        var currentPaths = new Dictionary<int, string>();
+        var loadedEntities = new HashSet<int>();
+
         foreach (var entry in batch.Entries)
         {
             ct.ThrowIfCancellationRequested();
+            string currentPath = "";
             try
             {
-                var outcome = await RevertEntryAsync(batch.Kind, entry, ct);
+                if (loadedEntities.Add(entry.EntityId)
+                    && await _port.LoadEntityAsync(batch.Kind, entry.EntityId, ct) is { } entity)
+                {
+                    foreach (var file in entity.Files)
+                    {
+                        currentPaths[file.FileId] = JoinPath(file.ParentFolderPath, file.Basename);
+                    }
+                }
+
+                if (!currentPaths.TryGetValue(entry.FileId, out var resolved))
+                {
+                    // The row outlived its file (deleted since the rename): nothing to move back, and no
+                    // current path to name. Reported rather than guessed at from the logged old location.
+                    skipped.Add(new UndoFailure(
+                        entry.FileId, entry.OldPath, "", "skipped: the renamed file is no longer in the library"));
+                    continue;
+                }
+
+                currentPath = resolved;
+                var outcome = await RevertEntryAsync(batch.Kind, entry, currentPath, ct);
                 switch (outcome)
                 {
                     case RevertOutcome.Undone: undone++; break;
@@ -97,120 +129,49 @@ public sealed class UndoReplayer
                     case RevertOutcome.Failed fail: failed.Add(fail.Failure); break;
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Any unexpected throw outside the save path is reported as a failure for that entry
-                // only — the batch continues (each entry is independent).
-                failed.Add(new UndoFailure(entry.FileId, entry.OldPath, entry.NewPath, $"unexpected error: {ex.Message}"));
+                // A cancellation (host shutdown) is cancellation, not a per-entry failure — the filter
+                // excludes it. Any other unexpected throw outside the save path is reported as a failure
+                // for that entry only — the batch continues (each entry is independent).
+                failed.Add(new UndoFailure(entry.FileId, entry.OldPath, currentPath, $"unexpected error: {ex.Message}"));
             }
         }
 
         return new UndoRunResult(undone, failed, skipped);
     }
 
-    private async Task<RevertOutcome> RevertEntryAsync(RenamerFileKind kind, RevertLog.RevertEntry entry, CancellationToken ct)
+    /// <summary>Joins a parent folder path and a basename into the forward-slash full path.</summary>
+    private static string JoinPath(string folderPath, string basename) =>
+        NormalizeSlash(folderPath).TrimEnd('/') + "/" + basename;
+
+    private async Task<RevertOutcome> RevertEntryAsync(
+        RenamerFileKind kind, RevertLog.RevertEntry entry, string currentPath, CancellationToken ct)
     {
-        // (1) Resolve the OLD directory + OLD basename.
+        // (1) Resolve the OLD directory + OLD basename, then validate + resolve the restore target
+        //     (allowlist re-gate → dir-missing → old-slot collision). A rejected target is a reported
+        //     skip that never advances to a folder-row create or a disk write.
         string oldDir = DirOf(entry.OldPath);
         string oldBasename = BasenameOf(entry.OldPath);
 
-        // (1a) RESTORE-TARGET RE-GATE — PRE-MUTATION. An undo is a WRITE back to the recorded OLD
-        //      location, so a RELOCATING undo must pass the SAME write-boundary gate the forward move used
-        //      (the allowlist guards in RenamerExecutor), in case the allowlist changed or the OLD dir is now a
-        //      junction-to-elsewhere. CanonicalPathGuard.Check disk-resolves the real on-disk target
-        //      (junction/symlink/8.3/UNC-aware, fail-closed) and rejects a target outside every allowed
-        //      root.
-        //
-        //      RE-GATE ONLY RELOCATIONS — the undo-direction analog of the forward executor's
-        //      `isMove && AllowedRoots.Count > 0` predicate. The forward path
-        //      NEVER gates an in-place renamer (it has no `isMove`), and `AllowedRoots` is an opt-in
-        //      WIDENING governing relocation DESTINATIONS — not the library's existing folders. An
-        //      in-place restore (OLD and NEW share the same directory) writes back into the directory the
-        //      file already legitimately occupies — no write boundary is crossed — so gating it would make
-        //      ordinary in-place renames permanently non-undoable the moment any AllowedRoot is set. We
-        //      therefore gate ONLY when the restore changes directory (DirOf(OLD) != DirOf(NEW)), using the
-        //      same OS-aware PathsEqual comparison the rest of this class uses.
-        //
-        //      With an EMPTY allowlist this block is skipped entirely, so a same-folder undo stays
-        //      byte-identical to the no-allowlist behavior. Use CanonicalPathGuard.Check ONLY; it reuses
-        //      PathConfinement.IsUnderRoot internally — do NOT separately call PathConfinement.Resolve. A
-        //      reject is a reported skip, never a clobber. Placed BEFORE GetOrCreateFolderIdAsync (a DB
-        //      folder-row create) and before any disk write so a rejected target never materializes a
-        //      folder row nor touches disk (the ordering that keeps a rejected target from leaving a trace).
-        //
-        //      Gate-target granularity: we gate `oldDir` (the FOLDER), matching the forward
-        //      executor's primary folder gate at (1b) (CanonicalPathGuard.Check(item.TargetFolderPath…)).
-        //      The OLD basename adds no escape — the collision re-check below proves the OLD leaf does not
-        //      currently exist, so the leaf cannot be a junction-to-elsewhere, and File.Move follows the
-        //      directory junction to the exact place the guard resolved. The folder is the correct
-        //      granularity here.
-        bool isRelocation = !PathsEqual(oldDir, DirOf(entry.NewPath));
-        if (isRelocation && _allowedRoots.Count > 0)
+        var (skip, oldFolderId) = await PrepareRestoreTargetAsync(entry, currentPath, oldDir, oldBasename, ct);
+        if (skip is not null)
         {
-            var guard = CanonicalPathGuard.Check(oldDir, _allowedRoots);
-            if (!guard.Accepted)
-            {
-                return new RevertOutcome.Skipped(new UndoFailure(
-                    entry.FileId, entry.OldPath, entry.NewPath,
-                    $"skipped: restore target rejected by allowlist: {guard.Reason}"));
-            }
+            return skip;
         }
 
-        // (1b) DIR-MISSING / OFFLINE-OLD-DRIVE classify point — also PRE-MUTATION. If the resolved
-        //      OLD directory no longer exists, report a skip and do NOT recreate it: recreating could
-        //      restore the file to a wrong/relocated place when the original drive is offline or the
-        //      folder was deleted, violating the never-lose-track-of-a-file core value. Directory.Exists
-        //      returns false (never throws) on an unmapped/offline drive, so this cleanly classifies the
-        //      offline-OLD-drive case too (no catch(DriveNotFoundException) is needed). Placed before the
-        //      folder-row create and the disk write so a missing target never advances.
-        if (!Directory.Exists(ToNative(oldDir)))
-        {
-            return new RevertOutcome.Skipped(new UndoFailure(
-                entry.FileId, entry.OldPath, entry.NewPath, "skipped: original directory no longer exists"));
-        }
-
-        int oldFolderId = await _port.GetOrCreateFolderIdAsync(oldDir, ct);
-
-        // (2) Collision re-check the OLD slot is free on BOTH disk and DB; if occupied → skip (no clobber).
-        if (System.IO.File.Exists(ToNative(entry.OldPath))
-            || await _port.CollisionExistsAsync(oldFolderId, oldBasename, entry.FileId, ct))
-        {
-            return new RevertOutcome.Skipped(new UndoFailure(
-                entry.FileId, entry.OldPath, entry.NewPath, "skipped: old location is occupied on disk or in the database"));
-        }
-
-        // (3) Reverse disk move NEW→OLD. VOLUME BRANCH, mirroring the forward executor's move branch
-        //     REVERSED (src = NEW, dst = OLD): a same-volume reverse takes the atomic synchronous
-        //     2-arg never-overwrite DiskMover.Move fast path; a
-        //     cross-volume reverse takes the verified copy-back → verify(size+hash) → promote →
-        //     delete-source-last CrossVolumeMover.MoveAsync. Both return the identical
-        //     MoveResult shape, so a non-moved result (locked / target-exists / verify-failed /
-        //     disk-full / offline) flows into the SAME skip+report below — never a clobber. Captions
-        //     are out of undo scope, so the cross reverse passes sidecars: null. The matching mover is
-        //     also used for the save-throw rollback at (4)/(5) below.
-        string nativeNew = ToNative(entry.NewPath);
+        // (2) Reverse disk move NEW→OLD on the matching volume tier; a non-moved result (locked /
+        //     target-exists / verify-failed / disk-full / offline) is a skip+report, never a clobber.
+        string nativeNew = ToNative(currentPath);
         string nativeOld = ToNative(entry.OldPath);
-        bool sameVolume = VolumeClassifier.SameVolume(entry.NewPath, entry.OldPath);
+        bool sameVolume = VolumeClassifier.SameVolume(currentPath, entry.OldPath);
 
-        bool moved;
-        string? moveReason;
-        if (sameVolume)
-        {
-            var move = _disk.Move(nativeNew, nativeOld);
-            moved = move.Moved;
-            moveReason = move.Reason;
-        }
-        else
-        {
-            var move = await _cross.MoveAsync(nativeNew, nativeOld, sidecars: null, ct);
-            moved = move.Moved;
-            moveReason = move.Reason;
-        }
+        var (moved, moveReason) = await ReverseMoveOnDisk(sameVolume, nativeNew, nativeOld, ct);
 
         if (!moved)
         {
             return new RevertOutcome.Skipped(new UndoFailure(
-                entry.FileId, entry.OldPath, entry.NewPath, moveReason ?? "skipped: reverse move did not happen"));
+                entry.FileId, entry.OldPath, currentPath, moveReason ?? "skipped: reverse move did not happen"));
         }
 
         // (4) Reverse DB save: set Basename back (and the parent folder for the in-place/move case).
@@ -233,14 +194,12 @@ public sealed class UndoReplayer
                 // warnings so an INCOMPLETE rollback (the NEW slot got re-occupied, a cross copy-back
                 // failed verify, a target is locked) is visible rather than falsely claiming "rolled
                 // back" — mirroring the forward executor's rollback reporting.
-                IReadOnlyList<string> rbWarnings = sameVolume
-                    ? _disk.Rollback(nativeNew, nativeOld, [])
-                    : await _cross.RollbackAsync(nativeNew, nativeOld, [], ct);
+                IReadOnlyList<string> rbWarnings = await RollbackReverseMove(sameVolume, nativeNew, nativeOld, ct);
                 string note = rbWarnings.Count > 0
                     ? $"recomputed Path '{savedFile.RecomputedPath}' != restored path '{expected}'; rollback INCOMPLETE: {string.Join("; ", rbWarnings)}"
                     : $"recomputed Path '{savedFile.RecomputedPath}' != restored path '{expected}'; rolled back";
                 return new RevertOutcome.Failed(new UndoFailure(
-                    entry.FileId, entry.OldPath, entry.NewPath, note));
+                    entry.FileId, entry.OldPath, currentPath, note));
             }
 
             // (6) Success: publish the EXACT forward-equivalent event — kind from the batch header,
@@ -257,16 +216,109 @@ public sealed class UndoReplayer
             // location — on the SAME volume tier the reverse move used (a verified cross copy-back when
             // the reverse crossed volumes). Surface the rollback warnings so an INCOMPLETE rollback is
             // visible rather than falsely claiming a rollback that did not happen.
-            IReadOnlyList<string> rbWarnings = sameVolume
-                ? _disk.Rollback(nativeNew, nativeOld, [])
-                : await _cross.RollbackAsync(nativeNew, nativeOld, [], ct);
+            // Rollback token is None on the cancel path: the ambient ct is already cancelled.
+            var rollbackCt = ex is OperationCanceledException ? CancellationToken.None : ct;
+            IReadOnlyList<string> rbWarnings = await RollbackReverseMove(sameVolume, nativeNew, nativeOld, rollbackCt);
+
+            if (ex is OperationCanceledException)
+            {
+                throw;
+            }
+
             string note = rbWarnings.Count > 0
                 ? $"DB save failed; rollback INCOMPLETE: {ex.Message}; rollback warnings: {string.Join("; ", rbWarnings)}"
                 : $"DB save failed; file rolled back: {ex.Message}";
             return new RevertOutcome.Failed(new UndoFailure(
-                entry.FileId, entry.OldPath, entry.NewPath, note));
+                entry.FileId, entry.OldPath, currentPath, note));
         }
     }
+
+    // ── restore-spine sub-steps (extracted from RevertEntryAsync; control flow unchanged) ──────
+
+    /// <summary>
+    /// Validates and resolves the restore target BEFORE any mutation: the allowlist re-gate, the
+    /// dir-missing guard, then the old-slot collision re-check — returning the skip that halts the
+    /// entry, or the resolved OLD folder id when the target is clear to write.
+    /// </summary>
+    private async Task<(RevertOutcome.Skipped? Skip, int OldFolderId)> PrepareRestoreTargetAsync(
+        RevertLog.RevertEntry entry, string currentPath, string oldDir, string oldBasename,
+        CancellationToken ct)
+    {
+        // RESTORE-TARGET RE-GATE — an undo is a WRITE back to the recorded OLD location, so a RELOCATING
+        // undo must pass the SAME write-boundary gate the forward move used (in case the allowlist changed
+        // or the OLD dir is now a junction-to-elsewhere). RE-GATE ONLY RELOCATIONS — the undo-direction
+        // analog of the forward executor's `isMove && AllowedRoots.Count > 0`: an in-place restore (OLD and
+        // NEW share a directory) crosses no write boundary, so gating it would make ordinary in-place
+        // renames permanently non-undoable the moment any AllowedRoot is set. With an EMPTY allowlist this
+        // is skipped entirely (byte-identical to no-allowlist). Gate `oldDir` (the FOLDER), matching the
+        // forward executor's primary folder gate; the collision re-check below proves the OLD leaf does not
+        // currently exist, so the leaf cannot be a junction-to-elsewhere. Placed before the folder-row
+        // create and any disk write so a rejected target leaves no trace.
+        bool isRelocation = !PathsEqual(oldDir, DirOf(currentPath));
+        if (isRelocation && _allowedRoots.Count > 0)
+        {
+            var guard = CanonicalPathGuard.Check(oldDir, _allowedRoots);
+            if (!guard.Accepted)
+            {
+                return (new RevertOutcome.Skipped(new UndoFailure(
+                    entry.FileId, entry.OldPath, currentPath,
+                    $"skipped: restore target rejected by allowlist: {guard.Reason}")), 0);
+            }
+        }
+
+        // DIR-MISSING / OFFLINE-OLD-DRIVE — do NOT recreate a missing OLD directory: recreating could
+        // restore the file to a wrong place when the original drive is offline or the folder was deleted,
+        // violating never-lose-track-of-a-file. Directory.Exists returns false (never throws) on an
+        // unmapped/offline drive, so this classifies the offline-drive case too.
+        if (!Directory.Exists(ToNative(oldDir)))
+        {
+            return (new RevertOutcome.Skipped(new UndoFailure(
+                entry.FileId, entry.OldPath, currentPath, "skipped: original directory no longer exists")), 0);
+        }
+
+        int oldFolderId = await _port.GetOrCreateFolderIdAsync(oldDir, ct);
+
+        // Collision re-check the OLD slot is free on BOTH disk and DB; if occupied → skip (no clobber).
+        if (System.IO.File.Exists(ToNative(entry.OldPath))
+            || await _port.CollisionExistsAsync(oldFolderId, oldBasename, entry.FileId, ct))
+        {
+            return (new RevertOutcome.Skipped(new UndoFailure(
+                entry.FileId, entry.OldPath, currentPath, "skipped: old location is occupied on disk or in the database")), 0);
+        }
+
+        return (null, oldFolderId);
+    }
+
+    /// <summary>
+    /// The reverse disk move NEW→OLD on the matching volume tier: a same-volume reverse takes the atomic
+    /// 2-arg never-overwrite <see cref="DiskMover.Move"/>; a cross-volume reverse takes the verified
+    /// copy-back→verify→promote→delete-source-last <see cref="CrossVolumeMover.MoveAsync"/>. Captions are
+    /// out of undo scope (the cross reverse passes no sidecars).
+    /// </summary>
+    private async Task<(bool moved, string? reason)> ReverseMoveOnDisk(
+        bool sameVolume, string nativeNew, string nativeOld, CancellationToken ct)
+    {
+        if (sameVolume)
+        {
+            var move = _disk.Move(nativeNew, nativeOld);
+            return (move.Moved, move.Reason);
+        }
+
+        var cross = await _cross.MoveAsync(nativeNew, nativeOld, sidecars: null, ct);
+        return (cross.Moved, cross.Reason);
+    }
+
+    /// <summary>
+    /// Rolls a completed reverse move back to NEW through the SAME mover tier that performed it. Both
+    /// movers' <c>Rollback</c>/<c>RollbackAsync(oldFull, newFull)</c> internally move newFull→oldFull;
+    /// passing <paramref name="nativeNew"/>, <paramref name="nativeOld"/> therefore moves the file
+    /// OLD→NEW — back to the renamed location. A non-empty return means an INCOMPLETE rollback to surface.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> RollbackReverseMove(
+        bool sameVolume, string nativeNew, string nativeOld, CancellationToken ct)
+        => sameVolume
+            ? _disk.Rollback(nativeNew, nativeOld, [])
+            : await _cross.RollbackAsync(nativeNew, nativeOld, [], ct);
 
     // ── per-entry outcome (a tiny tagged union) ───────────────────────────────
 
@@ -298,27 +350,8 @@ public sealed class UndoReplayer
 
     // ── path/name helpers (pure string math — mirror RenamerExecutor) ──────────
 
-    private static string DirOf(string fullPath)
-    {
-        string p = NormalizeSlash(fullPath);
-        int slash = p.LastIndexOf('/');
-        return slash >= 0 ? p[..slash] : "";
-    }
 
-    private static string BasenameOf(string fullPath)
-    {
-        string p = NormalizeSlash(fullPath);
-        int slash = p.LastIndexOf('/');
-        return slash >= 0 ? p[(slash + 1)..] : p;
-    }
 
-    private static string NormalizeSlash(string p) => p.Replace('\\', '/');
 
-    private static string ToNative(string p) => p.Replace('/', Path.DirectorySeparatorChar);
 
-    private static bool PathsEqual(string? a, string b)
-    {
-        var cmp = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        return string.Equals(NormalizeSlash(a ?? ""), NormalizeSlash(b), cmp);
-    }
 }

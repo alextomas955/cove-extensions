@@ -1,3 +1,8 @@
+---
+slug: architecture
+sidebar_position: 5
+---
+
 # Architecture
 
 Rename turns an option change into a file moved on disk and a matching database update. This page
@@ -28,6 +33,14 @@ Rename is a Cove extension in two halves:
 
 A **preview** runs Options → Engine → Planner and stops — zero mutation. A **rename** runs the whole
 chain through Execution. **Undo** replays the Execution layer's revert log in reverse.
+
+The revert log is bounded by design rather than by circumstance: it holds one batch, of at most 5,000
+files, and a row records only what reversal needs — the entity, the file, and the path it came from.
+The file's current path is not stored, because Cove's database is authoritative for it. A batch over
+the cap is not recorded at all and the preview says so before the rename runs, so a rename is either
+fully reversible or plainly not — never half-restorable. A journal written before this shape is
+discarded once, on the first load that finds a stale schema stamp — a separate few-byte key, so the
+oversized value goes without ever being read.
 
 ## Layer by layer
 
@@ -70,6 +83,17 @@ disk or database mutation.
 - `IRenamerDataPort.cs` — the abstraction over Cove's entities, so the planner doesn't depend on the
   concrete DbContext or entity types directly (which keeps it testable).
 - `MetadataProjector.cs` — projects a Cove media item into the token set the engine consumes.
+- `ScanAggregator.cs` — folds a whole-library scan into per-kind counters as it goes, so the job never
+  holds a per-file list and what it stores is a fixed size. The one part that would otherwise grow with
+  the library's shape — the itemised list of volume pairs a move spans — is capped; the cross-volume
+  count and byte total it summarises stay exact, and the stored value says when the list was topped.
+- `ScanRowPager.cs` / `ScanBucket.cs` — the dry run's rows are not stored at all. A page is planned on
+  demand through the same `PlanLoadedEntity` the scan job uses, walking the same ascending `(kind,
+  entity id)` order, so a page computes exactly what the full pass would have. It is the purity of
+  planning — one item's plan depends on no other item in the run — that makes this equivalence hold
+  rather than a second code path written to agree. A request also has a ceiling on how many items it
+  will examine, so a narrow filter cannot turn one page into a full-library pass; when it stops there,
+  it says so, because "I stopped looking" and "there is nothing" are different answers.
 
 ### Execution — `src/Renamer/Execution/`
 
@@ -82,8 +106,10 @@ the two never drift.
 - `DiskMover.cs` — the actual filesystem move, including sidecar files (captions/subtitles sharing
   the stem) and collision-safe behavior.
 - `CoveRenamerDataPort.cs` — the concrete `IRenamerDataPort` backed by Cove's DbContext.
-- `RevertLog.cs` — the append-only batch log that makes undo possible.
-- `UndoReplayer.cs` — reverse-replays the most recent batch from the revert log.
+- `RevertLog.cs` — the bounded single-batch log that makes undo possible: one batch, a hard row cap,
+  and a refusal path that journals nothing when a batch exceeds it.
+- `UndoReplayer.cs` — reverse-replays the most recent batch from the revert log, reading each file's
+  current location from the database rather than from the log.
 
 ### Api — `src/Renamer/Renamer.Api.cs` (+ `src/Renamer/Api/`)
 
@@ -97,6 +123,11 @@ Minimal-API endpoints the frontend calls, mounted under
   powers the live preview without touching the database or disk.
 - `POST /undo` — reverse-replays the last batch.
 - `GET /last-batch` — a paths-free summary of the most recent batch for the undo panel.
+- `POST /scan-library` — enqueues the whole-library dry run.
+- `GET /last-scan` — the last dry run's summary: per-status counts and the move summary, merged down
+  to the kinds the caller may read.
+- `POST /scan-rows` — one page of that dry run's rows, planned on demand, with an optional path search
+  and status-bucket filter.
 
 Every endpoint re-checks the caller's permission **in the handler** (`videos.read` to preview,
 `videos.write` to rename or undo) — Cove's attribute-based permission filter is inert on minimal-API
@@ -115,12 +146,22 @@ A Vite library build that Cove loads as `index.mjs`. Its home is a dedicated **S
 - `index.ts` — the bundle entry that registers the components and the bulk-action handler.
 - `RenamePage.tsx` / `RenameSettingsPanel.tsx` — the settings tab and its body (the controls + the
   debounced live preview that calls `/preview-sample`).
-- `DryRunModal.tsx` — the full-screen dry-run modal: scans the whole library, shows the old→new
-  table, and runs `/rename` after confirmation. `dialog.tsx` is the shared modal shell it and the
-  undo-confirm dialog use.
+- `DryRunModal.tsx` — the full-screen dry-run modal: scans the whole library, reads the scan's
+  summary for its counts, walks its rows a page at a time through `useScanRows.ts` /
+  `scanRowsStore.ts`, and runs `/rename` after confirmation. `Dialog.tsx` is the shared modal shell it
+  and the undo-confirm dialog use.
+
+  The table has no column sorts. A sort needs the whole result set, and the whole result set is
+  exactly what neither the store nor the browser holds any more; moving the sort to the server would
+  not help, because rows do not exist until they are planned, so ordering by new name or destination
+  would mean planning the entire library to answer one page. The one order that is free is the
+  cursor's own — kind, then entity id — so that is the order rows are served in, and the table states
+  it rather than offering a header that could not act. The two controls that *can* be answered cheaply
+  stay: the status filter, answered by the summary's counts, and the path search, answered by the page
+  query using the same match rule the browser used to apply.
 - `renameSelected.ts` — the bulk-action handler: preview → confirm → `/rename`, cancellable.
 - `UndoSection.tsx` — the undo control backed by `/undo` and `/last-batch`.
-- `entityPicker.tsx` / `studioMap.tsx` — the searchable studio/tag picker and the per-studio
+- `EntityPicker.tsx` / `StudioMap.tsx` — the searchable studio/tag picker and the per-studio
   destination-map editor.
 - `PreviewCard.tsx`, `WarningBadge.tsx`, `TokenLegend.tsx`, `templateValidation.ts`, `presets.ts`,
   `options.ts`, `preview.ts`, `primitives.tsx` — supporting UI, types, and the inline token
@@ -138,8 +179,21 @@ These are the guarantees the design exists to protect. Preserve them when you ch
   collisions, and gives up cleanly (skip-collision) rather than overwrite.
 - **Never force a lock.** If another process holds a file, the rename skips and reports it — it never
   force-kills the locking process.
+- **A move between volumes is copied, verified, then deleted.** There is no atomic rename across
+  volumes, so a cross-volume move copies the file, verifies the copy (size plus an XxHash3 content
+  hash), and only then removes the source. This is also what arms the free-space check and the
+  heavy-batch confirmation, so which moves count as cross-volume decides whether those run at all.
+  A volume is identified by its drive root on Windows and by its **mount point** on Linux and macOS —
+  two different mounts are two volumes even though they share the `/` root.
 - **Preview before disk.** Every rename is previewable as an old→new diff first, and the preview path
   performs zero mutation.
+- **Nothing scales with the library.** Libraries reach millions of files, so no stored value, no
+  in-memory accumulator and no response may hold one entry per file. The whole-library dry run stores
+  only counts and the move summary — a size fixed by the number of media kinds and statuses — and
+  serves its rows a page at a time. Capping the rows instead would be worse than the failure it
+  replaces: a bricked settings page is visible, a silently shortened dry run is not. Paging is safe
+  here because planning is pure per item: a page computes exactly what a full pass would have, which is
+  asserted by comparing a paged walk against a single full plan at several page sizes.
 - **Options persist and survive upgrades.** Configuration lives in Cove's per-extension store, not in
   a local file.
 - **No host assemblies shipped.** The extension must never bundle host-provided assemblies

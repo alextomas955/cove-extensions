@@ -1,9 +1,7 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Cove.Core.Auth;
 using Cove.Core.Entities;
 using Cove.Core.Interfaces;
-using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Cove.Sdk;
 using Microsoft.AspNetCore.Builder;
@@ -12,12 +10,14 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Api;
+using Renamer.Contracts;
 using Renamer.Engine;
 using Renamer.Execution;
 using Renamer.Jobs;
 using Renamer.Options;
 using Renamer.Planner;
 using static Cove.Extensions.Shared.MinimalApiPermissions;
+using static Renamer.Contracts.PreviewContracts;
 
 namespace Renamer;
 
@@ -45,10 +45,17 @@ public sealed partial class Renamer
     private const string ListPerformersRoute = RouteBase + "/list-performers";
     private const string ScanLibraryRoute = RouteBase + "/scan-library";
     private const string LastScanRoute = RouteBase + "/last-scan";
+    private const string ScanRowsRoute = RouteBase + "/scan-rows";
     private const string RenamerLibraryRoute = RouteBase + "/renamer-library";
 
-    /// <summary>The fixed <see cref="IExtensionStore"/> key the whole-library scan's persisted result lives under.</summary>
-    private const string LastScanResultKey = "last-scan-result";
+    /// <summary>
+    /// The key a pre-0.2.1 scan wrote one wire row PER FILE to. Retained only so
+    /// <see cref="InitializeAsync"/> can delete it; nothing reads it.
+    /// </summary>
+    internal const string LastScanResultKey = "last-scan-result";
+
+    /// <summary>The fixed <see cref="IExtensionStore"/> key the whole-library scan's bounded aggregate lives under.</summary>
+    internal const string LastScanSummaryKey = "last-scan-summary";
 
     // Upper bound on how many ids a single preview/renamer request may carry. Preview runs the planner
     // (DB hits) per id synchronously on the request thread, and renamer fans the same ids out into one
@@ -185,6 +192,10 @@ public sealed partial class Renamer
         endpoints.MapGet(LastScanRoute,
             (ICurrentPrincipalAccessor principal, CancellationToken ct) => ScanLibraryResultAsync(principal, ct));
 
+        endpoints.MapPost(ScanRowsRoute,
+            (ScanRowsRequest? body, ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => ScanRowsAsync(body, principal, ct));
+
         endpoints.MapPost(RenamerLibraryRoute,
             (ICurrentPrincipalAccessor principal, IJobService jobs) => RenamerLibraryEnqueue(principal, jobs));
     }
@@ -260,16 +271,11 @@ public sealed partial class Renamer
         // startup (ConfigureHttpJsonOptions), so we serialize here. (RenamerOptions.JsonOptions is
         // PascalCase + tolerant-read for the options round-trip — wrong casing for a response — hence
         // this dedicated instance.) The response is { items, summary }; the per-item array keeps its
-        // exact camelCase string-enum shape because both halves ride this SAME options instance.
-        return Results.Json(new PreviewResponse(items, summary), PreviewResponseJsonOptions);
+        // exact camelCase string-enum shape because both halves ride this SAME options instance. The
+        // domain plan items are projected onto PreviewItemView (the wire type) at this boundary.
+        return Results.Json(
+            new PreviewResponse([.. items.Select(PreviewItemView.From)], summary), PreviewResponseJsonOptions);
     }
-
-    /// <summary>
-    /// Response-serialization options for <see cref="PreviewRoute"/>: camelCase to match the host's
-    /// wire convention (and the UI's <c>PreviewItem</c> field names) plus a
-    /// <see cref="JsonStringEnumConverter"/> so <c>status</c> serializes as the string the UI matches.
-    /// </summary>
-    private static readonly JsonSerializerOptions PreviewResponseJsonOptions = CoveJsonOptions.WebWithEnumStrings();
 
     /// <summary>
     /// Enqueues the batch-renamer job: encodes the request into the job params and hands the host
@@ -408,29 +414,29 @@ public sealed partial class Renamer
     /// the batch rows that are NOT in the failed/skipped buckets (the run result only returns the
     /// restored COUNT, so they are derived here by difference).
     /// <para>
-    /// The difference is keyed on the full ROW IDENTITY <c>(FileId, OldPath, NewPath)</c> — the
-    /// same triple the <see cref="UndoReplayer.UndoFailure"/> buckets carry — NOT on FileId alone. A
+    /// The difference is keyed on the ROW IDENTITY <c>(FileId, OldPath)</c> — NOT on FileId alone. A
     /// single batch can legitimately contain two rows with the same FileId (a file renamed twice within
     /// one run, or a duplicated row the tolerant parser admits); keying on FileId alone would drop BOTH
     /// such rows from the restored log when only one was a problem (under-reporting restores), or
-    /// mislabel a failed duplicate as restored. The row triple is the row's unique identity within the
-    /// batch, so each row is bucketed exactly once and the audit log can never misattribute.
+    /// mislabel a failed duplicate as restored. Two rows for one file necessarily differ in their old
+    /// path — the second row's old path is where the first row's rename left it — so the pair is the
+    /// row's unique identity within the batch and each row is bucketed exactly once.
     /// </para>
     /// </summary>
     private void LogUndo(string runId, RevertLog.RevertBatch batch, UndoReplayer.UndoRunResult run)
     {
-        var problemRows = run.Failed.Select(f => (f.FileId, f.OldPath, f.NewPath))
-            .Concat(run.Skipped.Select(s => (s.FileId, s.OldPath, s.NewPath)))
+        var problemRows = run.Failed.Select(f => (f.FileId, f.OldPath))
+            .Concat(run.Skipped.Select(s => (s.FileId, s.OldPath)))
             .ToHashSet();
 
         foreach (var entry in batch.Entries)
         {
-            if (problemRows.Contains((entry.FileId, entry.OldPath, entry.NewPath)))
+            if (problemRows.Contains((entry.FileId, entry.OldPath)))
             {
                 continue;
             }
 
-            LogUndoRestored(runId, batch.Kind, entry.EntityId, entry.NewPath, entry.OldPath);
+            LogUndoRestored(runId, batch.Kind, entry.EntityId, entry.OldPath);
         }
 
         foreach (var s in run.Skipped)
@@ -583,8 +589,8 @@ public sealed partial class Renamer
     /// Coarse-gates on ANY renamer-read permission — 403 BEFORE any enqueue — then captures
     /// the principal's held read kinds into the job closure so the job body can apply the SAME per-kind
     /// skip a partial-permission caller would see from <see cref="PreviewAsync"/>, without re-resolving
-    /// <see cref="ICurrentPrincipalAccessor"/> from inside the detached job. The scan result is persisted
-    /// under the FIXED <see cref="LastScanResultKey"/> (mirroring how <c>RevertLog</c> always targets
+    /// <see cref="ICurrentPrincipalAccessor"/> from inside the detached job. The scan summary is persisted
+    /// under the FIXED <see cref="LastScanSummaryKey"/> (mirroring how <c>RevertLog</c> always targets
     /// "the last batch") rather than a per-jobId key, since the id <c>Enqueue</c> mints is not available
     /// to the job body before <c>Enqueue</c> returns.
     /// </summary>
@@ -637,18 +643,24 @@ public sealed partial class Renamer
     }
 
     /// <summary>
-    /// Reads back the whole-library scan's persisted result. Re-checks ANY renamer-read permission
-    /// (the same coarse gate as enqueue) and returns the stored <see cref="ScanItem"/>[] from the LAST
+    /// Reads back the whole-library scan's persisted aggregate. Re-checks ANY renamer-read permission
+    /// (the same coarse gate as enqueue) and returns a <see cref="ScanSummaryView"/> for the LAST
     /// completed scan, or 404 when no scan has completed yet (mirrors <see cref="IExtensionStore"/>'s
     /// "absent key" contract — there is no per-jobId tracking, so a 404 also covers "wrong/unknown
     /// jobId", which the caller does not need to distinguish: the frontend only ever asks "is the
     /// scan I started done yet").
     /// <para>
-    /// The stored result is written under a FIXED key by whoever last ran the scan, capturing THEIR
-    /// readable kinds — a higher-permission scan can hold Image/Audio rows a video-only reader may not
-    /// see. So each row is filtered to the kinds the CURRENT caller can read (the same per-kind gate the
-    /// scan job applied at enqueue) BEFORE returning, mirroring <see cref="PreviewAsync"/>'s per-kind
-    /// permission model. A caller who can read every kind the scan covered sees no change.
+    /// The stored aggregate is written under a FIXED key by whoever last ran the scan, capturing THEIR
+    /// readable kinds — a higher-permission scan can hold Image/Audio figures a video-only reader may
+    /// not see. So the merge keeps only the kinds the CURRENT caller can read, mirroring
+    /// <see cref="PreviewAsync"/>'s per-kind permission model. A caller who can read every kind the scan
+    /// covered sees the whole aggregate.
+    /// </para>
+    /// <para>
+    /// A blob that will not parse, or one stamped with an unrecognised
+    /// <see cref="ScanSummary.SchemaVersion"/>, reads as "no scan yet" rather than throwing — the same
+    /// tolerant-read posture <see cref="TryParseOptionsOverride"/> takes, so a shape change from a
+    /// future version costs the user one dry run and not a 500.
     /// </para>
     /// </summary>
     internal async Task<IResult> ScanLibraryResultAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
@@ -658,27 +670,87 @@ public sealed partial class Renamer
             return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
         }
 
-        var json = await Store.GetAsync(LastScanResultKey, ct);
+        var json = await Store.GetAsync(LastScanSummaryKey, ct);
         if (string.IsNullOrEmpty(json))
         {
             return Results.NotFound();
         }
 
-        var items = JsonSerializer.Deserialize<ScanItem[]>(json, PreviewResponseJsonOptions) ?? [];
-        var readable = items
-            .Where(item => principal.Current!.Has(PermissionsFor(item.Kind).Read))
-            .ToArray();
-        return Results.Json(readable, PreviewResponseJsonOptions);
+        ScanSummary? summary;
+        try
+        {
+            summary = JsonSerializer.Deserialize<ScanSummary>(json, PreviewResponseJsonOptions);
+        }
+        catch (JsonException)
+        {
+            return Results.NotFound();
+        }
+
+        if (summary is null || summary.SchemaVersion != ScanSummary.CurrentSchemaVersion)
+        {
+            return Results.NotFound();
+        }
+
+        var readableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
+        return Results.Json(ScanSummaryView.From(summary, readableKinds), PreviewResponseJsonOptions);
     }
 
     /// <summary>
-    /// The whole-library scan job body: for each kind the caller can read, loads every candidate id
-    /// (<see cref="IRenamerDataPort.LoadAllEntityIdsAsync"/>) and runs the SAME planner
-    /// (<c>RenamerPlanner.PlanAsync</c>) <see cref="PreviewAsync"/> already uses, accumulating a
-    /// kind-tagged <see cref="ScanItem"/> per planned file. ZERO disk/DB mutation — no <c>SaveAsync</c>,
-    /// no <c>File.Move</c>, exactly as read-only as <see cref="PreviewAsync"/>. The accumulated result is
-    /// persisted under <see cref="LastScanResultKey"/> for <see cref="ScanLibraryResultAsync"/> to read
-    /// back, since <c>JobInfo</c> has no generic result field.
+    /// Serves one page of the whole-library dry run's rows, planned on demand through the same planner
+    /// the scan job uses. Enforces ANY renamer-read permission in-handler (the host's
+    /// <c>[RequiresPermission]</c> filter is inert on minimal-API routes, so this gate is the only one)
+    /// and walks only the kinds the caller may read.
+    /// </summary>
+    /// <remarks>
+    /// This is a LIVE preview, not a snapshot read: the page is planned with the options in the request
+    /// (falling back to the saved options), so a caller sending the same blob it sent to
+    /// <c>/scan-library</c> sees rows consistent with that scan without the scan having to store them.
+    /// </remarks>
+    /// <param name="body">Cursor, page size and filters; null means "the first page, unfiltered".</param>
+    /// <param name="principal">The calling principal, gated and used to pick the readable kinds.</param>
+    /// <param name="ct">Cancellation token.</param>
+    internal async Task<IResult> ScanRowsAsync(
+        ScanRowsRequest? body, ICurrentPrincipalAccessor principal, CancellationToken ct)
+    {
+        if (!HasAnyReadPermission(principal))
+        {
+            return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
+        }
+
+        if (!ScanBucket.TryParse(body?.Bucket, out var bucket))
+        {
+            return Results.BadRequest(new { code = "UNSUPPORTED_BUCKET" });
+        }
+
+        ScanCursor? cursor = null;
+        if (!string.IsNullOrWhiteSpace(body?.Kind))
+        {
+            if (!TryParseKind(body.Kind, out var cursorKind))
+            {
+                return Results.BadRequest(new { code = "UNSUPPORTED_ENTITY_TYPE" });
+            }
+
+            cursor = new ScanCursor(cursorKind, Math.Max(body.AfterEntityId ?? 0, 0));
+        }
+
+        var options = TryParseOptionsOverride(body?.Options) ?? await new OptionsStore(Store).LoadAsync(ct);
+        var lookups = BuildLookups(options);
+        var readableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
+
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<DbContext>();
+        var port = new CoveRenamerDataPort(db);
+        var pager = new ScanRowPager(new RenamerPlanner(port), port);
+
+        var page = await pager.PageAsync(
+            readableKinds, cursor, body?.Take ?? 0, body?.Query, bucket, options, lookups, ct);
+
+        return Results.Json(page, PreviewResponseJsonOptions);
+    }
+
+    /// <summary>
+    /// The whole-library scan job body: resolves the options, opens a scope for a live data port, and
+    /// runs <see cref="RunScanCoreAsync"/> over it.
     /// </summary>
     /// <param name="readableKinds">
     /// The kinds the enqueuing principal held read permission for, captured at enqueue time — the job
@@ -699,13 +771,40 @@ public sealed partial class Renamer
         // A dry run previews the caller's CURRENT (possibly unsaved) options when they were sent;
         // otherwise it scans the saved options — the original behavior.
         var options = overrideOptions ?? await new OptionsStore(Store).LoadAsync(ct);
-        var lookups = BuildLookups(options);
-        var allItems = new List<ScanItem>();
 
         await using var scope = ScopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-        var port = new CoveRenamerDataPort(db);
+        await RunScanCoreAsync(new CoveRenamerDataPort(db), readableKinds, options, progress, ct);
+    }
+
+    /// <summary>
+    /// The scan itself: for each readable kind, plans every entity through the SAME planner
+    /// <see cref="PreviewAsync"/> uses and folds each plan into a <see cref="ScanAggregator"/>, then
+    /// persists that bounded aggregate under <see cref="LastScanSummaryKey"/> in one write. ZERO
+    /// disk/DB mutation — no <c>SaveAsync</c>, no <c>File.Move</c>.
+    /// </summary>
+    /// <remarks>
+    /// Persists per-kind counts and blast radius, never the rows: a per-file collection here is
+    /// O(library) in both the managed heap and the stored value, and one oversized stored value makes
+    /// Cove's bulk extension-data read fail for every key this extension owns. The rows are served on
+    /// demand instead, by the <c>/scan-rows</c> page query, through this same planner.
+    /// <para>
+    /// The port is a parameter rather than resolved here so the boundedness this method exists to
+    /// guarantee can be proven over a fake port, with no live database.
+    /// </para>
+    /// </remarks>
+    /// <param name="port">The read seam the scan plans through.</param>
+    /// <param name="readableKinds">The kinds to scan, in the order they are given.</param>
+    /// <param name="options">The options to plan with (saved or the caller's unsaved override).</param>
+    /// <param name="progress">The job-progress sink reported a final <c>1.0</c> on completion.</param>
+    /// <param name="ct">Cancellation token; a genuine cancellation aborts the scan.</param>
+    internal async Task RunScanCoreAsync(
+        IRenamerDataPort port, IReadOnlyList<RenamerFileKind> readableKinds, RenamerOptions options,
+        Cove.Plugins.IJobProgress progress, CancellationToken ct)
+    {
+        var lookups = BuildLookups(options);
         var planner = new RenamerPlanner(port);
+        var aggregator = new ScanAggregator();
 
         // Load every kind's ids up front so the TOTAL is known before planning — the scan previously
         // reported only a single Report(1.0) at the end, so the job jumped 0%→100% with no intermediate
@@ -725,7 +824,7 @@ public sealed partial class Renamer
         // UI completes instead of dividing by zero or hanging at 0%.
         if (total == 0)
         {
-            await Store.SetAsync(LastScanResultKey, JsonSerializer.Serialize(allItems, PreviewResponseJsonOptions), ct);
+            await WriteScanSummaryAsync(aggregator, ct);
             LogScanDone(0, 0);
             progress.Report(1d, "Scan complete — nothing to scan.");
             return;
@@ -735,43 +834,53 @@ public sealed partial class Renamer
         foreach (var (kind, ids) in idsByKind)
         {
             // The scan previously issued one heavy multi-Include query per entity (100K entities = 100K
-            // sequential round-trips — the scan bottleneck). Batch-load the kind's entities instead:
-            // the port chunks the load internally (CoveRenamerDataPort.LoadChunkSize, one round-trip per
-            // ~200 ids), collapsing N round-trips to ~N/chunk. The single chunk-size decision stays in
-            // the port; the scan just re-orders the (DB-unordered) result by its own id list so the
-            // per-id ORDER and the per-entity progress cadence are preserved — scan output + progress
-            // semantics are unchanged, only the LOAD is batched (never the progress).
-            var loaded = await port.LoadEntitiesAsync(kind, ids, ct);
-            var byId = loaded.ToDictionary(e => e.EntityId);
-
-            foreach (var id in ids)
+            // sequential round-trips — the scan bottleneck). Batch-load instead, one chunk at a time:
+            // the loaded entities AND their file-size map are released with each chunk, so neither the
+            // graphs nor the sizes are ever held for the whole library. The chunk size is the port's own
+            // single decision. Each chunk's entities are re-ordered by the (ascending) id list because
+            // the batch load returns DB order, preserving the per-id order and the progress cadence.
+            foreach (var chunk in ids.Chunk(CoveRenamerDataPort.LoadChunkSize))
             {
-                ct.ThrowIfCancellationRequested();
+                var loaded = await port.LoadEntitiesAsync(kind, chunk, ct);
+                var byId = loaded.ToDictionary(e => e.EntityId);
+                var sizeByFileId = loaded
+                    .SelectMany(e => e.Files)
+                    .ToDictionary(f => f.FileId, f => f.SizeBytes);
 
-                // A missing entry means the id vanished between the id-list query and the batch load —
-                // it contributes nothing, matching the old path where PlanAsync on a missing id yielded
-                // an empty plan.
-                if (byId.TryGetValue(id, out var entity))
+                foreach (var id in chunk)
                 {
-                    var plan = await planner.PlanLoadedEntity(entity, options, lookups, ct);
-                    allItems.AddRange(plan.Items.Select(item => ScanItem.From(kind, plan.EntityId, item)));
-                }
+                    ct.ThrowIfCancellationRequested();
 
-                done++;
-                LogScanItemPlanned(done, total, kind, id);
-                // Report the fraction planned with a live message, capped just under 1.0 — the final 1.0
-                // is reserved for after the result is persisted, so the UI only reads "complete" once the
-                // scan result is actually available to fetch.
-                progress.Report(Math.Min((double)done / total, 0.99), $"Scanning library… {done}/{total}");
+                    // A missing entry means the id vanished between the id-list query and the batch load
+                    // — it contributes nothing, matching the old path where PlanAsync on a missing id
+                    // yielded an empty plan.
+                    if (byId.TryGetValue(id, out var entity))
+                    {
+                        var plan = await planner.PlanLoadedEntity(entity, options, lookups, ct);
+                        aggregator.Fold(kind, plan, sizeByFileId);
+                    }
+
+                    done++;
+                    LogScanItemPlanned(done, total, kind, id);
+                    // Report the fraction planned with a live message, capped just under 1.0 — the final
+                    // 1.0 is reserved for after the result is persisted, so the UI only reads "complete"
+                    // once the scan result is actually available to fetch.
+                    progress.Report(Math.Min((double)done / total, 0.99), $"Scanning library… {done}/{total}");
+                }
             }
         }
 
-        var json = JsonSerializer.Serialize(allItems, PreviewResponseJsonOptions);
-        await Store.SetAsync(LastScanResultKey, json, ct);
+        await WriteScanSummaryAsync(aggregator, ct);
 
-        LogScanDone(allItems.Count, total);
+        LogScanDone(aggregator.TotalFiles, total);
         progress.Report(1d, "Scan complete.");
     }
+
+    private Task WriteScanSummaryAsync(ScanAggregator aggregator, CancellationToken ct)
+        => Store.SetAsync(
+            LastScanSummaryKey,
+            JsonSerializer.Serialize(aggregator.ToSummary(DateTime.UtcNow.Ticks), PreviewResponseJsonOptions),
+            ct);
 
     /// <summary>
     /// Enqueues the whole-library renamer job. Takes NO request body and NO caller-supplied id array

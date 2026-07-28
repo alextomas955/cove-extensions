@@ -1,5 +1,5 @@
 /**
- * Behavior contract for the pure entity-picker logic. The runner compiles entityPickerLogic.ts and
+ * Behavior contract for the pure entity-picker logic. The runner compiles studioFilterLogic.ts and
  * passes the compiled module path in PICKER_LOGIC_MODULE; importing the exact compiled artifact keeps
  * the test honest about what ships.
  */

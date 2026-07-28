@@ -10,6 +10,7 @@ namespace Renamer.Tests.Planner;
 /// asserts the <see cref="FakeRenamerDataPort"/> recorded zero <c>SaveAsync</c> calls. Also covers
 /// the happy-path renamer, NoOp, and the confinement rejection.
 /// </summary>
+[Trait("Tier", "L0")]
 public sealed class RenamerPlannerTests
 {
     private static RenamerFile VideoFile(int id, string basename, int folderId = 5, string folderPath = "media/videos") =>

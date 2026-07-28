@@ -39,34 +39,48 @@ test('a move routed into a genuinely different filesystem (EXDEV) fails safely, 
   const put = await api.put(`/api/extensions/${EXTENSION_ID}/data/options`, optionsBody);
   expect(put.ok).toBe(true);
 
-  const enqueue = await api.post(`${ROUTE}/renamer`, {
-    EntityType: 'video',
-    EntityIds: [video.id],
-  });
-  expect(enqueue.status).toBe(202);
+  try {
+    const enqueue = await api.post(`${ROUTE}/renamer`, {
+      EntityType: 'video',
+      EntityIds: [video.id],
+    });
+    expect(enqueue.status).toBe(202);
 
-  const job = await pollJob(api, enqueue.json.jobId);
-  // The batch job itself always reports "completed" — per-item outcomes (renamed/skipped/failed)
-  // are in the batch log, not the job status. A skip is not a job failure.
-  expect(job.status.toLowerCase()).toBe('completed');
+    const job = await pollJob(api, enqueue.json.jobId);
+    // The batch job itself always reports "completed" — per-item outcomes (renamed/skipped/failed)
+    // are in the batch log, not the job status. A skip is not a job failure.
+    expect(job.status.toLowerCase()).toBe('completed');
 
-  // Safety property: the source file must not have vanished or been left in a half-moved state.
-  // Either it stayed at its original path (skipped) or landed intact at exactly one place — never
-  // both missing from /data AND missing from /data2 (which would mean data loss).
-  const afterMove = await api.get(`/api/videos/${video.id}`);
-  const finalPath = afterMove.json.files[0].path;
-  const stillAtOriginal = finalPath === originalPath;
-  const exec = await harness.container.exec(['test', '-f', finalPath]);
-  const fileExistsAtReportedPath = exec.exitCode === 0;
+    // Safety property: the source file must not have vanished or been left in a half-moved state.
+    // Either it stayed at its original path (skipped) or landed intact at exactly one place — never
+    // both missing from /data AND missing from /data2 (which would mean data loss).
+    const afterMove = await api.get(`/api/videos/${video.id}`);
+    const finalPath = afterMove.json.files[0].path;
+    const stillAtOriginal = finalPath === originalPath;
+    const exec = await harness.container.exec(['test', '-f', finalPath]);
+    const fileExistsAtReportedPath = exec.exitCode === 0;
 
-  expect(fileExistsAtReportedPath, `DB reports path ${finalPath} but no file exists there — data loss`).toBe(true);
+    expect(fileExistsAtReportedPath, `DB reports path ${finalPath} but no file exists there — data loss`).toBe(true);
 
-  if (!stillAtOriginal) {
-    // If Renamer's Windows-shaped SameVolume check ever changes to be cross-platform-aware, this
-    // branch would start exercising the real CrossVolumeMover path — leave both outcomes valid so
-    // this test does not need to change if that happens, only note which branch actually ran.
-    console.log('Move succeeded across the EXDEV-raising mount (unexpected on current Linux-only SameVolume logic, but not unsafe).');
-  } else {
-    console.log('Move was skipped (expected on Linux): DiskMover caught the real EXDEV as an IOException and reported it as "locked or target exists" — misleading reason text for this specific cause, but safe (no data loss, no crash). Tracked as a Renamer backlog item, not fixed here.');
+    if (!stillAtOriginal) {
+      // If Renamer's Windows-shaped SameVolume check ever changes to be cross-platform-aware, this
+      // branch would start exercising the real CrossVolumeMover path — leave both outcomes valid so
+      // this test does not need to change if that happens, only note which branch actually ran.
+      console.log('Move succeeded across the EXDEV-raising mount (unexpected on current Linux-only SameVolume logic, but not unsafe).');
+    } else {
+      console.log('Move was skipped (expected on Linux): DiskMover caught the real EXDEV as an IOException and reported it as "locked or target exists" — misleading reason text for this specific cause, but safe (no data loss, no crash). Tracked as a Renamer backlog item, not fixed here.');
+    }
+  } finally {
+    // This test PUTs GLOBAL Renamer options (EnableDefaultRelocate + DefaultDestination + AllowedRoots)
+    // into the Cove instance, which is SHARED across every sibling spec on the same Playwright worker.
+    // Restore the defaults so a later spec that relies on the un-routed source-confine path — notably
+    // rename-ui-coverage's folder-template relocate, which needs empty AllowedRoots + default-relocate
+    // OFF to stay within /data — is not silently routed cross-device (/data2), skipped as an EXDEV move,
+    // and left un-renamed. Mirrors core-paths.spec.mjs restoring its template. In `finally` so a failed
+    // assertion above still cannot leak routing state into the next test.
+    await api.put(
+      `/api/extensions/${EXTENSION_ID}/data/options`,
+      JSON.stringify({ AllowedRoots: [], EnableDefaultRelocate: false, DefaultDestination: '' }),
+    );
   }
 });

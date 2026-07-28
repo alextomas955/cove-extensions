@@ -2,6 +2,8 @@ using Cove.Core.Events;
 using Renamer.Options;
 using Renamer.Planner;
 
+using static global::Renamer.Execution.PathOps;
+
 namespace Renamer.Execution;
 
 /// <summary>
@@ -17,7 +19,7 @@ namespace Renamer.Execution;
 /// </summary>
 public sealed class RenamerExecutor
 {
-    private readonly CoveRenamerDataPort _port;
+    private readonly IRenamerDataPort _port;
     private readonly IEventBus _eventBus;
     private readonly RevertLog _revertLog;
     private readonly DiskMover _disk;
@@ -30,7 +32,7 @@ public sealed class RenamerExecutor
     // roots). It defaults to a fresh CrossVolumeMover() when omitted, so every existing 4-arg
     // construction site (production wiring + the test suite) stays source-compatible; a test may
     // inject a fault-seam / recording mover via this parameter.
-    public RenamerExecutor(CoveRenamerDataPort port, IEventBus eventBus, RevertLog revertLog, DiskMover disk,
+    public RenamerExecutor(IRenamerDataPort port, IEventBus eventBus, RevertLog revertLog, DiskMover disk,
         CrossVolumeMover? cross = null)
     {
         _port = port;
@@ -68,7 +70,7 @@ public sealed class RenamerExecutor
     /// <param name="preResolvedFolderIds">
     /// An optional <c>TargetFolderPath → folderId</c> map pre-resolved ONCE in the caller's
     /// sequential phase. When supplied, a Move item reads its destination folder id from this map
-    /// instead of calling <see cref="CoveRenamerDataPort.GetOrCreateFolderIdAsync"/> here — so a batch
+    /// instead of calling <see cref="IRenamerDataPort.GetOrCreateFolderIdAsync"/> here — so a batch
     /// running this executor across many parallel workers NEVER does a check-then-act folder create on
     /// shared <c>Folder</c> rows (which raced to duplicate-row creation / <c>DbUpdateException</c>). For
     /// a single-threaded caller (tests, the in-place path) the map may be null/absent for a path, in
@@ -96,10 +98,11 @@ public sealed class RenamerExecutor
             {
                 await ExecuteItemAsync(plan, item, options, filesById, preResolvedFolderIds, renamed, skipped, failed, ct);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Any unexpected throw outside the save path is reported as a failure for that item
-                // only — the batch continues. (Save-path throws are handled inside the item.)
+                // A cancellation (host shutdown) is cancellation, not a per-item failure — the filter
+                // excludes it. Any other unexpected throw outside the save path is reported as a failure
+                // for that item only — the batch continues. (Save-path throws are handled inside the item.)
                 failed.Add(new ItemResult(item.FileId, item.OldFullPath, item.NewFullPath, RenamerStatus.Failed,
                     $"unexpected error: {ex.Message}"));
             }
@@ -208,72 +211,8 @@ public sealed class RenamerExecutor
             newFull = JoinPath(targetFolder, candidate);
         }
 
-        // (4) Compute sidecar moves: captions live next to the file; their Filename is
-        //     a basename resolved against the OLD file dir, and tracks the NEW stem in the target dir.
-        string oldDir = DirOf(item.OldFullPath);
-        string newStem = StemOf(candidate);
-        var captions = srcFile?.Captions ?? [];
-        var plannedSidecars = new List<DiskMover.SidecarMove>(captions.Count);
-        var captionRenames = new List<(int CaptionId, string NewFilename)>(captions.Count);
-        foreach (var cap in captions)
-        {
-            string newCaptionName = RetargetCaption(cap.Filename, oldStem: StemOf(srcFile!.Basename), newStem);
-            plannedSidecars.Add(new DiskMover.SidecarMove(
-                JoinPath(oldDir, cap.Filename), JoinPath(targetFolder, newCaptionName)));
-            captionRenames.Add((cap.CaptionId, newCaptionName));
-        }
-
-        // (4a) Extension-list sidecar discovery: a same-stem neighbor whose extension is configured
-        //      moves with the primary, supplementing the captions above. Probe the PRECISE per-extension
-        //      path (never a glob/EnumerateFiles) so only the exact stem + a listed extension is taken.
-        //      These go to plannedSidecars ONLY and NEVER to captionRenames: unlike captions they are
-        //      not DB-tracked, so there is no caption row to update — they are a disk-only move that
-        //      rides the same skip-not-clobber + rollback-with-primary machinery the captions use.
-        if (srcFile is not null && options.AssociatedExtensions.Count > 0)
-        {
-            string srcStem = StemOf(srcFile.Basename);
-            foreach (var raw in options.AssociatedExtensions)
-            {
-                string normExt = raw.StartsWith('.') ? raw[1..] : raw;
-                if (normExt.Length == 0)
-                {
-                    continue;
-                }
-
-                // A configured extension is a leaf extension, never a path fragment: reject any
-                // separator or parent-traversal so a malformed entry (e.g. "srt/../../elsewhere")
-                // can't build a sidecar target outside the primary's folder. The sidecars otherwise
-                // inherit the primary's confinement only because they stay under oldDir/targetFolder.
-                if (normExt.IndexOfAny(['/', '\\']) >= 0 || normExt.Contains(".."))
-                {
-                    continue;
-                }
-
-                string source = JoinPath(oldDir, srcStem + "." + normExt);
-                if (!System.IO.File.Exists(ToNative(source)))
-                {
-                    continue;
-                }
-
-                string target = JoinPath(targetFolder, newStem + "." + normExt);
-
-                // An in-place / case-only renamer leaves source == target; skipping it mirrors the
-                // primary's self-path discipline and avoids a spurious skip-not-clobber warning.
-                if (PathsEqual(source, target))
-                {
-                    continue;
-                }
-
-                // De-dupe against the captions already planned so a tracked caption that also matches
-                // a listed extension is never moved twice.
-                if (plannedSidecars.Any(s => PathsEqual(s.From, source)))
-                {
-                    continue;
-                }
-
-                plannedSidecars.Add(new DiskMover.SidecarMove(source, target));
-            }
-        }
+        // (4) Sidecar moves: DB-tracked captions + configured same-stem neighbors that ride with the primary.
+        var (plannedSidecars, captionRenames) = PlanSidecarMoves(srcFile, item.OldFullPath, targetFolder, candidate, options);
 
         // (4b) CANONICAL ALLOWLIST RE-CHECK on the FINAL FULL DESTINATION PATH — the latest point
         //      before disk is touched, now that the candidate basename has settled. Unlike the
@@ -306,25 +245,7 @@ public sealed class RenamerExecutor
         string nativeNew = ToNative(newFull);
         bool sameVolume = VolumeClassifier.SameVolume(item.OldFullPath, newFull);
 
-        bool moved;
-        string? moveReason;
-        IReadOnlyList<(string From, string To)> movedSidecars;
-        if (sameVolume)
-        {
-            var move = _disk.Move(nativeOld, nativeNew,
-                [.. plannedSidecars.Select(s => new DiskMover.SidecarMove(ToNative(s.From), ToNative(s.To)))]);
-            moved = move.Moved;
-            moveReason = move.Reason;
-            movedSidecars = [.. move.MovedSidecars.Select(s => (s.From, s.To))];
-        }
-        else
-        {
-            var move = await _cross.MoveAsync(nativeOld, nativeNew,
-                [.. plannedSidecars.Select(s => new CrossVolumeMover.SidecarMove(ToNative(s.From), ToNative(s.To)))], ct);
-            moved = move.Moved;
-            moveReason = move.Reason;
-            movedSidecars = [.. move.MovedSidecars.Select(s => (s.From, s.To))];
-        }
+        var (moved, moveReason, movedSidecars) = await MoveOnDisk(sameVolume, nativeOld, nativeNew, plannedSidecars, ct);
 
         if (!moved)
         {
@@ -374,11 +295,7 @@ public sealed class RenamerExecutor
                 // record (the pre-fix bug), and that the failure is fully surfaced. The operator must
                 // reconcile the committed DB row against the rolled-back file; the Failed reason names the
                 // exact path mismatch and any rollback warnings so the divergence is visible, not hidden.
-                IReadOnlyList<string> rbWarnings = sameVolume
-                    ? _disk.Rollback(nativeOld, nativeNew,
-                        [.. movedSidecars.Select(s => new DiskMover.SidecarMove(s.From, s.To))])
-                    : await _cross.RollbackAsync(nativeOld, nativeNew,
-                        [.. movedSidecars.Select(s => new CrossVolumeMover.SidecarMove(s.From, s.To))], ct);
+                IReadOnlyList<string> rbWarnings = await RollbackMove(sameVolume, nativeOld, nativeNew, movedSidecars, ct);
 
                 string note = rbWarnings.Count > 0
                     ? $"recomputed Path '{savedFile.RecomputedPath}' != on-disk '{expected}'; rollback INCOMPLETE: {string.Join("; ", rbWarnings)}"
@@ -390,7 +307,7 @@ public sealed class RenamerExecutor
             // (8) Success: revert-log row + reindex event. The logged row carries plan.EntityId —
             //     the SAME value published on the next line — so the logged id and the event id are
             //     identical by construction (undo reconstructs the exact forward event from the row).
-            await _revertLog.AppendAsync(plan.EntityId, item.FileId, item.OldFullPath, newFull, ct);
+            await _revertLog.AppendAsync(plan.EntityId, item.FileId, item.OldFullPath, ct);
             _eventBus.Publish(new EntityEvent(EventTypeFor(plan.Kind), EntityTypeName(plan.Kind), plan.EntityId));
 
             // (9) Opt-in empty-source-folder cleanup, AFTER the save + assertion pass — never before
@@ -421,11 +338,14 @@ public sealed class RenamerExecutor
             // that did not happen — a silent disk/DB divergence. Surface them so a failed restore is
             // visible (especially on the cross path, where a copy-back can fail in ways an atomic
             // same-volume File.Move rollback cannot).
-            IReadOnlyList<string> rbWarnings = sameVolume
-                ? _disk.Rollback(nativeOld, nativeNew,
-                    [.. movedSidecars.Select(s => new DiskMover.SidecarMove(s.From, s.To))])
-                : await _cross.RollbackAsync(nativeOld, nativeNew,
-                    [.. movedSidecars.Select(s => new CrossVolumeMover.SidecarMove(s.From, s.To))], ct);
+            // Rollback token is None on the cancel path: the ambient ct is already cancelled.
+            var rollbackCt = ex is OperationCanceledException ? CancellationToken.None : ct;
+            IReadOnlyList<string> rbWarnings = await RollbackMove(sameVolume, nativeOld, nativeNew, movedSidecars, rollbackCt);
+
+            if (ex is OperationCanceledException)
+            {
+                throw;
+            }
 
             string note = rbWarnings.Count > 0
                 ? $"DB save failed; rollback INCOMPLETE: {ex.Message}; rollback warnings: {string.Join("; ", rbWarnings)}"
@@ -433,6 +353,116 @@ public sealed class RenamerExecutor
             failed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.Failed, note));
         }
     }
+
+    // ── move-spine sub-steps (extracted from ExecuteItemAsync; control flow unchanged) ─────────
+
+    /// <summary>
+    /// Plans the sidecar moves that ride with the primary: each DB-tracked caption (retargeted to the
+    /// new stem, with its rename recorded for the DB save) and each configured same-stem neighbor whose
+    /// extension is listed. Extension neighbors go to the disk-move list ONLY — never to the caption
+    /// rename list — because they carry no DB row to update.
+    /// </summary>
+    private static (List<DiskMover.SidecarMove> plannedSidecars, List<(int CaptionId, string NewFilename)> captionRenames)
+        PlanSidecarMoves(RenamerFile? srcFile, string oldFullPath, string targetFolder, string candidate, RenamerOptions options)
+    {
+        string oldDir = DirOf(oldFullPath);
+        string newStem = StemOf(candidate);
+        var captions = srcFile?.Captions ?? [];
+        var plannedSidecars = new List<DiskMover.SidecarMove>(captions.Count);
+        var captionRenames = new List<(int CaptionId, string NewFilename)>(captions.Count);
+        foreach (var cap in captions)
+        {
+            string newCaptionName = RetargetCaption(cap.Filename, oldStem: StemOf(srcFile!.Basename), newStem);
+            plannedSidecars.Add(new DiskMover.SidecarMove(
+                JoinPath(oldDir, cap.Filename), JoinPath(targetFolder, newCaptionName)));
+            captionRenames.Add((cap.CaptionId, newCaptionName));
+        }
+
+        // Probe the PRECISE per-extension path (never a glob/EnumerateFiles) so only the exact stem +
+        // a listed extension is taken.
+        if (srcFile is not null && options.AssociatedExtensions.Count > 0)
+        {
+            string srcStem = StemOf(srcFile.Basename);
+            foreach (var raw in options.AssociatedExtensions)
+            {
+                string normExt = raw.StartsWith('.') ? raw[1..] : raw;
+                if (normExt.Length == 0)
+                {
+                    continue;
+                }
+
+                // A configured extension is a leaf extension, never a path fragment: reject any
+                // separator or parent-traversal so a malformed entry (e.g. "srt/../../elsewhere")
+                // can't build a sidecar target outside the primary's folder.
+                if (normExt.IndexOfAny(['/', '\\']) >= 0 || normExt.Contains(".."))
+                {
+                    continue;
+                }
+
+                string source = JoinPath(oldDir, srcStem + "." + normExt);
+                if (!System.IO.File.Exists(ToNative(source)))
+                {
+                    continue;
+                }
+
+                string target = JoinPath(targetFolder, newStem + "." + normExt);
+
+                // An in-place / case-only renamer leaves source == target; skipping it mirrors the
+                // primary's self-path discipline and avoids a spurious skip-not-clobber warning.
+                if (PathsEqual(source, target))
+                {
+                    continue;
+                }
+
+                // De-dupe against the captions already planned so a tracked caption that also matches
+                // a listed extension is never moved twice.
+                if (plannedSidecars.Any(s => PathsEqual(s.From, source)))
+                {
+                    continue;
+                }
+
+                plannedSidecars.Add(new DiskMover.SidecarMove(source, target));
+            }
+        }
+
+        return (plannedSidecars, captionRenames);
+    }
+
+    /// <summary>
+    /// Performs the primary move on the volume tier the source/destination imply: a same-volume renamer
+    /// takes the atomic <see cref="DiskMover.Move"/>; a cross-volume move takes the verified
+    /// copy→verify→promote→delete-source-last <see cref="CrossVolumeMover.MoveAsync"/>. Both tiers return
+    /// the identical shape.
+    /// </summary>
+    private async Task<(bool moved, string? reason, IReadOnlyList<(string From, string To)> movedSidecars)> MoveOnDisk(
+        bool sameVolume, string nativeOld, string nativeNew,
+        IReadOnlyList<DiskMover.SidecarMove> plannedSidecars, CancellationToken ct)
+    {
+        if (sameVolume)
+        {
+            var move = _disk.Move(nativeOld, nativeNew,
+                [.. plannedSidecars.Select(s => new DiskMover.SidecarMove(ToNative(s.From), ToNative(s.To)))]);
+            return (move.Moved, move.Reason, [.. move.MovedSidecars.Select(s => (s.From, s.To))]);
+        }
+
+        var cross = await _cross.MoveAsync(nativeOld, nativeNew,
+            [.. plannedSidecars.Select(s => new CrossVolumeMover.SidecarMove(ToNative(s.From), ToNative(s.To)))], ct);
+        return (cross.Moved, cross.Reason, [.. cross.MovedSidecars.Select(s => (s.From, s.To))]);
+    }
+
+    /// <summary>
+    /// Rolls a completed move back through the SAME mover tier that performed it — the atomic
+    /// <see cref="DiskMover.Rollback"/> for a same-volume move, the copy-back→verify→delete
+    /// <see cref="CrossVolumeMover.RollbackAsync"/> for a cross-volume one. Returns rollback warnings; a
+    /// non-empty list means the restore was INCOMPLETE (re-occupied slot, failed copy-back verify, locked
+    /// target) — the caller must surface it rather than claim the file was restored.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> RollbackMove(
+        bool sameVolume, string nativeOld, string nativeNew,
+        IReadOnlyList<(string From, string To)> movedSidecars, CancellationToken ct)
+        => sameVolume
+            ? _disk.Rollback(nativeOld, nativeNew, [.. movedSidecars.Select(s => new DiskMover.SidecarMove(s.From, s.To))])
+            : await _cross.RollbackAsync(nativeOld, nativeNew, [.. movedSidecars.Select(s => new CrossVolumeMover.SidecarMove(s.From, s.To))], ct);
 
     // ── event mapping ────────────────────────────────────────────────────────
 
@@ -495,29 +525,10 @@ public sealed class RenamerExecutor
         return a.TrimEnd('/', '\\') + "/" + b.TrimStart('/', '\\');
     }
 
-    private static string DirOf(string fullPath)
-    {
-        string p = NormalizeSlash(fullPath);
-        int slash = p.LastIndexOf('/');
-        return slash >= 0 ? p[..slash] : "";
-    }
 
-    private static string BasenameOf(string fullPath)
-    {
-        string p = NormalizeSlash(fullPath);
-        int slash = p.LastIndexOf('/');
-        return slash >= 0 ? p[(slash + 1)..] : p;
-    }
 
-    private static string NormalizeSlash(string p) => p.Replace('\\', '/');
 
-    private static string ToNative(string p) => p.Replace('/', Path.DirectorySeparatorChar);
 
-    private static bool PathsEqual(string? a, string b)
-    {
-        var cmp = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        return string.Equals(NormalizeSlash(a ?? ""), NormalizeSlash(b), cmp);
-    }
 
     /// <summary>True iff <paramref name="candidate"/> is the source file's own path — the same
     /// canonical location differing at most by case on a case-insensitive volume. Mirrors the
