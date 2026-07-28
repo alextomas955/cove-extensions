@@ -13,7 +13,7 @@ namespace Renamer.Tests.Events;
 /// gated (default off), so this proves only an explicitly-MATCHED rule relocates — not a dribble of
 /// the whole library.
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L1")]
 public sealed class AutoRenamerRoutingTests
 {
     [Fact]

@@ -16,7 +16,7 @@ namespace Renamer.Tests.Jobs;
 /// renames every id on disk + in the DB, and reports per-item progress plus a final <c>1.0</c>.
 /// Bad/empty input is a clean no-op that still reports the final <c>1.0</c>.
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L1")]
 public sealed class RenamerBatchJobTests
 {
     /// <summary>

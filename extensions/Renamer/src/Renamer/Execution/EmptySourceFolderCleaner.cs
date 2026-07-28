@@ -1,3 +1,5 @@
+using static global::Renamer.Execution.PathOps;
+
 namespace Renamer.Execution;
 
 /// <summary>
@@ -180,7 +182,5 @@ public static class EmptySourceFolderCleaner
         }
     }
 
-    private static string ToNative(string p) => p.Replace('/', Path.DirectorySeparatorChar);
 
-    private static string NormalizeSlash(string p) => p.Replace('\\', '/');
 }

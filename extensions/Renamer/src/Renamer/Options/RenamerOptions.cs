@@ -72,48 +72,24 @@ public sealed record MultiValueOptions
     /// </summary>
     public List<string> GenderOrder { get; init; } = [];
 
-    // Record value equality compares List<string> members by reference, so a JSON
-    // round-trip (which allocates fresh lists) would never be Equal to the original.
-    // Compare the list members structurally so save/load round-trips are value-equal.
+    // Record value equality compares List<string> members by reference, so a JSON round-trip (which
+    // allocates fresh lists) would never be Equal to the original. Both Equals and GetHashCode run off
+    // the SAME EqualityComponents list, whose collection members are wrapped to compare by VALUE.
     public bool Equals(MultiValueOptions? other)
-        => other is not null
-        && Separator == other.Separator
-        && MaxCount == other.MaxCount
-        && OnOverflow == other.OnOverflow
-        && Sort == other.Sort
-        && Whitelist.SequenceEqual(other.Whitelist)
-        && Blacklist.SequenceEqual(other.Blacklist)
-        && IgnoreGenders.SequenceEqual(other.IgnoreGenders)
-        && GenderOrder.SequenceEqual(other.GenderOrder);
+        => other is not null && StructuralEquality.Members(EqualityComponents(), other.EqualityComponents());
 
-    public override int GetHashCode()
+    public override int GetHashCode() => StructuralEquality.Hash(EqualityComponents());
+
+    private IEnumerable<object?> EqualityComponents()
     {
-        var hc = new HashCode();
-        hc.Add(Separator);
-        hc.Add(MaxCount);
-        hc.Add(OnOverflow);
-        hc.Add(Sort);
-        foreach (var v in Whitelist)
-        {
-            hc.Add(v);
-        }
-
-        foreach (var v in Blacklist)
-        {
-            hc.Add(v);
-        }
-
-        foreach (var v in IgnoreGenders)
-        {
-            hc.Add(v);
-        }
-
-        foreach (var v in GenderOrder)
-        {
-            hc.Add(v);
-        }
-
-        return hc.ToHashCode();
+        yield return Separator;
+        yield return MaxCount;
+        yield return OnOverflow;
+        yield return Sort;
+        yield return StructuralEquality.Sequence(Whitelist);
+        yield return StructuralEquality.Sequence(Blacklist);
+        yield return StructuralEquality.Sequence(IgnoreGenders);
+        yield return StructuralEquality.Sequence(GenderOrder);
     }
 }
 
@@ -503,187 +479,61 @@ public sealed record RenamerOptions
     /// </summary>
     public int SameVolumeConcurrency { get; init; } = 8;
 
-    // Same reasoning as MultiValueOptions: DropOrder/RequiredFields (List<string>) and the two
-    // MultiValueOptions members must compare structurally for a round-trip to be Equal.
+    // Record value equality would compare the List/Dictionary members by REFERENCE, so a JSON round-trip
+    // (fresh instances) would never be Equal. Both Equals and GetHashCode run off the SAME
+    // EqualityComponents list — the single source of truth that replaces the old twin member lists, so a
+    // new member added to one can never be forgotten in the other (the twin-list footgun, 45-R4). Each
+    // collection member is wrapped to compare by VALUE: order-SENSITIVE for lists, order-INDEPENDENT for
+    // the destination maps (a Dictionary has no guaranteed order and a round-trip may reorder keys), with
+    // the map's original key comparer (ordinal ids, OrdinalIgnoreCase tag names) preserved.
     public bool Equals(RenamerOptions? other)
-        => other is not null
-        && FilenameTemplate == other.FilenameTemplate
-        && FolderTemplate == other.FolderTemplate
-        && DateFormat == other.DateFormat
-        && DurationFormat == other.DurationFormat
-        && Performers == other.Performers
-        && Tags == other.Tags
-        && IllegalReplacement == other.IllegalReplacement
-        && SpaceReplacement == other.SpaceReplacement
-        && Case == other.Case
-        && RemoveCharacters == other.RemoveCharacters
-        && FilenameAsTitle == other.FilenameAsTitle
-        && RemoveEmptyFolder == other.RemoveEmptyFolder
-        && AsciiTransliterate == other.AsciiTransliterate
-        && NormalizePunctuation == other.NormalizePunctuation
-        && FilenameMax == other.FilenameMax
-        && FullPathMax == other.FullPathMax
-        && OnlyOrganized == other.OnlyOrganized
-        && DuplicateSuffixFormat == other.DuplicateSuffixFormat
-        && AutoRenamerOnUpdate == other.AutoRenamerOnUpdate
-        && SqueezeStudioNames == other.SqueezeStudioNames
-        && StripLeadingArticles == other.StripLeadingArticles
-        && FieldReplacers.SequenceEqual(other.FieldReplacers)
-        && Articles.SequenceEqual(other.Articles)
-        && PreventTitlePerformer == other.PreventTitlePerformer
-        && PreventConsecutiveSegments == other.PreventConsecutiveSegments
-        && DropOrder.SequenceEqual(other.DropOrder)
-        && RequiredFields.SequenceEqual(other.RequiredFields)
-        && AllowedRoots.SequenceEqual(other.AllowedRoots)
-        && AssociatedExtensions.SequenceEqual(other.AssociatedExtensions)
-        && DictMapEqual(StudioDestinations, other.StudioDestinations, EqualityComparer<int>.Default)
-        && DictMapEqual(TagDestinations, other.TagDestinations, StringComparer.OrdinalIgnoreCase)
-        && PathDestinations.SequenceEqual(other.PathDestinations)
-        && ExcludeTags.SequenceEqual(other.ExcludeTags)
-        && ExcludeStudioIds.SequenceEqual(other.ExcludeStudioIds)
-        && ExcludePaths.SequenceEqual(other.ExcludePaths)
-        && DefaultDestination == other.DefaultDestination
-        && UnorganizedDestination == other.UnorganizedDestination
-        && EnableDefaultRelocate == other.EnableDefaultRelocate
-        && FreeSpaceHeadroomBytes == other.FreeSpaceHeadroomBytes
-        && CrossVolumeConcurrency == other.CrossVolumeConcurrency
-        && SameVolumeConcurrency == other.SameVolumeConcurrency;
+        => other is not null && StructuralEquality.Members(EqualityComponents(), other.EqualityComponents());
 
-    // Order-independent set-of-pairs comparison for a Dictionary<TKey,string>, parameterized by the
-    // key comparer so the int-keyed StudioDestinations and the OrdinalIgnoreCase TagDestinations share
-    // one helper. A Dictionary has no guaranteed order and a JSON round-trip may reorder keys.
-    private static bool DictMapEqual<TKey>(
-        Dictionary<TKey, string> a,
-        Dictionary<TKey, string> b,
-        IEqualityComparer<TKey> keyComparer)
-        where TKey : notnull
+    public override int GetHashCode() => StructuralEquality.Hash(EqualityComponents());
+
+    private IEnumerable<object?> EqualityComponents()
     {
-        if (a.Count != b.Count)
-        {
-            return false;
-        }
-
-        var lookup = new Dictionary<TKey, string>(b.Count, keyComparer);
-        foreach (var kv in b)
-        {
-            lookup[kv.Key] = kv.Value;
-        }
-
-        foreach (var kv in a)
-        {
-            if (!lookup.TryGetValue(kv.Key, out var bv) || bv != kv.Value)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    public override int GetHashCode()
-    {
-        var hc = new HashCode();
-        hc.Add(FilenameTemplate);
-        hc.Add(FolderTemplate);
-        hc.Add(DateFormat);
-        hc.Add(DurationFormat);
-        hc.Add(Performers);
-        hc.Add(Tags);
-        hc.Add(IllegalReplacement);
-        hc.Add(SpaceReplacement);
-        hc.Add(Case);
-        hc.Add(RemoveCharacters);
-        hc.Add(FilenameAsTitle);
-        hc.Add(RemoveEmptyFolder);
-        hc.Add(AsciiTransliterate);
-        hc.Add(NormalizePunctuation);
-        hc.Add(FilenameMax);
-        hc.Add(FullPathMax);
-        hc.Add(OnlyOrganized);
-        hc.Add(DuplicateSuffixFormat);
-        hc.Add(AutoRenamerOnUpdate);
-        hc.Add(SqueezeStudioNames);
-        hc.Add(StripLeadingArticles);
-        foreach (var rule in FieldReplacers)
-        {
-            hc.Add(rule);
-        }
-
-        foreach (var v in Articles)
-        {
-            hc.Add(v);
-        }
-
-        hc.Add(PreventTitlePerformer);
-        hc.Add(PreventConsecutiveSegments);
-
-        foreach (var v in DropOrder)
-        {
-            hc.Add(v);
-        }
-
-        foreach (var v in RequiredFields)
-        {
-            hc.Add(v);
-        }
-
-        foreach (var v in AllowedRoots)
-        {
-            hc.Add(v);
-        }
-
-        foreach (var v in AssociatedExtensions)
-        {
-            hc.Add(v);
-        }
-
-        // Order-independent (XOR-accumulator) for the dictionaries, matching DictMapEqual.
-        int studioAcc = 0;
-        foreach (var kv in StudioDestinations)
-        {
-            studioAcc ^= HashCode.Combine(kv.Key, kv.Value);
-        }
-
-        hc.Add(studioAcc);
-
-        int tagAcc = 0;
-        foreach (var kv in TagDestinations)
-        {
-            tagAcc ^= HashCode.Combine(
-                StringComparer.OrdinalIgnoreCase.GetHashCode(kv.Key),
-                kv.Value);
-        }
-
-        hc.Add(tagAcc);
-
-        foreach (var rule in PathDestinations)
-        {
-            hc.Add(rule);
-        }
-
-        foreach (var v in ExcludeTags)
-        {
-            hc.Add(v);
-        }
-
-        foreach (var id in ExcludeStudioIds)
-        {
-            hc.Add(id);
-        }
-
-        foreach (var rule in ExcludePaths)
-        {
-            hc.Add(rule);
-        }
-
-        hc.Add(DefaultDestination);
-        hc.Add(UnorganizedDestination);
-        hc.Add(EnableDefaultRelocate);
-        hc.Add(FreeSpaceHeadroomBytes);
-        hc.Add(CrossVolumeConcurrency);
-        hc.Add(SameVolumeConcurrency);
-
-        return hc.ToHashCode();
+        yield return FilenameTemplate;
+        yield return FolderTemplate;
+        yield return DateFormat;
+        yield return DurationFormat;
+        yield return Performers;
+        yield return Tags;
+        yield return IllegalReplacement;
+        yield return SpaceReplacement;
+        yield return Case;
+        yield return RemoveCharacters;
+        yield return FilenameAsTitle;
+        yield return RemoveEmptyFolder;
+        yield return AsciiTransliterate;
+        yield return NormalizePunctuation;
+        yield return FilenameMax;
+        yield return FullPathMax;
+        yield return OnlyOrganized;
+        yield return DuplicateSuffixFormat;
+        yield return AutoRenamerOnUpdate;
+        yield return SqueezeStudioNames;
+        yield return StripLeadingArticles;
+        yield return StructuralEquality.Sequence(FieldReplacers);
+        yield return StructuralEquality.Sequence(Articles);
+        yield return PreventTitlePerformer;
+        yield return PreventConsecutiveSegments;
+        yield return StructuralEquality.Sequence(DropOrder);
+        yield return StructuralEquality.Sequence(RequiredFields);
+        yield return StructuralEquality.Sequence(AllowedRoots);
+        yield return StructuralEquality.Sequence(AssociatedExtensions);
+        yield return StructuralEquality.Map(StudioDestinations, EqualityComparer<int>.Default);
+        yield return StructuralEquality.Map(TagDestinations, StringComparer.OrdinalIgnoreCase);
+        yield return StructuralEquality.Sequence(PathDestinations);
+        yield return StructuralEquality.Sequence(ExcludeTags);
+        yield return StructuralEquality.Sequence(ExcludeStudioIds);
+        yield return StructuralEquality.Sequence(ExcludePaths);
+        yield return DefaultDestination;
+        yield return UnorganizedDestination;
+        yield return EnableDefaultRelocate;
+        yield return FreeSpaceHeadroomBytes;
+        yield return CrossVolumeConcurrency;
+        yield return SameVolumeConcurrency;
     }
 
     /// <summary>
@@ -696,4 +546,111 @@ public sealed record RenamerOptions
         PropertyNameCaseInsensitive = true,
         Converters = { new JsonStringEnumConverter() },
     };
+}
+
+/// <summary>
+/// Drives a record's <c>Equals</c>/<c>GetHashCode</c> from ONE component list instead of a
+/// hand-maintained twin member list — a new member added to one but forgotten in the other (the
+/// twin-list footgun) is impossible when both consume the same <c>EqualityComponents()</c>. Collection
+/// members are wrapped so they compare by VALUE, not by reference, which is what a JSON round-trip
+/// (fresh instances) needs to stay Equal to the original.
+/// </summary>
+internal static class StructuralEquality
+{
+    /// <summary>Value-compares two component sequences position by position (an order-sensitive AND of the members).</summary>
+    public static bool Members(IEnumerable<object?> a, IEnumerable<object?> b) => a.SequenceEqual(b);
+
+    /// <summary>Hashes a component sequence; consistent with <see cref="Members"/> because both consume the same components.</summary>
+    public static int Hash(IEnumerable<object?> components)
+    {
+        var hc = new HashCode();
+        foreach (var component in components)
+        {
+            hc.Add(component);
+        }
+
+        return hc.ToHashCode();
+    }
+
+    /// <summary>Wraps an ordered collection so equality is an order-SENSITIVE element compare (mirrors <c>SequenceEqual</c>).</summary>
+    public static object Sequence<T>(IReadOnlyCollection<T> items) => new SeqKey<T>(items);
+
+    /// <summary>Wraps a map so equality is an ORDER-INDEPENDENT compare under <paramref name="keyComparer"/> (a round-trip may reorder keys).</summary>
+    public static object Map<TKey>(Dictionary<TKey, string> map, IEqualityComparer<TKey> keyComparer)
+        where TKey : notnull => new MapKey<TKey>(map, keyComparer);
+
+    private readonly struct SeqKey<T> : IEquatable<SeqKey<T>>
+    {
+        private readonly IReadOnlyCollection<T> _items;
+        public SeqKey(IReadOnlyCollection<T> items) => _items = items;
+
+        public bool Equals(SeqKey<T> other) => _items.SequenceEqual(other._items);
+        public override bool Equals(object? obj) => obj is SeqKey<T> other && Equals(other);
+
+        public override int GetHashCode()
+        {
+            var hc = new HashCode();
+            foreach (var item in _items)
+            {
+                hc.Add(item);
+            }
+
+            return hc.ToHashCode();
+        }
+    }
+
+    private readonly struct MapKey<TKey> : IEquatable<MapKey<TKey>>
+        where TKey : notnull
+    {
+        private readonly Dictionary<TKey, string> _map;
+        private readonly IEqualityComparer<TKey> _keyComparer;
+
+        public MapKey(Dictionary<TKey, string> map, IEqualityComparer<TKey> keyComparer)
+        {
+            _map = map;
+            _keyComparer = keyComparer;
+        }
+
+        public bool Equals(MapKey<TKey> other)
+        {
+            if (_map.Count != other._map.Count)
+            {
+                return false;
+            }
+
+            // Build the lookup by assignment (last write wins on a key collision under the comparer),
+            // matching the prior hand-rolled comparison rather than the throwing dictionary(source,
+            // comparer) constructor.
+            var lookup = new Dictionary<TKey, string>(other._map.Count, _keyComparer);
+            foreach (var kv in other._map)
+            {
+                lookup[kv.Key] = kv.Value;
+            }
+
+            foreach (var kv in _map)
+            {
+                if (!lookup.TryGetValue(kv.Key, out var value) || value != kv.Value)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public override bool Equals(object? obj) => obj is MapKey<TKey> other && Equals(other);
+
+        public override int GetHashCode()
+        {
+            // Order-independent XOR accumulator, keyed through the comparer so it stays consistent with
+            // the order-independent, comparer-aware Equals above.
+            int acc = 0;
+            foreach (var kv in _map)
+            {
+                acc ^= HashCode.Combine(_keyComparer.GetHashCode(kv.Key), kv.Value);
+            }
+
+            return acc;
+        }
+    }
 }

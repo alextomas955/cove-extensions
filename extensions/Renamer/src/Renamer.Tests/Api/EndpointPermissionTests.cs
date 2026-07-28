@@ -2,7 +2,6 @@ using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Renamer.Tests.Execution;
-using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Api;
 
@@ -13,7 +12,7 @@ namespace Renamer.Tests.Api;
 /// that the <c>/renamer</c> deny path does NOT enqueue a job. The authorized path enqueues exactly one
 /// renamer-batch job and returns 202 {jobId}.
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L2")]
 public sealed class EndpointPermissionTests
 {
     /// <summary>Records every <c>Enqueue</c> call (including its exclusivity); all other members are unused and throw.</summary>

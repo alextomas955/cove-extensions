@@ -3,7 +3,7 @@
 // preview text, then a native alert() confirming the job was queued; "Undo last rename" opens an
 // in-app (React) confirm modal, not a native dialog. See lib/pages/ for the Page Object Model.
 import { test, expect, seedVideo } from '../lib/renamer-fixtures.mjs';
-import { VideosPage } from '../lib/pages/videos-page.mjs';
+import { VideosPage } from '@cove-extensions/e2e/pages/videos-page';
 import { RenamerSettingsPage } from '../lib/pages/renamer-settings-page.mjs';
 import { assertRenamedTo, assertRestoredTo } from '../lib/rename-assertions.mjs';
 
@@ -68,7 +68,7 @@ test('dry-run preview matches the template and touches neither disk nor the DB r
   });
   expect(preview.status).toBe(200);
   expect(preview.json.items).toHaveLength(1);
-  expect(preview.json.items[0].status).toBe('Renamer');
+  expect(preview.json.items[0].status).toBe('renamer');
   expect(preview.json.items[0].oldFullPath).toBe(originalPath);
 
   const afterPreview = await api.get(`/api/videos/${video.id}`);

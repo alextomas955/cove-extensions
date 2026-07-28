@@ -1,18 +1,31 @@
 {
   "name": "@cove-extensions/monorepo",
   "private": true,
+  "version": "0.0.0",
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "node --test scripts/*.test.mjs"
+    "knip": "knip",
+    "syncpack": "syncpack lint",
+    "jscpd": "jscpd .",
+    "prepare": "lefthook install",
+    "test": "node --test scripts/*.test.mjs",
+    "wire-usage": "node scripts/check-wire-usage.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "eslint": "10.7.0",
     "eslint-config-prettier": "10.1.8",
+    "eslint-import-resolver-typescript": "4.4.5",
+    "eslint-plugin-boundaries": "7.1.0",
+    "eslint-plugin-import-x": "4.17.1",
     "eslint-plugin-react-hooks": "7.1.1",
     "eslint-plugin-react-refresh": "0.5.3",
     "globals": "17.7.0",
+    "jscpd": "5.0.12",
+    "knip": "6.29.0",
+    "lefthook": "2.1.10",
+    "syncpack": "15.3.2",
     "typescript": "6.0.3",
     "typescript-eslint": "8.64.0"
   },

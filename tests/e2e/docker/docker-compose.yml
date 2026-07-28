@@ -31,7 +31,14 @@ services:
       - /var/lib/postgresql
 
   cove:
-    image: ${COVE_E2E_IMAGE:-ghcr.io/yourcove/cove-app:latest}
+    # Pinned to a versioned tag, NOT floating `latest`, for two reasons: (1) both extensions declare
+    # `minCoveVersion: 1.0.0`, so the host must be >= 1.0.0 or its version gate silently refuses to
+    # LOAD the extension (the routes 404 and every browser spec fails against a Settings page that
+    # never gains the extension's tab); (2) `latest` drifts — a stale local `latest` pulled before the
+    # 1.0.0 release still resolved to 0.9.0, dropping the whole suite below the floor without any error.
+    # Bump this tag deliberately in lockstep with the extensions' minCoveVersion. Override per-run with
+    # COVE_E2E_IMAGE.
+    image: ${COVE_E2E_IMAGE:-ghcr.io/yourcove/cove-app:1.0.0}
     depends_on:
       db:
         condition: service_healthy

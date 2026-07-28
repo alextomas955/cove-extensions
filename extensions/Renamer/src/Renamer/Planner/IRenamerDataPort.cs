@@ -169,6 +169,22 @@ public interface IRenamerDataPort
     Task<IReadOnlyList<int>> LoadAllEntityIdsAsync(RenamerFileKind kind, CancellationToken ct = default);
 
     /// <summary>
+    /// Returns the next page of <paramref name="kind"/>'s entity ids after
+    /// <paramref name="afterEntityId"/>, at most <paramref name="take"/> long.
+    /// </summary>
+    /// <remarks>
+    /// Contract a caller cannot read off the signature: the result is STRICTLY ASCENDING and holds
+    /// only ids greater than <paramref name="afterEntityId"/>, so the last id of a page is the cursor
+    /// for the next one. That total order is the whole reason this member exists — a cursor over a
+    /// provider-ordered result would silently skip and repeat entities across pages as rows are
+    /// inserted and deleted. A page shorter than <paramref name="take"/> means the kind is exhausted;
+    /// a non-positive <paramref name="take"/> and a non-renamable kind both return empty rather than
+    /// throwing, mirroring <see cref="LoadAllEntityIdsAsync"/>.
+    /// </remarks>
+    Task<IReadOnlyList<int>> LoadEntityIdPageAsync(
+        RenamerFileKind kind, int afterEntityId, int take, CancellationToken ct = default);
+
+    /// <summary>
     /// The batch counterpart to <see cref="LoadEntityAsync"/>: loads many entities of one
     /// <paramref name="kind"/> across a few chunked <c>WHERE Id IN (...)</c> queries — the SAME Include
     /// graph, mapped through the SAME per-entity mapper — so each returned DTO is byte-identical to the
@@ -219,7 +235,23 @@ public interface IRenamerDataPort
     /// which Cove recomputes on save. Returns the number of file rows changed.
     /// </summary>
     Task<int> SaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default);
+
+    /// <summary>
+    /// The mutating write-seam: applies each mutation (Basename / ParentFolderId / caption filenames)
+    /// and persists them in one save, returning each saved file's recomputed <c>Path</c>.
+    /// </summary>
+    /// <remarks>
+    /// Contract the executor's rollback spine depends on: an implementation throws on a save failure
+    /// (e.g. a unique-index violation) rather than swallowing it, so the caller's catch can roll the
+    /// on-disk move back.
+    /// </remarks>
+    Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default);
 }
+
+/// <summary>The recomputed identity of a saved file row, read back after a save for the Path assertion + event.</summary>
+/// <param name="FileId">The file row id.</param>
+/// <param name="RecomputedPath">The <c>BaseFileEntity.Path</c> Cove recomputed on save (forward-slash).</param>
+public readonly record struct SavedFile(int FileId, string RecomputedPath);
 
 /// <summary>
 /// One file's intended DB mutation, produced by the executor and handed to

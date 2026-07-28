@@ -11,6 +11,7 @@ namespace Renamer.Tests.Options;
 /// proven case-insensitive (lowerCamel and PascalCase mixed), and the three enums are matched as
 /// stable strings.
 /// </summary>
+[Trait("Tier", "L0")]
 public sealed class OptionsRoundTripTests
 {
     [Fact]

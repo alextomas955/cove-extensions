@@ -26,7 +26,7 @@ public enum ConfirmLevel
 /// <paramref name="To"/> the destination volume; both may be <c>""</c> for a rootless path (the
 /// aggregate classifies, it never throws on odd path content).
 /// </summary>
-/// <param name="From">The source path root (<see cref="Path.GetPathRoot(string)"/> of the old path).</param>
+/// <param name="From">The source volume (<see cref="VolumeClassifier.VolumeKey"/> of the old path).</param>
 /// <param name="To">The destination volume the routed item lands on.</param>
 /// <param name="Count">How many acting items move along this volume pair.</param>
 /// <param name="Bytes">The summed file size in bytes of those items.</param>
@@ -44,13 +44,18 @@ public sealed record VolumePairDelta(string From, string To, int Count, long Byt
 /// <param name="CrossVolumeBytes">The summed bytes of the cross-volume moves (same-volume bytes excluded — they consume ~no extra space).</param>
 /// <param name="VolumePairs">One <see cref="VolumePairDelta"/> per (source,destination) volume pair touched by a cross-volume move.</param>
 /// <param name="ConfirmLevel">How loud the confirm must be, derived from the blast radius.</param>
+/// <param name="Undoable">
+/// False past <see cref="RevertLog.MaxJournalledFiles"/>: the batch will not be journalled. Carried on
+/// the preview because the user has to learn it BEFORE the rename runs.
+/// </param>
 public sealed record PreviewSummary(
     int TotalCount,
     int SameVolumeCount,
     int CrossVolumeCount,
     long CrossVolumeBytes,
     IReadOnlyList<VolumePairDelta> VolumePairs,
-    ConfirmLevel ConfirmLevel);
+    ConfirmLevel ConfirmLevel,
+    bool Undoable);
 
 /// <summary>
 /// Pure whole-batch blast-radius aggregate over a planned <see cref="RenamerPlanItem"/> set — the
@@ -60,13 +65,13 @@ public sealed record PreviewSummary(
 /// the plan item), so it is fully unit-testable with no real second drive.
 /// <para>
 /// Like <see cref="FreeSpaceGuard"/> it reuses <see cref="VolumeClassifier.SameVolume"/> for the
-/// same/cross split and <see cref="Path.GetPathRoot(string)"/> for volume grouping; same-volume moves
+/// same/cross split and <see cref="VolumeClassifier.VolumeKey"/> for volume grouping; same-volume moves
 /// are excluded from every cross-volume sum because an in-place renamer consumes ~no extra space and is
 /// trivially reversible.
 /// </para>
 /// <para>
 /// classify-not-throw: a malformed/rootless path simply groups under its
-/// <see cref="Path.GetPathRoot(string)"/> value (possibly <c>""</c>); the method never throws on path
+/// <see cref="VolumeClassifier.VolumeKey"/> value (possibly <c>""</c>); the method never throws on path
 /// content.
 /// </para>
 /// </summary>
@@ -91,9 +96,11 @@ public static class BatchPreview
     /// </summary>
     /// <param name="items">The full planned item set (skips/no-ops are filtered out internally).</param>
     /// <param name="sizeByFileId">FileId → file size in bytes, from the loaded entity's <c>RenamerFile.SizeBytes</c>.</param>
+    /// <param name="mountPoints">Mount table to resolve Unix volumes against; omit for the real one.</param>
     public static PreviewSummary Summarize(
         IReadOnlyList<RenamerPlanItem> items,
-        IReadOnlyDictionary<int, long> sizeByFileId)
+        IReadOnlyDictionary<int, long> sizeByFileId,
+        IReadOnlyCollection<string>? mountPoints = null)
     {
         ArgumentNullException.ThrowIfNull(items);
         ArgumentNullException.ThrowIfNull(sizeByFileId);
@@ -102,19 +109,19 @@ public static class BatchPreview
             .Where(i => i.Status is RenamerStatus.Renamer or RenamerStatus.Move)
             .ToList();
 
-        // Derive the cross/same split AND the destination-volume ("To") grouping key from the
-        // SAME value — Path.GetPathRoot(NewFullPath) — so the preview's per-volume aggregation matches
-        // exactly what FreeSpaceGuard.Shortfall sums (it groups by Path.GetPathRoot(NewFullPath) too).
+        // The cross/same split AND the destination-volume ("To") grouping key both read the SAME value —
+        // VolumeClassifier.VolumeKey(NewFullPath). The preview's per-volume aggregation then matches exactly what
+        // FreeSpaceGuard.Shortfall sums (it groups by VolumeKey(NewFullPath) too).
         // Previously "To" used i.TargetVolume, a SEPARATELY-derived value: for a routed move it normally
         // equals the NewFullPath root, but any UNC/normalization divergence between TargetFolderPath and
         // the joined NewFullPath could let an item be classified cross-volume by the SameVolume filter
         // yet contribute an odd/empty "To", skewing the Heavy/Standard confirm level away from what the
         // free-space guard actually saw. One source of truth removes that drift.
         var volumePairs = acting
-            .Where(i => !VolumeClassifier.SameVolume(i.OldFullPath, i.NewFullPath))   // cross-volume only
+            .Where(i => !VolumeClassifier.SameVolume(i.OldFullPath, i.NewFullPath, mountPoints))   // cross-volume only
             .GroupBy(i => (
-                From: Path.GetPathRoot(i.OldFullPath) ?? string.Empty,
-                To: Path.GetPathRoot(i.NewFullPath) ?? string.Empty))
+                From: VolumeClassifier.VolumeKey(i.OldFullPath, mountPoints),
+                To: VolumeClassifier.VolumeKey(i.NewFullPath, mountPoints)))
             .Select(g => new VolumePairDelta(
                 g.Key.From,
                 g.Key.To,
@@ -129,10 +136,17 @@ public static class BatchPreview
 
         var level = ClassifyConfirm(crossCount, crossBytes, volumePairs);
 
-        return new PreviewSummary(totalCount, sameCount, crossCount, crossBytes, volumePairs, level);
+        return new PreviewSummary(
+            totalCount, sameCount, crossCount, crossBytes, volumePairs, level,
+            Undoable: !RevertLog.ExceedsCap(totalCount));
     }
 
-    private static ConfirmLevel ClassifyConfirm(
+    /// <remarks>
+    /// <c>internal</c> rather than <c>private</c> so the whole-library scan's incremental aggregate and
+    /// its per-caller readback merge derive the confirm level from THIS map instead of restating the
+    /// thresholds — a second copy could disagree and soften a Heavy confirm.
+    /// </remarks>
+    internal static ConfirmLevel ClassifyConfirm(
         int crossCount, long crossBytes, IReadOnlyList<VolumePairDelta> volumePairs)
     {
         if (crossCount == 0)

@@ -19,7 +19,7 @@ namespace Renamer.Tests.Events;
 /// video makes <c>videoId ≠ fileId</c>, so the misparsed-legacy shape (EntityId == FileId) is
 /// distinguishable from the correct one.
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L1")]
 public sealed class AutoRenamerRevertLogBatchTests
 {
     [Fact]

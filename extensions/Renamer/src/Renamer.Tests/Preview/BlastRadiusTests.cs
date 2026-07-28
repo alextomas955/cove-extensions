@@ -1,3 +1,4 @@
+using Renamer.Execution;
 using Renamer.Planner;
 
 namespace Renamer.Tests.Preview;
@@ -9,14 +10,19 @@ namespace Renamer.Tests.Preview;
 /// <c>FreeSpaceGuardTests</c> this needs no real second drive — only OS-aware path roots, an injected
 /// FileId→size map, and arithmetic are exercised, so it runs identically on Windows and Unix.
 /// </summary>
-[Trait("Tier", "Unit")]
+[Trait("Tier", "L0")]
 public sealed class BlastRadiusTests
 {
     // OS-aware path literals so the same/cross split (VolumeClassifier) resolves on Windows and Unix.
     private static string OnVol(string vol, string name) =>
         OperatingSystem.IsWindows() ? $@"{vol}:\dir\{name}" : $"/{vol.ToLowerInvariant()}/dir/{name}";
 
-    private static string RootOf(string vol) => Path.GetPathRoot(OnVol(vol, "x")) ?? string.Empty;
+    // Every Unix path shares the "/" root. These mounts carry the volume identity a cross-volume test needs,
+    // standing in for the C:/D:/E: drives the Windows literals use.
+    private static readonly IReadOnlyCollection<string>? Mounts =
+        OperatingSystem.IsWindows() ? null : ["/", "/c", "/d", "/e"];
+
+    private static string RootOf(string vol) => VolumeClassifier.VolumeKey(OnVol(vol, "x"), Mounts);
 
     // A minimal acting item: only the fields the aggregate reads (FileId, paths, status, target volume).
     private static RenamerPlanItem Item(
@@ -27,7 +33,7 @@ public sealed class BlastRadiusTests
     [Fact]
     public void Empty_YieldsZeroCount_AndLightConfirm()
     {
-        var summary = BatchPreview.Summarize([], new Dictionary<int, long>());
+        var summary = BatchPreview.Summarize([], new Dictionary<int, long>(), Mounts);
 
         Assert.Equal(0, summary.TotalCount);
         Assert.Equal(0, summary.SameVolumeCount);
@@ -47,7 +53,7 @@ public sealed class BlastRadiusTests
             Item(3, OnVol("C", "c.mkv"), OnVol("D", "c.mkv"), RenamerStatus.SkipCollision, RootOf("D")),
         };
 
-        var summary = BatchPreview.Summarize(items, new Dictionary<int, long>());
+        var summary = BatchPreview.Summarize(items, new Dictionary<int, long>(), Mounts);
 
         Assert.Equal(0, summary.TotalCount);
         Assert.Empty(summary.VolumePairs);
@@ -65,7 +71,7 @@ public sealed class BlastRadiusTests
         };
         var sizes = new Dictionary<int, long> { [1] = 5L << 30, [2] = 5L << 30, [3] = 5L << 30 };
 
-        var summary = BatchPreview.Summarize(items, sizes);
+        var summary = BatchPreview.Summarize(items, sizes, Mounts);
 
         Assert.Equal(3, summary.TotalCount);
         Assert.Equal(3, summary.SameVolumeCount);
@@ -87,7 +93,7 @@ public sealed class BlastRadiusTests
         };
         var sizes = new Dictionary<int, long> { [1] = 1L << 30, [2] = 2L << 30, [3] = 4L << 30 };
 
-        var summary = BatchPreview.Summarize(items, sizes);
+        var summary = BatchPreview.Summarize(items, sizes, Mounts);
 
         Assert.Equal(3, summary.TotalCount);
         Assert.Equal(0, summary.SameVolumeCount);
@@ -113,7 +119,7 @@ public sealed class BlastRadiusTests
         };
         var sizes = new Dictionary<int, long> { [1] = 9L << 30, [2] = 1L << 30 };
 
-        var summary = BatchPreview.Summarize(items, sizes);
+        var summary = BatchPreview.Summarize(items, sizes, Mounts);
 
         Assert.Equal(2, summary.TotalCount);
         Assert.Equal(1, summary.SameVolumeCount);
@@ -135,7 +141,7 @@ public sealed class BlastRadiusTests
         };
         var sizes = new Dictionary<int, long> { [1] = 1L << 30, [2] = 1L << 30 };
 
-        var summary = BatchPreview.Summarize(items, sizes);
+        var summary = BatchPreview.Summarize(items, sizes, Mounts);
 
         Assert.Equal(ConfirmLevel.Standard, summary.ConfirmLevel);
     }
@@ -149,7 +155,7 @@ public sealed class BlastRadiusTests
             .ToArray();
         var sizes = items.ToDictionary(i => i.FileId, _ => 1L);
 
-        var summary = BatchPreview.Summarize(items, sizes);
+        var summary = BatchPreview.Summarize(items, sizes, Mounts);
 
         Assert.Equal(ConfirmLevel.Heavy, summary.ConfirmLevel);
     }
@@ -164,7 +170,7 @@ public sealed class BlastRadiusTests
         };
         var sizes = new Dictionary<int, long> { [1] = 10L << 30 };
 
-        var summary = BatchPreview.Summarize(items, sizes);
+        var summary = BatchPreview.Summarize(items, sizes, Mounts);
 
         Assert.Equal(ConfirmLevel.Heavy, summary.ConfirmLevel);
     }
@@ -180,7 +186,7 @@ public sealed class BlastRadiusTests
         };
         var sizes = new Dictionary<int, long> { [1] = 1L, [2] = 1L };
 
-        var summary = BatchPreview.Summarize(items, sizes);
+        var summary = BatchPreview.Summarize(items, sizes, Mounts);
 
         Assert.Equal(ConfirmLevel.Heavy, summary.ConfirmLevel);
     }

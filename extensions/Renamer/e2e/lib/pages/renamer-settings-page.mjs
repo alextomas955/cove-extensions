@@ -18,6 +18,13 @@ export class RenamerSettingsPage {
     // Always-visible switch under the flat "Run & automation" section (the settings redesign
     // replaced the old collapsible "Automation" sub-section, so there is no header to expand).
     this.autoRenameOnUpdateSwitch = page.getByRole('switch', { name: 'Auto-rename on update' });
+    // The "Dry run" button opens the whole-library preview modal (the native-<dialog> overlay).
+    this.dryRunButton = page.getByRole('button', { name: 'Dry run' });
+    // DryRunModal's shell: role="dialog" aria-labelledby the "Dry run" title.
+    this.dryRunDialog = page.getByRole('dialog', { name: 'Dry run' });
+    // The modal footer's "Rename N files" button — enabled only once the scan lands with a will-change count.
+    this.dryRunRenameButton = this.dryRunDialog.getByRole('button', { name: /^Rename \d+ files?$/ });
+    this.dryRunCloseButton = this.dryRunDialog.getByRole('button', { name: 'Close' });
   }
 
   async goto() {
@@ -63,6 +70,12 @@ export class RenamerSettingsPage {
   async save() {
     await this.saveChangesButton.click();
     await this.unsavedChangesIndicator.waitFor({ state: 'hidden', timeout: 10_000 });
+  }
+
+  /** Opens the Dry run modal and waits for its dialog shell to mount (the scan runs inside it). */
+  async openDryRun() {
+    await this.dryRunButton.click();
+    await this.dryRunDialog.waitFor({ state: 'visible', timeout: 10_000 });
   }
 
   /** The "Sample: Video" live-preview card's full text, used to assert the debounced preview updated. */

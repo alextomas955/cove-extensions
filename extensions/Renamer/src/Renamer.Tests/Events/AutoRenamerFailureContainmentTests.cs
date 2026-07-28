@@ -13,7 +13,7 @@ namespace Renamer.Tests.Events;
 /// The handler instead catches, records the failure with the entity context, and returns — so
 /// the host-facing <c>OnEventAsync</c> completes normally even when the inner path throws.
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L1")]
 public sealed class AutoRenamerFailureContainmentTests
 {
     /// <summary>

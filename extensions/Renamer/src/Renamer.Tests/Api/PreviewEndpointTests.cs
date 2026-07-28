@@ -14,7 +14,7 @@ namespace Renamer.Tests.Api;
 /// each seeded file's Basename/Path unchanged after the call. The handler is exercised as a plain
 /// method (no HTTP host) with a real SQLite <c>CoveContext</c>.
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L2")]
 public sealed class PreviewEndpointTests
 {
     private static async Task<global::Renamer.Renamer> BuildExtensionAsync()
@@ -51,7 +51,7 @@ public sealed class PreviewEndpointTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Api.PreviewResponse>>(result);
+            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Contracts.PreviewResponse>>(result);
             var item = Assert.Single(ok.Value!.Items);
             Assert.Equal(fileId, item.FileId);
             Assert.EndsWith("raw one.mkv", item.OldFullPath);
@@ -59,12 +59,12 @@ public sealed class PreviewEndpointTests
             Assert.Equal(RenamerStatus.Renamer, item.Status);
 
             // WIRE-SHAPE regression (the bug live-browser verification caught): the response MUST
-            // serialize as camelCase with `status` the STRING "Renamer" — NOT PascalCase, NOT the
-            // numeric 0. The UI's confirm summary reads it.status === "Renamer" and it.fileId; a
+            // serialize as camelCase with `status` the camelCase STRING "renamer" — NOT PascalCase,
+            // NOT the numeric 0. The UI's confirm summary reads it.status === "renamer" and it.fileId; a
             // numeric enum or PascalCase key reads as a non-renamer and the renamer silently never
             // fires. Assert the actual bytes, using the options the handler attached.
             var json = JsonSerializer.Serialize(ok.Value!, ok.JsonSerializerOptions);
-            Assert.Contains("\"status\":\"Renamer\"", json);
+            Assert.Contains("\"status\":\"renamer\"", json);
             Assert.Contains("\"fileId\":", json);
             Assert.DoesNotContain("\"status\":0", json);
             Assert.DoesNotContain("\"Status\":", json);
@@ -97,7 +97,7 @@ public sealed class PreviewEndpointTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Api.PreviewResponse>>(result);
+            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Contracts.PreviewResponse>>(result);
             // one plan item per physical file of the entity, never just the first file.
             Assert.Equal(2, ok.Value!.Items.Count);
         }

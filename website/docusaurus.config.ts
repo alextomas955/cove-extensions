@@ -49,6 +49,23 @@ const config: Config = {
     ],
   ],
 
+  // U-36: each extension owns its docs under extensions/<Name>/docs; one plugin-content-docs
+  // instance per extension sources that folder so there is a single doc source (no site copy to
+  // drift from). The preset above keeps the DEFAULT instance id at routeBasePath '/' — giving only
+  // these EXTRA instances custom ids is what avoids docusaurus#211 (which trips when EVERY docs
+  // instance carries a custom id). routeBasePath prefixes stay distinct across instances.
+  plugins: [
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'renamer',
+        path: '../extensions/Renamer/docs',
+        routeBasePath: '/extensions/renamer',
+        sidebarPath: './sidebars-renamer.ts',
+      },
+    ],
+  ],
+
   // D-07: offline local search (no Algolia, no network at query time). Registered as a theme;
   // the classic theme then renders its built-in navbar search box automatically. Audited OK in
   // 16-UI-SPEC.md (@easyops-cn org, MIT, Docusaurus 3.x-compatible). Stock styling (D-08).
@@ -58,7 +75,12 @@ const config: Config = {
       {
         hashed: true,
         indexDocs: true,
-        docsRouteBasePath: '/', // matches the docs plugin's routeBasePath so the indexer finds docs
+        // The blog plugin is disabled above, so indexing it would only warn about a missing blog/ dir.
+        indexBlog: false,
+        // One entry per docs instance. docsRouteBasePath (where pages ROUTE) and docsDir (where the
+        // markdown LIVES) must be PARALLEL arrays, or the indexer won't read the external instances.
+        docsRouteBasePath: ['/', '/extensions/renamer'],
+        docsDir: ['docs', '../extensions/Renamer/docs'],
       },
     ],
   ],

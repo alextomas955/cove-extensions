@@ -12,7 +12,7 @@ namespace Renamer.Tests.Events;
 /// thing that re-raises <c>video.updated</c>, zero events proves the save→event→re-enter loop can
 /// never start.
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L1")]
 public sealed class ReentrancyGuardTests
 {
     [Fact]

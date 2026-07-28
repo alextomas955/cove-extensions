@@ -81,7 +81,7 @@ jobs:
           done
 
   # ---- Markdown docs (repo-wide). Scoped to README.md only — no CHANGELOG.md/docs/**/*.md exist
-  # yet at the monorepo root; Phase 13 (DOC-04) will expand both this glob and the root docs. ----
+  # yet at the monorepo root; widen this glob when root-level docs land. ----
   markdown-lint:
     runs-on: ubuntu-latest
     steps:
@@ -123,3 +123,45 @@ jobs:
           done
       - name: ESLint (whole monorepo)
         run: npm run lint
+
+  # ---- Standing merge gates: copy-paste (jscpd), dead exports (knip), and dependency-version
+  # drift (syncpack). Configs live at the repo root (.jscpd.json / .knip.json / .syncpackrc.json).
+  # knip builds a TypeScript program per UI, so this mirrors js-lint's install of the root tooling
+  # plus each catalog `uiPath`'s deps. All four architectural gates are now blocking: jscpd/knip/
+  # syncpack here, and the slice-boundary gate (eslint-plugin-boundaries) via the js-lint job's
+  # `npm run lint` — its `boundaries/dependencies` rule is `error`, so a cross-slice import fails
+  # that job and blocks the PR. Each was confirmed green on the branch before being made failing, so
+  # a gate never blocks the first PR on a pre-existing finding; the boundaries gate reached that
+  # point once the sibling-slice imports it flagged were resolved. ----
+  merge-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.11.0'
+      # Full install (root + the e2e workspaces) so knip can resolve the Playwright/testcontainers/
+      # @cove-extensions/e2e imports in the e2e specs; --no-workspaces would leave them unresolved.
+      - name: Install root gate tooling + workspaces
+        run: npm install
+      - name: Install each extension's UI deps (knip TypeScript program inputs)
+        shell: bash
+        run: |
+          mapfile -t uiPaths < <(node -e '
+            const fs = require("fs");
+            const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
+            for (const entry of catalog.extensions) {
+              if (entry.uiPath) console.log(entry.uiPath);
+            }
+          ')
+          for ui in "${uiPaths[@]}"; do
+            echo "::group::npm install $ui"
+            (cd "$ui" && npm install)
+            echo "::endgroup::"
+          done
+      - name: syncpack (dependency-version drift)
+        run: npm run syncpack
+      - name: knip (dead files / exports / dependencies)
+        run: npm run knip
+      - name: jscpd (copy-paste)
+        run: npm run jscpd

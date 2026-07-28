@@ -2,6 +2,7 @@ using Cove.Core.Events;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
+using Renamer.Tests.Execution.Collisions;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution;
@@ -17,7 +18,7 @@ namespace Renamer.Tests.Execution;
 /// Uses SQLite (relational) so the unique index + ComputeFilePaths are faithful; the real temp dir is
 /// the disk tier. Both disposables are released in a finally.
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L1")]
 public sealed class RenamerExecutorIntegrationTests
 {
     [Fact]
@@ -65,7 +66,7 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Empty(result.Skipped);
             var revert = Assert.Single(result.RevertLog);
             Assert.Equal(fileId, revert.FileId);
-            Assert.EndsWith("My Film.mkv", revert.NewPath);
+            Assert.EndsWith("raw clip.mkv", revert.OldPath);
 
             // (c) event ARGS: exactly one VideoUpdated for this video id.
             var evt = Assert.IsType<EntityEvent>(Assert.Single(bus.Published));
@@ -77,6 +78,49 @@ public sealed class RenamerExecutorIntegrationTests
             // so the atomic DiskMover fast path (above) is the one that ran.
             Assert.True(VolumeClassifier.SameVolume(oldFull, newFull),
                 "an in-place renamer under one root must classify as same-volume (DiskMover path)");
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// T3: a host shutdown mid-save (an <see cref="OperationCanceledException"/> from the DB save) is
+    /// cancellation, not a data failure. The post-move rollback still restores the disk, then the OCE
+    /// propagates out of the batch — it must NOT land as a <see cref="RenamerStatus.Failed"/> item row.
+    /// Same-volume so it runs on every platform.
+    /// </summary>
+    [Fact]
+    public async Task SaveCancelled_RollsBackAndPropagates_NeverFailed()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, videoId, _) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw clip.mkv", "My Film");
+
+            string oldFull = Path.Combine(dir.Root, "raw clip.mkv");
+            File.WriteAllText(oldFull, "video-bytes");
+
+            var options = new RenamerOptions { FilenameTemplate = "$title" }; // → "My Film.mkv"
+            var plan = await new RenamerPlanner(new CoveRenamerDataPort(db))
+                .PlanAsync(RenamerFileKind.Video, videoId, options, default);
+
+            var executor = new RenamerExecutor(
+                new CancelOnSaveDataPort(db), new CapturingEventBus(), new RevertLog(new FakeStore()), new DiskMover());
+
+            // The cancel flows out as cancellation (the batch ends), never a Failed row.
+            await Assert.ThrowsAsync<OperationCanceledException>(() => executor.ExecuteAsync(plan, options, default));
+
+            // The post-move rollback still ran on the cancel path: the file is back at OLD, none at NEW.
+            string newFull = Path.Combine(dir.Root, "My Film.mkv");
+            Assert.True(File.Exists(oldFull), "cancel rollback must restore the source");
+            Assert.False(File.Exists(newFull), "no file may linger at the new path after a cancelled save");
+            Assert.Equal("video-bytes", File.ReadAllText(oldFull));
         }
         finally
         {
@@ -139,9 +183,11 @@ public sealed class RenamerExecutorIntegrationTests
     /// destination exists with the original content, the DB Basename + ParentFolderId + recomputed Path
     /// are updated, a revert-log row is written, and one VideoUpdated event fired.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task CrossVolumeBranch_HappyMove_UsesCrossMover_DiskAndDbUpdated()
     {
+        Skip.IfNot(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
+
         using var src = new TempDir();
         using var dst = new SubstDrive();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -213,9 +259,11 @@ public sealed class RenamerExecutorIntegrationTests
     /// — copy the bytes back across the volume and restore the source — leaving disk and DB consistent.
     /// Re-proves disk-first/DB-second for the cross path.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task CrossVolumeSaveFailure_RollsBackThroughCrossMover_SourceRestored()
     {
+        Skip.IfNot(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
+
         using var src = new TempDir();
         using var dst = new SubstDrive();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -289,9 +337,11 @@ public sealed class RenamerExecutorIntegrationTests
     /// "file rolled back". It must surface the rollback warnings so the disk/DB divergence is visible —
     /// silently discarding the warnings would falsely claim a rollback that did not happen.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public async Task CrossVolumeSaveFailure_RollbackWarnings_Surfaced_NotSilentlyRolledBack()
     {
+        Skip.IfNot(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
+
         using var src = new TempDir();
         using var dst = new SubstDrive();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -354,5 +404,14 @@ public sealed class RenamerExecutorIntegrationTests
             File.WriteAllText(oldSlot, "intruder bytes re-occupying the old slot");
             throw new InvalidOperationException("forced save failure");
         }
+    }
+
+    /// <summary>Test-only port: the save throws a cancellation (a host shutdown mid-save), forcing the
+    /// executor's post-move OCE path — rollback, then propagate — rather than the data-failure path.</summary>
+    private sealed class CancelOnSaveDataPort(Cove.Data.CoveContext db) : CoveRenamerDataPort(db)
+    {
+        public override Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
+            IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
+            => throw new OperationCanceledException("host shutting down mid-save");
     }
 }

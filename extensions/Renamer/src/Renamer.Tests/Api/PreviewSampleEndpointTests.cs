@@ -4,8 +4,8 @@ using Cove.Core.Auth;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Renamer.Api;
+using Renamer.Contracts;
 using Renamer.Options;
-using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Api;
 
@@ -17,7 +17,7 @@ namespace Renamer.Tests.Api;
 /// and the videos.read deny path returns 403 with no engine work. Exercised as a plain method
 /// (no HTTP host, no DbContext).
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L2")]
 public sealed class PreviewSampleEndpointTests
 {
     private static global::Renamer.Renamer NewExtension()
