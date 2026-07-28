@@ -88,9 +88,9 @@ public sealed partial class Renamer
             // even if that flag were later flipped on, an unmatched item is never moved by the per-edit
             // hook. An explicitly-matched rule still acts and still relocates. This is a code-level
             // guarantee on the hook path on top of the flag default, not merely a config default.
-            bool anyActing = plan.Items.Any(i =>
+            int actingFiles = plan.Items.Count(i =>
                 i.Status is RenamerStatus.Renamer or RenamerStatus.Move && !IsDefaultRelocate(i));
-            if (!anyActing)
+            if (actingFiles == 0)
             {
                 return;
             }
@@ -99,11 +99,20 @@ public sealed partial class Renamer
             // (RunRenamerBatchAsync): mint a runId and call BeginBatchAsync only now, on the acting path,
             // so nothing-acts writes no header (an empty open header would shadow a prior replayable
             // batch from /undo). WITHOUT a header the executor's success rows are headerless, and /undo
-            // misparses them as legacy 3-field rows (entityId→fileId), corrupting the restore. The SAME
+            // misparses them as pre-header rows (entityId→fileId), corrupting the restore. The SAME
             // revertLog instance is handed to the executor so its AppendAsync rows land under this header.
+            // The row cap applies here too — one entity can hold more files than the journal takes.
             var runId = Guid.NewGuid().ToString("N");
             var revertLog = new RevertLog(Store);
-            await revertLog.BeginBatchAsync(runId, kind, ct);
+            if (RevertLog.ExceedsCap(actingFiles))
+            {
+                await revertLog.SuppressAsync(ct);
+                LogBatchNotJournalled(runId, actingFiles, RevertLog.MaxJournalledFiles);
+            }
+            else
+            {
+                await revertLog.BeginBatchAsync(runId, kind, ct);
+            }
 
             var executor = new RenamerExecutor(port, EventBus, revertLog, new DiskMover());
             // Single-entity hook path (no batch concurrency): no pre-resolved folder map — the executor

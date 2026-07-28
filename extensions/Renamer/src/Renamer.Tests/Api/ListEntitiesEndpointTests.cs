@@ -5,7 +5,6 @@ using Cove.Data;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
-using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Api;
 
@@ -15,7 +14,7 @@ namespace Renamer.Tests.Api;
 /// before any read, and never mutate the rows they read. Exercised as plain methods (no HTTP host —
 /// <c>MapEndpoints</c> can't be mounted) against a real SQLite <c>CoveContext</c>.
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L2")]
 public sealed class ListEntitiesEndpointTests
 {
     private static global::Renamer.Renamer NewExtension()

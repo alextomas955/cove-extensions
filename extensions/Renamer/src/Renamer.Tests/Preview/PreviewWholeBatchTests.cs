@@ -17,7 +17,7 @@ namespace Renamer.Tests.Preview;
 /// <c>{ from, to, count, bytes }</c>. The handler is exercised as a plain method (no HTTP host) over a
 /// real SQLite <c>CoveContext</c>, and zero mutation is re-asserted.
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L2")]
 public sealed class PreviewWholeBatchTests
 {
     // OS-aware absolute roots so routing to a different root yields a real cross-volume Move.
@@ -34,9 +34,11 @@ public sealed class PreviewWholeBatchTests
         return ext;
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task PreviewAsync_ReturnsItemsAndSummary_WithRoutingFields_AndCamelCaseStringEnums()
     {
+        Skip.IfNot(OperatingSystem.IsWindows(), "needs a Windows drive letter to stand in for a second volume");
+
         // The source lives in a real temp dir so preview's on-disk source probe finds it (a gone
         // source would be SkipMissingSource, not the routed Move this test asserts). The routed
         // destination (PathRoot, a fictional different drive) stays cross-volume vs the temp source.
@@ -66,7 +68,7 @@ public sealed class PreviewWholeBatchTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Api.PreviewResponse>>(result);
+            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Contracts.PreviewResponse>>(result);
             var response = ok.Value!;
 
             // Per-item contract preserved + routing fields present.
@@ -83,12 +85,12 @@ public sealed class PreviewWholeBatchTests
             Assert.Equal(1, pair.Count);
 
             // WIRE-SHAPE regression: the bytes the UI reads MUST be camelCase with `status` and
-            // `confirmLevel` the STRING — NOT PascalCase, NOT a numeric enum. Serialize with the
-            // handler's own options.
+            // `confirmLevel` the camelCase STRING — NOT PascalCase, NOT a numeric enum. Serialize with
+            // the handler's own options.
             var json = JsonSerializer.Serialize(response, ok.JsonSerializerOptions);
             Assert.Contains("\"items\":", json);
             Assert.Contains("\"summary\":", json);
-            Assert.Contains("\"status\":\"Move\"", json);
+            Assert.Contains("\"status\":\"move\"", json);
             Assert.Contains("\"resolvedDestinationRoot\":", json);
             Assert.Contains("\"matchedRule\":", json);
             Assert.Contains("\"targetVolume\":", json);
@@ -141,7 +143,7 @@ public sealed class PreviewWholeBatchTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Api.PreviewResponse>>(result);
+            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Contracts.PreviewResponse>>(result);
             var response = ok.Value!;
 
             // The excluded item APPEARS in the preview (not dropped), with SkipExcluded + its reason.
@@ -156,7 +158,7 @@ public sealed class PreviewWholeBatchTests
 
             // The status survives serialization as the camelCase STRING the UI matches on.
             var json = JsonSerializer.Serialize(response, ok.JsonSerializerOptions);
-            Assert.Contains("\"status\":\"SkipExcluded\"", json);
+            Assert.Contains("\"status\":\"skipExcluded\"", json);
 
             // Zero mutation.
             var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
@@ -190,7 +192,7 @@ public sealed class PreviewWholeBatchTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Api.PreviewResponse>>(result);
+            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Contracts.PreviewResponse>>(result);
             var response = ok.Value!;
 
             Assert.Equal(1, response.Summary.TotalCount);

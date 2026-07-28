@@ -12,6 +12,8 @@ node_modules/
 
 # Local planning / AI-assistant scaffolding — not part of the published extension.
 .planning/
+# Durable local keepsakes (milestone screenshots, research snapshots) — never published.
+.archive/
 .claude/
 .agents/
 .cursor/
@@ -29,3 +31,8 @@ website/build/
 /*.jpg
 /*.jpeg
 tests/e2e/docker/shared-media/
+
+# Local scratch/audit directories — never part of a release.
+.whisparr-audit/
+.bg-shell/
+.gsd/

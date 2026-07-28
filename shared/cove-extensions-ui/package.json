@@ -1,5 +1,5 @@
 {
-  "name": "@cove-ext/ui-shared",
+  "name": "@cove-extensions/ui-shared",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -9,10 +9,12 @@
     ".": "./src/index.ts",
     "./primitivesLogic": "./src/primitivesLogic.ts",
     "./primitives": "./src/primitives.tsx",
-    "./entityPickerLogic": "./src/entityPickerLogic.ts"
+    "./overlay": "./src/overlay.ts",
+    "./entityPickerLogic": "./src/entityPickerLogic.ts",
+    "./actions": "./src/actions.ts",
+    "./postAction": "./src/postAction.ts"
   },
   "scripts": {
-    "check-entity-picker-logic": "node scripts/check-entity-picker-logic.mjs",
-    "test": "node scripts/check-entity-picker-logic.mjs"
+    "test": "node scripts/run-logic-gate.mjs --manifest scripts/gates.json"
   }
 }

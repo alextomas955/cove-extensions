@@ -31,6 +31,26 @@ The monorepo-wide bans (shipping host assemblies, direct SQLite/Postgres writes)
 - Renamer subclasses `FullExtensionBase` (`IExtension` from `Cove.Plugins`) and references `Cove.Sdk`
   through the root build wiring — `Renamer.csproj` adds no direct Cove reference of its own.
 
+## Structure & patterns (Renamer-specific)
+
+The monorepo shape rules — six-kind taxonomy, no `features/` wrapper, suffix-as-kind, two-level shared
+(`common/` for extension-local), all-camelCase wire + `contracts.ts`, correctness + testing + tooling
+gates — live in the root `CLAUDE.md` under **Extension authoring patterns** and apply here. Renamer
+specifics:
+
+- **One rich capability → domain-layered, not capability-sliced.** The C# backend stays
+  `Engine/ · Planner/ · Execution/` (+ `Options/ · Jobs/ · Contracts/`) at the project root — the
+  exemplary pure-`Engine/` layering is a feature, not a thing to slice into per-verb folders.
+- **UI slices directly under `src/`, no `features/` wrapper.** `settings/` holds the panel + its
+  per-section children; the dry-run modal NESTS as `settings/dry-run/` (it is launched only from the
+  settings panel). The bulk-action handler is its own slice (`rename-action/`).
+- **Extension-local shared is `common/`, not "shared".** `common/lib/preview.ts` — evicted from any
+  old `shared/` bucket; nothing Renamer-specific goes in the repo-level `shared/` packages.
+- **Wire home: one `contracts.ts`** (UI) + a `Contracts/` unit in the assembly
+  (`PreviewItemView` split out of the plan model so the domain can evolve without a wire break).
+- **Tests mirror source** (`Engine/ · Execution/{…}/ · Options/ · Api/ · TransportSmoke/`). Widen the
+  `IRenamerDataPort` write seam so a throwing fake can unit-test the rollback spine at L0.
+
 ## Working on this extension
 
 - Renamer lives at `extensions/Renamer/` inside the monorepo. It is **not** its own git repo — no

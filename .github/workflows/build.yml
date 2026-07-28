@@ -11,7 +11,14 @@
 # The validate job computes the build matrix from catalog.json (all entries for a PR build; only
 # the tagged extension for a tag push) and — on a tag push — confirms the tag matches exactly one
 # catalog entry's tagPrefix and carries a valid semver suffix. No PR trigger path filtering is
-# used anywhere: every catalog entry is built on every PR (CI-04).
+# used anywhere: every catalog entry is built on every PR.
+#
+# Required-check model: the `required-checks` aggregation job is the single
+# status check to mark required in branch protection; it transitively gates on `build` (bare C# unit
+# tier) and `e2e` (Playwright + the WhisparrSync node:test correctness tier — the containerized safety
+# backstop for the rollback/undo/ingest/loop-safety tests the bare leg Compile-Removes, since Cove.Data
+# is source-only and unavailable to CI). The cove-present C# tier is a required LOCAL pre-merge gate
+# (see .github/PULL_REQUEST_TEMPLATE.md). A "0 node specs found" now hard-fails, never passes silently.
 
 name: Build and Release Extensions
 
@@ -262,8 +269,16 @@ jobs:
             echo "has_suite=false" >> "$GITHUB_OUTPUT"
             echo "::notice::${{ matrix.extension.name }} has no e2ePath/e2eProject in catalog.json (or the directory is missing) — skipping E2E for this extension."
           fi
-          if [[ -n "${{ matrix.extension.e2eNodeTestsPath }}" && -d "${{ matrix.extension.e2eNodeTestsPath }}" ]]; then
-            echo "has_node_tests=true" >> "$GITHUB_OUTPUT"
+          # Fail closed on the node:test tier: a catalog entry DECLARING an e2eNodeTestsPath makes the
+          # tier required, so a declared-but-missing directory (a typo or a moved/deleted path) is a hard
+          # error here — never a silent has_node_tests=false that would skip the required correctness run.
+          if [[ -n "${{ matrix.extension.e2eNodeTestsPath }}" ]]; then
+            if [[ -d "${{ matrix.extension.e2eNodeTestsPath }}" ]]; then
+              echo "has_node_tests=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "::error::e2eNodeTestsPath '${{ matrix.extension.e2eNodeTestsPath }}' is declared in catalog.json but that directory does not exist — the required node:test correctness tier cannot run."
+              exit 1
+            fi
           else
             echo "has_node_tests=false" >> "$GITHUB_OUTPUT"
           fi
@@ -315,6 +330,23 @@ jobs:
         working-directory: tests/e2e
         run: npx playwright test --project=${{ matrix.extension.e2eProject }}
 
+      # Did-it-run guard: the node:test correctness tier is a REQUIRED safety backstop (it exercises the
+      # loop-safety / ingest / rollback contracts that are Compile-Removed from the bare C# leg), so a
+      # silent "0 specs found" must FAIL rather than pass green. This closes the empty-glob case (the
+      # directory exists but holds no *.test.mjs); the declared-but-missing/mis-pointed path is already a
+      # hard error in the check step above. Runs only when the catalog declares the path.
+      - name: Guard the node:test tier actually has specs
+        if: steps.check.outputs.has_node_tests == 'true'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          specs=(${{ matrix.extension.e2eNodeTestsPath }}/*.test.mjs)
+          if [ ${#specs[@]} -eq 0 ]; then
+            echo "::error::has_node_tests=true but no *.test.mjs under ${{ matrix.extension.e2eNodeTestsPath }} — the required node correctness tier would silently pass."
+            exit 1
+          fi
+          echo "node:test tier: found ${#specs[@]} spec file(s)."
+
       # The container-correctness tier: the extension's non-browser API/webhook/sync specs run against
       # a real Whisparr container whose metadata source is a committed offline replay stub. It reads no
       # repository secret — identities resolve through the stub and the Whisparr images are public — so
@@ -330,7 +362,7 @@ jobs:
       # The `list` reporter's stdout only ever shows pass/fail + duration, never the actual
       # assertion/stack-trace detail, which otherwise only reaches the Upload Playwright report
       # artifact below — requiring a download+unzip round trip to read. Dump it straight to the job
-      # log instead so a CI failure is diagnosable from the log alone (CI-02's own requirement).
+      # log instead so a CI failure is diagnosable from the log alone.
       - name: Dump E2E failure context
         if: steps.check.outputs.has_suite == 'true' && failure() && steps.e2e.outcome == 'failure'
         working-directory: tests/e2e
@@ -349,6 +381,37 @@ jobs:
           name: ${{ matrix.extension.id }}-e2e-report
           path: tests/e2e/playwright-report/
           retention-days: 7
+
+  # ---- Required-check aggregation.
+  # A single job to mark REQUIRED in branch protection on `main`. It transitively requires the bare C#
+  # unit tier (build) AND the containerized safety backstop (e2e: both Playwright projects + the
+  # WhisparrSync node:test correctness tier). This is the workflow-level lever that "makes e2e + the
+  # node tier required": before this phase nothing `needs:` the e2e job, so an e2e failure did not block
+  # a merge — now this gate fails whenever any matrix leg of build or e2e fails or is skipped-by-failure.
+  #
+  # WHY the e2e job (not a cove-present C# leg) is the required safety gate: Cove.Data / Cove.Core are
+  # SOURCE-ONLY (not on nuget.org) and this repo's CI has no cove-repo checkout, so the rollback / undo /
+  # ingest / loop-safety / NoMutation tests that are Compile-Removed from the bare leg cannot run as a C#
+  # job in CI. The e2e job exercises those same contracts against real Cove + Whisparr containers, so it
+  # is the required backstop here; the cove-present C# leg (`dotnet test` with the `../cove` sibling) is a
+  # REQUIRED LOCAL pre-merge gate documented in .github/PULL_REQUEST_TEMPLATE.md. If CI later gains cove
+  # source access, add a cove-present `dotnet test -p:UseLocalCoveSource=true` job and fold it into needs:.
+  required-checks:
+    needs: [validate, build, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assert the required legs succeeded
+        shell: bash
+        run: |
+          echo "validate=${{ needs.validate.result }} build=${{ needs.build.result }} e2e=${{ needs.e2e.result }}"
+          if [ "${{ needs.validate.result }}" != "success" ] \
+            || [ "${{ needs.build.result }}" != "success" ] \
+            || [ "${{ needs.e2e.result }}" != "success" ]; then
+            echo "::error::A required leg failed or was skipped — validate/build/e2e must all be green."
+            exit 1
+          fi
+          echo "All required legs green."
 
   release:
     needs: build

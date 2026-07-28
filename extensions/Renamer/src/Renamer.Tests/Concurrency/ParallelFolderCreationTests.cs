@@ -21,7 +21,7 @@ namespace Renamer.Tests.Concurrency;
 /// across acting units must not make the PHASE B lookup throw and abort the whole batch after the
 /// RevertLog header is open.
 /// </summary>
-[Trait("Tier", "Integration")]
+[Trait("Tier", "L1")]
 public sealed class ParallelFolderCreationTests
 {
     private static async Task<(global::Renamer.Renamer ext, ConcurrentFakeStore store, CapturingEventBus bus)>

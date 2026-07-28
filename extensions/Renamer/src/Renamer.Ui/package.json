@@ -1,22 +1,19 @@
 {
-  "name": "renamer-ui",
+  "name": "@cove-extensions/renamer-ui",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
-  "description": "RenameSettingsPanel — the Cove Renamer extension's settings + live-preview frontend (Vite library bundle → index.mjs).",
+  "description": "RenameSettingsPanel \u2014 the Cove Renamer extension's settings + live-preview frontend (Vite library bundle \u2192 index.mjs).",
   "license": "AGPL-3.0",
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "check-classes": "node scripts/check-classes.cjs",
-    "check-primitives-logic": "node scripts/check-primitives-logic.mjs",
-    "check-entity-picker-logic": "node scripts/check-entity-picker-logic.mjs",
-    "check-dry-run-logic": "node scripts/check-dry-run-logic.mjs",
-    "check-template-validation": "node scripts/check-template-validation.mjs",
-    "test": "node scripts/check-options-roundtrip.mjs && node scripts/check-primitives-logic.mjs && node scripts/check-entity-picker-logic.mjs && node ../../../../shared/cove-extensions-ui/scripts/check-entity-picker-logic.mjs && node scripts/check-studio-map.mjs && node scripts/check-dry-run-logic.mjs && node scripts/check-template-validation.mjs",
+    "check-classes": "node ../../../../shared/cove-extensions-ui/scripts/check-classes.cjs --allow 'shadow-[0_12px_30px_-20px_rgba(0,0,0,0.7)]'",
+    "test": "node ../../../../shared/cove-extensions-ui/scripts/run-logic-gate.mjs --manifest scripts/gates.json --manifest ../../../../shared/cove-extensions-ui/scripts/gates.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "verify": "npm run typecheck && npm run format:check && npm run check-classes && npm run test"
+    "verify": "npm run typecheck && npm run format:check && npm run check-classes && npm run check-host-imports && npm run test",
+    "check-host-imports": "node ../../../../scripts/check-host-imports.mjs"
   },
   "dependencies": {
     "@cove/extension-sdk": "file:vendor/cove-extension-sdk-0.1.0.tgz",

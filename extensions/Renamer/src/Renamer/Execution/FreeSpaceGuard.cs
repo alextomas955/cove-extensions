@@ -8,7 +8,7 @@ namespace Renamer.Execution;
 /// <para>
 /// The ONLY disk touch is the injected <see cref="System.Func{T,TResult}"/> free-space probe
 /// (production: <c>vol =&gt; new System.IO.DriveInfo(vol).AvailableFreeSpace</c>); everything else is
-/// <see cref="Path.GetPathRoot(string)"/> string math, so the guard is fully unit-testable with NO
+/// <see cref="VolumeClassifier.VolumeKey"/> string math. The guard is fully unit-testable with NO
 /// real second drive. Like <see cref="VolumeClassifier"/> it touches no host types (no CoveContext).
 /// </para>
 /// <para>
@@ -37,28 +37,30 @@ public static class FreeSpaceGuard
     /// <item>Same-volume moves (<see cref="VolumeClassifier.SameVolume"/> is <c>true</c>) are
     /// excluded from every sum — they consume ~no extra space.</item>
     /// <item>Cross-volume moves are grouped by destination volume
-    /// (<see cref="Path.GetPathRoot(string)"/> of the new path).</item>
+    /// (<see cref="VolumeClassifier.VolumeKey"/> of the new path).</item>
     /// <item><c>Needed = sum(SizeBytes) + headroomBytes</c>; <c>Available =
     /// availableFreeSpace(volume)</c>; only volumes where <c>Needed &gt; Available</c> are returned.</item>
     /// </list>
     /// classify-not-throw: a malformed/rootless new path simply groups under its
-    /// <see cref="Path.GetPathRoot(string)"/> value (possibly <c>""</c>); the method never throws on
+    /// <see cref="VolumeClassifier.VolumeKey"/> value (possibly <c>""</c>); the method never throws on
     /// path content.
     /// </summary>
     /// <param name="moves">The projected moves — each a (current full path, new full path, file size in bytes) tuple. Decoupled from the planner's RenamerPlanItem so the guard needs no FileId→size lookup.</param>
     /// <param name="headroomBytes">The safety margin added to each volume's summed need before the comparison (<c>RenamerOptions.FreeSpaceHeadroomBytes</c>).</param>
     /// <param name="availableFreeSpace">The injected free-space probe (production: <c>vol =&gt; new DriveInfo(vol).AvailableFreeSpace</c>) — the ONLY disk touch.</param>
+    /// <param name="mountPoints">Mount table to resolve Unix volumes against; omit for the real one.</param>
     public static IReadOnlyList<(string Volume, long Needed, long Available)> Shortfall(
         IEnumerable<(string OldFullPath, string NewFullPath, long SizeBytes)> moves,
         long headroomBytes,
-        Func<string, long> availableFreeSpace)
+        Func<string, long> availableFreeSpace,
+        IReadOnlyCollection<string>? mountPoints = null)
     {
         ArgumentNullException.ThrowIfNull(moves);
         ArgumentNullException.ThrowIfNull(availableFreeSpace);
 
         var perVolume = moves
-            .Where(m => !VolumeClassifier.SameVolume(m.OldFullPath, m.NewFullPath))   // cross-volume only
-            .GroupBy(m => Path.GetPathRoot(m.NewFullPath) ?? string.Empty)
+            .Where(m => !VolumeClassifier.SameVolume(m.OldFullPath, m.NewFullPath, mountPoints))   // cross-volume only
+            .GroupBy(m => VolumeClassifier.VolumeKey(m.NewFullPath, mountPoints))
             .Select(g => (
                 Volume: g.Key,
                 Needed: g.Sum(m => m.SizeBytes) + headroomBytes,
@@ -73,19 +75,21 @@ public static class FreeSpaceGuard
     /// (source-root, destination-root) disk pair so the runner can bound concurrency per pair
     /// (<c>RenamerOptions.CrossVolumeConcurrency</c>); same-volume moves are returned together under a
     /// single unthrottled group (<see cref="SameVolumePair"/>) because an atomic <c>File.Move</c>
-    /// needs no throttle. Pure — only <see cref="Path.GetPathRoot(string)"/> string math, no I/O.
+    /// needs no throttle. Grouping keys on <see cref="VolumeClassifier.VolumeKey"/> — the value the same/cross
+    /// split reads too.
     /// This only exposes the grouping; the consuming parallel loop lives in the batch runner.
     /// </summary>
     public static IReadOnlyList<((string SourceRoot, string DestRoot) Pair, IReadOnlyList<(string OldFullPath, string NewFullPath, long SizeBytes)> Moves)> PartitionByPair(
-        IEnumerable<(string OldFullPath, string NewFullPath, long SizeBytes)> moves)
+        IEnumerable<(string OldFullPath, string NewFullPath, long SizeBytes)> moves,
+        IReadOnlyCollection<string>? mountPoints = null)
     {
         ArgumentNullException.ThrowIfNull(moves);
 
         return [.. moves
-            .GroupBy(m => VolumeClassifier.SameVolume(m.OldFullPath, m.NewFullPath)
+            .GroupBy(m => VolumeClassifier.SameVolume(m.OldFullPath, m.NewFullPath, mountPoints)
                 ? SameVolumePair
-                : (Path.GetPathRoot(m.OldFullPath) ?? string.Empty,
-                   Path.GetPathRoot(m.NewFullPath) ?? string.Empty))
+                : (VolumeClassifier.VolumeKey(m.OldFullPath, mountPoints),
+                   VolumeClassifier.VolumeKey(m.NewFullPath, mountPoints)))
             .Select(g => (
                 Pair: g.Key,
                 Moves: (IReadOnlyList<(string OldFullPath, string NewFullPath, long SizeBytes)>)[.. g]))];

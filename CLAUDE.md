@@ -73,6 +73,103 @@ what is specific to it. Shared first-party code lives in `shared/` — `Cove.Ext
   writes are schema-fragile and corrupt the DB. Go through `CoveContext` + `SaveChangesAsync`.
 - **Register the extension in `extensions/catalog.json`** so CI can build and release it.
 
+## Extension authoring patterns
+
+The rules above are the load/build contract; these are the durable *shape* rules every extension
+follows. A new extension or a reshape obeys them; deviate only with a recorded reason. (The
+human-facing version lives at `website/docs/contributing/authoring-patterns.md`.)
+
+- **Six-kind taxonomy as a lens, not a folder tree.** Every module is exactly one of **FEAT**
+  (capability slice) · **DOM** (pure logic) · **MODEL** (data/wire shape) · **INFRA** (I/O:
+  HTTP/DB/disk/store/timers) · **UIP** (business-agnostic UI primitive) · **TOOL** (commit/CI/build
+  gate). Classify by what a file *is*, then place it by its tier's convention. The one dependency
+  rule: depend **downward** (toward MODEL) and sideways onto shared/UIP, never **upward** and never
+  **across sibling features**.
+- **Structure per tier — do NOT mirror FE and BE.** The honest full-stack seam is the wire contract,
+  not a directory layout. C# backend = capability/vertical slices at the project root (`Ingest/ ·
+  Matching/ · Monitor/ · Push/ · SceneStatus/`) alongside foundation folders (`Contracts/ · Adapters/
+  · Client/ · State/ · …`); a single rich capability is domain-layered instead (Renamer's `Engine/ ·
+  Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ · scene/ · monitor/
+  · …`) next to `index.ts`, `contracts.ts`, `common/`. Seeing the same capability name on both tiers
+  (`Monitor/` + `monitor/`) is intended alignment, **not** duplication to collapse.
+- **No `features/` wrapper.** Slices live at the tier root, not under `features/`/`Features/` — that
+  is a large-app (FSD/Bulletproof-React) pattern that discriminates nothing in a plugin that is almost
+  entirely slices. Sub-concerns reachable from only one slice NEST under it (Renamer's
+  `settings/dry-run/`). Add a `features/` grouping later only if a tier grows a real body of
+  non-feature code.
+- **Capability naming, not entity naming (C#).** Slice by *what the code does*, never by entity —
+  **no `Studio/`, `Performer/`, or `Scene/` folder**. Entity ops live in the capability acting on them
+  (studio + performer monitoring → `Monitor/`; scene add → `Push/`). Name a projection for its
+  capability: `SceneStatus/`, never bare `Scene/`.
+- **Legibility is suffix-as-kind, not deep segment folders.** TS `*Logic.ts`=DOM, `*Store.ts`=INFRA,
+  `use*.ts`=INFRA hook, `*.tsx`=view, `contracts.ts`=MODEL; C# `*Service`/`*Guard`/`*Projector`/
+  `*Detector`=DOM, `*Port`/`*Client`=INFRA, `*Contracts`/`*Models`=MODEL. No `ui/lib/model/` segments
+  inside a slice — the suffix carries it. Folder-per-section only when a section holds more than one
+  file.
+- **Two-level shared — "shared" is repo-level only.** Repo-level `shared/` = cross-extension only:
+  exactly `shared/cove-extensions-ui` (FE) + `shared/Cove.Extensions.Shared` (BE). The FE package's
+  `src/` is **flat** — `index.ts` beside `primitives.tsx`, `primitivesLogic.ts`, `actions.ts`,
+  `postAction.ts`, `overlay.ts`, `entityPickerLogic.ts` — because at seven files the suffix already
+  carries the kind and a `ui/`/`lib/` split would only restate it (the suffix-as-kind rule above).
+  **The level is decided by reach, never by a directory name:** a module belongs at repo level only if
+  it is business-agnostic *and* reusable by both extensions unchanged. Extension-local multi-feature
+  code lives in that extension's own `common/`, which **is** split (`common/ui` + `common/lib`, in both
+  extensions today), and is **never** called "shared" — e.g. `WhisparrLogo.tsx` is Whisparr-branded, so
+  it is `common/ui/`, not `cove-extensions-ui`.
+- **Models live with their behavior; only wire contracts get a home.** Do not strip behavior into a
+  data-only "models layer" (anemic-domain anti-pattern). C# wire DTOs → a `Contracts/` unit in the
+  SAME assembly, cross-cutting enums defined once in a neutral `Vocabulary.cs`. TS wire types → one
+  `contracts.ts` per UI `src/` root, consumed via `import type` (erases at runtime, so `*Logic.ts`
+  stays offline-gate-clean).
+- **Wire is all-camelCase — properties AND enum values, no island.** It is the convention on both
+  external boundaries (Cove `JsonSerializerDefaults.Web`, Whisparr's Servarr API). Every UI response is
+  a projection DTO, never a live domain/EF type. Codegen stays deferred (~17 stable types; offline
+  gates ARE the drift check); re-trigger only past ~30 mirrored types.
+- **UI conventions.** Named exports only (the `defineExtension` default in `index.ts` is the one
+  default export); no barrels bar `index.ts` + the curated `shared/` public barrel; data access
+  through a named `use*` hook beside its `*Store.ts`, never a raw `request()` in `useEffect`; no
+  `hooks/` folder (co-locate; a generic cross-feature hook → `common/lib`); multi-root stores stay
+  hand-rolled but unify on `resourceEntryLogic` + `useSyncExternalStore`; overlays are the two
+  native/hand-rolled primitives (popover + native `<dialog>`), no library; host-token Tailwind classes
+  only (no arbitrary values, no `dangerouslySetInnerHTML`).
+- **Correctness standards.** Background DB reads run as System via one `RunAsSystemAsync` seam (an
+  Anonymous principal returns zero rows with no error). No silent swallow — a best-effort `catch` emits
+  exactly one `[LoggerMessage]` line. Cancellation on shutdown classifies `Cancelled`, never `Failed`.
+  A version/role a backend can't honor is simply **not registered** as a role interface — no
+  `Supports*` probe, no `VersionMismatch` throw. Single-writer `IExtensionStore` journals are bounded
+  and compact via the thin, opt-in `SingleWriterBlobStore<T>` (mirror `RevertLog.Compact`); a journal
+  nothing renders reduces to a tiny bounded status record.
+- **Nothing may be O(library).** Libraries here reach **millions** of files, so treat library size as
+  unbounded input in every design — storage, memory, wire payload, and browser state alike. Concretely:
+  never persist a per-file collection to `IExtensionStore` (Cove's bulk `GET /api/extensions/{id}/data`
+  serialises every value an extension owns, so ONE oversized value 500s that extension's whole settings
+  page, survives reinstall, and is only removable with SQL); never accumulate a per-file list on the
+  managed heap before writing it; never ship a response whose row count grows with the library. Persist
+  **aggregates**, serve **rows paged on demand** — planning and projection here are pure per entity, so a
+  slice computes identically to a full pass. A row cap is NOT the remedy: it converts a hard failure into
+  a silently truncated answer, which is worse. When a design cannot avoid a full pass (a count, a
+  reconcile), the pass may be O(library) in *time* but its output must still be O(1) in size. Renamer's
+  `last-scan-result` reaching 595 MB (~1.04M files) is the worked example.
+- **Testing.** Every xUnit test class carries exactly one class-level `[Trait("Tier", …)]` — L0
+  pure-logic · L1 host-double (real SQLite `CoveContext` / `TempDir` / principal) · L2 in-process
+  endpoint (the `NewExtension` harness + permission-gated handlers) · L3 containerized / live-instance
+  e2e — so a tier runs in isolation (`dotnet test --filter "Tier=L0"`) as a design fact independent of
+  the csproj Compile-Remove build fact. A shared reflection guard (`TierTraitGuard` in
+  `Cove.Extensions.Shared.Testing`, driven by a per-project coverage test) fails the suite if any test
+  class lacks a Tier trait, so the taxonomy stays exhaustive by mechanism rather than by hand. Tests
+  MIRROR their source folders; only test-only groups (`TestSupport/`, `TransportSmoke/`, e2e) sit
+  outside the mirror. The bare-CI (cove-absent) leg is a compile/pure SMOKE — any test that references
+  a Cove source type is Compile-Removed there and is L1/L2 — and is NOT the safety gate; the
+  containerized e2e job is the required safety gate. Keep `*Logic.ts` offline-gated so pinned
+  wire-casing enums fail a gate on drift.
+- **Tooling as merge gates.** jscpd, knip, syncpack, and import-boundaries run as **blocking** merge
+  gates. Rollout: land each tool, get it green on `main`, THEN flip to blocking.
+- **Adding a new extension:** register in `catalog.json` → manifest + `FullExtensionBase` → structure
+  by tier (no `features/`, capability-not-entity, suffix-as-kind, `common/` for local shared) → wire
+  camelCase + `Contracts/`/`contracts.ts` → UI (named exports, `use*` hooks, no `hooks/`) → correctness
+  (RunAsSystem, no silent swallow, `Cancelled`, bounded stores) → tests (Tier traits, mirror source,
+  safety behind e2e) → green under the merge gates → docs (README + site + CHANGELOG + own CLAUDE.md).
+
 ## C# comments and XML docs
 
 **The code explains the what; comments explain the why.** Default to no comment: if the code already

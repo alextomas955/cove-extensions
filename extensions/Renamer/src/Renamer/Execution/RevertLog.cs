@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Renamer.Planner;
 
@@ -17,17 +17,21 @@ namespace Renamer.Execution;
 /// <c>runId</c>, a server-written UTC-ticks timestamp, the run's <see cref="RenamerFileKind"/>, and a
 /// lifecycle marker (the batch is either still replayable or already spent). The kind is single per
 /// run (a batch loops many ids of ONE entity type), so it lives on the header.</item>
-/// <item>A <em>data row</em> is <c>entityId|fileId|old|new</c>. The entityId is the PARENT entity id
+/// <item>A <em>data row</em> is <c>entityId|fileId|old</c>. The entityId is the PARENT entity id
 /// (e.g. the Video id) that the forward executor published its reindex event for; it VARIES per item
 /// within a run (a batch spans N entities), so it lives on the row, never the header. The fileId is
-/// the physical file row; entityId and fileId differ in the normal case.</item>
+/// the physical file row; entityId and fileId differ in the normal case. The file's CURRENT path is
+/// absent because Cove's database is authoritative for it (see <see cref="UndoReplayer"/>).</item>
 /// </list>
 /// The leading <c>#</c> cannot begin an integer entityId, so headers and rows are unambiguous.
 ///
-/// BACKWARD-READ. A legacy blob written before this format (flat <c>fileId|old|new</c> rows with no
-/// header) still parses: all such orphan rows are treated as one implicit, still-replayable
-/// <see cref="RenamerFileKind.Video"/> batch, with each entry's EntityId set to its FileId as the
-/// documented best-effort fallback. Fresh writes always carry the entityId + a header kind.
+/// SIZE. The host serves every value an extension owns as a single payload, so an unbounded blob here
+/// breaks every settings read for the extension. Bounded to <see cref="MaxJournalledFiles"/> rows of
+/// ONE batch; a run over that cap is not journalled at all (<see cref="SuppressAsync"/>).
+///
+/// TOLERANT READ. Both parsers read a PREFIX of a line, so a row carrying extra trailing fields still
+/// yields its entry, and a blob with no header at all is one implicit, still-replayable
+/// <see cref="RenamerFileKind.Video"/> batch with each entry's EntityId set to its FileId.
 ///
 /// PARSING is defensive: a header or data line with missing/short fields or a non-integer
 /// entityId/fileId is skipped, never thrown (mirrors <c>RenamerJob.Decode</c>).
@@ -35,10 +39,34 @@ namespace Renamer.Execution;
 /// Takes the <see cref="IExtensionStore"/> directly (not <c>FullExtensionBase.Store</c>) so it is
 /// unit-testable host-free against a <c>FakeStore</c>.
 /// </summary>
-public sealed class RevertLog
+public sealed class RevertLog : SingleWriterBlobStore<RevertLog.RevertEntry>
 {
     /// <summary>The store key the appended, newline-delimited blob lives under.</summary>
     public const string Key = "revertlog";
+
+    /// <summary>The store key holding the stamp that decides whether <see cref="Key"/> needs discarding.</summary>
+    /// <remarks>
+    /// A SEPARATE key on purpose. A journal written before the row cap can be hundreds of megabytes,
+    /// and reading it is the failure being cleared — so the discard decision cannot be carried by the
+    /// journal's own content. This value is a few bytes and is always safe to read.
+    /// </remarks>
+    public const string SchemaKey = "journal-schema";
+
+    /// <summary>The stamp a journal written by this version carries.</summary>
+    /// <remarks>Bump when a stored journal from an earlier version must be discarded rather than parsed.</remarks>
+    public const string CurrentSchema = "2";
+
+    /// <summary>The hard cap on how many FILES one batch may journal.</summary>
+    /// <remarks>
+    /// FILES, not entities: the request-level <c>MaxEntityIdsPerRequest</c> bounds a selection to 1000
+    /// ENTITIES, and one entity can hold many files (a live fixture held 151 on one), so an entity cap
+    /// bounds nothing here. A whole-library run takes no id array and is bounded by nothing at all.
+    /// </remarks>
+    public const int MaxJournalledFiles = 5000;
+
+    /// <summary>True when a batch of <paramref name="fileCount"/> files is too large to journal.</summary>
+    /// <remarks>The one definition of "over cap", read by both the preview and the batch core.</remarks>
+    public static bool ExceedsCap(int fileCount) => fileCount > MaxJournalledFiles;
 
     // The field separator. Paths are forward-slash and never contain '|' on the platforms Cove runs.
     private const char FieldSep = '|';
@@ -49,31 +77,21 @@ public sealed class RevertLog
     private const string StatusOpen = "open";
     private const string StatusConsumed = "consumed";
 
-    // SINGLE-WRITER SERIALIZATION. The persisted blob is read-modify-write (GetAsync → concat →
-    // SetAsync) and the in-memory row list is a plain List, so concurrent appends would tear the
-    // blob (a dropped/interleaved line) and race the List. A batch may run many renames in parallel,
-    // and two batch jobs can run at once (the job is enqueued non-exclusively), so appends must
-    // serialize BOTH within one instance AND across instances writing the SAME store key.
-    //
-    // The gate is keyed on the store Key. Because every instance shares one Key, a single shared
-    // SemaphoreSlim already serializes every append process-wide — covering both the intra-batch and
-    // the inter-job (separate-instance, same-key) cases. Keying on Key (rather than a single global
-    // lock) keeps this correct if a future Key ever varies per store. The semaphore is process-
-    // lifetime by design and is intentionally never disposed; RevertLog stays non-IDisposable.
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> StoreGates = new();
-
-    private readonly IExtensionStore _store;
     private readonly List<RevertEntry> _rows = [];
-    private readonly SemaphoreSlim _gate = StoreGates.GetOrAdd(Key, _ => new SemaphoreSlim(1, 1));
 
-    public RevertLog(IExtensionStore store) => _store = store;
+    // Latched by SuppressAsync. The instance is shared by every parallel worker's executor, so
+    // latching it here makes "an over-cap batch writes no row" structural, not a caller's discipline.
+    private bool _suppressed;
+
+    public RevertLog(IExtensionStore store) : base(store, Key)
+    {
+    }
 
     /// <summary>One logged renamer row.</summary>
     /// <param name="EntityId">The PARENT entity id (e.g. Video id) the forward event was published for. Differs from <see cref="FileId"/> in the normal case.</param>
     /// <param name="FileId">The renamed physical file row's id.</param>
     /// <param name="OldPath">The path the file moved FROM (forward-slash).</param>
-    /// <param name="NewPath">The path the file moved TO (forward-slash).</param>
-    public readonly record struct RevertEntry(int EntityId, int FileId, string OldPath, string NewPath);
+    public readonly record struct RevertEntry(int EntityId, int FileId, string OldPath);
 
     /// <summary>The data rows appended during this run, in append order (readable without the store).</summary>
     public IReadOnlyList<RevertEntry> Rows => _rows;
@@ -101,50 +119,58 @@ public sealed class RevertLog
         var line = $"{HeaderTag}{FieldSep}{runId}{FieldSep}{DateTime.UtcNow.Ticks}{FieldSep}{kind}{FieldSep}{StatusOpen}";
         // Held under the same gate as AppendAsync so every blob write is serialized. This runs once,
         // single-threaded, before any parallel append, so it is uncontended in practice.
-        await _gate.WaitAsync(ct);
-        try
+        await RunExclusiveAsync(async () =>
         {
-            // COMPACT-THEN-APPEND. Drop the now-dead history before the new header lands, so this run's
-            // header and its subsequent AppendAsync rows concatenate onto the live tail — an append is
-            // O(last open batch), not O(total history). keepTrailingConsumed is false here: a
-            // most-recent CONSUMED batch loses its panel role to the header about to be written, so it is
-            // dropped; still-OPEN batches (later undo targets) are always kept.
-            var existing = await _store.GetAsync(Key, ct);
-            var compacted = Compact(existing, keepTrailingConsumed: false);
-            if (compacted != existing)
-            {
-                await _store.SetAsync(Key, compacted, ct);
-            }
-
-            await AppendLineAsync(line, ct);
-        }
-        finally
-        {
-            _gate.Release();
-        }
+            // REPLACE, not append: the new header supersedes every earlier batch, and overwriting is
+            // what makes the retained unit exactly ONE. Compacting instead could only drop up to the
+            // second-newest, leaving two.
+            await StoreBlobAsync(line, ct);
+        }, ct);
     }
 
     /// <summary>
-    /// Appends an <c>entityId|fileId|old|new</c> row both in memory and to the persisted blob,
-    /// associating it with the currently-open batch (the last header written). The blob is
-    /// read-modify-write (a tiny KV value) to keep the store contract identical to <c>OptionsStore</c>.
+    /// Refuses to journal this run: clears the stored blob and makes every later
+    /// <see cref="AppendAsync"/> on this instance a no-op.
     /// </summary>
-    public async Task AppendAsync(int entityId, int fileId, string oldPath, string newPath, CancellationToken ct = default)
+    /// <remarks>
+    /// Skipping only the header would be worse than doing nothing: a headerless blob reads back as one
+    /// implicit still-open batch with each entity id taken for a file id. Clearing rather than leaving
+    /// the earlier batch matters too — it would otherwise be offered as "the last rename" after a
+    /// larger one has already moved those files.
+    /// </remarks>
+    public async Task SuppressAsync(CancellationToken ct = default)
     {
-        var entry = new RevertEntry(entityId, fileId, oldPath, newPath);
+        await RunExclusiveAsync(async () =>
+        {
+            _suppressed = true;
+            _rows.Clear();
+            await StoreBlobAsync("", ct);
+        }, ct);
+    }
+
+    /// <summary>
+    /// Appends an <c>entityId|fileId|old</c> row both in memory and to the persisted blob,
+    /// associating it with the currently-open batch (the last header written), or does nothing when
+    /// the run was refused by <see cref="SuppressAsync"/>. The blob is read-modify-write (a tiny KV
+    /// value) to keep the store contract identical to <c>OptionsStore</c>.
+    /// </summary>
+    public async Task AppendAsync(int entityId, int fileId, string oldPath, CancellationToken ct = default)
+    {
+        var entry = new RevertEntry(entityId, fileId, oldPath);
         // ONE critical section over the WHOLE mutation: the in-memory List.Add AND the blob
         // read-modify-write. Holding both under the gate keeps the persisted blob untorn and the
         // _rows list race-free even when many workers (or two jobs over the same key) append at once.
-        await _gate.WaitAsync(ct);
-        try
+        // The _suppressed read is inside it for the same reason — workers can already be in flight.
+        await RunExclusiveAsync(async () =>
         {
+            if (_suppressed)
+            {
+                return;
+            }
+
             _rows.Add(entry);
             await AppendLineAsync(Format(entry), ct);
-        }
-        finally
-        {
-            _gate.Release();
-        }
+        }, ct);
     }
 
     /// <summary>
@@ -154,7 +180,7 @@ public sealed class RevertLog
     /// </summary>
     public async Task<RevertBatch?> ReadLastOpenBatchAsync(CancellationToken ct = default)
     {
-        var blob = await _store.GetAsync(Key, ct);
+        var blob = await LoadBlobAsync(ct);
         if (string.IsNullOrEmpty(blob))
         {
             return null;
@@ -223,7 +249,7 @@ public sealed class RevertLog
     /// </summary>
     public async Task<RevertBatchSummary?> ReadLastBatchSummaryAsync(CancellationToken ct = default)
     {
-        var blob = await _store.GetAsync(Key, ct);
+        var blob = await LoadBlobAsync(ct);
         if (string.IsNullOrEmpty(blob))
         {
             return null;
@@ -274,10 +300,9 @@ public sealed class RevertLog
         // shared store key, so it must serialize against concurrent same-key appends exactly as every
         // other write does (a batch can be consumed by /undo while a NEW job appends to the same blob) —
         // an ungated rewrite here could tear an interleaved append.
-        await _gate.WaitAsync(ct);
-        try
+        await RunExclusiveAsync(async () =>
         {
-            var blob = await _store.GetAsync(Key, ct);
+            var blob = await LoadBlobAsync(ct);
             if (string.IsNullOrEmpty(blob))
             {
                 return;
@@ -298,59 +323,38 @@ public sealed class RevertLog
 
             if (changed)
             {
-                // MARK-THEN-COMPACT. After flipping the header to consumed, drop it (and any now-dead
-                // older batches) so the stored footprint shrinks on consume instead of growing over the
-                // install's life.
-                await _store.SetAsync(Key, Compact(string.Join("\n", lines), keepTrailingConsumed: true), ct);
+                // Stored THROUGH the retention hook, not written directly: what the blob is allowed to
+                // keep is decided in one place, so the consume path cannot drift from it.
+                await StoreBlobAsync(Compact(string.Join("\n", lines)), ct);
             }
-        }
-        finally
-        {
-            _gate.Release();
-        }
+        }, ct);
     }
 
     // ── persistence helper ────────────────────────────────────────────────────
 
     private async Task AppendLineAsync(string line, CancellationToken ct)
     {
-        var existing = await _store.GetAsync(Key, ct);
+        var existing = await LoadBlobAsync(ct);
         var updated = string.IsNullOrEmpty(existing) ? line : existing + "\n" + line;
-        await _store.SetAsync(Key, updated, ct);
+        await StoreBlobAsync(updated, ct);
     }
 
     // ── compaction ─────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Returns the compacted blob: the LIVE TAIL from the EARLIEST still-open header onward, with every
-    /// earlier (fully-consumed) line dropped. If no header is open, the result depends on
-    /// <paramref name="keepTrailingConsumed"/> — true keeps the LAST (consumed) header onward, false
-    /// drops the whole blob to "".
-    /// </summary>
+    /// <summary>Retention: the blob keeps the LAST batch only, from its header onward.</summary>
     /// <remarks>
-    /// Two reads constrain what may be dropped. Undo consumes open batches from the newest backward
-    /// (<see cref="ReadLastOpenBatchAsync"/> + <see cref="MarkLastBatchConsumedAsync"/> target the last
-    /// replayable batch), so EVERY still-open batch is a live recovery path — not just the newest: an
-    /// earlier open batch becomes the target again once the batches after it are consumed, and an
-    /// all-skipped batch /undo deliberately left open is retried later. Keeping from the LAST open header
-    /// would silently drop those earlier still-open batches (they were never consumed, yet vanish) — the
-    /// data-loss bug this method previously had. So we keep from the EARLIEST open header: every still-open
-    /// batch survives, and only the fully-consumed leading run ahead of it is dropped. The panel reads the
-    /// LAST batch, open OR consumed (<see cref="ReadLastBatchSummaryAsync"/>), to show its outcome. That
-    /// split is why the caller chooses via <paramref name="keepTrailingConsumed"/>: the consume path passes
-    /// true so a just-consumed most-recent batch survives at rest (else the panel would blank — a
-    /// user-facing regression); the begin path passes false because the fresh open header it is about to
-    /// write takes over the panel role, so the now-superseded consumed batch is dropped rather than
-    /// stranded ahead of the new live tail. The leading consumed run satisfies neither read and is a pure
-    /// audit trail safe to drop; that (plus the panel-consumed exception) is what bounds the footprint —
-    /// to all still-open batches, never the total history. In the common single-open-batch case the
-    /// earliest open header IS the last, so the kept suffix is identical to before. A legacy no-header blob
-    /// is one implicit still-replayable batch and is returned unchanged (backward-read invariant).
-    /// Surviving lines are preserved byte-for-byte (a contiguous suffix, no re-serialization), so a
-    /// tolerated-but-malformed row inside a live batch round-trips exactly as the defensive parsers already
-    /// handle it. Never throws.
+    /// ONE BATCH is the retained unit, and with the per-batch row cap that is what gives the stored
+    /// value a fixed ceiling; retaining every still-open batch made it a function of how many renames
+    /// had gone un-undone. Nothing is narrowed by this — every undo read already targeted the last
+    /// batch, so an older open batch was retained but unreachable. The last batch is kept even when
+    /// CONSUMED because the panel reads it at rest to show the outcome of the rename just undone.
+    /// <para>
+    /// A pre-header blob is one implicit still-replayable batch and is returned unchanged. Surviving
+    /// lines are a contiguous suffix, preserved byte-for-byte, so a tolerated-but-malformed row
+    /// round-trips exactly as the defensive parsers already handle it. Never throws.
+    /// </para>
     /// </remarks>
-    private static string Compact(string? blob, bool keepTrailingConsumed)
+    protected override string Compact(string? blob)
     {
         if (string.IsNullOrEmpty(blob))
         {
@@ -359,35 +363,18 @@ public sealed class RevertLog
 
         var lines = blob.Split('\n');
 
-        int firstOpenHeader = -1;
         int lastHeader = -1;
         for (int i = 0; i < lines.Length; i++)
         {
-            if (!IsHeader(lines[i]) || !TryParseHeader(lines[i], out _, out _, out var status))
+            if (IsHeader(lines[i]) && TryParseHeader(lines[i], out _, out _, out _))
             {
-                continue;
-            }
-
-            lastHeader = i;
-            if (status == StatusOpen && firstOpenHeader < 0)
-            {
-                firstOpenHeader = i;
+                lastHeader = i;
             }
         }
 
-        if (lastHeader < 0)
-        {
-            return blob;  // legacy flat blob — one implicit still-replayable batch, never reshaped
-        }
-
-        if (firstOpenHeader >= 0)
-        {
-            return string.Join("\n", lines[firstOpenHeader..]);  // every still-open batch is an undo target — all survive
-        }
-
-        // No open batch. Keep the last (consumed) one only for the panel at rest; drop it when a fresh
-        // header is about to supersede it.
-        return keepTrailingConsumed ? string.Join("\n", lines[lastHeader..]) : "";
+        return lastHeader < 0
+            ? blob  // pre-header blob — one implicit still-replayable batch, never reshaped
+            : string.Join("\n", lines[lastHeader..]);
     }
 
     // ── parsing (defensive — never throws on a bad line) ───────────────────────
@@ -422,8 +409,8 @@ public sealed class RevertLog
 
     /// <summary>
     /// Parses the data rows in <c>lines[start..end)</c> (append order). When <paramref name="legacy"/>
-    /// the row form is <c>fileId|old|new</c> and EntityId is set to FileId; otherwise
-    /// <c>entityId|fileId|old|new</c>. Header lines and malformed/short lines are skipped.
+    /// the row form is <c>fileId|old</c> and EntityId is set to FileId; otherwise
+    /// <c>entityId|fileId|old</c>. Header lines and malformed/short lines are skipped.
     /// </summary>
     private static List<RevertEntry> ParseDataRows(string[] lines, int start, int end, bool legacy)
     {
@@ -440,7 +427,7 @@ public sealed class RevertLog
 
             if (legacy)
             {
-                if (parts.Length < 3)
+                if (parts.Length < 2)
                 {
                     continue;
                 }
@@ -450,11 +437,11 @@ public sealed class RevertLog
                     continue;
                 }
 
-                rows.Add(new RevertEntry(fileId, fileId, parts[1], parts[2]));
+                rows.Add(new RevertEntry(fileId, fileId, parts[1]));
             }
             else
             {
-                if (parts.Length < 4)
+                if (parts.Length < 3)
                 {
                     continue;
                 }
@@ -469,13 +456,13 @@ public sealed class RevertLog
                     continue;
                 }
 
-                rows.Add(new RevertEntry(entityId, fileId, parts[2], parts[3]));
+                rows.Add(new RevertEntry(entityId, fileId, parts[2]));
             }
         }
         return rows;
     }
 
-    /// <summary>Serializes one entry to its <c>entityId|fileId|old|new</c> wire form.</summary>
+    /// <summary>Serializes one entry to its <c>entityId|fileId|old</c> wire form.</summary>
     private static string Format(RevertEntry e) =>
-        $"{e.EntityId}{FieldSep}{e.FileId}{FieldSep}{e.OldPath}{FieldSep}{e.NewPath}";
+        $"{e.EntityId}{FieldSep}{e.FileId}{FieldSep}{e.OldPath}";
 }

@@ -21,15 +21,18 @@ const test = base.extend({
   ],
 });
 
-test('scan-library reports every seeded item without mutating any of them', async ({
+test('scan-library aggregates and pages every seeded item without mutating any of them', async ({
   harness,
   baseUrl,
   api,
 }) => {
-  const videos = await Promise.all([
-    seedVideo({ container: harness.container, baseUrl, destName: `scan-a-${Date.now()}.mp4` }),
-    seedVideo({ container: harness.container, baseUrl, destName: `scan-b-${Date.now()}.mp4` }),
-  ]);
+  // Distinct, searchable basenames: the search case below needs a fragment that matches exactly one
+  // of the two, which a shared `scan-` prefix would not give.
+  const stamp = Date.now();
+  const names = [`scanalpha-${stamp}.mp4`, `scanbravo-${stamp}.mp4`];
+  const videos = await Promise.all(
+    names.map((destName) => seedVideo({ container: harness.container, baseUrl, destName })),
+  );
   const originalPaths = videos.map((v) => v.files[0].path);
   const seededFileIds = videos.map((v) => v.files[0].id);
 
@@ -39,12 +42,29 @@ test('scan-library reports every seeded item without mutating any of them', asyn
   const job = await pollJob(api, enqueue.json.jobId);
   expect(job.status.toLowerCase()).toBe('completed');
 
+  // The scan persists an AGGREGATE, so the readback reports counts; the rows themselves come from the
+  // page query, planned on demand. Asserting both is a stronger check of the same behaviour than the
+  // single array read it replaces: the counts must account for the seeded files AND the rows must name them.
   const result = await api.get(`${ROUTE}/last-scan`);
   expect(result.status).toBe(200);
-  const scannedFileIds = result.json.map((item) => item.fileId);
+  expect(result.json.totalFiles).toBeGreaterThanOrEqual(seededFileIds.length);
+  const statusTotal = result.json.statusCounts.reduce((sum, c) => sum + c.count, 0);
+  expect(statusTotal).toBe(result.json.totalFiles);
+
+  const rows = await api.post(`${ROUTE}/scan-rows`, { Take: 500 });
+  expect(rows.status).toBe(200);
+  const scannedFileIds = rows.json.rows.map((row) => row.fileId);
   for (const fileId of seededFileIds) {
     expect(scannedFileIds).toContain(fileId);
   }
+
+  // The path search runs server-side now, so only a request over real HTTP proves it works — no unit
+  // test can. A fragment unique to the first seeded name must return that row and not its sibling.
+  const searched = await api.post(`${ROUTE}/scan-rows`, { Take: 500, Query: `scanalpha-${stamp}` });
+  expect(searched.status).toBe(200);
+  const matchedFileIds = searched.json.rows.map((row) => row.fileId);
+  expect(matchedFileIds).toContain(seededFileIds[0]);
+  expect(matchedFileIds).not.toContain(seededFileIds[1]);
 
   // Scan is read-only — every seeded item's file must be untouched on disk/DB.
   for (let i = 0; i < videos.length; i++) {

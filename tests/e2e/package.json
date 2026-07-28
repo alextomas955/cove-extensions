@@ -10,7 +10,8 @@
     "./seed-media": "./lib/seed-media.mjs",
     "./poll": "./lib/poll.mjs",
     "./config": "./playwright.config.mjs",
-    "./resolve-extension": "./lib/resolve-extension.mjs"
+    "./resolve-extension": "./lib/resolve-extension.mjs",
+    "./pages/videos-page": "./lib/pages/videos-page.mjs"
   },
   "scripts": {
     "test": "playwright test",

@@ -9,8 +9,8 @@
  * editing the SDK. The handler key `renamerSelected` MUST match the action's HandlerName.
  */
 import { defineExtension } from "@cove/extension-sdk";
-import { RenamePage } from "./RenamePage";
-import { renameSelected } from "./renameSelected";
+import { RenamePage } from "./settings/RenamePage";
+import { renameSelected } from "./rename-action/renameSelected";
 
 interface WithActionHandlers {
   actionHandlers: Record<string, unknown>;

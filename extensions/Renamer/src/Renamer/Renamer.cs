@@ -21,7 +21,7 @@ public sealed partial class Renamer : FullExtensionBase
     // comes from the release tag (build.yml's -p:Version= and the packaged extension.json/
     // package.json stamps). scripts/check-version-parity.mjs reconciles these against
     // extension.json, package.json, and the catalog registry manifest so they can't drift.
-    public override string Version => "0.2.0";
+    public override string Version => "0.3.0";
     public override string? Description => "Bulk-renames Cove library items using configurable patterns.";
     public override string? Author => "alextomas955";
     public override string? Url => "https://github.com/alextomas955/renamer";
@@ -60,7 +60,7 @@ public sealed partial class Renamer : FullExtensionBase
         _eventBus ?? throw new InvalidOperationException(
             "Renamer extension used before InitializeAsync ran (IEventBus not captured).");
 
-    public override Task InitializeAsync(IServiceProvider services, CancellationToken ct = default)
+    public override async Task InitializeAsync(IServiceProvider services, CancellationToken ct = default)
     {
         // Resolve the captured seams with GetRequiredService so a missing host registration fails
         // clearly here, at load, instead of surfacing as a NullReferenceException at first use.
@@ -70,7 +70,46 @@ public sealed partial class Renamer : FullExtensionBase
         // absence as non-fatal (GetService, not GetRequiredService) — a renamer must still run. Keep the
         // NullLogger default when the host supplies none.
         _log = services.GetService<ILogger<Renamer>>() ?? _log;
-        return base.InitializeAsync(services, ct);
+
+        // Deleted UNCONDITIONALLY, and never read. A pre-0.2.1 whole-library scan wrote one wire row per
+        // file to this key, so on a large library its value reaches hundreds of megabytes; Cove's bulk
+        // extension-data read serializes every value an extension owns into one response, so a single
+        // oversized value makes EVERY settings read for this extension fail — including any read that
+        // could measure it. The host exposes no per-key size probe, and its delete materializes the row it
+        // removes, so a conditional purge would have to load the very string that cannot be loaded. Hence:
+        // no read, no condition, and the replacement aggregate lives under a different key.
+        try
+        {
+            await Store.DeleteAsync(LastScanResultKey, ct);
+        }
+        catch (Exception ex)
+        {
+            // Best-effort recovery: a load that refuses to complete because the cleanup failed leaves the
+            // user worse off than the oversized value did. Reported once, then continue.
+            LogLegacyScanPurgeFailed(ex);
+        }
+
+        // ONE-TIME journal discard: before the row cap the undo journal also grew one line per renamed
+        // file with no bound, so an earlier version's value can be as unreadable as the scan result.
+        // Unlike that one this is NOT unconditional — Cove reloads on every deploy, restart and reboot,
+        // and purging each time would take the user's undo with it. The condition rides a separate
+        // few-byte stamp, so the journal itself is still never read.
+        try
+        {
+            if (await Store.GetAsync(RevertLog.SchemaKey, ct) != RevertLog.CurrentSchema)
+            {
+                await Store.DeleteAsync(RevertLog.Key, ct);
+                await Store.SetAsync(RevertLog.SchemaKey, RevertLog.CurrentSchema, ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            // A failed stamp write only costs one more discard on the next load, so this is reported
+            // and stepped over rather than blocking the load.
+            LogRevertLogPurgeFailed(ex);
+        }
+
+        await base.InitializeAsync(services, ct);
     }
 
     // ── Shared batch core ─────────────────────────────────────────────────────
@@ -323,7 +362,19 @@ public sealed partial class Renamer : FullExtensionBase
         // Now — and only now — open exactly one batch header: PHASE A produced acting work and the
         // batch fits. A later ReadLastOpenBatchAsync returns the whole run as one batch with its kind,
         // which /undo replays. The header is written ONCE here, single-threaded, never per worker.
-        await revertLog.BeginBatchAsync(runId, kind, ct);
+        //
+        // OVER THE ROW CAP → journal NOTHING. The decision lands here because acting.Count is the FILE
+        // count (one unit per acting file); the id array counts entities. Suppressing takes the whole
+        // batch out rather than recording part of it — half-restorable is worse than clearly not.
+        if (RevertLog.ExceedsCap(acting.Count))
+        {
+            await revertLog.SuppressAsync(ct);
+            LogBatchNotJournalled(runId, acting.Count, RevertLog.MaxJournalledFiles);
+        }
+        else
+        {
+            await revertLog.BeginBatchAsync(runId, kind, ct);
+        }
 
         // Marks the PHASE A → PHASE B boundary in the log: PHASE B's percentage now advances per
         // completed file, so a later stall is legible as "stuck partway through {Acting}", not silence.

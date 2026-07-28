@@ -9,14 +9,19 @@ namespace Renamer.Tests.Execution;
 /// volume, so these run identically on any host with NO real second drive — only path roots and
 /// arithmetic are exercised.
 /// </summary>
-[Trait("Tier", "Unit")]
+[Trait("Tier", "L0")]
 public sealed class FreeSpaceGuardTests
 {
     // OS-aware path literals so the same/cross split (VolumeClassifier) resolves on Windows and Unix.
     private static string OnVol(string vol, string name) =>
         OperatingSystem.IsWindows() ? $@"{vol}:\dir\{name}" : $"/{vol.ToLowerInvariant()}/dir/{name}";
 
-    private static string RootOf(string vol) => Path.GetPathRoot(OnVol(vol, "x")) ?? string.Empty;
+    // Every Unix path shares the "/" root. These mounts carry the volume identity a cross-volume test needs,
+    // standing in for the C:/D:/E: drives the Windows literals use.
+    private static readonly IReadOnlyCollection<string>? Mounts =
+        OperatingSystem.IsWindows() ? null : ["/", "/c", "/d", "/e"];
+
+    private static string RootOf(string vol) => VolumeClassifier.VolumeKey(OnVol(vol, "x"), Mounts);
 
     [Fact]
     public void CrossVolumeBatch_OverBudget_ReportsShortfallForThatVolume()
@@ -28,7 +33,7 @@ public sealed class FreeSpaceGuardTests
             (OnVol("C", "b.mkv"), OnVol("D", "b.mkv"), 1L << 30),
         };
 
-        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 0, _ => 2L << 30);
+        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 0, _ => 2L << 30, Mounts);
 
         var entry = Assert.Single(result);
         Assert.Equal(RootOf("D"), entry.Volume);
@@ -45,7 +50,7 @@ public sealed class FreeSpaceGuardTests
         };
 
         // 1 GiB need + 0 headroom vs 10 GiB available → fits.
-        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 0, _ => 10L << 30);
+        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 0, _ => 10L << 30, Mounts);
 
         Assert.Empty(result);
     }
@@ -61,7 +66,7 @@ public sealed class FreeSpaceGuardTests
         };
 
         // Probe returns 1 byte for every volume; if same-volume bytes were summed this would fail.
-        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 0, _ => 1L);
+        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 0, _ => 1L, Mounts);
 
         Assert.Empty(result);
     }
@@ -78,7 +83,7 @@ public sealed class FreeSpaceGuardTests
 
         // Dest volume D has exactly 1 GiB free; the 1 GiB cross-move fits (no headroom), and the
         // 5 GiB same-volume move must NOT push it over budget.
-        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 0, _ => 1L << 30);
+        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 0, _ => 1L << 30, Mounts);
 
         Assert.Empty(result);
     }
@@ -93,7 +98,7 @@ public sealed class FreeSpaceGuardTests
         };
 
         // D and E each have 2 GiB free: D needs 5 GiB (over), E needs 1 GiB (under).
-        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 0, _ => 2L << 30);
+        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 0, _ => 2L << 30, Mounts);
 
         var entry = Assert.Single(result);
         Assert.Equal(RootOf("D"), entry.Volume);
@@ -108,7 +113,7 @@ public sealed class FreeSpaceGuardTests
         };
 
         // 1 GiB raw fits 1 GiB available; but +1 GiB headroom = 2 GiB need > 1 GiB available → shortfall.
-        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 1L << 30, _ => 1L << 30);
+        var result = FreeSpaceGuard.Shortfall(moves, headroomBytes: 1L << 30, _ => 1L << 30, Mounts);
 
         var entry = Assert.Single(result);
         Assert.Equal(2L << 30, entry.Needed);
@@ -126,7 +131,7 @@ public sealed class FreeSpaceGuardTests
             (OnVol("C", "x.mkv"), OnVol("C", "y.mkv"), 1L),   // same-volume → unthrottled group
         };
 
-        var groups = FreeSpaceGuard.PartitionByPair(moves);
+        var groups = FreeSpaceGuard.PartitionByPair(moves, Mounts);
 
         // Three groups: C→D (2 moves), C→E (1 move), and the same-volume unthrottled group (1 move).
         Assert.Equal(3, groups.Count);

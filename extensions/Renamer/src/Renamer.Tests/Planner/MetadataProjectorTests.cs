@@ -9,6 +9,7 @@ namespace Renamer.Tests.Planner;
 /// and the entity-type-aware token degradation: absent media tokens are OMITTED so the engine's
 /// <c>{}</c> groups collapse cleanly.
 /// </summary>
+[Trait("Tier", "L0")]
 public sealed class MetadataProjectorTests
 {
     private static RenamerFile VideoFileRow() => new(

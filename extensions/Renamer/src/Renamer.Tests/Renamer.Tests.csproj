@@ -25,7 +25,13 @@
       users of the extension. Suppress the audit-as-error here (test project only) so
       TreatWarningsAsErrors does not block the build.
     -->
-    <NoWarn>$(NoWarn);NU1903</NoWarn>
+    <!--
+      CA1716: the linked shared fakes (Testing.Cove/*.cs, LinkBase="TestSupport\Shared") declare the
+      Cove.Extensions.Shared.Testing namespace, whose "Shared" segment is a VB reserved keyword. These are
+      C#-only test types never consumed from VB, so the rule does not apply — mirror the suppression on the
+      Cove.Extensions.Shared(.Testing) projects. Fires here because linked files compile INTO this assembly.
+    -->
+    <NoWarn>$(NoWarn);NU1903;CA1716</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -52,15 +58,29 @@
     -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <!--
+      TEST-ONLY: TransportSmokeTests mounts the extension's MapEndpoints in an in-process
+      WebApplication/TestServer to cover the real minimal-API transport boundary. On nuget.org; the
+      smoke file itself is cove-present (Compile-Removed on the bare leg with the other endpoint tests).
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <!-- Shared host-free test fakes (FakeStore/ConcurrentFakeStore) live in the Testing project, and the
+         host-dependent fakes (FakePrincipalAccessor/CoveContextFactory) are linked in below — both in the
+         Cove.Extensions.Shared.Testing namespace. Import it globally so consumers resolve the types without
+         a per-file using. Always resolves: the namespace has at least the Testing-project types on both legs. -->
+    <Using Include="Cove.Extensions.Shared.Testing" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- reference the extension's CODE; tests run pure logic. Always resolves. -->
     <ProjectReference Include="..\Renamer\Renamer.csproj" />
+    <!-- host-FREE shared test fakes (FakeStore/ConcurrentFakeStore over Cove.Plugins only). UNCONDITIONAL:
+         it builds against nuget Cove.Plugins on the bare CI leg too. -->
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\shared\Cove.Extensions.Shared.Testing\Cove.Extensions.Shared.Testing.csproj" />
     <!--
       TEST-ONLY: CoveContext lives in Cove.Data; entities in Cove.Core. Mirrors Cove.Tests.
       These are SOURCE-ONLY (NOT on nuget.org) and sit outside the Cove.Sdk/Cove.Plugins/Cove.Core
@@ -76,9 +96,23 @@
   </ItemGroup>
 
   <!--
+    HOST-DEPENDENT shared test fakes: FakePrincipalAccessor (Cove.Core auth) + CoveContextFactory (Cove.Data).
+    They live in a source-only sibling dir with NO csproj and are pulled in as ordinary per-project Compile
+    items — NOT a conditional ProjectReference (IDEs don't fully respect reference conditions; msbuild#5410).
+    Guarded by the SAME Cove.Data Exists() key this project already uses for its cove ProjectReference, so
+    they are present ONLY when the cove source is on disk. On a bare CI runner the condition is false, the
+    files simply drop out, and their consumers are already Compile-Removed above — the pure-core tier compiles.
+  -->
+  <ItemGroup Condition="Exists('$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')">
+    <Compile Include="$(MSBuildThisFileDirectory)..\..\..\..\shared\Cove.Extensions.Shared.Testing.Cove\*.cs"
+             LinkBase="TestSupport\Shared" />
+  </ItemGroup>
+
+  <!--
     COVE-ABSENT (CI) RUNTIME DEP: when cove is NOT on disk the cove ProjectReferences above drop out,
-    so Cove.Plugins (which FakeStore.cs / TestSupport/FakeJobProgress.cs reference via IExtensionStore /
-    IJobProgress) is no longer supplied transitively. Renamer.csproj consumes Cove.Plugins as a
+    so Cove.Plugins (which TestSupport/FakeJobProgress.cs references via IJobProgress, and the referenced
+    Cove.Extensions.Shared.Testing's FakeStore/ConcurrentFakeStore reference via IExtensionStore) is no
+    longer supplied transitively. Renamer.csproj consumes Cove.Plugins as a
     host-provided assembly (ExcludeAssets=runtime / not copied to consumers), so the test assembly would
     fail at xUnit reflection time with "Could not load file or assembly 'Cove.Plugins'". Cove.Plugins
     IS on nuget.org (0.6.2), so add it here for the unit tier with runtime copy ENABLED — guarded by the
@@ -98,15 +132,20 @@
     (cove present → all files compile → full 194 run) and ACTIVE on a bare runner. Folders Execution/
     and Events/ are entirely integration, so they are removed wholesale; the rest are named explicitly.
       - Cove.Core-ONLY (auth/events/entities, no CoveContext): ActionDeclarationTests, Api/SettingsManifestTests,
-        TestSupport/FakePrincipalAccessor, TestSupport/CapturingEventBus.
-      - INTEGRATION (real CoveContext via Cove.Data): Execution/*, Events/*, TestSupport/CoveContextFactory,
+        TestSupport/CapturingEventBus.
+      - INTEGRATION (real CoveContext via Cove.Data): Execution/*, Events/*,
         Jobs/RenamerBatchJobTests, Api/PreviewEndpointTests, Api/PreviewSampleEndpointTests, Api/EndpointPermissionTests,
         Api/ListEntitiesEndpointTests, Api/RenamerLibraryEndpointTests, Api/ScanLibraryEndpointTests.
-    FakeStore.cs and TestSupport/FakeJobProgress.cs are Cove.Plugins-only (available via NuGet) and are
-    NOT removed — they are needed by the pure-core unit tier (e.g. OptionsStoreTests).
+    The shared FakePrincipalAccessor + CoveContextFactory are NOT listed here: they live in the source-only
+    Testing.Cove dir and are pulled in by the positive Exists()-guarded Compile Include below (present only
+    when cove is), so their former consumers above cover the bare leg without a Compile Remove for the fakes.
+    FakeJobProgress.cs is Cove.Plugins-only (available via NuGet) and stays compiled; FakeStore/ConcurrentFakeStore
+    now come from the unconditional Cove.Extensions.Shared.Testing ProjectReference (Cove.Plugins-only too).
   -->
   <ItemGroup Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')">
     <Compile Remove="ActionDeclarationTests.cs" />
+    <!-- TransportSmokeTests boots the extension in a TestServer over a real CoveContext (Cove.Data) + CovePrincipal → drops out on a bare CI runner. -->
+    <Compile Remove="Api\TransportSmokeTests.cs" />
     <Compile Remove="Api\SettingsManifestTests.cs" />
     <Compile Remove="Api\ListEntitiesEndpointTests.cs" />
     <Compile Remove="Api\PreviewEndpointTests.cs" />
@@ -122,8 +161,6 @@
     <Compile Remove="Events\**\*.cs" />
     <Compile Remove="Concurrency\**\*.cs" />
     <Compile Remove="Preview\**\*.cs" />
-    <Compile Remove="TestSupport\CoveContextFactory.cs" />
-    <Compile Remove="TestSupport\FakePrincipalAccessor.cs" />
     <Compile Remove="TestSupport\CapturingEventBus.cs" />
     <Compile Remove="TestSupport\SharedCacheSqlite.cs" />
   </ItemGroup>
