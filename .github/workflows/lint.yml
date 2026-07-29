@@ -105,7 +105,7 @@ jobs:
         with:
           node-version: '24.11.0'
       - name: Install root lint tooling
-        run: npm install --no-workspaces
+        run: npm ci --no-workspaces
       - name: Install each extension's UI deps (type-aware program inputs)
         shell: bash
         run: |
@@ -117,8 +117,8 @@ jobs:
             }
           ')
           for ui in "${uiPaths[@]}"; do
-            echo "::group::npm install $ui"
-            (cd "$ui" && npm install)
+            echo "::group::npm ci $ui"
+            (cd "$ui" && npm ci)
             echo "::endgroup::"
           done
       - name: ESLint (whole monorepo)
@@ -143,7 +143,7 @@ jobs:
       # Full install (root + the e2e workspaces) so knip can resolve the Playwright/testcontainers/
       # @cove-extensions/e2e imports in the e2e specs; --no-workspaces would leave them unresolved.
       - name: Install root gate tooling + workspaces
-        run: npm install
+        run: npm ci
       - name: Install each extension's UI deps (knip TypeScript program inputs)
         shell: bash
         run: |
@@ -155,8 +155,8 @@ jobs:
             }
           ')
           for ui in "${uiPaths[@]}"; do
-            echo "::group::npm install $ui"
-            (cd "$ui" && npm install)
+            echo "::group::npm ci $ui"
+            (cd "$ui" && npm ci)
             echo "::endgroup::"
           done
       - name: syncpack (dependency-version drift)
