@@ -16,11 +16,10 @@ on:
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
-# Least-privilege token: read the repo, write Pages, mint the OIDC id-token deploy-pages needs.
+# Least-privilege floor: read the repo. The Pages and OIDC grants are declared per-job below, so the
+# job that installs and runs the site's dependencies holds neither.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # Serialize Pages deploys; never cancel an in-flight one.
 concurrency:
@@ -30,6 +29,11 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Configure Pages queries the repository's Pages settings, and a permissions block sets every
+    # unlisted scope to none — hence the explicit pages:read. No write scope: this job cannot deploy.
+    permissions:
+      contents: read
+      pages: read
     steps:
       - uses: actions/checkout@v7
 
@@ -53,6 +57,11 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    # The only job that can publish. deploy-pages authenticates the deployment with an OIDC token, so
+    # id-token:write is inseparable from pages:write here. No contents scope — it checks nothing out.
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
