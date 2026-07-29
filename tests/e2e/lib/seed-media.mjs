@@ -4,6 +4,7 @@
 // see extensions/.planning/ or extensions/Renamer/.planning/ research notes) — copying a tiny real
 // fixture via the container's own copyFilesToContainer (not a host bind-mount) keeps this
 // environment-independent.
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -15,7 +16,7 @@ const FIXTURES_DIR = join(__dirname, 'fixtures-media');
  * and registers it as a video via POST /api/videos/from-file. Returns the created video's id.
  */
 export async function seedVideo({ container, baseUrl, fixtureName = 'test-video.mp4', destName, destDir = '/data' }) {
-  const name = destName ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${fixtureName}`;
+  const name = destName ?? `${Date.now()}-${randomUUID()}-${fixtureName}`;
   const hostPath = join(FIXTURES_DIR, fixtureName);
   const containerPath = `${destDir}/${name}`;
 
