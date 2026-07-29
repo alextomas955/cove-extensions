@@ -33,7 +33,7 @@ env:
   DOTNET_VERSION: '10.0.x'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
@@ -105,7 +105,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.validate.outputs.matrix) }}
     permissions:
-      contents: write
+      contents: read
     steps:
       - name: Derive version
         id: check
@@ -256,6 +256,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.validate.outputs.matrix) }}
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
 
@@ -400,6 +402,9 @@ jobs:
     needs: [validate, build, e2e]
     if: always()
     runs-on: ubuntu-latest
+    # No token at all: this job only reads the other jobs' results and echoes them. An empty mapping
+    # grants nothing, where omitting the block would inherit the workflow default.
+    permissions: {}
     steps:
       - name: Assert the required legs succeeded
         shell: bash
