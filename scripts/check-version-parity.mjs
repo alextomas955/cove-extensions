@@ -41,8 +41,19 @@ if (argCount < 3 || argCount > 4) {
   process.exit(1);
 }
 
+// The path arguments are catalog.json fields, which no schema requires to be non-empty. An empty
+// one leaves the argument absolute ("" + "/package.json"), and path.resolve gives an absolute
+// argument precedence over the root, so an unguarded read lands outside the checkout.
+const repoRoot = process.cwd();
+
 function read(argPath) {
-  return fs.readFileSync(path.resolve(process.cwd(), argPath), "utf8");
+  const resolved = path.resolve(repoRoot, argPath);
+  const relative = path.relative(repoRoot, resolved);
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) {
+    console.error(`check-version-parity: refusing path outside the repository root: ${argPath}`);
+    process.exit(1);
+  }
+  return fs.readFileSync(resolved, "utf8");
 }
 
 // The two C#-source overrides are matched by PROPERTY NAME so the artifact Version and the
