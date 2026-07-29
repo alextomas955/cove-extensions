@@ -48,6 +48,10 @@ updates:
           - "@types/react*"
           - "@tanstack/*"
 
+  # brace-expansion's advisory is patched only in a major whose default export became an object
+  # rather than a function, breaking every minimatch reachable in both npm trees below (reproduced
+  # on 3.1.5 and 5.1.9) — silently, since minimatch short-circuits brace-free patterns, so builds
+  # stay green over a broken graph. Take the bump once minimatch, glob and archiver move to it.
   # JS workspaces root — the single root package-lock.json owns the shared E2E harness (tests/e2e:
   # Testcontainers, Playwright + transitive deps) and every extension's e2e workspace. Dependabot's
   # npm updater points at the directory holding the lockfile (the root), which covers all npm
