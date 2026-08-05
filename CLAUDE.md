@@ -4,10 +4,24 @@
 
 This is the Cove extensions monorepo — a single git repository holding one or more Cove
 extensions, following [yourcove](https://github.com/yourcove)'s official
-`multi-extension-repo-template` pattern. Today it ships one extension — **Renamer**
-(`extensions/Renamer/`, metadata-driven rename/relocate) — plus first-party shared modules
-(`shared/Cove.Extensions.Shared` for C#, `shared/cove-extensions-ui` for the UI bundles) it
-consumes. See `README.md` for the extension list and dev setup.
+`multi-extension-repo-template` pattern. It ships the extensions registered in
+`extensions/catalog.json`, plus the first-party shared modules under `shared/` they consume. See
+`README.md` for the extension list and dev setup.
+
+## What belongs in this file
+
+Durable principles that guide judgment — the reasoning behind a rule, so a reader can apply it to a
+case this file never anticipated. Not a snapshot of implementation state.
+
+Concretely: no file inventories, no module counts, no incident figures, no configuration values
+copied from where they actually live, no keyword lists. Those go stale silently, and a stale rule is
+worse than no rule — a reader cannot tell whether the rule or the code is wrong. Prefer a stated
+principle with one illustrative example over an enumeration.
+
+**Treat every rule here as a claim, not as truth.** Verify against the live system before relying on
+one. When a change invalidates a rule, rewrite or delete it in that same change; leaving both the old
+rule and the new reality in place is the failure mode this section exists to prevent. Removing
+content from this file is a valid outcome.
 
 ## Registry and CI
 
@@ -105,25 +119,30 @@ human-facing version lives at `website/docs/contributing/authoring-patterns.md`.
   `*Detector`=DOM, `*Port`/`*Client`=INFRA, `*Contracts`/`*Models`=MODEL. No `ui/lib/model/` segments
   inside a slice — the suffix carries it. Folder-per-section only when a section holds more than one
   file.
-- **Two-level shared — "shared" is repo-level only.** Repo-level `shared/` = cross-extension only:
-  exactly `shared/cove-extensions-ui` (FE) + `shared/Cove.Extensions.Shared` (BE). The FE package's
-  `src/` is **flat** — `index.ts` beside `primitives.tsx`, `primitivesLogic.ts`, `actions.ts`,
-  `postAction.ts`, `overlay.ts`, `entityPickerLogic.ts` — because at seven files the suffix already
-  carries the kind and a `ui/`/`lib/` split would only restate it (the suffix-as-kind rule above).
+- **Two-level shared — "shared" is repo-level only.** Repo-level `shared/` is cross-extension only.
   **The level is decided by reach, never by a directory name:** a module belongs at repo level only if
   it is business-agnostic *and* reusable by every extension unchanged. Extension-local multi-feature
-  code lives in that extension's own `common/`, which **is** split (`common/ui` + `common/lib`, as
-  Renamer's is today), and is **never** called "shared" — anything carrying one extension's branding or
-  domain vocabulary belongs in its `common/ui`, not in `cove-extensions-ui`.
+  code lives in that extension's own `common/`, and is **never** called "shared" — anything carrying
+  one extension's branding or domain vocabulary belongs there, not in a repo-level package. Split a
+  package internally only when the split discriminates something the suffix-as-kind rule above does
+  not already carry; a flat `src/` is correct until it stops being legible.
+  **Before adding to a repo-level package, check whether the host already provides it** — Cove exposes
+  shared runtime modules and a component library to extensions, and reimplementing those is the most
+  common way this rule gets violated.
 - **Models live with their behavior; only wire contracts get a home.** Do not strip behavior into a
   data-only "models layer" (anemic-domain anti-pattern). C# wire DTOs → a `Contracts/` unit in the
   SAME assembly, cross-cutting enums defined once in a neutral `Vocabulary.cs`. TS wire types → one
   `contracts.ts` per UI `src/` root, consumed via `import type` (erases at runtime, so `*Logic.ts`
   stays offline-gate-clean).
 - **Wire is all-camelCase — properties AND enum values, no island.** It is the convention on the
-  external boundary (Cove `JsonSerializerDefaults.Web`). Every UI response is
-  a projection DTO, never a live domain/EF type. Codegen stays deferred (~17 stable types; offline
-  gates ARE the drift check); re-trigger only past ~30 mirrored types.
+  external boundary (Cove `JsonSerializerDefaults.Web`). Note that this serializer also binds
+  incoming properties case-insensitively, so there is ONE casing convention on the wire, not a
+  separate request casing. Every UI response is a projection DTO, never a live domain/EF type.
+  **Hand-declared wire types are an unverified assumption:** a response interface with the wrong
+  casing type-checks — the compiler trusts the declaration — and every field silently reads
+  `undefined` at runtime with no error anywhere. This has shipped here. Whether the answer is
+  generation, runtime validation at the fetch boundary, or something else is an open question; what
+  is settled is that "it type-checks" proves nothing about the wire.
 - **UI conventions.** Named exports only (the `defineExtension` default in `index.ts` is the one
   default export); no barrels bar `index.ts` + the curated `shared/` public barrel; data access
   through a named `use*` hook beside its `*Store.ts`, never a raw `request()` in `useEffect`; no
@@ -147,8 +166,9 @@ human-facing version lives at `website/docs/contributing/authoring-patterns.md`.
   **aggregates**, serve **rows paged on demand** — planning and projection here are pure per entity, so a
   slice computes identically to a full pass. A row cap is NOT the remedy: it converts a hard failure into
   a silently truncated answer, which is worse. When a design cannot avoid a full pass (a count, a
-  reconcile), the pass may be O(library) in *time* but its output must still be O(1) in size. Renamer's
-  `last-scan-result` reaching 595 MB (~1.04M files) is the worked example.
+  reconcile), the pass may be O(library) in *time* but its output must still be O(1) in size.
+  This has already happened here: a per-file collection persisted to `IExtensionStore` grew large
+  enough to fail that extension's entire settings page, survive reinstall, and require SQL to remove.
 - **Testing.** Every xUnit test class carries exactly one class-level `[Trait("Tier", …)]` — L0
   pure-logic · L1 host-double (real SQLite `CoveContext` / `TempDir` / principal) · L2 in-process
   endpoint (the `NewExtension` harness + permission-gated handlers) · L3 containerized / live-instance
@@ -161,13 +181,38 @@ human-facing version lives at `website/docs/contributing/authoring-patterns.md`.
   a Cove source type is Compile-Removed there and is L1/L2 — and is NOT the safety gate; the
   containerized e2e job is the required safety gate. Keep `*Logic.ts` offline-gated so pinned
   wire-casing enums fail a gate on drift.
-- **Tooling as merge gates.** jscpd, knip, syncpack, and import-boundaries run as **blocking** merge
-  gates. Rollout: land each tool, get it green on `main`, THEN flip to blocking.
-- **Adding a new extension:** register in `catalog.json` → manifest + `FullExtensionBase` → structure
-  by tier (no `features/`, capability-not-entity, suffix-as-kind, `common/` for local shared) → wire
-  camelCase + `Contracts/`/`contracts.ts` → UI (named exports, `use*` hooks, no `hooks/`) → correctness
+- **Tooling as merge gates.** Architectural gates run as **blocking** merge gates. Rollout: land each
+  tool, get it green on `main`, THEN flip to blocking.
+- **A gate must be able to fail, and must prove it ran.** A gate that inspects zero input and exits 0
+  is a bug, not a pass — it reads as coverage while providing none, and can stay that way for weeks.
+  Every gate reports what it actually examined and treats empty input as a hard failure. When a gate
+  cannot run in an environment (a missing sibling checkout, an absent binary), it must say so loudly
+  rather than skip silently.
+- **Justify a gate by a failure that is still possible.** Not by one that already happened. When a
+  design change makes a bug class impossible — the problem removed at its source rather than detected
+  — delete the gate in that same change instead of keeping it as extra defense. Redundant gates cost
+  maintenance and rot unnoticed. Prefer removing the problem over adding a check, and prefer a
+  structural guarantee (an allowlist, a single source of truth, a generated artifact) over a scan that
+  looks for the bad outcome afterward.
+- **Repo tooling is catalog-driven, never per-extension.** A script that understands one extension's
+  layout multiplies with every extension added. Drive it from `catalog.json` so a new extension needs
+  no tooling change.
+- **Scripts must be portable.** This repo is developed on Windows and runs CI on Linux. Do not derive
+  a filesystem path from `import.meta.url` via `.pathname` — on Windows it yields a leading-slash form
+  that resolves to a doubled drive prefix; use `import.meta.dirname` or `fileURLToPath`. Do not assume
+  POSIX binaries are on PATH. This class of defect silently disabled gates here.
+- **Check upstream and peer repos before building tooling.** The upstream template and other public
+  Cove extension repos face the same boundary and the same problems; where one solves it more simply,
+  prefer that and record the reason if deviating. Never hand-mirror a list or value that already lives
+  in the upstream build — copies drift.
+- **Adding a new extension:** check what the host already provides before writing UI primitives →
+  register in `catalog.json` → manifest + `FullExtensionBase` → structure by tier (no `features/`,
+  capability-not-entity, suffix-as-kind, `common/` for local shared) → wire camelCase +
+  `Contracts/`/`contracts.ts` → UI (named exports, `use*` hooks, no `hooks/`) → correctness
   (RunAsSystem, no silent swallow, `Cancelled`, bounded stores) → tests (Tier traits, mirror source,
   safety behind e2e) → green under the merge gates → docs (README + site + CHANGELOG + own CLAUDE.md).
+  A second extension is the test of whether a rule generalizes: if following one requires duplicating
+  code or editing shared tooling, the rule is wrong, not the extension.
 
 ## C# comments and XML docs
 
