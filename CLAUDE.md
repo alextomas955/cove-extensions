@@ -4,11 +4,10 @@
 
 This is the Cove extensions monorepo — a single git repository holding one or more Cove
 extensions, following [yourcove](https://github.com/yourcove)'s official
-`multi-extension-repo-template` pattern. Today it ships two extensions — **Renamer**
-(`extensions/Renamer/`, metadata-driven rename/relocate) and **Whisparr Sync**
-(`extensions/WhisparrSync/`, Cove↔Whisparr import/reconcile/push) — plus first-party shared modules
-(`shared/Cove.Extensions.Shared` for C#, `shared/cove-extensions-ui` for the UI bundles) both
-consume. See `README.md` for the extension list and dev setup.
+`multi-extension-repo-template` pattern. Today it ships one extension — **Renamer**
+(`extensions/Renamer/`, metadata-driven rename/relocate) — plus first-party shared modules
+(`shared/Cove.Extensions.Shared` for C#, `shared/cove-extensions-ui` for the UI bundles) it
+consumes. See `README.md` for the extension list and dev setup.
 
 ## Registry and CI
 
@@ -54,7 +53,7 @@ stripping rules (which ship in the package's `buildTransitive/`) are not auto-im
 ## Extension authoring
 
 Every extension in this monorepo is a dynamically-loaded `Cove.Sdk` plugin. The rules below apply to
-all of them (Renamer and Whisparr Sync today, more later); an extension's own `CLAUDE.md` adds only
+all of them (Renamer today, more later); an extension's own `CLAUDE.md` adds only
 what is specific to it. Shared first-party code lives in `shared/` — `Cove.Extensions.Shared` (a
 `ProjectReference` that ships bundled, since it is first-party and not host-provided) and
 `cove-extensions-ui` (resolved into each UI bundle from raw TS source via a Vite alias).
@@ -112,17 +111,17 @@ human-facing version lives at `website/docs/contributing/authoring-patterns.md`.
   `postAction.ts`, `overlay.ts`, `entityPickerLogic.ts` — because at seven files the suffix already
   carries the kind and a `ui/`/`lib/` split would only restate it (the suffix-as-kind rule above).
   **The level is decided by reach, never by a directory name:** a module belongs at repo level only if
-  it is business-agnostic *and* reusable by both extensions unchanged. Extension-local multi-feature
-  code lives in that extension's own `common/`, which **is** split (`common/ui` + `common/lib`, in both
-  extensions today), and is **never** called "shared" — e.g. `WhisparrLogo.tsx` is Whisparr-branded, so
-  it is `common/ui/`, not `cove-extensions-ui`.
+  it is business-agnostic *and* reusable by every extension unchanged. Extension-local multi-feature
+  code lives in that extension's own `common/`, which **is** split (`common/ui` + `common/lib`, as
+  Renamer's is today), and is **never** called "shared" — anything carrying one extension's branding or
+  domain vocabulary belongs in its `common/ui`, not in `cove-extensions-ui`.
 - **Models live with their behavior; only wire contracts get a home.** Do not strip behavior into a
   data-only "models layer" (anemic-domain anti-pattern). C# wire DTOs → a `Contracts/` unit in the
   SAME assembly, cross-cutting enums defined once in a neutral `Vocabulary.cs`. TS wire types → one
   `contracts.ts` per UI `src/` root, consumed via `import type` (erases at runtime, so `*Logic.ts`
   stays offline-gate-clean).
-- **Wire is all-camelCase — properties AND enum values, no island.** It is the convention on both
-  external boundaries (Cove `JsonSerializerDefaults.Web`, Whisparr's Servarr API). Every UI response is
+- **Wire is all-camelCase — properties AND enum values, no island.** It is the convention on the
+  external boundary (Cove `JsonSerializerDefaults.Web`). Every UI response is
   a projection DTO, never a live domain/EF type. Codegen stays deferred (~17 stable types; offline
   gates ARE the drift check); re-trigger only past ~30 mirrored types.
 - **UI conventions.** Named exports only (the `defineExtension` default in `index.ts` is the one

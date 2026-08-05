@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Casing gate for WhisparrSync RESPONSE shapes: does any type used as a response shape declare a
+// Casing gate for camelCase-wire RESPONSE shapes: does any type used as a response shape declare a
 // property whose name starts with an uppercase letter?
 //
 // The bug class it exists for: this wire is asymmetric on purpose — request bodies are PascalCase,
@@ -9,10 +9,13 @@
 // check-wire-usage only asks whether a field NAME appears somewhere in the UI text, which says
 // nothing about casing.
 //
-// SCOPE IS DELIBERATELY NOT REPO-WIDE. The policy list below holds WhisparrSync only. Renamer's wire
-// is legitimately PascalCase — it rides Cove's generic extension-data store rather than a
-// JsonSerializerDefaults.Web handler, so Renamer.Ui/src/settings/options.ts is PascalCase on purpose
-// and a repo-wide rule would cry wolf on a correct extension.
+// SCOPE IS DELIBERATELY NOT REPO-WIDE — it is per-extension, because one extension can serve BOTH
+// casings. Renamer does: its response endpoints serialize through PreviewResponseJsonOptions
+// (CoveJsonOptions.WebWithEnumStrings(), i.e. JsonSerializerDefaults.Web = camelCase), while its
+// settings blob rides Cove's generic extension-data store and is legitimately PascalCase — which is
+// why Renamer.Ui/src/settings/options.ts is PascalCase on purpose. The gate only inspects types
+// reached through request<…>/postAction<…> generics, so it sees the response wire and not the
+// options blob. A repo-wide rule would cry wolf on the latter.
 //
 // Method, stated so a reader can judge what it can and cannot know:
 //   - walk .ts/.tsx under each policy-listed extension's UI src/, skipping node_modules, dist, vendor;
@@ -53,7 +56,7 @@ const root =
     : resolve(dirname(new URL(import.meta.url).pathname), "..");
 
 // Extensions whose Cove-facing responses serialize through JsonSerializerDefaults.Web (camelCase).
-const POLICY = ["extensions/WhisparrSync"];
+const POLICY = ["extensions/Renamer"];
 
 const SKIP_DIRS = new Set(["node_modules", "dist", "vendor", "obj", "bin", ".git"]);
 

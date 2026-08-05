@@ -8,7 +8,7 @@ assignees: ''
 
 ## Which extension
 
-Which extension in this monorepo is affected — e.g. Renamer or WhisparrSync.
+Which extension in this monorepo is affected — e.g. Renamer.
 
 ## What happened
 
