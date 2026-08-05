@@ -17,10 +17,10 @@
 // With --warn it never blocks; without, a finding exits non-zero.
 
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
-import { join, extname, dirname, resolve } from "node:path";
+import { join, extname, resolve } from "node:path";
 
 const warnOnly = process.argv.includes("--warn");
-const root = resolve(dirname(new URL(import.meta.url).pathname), "..");
+const root = resolve(import.meta.dirname, "..");
 
 const SKIP_DIRS = new Set([
   "node_modules",

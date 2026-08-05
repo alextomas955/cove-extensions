@@ -53,7 +53,7 @@ const rootFlag = argv.indexOf("--root");
 const root =
   rootFlag !== -1 && argv[rootFlag + 1]
     ? resolve(argv[rootFlag + 1])
-    : resolve(dirname(new URL(import.meta.url).pathname), "..");
+    : resolve(import.meta.dirname, "..");
 
 // Extensions whose Cove-facing responses serialize through JsonSerializerDefaults.Web (camelCase).
 const POLICY = ["extensions/Renamer"];
