@@ -14,8 +14,7 @@ dotnet build CoveExtensions.slnx
 ```
 
 Each extension has its own build/test/verify commands — see that extension's own README
-([`extensions/Renamer/README.md`](extensions/Renamer/README.md),
-[`extensions/WhisparrSync/README.md`](extensions/WhisparrSync/README.md)) and
+([`extensions/Renamer/README.md`](extensions/Renamer/README.md)) and
 [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) for what a PR is expected to
 verify before it's opened.
 

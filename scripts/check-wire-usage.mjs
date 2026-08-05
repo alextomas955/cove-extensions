@@ -7,7 +7,7 @@
 // A route has three legitimate callers, all checked before it is reported:
 //   - the UI bundle (a string literal the bundle fetches),
 //   - the HOST (declared in the C# manifest as countEndpoint/apiEndpoint — Cove calls it, not the bundle),
-//   - an external system (the inbound webhook, called by Whisparr).
+//   - an external system (the inbound webhook, called by the provider).
 // A field only matters here if it can reach the UI, so inbound provider models and internal port DTOs are
 // excluded — those are parsed FROM the provider or passed between server layers.
 //
@@ -68,10 +68,10 @@ function recordParams(body) {
 // Only records that can reach the UI: the wire Contracts unit, the redaction-safe options view, and the
 // per-slice projections.
 const RESPONSE_DTO_FILE =
-  /(\/Contracts\/|WhisparrOptions\.cs$|SceneStatusModels\.cs$|EntityStatusProjection\.cs$|PreviewContracts\.cs$|RenamerPlan\.cs$)/;
+  /(\/Contracts\/|PreviewContracts\.cs$|RenamerPlan\.cs$)/;
 // Inbound provider shapes and server-internal DTOs: never serialized to the UI, so absence there means nothing.
 const INTERNAL_DTO =
-  /^(Whisparr(Movie|Image|Performer|Episode|QueueRecord|HistoryRecord|ManualImportItem|FileSettings|NamingConfig)|Cove(Video|EntityIdentity|EntityRef|PerformerImage)|MetadataServerCandidate|ResolvedMetadataCredential|DiscoveryPage|MatchResult)$/;
+  /^(Cove(Video|EntityIdentity|EntityRef|PerformerImage)|MetadataServerCandidate|ResolvedMetadataCredential|DiscoveryPage|MatchResult)$/;
 
 function analyze(extensionDir) {
   const files = walk(join(root, extensionDir));

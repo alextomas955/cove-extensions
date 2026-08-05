@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Casing gate for WhisparrSync RESPONSE shapes: does any type used as a response shape declare a
+// Casing gate for camelCase-wire RESPONSE shapes: does any type used as a response shape declare a
 // property whose name starts with an uppercase letter?
 //
 // The bug class it exists for: this wire is asymmetric on purpose — request bodies are PascalCase,
@@ -9,10 +9,13 @@
 // check-wire-usage only asks whether a field NAME appears somewhere in the UI text, which says
 // nothing about casing.
 //
-// SCOPE IS DELIBERATELY NOT REPO-WIDE. The policy list below holds WhisparrSync only. Renamer's wire
-// is legitimately PascalCase — it rides Cove's generic extension-data store rather than a
-// JsonSerializerDefaults.Web handler, so Renamer.Ui/src/settings/options.ts is PascalCase on purpose
-// and a repo-wide rule would cry wolf on a correct extension.
+// SCOPE IS DELIBERATELY NOT REPO-WIDE, and the policy list below is EMPTY: no extension in this repo
+// currently serves a camelCase wire. Renamer's wire is legitimately PascalCase — it rides Cove's
+// generic extension-data store rather than a JsonSerializerDefaults.Web handler, so
+// Renamer.Ui/src/settings/options.ts is PascalCase on purpose and a repo-wide rule would cry wolf on
+// a correct extension. With an empty policy the gate scans nothing and passes; it is dormant by
+// construction until an extension that serializes through JsonSerializerDefaults.Web is added and
+// listed here. A green run therefore asserts nothing today — see the files= count it prints.
 //
 // Method, stated so a reader can judge what it can and cannot know:
 //   - walk .ts/.tsx under each policy-listed extension's UI src/, skipping node_modules, dist, vendor;
@@ -53,7 +56,8 @@ const root =
     : resolve(dirname(new URL(import.meta.url).pathname), "..");
 
 // Extensions whose Cove-facing responses serialize through JsonSerializerDefaults.Web (camelCase).
-const POLICY = ["extensions/WhisparrSync"];
+// Empty: no extension in this repo serves a camelCase wire today, so the gate is dormant.
+const POLICY = [];
 
 const SKIP_DIRS = new Set(["node_modules", "dist", "vendor", "obj", "bin", ".git"]);
 
