@@ -9,14 +9,13 @@
 // check-wire-usage only asks whether a field NAME appears somewhere in the UI text, which says
 // nothing about casing.
 //
-// SCOPE IS DELIBERATELY NOT REPO-WIDE, and the policy list below is EMPTY: no extension in this repo
-// currently serves a camelCase wire. Renamer's wire is legitimately PascalCase — it rides Cove's
-// generic extension-data store rather than a JsonSerializerDefaults.Web handler, so
-// Renamer.Ui/src/settings/options.ts is PascalCase on purpose and a repo-wide rule would cry wolf on
-// a correct extension. With an empty policy the gate scans nothing and passes; it is dormant by
-// construction until an extension that serializes through JsonSerializerDefaults.Web is added and
-// listed here. A green run therefore asserts nothing today, and the gate says so on stdout rather
-// than printing a zero-finding summary that would read like coverage.
+// SCOPE IS DELIBERATELY NOT REPO-WIDE — it is per-extension, because one extension can serve BOTH
+// casings. Renamer does: its response endpoints serialize through PreviewResponseJsonOptions
+// (CoveJsonOptions.WebWithEnumStrings(), i.e. JsonSerializerDefaults.Web = camelCase), while its
+// settings blob rides Cove's generic extension-data store and is legitimately PascalCase — which is
+// why Renamer.Ui/src/settings/options.ts is PascalCase on purpose. The gate only inspects types
+// reached through request<…>/postAction<…> generics, so it sees the response wire and not the
+// options blob. A repo-wide rule would cry wolf on the latter.
 //
 // Method, stated so a reader can judge what it can and cannot know:
 //   - walk .ts/.tsx under each policy-listed extension's UI src/, skipping node_modules, dist, vendor;
@@ -57,8 +56,7 @@ const root =
     : resolve(dirname(new URL(import.meta.url).pathname), "..");
 
 // Extensions whose Cove-facing responses serialize through JsonSerializerDefaults.Web (camelCase).
-// Empty: no extension in this repo serves a camelCase wire today, so the gate is dormant.
-const POLICY = [];
+const POLICY = ["extensions/Renamer"];
 
 const SKIP_DIRS = new Set(["node_modules", "dist", "vendor", "obj", "bin", ".git"]);
 
@@ -307,15 +305,6 @@ const unresolved = [];
 let filesScanned = 0;
 let resolvedCount = 0;
 let membersInspected = 0;
-
-// Dormant while POLICY is empty: a green run asserts nothing, so say so and exit rather than
-// reporting a zero-finding pass that reads like coverage. Delete this once an entry is listed.
-if (POLICY.length === 0) {
-  console.log(
-    "check-response-casing: no extension serves a camelCase wire; gate dormant (asserts nothing)",
-  );
-  process.exit(0);
-}
 
 for (const policyDir of POLICY) {
   for (const file of walk(join(root, policyDir))) {
