@@ -39,10 +39,6 @@ public static class OptionsMigration
     private const string ExcludeTagIds = "ExcludeTagIds";
     private const string TagDestinations = "TagDestinations";
 
-    // Mirrors RenamerOptions.JsonOptions.PropertyNameCaseInsensitive: the stored blob is read back
-    // case-insensitively, so a hand-edited "excludetags" is live configuration and must convert too.
-    private static readonly JsonNodeOptions NodeOptions = new() { PropertyNameCaseInsensitive = true };
-
     /// <summary>
     /// What a stored blob still holds in the legacy, name-keyed shape — and therefore which entity
     /// tables the conversion has to resolve against.
@@ -68,7 +64,7 @@ public static class OptionsMigration
             return default;
         }
 
-        bool tags = root[LegacyExcludeTags] is JsonArray
+        bool tags = Find(root, LegacyExcludeTags)?.Value is JsonArray
             || GroupIsNameKeyed(root, TagsGroup)
             || HasNameKeyedDestinations(root);
 
@@ -101,10 +97,13 @@ public static class OptionsMigration
         var performerIds = BuildLookup(performers);
         var dropped = new List<string>();
 
-        ConvertNameList(root[TagsGroup] as JsonObject, LegacyWhitelist, WhitelistIds, tagIds, dropped);
-        ConvertNameList(root[TagsGroup] as JsonObject, LegacyBlacklist, BlacklistIds, tagIds, dropped);
-        ConvertNameList(root[PerformersGroup] as JsonObject, LegacyWhitelist, WhitelistIds, performerIds, dropped);
-        ConvertNameList(root[PerformersGroup] as JsonObject, LegacyBlacklist, BlacklistIds, performerIds, dropped);
+        var tagGroup = Find(root, TagsGroup)?.Value as JsonObject;
+        var performerGroup = Find(root, PerformersGroup)?.Value as JsonObject;
+
+        ConvertNameList(tagGroup, LegacyWhitelist, WhitelistIds, tagIds, dropped);
+        ConvertNameList(tagGroup, LegacyBlacklist, BlacklistIds, tagIds, dropped);
+        ConvertNameList(performerGroup, LegacyWhitelist, WhitelistIds, performerIds, dropped);
+        ConvertNameList(performerGroup, LegacyBlacklist, BlacklistIds, performerIds, dropped);
         ConvertNameList(root, LegacyExcludeTags, ExcludeTagIds, tagIds, dropped);
         ConvertDestinations(root, tagIds, dropped);
 
@@ -120,12 +119,33 @@ public static class OptionsMigration
 
         try
         {
-            return JsonNode.Parse(json, NodeOptions) as JsonObject;
+            return JsonNode.Parse(json) as JsonObject;
         }
         catch (JsonException)
         {
             return null;
         }
+    }
+
+    /// <summary>Finds a member by name, ignoring letter case, and reports the key as actually spelled.</summary>
+    /// <remarks>
+    /// The blob is parsed with the DEFAULT ordinal key comparer, and the case-insensitivity that
+    /// <see cref="RenamerOptions.JsonOptions"/> reads with is applied here instead. Parsing
+    /// case-insensitively would fold the user's own map keys too, and a destination map holding both
+    /// <c>4K</c> and <c>4k</c> — which the panel's string-keyed editor can write — then throws
+    /// <see cref="ArgumentException"/> the first time it is enumerated, taking the whole conversion with it.
+    /// </remarks>
+    private static (string Key, JsonNode? Value)? Find(JsonObject owner, string name)
+    {
+        foreach (var (key, value) in owner)
+        {
+            if (string.Equals(key, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return (key, value);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -168,7 +188,7 @@ public static class OptionsMigration
         Dictionary<string, int> lookup,
         List<string> dropped)
     {
-        if (owner?[legacyName] is not JsonArray legacy)
+        if (owner is null || Find(owner, legacyName) is not { Value: JsonArray legacy } legacyEntry)
         {
             return;
         }
@@ -177,7 +197,8 @@ public static class OptionsMigration
         var seen = new HashSet<int>();
 
         // A half-converted blob carrying both spellings keeps the ids it already had.
-        if (owner[idName] is JsonArray existing)
+        var idEntry = Find(owner, idName);
+        if (idEntry?.Value is JsonArray existing)
         {
             foreach (var node in existing)
             {
@@ -207,8 +228,8 @@ public static class OptionsMigration
             }
         }
 
-        owner[idName] = new JsonArray([.. ids.Select(id => (JsonNode)JsonValue.Create(id))]);
-        owner.Remove(legacyName);
+        owner[idEntry?.Key ?? idName] = new JsonArray([.. ids.Select(id => (JsonNode)JsonValue.Create(id))]);
+        owner.Remove(legacyEntry.Key);
     }
 
     private static void ConvertDestinations(
@@ -216,7 +237,7 @@ public static class OptionsMigration
         Dictionary<string, int> lookup,
         List<string> dropped)
     {
-        if (root[TagDestinations] is not JsonObject legacy)
+        if (Find(root, TagDestinations) is not { Value: JsonObject legacy } entry)
         {
             return;
         }
@@ -233,7 +254,7 @@ public static class OptionsMigration
             converted[idKey] = value?.DeepClone();
         }
 
-        root[TagDestinations] = converted;
+        root[entry.Key] = converted;
 
         string? Resolve(string name)
         {
@@ -248,10 +269,11 @@ public static class OptionsMigration
     }
 
     private static bool GroupIsNameKeyed(JsonObject root, string group) =>
-        root[group] is JsonObject g && (g[LegacyWhitelist] is JsonArray || g[LegacyBlacklist] is JsonArray);
+        Find(root, group)?.Value is JsonObject g
+        && (Find(g, LegacyWhitelist)?.Value is JsonArray || Find(g, LegacyBlacklist)?.Value is JsonArray);
 
     private static bool HasNameKeyedDestinations(JsonObject root) =>
-        root[TagDestinations] is JsonObject map && map.Any(entry => !IsIdKey(entry.Key));
+        Find(root, TagDestinations)?.Value is JsonObject map && map.Any(entry => !IsIdKey(entry.Key));
 
     // A converted map's keys are the invariant decimal spelling of an int, which is also what a
     // fresh install writes before this conversion ever runs — so an int-spelled key is read as an id

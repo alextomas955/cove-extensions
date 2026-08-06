@@ -163,6 +163,9 @@
     <Compile Remove="Api\ScanLibraryEndpointTests.cs" />
     <Compile Remove="Api\UndoEndpointTests.cs" />
     <Compile Remove="Jobs\RenamerBatchJobTests.cs" />
+    <!-- The options conversion's L1 half drives a real CoveContext + CovePrincipal; its L0 twin
+         (Options\OptionsMigrationLogicTests.cs) is pure and stays on the bare leg. -->
+    <Compile Remove="Options\OptionsMigrationInitializeTests.cs" />
     <Compile Remove="Execution\**\*.cs" />
     <Compile Remove="Events\**\*.cs" />
     <Compile Remove="Concurrency\**\*.cs" />

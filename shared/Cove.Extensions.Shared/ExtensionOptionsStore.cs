@@ -21,7 +21,8 @@ public class ExtensionOptionsStore<TOptions>(
     Func<TOptions> defaultFactory)
     where TOptions : class
 {
-    private const string Key = "options";
+    /// <summary>The single store key the whole options blob lives under.</summary>
+    public const string Key = "options";
 
     /// <summary>
     /// Loads the persisted options. Returns defaults when the key is absent (first run) or when the
