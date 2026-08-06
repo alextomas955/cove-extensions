@@ -188,7 +188,15 @@ function runGate(gate, pkgRoot) {
       );
       for (const [name, target] of Object.entries(aliasTargets)) {
         patched = patched.replaceAll(`from "${name}"`, () => {
-          let rel = path.relative(path.dirname(emittedPath), target);
+          // path.relative yields the platform separator, and this value lands inside a JS string
+          // literal in the emitted module — so on Windows every backslash is consumed as an escape
+          // ("..\..\shared\..." parses as "......shared...") and Node rejects the collapsed
+          // specifier with ERR_INVALID_MODULE_SPECIFIER. Module specifiers are "/"-separated on
+          // every platform, so normalizing is correct rather than a Windows special case.
+          let rel = path
+            .relative(path.dirname(emittedPath), target)
+            .split(path.sep)
+            .join("/");
           if (!rel.startsWith(".")) rel = `./${rel}`;
           return `from "${rel}"`;
         });
