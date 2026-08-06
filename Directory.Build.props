@@ -7,10 +7,10 @@
     <!-- The single declared host floor, from which the SDK package version derives. 1.1.0 is where
          the host commit that introduced the `@cove/runtime/api` runtime module first ships, measured
          against the released image — the floor follows the capability the extensions actually use, it
-         is not a number picked to look current. Declaration order here is load-bearing:
-         scripts/validate-extension-repo.mjs expands $(...) against properties it has already seen, so
-         reversing these two lines makes it read the literal placeholder text instead of a version and
-         silently skip every per-manifest floor comparison. No companion property is declared for
+         is not a number picked to look current. Declaration order here is load-bearing, and nothing
+         guards it: MSBuild evaluates properties top to bottom, so reversing these two lines expands
+         $(CoveMinVersion) before it holds a value and every Cove package reference silently takes an
+         empty version. No companion property is declared for
          Cove.Core, deliberately: it is never a PackageReference in this repo (it arrives transitively
          through Cove.Sdk), so such a value would have no consumer. -->
     <CoveMinVersion Condition="'$(CoveMinVersion)' == ''">1.1.0</CoveMinVersion>

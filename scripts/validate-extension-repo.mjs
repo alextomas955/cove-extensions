@@ -13,10 +13,13 @@
 // the upstream convention-derived fallback path — the fork is additive, not a breaking
 // replacement.
 //
-// 2. Upstream floor-checks both CoveSdkVersion and CoveCoreVersion against CoveMinVersion. This
-// fork checks only CoveSdkVersion, because Cove.Core is never a PackageReference here — it arrives
-// transitively through Cove.Sdk — so no CoveCoreVersion property is declared and there is no
-// version for the second check to compare. Porting it would report a missing property as an error.
+// 2. Upstream floor-checks the two package-version properties in Directory.Build.props against
+// CoveMinVersion. This fork checks neither, because in this repo neither comparison has a subject:
+// the SDK version is declared as $(CoveMinVersion), so comparing it to the floor asks whether a
+// value is at least itself, and no companion property is declared for Cove.Core at all — it is
+// never a PackageReference here, arriving transitively through Cove.Sdk. Deriving the version makes
+// that drift unrepresentable, which is stronger than detecting it after the fact. The per-entry
+// extension.json minCoveVersion comparison, which does have a real subject, survives.
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -141,12 +144,12 @@ const coveMinVersion = buildProps.CoveMinVersion;
 
 if (!catalog.schemaVersion) errors.push("extensions/catalog.json missing schemaVersion");
 if (entries.length === 0) errors.push("extensions/catalog.json has no extensions");
-// Upstream errors outright when CoveMinVersion is absent; this fork lets the floor checks no-op
-// instead, so a consumer that has not declared a floor still validates. See the CoveCoreVersion
-// note in the file header for why only one property is compared here.
-if (coveMinVersion) {
-  validateVersionFloor("Directory.Build.props", "CoveSdkVersion", buildProps.CoveSdkVersion, coveMinVersion);
-}
+
+// Counts the surviving floor comparisons so the success line can prove the check ran rather than
+// merely exited 0. Upstream errors outright when CoveMinVersion is absent; this fork lets the
+// comparison no-op instead, so a consumer that has not declared a floor still validates — but that
+// no-op is stated in the report line rather than left to look like a pass.
+let floorComparisons = 0;
 
 const ids = new Set();
 const tagPrefixes = new Set();
@@ -186,7 +189,10 @@ for (const entry of entries) {
   const manifest = readJson(manifestPath);
   if (manifest.id !== entry.id) errors.push(entry.id + ": catalog id does not match extension.json id " + manifest.id);
   if (!manifest.version) errors.push(entry.id + ": extension.json missing version");
-  if (coveMinVersion) validateVersionFloor(entry.id, "extension.json minCoveVersion", manifest.minCoveVersion, coveMinVersion);
+  if (coveMinVersion) {
+    validateVersionFloor(entry.id, "extension.json minCoveVersion", manifest.minCoveVersion, coveMinVersion);
+    floorComparisons++;
+  }
   if (!isManifestOnly && !manifest.entryDll) errors.push(entry.id + ": extension.json missing entryDll");
   if (isManifestOnly && manifest.entryDll) errors.push(entry.id + ": manifestOnly entry must not declare entryDll");
   if (isManifestOnly && !["bundle", "scraper-pack"].includes(manifest.kind)) {
@@ -205,9 +211,18 @@ for (const entry of entries) {
   validateSettings(entry.id, manifest);
 }
 
+// A declared floor that ended up compared against nothing is a gate reporting coverage it never
+// provided — the same defect shape as the empty catalog above, so it is a finding, not a pass.
+if (coveMinVersion && entries.length > 0 && floorComparisons === 0) {
+  errors.push("Directory.Build.props: CoveMinVersion " + coveMinVersion + " is declared but no extension.json minCoveVersion was compared against it");
+}
+
 if (errors.length > 0) {
   for (const error of errors) console.error("ERROR: " + error);
   process.exit(1);
 }
 
-console.log("Validated " + entries.length + " extension catalog entries.");
+const floorReport = coveMinVersion
+  ? "compared " + floorComparisons + " extension.json minCoveVersion declaration(s) against CoveMinVersion " + coveMinVersion
+  : "no CoveMinVersion declared in Directory.Build.props, so no floor comparison ran";
+console.log("Validated " + entries.length + " extension catalog entries (" + floorReport + ").");

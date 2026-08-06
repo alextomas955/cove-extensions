@@ -2,8 +2,8 @@
 //
 // This suite does NOT import or refactor the validator. It drives the REAL, unmodified
 // validate-extension-repo.mjs as a child process against deliberately-malformed catalog
-// fixtures, asserting exit code + stderr text per case. This is the "subprocess, not
-// refactor-to-export" pattern from 17-RESEARCH.md Pattern 1: the validator resolves
+// fixtures, asserting exit code + output text per case. Driving it as a subprocess rather
+// than refactoring it to export a function is forced by the subject: it resolves
 // `root = path.resolve(import.meta.dirname, "..")`, i.e. relative to wherever the EXECUTING
 // file physically lives on disk, not process.cwd(). So each fixture gets its own copy of the
 // real validator bytes (copyFileSync'd at run time, never hand-written) inside a
@@ -38,8 +38,7 @@ function validManifest(id, overrides = {}) {
 // name, id, path, tagPrefix ending in "/", manifestPath, projectPath). manifestOnly:true (with
 // a valid manifest kind, set in validManifest) avoids needing a real .csproj fixture file for
 // every case — the validator skips the projectPath existence check entirely when manifestOnly
-// is true (line 179: `if (!isManifestOnly && !fs.existsSync(projectPath))`). Callers override
-// individual fields to create exactly one malformation.
+// is true. Callers override individual fields to create exactly one malformation.
 function validEntry(id, dirName, overrides = {}) {
   return {
     name: id,
@@ -52,14 +51,30 @@ function validEntry(id, dirName, overrides = {}) {
   };
 }
 
+// The floor-bearing props shape, written in the ATTRIBUTED form the real Directory.Build.props
+// uses. That form is what exercises readMsBuildProperties' optional-attribute branch; a fixture
+// using the bare `<CoveMinVersion>1.1.0</CoveMinVersion>` form would leave the branch that
+// actually runs in production uncovered, and a regex that stopped matching it would read the
+// floor as undefined while every test still passed.
+function buildPropsWithFloor(floor = "1.1.0") {
+  return [
+    "<Project>",
+    "  <PropertyGroup>",
+    `    <CoveMinVersion Condition="'$(CoveMinVersion)' == ''">${floor}</CoveMinVersion>`,
+    `    <CoveSdkVersion Condition="'$(CoveSdkVersion)' == ''">$(CoveMinVersion)</CoveSdkVersion>`,
+    "  </PropertyGroup>",
+    "</Project>",
+    "",
+  ].join("\n");
+}
+
 // Builds a temp fixture tree:
 //   <root>/scripts/validate-extension-repo.mjs   (real validator bytes, copied at run time)
 //   <root>/extensions/catalog.json                (the catalog under test)
-//   <root>/Directory.Build.props                  (defaults to "" — no-ops version-floor checks
-//                                                    per validator lines 137-146/143)
+//   <root>/Directory.Build.props                  (defaults to "" — declares no floor, so the
+//                                                    per-entry floor comparison no-ops)
 //   <root>/<relPath> for each [relPath, manifest] in extensionJsonByPath (a real extension.json
-//   on disk for each catalog entry that must NOT short-circuit on path-existence — see
-//   17-RESEARCH.md Pitfall 4)
+//   on disk for each catalog entry that must NOT short-circuit on path-existence)
 function makeFixture({ catalog, buildProps = "", extensionJsonByPath = {} }) {
   const root = mkdtempSync(path.join(tmpdir(), "validate-fixture-"));
   mkdirSync(path.join(root, "scripts"), { recursive: true });
@@ -82,7 +97,10 @@ function runValidator(fixtureRoot) {
   return { status: result.status, stderr: result.stderr, stdout: result.stdout };
 }
 
-test("happy path: a fully-valid single-entry catalog exits 0", () => {
+test("happy path: a fully-valid single-entry catalog exits 0 and says no floor was declared", () => {
+  // With no CoveMinVersion in Directory.Build.props the per-entry comparison deliberately no-ops
+  // (the documented fork deviation from upstream, which errors instead). The report line must say
+  // so outright, or a repo enforcing no floor at all is indistinguishable from one that passed.
   const entry = validEntry("com.example.foo", "Foo");
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },
@@ -91,16 +109,92 @@ test("happy path: a fully-valid single-entry catalog exits 0", () => {
     },
   });
   try {
-    const { status, stderr } = runValidator(root);
+    const { status, stdout, stderr } = runValidator(root);
     assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(stdout, /no CoveMinVersion declared in Directory\.Build\.props, so no floor comparison ran/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a declared floor is compared, and the report line names the count and the floor value", () => {
+  // The "prove it ran" half of the gate contract: exit 0 alone cannot distinguish a comparison
+  // that passed from one that never happened, which is precisely how the deleted self-comparing
+  // checks stayed invisible. The count and the floor value in stdout are the distinguisher.
+  const entry = validEntry("com.example.foo", "Foo");
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    buildProps: buildPropsWithFloor("1.1.0"),
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", { minCoveVersion: "1.1.0" }),
+    },
+  });
+  try {
+    const { status, stdout, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(stdout, /compared 1 extension\.json minCoveVersion declaration\(s\) against CoveMinVersion 1\.1\.0/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a manifest floor below the repo floor fails, naming the entry and the floor it fell below", () => {
+  // The surviving floor comparison, driven to failure. It is the only one left with a real
+  // subject — a per-entry manifest value against the repo floor — so if this case cannot fail,
+  // nothing in the file compares versions at all.
+  const entry = validEntry("com.example.foo", "Foo");
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    buildProps: buildPropsWithFloor("1.1.0"),
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", { minCoveVersion: "1.0.0" }),
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(stderr, /com\.example\.foo: extension\.json minCoveVersion 1\.0\.0 is below repo CoveMinVersion 1\.1\.0/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a declared floor that got compared against nothing is itself a finding", () => {
+  // Every entry short-circuits on the path-existence check, so the loop reaches no comparison.
+  // A declared floor with a zero comparison count is a gate reporting coverage it never provided,
+  // so it must surface alongside the path error rather than letting the run look merely broken
+  // in one place.
+  const entry = validEntry("com.example.foo", "Missing");
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    buildProps: buildPropsWithFloor("1.1.0"),
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(stderr, /path does not exist/);
+    assert.match(stderr, /CoveMinVersion 1\.1\.0 is declared but no extension\.json minCoveVersion was compared against it/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a catalog with zero entries is a finding, not a clean pass", () => {
+  // The repo's worked example of "empty input is a hard failure" — validating nothing must never
+  // read as validating everything. The floor guard above follows this same precedent.
+  const root = makeFixture({ catalog: { schemaVersion: 1, extensions: [] } });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(stderr, /extensions\/catalog\.json has no extensions/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
 test("missing required field (id) produces a non-zero exit and the expected error", () => {
-  // Validator line 152: `(entry.id ?? entry.name ?? "catalog entry") + ": missing " + field`.
-  // Since id is the field omitted, the label falls back to entry.name ("Foo").
+  // The label falls back through `entry.id ?? entry.name ?? "catalog entry"`, and id is the field
+  // omitted here, so the error is reported against entry.name ("Foo").
   const entry = validEntry("com.example.foo", "Foo");
   delete entry.id;
   const root = makeFixture({
@@ -119,13 +213,11 @@ test("missing required field (id) produces a non-zero exit and the expected erro
 });
 
 test("nonexistent projectPath produces a non-zero exit and the expected error", () => {
-  // Validator line 179: `if (!isManifestOnly && !fs.existsSync(projectPath))` — the projectPath
-  // check only runs when manifestOnly is NOT true, so this case overrides the validEntry()
-  // baseline's manifestOnly:true and supplies a manifest with kind="module" (a non-bundle/
-  // scraper-pack kind is irrelevant here since isManifestOnly is false, so the manifestOnly
-  // kind-allowlist check at line 189 doesn't apply) plus a real entryDll so no OTHER error
-  // fires alongside the one under test. manifestPath stays valid so the check reaches the
-  // project-path branch without short-circuiting (Pitfall 4).
+  // The projectPath check is guarded by `!isManifestOnly`, so this case overrides the
+  // validEntry() baseline's manifestOnly:true and supplies a manifest with kind="module" plus a
+  // real entryDll, so no OTHER error fires alongside the one under test. manifestPath stays valid
+  // so the check reaches the project-path branch instead of short-circuiting on an earlier
+  // `continue`.
   const entry = validEntry("com.example.foo", "Foo", {
     manifestOnly: false,
     projectPath: "extensions/Foo/DoesNotExist.csproj",
@@ -146,11 +238,10 @@ test("nonexistent projectPath produces a non-zero exit and the expected error", 
 });
 
 test("nonexistent manifestPath produces a non-zero exit and the expected error", () => {
-  // Validator line 176: entry.id + ": missing extension.json at " + (entry.manifestPath ?? ...).
   // entry.path (extensionDir) must exist on disk, or the earlier existsSync(extensionDir) check
-  // at line 171 short-circuits via `continue` before ever reaching the manifestPath check
-  // (17-RESEARCH.md Pitfall 4) — so a real, unrelated placeholder file is planted under
-  // extensions/Foo/ to satisfy the extensionDir check, while manifestPath itself stays absent.
+  // short-circuits via `continue` before ever reaching the manifestPath check — so a real,
+  // unrelated placeholder file is planted under extensions/Foo/ to satisfy the extensionDir
+  // check, while manifestPath itself stays absent.
   const entry = validEntry("com.example.foo", "Foo", {
     manifestPath: "extensions/Foo/does-not-exist.json",
   });
@@ -170,9 +261,8 @@ test("nonexistent manifestPath produces a non-zero exit and the expected error",
 });
 
 test("duplicate extension id produces a non-zero exit and the expected error", () => {
-  // Validator line 155: entry.id + ": duplicate extension id". Both entries need real,
-  // distinct, fully-valid fixture dirs so neither short-circuits via the path-existence
-  // `continue` at lines 171-178 (Pitfall 4) before the dedup check on the SECOND entry runs.
+  // Both entries need real, distinct, fully-valid fixture dirs so neither short-circuits on the
+  // path-existence `continue` before the dedup check on the SECOND entry runs.
   const entryA = validEntry("com.example.dup", "DupA");
   const entryB = validEntry("com.example.dup", "DupB");
   const root = makeFixture({
@@ -192,8 +282,8 @@ test("duplicate extension id produces a non-zero exit and the expected error", (
 });
 
 test("duplicate tagPrefix produces a non-zero exit and the expected error", () => {
-  // Validator line 158: entry.id + ": duplicate tagPrefix " + entry.tagPrefix. Distinct ids,
-  // shared tagPrefix; both entries fully valid otherwise so the dedup check is isolated.
+  // Distinct ids, shared tagPrefix; both entries fully valid otherwise so the dedup check is
+  // isolated.
   const entryA = validEntry("com.example.taga", "TagA", { tagPrefix: "shared/" });
   const entryB = validEntry("com.example.tagb", "TagB", { tagPrefix: "shared/" });
   const root = makeFixture({
@@ -213,27 +303,13 @@ test("duplicate tagPrefix produces a non-zero exit and the expected error", () =
 });
 
 test("non-semver extension.json minCoveVersion produces a non-zero exit and the expected error", () => {
-  // Validator only runs the version-floor check (validateVersionFloor, line 78's "must be a
-  // semantic version" message) when CoveMinVersion is set in Directory.Build.props (line 143:
-  // `if (coveMinVersion) { ... }`). Fixture Directory.Build.props defines CoveMinVersion to
-  // activate that path, and CoveSdkVersion/CoveCoreVersion are given valid semver so ONLY the
-  // manifest's minCoveVersion (validator line 186:
-  // `validateVersionFloor(entry.id, "extension.json minCoveVersion", manifest.minCoveVersion, coveMinVersion)`)
-  // trips the "must be a semantic version" branch — isolating the case under test.
-  const buildProps = [
-    "<Project>",
-    "  <PropertyGroup>",
-    "    <CoveMinVersion>0.1.0</CoveMinVersion>",
-    "    <CoveSdkVersion>0.7.1</CoveSdkVersion>",
-    "    <CoveCoreVersion>0.7.1</CoveCoreVersion>",
-    "  </PropertyGroup>",
-    "</Project>",
-    "",
-  ].join("\n");
+  // The per-entry comparison only runs when CoveMinVersion is set, so the fixture declares a
+  // floor to activate that path; only the manifest's minCoveVersion is malformed, isolating the
+  // "must be a semantic version" branch.
   const entry = validEntry("com.example.foo", "Foo");
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },
-    buildProps,
+    buildProps: buildPropsWithFloor("0.1.0"),
     extensionJsonByPath: {
       "extensions/Foo/extension.json": validManifest("com.example.foo", { minCoveVersion: "not-a-version" }),
     },
