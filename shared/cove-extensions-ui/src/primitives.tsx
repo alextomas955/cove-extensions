@@ -33,6 +33,17 @@ import { Loader2, X, ChevronUp, ChevronDown } from "lucide-react";
 import { isRegexValid, isAbsolutePathShape } from "./primitivesLogic";
 import { availableOptions, type ValueOption } from "./entityPickerLogic";
 
+/**
+ * The shared text-input class, also handed to host components that take a `className` for their own
+ * input so an embedded host control matches these primitives.
+ *
+ * Append only utilities touching a property this string does not already set. Appending a CONFLICTING
+ * color utility (an error border over its `border-border`, say) silently loses and renders as the
+ * default: the host resolves two utilities on one property by its stylesheet's source order, never by
+ * the order in the class attribute, and this bundle ships no CSS of its own to override with. See
+ * {@link CHIP_BASE} for the same conflict as a shipped bug, and its mutually-exclusive color sets for
+ * the shape that avoids it.
+ */
 export const INPUT_CLASS =
   "w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none";
 
