@@ -1014,8 +1014,10 @@ export function KeyValueMapEditor({
     existingKeys: readonly string[],
   ) => ReactNode;
   renderValue: (value: string, setValue: (value: string) => void) => ReactNode;
-  // How a committed row's key displays. Defaults to the raw key; an opaque-id key (e.g. a studio id)
-  // supplies this to show a human label so a saved rule reads "Studio Name → …" not "42 → …".
+  // How a committed row's key displays. An opaque-id key (e.g. a studio id) supplies this to show a
+  // human label so a saved rule reads "Studio Name → …" not "42 → …". A nullish result falls back to
+  // the raw key: a renderer resolving an id it cannot find must not blank the cell, which would leave
+  // the row unidentifiable and so unremovable.
   renderKeyLabel?: (key: string) => ReactNode;
   addLabel: string;
 }) {
@@ -1052,7 +1054,7 @@ export function KeyValueMapEditor({
           className="flex items-center gap-2 rounded-xl border border-border bg-card p-3"
         >
           <span className="min-w-0 flex-1 truncate font-mono text-sm text-foreground">
-            {renderKeyLabel ? renderKeyLabel(key) : key}
+            {renderKeyLabel?.(key) ?? key}
           </span>
           <span className="flex-1">
             {renderValue(map[key], (v) => {
