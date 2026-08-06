@@ -64,9 +64,9 @@ section its own folder only when it holds more than one file.
 
 ## Two levels of shared code
 
-"Shared" is reserved for **repo-level, cross-extension** code — exactly two packages,
-`shared/cove-extensions-ui` (frontend) and `shared/Cove.Extensions.Shared` (backend). A module earns a
-place there only by being business-agnostic and reusable by *both* extensions unchanged.
+"Shared" is reserved for **repo-level, cross-extension** code — the frontend package
+`shared/cove-extensions-ui` and the backend package `shared/Cove.Extensions.Shared`. A module earns a
+place there only by being business-agnostic and reusable by *every* extension unchanged.
 
 The frontend package's `src/` is **flat**: `index.ts` sits beside `primitives.tsx`, `primitivesLogic.ts`,
 `actions.ts`, `postAction.ts`, `overlay.ts` and `entityPickerLogic.ts`. That is the suffix-as-kind rule
@@ -86,12 +86,18 @@ measures — never whether the code happens to be presentational.
 ## One wire contract, all camelCase
 
 The entire C#↔TypeScript wire is camelCase — property names and enum values alike — because that is the
-convention on the external boundary (the Cove host). Keep the wire types in one
-home per tier: a `Contracts/` unit in the C# assembly (cross-cutting enums defined once in a neutral
-vocabulary file) and one `contracts.ts` per UI `src/` root, imported with `import type` so it erases at
-runtime. Every response the UI reads is a projection type, never a live domain object, so the backend
-can evolve without breaking the wire. Hand-mirror the types and let the offline logic tests catch
-drift; a code generator is not worth its cost at this size.
+convention on the external boundary (the Cove host). The host serializer also binds incoming properties
+case-insensitively, so there is one casing convention on the wire, not a separate one for requests.
+Keep the wire types in one home per tier: a `Contracts/` unit in the C# assembly (cross-cutting enums
+defined once in a neutral vocabulary file) and one `contracts.ts` per UI `src/` root, imported with
+`import type` so it erases at runtime. Every response the UI reads is a projection type, never a live
+domain object, so the backend can evolve without breaking the wire.
+
+Treat a hand-declared wire type as an unverified assumption. A response interface with the wrong casing
+still type-checks — the compiler trusts your declaration — so every field reads `undefined` at runtime
+with no error anywhere. That has shipped here. Whether the answer is generation, validation at the
+fetch boundary, or something else is an open question; what is settled is that "it type-checks" proves
+nothing about the wire.
 
 ## Frontend conventions
 
@@ -120,5 +126,5 @@ comment.
 Tag every backend test with a tier trait — pure-logic, host-double, in-process endpoint, or
 containerized end-to-end — and mirror the source folders so a test is easy to find from its subject.
 The lightweight "bare" CI leg is a compile-and-pure-logic smoke test; the containerized end-to-end job
-is the real safety gate. Copy-paste, dead-export, dependency-drift, and import-direction checks run as
-blocking merge gates once they are green on `main`.
+is the real safety gate. Only checks a CI workflow runs are blocking merge gates — an entry in the
+local hook runner is advice a contributor can skip, so wire a check you need enforced into a workflow.
