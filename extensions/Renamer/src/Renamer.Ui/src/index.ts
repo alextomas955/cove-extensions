@@ -6,10 +6,10 @@
  * The default export ALSO carries an `actionHandlers` map, which the SDK types as
  * `Record<string, ExtensionActionHandler>`. That handler type erases the payload to
  * `Record<string, unknown>`, because one signature has to cover every action kind. The narrowing
- * below is sound only because `renamerSelected` is registered against a bulk SELECTION action,
- * whose payload the host builds with `entityType` + `entityIds` (`ActionPayload`); a handler
- * registered against a different action kind could not reuse it. The handler key `renamerSelected`
- * MUST match the action's HandlerName.
+ * below rests on both host payload builders — the bulk-selection one and the per-entity one —
+ * emitting `entityType` plus an `entityIds` array (`ActionPayload`). It is an unchecked assertion
+ * about the host, not something the compiler can check, so host drift surfaces at runtime rather
+ * than here. The handler key `renamerSelected` MUST match the action's HandlerName.
  */
 import { defineExtension } from "@cove/extension-sdk";
 import type { ActionPayload } from "@cove-extensions/ui-shared";
