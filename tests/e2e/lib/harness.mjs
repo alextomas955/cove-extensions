@@ -43,6 +43,10 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
   const started = await environment.up();
   let coveContainer = started.getContainer('cove-1');
 
+  // Remembered by bootstrapOwner so the handle can re-authenticate itself after a restart without
+  // the caller having to hold on to the credentials.
+  let credentials = null;
+
   const handle = {
     /**
      * The bootstrapped owner's bearer token, set by `bootstrapOwner()`. Undefined until then, which
@@ -68,6 +72,14 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
       // port — re-fetch the started container's own view of itself rather than trusting a cached
       // port number. `restart()` mutates the same StartedGenericContainer in place (its internal
       // port-binding state is refreshed), so re-reading getMappedPort() after restart is correct.
+      //
+      // An access token does NOT survive the restart: measured against 1.1.0, a token that answered
+      // 200 before it answers 401 after, while a fresh login on the restarted instance answers 200.
+      // So the token is re-minted here, or every later call in an auth-enabled instance — starting
+      // with the enabled-poll on the next line — fails as an authentication error.
+      if (handle.token) {
+        await handle.login();
+      }
       await waitForExtensionEnabled(handle.baseUrl, result.id, { timeoutMs, token: handle.token });
       return result;
     },
@@ -104,24 +116,50 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
         const body = await res.text().catch(() => '<unreadable body>');
         throw new Error(`bootstrapOwner: POST /api/auth/bootstrap-owner failed (${res.status}): ${body}`);
       }
-      const owner = await res.json();
-      // The access token is `token` — NOT `accessToken`. Reading the wrong field yields
-      // `Bearer undefined`, which the host rejects identically to sending no header at all, so a
-      // spec would go red for a broken fixture rather than for the behavior it means to prove.
-      // Asserted here, at the one place the field name is spelled, so that failure names itself.
-      if (typeof owner?.token !== 'string' || owner.token.length === 0) {
-        throw new Error(
-          `bootstrapOwner: response carried no usable token (top-level keys: ${Object.keys(owner ?? {}).join(', ') || '<none>'})`
-        );
+      credentials = { username, password };
+      return takeToken(await res.json(), 'bootstrapOwner');
+    },
+
+    /**
+     * Signs the stored owner credentials in again and replaces `token`. Needed after a container
+     * restart, which invalidates every token minted before it.
+     */
+    async login({ username, password } = credentials ?? {}) {
+      if (!username || !password) {
+        throw new Error('login: no credentials — call bootstrapOwner() first, or pass them here');
       }
-      handle.token = owner.token;
-      return owner;
+      const res = await fetch(`${handle.baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '<unreadable body>');
+        throw new Error(`login: POST /api/auth/login failed (${res.status}): ${body}`);
+      }
+      credentials = { username, password };
+      return takeToken(await res.json(), 'login');
     },
 
     async stop() {
       await started.down({ removeVolumes: true });
     },
   };
+
+  // The access token is `token` — NOT `accessToken`. Reading the wrong field yields
+  // `Bearer undefined`, which the host rejects identically to sending no header at all, so a spec
+  // would go red for a broken fixture rather than for the behavior it means to prove. Asserted here,
+  // at the one place either response's field name is spelled, so that failure names itself.
+  function takeToken(response, source) {
+    if (typeof response?.token !== 'string' || response.token.length === 0) {
+      throw new Error(
+        `${source}: response carried no usable token (top-level keys: ${Object.keys(response ?? {}).join(', ') || '<none>'})`
+      );
+    }
+    handle.token = response.token;
+    return response;
+  }
+
   return handle;
 }
 
