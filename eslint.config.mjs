@@ -38,6 +38,11 @@ const noInternalBarrels = {
   message:
     "No internal barrels: import the concrete module, not an index re-export (Wave-1 slice architecture).",
 };
+// The raw-HTML React prop, banned on both UI surfaces. Hoisted so the three selectors below share
+// one wording.
+const noRawHtml =
+  "Raw-HTML rendering is banned: filenames, diffs and flags must render as escaped text nodes, never as parsed HTML.";
+
 const scriptRules = {
   ...js.configs.recommended.rules,
   "no-unused-vars": noUnusedVars,
@@ -140,9 +145,10 @@ export default tseslint.config(
     },
   },
 
-  // --- MF-44 import-enforcement layer (both UI surfaces: extensions + the shared package) ---
-  // R8 named-exports + R13 no-internal-barrels. Uses eslint-plugin-import-x (the maintained fork;
-  // eslint-plugin-import is peer-disqualified at ESLint 10).
+  // --- Cross-surface rules (both UI surfaces: extensions + the shared package) ---
+  // The MF-44 import-enforcement layer (R8 named-exports + R13 no-internal-barrels, via
+  // eslint-plugin-import-x — the maintained fork; eslint-plugin-import is peer-disqualified at
+  // ESLint 10), plus the raw-HTML ban.
   {
     files: ["extensions/*/src/**/*.{ts,tsx}", "shared/cove-extensions-ui/**/*.{ts,tsx}"],
     plugins: { "import-x": importX },
@@ -152,6 +158,27 @@ export default tseslint.config(
       // contract) and are exempted in the override block below.
       "import-x/no-default-export": "error",
       "no-restricted-imports": ["error", { patterns: [noInternalBarrels] }],
+      // Core `no-restricted-syntax` rather than eslint-plugin-react's `no-danger`: that plugin
+      // declares `eslint: ^3 … ^9.7` and so is peer-disqualified here, exactly as eslint-plugin-import
+      // is. The three selectors are the three ways the prop can reach React — a JSX attribute, and an
+      // object property under either an identifier or a string-literal key. The last two cover the
+      // spread form (`<div {...{ dangerouslySetInnerHTML: … }} />`) and createElement props, which a
+      // JSX-attribute-only check walks straight past.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: 'JSXAttribute[name.name="dangerouslySetInnerHTML"]',
+          message: noRawHtml,
+        },
+        {
+          selector: 'Property[key.name="dangerouslySetInnerHTML"]',
+          message: noRawHtml,
+        },
+        {
+          selector: 'Property[key.value="dangerouslySetInnerHTML"]',
+          message: noRawHtml,
+        },
+      ],
     },
   },
 

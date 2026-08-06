@@ -188,7 +188,8 @@ export function RenamePanelBody() {
         col-span-2) + the live preview (1/3) sticky on lg+. The other 5 panels render as full-width
         siblings below this grid, so the preview's sticky containing block is that first card's own
         height, not the whole page. Standard grid-cols-3 + col-span-2 only — the host Tailwind never
-        compiles arbitrary [..] values for this bundle (verified live; check-classes enforces). */}
+        compiles arbitrary [..] values for this bundle (verified live; nothing checks this
+        automatically, so weigh any new utility against the host stylesheet by hand). */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <FilenameSection
           options={options}

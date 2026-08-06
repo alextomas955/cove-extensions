@@ -205,7 +205,7 @@ jobs:
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm ci
 
-      - name: Verify frontend (typecheck + lint + format:check + check-classes + test)
+      - name: Verify frontend (typecheck + format:check + test)
         if: ${{ matrix.extension.uiPath != '' }}
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm run verify

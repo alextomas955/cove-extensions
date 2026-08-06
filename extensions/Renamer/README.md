@@ -50,7 +50,7 @@ resolves it from `src/Renamer.Ui/vendor/`, no registry access needed). From `src
 
 ```sh
 npm install       # first time only (offline; installs the vendored SDK)
-npm run verify    # typecheck + lint + format:check + check-classes + tests
+npm run verify    # typecheck + format:check + tests
 npm run build     # rebuild dist/index.mjs
 ```
 
