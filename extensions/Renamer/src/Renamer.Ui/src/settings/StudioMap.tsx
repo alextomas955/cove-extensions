@@ -1,19 +1,14 @@
 /**
  * Bridges the number-keyed `StudioDestinations` field onto the string-keyed `KeyValueMapEditor`: the
- * key cell is a single-select `StudioPicker` (the picked studio's stable id), the value cell is the
+ * key cell is a single-select entity field over the picked studio's stable id, the value cell is the
  * destination-path text input. Reuses both primitives verbatim — the only new logic is the numeric-key
  * coercion (studioMapLogic.ts), kept out here so it is tested in isolation.
  */
-import { useEffect, useState } from "react";
-import { extensionFetch } from "@cove/runtime/api";
+import { EntityReferenceValue } from "@cove/runtime/components";
 
 import { KeyValueMapEditor, TextInput, PathShapeHint } from "@cove-extensions/ui-shared";
-import { StudioPicker } from "./EntityPicker";
-import { resolveStudioLabel, type EntityRef } from "./studioFilterLogic";
+import { EntitySelectField } from "./EntitySelectField";
 import { toStringKeyed, fromStringKeyed } from "./studioMapLogic";
-import { api } from "../common/lib/extension";
-
-const LIST_STUDIOS_PATH = api("list-studios");
 
 /**
  * The studio destination-rule editor. Accepts/emits the backend `Record<number, string>`; internally
@@ -21,10 +16,9 @@ const LIST_STUDIOS_PATH = api("list-studios");
  * reaching the parent. The id must stay a NUMBER end to end so the persisted map is value-equal with
  * the backend field and normalizeOptions' coercion — a string key would diverge.
  *
- * A committed rule keys on the opaque studio id; the editor fetches the studio list once so a saved
- * row reads "Studio Name → …" rather than the unreadable "42 → …" (and a deleted studio's id shows as
- * a `#{id} (missing)` marker). The fetch reuses the same list-studios endpoint the picker uses and
- * degrades silently to the raw id if it fails — the label is a readability aid, not load-bearing.
+ * A committed rule keys on the opaque studio id and the host resolves that id to a name, so this
+ * editor holds no entity list of its own. That is one cached lookup per configured rule — bounded by
+ * the rules the user authored, never by the size of the library.
  */
 export function StudioDestinationsEditor({
   map,
@@ -33,29 +27,6 @@ export function StudioDestinationsEditor({
   map: Record<number, string>;
   onChange: (map: Record<number, string>) => void;
 }) {
-  const [studios, setStudios] = useState<EntityRef[]>([]);
-
-  // Fetch the studio list once on mount to resolve committed id keys to names. The state write lands
-  // in the async .then (not the effect body), so it reads as an external-data load, not a synchronous
-  // render-driven setState. The `live` guard drops a late response after unmount.
-  useEffect(() => {
-    let live = true;
-    extensionFetch(`/api${LIST_STUDIOS_PATH}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`list-studios responded ${res.status}`);
-        return res.json() as Promise<EntityRef[]>;
-      })
-      .then((rows) => {
-        if (live) setStudios(rows);
-      })
-      .catch(() => {
-        // A failed list leaves the raw id showing — the same graceful degradation the picker uses.
-      });
-    return () => {
-      live = false;
-    };
-  }, []);
-
   return (
     <KeyValueMapEditor
       map={toStringKeyed(map)}
@@ -71,17 +42,17 @@ export function StudioDestinationsEditor({
           <PathShapeHint value={value} />
         </>
       )}
-      renderKeyLabel={(key) => resolveStudioLabel(Number(key), studios)}
+      renderKeyLabel={(key) => <EntityReferenceValue entityType="studio" value={Number(key)} />}
       addLabel="Add studio rule"
     />
   );
 }
 
 /**
- * The add-row key cell: `StudioPicker` driven single-select. The picker is multi-value, so it is fed
- * the current draft id (none or one) and on pick takes the LATEST id — the last element of the array —
- * and writes it back as the stringified key the map editor expects. Last-id-wins keeps a second pick
- * from accumulating a multi-selection the single-key map cannot hold.
+ * The add-row key cell: a single-select driven from the multi-value selector. It is fed the current
+ * draft id (none or one) and on pick takes the LATEST id — the last element of the array — and writes
+ * it back as the stringified key the map editor expects. Last-id-wins keeps a second pick from
+ * accumulating a multi-selection the single-key map cannot hold.
  */
 function StudioKeyCell({
   draftKey,
@@ -93,11 +64,12 @@ function StudioKeyCell({
   existingKeys: readonly string[];
 }) {
   const current = draftKey === "" ? [] : [Number(draftKey)];
-  // The map keys arrive stringified (KeyValueMapEditor is string-keyed); the picker stores ids as
+  // The map keys arrive stringified (KeyValueMapEditor is string-keyed); the selector works in ids as
   // numbers, so coerce the already-used keys back to numbers to exclude a studio that already has a rule.
   const usedIds = existingKeys.map(Number);
   return (
-    <StudioPicker
+    <EntitySelectField
+      entityType="studio"
       label=""
       values={current}
       onChange={(values) => {
@@ -105,7 +77,7 @@ function StudioKeyCell({
         setDraftKey(latest === undefined ? "" : String(latest));
       }}
       placeholder="Search studios…"
-      excludeValues={usedIds}
+      excludeIds={usedIds}
     />
   );
 }
