@@ -33,10 +33,14 @@ export interface MultiValueOptions {
   OnOverflow: OverflowPolicy;
   /** Sort applied before joining. */
   Sort: SortOrder;
-  /** If non-empty, only these values are kept (case-insensitive). */
-  Whitelist: string[];
-  /** If non-empty, these values are removed (case-insensitive). */
-  Blacklist: string[];
+  /**
+   * If non-empty, only items whose STABLE id is listed survive. Keyed on the id — never the name — so
+   * renaming a performer or tag in Cove cannot orphan the rule. The rendered token still emits NAMES;
+   * the id only decides who survives.
+   */
+  WhitelistIds: number[];
+  /** If non-empty, items whose STABLE id is listed are removed. Keyed exactly like `WhitelistIds`. */
+  BlacklistIds: number[];
   /** Performer-only: genders dropped before the max-count limit (case-insensitive). */
   IgnoreGenders: string[];
   /** Performer-only: preferred gender ordering, most-preferred first (case-insensitive). */
@@ -100,14 +104,14 @@ export interface RenamerOptions {
   DuplicateSuffixFormat: string;
   AutoRenamerOnUpdate: boolean;
 
-  // Routing maps — id/name → destination-root template. StudioDestinations keys on the stable
-  // studio id; TagDestinations keys on the tag name (compared case-insensitively by the backend).
+  // Routing maps — stable entity id → destination-root template. Both key on the id and never on the
+  // name, so a rename in Cove cannot orphan a rule or split one entity across two destination trees.
   StudioDestinations: Record<number, string>;
-  TagDestinations: Record<string, string>;
+  TagDestinations: Record<number, string>;
   // Source-path routing rules, in user order.
   PathDestinations: PathDestinationRule[];
-  // Excludes (evaluated first): tag names, stable studio ids, and source-path rules.
-  ExcludeTags: string[];
+  // Excludes (evaluated first): stable tag ids, stable studio ids, and source-path rules.
+  ExcludeTagIds: number[];
   ExcludeStudioIds: number[];
   ExcludePaths: ExcludeRule[];
   // The roots a rename may write into; default-relocate + unorganized destinations and their gate.
@@ -159,8 +163,8 @@ export const DEFAULT_OPTIONS: RenamerOptions = {
     MaxCount: 0,
     OnOverflow: "DropAll",
     Sort: "NameAsc",
-    Whitelist: [],
-    Blacklist: [],
+    WhitelistIds: [],
+    BlacklistIds: [],
     IgnoreGenders: [],
     GenderOrder: [],
   },
@@ -169,8 +173,8 @@ export const DEFAULT_OPTIONS: RenamerOptions = {
     MaxCount: 0,
     OnOverflow: "DropAll",
     Sort: "NameAsc",
-    Whitelist: [],
-    Blacklist: [],
+    WhitelistIds: [],
+    BlacklistIds: [],
     IgnoreGenders: [],
     GenderOrder: [],
   },
@@ -203,7 +207,7 @@ export const DEFAULT_OPTIONS: RenamerOptions = {
   StudioDestinations: {},
   TagDestinations: {},
   PathDestinations: [],
-  ExcludeTags: [],
+  ExcludeTagIds: [],
   ExcludeStudioIds: [],
   ExcludePaths: [],
   AllowedRoots: [],
@@ -233,15 +237,15 @@ export function cloneDefaults(): RenamerOptions {
     ...DEFAULT_OPTIONS,
     Performers: {
       ...DEFAULT_OPTIONS.Performers,
-      Whitelist: [],
-      Blacklist: [],
+      WhitelistIds: [],
+      BlacklistIds: [],
       IgnoreGenders: [],
       GenderOrder: [],
     },
     Tags: {
       ...DEFAULT_OPTIONS.Tags,
-      Whitelist: [],
-      Blacklist: [],
+      WhitelistIds: [],
+      BlacklistIds: [],
       IgnoreGenders: [],
       GenderOrder: [],
     },
@@ -250,7 +254,7 @@ export function cloneDefaults(): RenamerOptions {
     StudioDestinations: { ...DEFAULT_OPTIONS.StudioDestinations },
     TagDestinations: { ...DEFAULT_OPTIONS.TagDestinations },
     PathDestinations: DEFAULT_OPTIONS.PathDestinations.map((r) => ({ ...r })),
-    ExcludeTags: [...DEFAULT_OPTIONS.ExcludeTags],
+    ExcludeTagIds: [...DEFAULT_OPTIONS.ExcludeTagIds],
     ExcludeStudioIds: [...DEFAULT_OPTIONS.ExcludeStudioIds],
     ExcludePaths: DEFAULT_OPTIONS.ExcludePaths.map((r) => ({ ...r })),
     AllowedRoots: [...DEFAULT_OPTIONS.AllowedRoots],
@@ -270,6 +274,13 @@ export function cloneDefaults(): RenamerOptions {
 // from cloneDefaults() reading ONLY the known PascalCase keys (coerced by declared type), DROPPING every
 // unknown/stale key. Applied at the load boundary, it fixes the preview AND self-heals the stored blob on
 // the next Save (since the canonical state is what gets persisted). Frontend-only; no backend change.
+//
+// The six id-keyed fields (both groups' WhitelistIds/BlacklistIds, TagDestinations, ExcludeTagIds) read
+// through the numeric coercers, so a blob still holding the pre-migration NAMES coerces to an empty list
+// or map rather than surviving as unusable strings. That is deliberate, not data loss: the backend's
+// one-time name→id conversion runs at host initialize — before any panel load in practice — and refuses
+// to write when it cannot resolve. Holding the old names in a parallel field here would re-introduce the
+// duplicate state the conversion exists to remove.
 
 function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
@@ -291,8 +302,8 @@ function numArray(v: unknown, fallback: number[]): number[] {
     ? v.filter((x): x is number => typeof x === "number" && Number.isFinite(x))
     : fallback;
 }
-// A routing map can arrive from a hand-edited/legacy blob with non-string values or, for the
-// id-keyed map, non-numeric keys. Keep only the entries that conform and rebuild a fresh plain
+// A routing map can arrive from a hand-edited/legacy blob with non-string values or non-numeric keys
+// (every routing map is id-keyed). Keep only the entries that conform and rebuild a fresh plain
 // object, so a malformed map yields a safe shape rather than propagating bad data.
 function numKeyStringMap(v: unknown): Record<number, string> {
   const src = asRecord(v);
@@ -300,14 +311,6 @@ function numKeyStringMap(v: unknown): Record<number, string> {
   for (const [k, val] of Object.entries(src)) {
     const n = Number(k);
     if (Number.isInteger(n) && typeof val === "string") out[n] = val;
-  }
-  return out;
-}
-function strKeyStringMap(v: unknown): Record<string, string> {
-  const src = asRecord(v);
-  const out: Record<string, string> = {};
-  for (const [k, val] of Object.entries(src)) {
-    if (typeof val === "string") out[k] = val;
   }
   return out;
 }
@@ -366,8 +369,8 @@ function normalizeMultiValue(raw: unknown, def: MultiValueOptions): MultiValueOp
     MaxCount: num(r.MaxCount, def.MaxCount),
     OnOverflow: overflow(r.OnOverflow),
     Sort: sortOrder(r.Sort),
-    Whitelist: strArray(r.Whitelist, []),
-    Blacklist: strArray(r.Blacklist, []),
+    WhitelistIds: numArray(r.WhitelistIds, []),
+    BlacklistIds: numArray(r.BlacklistIds, []),
     IgnoreGenders: strArray(r.IgnoreGenders, []),
     GenderOrder: strArray(r.GenderOrder, []),
   };
@@ -426,9 +429,9 @@ export function normalizeOptions(raw: unknown): RenamerOptions {
     DuplicateSuffixFormat: str(r.DuplicateSuffixFormat, d.DuplicateSuffixFormat),
     AutoRenamerOnUpdate: bool(r.AutoRenamerOnUpdate, d.AutoRenamerOnUpdate),
     StudioDestinations: numKeyStringMap(r.StudioDestinations),
-    TagDestinations: strKeyStringMap(r.TagDestinations),
+    TagDestinations: numKeyStringMap(r.TagDestinations),
     PathDestinations: pathDestinations(r.PathDestinations),
-    ExcludeTags: strArray(r.ExcludeTags, []),
+    ExcludeTagIds: numArray(r.ExcludeTagIds, []),
     ExcludeStudioIds: numArray(r.ExcludeStudioIds, []),
     ExcludePaths: excludeRules(r.ExcludePaths),
     AllowedRoots: strArray(r.AllowedRoots, []),

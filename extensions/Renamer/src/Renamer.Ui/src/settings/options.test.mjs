@@ -26,8 +26,8 @@ function fullyPopulatedBlob() {
       MaxCount: 3,
       OnOverflow: "KeepFirst",
       Sort: "FavoriteFirst",
-      Whitelist: ["keep"],
-      Blacklist: ["drop"],
+      WhitelistIds: [11],
+      BlacklistIds: [22],
       IgnoreGenders: ["unknown"],
       GenderOrder: ["female", "male"],
     },
@@ -36,8 +36,8 @@ function fullyPopulatedBlob() {
       MaxCount: 2,
       OnOverflow: "KeepFirst",
       Sort: "None",
-      Whitelist: ["anime"],
-      Blacklist: ["spam"],
+      WhitelistIds: [33],
+      BlacklistIds: [44],
       IgnoreGenders: [],
       GenderOrder: [],
     },
@@ -58,12 +58,12 @@ function fullyPopulatedBlob() {
     DuplicateSuffixFormat: "_{n}",
     AutoRenamerOnUpdate: true,
     StudioDestinations: { 7: "D:/studios/seven", 12: "E:/studios/twelve" },
-    TagDestinations: { Anime: "D:/anime", Docs: "E:/docs" },
+    TagDestinations: { 5: "D:/anime", 6: "E:/docs" },
     PathDestinations: [
       { Pattern: "C:/in", Dest: "D:/out", IsRegex: false },
       { Pattern: "^C:/re/.*$", Dest: "E:/out", IsRegex: true },
     ],
-    ExcludeTags: ["nsfw"],
+    ExcludeTagIds: [77],
     ExcludeStudioIds: [3, 9],
     ExcludePaths: [{ Pattern: "C:/skip", IsRegex: false }],
     AllowedRoots: ["D:/", "E:/"],
@@ -119,11 +119,11 @@ test("cloneDefaults isolates every mutable collection from DEFAULT_OPTIONS", () 
   const clone = cloneDefaults();
 
   clone.StudioDestinations[1] = "x";
-  clone.TagDestinations.t = "x";
+  clone.TagDestinations[2] = "x";
   clone.PathDestinations.push({ Pattern: "p", Dest: "d", IsRegex: false });
   clone.ExcludePaths.push({ Pattern: "p", IsRegex: false });
   clone.FieldReplacers.push({ TargetToken: "t", Find: "f", Replace: "r" });
-  clone.ExcludeTags.push("x");
+  clone.ExcludeTagIds.push(88);
   clone.ExcludeStudioIds.push(99);
   clone.AllowedRoots.push("Z:/");
   clone.Articles.push("Der");
@@ -133,7 +133,10 @@ test("cloneDefaults isolates every mutable collection from DEFAULT_OPTIONS", () 
   clone.Performers.GenderOrder.push("x");
   clone.Tags.IgnoreGenders.push("x");
   clone.Tags.GenderOrder.push("x");
-  clone.Tags.Whitelist.push("x");
+  clone.Tags.WhitelistIds.push(1);
+  clone.Tags.BlacklistIds.push(2);
+  clone.Performers.WhitelistIds.push(3);
+  clone.Performers.BlacklistIds.push(4);
 
   assert.deepEqual(DEFAULT_OPTIONS, before);
 });
@@ -237,4 +240,117 @@ test("a stale camelCase duplicate key is dropped by normalizeOptions", () => {
   const normalized = normalizeOptions(blob);
   assert.deepEqual(normalized.StudioDestinations, { 7: "D:/canonical" });
   assert.ok(!("studioDestinations" in normalized));
+});
+
+// ── The id-valued wire contract ───────────────────────────────────────────────────────────────────
+//
+// The names below are transcribed BY HAND from `src/Renamer/Options/RenamerOptions.cs` — the
+// `MultiValueOptions.WhitelistIds` / `.BlacklistIds` properties and the `RenamerOptions.TagDestinations`
+// / `.ExcludeTagIds` properties — and are deliberately NOT derived from options.ts. An expectation
+// computed from the module it checks agrees with itself forever and can never detect drift.
+//
+// What drift costs here: the panel writes this blob verbatim (JSON.stringify of the options object)
+// and the backend reads it with `PropertyNameCaseInsensitive`, so a name that does not match is not an
+// error on either side — the property is simply unbound and the field silently takes its default. A
+// misspelling therefore type-checks, deserializes, and reverts the user's configuration at run time.
+//
+// Casing: PascalCase, matching the C# property spelling, because `RenamerOptions.JsonOptions` applies
+// no naming policy to this blob. That is a different convention from the host's own API DTOs.
+const CSHARP_MULTI_VALUE_ID_FIELDS = ["WhitelistIds", "BlacklistIds"];
+const CSHARP_TAG_DESTINATIONS = "TagDestinations";
+const CSHARP_EXCLUDE_TAG_IDS = "ExcludeTagIds";
+// The pre-migration spellings the C# record no longer declares. Emitting one is the failure above.
+const RETIRED_MULTI_VALUE_FIELDS = ["Whitelist", "Blacklist"];
+const RETIRED_EXCLUDE_TAGS = "ExcludeTags";
+
+test("the six migrated fields are emitted under the C# property names, and no retired name is", () => {
+  const emitted = normalizeOptions(fullyPopulatedBlob());
+
+  for (const group of ["Performers", "Tags"]) {
+    for (const field of CSHARP_MULTI_VALUE_ID_FIELDS) {
+      assert.ok(Object.hasOwn(emitted[group], field), `${group}.${field} missing from the wire`);
+    }
+    for (const retired of RETIRED_MULTI_VALUE_FIELDS) {
+      assert.ok(!(retired in emitted[group]), `${group}.${retired} is still on the wire`);
+    }
+  }
+
+  assert.ok(Object.hasOwn(emitted, CSHARP_TAG_DESTINATIONS));
+  assert.ok(Object.hasOwn(emitted, CSHARP_EXCLUDE_TAG_IDS));
+  assert.ok(!(RETIRED_EXCLUDE_TAGS in emitted));
+});
+
+test("each migrated field carries ids through load → save → load", () => {
+  const blob = fullyPopulatedBlob();
+  const loaded = normalizeOptions(blob);
+
+  assert.deepEqual(loaded.Performers.WhitelistIds, [11]);
+  assert.deepEqual(loaded.Performers.BlacklistIds, [22]);
+  assert.deepEqual(loaded.Tags.WhitelistIds, [33]);
+  assert.deepEqual(loaded.Tags.BlacklistIds, [44]);
+  assert.deepEqual(loaded.TagDestinations, { 5: "D:/anime", 6: "E:/docs" });
+  assert.deepEqual(loaded.ExcludeTagIds, [77]);
+
+  const reloaded = normalizeOptions({ ...extractUnmodeledFields(blob), ...loaded });
+  assert.deepEqual(reloaded, loaded);
+});
+
+test("a blob still holding the pre-migration names coerces every migrated field to empty", () => {
+  // The stored shape before the backend's one-time name→id conversion runs: name lists and a
+  // name-keyed destination map. Each must coerce to empty rather than throw or survive as strings —
+  // a name that reached the backend now would bind nothing and revert the whole options object.
+  const legacy = {
+    Performers: { Whitelist: ["Jane Doe"], Blacklist: ["John Roe"] },
+    Tags: { Whitelist: ["anime"], Blacklist: ["spam"] },
+    TagDestinations: { Anime: "D:/anime" },
+    ExcludeTags: ["nsfw"],
+  };
+
+  const loaded = normalizeOptions(legacy);
+
+  assert.deepEqual(loaded.Performers.WhitelistIds, []);
+  assert.deepEqual(loaded.Performers.BlacklistIds, []);
+  assert.deepEqual(loaded.Tags.WhitelistIds, []);
+  assert.deepEqual(loaded.Tags.BlacklistIds, []);
+  assert.deepEqual(loaded.TagDestinations, {});
+  assert.deepEqual(loaded.ExcludeTagIds, []);
+  // And nothing carries the old values forward under their old names.
+  assert.ok(!("ExcludeTags" in loaded));
+  assert.ok(!("Whitelist" in loaded.Tags));
+});
+
+test("a malformed value for each migrated field yields an empty list or map, never a throw", () => {
+  const malformed = {
+    Performers: { WhitelistIds: "not-an-array", BlacklistIds: [{}, null] },
+    Tags: { WhitelistIds: 42, BlacklistIds: ["3", Number.NaN] },
+    TagDestinations: { 5: 12345, "not-a-number": "D:/x", 1.5: "D:/y" },
+    ExcludeTagIds: { 0: 7 },
+  };
+
+  const loaded = normalizeOptions(malformed);
+
+  assert.deepEqual(loaded.Performers.WhitelistIds, []);
+  assert.deepEqual(loaded.Performers.BlacklistIds, []);
+  assert.deepEqual(loaded.Tags.WhitelistIds, []);
+  assert.deepEqual(loaded.Tags.BlacklistIds, []);
+  assert.deepEqual(loaded.TagDestinations, {});
+  assert.deepEqual(loaded.ExcludeTagIds, []);
+});
+
+test("the defaults and cloneDefaults both produce the id-valued shapes", () => {
+  for (const options of [DEFAULT_OPTIONS, cloneDefaults()]) {
+    for (const group of ["Performers", "Tags"]) {
+      assert.deepEqual(options[group].WhitelistIds, []);
+      assert.deepEqual(options[group].BlacklistIds, []);
+    }
+    assert.deepEqual(options.TagDestinations, {});
+    assert.deepEqual(options.ExcludeTagIds, []);
+  }
+
+  // A fresh install must accept an id without a coercion step the loaded path would not apply.
+  const fresh = cloneDefaults();
+  fresh.Tags.WhitelistIds.push(9);
+  fresh.TagDestinations[9] = "D:/nine";
+  fresh.ExcludeTagIds.push(9);
+  assert.deepEqual(normalizeOptions(fresh), fresh);
 });

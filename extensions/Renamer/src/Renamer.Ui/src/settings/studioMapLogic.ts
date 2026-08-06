@@ -1,10 +1,10 @@
 /**
- * Pure, DOM-free coercion between the backend's number-keyed `StudioDestinations` and the string-keyed
- * map the reusable `KeyValueMapEditor` works in. Kept import-free (no React, no DOM, no SDK) so it
- * stays L0 — testable with no environment — and so the coercion the editor relies on is exactly the
- * coercion the suite covers.
+ * Pure, DOM-free coercion between the backend's number-keyed destination maps (`StudioDestinations`,
+ * `TagDestinations`) and the string-keyed map the reusable `KeyValueMapEditor` works in. Kept
+ * import-free (no React, no DOM, no SDK) so it stays L0 — testable with no environment — and so the
+ * coercion the editors rely on is exactly the coercion the suite covers.
  *
- * A studio destination keys on the stable studio id. The id must stay a NUMBER end to end so the
+ * A destination rule keys on the entity's stable id. That id must stay a NUMBER end to end so the
  * persisted map is value-equal with the backend `Record<number, string>` and with normalizeOptions'
  * own `numKeyStringMap` coercion; a string key would diverge from both.
  */

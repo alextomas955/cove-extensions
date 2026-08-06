@@ -87,7 +87,7 @@ order of the cards below in the UI is for convenience and does not change this p
 | Setting | What it does | Default |
 | --- | --- | --- |
 | Per-studio destinations | Map a studio → a destination root. Keyed on the studio's stable id, so a name typo never splits one studio across two trees. | *(none)* |
-| Per-tag destinations | Map a tag name → a destination root (case-insensitive). | *(none)* |
+| Per-tag destinations | Map a tag → a destination root. Keyed on the tag's stable id, so renaming a tag keeps its rule pointed at it. | *(none)* |
 
 ### Advanced routing & safety
 
@@ -138,7 +138,7 @@ Collapsed by default.
 
 | Setting | What it does | Default |
 | --- | --- | --- |
-| Exclude by tag | Items carrying any of these tags are excluded from renaming/moving (evaluated first). | *(empty)* |
+| Exclude by tag | Items carrying any of these tags are excluded from renaming/moving (evaluated first). Keyed on the tag's stable id. | *(empty)* |
 | Exclude by studio | Items whose studio (or a parent studio) matches are excluded. Keyed on stable studio id. | *(empty)* |
 | Exclude by source path | Ordered exact-or-regex source-path rules; a match excludes the item. | *(empty)* |
 

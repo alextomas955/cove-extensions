@@ -28,6 +28,7 @@ import {
 } from "@cove-extensions/ui-shared";
 import { TagPicker } from "./EntityPicker";
 import { StudioDestinationsEditor } from "./StudioMap";
+import { toStringKeyed, fromStringKeyed } from "./studioMapLogic";
 
 /** Strip one leading dot if present, then lowercase — the add-time transform for a sidecar extension. */
 function normalizeSidecarExtension(raw: string): string {
@@ -114,20 +115,25 @@ export function DestinationRoutingSection({ options, set }: DestinationRoutingSe
           set("EnableTagDestinations", v);
         }}
       >
+        {/* The map keys on the stable tag id, so it crosses the string-keyed KeyValueMapEditor
+            boundary through the same explicit coercion the studio map uses — the id must stay a
+            NUMBER end to end to stay value-equal with the backend field and normalizeOptions. */}
         <KeyValueMapEditor
-          map={options.TagDestinations}
+          map={toStringKeyed(options.TagDestinations)}
           onChange={(m) => {
-            set("TagDestinations", m);
+            set("TagDestinations", fromStringKeyed(m));
           }}
           renderKey={(draftKey, setDraftKey, existingKeys) => (
             <TagPicker
               label=""
-              values={draftKey === "" ? [] : [draftKey]}
+              values={draftKey === "" ? [] : [Number(draftKey)]}
               onChange={(values) => {
-                setDraftKey(values.at(-1) ?? "");
+                // Last-id-wins: the picker is multi-value but a map key holds exactly one tag.
+                const latest = values.at(-1);
+                setDraftKey(latest === undefined ? "" : String(latest));
               }}
               placeholder="Search tags…"
-              excludeValues={existingKeys}
+              excludeValues={existingKeys.map(Number)}
             />
           )}
           renderValue={(value, setValue) => (
