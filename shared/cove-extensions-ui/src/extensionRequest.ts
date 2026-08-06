@@ -23,10 +23,18 @@ export async function request<T>(
   // TypeError for a path outside `/api/`, and a TypeError is not an ApiError, so a mis-prefixed
   // path falls through every `instanceof ApiError` branch into the generic string-error arm and
   // reads as an unrelated failure.
-  const res = await extensionFetch(`/api${path}`, {
-    ...options,
-    headers: { "Content-Type": "application/json", ...options.headers },
-  });
+  // `HeadersInit` is a union, and only one of its three arms survives an object spread: spreading a
+  // `Headers` instance yields `{}` (its entries are internal, not own enumerable properties) and
+  // spreading the entry-array form yields index keys, so in both cases the caller's headers vanish
+  // with no error. Going through `Headers` also collapses the casing: a caller passing a lowercase
+  // `content-type` into an object literal would produce both spellings, which `fetch` sends as one
+  // comma-joined value rather than as an override.
+  const headers = new Headers(options.headers);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const res = await extensionFetch(`/api${path}`, { ...options, headers });
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");

@@ -32,8 +32,13 @@ const DEFAULT_STARTUP_TIMEOUT_MS = process.env.CI ? 240_000 : 180_000;
 export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIMEOUT_MS } = {}) {
   let environment = new DockerComposeEnvironment(COMPOSE_DIR, COMPOSE_FILE)
     .withStartupTimeout(timeoutMs)
-    .withWaitStrategy('cove', Wait.forHealthCheck())
-    .withWaitStrategy('db', Wait.forHealthCheck());
+    // Keyed on CONTAINER names (`<service>-<index>`, the same names getContainer takes below), not
+    // service names: Testcontainers drops a key that matches no container with only a log warning,
+    // leaving whatever it infers from the image in force. It infers a health-check strategy here
+    // anyway, so stating it is what makes that a decision rather than a coincidence — and the
+    // strategy chosen now is also the one restart() reuses, where the difference is load-bearing.
+    .withWaitStrategy('cove-1', Wait.forHealthCheck())
+    .withWaitStrategy('db-1', Wait.forHealthCheck());
 
   const composeEnv = { ...(image ? { COVE_E2E_IMAGE: image } : {}), ...env };
   if (Object.keys(composeEnv).length > 0) {
@@ -72,7 +77,8 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
       // port — re-fetch the started container's own view of itself rather than trusting a cached
       // port number. `restart()` mutates the same StartedGenericContainer in place (its internal
       // port-binding state is refreshed), so re-reading getMappedPort() after restart is correct.
-      //
+      // That re-bound port is also why the next line exists.
+      await waitForHostReachable(handle.baseUrl, { timeoutMs });
       // An access token does NOT survive the restart: measured against 1.1.0, a token that answered
       // 200 before it answers 401 after, while a fresh login on the restarted instance answers 200.
       // So the token is re-minted here, or every later call in an auth-enabled instance — starting
@@ -161,6 +167,32 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
   }
 
   return handle;
+}
+
+// The restart's own wait strategy is a health check, but that probe runs INSIDE the container and
+// says nothing about the host side, where an ephemeral published port is being re-bound at the same
+// moment. A fetch that lands in that gap REJECTS rather than answering a status, and every call
+// after the restart is a bare fetch — the first of them inside a per-test fixture, so a single
+// rejection there fails every test in the suite while naming neither the restart nor the gap.
+//
+// Any status counts as reachable. The container's health check already gated the app being up, so
+// the only open question here is whether the host can reach it at all — answering that without
+// assuming which statuses /health may return keeps this independent of whether the instance
+// enforces authentication.
+async function waitForHostReachable(baseUrl, { timeoutMs = 60_000, intervalMs = 500 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = 'never attempted';
+  while (Date.now() < deadline) {
+    const res = await fetch(`${baseUrl}/health`).catch((err) => {
+      lastError = err?.message ?? String(err);
+      return null;
+    });
+    if (res) return;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error(
+    `waitForHostReachable: ${baseUrl}/health did not answer from the host within ${timeoutMs}ms (last error: ${lastError})`
+  );
 }
 
 // `GET /api/extensions` carries a permission requirement, so under an auth-enabled instance this

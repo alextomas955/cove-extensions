@@ -3,7 +3,8 @@
 // suite's normal `COVE__Auth__Enabled=false` default every request resolves to a bypass principal
 // whatever headers it carries, so neither a header assertion nor a 200 distinguishes fixed from
 // unfixed there — the check would be unfalsifiable. Flipping auth is instance-global, hence the
-// per-test harness rather than the worker-shared one, and hence the tag keeping it out of that run.
+// per-test harness rather than the worker-shared one. It stays in the default run regardless: it
+// provisions its own instance and shares no state, and a spec CI does not run guards nothing.
 //
 // WHAT MAKES IT FALSIFIABLE, and it is not what it looks like. A logged-in browser holds an
 // `cove_access_token` cookie, and the host's principal middleware falls back to that cookie whenever
@@ -29,16 +30,19 @@ import { startHarness } from '@cove-extensions/e2e/harness';
 import { RENAMER_EXTENSION } from '../lib/renamer-fixtures.mjs';
 import { RenamerSettingsPage } from '../lib/pages/renamer-settings-page.mjs';
 
-const EXTENSION_ID = 'com.alextomas955.renamer';
-const DATA_PATHNAME = `/api/extensions/${EXTENSION_ID}/data`;
+const ACCESS_COOKIE = 'cove_access_token';
 
 const test = base.extend({
   authHarness: [
     async ({}, use) => {
       const harness = await startHarness({ env: { COVE_E2E_AUTH_ENABLED: 'true' } });
       await harness.bootstrapOwner();
-      await harness.installExtension(RENAMER_EXTENSION);
-      await use(harness);
+      // The install reads the id out of the manifest, which is where it is defined; a copy here
+      // would go stale silently, because the panel would follow the manifest to the new route while
+      // every response predicate below kept matching the old one — and a predicate that matches
+      // nothing fails as a bare 30s timeout, naming neither the id nor the mismatch.
+      const { id } = await harness.installExtension(RENAMER_EXTENSION);
+      await use({ harness, extensionId: id });
       await harness.stop();
     },
     { scope: 'test' },
@@ -46,8 +50,8 @@ const test = base.extend({
 });
 
 /** Writes the stored options blob out-of-band, as the host's own route wants it (double-encoded). */
-async function putStoredOptions(harness, payload) {
-  const res = await fetch(`${harness.baseUrl}${DATA_PATHNAME}/options`, {
+async function putStoredOptions(harness, dataPathname, payload) {
+  const res = await fetch(`${harness.baseUrl}${dataPathname}/options`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -59,13 +63,36 @@ async function putStoredOptions(harness, payload) {
 }
 
 /**
+ * Drops the access cookie and proves it is gone.
+ *
+ * The proof is the whole spec: with that cookie in place the host's principal middleware
+ * authenticates an extension's plain same-origin `fetch` by ambient authority, so every assertion
+ * below passes whether or not the request carries a credential of its own — which is the measured
+ * historical behavior of this exact test, not a hypothesis. An unasserted `clearCookies` can stop
+ * clearing (its filter semantics are Playwright's to change) or clear a cookie the host has since
+ * started setting on a second path, and nothing would say so.
+ */
+async function dropAmbientAuthority(page) {
+  await page.context().clearCookies({ name: ACCESS_COOKIE });
+  expect(
+    (await page.context().cookies()).map((c) => c.name),
+    `the ${ACCESS_COOKIE} cookie survived clearCookies — ambient authority is still in play, so a 200 below would prove nothing`
+  ).not.toContain(ACCESS_COOKIE);
+}
+
+/**
  * Clicks Save and waits for that save's own write to answer, returning its status. Gating on the
  * "Unsaved changes" indicator alone is not enough: it hides on the panel's local state, so a second
  * save can be driven before the first write has landed and the two arrive out of order.
+ *
+ * Drops the cookie again first rather than trusting the drop before the previous save: a 401 on any
+ * request in between drives the app's own refresh, and the host re-issues the access cookie on that
+ * response — handing the remaining writes back the ambient authority this spec exists to rule out.
  */
-async function saveAndAwaitWrite(page, settings) {
+async function saveAndAwaitWrite(page, settings, dataPathname) {
+  await dropAmbientAuthority(page);
   const write = page.waitForResponse(
-    (res) => new URL(res.url()).pathname.startsWith(DATA_PATHNAME) && res.request().method() === 'PUT',
+    (res) => new URL(res.url()).pathname.startsWith(dataPathname) && res.request().method() === 'PUT',
     { timeout: 30_000 }
   );
   await settings.saveChangesButton.click();
@@ -75,36 +102,39 @@ async function saveAndAwaitWrite(page, settings) {
 }
 
 /** Reads the stored options blob back as the raw string the host holds. */
-async function readStoredOptions(harness) {
-  const res = await fetch(`${harness.baseUrl}${DATA_PATHNAME}`, {
+async function readStoredOptions(harness, dataPathname) {
+  const res = await fetch(`${harness.baseUrl}${dataPathname}`, {
     headers: { Authorization: `Bearer ${harness.token}` },
   });
   expect(res.status, `reading the options blob answered ${res.status}`).toBe(200);
   return (await res.json()).options;
 }
 
-test('@authonly the settings panel reads and writes its options through an authenticated request', async ({
+test('the settings panel reads and writes its options through an authenticated request', async ({
   page,
   authHarness,
 }) => {
+  const { harness, extensionId } = authHarness;
+  const dataPathname = `/api/extensions/${extensionId}/data`;
+
   const seededTemplate = `$title [authenticated-${Date.now()}]`;
-  await putStoredOptions(authHarness, { FilenameTemplate: seededTemplate });
+  await putStoredOptions(harness, dataPathname, { FilenameTemplate: seededTemplate });
 
   await page.addInitScript(() => {
     sessionStorage.setItem('cove-setup-dismissed', 'true');
   });
-  await page.goto(authHarness.baseUrl);
+  await page.goto(harness.baseUrl);
   await loginThroughUi(page);
 
-  const settings = new RenamerSettingsPage(page, authHarness.baseUrl);
+  const settings = new RenamerSettingsPage(page, harness.baseUrl);
   const firstRead = page.waitForResponse(
-    (res) => new URL(res.url()).pathname === DATA_PATHNAME && res.request().method() === 'GET',
+    (res) => new URL(res.url()).pathname === dataPathname && res.request().method() === 'GET',
     { timeout: 30_000 }
   );
   await settings.goto();
 
   const firstReadStatus = (await firstRead).status();
-  expect(firstReadStatus, `the bundle's GET ${DATA_PATHNAME} answered ${firstReadStatus}`).toBe(200);
+  expect(firstReadStatus, `the bundle's GET ${dataPathname} answered ${firstReadStatus}`).toBe(200);
 
   // The seeded value can only reach the input if that read returned 200, parsed, and flowed through
   // the panel; a failed read leaves the panel on its load-error path showing built-in defaults.
@@ -117,29 +147,29 @@ test('@authonly the settings panel reads and writes its options through an authe
   // Ambient authority gone, session intact — from here only a request carrying the app's own bearer
   // can reach the host store. The panel is already mounted, so its bundle (itself cookie-delivered)
   // is not refetched and this isolates the extension's request from how it was delivered.
-  await page.context().clearCookies({ name: 'cove_access_token' });
+  await dropAmbientAuthority(page);
 
   const editedTemplate = `${seededTemplate} edited`;
   await settings.setFilenameTemplate(editedTemplate);
-  const firstWriteStatus = await saveAndAwaitWrite(page, settings);
+  const firstWriteStatus = await saveAndAwaitWrite(page, settings, dataPathname);
   expect(
     firstWriteStatus,
-    `the panel's PUT to ${DATA_PATHNAME} answered ${firstWriteStatus} with no access cookie in play — an extension request that carries no credential of its own cannot write to the host store`
+    `the panel's PUT to ${dataPathname} answered ${firstWriteStatus} with no access cookie in play — an extension request that carries no credential of its own cannot write to the host store`
   ).toBe(200);
 
-  const afterFirstSave = await readStoredOptions(authHarness);
+  const afterFirstSave = await readStoredOptions(harness, dataPathname);
   expect(JSON.parse(afterFirstSave).FilenameTemplate).toBe(editedTemplate);
 
   // Save the identical payload again after a round trip through another value. A save is a full
   // replacement, so a second write of the same payload that differs byte-for-byte means something
   // is being carried in that the panel did not read out.
   await settings.setFilenameTemplate(seededTemplate);
-  expect(await saveAndAwaitWrite(page, settings)).toBe(200);
+  expect(await saveAndAwaitWrite(page, settings, dataPathname)).toBe(200);
   await settings.setFilenameTemplate(editedTemplate);
-  expect(await saveAndAwaitWrite(page, settings)).toBe(200);
+  expect(await saveAndAwaitWrite(page, settings, dataPathname)).toBe(200);
 
   expect(
-    await readStoredOptions(authHarness),
+    await readStoredOptions(harness, dataPathname),
     'the same payload saved twice produced two different stored blobs'
   ).toBe(afterFirstSave);
 });
