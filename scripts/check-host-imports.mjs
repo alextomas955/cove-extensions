@@ -9,8 +9,8 @@
 // every surface of the extension renders "component not found". Nothing else in the repo can catch that:
 // every other check reads the local copy.
 //
-// The oracle is the SIBLING CHECKOUT's generated shim named below — gitignored output reflecting whatever
-// that checkout has installed, NOT the released host image this repo targets. So the two can disagree in
+// The oracle is the SIBLING CHECKOUT's generated shim — gitignored output reflecting whatever that
+// checkout has installed, NOT the released host image this repo targets. So the two can disagree in
 // either direction and this gate would not know. Reading the release artifact instead is a known open
 // question, deliberately left alone here rather than half-answered.
 //
@@ -23,21 +23,66 @@ import path from "node:path";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const coveRepo = process.env.COVE_REPO ?? path.resolve(repoRoot, "../cove");
-const shim = path.join(
-  coveRepo,
-  "ui/src/generated/extensions/runtime/v1/lucide-react.ts",
-);
 
-if (!existsSync(shim)) {
+// An absent host checkout is the ONE condition that may skip, and it is the only one this gate can
+// establish by looking at coveRepo itself. Diagnosing any other unresolvable path as "no host
+// checkout" asserts a cause that was never checked — which is how a wrong oracle path read as a
+// clean exit 0 for this gate's whole existence, with the sibling sitting right there.
+if (!existsSync(coveRepo)) {
   console.log(
     [
-      `check-host-imports: SKIPPED — nothing found at ${shim}.`,
+      `check-host-imports: SKIPPED — no Cove host checkout at ${coveRepo}.`,
       `  This gate is local-only: its oracle is generated output inside a Cove host checkout, which CI`,
-      `  does not have, so CI structurally cannot run it and it can never block a merge. Skipping`,
-      `  because no host checkout was found at the path above.`,
+      `  does not have, so CI structurally cannot run it and it can never block a merge. Nothing was`,
+      `  verified; set COVE_REPO to a host checkout to run it.`,
     ].join("\n"),
   );
   process.exit(0);
+}
+
+// Past this point a checkout IS present, so every unresolvable path below is a broken oracle rather
+// than an absent one — a hard failure, never a skip.
+//
+// The runtime version comes from the host's own tracked contract, the same file the host generates
+// the shim directory name from. Mirroring it as a literal here would mean a host bump silently
+// resolves to a path that does not exist, restoring the exact blind-gate state this replaces.
+const contractPath = path.join(coveRepo, "ui/scripts/extension-runtime-contract.ts");
+const runtimeVersion = existsSync(contractPath)
+  ? readFileSync(contractPath, "utf8").match(
+      /extensionRuntimeVersion\s*=\s*"([^"]+)"/,
+    )?.[1]
+  : undefined;
+
+if (!runtimeVersion) {
+  console.error("check-host-imports: FAILED");
+  console.error(`  a directory is present at ${coveRepo}, but no extensionRuntimeVersion could be`);
+  console.error(`  read from the host runtime contract it must carry:`);
+  console.error(`    ${contractPath}`);
+  console.error(
+    `  Either that path is not a Cove host checkout, or the contract's shape changed.`,
+  );
+  console.error(`  Nothing was verified — this is not a pass.`);
+  process.exit(1);
+}
+
+const shim = path.join(
+  coveRepo,
+  `ui/src/generated/extensions/runtime/${runtimeVersion}/lucide-react.ts`,
+);
+
+if (!existsSync(shim)) {
+  console.error("check-host-imports: FAILED");
+  console.error(
+    `  host checkout found at ${coveRepo}, but its generated ${runtimeVersion} shim is absent:`,
+  );
+  console.error(`    ${shim}`);
+  console.error(
+    `  The shim is gitignored codegen output, so a fresh clone has none: run`,
+  );
+  console.error(
+    `  \`npm run generate:extension-runtime\` in that checkout. Nothing was verified.`,
+  );
+  process.exit(1);
 }
 
 const hostExports = new Set(

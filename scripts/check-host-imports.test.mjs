@@ -28,14 +28,33 @@ function shimSource(names) {
   return names.map((n) => `export const ${n} = /*#__PURE__*/ createIcon("${n}");\n`).join("");
 }
 
+// The host's tracked contract module, in the shape the script's parser keys on. The script reads the
+// runtime version out of this rather than mirroring it, so the fixture must carry the real form.
+function contractSource(version) {
+  return `export const extensionRuntimeVersion = "${version}";\nexport const extensionRuntimeModules = [];\n`;
+}
+
 // Builds the two trees a run needs and returns both roots:
 //   <repo>/scripts/check-host-imports.mjs                            (real script bytes)
 //   <repo>/extensions/<ext>/src/<ext>.Ui/src/<file>                  (the scanned sources)
-//   <cove>/ui/src/generated/extensions/runtime/v1/lucide-react.ts    (the oracle)
-// `shim: null` omits the shim file entirely, which is the only way to reach the skip branch.
-function makeFixture({ sources = {}, shim = ["Check", "Pencil"], extName = "Foo" } = {}) {
+//   <cove>/ui/scripts/extension-runtime-contract.ts                  (the checkout marker + version)
+//   <cove>/ui/src/generated/extensions/runtime/<v>/lucide-react.ts   (the oracle)
+// The three ways the oracle can be unreachable are distinct fixtures, because the script must answer
+// them differently: `coveCheckout: false` (no checkout — the only skip), `contract: null` (a
+// directory that is not a host checkout) and `shim: null` (a host checkout missing its generated
+// output). `extraExtensionDirs` adds catalog-shaped extension directories with no `src/` at all.
+function makeFixture({
+  sources = {},
+  shim = ["Check", "Pencil"],
+  extName = "Foo",
+  contract = "v1",
+  coveCheckout = true,
+  extraExtensionDirs = [],
+} = {}) {
   const repo = mkdtempSync(path.join(tmpdir(), "host-imports-repo-"));
-  const cove = mkdtempSync(path.join(tmpdir(), "host-imports-cove-"));
+  const cove = coveCheckout
+    ? mkdtempSync(path.join(tmpdir(), "host-imports-cove-"))
+    : path.join(tmpdir(), `host-imports-cove-absent-${process.pid}-${Date.now()}`);
 
   mkdirSync(path.join(repo, "scripts"), { recursive: true });
   copyFileSync(realScriptPath, path.join(repo, "scripts", "check-host-imports.mjs"));
@@ -47,11 +66,21 @@ function makeFixture({ sources = {}, shim = ["Check", "Pencil"], extName = "Foo"
     mkdirSync(path.dirname(full), { recursive: true });
     writeFileSync(full, content);
   }
+  for (const name of extraExtensionDirs) {
+    mkdirSync(path.join(repo, "extensions", name), { recursive: true });
+  }
 
-  if (shim !== null) {
-    const shimDir = path.join(cove, "ui", "src", "generated", "extensions", "runtime", "v1");
-    mkdirSync(shimDir, { recursive: true });
-    writeFileSync(path.join(shimDir, "lucide-react.ts"), shimSource(shim));
+  if (coveCheckout) {
+    if (contract !== null) {
+      const contractDir = path.join(cove, "ui", "scripts");
+      mkdirSync(contractDir, { recursive: true });
+      writeFileSync(path.join(contractDir, "extension-runtime-contract.ts"), contractSource(contract));
+    }
+    if (shim !== null) {
+      const shimDir = path.join(cove, "ui", "src", "generated", "extensions", "runtime", contract ?? "v1");
+      mkdirSync(shimDir, { recursive: true });
+      writeFileSync(path.join(shimDir, "lucide-react.ts"), shimSource(shim));
+    }
   }
 
   return { repo, cove };
@@ -175,7 +204,7 @@ test("a type-only lucide import is not inspected, because it never reaches the h
 
 test("an absent host checkout skips at exit 0 with a notice naming the gate local-only", () => {
   const fixture = makeFixture({
-    shim: null,
+    coveCheckout: false,
     sources: {
       "Icons.tsx": 'import { Check } from "lucide-react";\nexport const a = Check;\n',
     },
@@ -190,6 +219,79 @@ test("an absent host checkout skips at exit 0 with a notice naming the gate loca
     // sibling was sitting right there — which is how a gate that had never inspected anything went
     // unnoticed. The skip branch cannot issue advice about a condition it has not established.
     assert.doesNotMatch(stdout, /add a \.\.\/cove sibling/);
+    // The skip is the one branch that reports no coverage while exiting 0, so it must never read as
+    // a verdict on the imports.
+    assert.doesNotMatch(stdout, /OK \(/);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("a host checkout whose generated shim is absent fails, naming both the checkout and the shim", () => {
+  // The blind-gate case: the checkout IS present, so the oracle is broken rather than absent, and
+  // skipping here is how a fresh host clone that has not yet run the runtime codegen would get a
+  // permanently green gate telling it there is no host checkout.
+  const fixture = makeFixture({
+    shim: null,
+    sources: {
+      "Icons.tsx": 'import { Check } from "lucide-react";\nexport const a = Check;\n',
+    },
+  });
+  try {
+    const { status, stdout, stderr } = runGate(fixture);
+    assert.notEqual(status, 0, "expected a non-zero exit, stdout: " + stdout);
+    assert.doesNotMatch(stdout, /SKIPPED/);
+    // Both halves must be named: only the reader can tell which of the two is the wrong one.
+    assert.ok(
+      stderr.includes(`host checkout found at ${fixture.cove}`),
+      "expected the checkout to be named, got: " + stderr,
+    );
+    assert.match(stderr, /lucide-react\.ts/);
+    assert.match(stderr, /Nothing was verified/);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("a directory that is not a host checkout fails rather than being read as an absent one", () => {
+  // COVE_REPO pointed at something real that is not Cove. The old gate diagnosed this as "no host
+  // checkout was found" — a cause it never established — and exited 0.
+  const fixture = makeFixture({
+    contract: null,
+    shim: null,
+    sources: {
+      "Icons.tsx": 'import { Check } from "lucide-react";\nexport const a = Check;\n',
+    },
+  });
+  try {
+    const { status, stdout, stderr } = runGate(fixture);
+    assert.notEqual(status, 0, "expected a non-zero exit, stdout: " + stdout);
+    assert.doesNotMatch(stdout, /SKIPPED/);
+    assert.match(stderr, /extension-runtime-contract\.ts/);
+    assert.match(stderr, /Nothing was verified/);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("the shim path follows the host's declared runtime version rather than a mirrored literal", () => {
+  // A host runtime bump must move the oracle with it. Mirroring the version here is what silently
+  // pointed this gate at a path that never existed, so the version is read from the host's own
+  // tracked contract and this case is the proof: nothing in the repo says "v2".
+  const fixture = makeFixture({
+    contract: "v2",
+    shim: ["Check", "Pencil"],
+    sources: {
+      "Icons.tsx": 'import { Check } from "lucide-react";\nexport const a = Check;\n',
+    },
+  });
+  try {
+    const { status, stdout, stderr } = runGate(fixture);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    const inspected = stdout.match(/OK \((\d+) lucide-react imports/);
+    assert.ok(inspected, "expected the OK line to report an inspected count, got: " + stdout);
+    assert.strictEqual(inspected[1], "1");
+    assert.match(stdout, /v2/);
   } finally {
     cleanup(fixture);
   }
