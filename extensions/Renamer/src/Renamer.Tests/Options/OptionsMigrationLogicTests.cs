@@ -113,11 +113,12 @@ public sealed class OptionsMigrationLogicTests
     }
 
     [Fact]
-    public void TwoStoredNamesDifferingOnlyByCase_CollapseToOneId_AndTheCountIsPinned()
+    public void TwoStoredSpellingsOfOneTag_DeduplicateToOneId_AndTheCountIsPinned()
     {
-        // The one genuine narrowing this migration carries: "Sample" and "4K"/"4k" were three stored
-        // entries matching two tags; afterwards they are two ids. Pinning the COUNT records the
-        // narrowing rather than leaving it to be discovered.
+        // De-duplication, NOT narrowing: there is a single 4K tag here, so "4K" and "4k" both matched it
+        // before the migration and both resolve to it afterwards. Three stored entries become two ids
+        // and no rule changes what it covers — which is why nothing is reported. The narrowing that DOES
+        // change coverage needs two rows, and lives in the two tests below.
         var converted = OptionsMigration.Convert(
             """{ "ExcludeTags": ["Sample", "4K", "4k"] }""", Tags, Performers);
 
@@ -125,6 +126,7 @@ public sealed class OptionsMigrationLogicTests
         Assert.Equal(3 - 1, ids.Count);
         Assert.Equal([15, 88], ids);
         Assert.Empty(converted.DroppedNames);
+        Assert.Empty(converted.CaseCollapses);
     }
 
     [Fact]
@@ -138,6 +140,52 @@ public sealed class OptionsMigrationLogicTests
             Reload(OptionsMigration.Convert(blob, ascending, Performers).Json).ExcludeTagIds,
             Reload(OptionsMigration.Convert(blob, descending, Performers).Json).ExcludeTagIds);
         Assert.Equal([70], Reload(OptionsMigration.Convert(blob, descending, Performers).Json).ExcludeTagIds);
+    }
+
+    [Fact]
+    public void ARuleThatCoveredTwoCaseVariantRows_ReportsWhatItNoLongerCovers()
+    {
+        // The failure this reports: the blacklist entry suppressed BOTH rows before the migration, and
+        // suppresses only 70 after — so every file tagged 4k starts rendering that tag into its
+        // filename. The name resolved, so the dropped-name trail says nothing; without this the change
+        // is invisible.
+        (int, string)[] both = [(70, "4K"), (71, "4k")];
+
+        var converted = OptionsMigration.Convert(
+            """{ "Tags": { "Blacklist": ["4K"] } }""", both, Performers);
+
+        var collapse = Assert.Single(converted.CaseCollapses);
+        Assert.Equal("4K", collapse.Name);
+        Assert.Equal(70, collapse.MatchedId);
+        Assert.Equal([71], collapse.AlsoMatchedIds);
+        Assert.Empty(converted.DroppedNames);
+    }
+
+    [Fact]
+    public void ANameNarrowingAcrossSeveralFields_IsReportedOnce_AndAThirdRowIsNotLost()
+    {
+        (int, string)[] three = [(70, "4K"), (71, "4k"), (72, "4K")];
+
+        var converted = OptionsMigration.Convert(
+            """{ "Tags": { "Blacklist": ["4K"] }, "ExcludeTags": ["4k"], "TagDestinations": { "4K": "/x" } }""",
+            three,
+            Performers);
+
+        var collapse = Assert.Single(converted.CaseCollapses);
+        Assert.Equal(70, collapse.MatchedId);
+        Assert.Equal([71, 72], collapse.AlsoMatchedIds);
+    }
+
+    [Fact]
+    public void ACaseVariantPairNoStoredRuleNames_IsNotReported()
+    {
+        // Reporting every case-variant pair in a library would bury the ones a rule actually narrows,
+        // and a pair no rule names changes nothing for the user.
+        (int, string)[] rows = [(70, "4K"), (71, "4k"), (15, "Sample")];
+
+        var converted = OptionsMigration.Convert("""{ "ExcludeTags": ["Sample"] }""", rows, Performers);
+
+        Assert.Empty(converted.CaseCollapses);
     }
 
     [Fact]

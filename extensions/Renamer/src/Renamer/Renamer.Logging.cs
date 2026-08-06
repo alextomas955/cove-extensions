@@ -128,6 +128,14 @@ public sealed partial class Renamer
         Message = "[Renamer] options migration: {Count} stored rule name(s) matched no tag or performer and were dropped: {Names}")]
     private partial void LogOptionsMigrationDroppedNames(int count, string names);
 
+    // Matching was case-insensitive before the migration, so a rule stored as "4K" suppressed every tag
+    // whose name equalled it in any case. Keyed on an id it now suppresses one of them, and because the
+    // name still RESOLVED nothing is dropped — this line is the only place that narrowing surfaces.
+    [LoggerMessage(
+        EventId = 1061, Level = LogLevel.Warning,
+        Message = "[Renamer] options migration: {Count} stored rule name(s) matched several entities differing only by letter case and now match one: {Detail}")]
+    private partial void LogOptionsMigrationNarrowedNames(int count, string detail);
+
     [LoggerMessage(
         EventId = 1058, Level = LogLevel.Warning,
         Message = "[Renamer] options migration deferred ({Reason}); the stored settings are unchanged and the next load retries")]

@@ -214,6 +214,13 @@ public sealed partial class Renamer : FullExtensionBase
             LogOptionsMigrationDroppedNames(converted.DroppedNames.Count, dropped);
         }
 
+        if (converted.CaseCollapses.Count > 0)
+        {
+            string collapsed = string.Join("; ", converted.CaseCollapses.Select(
+                c => $"'{c.Name}' now matches only {c.MatchedId}, no longer {string.Join(" or ", c.AlsoMatchedIds)}"));
+            LogOptionsMigrationNarrowedNames(converted.CaseCollapses.Count, collapsed);
+        }
+
         try
         {
             await Store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema, ct);

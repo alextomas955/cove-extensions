@@ -55,8 +55,17 @@ public static class OptionsMigration
         public bool Any => Tags > 0 || Performers > 0;
     }
 
-    /// <summary>The converted blob plus every stored name that matched no entity and was dropped.</summary>
-    public sealed record Conversion(string Json, IReadOnlyList<string> DroppedNames);
+    /// <summary>
+    /// A stored rule name that matched several entities differing only by letter case, and so now
+    /// applies to one of them where before the migration it applied to all.
+    /// </summary>
+    public sealed record CaseCollapse(string Name, int MatchedId, IReadOnlyList<int> AlsoMatchedIds);
+
+    /// <summary>The converted blob and everything the conversion discarded or narrowed on the way.</summary>
+    public sealed record Conversion(
+        string Json,
+        IReadOnlyList<string> DroppedNames,
+        IReadOnlyList<CaseCollapse> CaseCollapses);
 
     /// <summary>
     /// Counts the names each half of <paramref name="json"/> still needs resolved, without touching a
@@ -96,24 +105,45 @@ public static class OptionsMigration
         var root = TryParse(json);
         if (root is null)
         {
-            return new Conversion(json, []);
+            return new Conversion(json, [], []);
         }
 
         var tagIds = BuildLookup(tags);
         var performerIds = BuildLookup(performers);
-        var dropped = new List<string>();
+        var trail = new Trail();
 
         var tagGroup = Find(root, TagsGroup)?.Value as JsonObject;
         var performerGroup = Find(root, PerformersGroup)?.Value as JsonObject;
 
-        ConvertNameList(tagGroup, LegacyWhitelist, WhitelistIds, tagIds, dropped);
-        ConvertNameList(tagGroup, LegacyBlacklist, BlacklistIds, tagIds, dropped);
-        ConvertNameList(performerGroup, LegacyWhitelist, WhitelistIds, performerIds, dropped);
-        ConvertNameList(performerGroup, LegacyBlacklist, BlacklistIds, performerIds, dropped);
-        ConvertNameList(root, LegacyExcludeTags, ExcludeTagIds, tagIds, dropped);
-        ConvertDestinations(root, tagIds, dropped);
+        ConvertNameList(tagGroup, LegacyWhitelist, WhitelistIds, tagIds, trail);
+        ConvertNameList(tagGroup, LegacyBlacklist, BlacklistIds, tagIds, trail);
+        ConvertNameList(performerGroup, LegacyWhitelist, WhitelistIds, performerIds, trail);
+        ConvertNameList(performerGroup, LegacyBlacklist, BlacklistIds, performerIds, trail);
+        ConvertNameList(root, LegacyExcludeTags, ExcludeTagIds, tagIds, trail);
+        ConvertDestinations(root, tagIds, trail);
 
-        return new Conversion(root.ToJsonString(), dropped);
+        return new Conversion(root.ToJsonString(), trail.Dropped, trail.Collapsed);
+    }
+
+    /// <summary>Everything the conversion discarded or narrowed, accumulated across every field.</summary>
+    private sealed class Trail
+    {
+        public List<string> Dropped { get; } = [];
+
+        public List<CaseCollapse> Collapsed { get; } = [];
+
+        /// <summary>
+        /// Records a narrowing once per stored name rather than once per field that carries it: the
+        /// same rule name in a whitelist and an exclude list narrows for one reason, and reporting it
+        /// twice reads as two separate library problems.
+        /// </summary>
+        public void RecordCollapse(string name, int matchedId, IReadOnlyList<int> alsoMatchedIds)
+        {
+            if (!Collapsed.Any(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                Collapsed.Add(new CaseCollapse(name, matchedId, alsoMatchedIds));
+            }
+        }
     }
 
     private static JsonObject? TryParse(string? json)
@@ -155,22 +185,24 @@ public static class OptionsMigration
     }
 
     /// <summary>
-    /// Builds the name → id lookup used by every field.
+    /// Builds the name → ids lookup used by every field, ascending, so the first id is the match and any
+    /// others are what the match no longer covers.
     /// </summary>
     /// <remarks>
     /// Resolution is case-insensitive because matching a stored rule against a live entity name was
     /// case-insensitive before this migration: a rule stored as <c>"4k"</c> against a tag named
     /// <c>4K</c> was live, and a case-sensitive lookup would silently drop it.
     /// <para>
-    /// Where two entities differ only by letter case, they share one lookup entry and two stored rules
-    /// collapse onto a single id — the one genuine narrowing this migration carries. Before it, such a
-    /// rule matched BOTH rows; afterwards it matches one. The lowest id wins so the collapse is decided
-    /// by the data rather than by the order the rows came back in.
+    /// Where several entities differ only by letter case they share one entry, and a stored rule that
+    /// matched ALL of them now matches the first — the one genuine narrowing this migration carries, and
+    /// why every id is kept rather than only the winner: without the rest, the narrowing leaves no trace
+    /// at all (the name resolved, so nothing is dropped). The lowest id wins so the choice is decided by
+    /// the data rather than by the order the rows came back in.
     /// </para>
     /// </remarks>
-    private static Dictionary<string, int> BuildLookup(IReadOnlyList<(int Id, string Name)> rows)
+    private static Dictionary<string, int[]> BuildLookup(IReadOnlyList<(int Id, string Name)> rows)
     {
-        var lookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var byName = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
         foreach (var (id, name) in rows)
         {
             if (string.IsNullOrWhiteSpace(name))
@@ -178,21 +210,50 @@ public static class OptionsMigration
                 continue;
             }
 
-            if (!lookup.TryGetValue(name, out int existing) || id < existing)
+            if (!byName.TryGetValue(name, out var ids))
             {
-                lookup[name] = id;
+                byName[name] = ids = [];
             }
+
+            ids.Add(id);
         }
 
-        return lookup;
+        return byName.ToDictionary(
+            entry => entry.Key, entry => (int[])[.. entry.Value.Order()], StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Resolves one stored name, recording the narrowing when the name covered more than one entity.
+    /// </summary>
+    /// <remarks>
+    /// Only a name a stored rule actually carries is reported: a pair of case-variant rows no rule names
+    /// changes nothing for the user, and listing every such pair in a large library would bury the ones
+    /// that did.
+    /// </remarks>
+    private static bool TryResolve(Dictionary<string, int[]> lookup, string name, Trail trail, out int id)
+    {
+        if (!lookup.TryGetValue(name, out int[]? ids))
+        {
+            trail.Dropped.Add(name);
+            id = 0;
+            return false;
+        }
+
+        id = ids[0];
+        if (ids.Length > 1)
+        {
+            trail.RecordCollapse(name, id, ids[1..]);
+        }
+
+        return true;
     }
 
     private static void ConvertNameList(
         JsonObject? owner,
         string legacyName,
         string idName,
-        Dictionary<string, int> lookup,
-        List<string> dropped)
+        Dictionary<string, int[]> lookup,
+        Trail trail)
     {
         if (owner is null || Find(owner, legacyName) is not { Value: JsonArray legacy } legacyEntry)
         {
@@ -222,9 +283,8 @@ public static class OptionsMigration
                 continue;
             }
 
-            if (!lookup.TryGetValue(name, out int id))
+            if (!TryResolve(lookup, name, trail, out int id))
             {
-                dropped.Add(name);
                 continue;
             }
 
@@ -240,8 +300,8 @@ public static class OptionsMigration
 
     private static void ConvertDestinations(
         JsonObject root,
-        Dictionary<string, int> lookup,
-        List<string> dropped)
+        Dictionary<string, int[]> lookup,
+        Trail trail)
     {
         if (Find(root, TagDestinations) is not { Value: JsonObject legacy } entry)
         {
@@ -251,7 +311,12 @@ public static class OptionsMigration
         var converted = new JsonObject();
         foreach (var (key, value) in legacy)
         {
-            string? idKey = IsIdKey(key) ? key : Resolve(key);
+            string? idKey = IsIdKey(key)
+                ? key
+                : TryResolve(lookup, key, trail, out int id)
+                    ? id.ToString(CultureInfo.InvariantCulture)
+                    : null;
+
             if (idKey is null || converted.ContainsKey(idKey))
             {
                 continue;
@@ -261,17 +326,6 @@ public static class OptionsMigration
         }
 
         root[entry.Key] = converted;
-
-        string? Resolve(string name)
-        {
-            if (lookup.TryGetValue(name, out int id))
-            {
-                return id.ToString(CultureInfo.InvariantCulture);
-            }
-
-            dropped.Add(name);
-            return null;
-        }
     }
 
     // Counted with the SAME string-valued predicate ConvertNameList resolves with, so the two can never
