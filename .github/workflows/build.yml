@@ -155,10 +155,8 @@ jobs:
       # (denylisted) assembly, carries the entry assembly plus any first-party runtime dependency
       # the catalog entry declares in requiredBundledDlls, and leaks no absolute build path in its
       # json. Runs on every build (not tag-gated), so a leak fails the build before anything is
-      # zipped. scripts/strip-verify.mjs is the single shared implementation both this job and the
-      # local release-proof harness call, and it reads the shared .github/DLL_DENYLIST.json — so
-      # there is no drift between what CI enforces and what a local run proves, nor when the host
-      # adds a provided dependency.
+      # zipped. scripts/strip-verify.mjs reads the shared .github/DLL_DENYLIST.json, so the
+      # denylist does not drift when the host adds a provided dependency.
       - name: Strip-verify (no host assemblies, no absolute paths)
         if: ${{ !matrix.extension.manifestOnly }}
         run: node scripts/strip-verify.mjs artifacts/${{ matrix.extension.name }} ${{ matrix.extension.id }}

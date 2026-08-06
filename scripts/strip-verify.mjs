@@ -1,8 +1,7 @@
 // Shared, catalog-driven strip-verify gate: proves a publish set carries no host-provided
 // (denylisted) assembly, carries the extension's own entry assembly plus any first-party runtime
-// dependency it deliberately bundles, and leaks no absolute build path in its json. Both CI
-// (build.yml) and the local release-proof harness (prove-release-path.mjs) call this one
-// implementation so there is no drift between what CI enforces and what a local run proves.
+// dependency it deliberately bundles, and leaks no absolute build path in its json. The CI build
+// job (build.yml) is its only caller, so this file is the whole of that check.
 //
 // The host-assembly denylist is the single shared source at .github/DLL_DENYLIST.json. The
 // per-extension "must be bundled" set comes from the catalog entry's requiredBundledDlls field
