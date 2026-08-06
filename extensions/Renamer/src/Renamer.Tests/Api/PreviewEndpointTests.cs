@@ -19,7 +19,7 @@ public sealed class PreviewEndpointTests
 {
     private static async Task<global::Renamer.Renamer> BuildExtensionAsync()
     {
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         var store = new FakeStore();
         // This test exercises preview wire-shape + zero mutation, not the default template; pin the
         // title-only template in the store so the seeded (height-less) video renders a stable

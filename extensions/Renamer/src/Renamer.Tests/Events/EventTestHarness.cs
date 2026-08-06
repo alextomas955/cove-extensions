@@ -29,7 +29,7 @@ internal static class EventTestHarness
         var store = new FakeStore();
         await new OptionsStore(store).SaveAsync(options); // hook loads these on the first event.
 
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         ((IStatefulExtension)ext).SetStore(store);
         await ext.InitializeAsync(provider); // captures IServiceScopeFactory + IEventBus from DI.
 

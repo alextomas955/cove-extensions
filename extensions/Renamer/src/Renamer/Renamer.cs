@@ -14,18 +14,13 @@ namespace Renamer;
 
 public sealed partial class Renamer : FullExtensionBase
 {
-    // Overridden only because the unit fixtures construct this type with no manifest, and the base
-    // class throws when metadata is read without one. Production never needs these: the host applies
-    // the manifest long before anything reads Id. This is test scaffolding leaking into shipped code —
-    // the exit is a fixture that applies extension.json, after which both overrides go. A peer
-    // extension built from the same template overrides no metadata at all.
+    // No metadata is declared here. Identity comes from extension.json, which the host hands to this
+    // instance (IManifestAware.ApplyManifest) before anything reads Id.
     //
-    // Do NOT re-add version, minCoveVersion, description, author, url or categories. The host reads
-    // each straight off the property, so a copy here silently wins over extension.json — which is how
-    // a dead repository URL and a truncated description both reached users, and how a hand-written
+    // Do NOT add Id, Name, Version, MinCoveVersion, Description, Author, Url or Categories. The host
+    // reads each straight off the property, so a copy here silently wins over the manifest — which is
+    // how a dead repository URL and a truncated description both reached users, and how a hand-written
     // version would go on advertising a number the release tag never stamped.
-    public override string Id => "com.alextomas955.renamer";
-    public override string Name => "Renamer";
 
     // ── Executor wiring ───────────────────────────────────────────────────────
     // The executor needs a SCOPED CoveContext per run (a DbContext is scoped, not singleton) and the

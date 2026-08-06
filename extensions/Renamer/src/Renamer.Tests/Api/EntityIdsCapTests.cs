@@ -2,6 +2,7 @@ using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Renamer.Tests.Execution;
+using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Api;
 
@@ -37,7 +38,7 @@ public sealed class EntityIdsCapTests
 
     private static global::Renamer.Renamer NewExtension()
     {
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         ((Cove.Plugins.IStatefulExtension)ext).SetStore(new FakeStore());
         return ext;
     }

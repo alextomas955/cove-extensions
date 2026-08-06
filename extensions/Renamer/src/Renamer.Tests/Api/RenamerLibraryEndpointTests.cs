@@ -53,7 +53,7 @@ public sealed class RenamerLibraryEndpointTests
         services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
         var provider = services.BuildServiceProvider();
 
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         var store = new FakeStore();
         // Pin a stable title-only template so seeded (height-less) rows render a deterministic name,
         // independent of the shipped default template.

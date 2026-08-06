@@ -50,7 +50,7 @@ public sealed class ScanLibraryEndpointTests
 
     private static async Task<(global::Renamer.Renamer ext, FakeStore store)> NewExtensionAsync()
     {
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         var store = new FakeStore();
         // Pin a stable title-only template so seeded (height-less) rows render a deterministic name,
         // independent of the shipped default template.
@@ -560,7 +560,7 @@ public sealed class ScanLibraryEndpointTests
 
     private static async Task<global::Renamer.Renamer> InitializeWithStoreAsync(Cove.Plugins.IExtensionStore store)
     {
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         ((IStatefulExtension)ext).SetStore(store);
         var services = new ServiceCollection();
         services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());

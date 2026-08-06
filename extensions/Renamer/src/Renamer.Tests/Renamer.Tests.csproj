@@ -67,6 +67,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The extension declares no metadata in code, so its identity comes from this file. RenamerFixture
+         parses the SHIPPED bytes rather than a stub, which needs them next to the test assembly. -->
+    <Content Include="..\Renamer\extension.json" Link="extension.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
     <!-- Shared host-free test fakes (FakeStore/ConcurrentFakeStore) live in the Testing project, and the
          host-dependent fakes (FakePrincipalAccessor/CoveContextFactory) are linked in below — both in the

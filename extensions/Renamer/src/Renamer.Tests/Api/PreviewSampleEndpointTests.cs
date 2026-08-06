@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Renamer.Api;
 using Renamer.Contracts;
 using Renamer.Options;
+using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Api;
 
@@ -22,7 +23,7 @@ public sealed class PreviewSampleEndpointTests
 {
     private static global::Renamer.Renamer NewExtension()
     {
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         ((Cove.Plugins.IStatefulExtension)ext).SetStore(new FakeStore());
         return ext;
     }

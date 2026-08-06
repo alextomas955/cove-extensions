@@ -11,6 +11,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Contracts;
+using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Api;
 
@@ -131,7 +132,7 @@ public sealed class TransportSmokeTests
             builder.Services.AddSingleton<IJobService>(new RecordingJobService());
             builder.Services.AddRouting();
 
-            var ext = new global::Renamer.Renamer();
+            var ext = RenamerFixture.Create();
             ((IStatefulExtension)ext).SetStore(new FakeStore());
 
             var app = builder.Build();

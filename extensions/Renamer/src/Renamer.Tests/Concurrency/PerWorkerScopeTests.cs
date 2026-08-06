@@ -71,7 +71,7 @@ public sealed class PerWorkerScopeTests
         var bus = new CapturingEventBus();
         var provider = BuildScopedProvider(shared, bus, constructed);
 
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         var store = new ConcurrentFakeStore();
         await new global::Renamer.Options.OptionsStore(store)
             .SaveAsync(new global::Renamer.Options.RenamerOptions { FilenameTemplate = "$title" });

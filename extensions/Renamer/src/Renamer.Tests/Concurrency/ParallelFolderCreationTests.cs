@@ -33,7 +33,7 @@ public sealed class ParallelFolderCreationTests
         services.AddSingleton<IEventBus>(bus);
         var provider = services.BuildServiceProvider();
 
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         var store = new ConcurrentFakeStore();
         await new OptionsStore(store).SaveAsync(options);
         ((IStatefulExtension)ext).SetStore(store);
