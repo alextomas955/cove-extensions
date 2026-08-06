@@ -26,7 +26,7 @@ import {
   type SeparatorOption,
   type ValueOption,
 } from "@cove-extensions/ui-shared";
-import { PerformerPicker, TagPicker } from "./EntityPicker";
+import { EntitySelectField } from "./EntitySelectField";
 import { templateUsesToken } from "./templateValidation";
 
 const OVERFLOW_OPTIONS: readonly { value: OverflowPolicy; label: string }[] = [
@@ -185,18 +185,20 @@ export function TokenSettingsSection({
               addPrompt="Add a gender…"
             />
           </Field>
-          <PerformerPicker
+          <EntitySelectField
+            entityType="performer"
             label="Whitelist"
-            helper="If set, only these performers are kept."
+            helper="If set, only these performers are kept. Type to search."
             values={mv("Performers").WhitelistIds}
             onChange={(v) => {
               setMulti("Performers", { WhitelistIds: v });
             }}
             placeholder="Search performers…"
           />
-          <PerformerPicker
+          <EntitySelectField
+            entityType="performer"
             label="Blacklist"
-            helper="These performers are removed."
+            helper="These performers are removed. Type to search."
             values={mv("Performers").BlacklistIds}
             onChange={(v) => {
               setMulti("Performers", { BlacklistIds: v });
@@ -247,18 +249,20 @@ export function TokenSettingsSection({
               options={TAG_SORT_OPTIONS}
             />
           </Field>
-          <TagPicker
+          <EntitySelectField
+            entityType="tag"
             label="Whitelist"
-            helper="If set, only these tags are kept."
+            helper="If set, only these tags are kept. Type to search."
             values={mv("Tags").WhitelistIds}
             onChange={(v) => {
               setMulti("Tags", { WhitelistIds: v });
             }}
             placeholder="Search tags…"
           />
-          <TagPicker
+          <EntitySelectField
+            entityType="tag"
             label="Blacklist"
-            helper="These tags are removed."
+            helper="These tags are removed. Type to search."
             values={mv("Tags").BlacklistIds}
             onChange={(v) => {
               setMulti("Tags", { BlacklistIds: v });
