@@ -1,32 +1,37 @@
-// The one call site in this extension that uses the host's authenticated `extensionFetch`
-// (StudioMap.tsx) ends in a bare `.catch()`: a broken fetch renders the raw studio id instead of its
-// name and throws nothing, logs nothing, and fails no other gate. That silence is right for a user —
-// the label is a readability aid, not load-bearing — and wrong for a suite, so the only way to cover
-// this path is from outside the component, against observables the catch cannot swallow.
+// The proof that the three entity-listing endpoints this extension used to serve have no caller
+// left. They existed only to feed a local picker; the host's own entity selector and value renderer
+// replaced it, so the routes were deleted and nothing may reach for them again.
 //
-// Two independent ones, so a single mis-assertion cannot fake a pass: the committed rule's rendered
-// label, which can only read as the studio's NAME if the fetch resolved, was authenticated, returned
-// 200 and its JSON parsed; and the HTTP status of the request itself. The editor also sits behind an
-// off-by-default toggle, which is why nothing reached it before.
+// The core assertion is NEGATIVE — "no request went to these paths" — which is exactly the shape
+// that passes by inspecting nothing. A page that never mounted, a selector that never opened, a
+// harness that failed silently: all of them satisfy it. So it is paired with POSITIVE observations
+// over the same captured traffic: the host's own entity search and its per-id label lookup must
+// both be seen. The negative can only be trusted in a run the positives prove exercised the panel.
 //
-// The assertion runs on a FRESH page load with the studio picker untouched. The picker hits the same
-// list-studios endpoint, but through the SDK's `request()` — a different code path — so a 200 caught
-// while it is in play would be attributable to either. On a fresh load nothing else calls this
-// endpoint, so the captured response is extensionFetch's.
+// The positives are pinned to the values THIS run seeded — the search `q` is the seeded name, the
+// lookup path is the seeded id — because the host issues unrelated `/api/studios` and `/api/tags`
+// traffic of its own on any settings page load. A bare "some /api/studios request happened" would
+// be satisfied by that background traffic on a run where the panel never rendered at all.
+//
+// This is NOT the authenticated-fetch proof any more. It used to be — it watched the extension's
+// own `list-studios` call and asserted its status — but that call is gone, and
+// `authenticated-fetch.spec.mjs` owns that role now, against an auth-ENABLED instance where the
+// claim is falsifiable at all.
 import { test, expect } from '../lib/renamer-fixtures.mjs';
 import { RenamerSettingsPage } from '../lib/pages/renamer-settings-page.mjs';
 
 const EXTENSION_ID = 'com.alextomas955.renamer';
-const LIST_STUDIOS_PATHNAME = `/api/extensions/${EXTENSION_ID}/list-studios`;
 
-// Pathname-exact, never a substring: a mutation that points the fetch at a neighbouring route
-// (".../list-studios-nope") must NOT satisfy this, or the check would green-light the very defect it
-// exists to catch.
-function isListStudiosResponse(response) {
-  return new URL(response.url()).pathname === LIST_STUDIOS_PATHNAME;
-}
+// Pathname-exact, never a substring: a caller pointed at a neighbouring route (".../list-tags-2")
+// must NOT satisfy the negative half, or the check would green-light the very defect it exists to
+// catch.
+const DELETED_ROUTES = [
+  `/api/extensions/${EXTENSION_ID}/list-studios`,
+  `/api/extensions/${EXTENSION_ID}/list-tags`,
+  `/api/extensions/${EXTENSION_ID}/list-performers`,
+];
 
-test('a committed per-studio rule resolves to its studio name, proving extensionFetch reached the host', async ({
+test('a full settings interaction reaches the host for its entities and never the deleted extension routes', async ({
   page,
   baseUrl,
   api,
@@ -34,72 +39,121 @@ test('a committed per-studio rule resolves to its studio name, proving extension
   const errors = [];
   page.on('pageerror', (err) => errors.push(err.message));
 
-  // Unique per run: the per-worker Cove instance is shared, and the picker is driven by typing this
-  // name, so it has to narrow to exactly one row.
-  const studioName = `E2E StudioMap Studio ${Date.now()}`;
-  const created = await api.post('/api/studios', { name: studioName });
-  expect(
-    created.ok,
-    `POST /api/studios returned ${created.status} — the library has no studio to key a rule on, so this test would prove nothing: ${created.text}`,
-  ).toBe(true);
-  const studioId = created.json.id;
+  // Every same-origin API request the page makes, captured for the WHOLE interaction. Both halves
+  // read this one list, so they are answering questions about the same run.
+  const requests = [];
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith('/api/')) {
+      requests.push({ pathname: url.pathname, query: url.searchParams });
+    }
+  });
+
+  // Unique per run: the per-worker Cove instance is shared, and the fields are driven by typing
+  // these names, so each has to narrow to something.
+  const stamp = Date.now();
+  const studioName = `E2E NoCaller Studio ${stamp}`;
+  const tagName = `E2E NoCaller Tag ${stamp}`;
+
+  const studio = await api.post('/api/studios', { name: studioName });
+  expect(studio.ok, `POST /api/studios returned ${studio.status}: ${studio.text}`).toBe(true);
+  const tag = await api.post('/api/tags', { name: tagName });
+  expect(tag.ok, `POST /api/tags returned ${tag.status}: ${tag.text}`).toBe(true);
+
+  // Seed a committed rule in BOTH maps so both rule tables render a row whose key is a bare stored
+  // id — the case that needs a label lookup. Double-encoded: the host's [FromBody] string binder
+  // wants a JSON string literal.
+  const seeded = await api.put(
+    `/api/extensions/${EXTENSION_ID}/data/options`,
+    JSON.stringify({
+      EnableStudioDestinations: true,
+      StudioDestinations: { [studio.json.id]: '/data/studio-dest' },
+      EnableTagDestinations: true,
+      TagDestinations: { [tag.json.id]: '/data/tag-dest' },
+    }),
+  );
+  expect(seeded.ok, `seeding the options blob returned ${seeded.status}: ${seeded.text}`).toBe(true);
 
   const settings = new RenamerSettingsPage(page, baseUrl);
   await settings.goto();
   await expect(settings.filenameTemplateInput).toBeVisible({ timeout: 15_000 });
 
+  // --- both committed-rule tables, so both key labels resolve ---
   const studioCard = page
     .getByRole('heading', { name: 'Per-studio destinations', exact: true })
     .locator('xpath=ancestor::section[1]');
-  const enableSwitch = studioCard.getByRole('switch');
+  const tagCard = page
+    .getByRole('heading', { name: 'Per-tag destinations', exact: true })
+    .locator('xpath=ancestor::section[1]');
 
-  await expect(
-    enableSwitch,
-    'the "Per-studio destinations" toggle is not off on a fresh instance, so this run is not exercising the default state the editor hides behind',
-  ).toHaveAttribute('aria-checked', 'false');
-  await enableSwitch.click();
-
-  // Commit the rule the way a user does: pick the studio in the searchable picker, type a
-  // destination, add the row, save.
-  const picker = studioCard.getByPlaceholder('Search studios…');
-  await picker.click();
-  await picker.fill(studioName);
-  await studioCard.getByRole('button', { name: studioName, exact: true }).click();
-  await studioCard.getByPlaceholder('Destination root').fill('/data/studio-dest');
-  await studioCard.getByRole('button', { name: 'Add studio rule' }).click();
-  await settings.save();
-
-  const listStudios = page
-    .waitForResponse(isListStudiosResponse, { timeout: 20_000 })
-    .catch(() => null);
-  await page.reload();
-  const response = await listStudios;
-
-  expect(
-    response,
-    `nothing requested ${LIST_STUDIOS_PATHNAME} after the saved rule re-mounted the editor — extensionFetch never reached the host, and the swallowed failure would leave the raw id showing`,
-  ).not.toBeNull();
-  expect(
-    response.status(),
-    `${LIST_STUDIOS_PATHNAME} answered extensionFetch with ${response.status()}, not 200 — the component discards a non-ok response and renders the raw id`,
-  ).toBe(200);
-
-  const ruleRow = studioCard
-    .getByRole('button', { name: `Remove ${studioId}`, exact: true })
+  // The row anchor is the remove control, which still names the RAW stored key — so it locates the
+  // row whether or not the label beside it resolved. That is the point: a locator keyed on the
+  // resolved name could not tell an unresolved row from an absent one.
+  const studioRow = studioCard
+    .getByRole('button', { name: `Remove ${studio.json.id}`, exact: true })
     .locator('xpath=..');
+  const tagRow = tagCard
+    .getByRole('button', { name: `Remove ${tag.json.id}`, exact: true })
+    .locator('xpath=..');
+
+  await expect(studioRow, 'the seeded per-studio rule did not render').toBeVisible({ timeout: 15_000 });
+  await expect(tagRow, 'the seeded per-tag rule did not render').toBeVisible({ timeout: 15_000 });
+  await expect(studioRow, `the committed studio rule never resolved to "${studioName}"`).toContainText(
+    studioName,
+    { timeout: 15_000 },
+  );
+  await expect(tagRow, `the committed tag rule never resolved to "${tagName}"`).toContainText(tagName, {
+    timeout: 15_000,
+  });
+
+  // --- a tag field and a studio field, typed far enough to trigger a search ---
+  const excludesHeader = page.getByRole('button', { name: /^Excludes/ });
+  const excludes = excludesHeader.locator('xpath=..');
+  await excludesHeader.click();
+
+  // The host renders its results list in a portal at the document root, NOT inside the field's own
+  // subtree — so the option lookup is page-scoped. Safe: the seeded names carry this run's stamp.
+  const excludeTag = excludes.getByPlaceholder('Search tags…');
+  await excludeTag.click();
+  await excludeTag.fill(tagName);
   await expect(
-    ruleRow,
-    `the committed rule never resolved to "${studioName}". resolveStudioLabel falls back to "#${studioId} (missing)" whenever the fetched list is empty, which is exactly how a silently-failed extensionFetch renders`,
-  ).toContainText(studioName, { timeout: 15_000 });
+    page.getByRole('option', { name: tagName, exact: true }),
+    'typing a seeded tag name produced no host result — the search this test relies on never ran',
+  ).toBeVisible({ timeout: 15_000 });
 
+  const excludeStudio = excludes.getByPlaceholder('Search studios…');
+  await excludeStudio.click();
+  await excludeStudio.fill(studioName);
+  await expect(
+    page.getByRole('option', { name: studioName, exact: true }),
+    'typing a seeded studio name produced no host result — the search this test relies on never ran',
+  ).toBeVisible({ timeout: 15_000 });
+
+  // --- POSITIVE: the host answered for its own entities, in this run ---
+  const searched = (pathname, term) =>
+    requests.some((r) => r.pathname === pathname && r.query.get('q') === term);
   expect(
-    errors,
-    `the studio-map editor raised page errors: ${errors.join('; ')}`,
-  ).toEqual([]);
+    searched('/api/tags', tagName),
+    `no GET /api/tags?q=${tagName} in the captured traffic — the tag field's search never reached the host, so the negative assertion below would be inspecting a run that did nothing`,
+  ).toBe(true);
+  expect(
+    searched('/api/studios', studioName),
+    `no GET /api/studios?q=${studioName} in the captured traffic — the studio field's search never reached the host, so the negative assertion below would be inspecting a run that did nothing`,
+  ).toBe(true);
 
-  // Clear the rule and re-hide the editor so a saved studio destination does not leak into a sibling
-  // test sharing this worker's Cove instance (mirrors core-paths.spec.mjs's cleanup).
-  await studioCard.getByRole('button', { name: `Remove ${studioId}`, exact: true }).click();
-  await enableSwitch.click();
-  await settings.save();
+  const lookedUp = (pathname) => requests.some((r) => r.pathname === pathname);
+  expect(
+    lookedUp(`/api/studios/${studio.json.id}`),
+    'the committed studio rule rendered no host label lookup — the label came from somewhere other than the host',
+  ).toBe(true);
+  expect(
+    lookedUp(`/api/tags/${tag.json.id}`),
+    'the committed tag rule rendered no host label lookup — the label came from somewhere other than the host',
+  ).toBe(true);
+
+  // --- NEGATIVE: and never the routes this extension no longer serves ---
+  const hits = requests.filter((r) => DELETED_ROUTES.includes(r.pathname)).map((r) => r.pathname);
+  expect(hits, `something still calls a deleted entity-listing route: ${hits.join(', ')}`).toEqual([]);
+
+  expect(errors, `the settings panel raised page errors: ${errors.join('; ')}`).toEqual([]);
 });
