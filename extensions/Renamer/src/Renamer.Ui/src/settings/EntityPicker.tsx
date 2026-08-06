@@ -13,7 +13,7 @@ import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } f
 import { X } from "lucide-react";
 import { request } from "@cove/extension-sdk";
 
-import { Field, StatusText, Spinner } from "@cove-extensions/ui-shared";
+import { Field, StatusText, Spinner, INPUT_CLASS } from "@cove-extensions/ui-shared";
 import {
   filterEntities,
   excludeEntities,
@@ -27,8 +27,6 @@ const LIST_STUDIOS_PATH = api("list-studios");
 const LIST_TAGS_PATH = api("list-tags");
 const LIST_PERFORMERS_PATH = api("list-performers");
 
-const INPUT_CLASS =
-  "w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none";
 const RESULT_CLASS =
   "cursor-pointer rounded-lg px-2 py-1 text-left text-sm text-foreground hover:bg-card-hover";
 const CHIP_BASE =
