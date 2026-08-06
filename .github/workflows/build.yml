@@ -54,8 +54,12 @@ jobs:
       - name: Validate extension catalog
         run: node scripts/validate-extension-repo.mjs
 
-      - name: Test validator error paths
-        run: node --test scripts/validate-extension-repo.test.mjs
+      # Globbed rather than named file-by-file: a hand-maintained list silently stops covering a
+      # test the moment one is added, and a check no workflow runs cannot block a merge. Every
+      # scripts/*.test.mjs is fixture-driven and needs only node — including the host-import gate's
+      # test, whose fixtures stand in for the Cove checkout the gate itself requires and CI lacks.
+      - name: Test repo tooling
+        run: node --test scripts/*.test.mjs
 
       - name: Validate release tag
         if: startsWith(github.ref, 'refs/tags/')
