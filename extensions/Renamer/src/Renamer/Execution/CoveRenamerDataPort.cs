@@ -163,7 +163,10 @@ public class CoveRenamerDataPort : IRenamerDataPort
         [.. v.Files.Select(MapVideoFile)],
         StudioId: v.StudioId,
         ParentStudios: WalkParentStudios(v.Studio),
-        Director: v.Director);
+        Director: v.Director,
+        TagRefs: [.. v.VideoTags
+            .Where(t => t.Tag is not null && t.Tag.Name.Length > 0)
+            .Select(t => (t.Tag!.Id, t.Tag.Name))]);
 
     private static RenamerEntity MapImageEntity(Image i) => new(
         i.Id, RenamerFileKind.Image, i.Title, i.Code, i.Studio?.Name, i.Date, i.Organized,
@@ -173,7 +176,10 @@ public class CoveRenamerDataPort : IRenamerDataPort
         [.. i.ImageTags.Select(t => t.Tag?.Name ?? "").Where(n => n.Length > 0)],
         [.. i.Files.Select(MapImageFile)],
         StudioId: i.StudioId,
-        ParentStudios: WalkParentStudios(i.Studio));
+        ParentStudios: WalkParentStudios(i.Studio),
+        TagRefs: [.. i.ImageTags
+            .Where(t => t.Tag is not null && t.Tag.Name.Length > 0)
+            .Select(t => (t.Tag!.Id, t.Tag.Name))]);
 
     private static RenamerEntity MapAudioEntity(Audio a) => new(
         a.Id, RenamerFileKind.Audio, a.Title, a.Code, a.Studio?.Name, a.Date, a.Organized,
@@ -183,7 +189,10 @@ public class CoveRenamerDataPort : IRenamerDataPort
         [.. a.AudioTags.Select(t => t.Tag?.Name ?? "").Where(n => n.Length > 0)],
         [.. a.Files.Select(MapAudioFile)],
         StudioId: a.StudioId,
-        ParentStudios: WalkParentStudios(a.Studio));
+        ParentStudios: WalkParentStudios(a.Studio),
+        TagRefs: [.. a.AudioTags
+            .Where(t => t.Tag is not null && t.Tag.Name.Length > 0)
+            .Select(t => (t.Tag!.Id, t.Tag.Name))]);
 
     /// <summary>
     /// An <c>AsNoTracking</c> id-only bulk query over the kind's table — Gallery (and any other

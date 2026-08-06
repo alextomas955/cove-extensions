@@ -88,8 +88,9 @@ public sealed record RenamerPerformer(int Id, string Name, bool Favorite, string
 /// A loaded media item (Video/Image/Audio) in the renamer boundary's own vocabulary — the
 /// entity-level metadata the projector turns into scalar tokens + the per-file rows it renders
 /// independently (every file is processed, not just the first). Performers carry a per-performer
-/// record (name plus the id/favorite/gender used for ordering); tags are a pre-flattened name
-/// list. Both are resolved from Cove's JOIN collections at the port boundary rather than here.
+/// record (name plus the id/favorite/gender used for ordering); tags carry a pre-flattened name
+/// list plus the id/name pairs the tag rules key on. Both are resolved from Cove's JOIN collections
+/// at the port boundary rather than here.
 /// </summary>
 /// <param name="EntityId">The Cove entity id (Video/Image/Audio).</param>
 /// <param name="Kind">The media kind (used as the per-file <see cref="RenamerFile.Kind"/> too).</param>
@@ -124,6 +125,16 @@ public sealed record RenamerPerformer(int Id, string Name, bool Favorite, string
 /// Video-only column, like <see cref="RenamerFile.VideoCodec"/> — so the <c>$director</c> token omits
 /// naturally for image/audio. Projected as <c>$director</c>, omitted when null/empty.
 /// </param>
+/// <param name="TagRefs">
+/// The item's tags as <c>(int Id, string Name)</c> pairs, in the SAME order as <see cref="Tags"/>.
+/// The <c>Id</c> is the rule key — tag routing and tag exclusion both match on it, so a renamed tag
+/// keeps its rules — while the <c>Name</c> drives the <c>$tags</c> display token and the
+/// user-visible route reason. The two travel as pairs rather than as parallel id and name lists
+/// precisely because routing takes the FIRST tag in this order whose id has a rule: two lists that
+/// drift by one element would silently route to another tag's destination. <c>null</c>/empty means
+/// the tag ids were not projected (a construction site predating this field), which the resolver
+/// treats as "no tag rule can match."
+/// </param>
 public sealed record RenamerEntity(
     int EntityId,
     RenamerFileKind Kind,
@@ -137,7 +148,8 @@ public sealed record RenamerEntity(
     IReadOnlyList<RenamerFile> Files,
     int? StudioId = null,
     IReadOnlyList<(int Id, string Name)>? ParentStudios = null,
-    string? Director = null);
+    string? Director = null,
+    IReadOnlyList<(int Id, string Name)>? TagRefs = null);
 
 /// <summary>
 /// The DB seam: the ONLY surface between the planner/executor and a live <c>CoveContext</c>.
