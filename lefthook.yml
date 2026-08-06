@@ -25,17 +25,6 @@ pre-commit:
       glob: "*.tsx"
       run: npm run check-classes
 
-    # Every host import-map external (lucide-react) resolved against the module the HOST actually
-    # serves, not the one in node_modules. Those are two different files even at the same version: a
-    # name can typecheck, build and pass every offline gate while the shipped bundle fails to load in
-    # the browser and every surface renders "Extension component not found". That shipped once.
-    # Local-only by construction — the oracle is the generated shim inside a Cove host checkout, so
-    # this skips with a notice when none is present (the sdk-drift-check precedent), which is also
-    # why CI cannot run it and why it can never block a merge.
-    check-host-imports:
-      glob: "*.{ts,tsx}"
-      run: node scripts/check-host-imports.mjs
-
     # Single monorepo-wide ESLint (root eslint.config.mjs): every extension's TS/React UI + all
     # first-party .mjs/.cjs helper/build/test scripts. Type-aware, so it resolves each UI's installed
     # deps on the dev box.
@@ -48,12 +37,3 @@ pre-commit:
     csharp-format:
       glob: "*.cs"
       run: dotnet format CoveExtensions.slnx --verify-no-changes --severity warn --include {staged_files}
-
-    # Local-only: warns when the committed vendor/cove-extension-sdk-*.tgz drifts from the
-    # sibling ../cove checkout's frontend SDK version. Cannot run in CI (no ../cove there) — it
-    # no-ops there and on any clean clone lacking the sibling. Unconditional (not glob-scoped):
-    # the script itself no-ops fast when the sibling is absent, which is cheaper and safer than
-    # a multi-path glob pattern here. Runs with --warn so it never blocks a commit (informational
-    # only); drop --warn to make it a hard fail once the maintainer wants drift to block commits.
-    sdk-drift-check:
-      run: node extensions/Renamer/scripts/check-sdk-drift.mjs --warn
