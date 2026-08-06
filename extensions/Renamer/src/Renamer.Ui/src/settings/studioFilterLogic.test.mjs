@@ -6,7 +6,6 @@ import {
   filterEntities,
   resolveStudioLabel,
   isResolvedStudioId,
-  canonicalTagName,
   excludeEntities,
 } from "./studioFilterLogic";
 
@@ -50,20 +49,6 @@ test("a stored studio id absent from the list resolves to a removable missing ma
   assert.equal(isResolvedStudioId(999, studios), false);
 });
 
-test("a tag typed in a different casing canonicalizes to the library's stored spelling", () => {
-  const tags = [
-    { id: 1, name: "Outdoor" },
-    { id: 2, name: "POV" },
-  ];
-  assert.equal(canonicalTagName("outdoor", tags), "Outdoor");
-  assert.equal(canonicalTagName("  pov ", tags), "POV");
-});
-
-test("a tag the picker has not seen is stored as the trimmed typed name", () => {
-  const tags = [{ id: 1, name: "Outdoor" }];
-  assert.equal(canonicalTagName("  Brand New ", tags), "Brand New");
-});
-
 test("the filter does not mutate its input list", () => {
   const input = [...studios];
   const snapshot = JSON.parse(JSON.stringify(studios));
@@ -78,7 +63,7 @@ test("excludeEntities drops rows whose mapped value is already used, by id", () 
   );
 });
 
-test("excludeEntities drops rows by canonical name when the map keys on names", () => {
+test("excludeEntities drops rows by whatever value valueOf returns, not only the id", () => {
   const tags = [
     { id: 1, name: "Outdoor" },
     { id: 2, name: "POV" },
@@ -105,5 +90,4 @@ test("an empty fetched list resolves any stored value as missing without throwin
   assert.equal(resolveStudioLabel(42, []), "#42 (missing)");
   assert.equal(isResolvedStudioId(42, []), false);
   assert.deepEqual(filterEntities("anything", []), []);
-  assert.equal(canonicalTagName("  Solo ", []), "Solo");
 });

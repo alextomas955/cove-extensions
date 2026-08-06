@@ -4,24 +4,21 @@
  * endpoints. Sibling to primitives.tsx; reuses its class vocabulary verbatim so the picker is
  * host-native.
  *
- * Studios store the stable id (never the display name, so a later rename can't mis-target a renamed
- * studio). Tags and performers still store the display name here — but the backend no longer keys
- * their rules on it: tag routing, tag exclusion and both multi-value whitelists/blacklists all match
- * on the stable id now, so these two adapters no longer speak the contract they serve. The filter and
- * the stale-id resolution come from the tested studioFilterLogic.ts helpers — the component never
- * re-implements them.
+ * Every kind stores the STABLE id, never the display name, so a rename in Cove cannot mis-target or
+ * orphan a rule — which is also what the backend keys on for tag routing, tag exclusion and both
+ * multi-value whitelists/blacklists. The filter and the stale-id resolution come from the tested
+ * studioFilterLogic.ts helpers — the component never re-implements them.
  */
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { X } from "lucide-react";
 import { request } from "@cove/extension-sdk";
 
-import { Field, StatusText, Spinner } from "@cove-extensions/ui-shared";
+import { Field, StatusText, Spinner, INPUT_CLASS } from "@cove-extensions/ui-shared";
 import {
   filterEntities,
   excludeEntities,
   resolveStudioLabel,
   isResolvedStudioId,
-  canonicalTagName,
   type EntityRef,
 } from "./studioFilterLogic";
 import { api } from "../common/lib/extension";
@@ -30,8 +27,6 @@ const LIST_STUDIOS_PATH = api("list-studios");
 const LIST_TAGS_PATH = api("list-tags");
 const LIST_PERFORMERS_PATH = api("list-performers");
 
-const INPUT_CLASS =
-  "w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none";
 const RESULT_CLASS =
   "cursor-pointer rounded-lg px-2 py-1 text-left text-sm text-foreground hover:bg-card-hover";
 const CHIP_BASE =
@@ -44,20 +39,18 @@ const CHIP_STALE_STYLE: CSSProperties = { borderColor: "var(--color-red-400)" };
 
 /**
  * How a picked {@link EntityRef} becomes a stored value, and how a stored value resolves back to a
- * display label — the only two things that differ between the studio picker (id) and the tag picker
- * (canonical name). Keeping them in one adapter lets the generic body stay shape-agnostic.
+ * display label. Keeping them in one adapter lets the generic body stay shape-agnostic.
  */
 interface EntityAdapter<V> {
-  /** The value stored when the user picks this row (studio → id; tag → canonical name). */
+  /** The value stored when the user picks this row. */
   toValue: (entity: EntityRef, fetched: readonly EntityRef[]) => V;
   /**
    * The stored value a result row maps to, WITHOUT the fetched list — used to drop rows already used
    * elsewhere (the no-duplicate-key filter). Distinct from {@link toValue} because exclusion runs over
-   * the live result rows, where the row IS the entity, so the list-dependent canonicalization
-   * {@link toValue} performs is unnecessary.
+   * the live result rows, where the row IS the entity, so no lookup against the fetched list is needed.
    */
   valueOf: (entity: EntityRef) => V;
-  /** The label a stored value shows (studio → resolveStudioLabel; tag → the name itself). */
+  /** The label a stored value shows. */
   toLabel: (value: V, fetched: readonly EntityRef[]) => string;
   /** Whether a stored value resolves to a live entry (drives stale-chip styling). */
   isResolved: (value: V, fetched: readonly EntityRef[]) => boolean;
@@ -258,30 +251,14 @@ function EntityPicker<V>({
   );
 }
 
-const STUDIO_ADAPTER: EntityAdapter<number> = {
+// One adapter serves all three kinds: studios, tags and performers each store the stable id, and the
+// resolve helpers key on that id rather than on anything studio-specific. A per-kind adapter would be
+// three copies of the same four functions, and a copy is where a name-storing variant creeps back in.
+const ID_ADAPTER: EntityAdapter<number> = {
   toValue: (entity) => entity.id,
   valueOf: (entity) => entity.id,
   toLabel: (value, fetched) => resolveStudioLabel(value, fetched),
   isResolved: (value, fetched) => isResolvedStudioId(value, fetched),
-};
-
-const TAG_ADAPTER: EntityAdapter<string> = {
-  // A picked row already carries the canonical spelling; canonicalTagName also folds a typed casing.
-  toValue: (entity, fetched) => canonicalTagName(entity.name, fetched),
-  valueOf: (entity) => entity.name,
-  toLabel: (value) => value,
-  // A tag value is the name itself, so it is always displayable; "resolved" tracks list membership.
-  isResolved: (value, fetched) => fetched.some((e) => e.name.toLowerCase() === value.toLowerCase()),
-};
-
-// Stores a performer's NAME, mirroring the tag adapter: a picked row carries its canonical name and
-// a stored value resolves by case-insensitive name. The backend's performer whitelist/blacklist now
-// matches on the stable id instead, so a name stored here no longer reaches a live rule.
-const PERFORMER_ADAPTER: EntityAdapter<string> = {
-  toValue: (entity, fetched) => canonicalTagName(entity.name, fetched),
-  valueOf: (entity) => entity.name,
-  toLabel: (value) => value,
-  isResolved: (value, fetched) => fetched.some((e) => e.name.toLowerCase() === value.toLowerCase()),
 };
 
 /** Studio picker: stores the stable studio id; a stale id renders as a removable `#{id} (missing)` chip. */
@@ -307,14 +284,14 @@ export function StudioPicker({
       values={values}
       onChange={onChange}
       endpointPath={LIST_STUDIOS_PATH}
-      adapter={STUDIO_ADAPTER}
+      adapter={ID_ADAPTER}
       placeholder={placeholder}
       excludeValues={excludeValues}
     />
   );
 }
 
-/** Tag picker: stores the library's canonical tag name, which the backend's tag rules no longer key on. */
+/** Tag picker: stores the stable tag id, which is what the backend's tag rules key on. */
 export function TagPicker({
   label,
   helper,
@@ -325,10 +302,10 @@ export function TagPicker({
 }: {
   label: string;
   helper?: string;
-  values: string[];
-  onChange: (values: string[]) => void;
+  values: number[];
+  onChange: (values: number[]) => void;
   placeholder?: string;
-  excludeValues?: readonly string[];
+  excludeValues?: readonly number[];
 }) {
   return (
     <EntityPicker
@@ -337,14 +314,14 @@ export function TagPicker({
       values={values}
       onChange={onChange}
       endpointPath={LIST_TAGS_PATH}
-      adapter={TAG_ADAPTER}
+      adapter={ID_ADAPTER}
       placeholder={placeholder}
       excludeValues={excludeValues}
     />
   );
 }
 
-/** Performer picker: stores the performer's canonical name (whitelist/blacklist match by name). */
+/** Performer picker: stores the stable performer id, which the whitelist/blacklist match on. */
 export function PerformerPicker({
   label,
   helper,
@@ -355,10 +332,10 @@ export function PerformerPicker({
 }: {
   label: string;
   helper?: string;
-  values: string[];
-  onChange: (values: string[]) => void;
+  values: number[];
+  onChange: (values: number[]) => void;
   placeholder?: string;
-  excludeValues?: readonly string[];
+  excludeValues?: readonly number[];
 }) {
   return (
     <EntityPicker
@@ -367,7 +344,7 @@ export function PerformerPicker({
       values={values}
       onChange={onChange}
       endpointPath={LIST_PERFORMERS_PATH}
-      adapter={PERFORMER_ADAPTER}
+      adapter={ID_ADAPTER}
       placeholder={placeholder}
       excludeValues={excludeValues}
     />

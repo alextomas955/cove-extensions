@@ -29,8 +29,9 @@ export function filterEntities(query: string, entities: readonly EntityRef[]): E
  * Drop the rows whose stored value is already used elsewhere, so a picker supplying a NEW map key
  * never offers a studio/tag that already has a rule (which would let the user pick a duplicate that
  * the map editor then silently refuses). `valueOf` maps a row to the same value the picker would
- * store — the studio id for the studio map, the canonical name for the tag map — and `exclude` holds
- * the already-used keys in that same value space, compared by `===` against the mapped value.
+ * store — the stable id — and `exclude` holds the already-used keys in that same value space,
+ * compared by `===` against the mapped value. Generic in that value so the exclusion never assumes
+ * what a caller stores.
  */
 export function excludeEntities<V>(
   entities: readonly EntityRef[],
@@ -63,18 +64,4 @@ export function resolveStudioLabel(id: number, entities: readonly EntityRef[]): 
  */
 export function isResolvedStudioId(id: number, entities: readonly EntityRef[]): boolean {
   return entities.some((e) => e.id === id);
-}
-
-/**
- * Map a typed/selected tag name to the library's canonical spelling. The name-storing pickers need
- * this because a near-miss casing must store the library's stored spelling rather than the user's
- * keystrokes — otherwise two casings of the same tag would diverge. (The backend itself no longer
- * keys tag rules on the name at all; it matches the stable id, which cannot diverge by casing.)
- * Returns the canonical name when the list contains a case-insensitive match, or the trimmed input
- * otherwise (a tag the picker has not seen is stored as typed).
- */
-export function canonicalTagName(name: string, entities: readonly EntityRef[]): string {
-  const trimmed = name.trim();
-  const match = entities.find((e) => e.name.toLowerCase() === trimmed.toLowerCase());
-  return match ? match.name : trimmed;
 }

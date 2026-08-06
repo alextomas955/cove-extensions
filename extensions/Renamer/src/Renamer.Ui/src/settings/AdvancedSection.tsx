@@ -254,9 +254,9 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
         >
           <TagPicker
             label="Tags"
-            values={options.ExcludeTags}
+            values={options.ExcludeTagIds}
             onChange={(v) => {
-              set("ExcludeTags", v);
+              set("ExcludeTagIds", v);
             }}
             placeholder="Search tags…"
           />
