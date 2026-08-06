@@ -14,6 +14,15 @@ namespace Renamer;
 
 public sealed partial class Renamer : FullExtensionBase
 {
+    // Overridden only because the unit fixtures construct this type with no manifest, and the base
+    // class throws when metadata is read without one. Production never needs these: the host applies
+    // the manifest long before anything reads Id. This is test scaffolding leaking into shipped code —
+    // the exit is a fixture that applies extension.json, after which both overrides go. A peer
+    // extension built from the same template overrides no metadata at all.
+    //
+    // Do NOT re-add description, author, url or categories. The host's extension list reads those
+    // straight off the property, so a copy here silently wins over extension.json — which is how a
+    // dead repository URL and a truncated description both reached users.
     public override string Id => "com.alextomas955.renamer";
     public override string Name => "Renamer";
 
@@ -22,10 +31,6 @@ public sealed partial class Renamer : FullExtensionBase
     // package.json stamps). scripts/check-version-parity.mjs reconciles these against
     // extension.json, package.json, and the catalog registry manifest so they can't drift.
     public override string Version => "0.3.0";
-    public override string? Description => "Bulk-renames Cove library items using configurable patterns.";
-    public override string? Author => "alextomas955";
-    public override string? Url => "https://github.com/alextomas955/renamer";
-    public override IReadOnlyList<string> Categories => [ExtensionCategories.Tools, ExtensionCategories.Automation];
     public override string? MinCoveVersion => "1.1.0";
 
     // ── Executor wiring ───────────────────────────────────────────────────────
