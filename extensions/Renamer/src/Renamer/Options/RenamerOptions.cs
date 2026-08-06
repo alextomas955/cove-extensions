@@ -50,12 +50,6 @@ public sealed record MultiValueOptions
     /// <summary>Sort applied before joining.</summary>
     public SortOrder Sort { get; init; } = SortOrder.NameAsc;
 
-    /// <summary>If non-empty, only these values are kept (case-insensitive).</summary>
-    public List<string> Whitelist { get; init; } = [];
-
-    /// <summary>If non-empty, these values are removed (case-insensitive).</summary>
-    public List<string> Blacklist { get; init; } = [];
-
     /// <summary>
     /// If non-empty, only items whose STABLE id is listed survive. Keyed on the id — never the name —
     /// exactly like <see cref="RenamerOptions.StudioDestinations"/> and
@@ -66,8 +60,8 @@ public sealed record MultiValueOptions
     public List<int> WhitelistIds { get; init; } = [];
 
     /// <summary>
-    /// If non-empty, items whose STABLE id is listed are removed. The id counterpart of
-    /// <see cref="Blacklist"/>, keyed exactly like <see cref="WhitelistIds"/>.
+    /// If non-empty, items whose STABLE id is listed are removed. Keyed exactly like
+    /// <see cref="WhitelistIds"/>, and applied after it.
     /// </summary>
     public List<int> BlacklistIds { get; init; } = [];
 
@@ -101,8 +95,6 @@ public sealed record MultiValueOptions
         yield return MaxCount;
         yield return OnOverflow;
         yield return Sort;
-        yield return StructuralEquality.Sequence(Whitelist);
-        yield return StructuralEquality.Sequence(Blacklist);
         yield return StructuralEquality.Sequence(WhitelistIds);
         yield return StructuralEquality.Sequence(BlacklistIds);
         yield return StructuralEquality.Sequence(IgnoreGenders);

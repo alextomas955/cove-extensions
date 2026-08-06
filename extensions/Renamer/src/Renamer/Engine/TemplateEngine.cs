@@ -181,6 +181,8 @@ public static class TemplateEngine
             }
             else
             {
+                // No ids came with the names, so nothing can be whitelisted or blacklisted here —
+                // the name-only arm sorts, limits and joins. Every real entity reaches the arm above.
                 map[Tokens.Tags] = MultiValue.Resolve(tags, options.Tags);
             }
         }
@@ -350,9 +352,14 @@ public static class TemplateEngine
     public static bool WouldSanitizeFilename(
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
-        RenamerOptions options)
+        RenamerOptions options,
+        IReadOnlyList<RenamerPerformer>? performers = null,
+        IReadOnlyList<(int Id, string Name)>? tagRecords = null)
     {
-        var resolved = BuildResolvedMap(tokens, multiValues, options);
+        // The records are what make "the SAME pipeline" true: without them the multi-value tokens
+        // resolve unfiltered here while the real render filters them by id, so the reported flag
+        // could describe a name the caller never produces.
+        var resolved = BuildResolvedMap(tokens, multiValues, options, performers, tagRecords);
         string raw = RenderRaw(options.FilenameTemplate, resolved, suppressExt: true, null);
         raw = ApplyTransforms(raw, options);
         return Sanitizer.CleanSegment(raw, options) != raw;

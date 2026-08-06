@@ -40,7 +40,7 @@ public sealed class OptionsRoundTripTests
     }
 
     // A panel-shaped blob: mixed casing (lowerCamel + PascalCase), enums as strings, nested
-    // Performers/Tags MultiValueOptions, and the DropOrder/RequiredFields/whitelist arrays.
+    // Performers/Tags MultiValueOptions, and the DropOrder/RequiredFields/whitelist-id arrays.
     private const string PanelJson =
         """
         {
@@ -59,8 +59,8 @@ public sealed class OptionsRoundTripTests
             "maxCount": 3,
             "onOverflow": "KeepFirst",
             "sort": "None",
-            "whitelist": ["Alice", "Bob"],
-            "blacklist": ["Carol"]
+            "whitelistIds": [11, 12],
+            "blacklistIds": [13]
           },
           "Tags": { "separator": "_", "sort": "NameAsc" },
           "dropOrder": ["title", "studio", "tags"],
@@ -86,8 +86,8 @@ public sealed class OptionsRoundTripTests
             MaxCount = 3,
             OnOverflow = OverflowPolicy.KeepFirst,
             Sort = SortOrder.None,
-            Whitelist = ["Alice", "Bob"],
-            Blacklist = ["Carol"],
+            WhitelistIds = [11, 12],
+            BlacklistIds = [13],
         },
         Tags = new MultiValueOptions { Separator = "_", Sort = SortOrder.NameAsc },
         DropOrder = ["title", "studio", "tags"],

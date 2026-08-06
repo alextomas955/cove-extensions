@@ -7,7 +7,8 @@ namespace Renamer.Engine;
 /// Pure multi-value (performers, tags) resolution.
 /// Turns a list of raw values into a single joined string under the field's
 /// <see cref="MultiValueOptions"/> controls, in this fixed order:
-/// whitelist → blacklist → sort → max(KeepFirst/DropAll) → join.
+/// whitelist → blacklist → sort → max(KeepFirst/DropAll) → join (plus the performer-only gender
+/// steps, which sit between the blacklist and the limit).
 ///
 /// The engine's Render pulls each multi-value field's NAME list from a
 /// <c>IReadOnlyDictionary&lt;string, IReadOnlyList&lt;string&gt;&gt;</c> side-input and feeds the
@@ -20,19 +21,19 @@ namespace Renamer.Engine;
 /// </summary>
 public static class MultiValue
 {
+    /// <summary>
+    /// Name-only resolution: sort → max(KeepFirst/DropAll) → join, for a list that carries no ids.
+    /// </summary>
+    /// <remarks>
+    /// It applies NO whitelist or blacklist, and cannot: both are id sets, and a bare name has no id
+    /// to test. That is not a gap to close with a name-matching fallback — matching a name would
+    /// reintroduce the split-on-rename bug the id keying exists to remove. The callers that land here
+    /// are the ones whose input has no entity identity at all: the fixed server-side preview samples
+    /// and the engine's own name-only helpers.
+    /// </remarks>
     public static string Resolve(IReadOnlyList<string> values, MultiValueOptions m)
     {
         IEnumerable<string> seq = values;
-
-        if (m.Whitelist.Count > 0)
-        {
-            seq = seq.Where(v => m.Whitelist.Contains(v, StringComparer.OrdinalIgnoreCase));
-        }
-
-        if (m.Blacklist.Count > 0)
-        {
-            seq = seq.Where(v => !m.Blacklist.Contains(v, StringComparer.OrdinalIgnoreCase));
-        }
 
         if (m.Sort == SortOrder.NameAsc)
         {

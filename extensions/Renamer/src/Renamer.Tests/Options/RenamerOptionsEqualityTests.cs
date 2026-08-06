@@ -35,7 +35,7 @@ public sealed class RenamerOptionsEqualityTests
             StudioDestinations = new() { [1] = "/x", [2] = "/y" },
             TagDestinations = new() { [11] = "/anime" },
             PathDestinations = [new PathDestinationRule { Pattern = "p", Dest = "/d" }],
-            Performers = new() { Whitelist = ["Ann", "Bob"] },
+            Performers = new() { WhitelistIds = [3, 4] },
         };
 
         Assert.Equal(Make(), Make());
@@ -61,8 +61,8 @@ public sealed class RenamerOptionsEqualityTests
     [Fact]
     public void MultiValueOptionsMemberDiffers_NotEqual()
     {
-        var a = new RenamerOptions { Performers = new() { Separator = " ", Whitelist = ["Ann"] } };
-        var b = new RenamerOptions { Performers = new() { Separator = " ", Whitelist = ["Bob"] } };
+        var a = new RenamerOptions { Performers = new() { Separator = " ", WhitelistIds = [3] } };
+        var b = new RenamerOptions { Performers = new() { Separator = " ", WhitelistIds = [4] } };
 
         Assert.NotEqual(a, b);
     }

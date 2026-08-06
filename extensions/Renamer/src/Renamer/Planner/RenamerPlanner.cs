@@ -293,7 +293,8 @@ public sealed class RenamerPlanner
         // defaults). Suffixed iff the collision loop appended a number; Sanitized via the SAME engine
         // check /preview-sample uses (single source of truth — never string-sniff the basename).
         bool suffixed = attempt > 0;
-        bool sanitized = TemplateEngine.WouldSanitizeFilename(tokens, multi, options);
+        bool sanitized = TemplateEngine.WouldSanitizeFilename(
+            tokens, multi, options, performers: performers, tagRecords: tagRefs);
 
         // Routing facts carried on the final Renamer/Move item (skip/no-op paths keep the defaults).
         // ResolvedDestinationRoot is null for a source-confine (legacy in-place) item; TargetVolume is

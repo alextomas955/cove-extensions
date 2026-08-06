@@ -84,34 +84,20 @@ public class MultiValueTests
     }
 
     [Fact]
-    public void Resolve_Whitelist_KeepsOnlyListedCaseInsensitive()
+    public void Resolve_NameOnlyList_IsNotFilteredByTheIdWhitelistOrBlacklist()
     {
+        // A name carries no id, so neither id list can be tested against it. Silently dropping every
+        // value (treating "not in the whitelist" as a match failure) would empty the $tags token of
+        // every preview sample; keeping them all is the only honest reading of "cannot be filtered".
         var m = new MultiValueOptions
         {
             Separator = ",",
             Sort = SortOrder.None,
-            Whitelist = ["ALICE", "bob"],
+            WhitelistIds = [1],
+            BlacklistIds = [2],
         };
-        Assert.Equal("alice,Bob", MultiValue.Resolve(Three, m));
-    }
 
-    [Fact]
-    public void Resolve_Blacklist_DropsListedCaseInsensitive()
-    {
-        var m = new MultiValueOptions
-        {
-            Separator = ",",
-            Sort = SortOrder.None,
-            Blacklist = ["BOB"],
-        };
-        Assert.Equal("Charlie,alice", MultiValue.Resolve(Three, m));
-    }
-
-    [Fact]
-    public void Resolve_EverythingFilteredOut_ReturnsEmpty()
-    {
-        var m = new MultiValueOptions { Whitelist = ["nobody"] };
-        Assert.Equal("", MultiValue.Resolve(Three, m));
+        Assert.Equal("Charlie,alice,Bob", MultiValue.Resolve(Three, m));
     }
 
     [Fact]

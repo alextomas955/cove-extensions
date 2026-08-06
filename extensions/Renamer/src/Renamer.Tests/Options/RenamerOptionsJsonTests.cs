@@ -64,8 +64,8 @@ public sealed class RenamerOptionsJsonTests
                 MaxCount = 3,
                 OnOverflow = OverflowPolicy.KeepFirst,
                 Sort = SortOrder.None,
-                Whitelist = ["Alice", "Bob"],
-                Blacklist = ["Carol"],
+                WhitelistIds = [11, 12],
+                BlacklistIds = [13],
             },
             Tags = new MultiValueOptions { Separator = "_" },
         };
