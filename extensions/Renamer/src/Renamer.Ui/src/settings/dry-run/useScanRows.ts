@@ -7,7 +7,7 @@
  * of what is already loaded.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ApiError, request } from "@cove/extension-sdk";
+import { ApiError, request } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { ScanRow, ScanRowsPage } from "../../contracts";
 import { api } from "../../common/lib/extension";

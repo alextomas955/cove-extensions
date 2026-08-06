@@ -8,7 +8,7 @@
  * sections stay presentational.
  */
 import { useCallback, useState } from "react";
-import { request, ApiError } from "@cove/extension-sdk";
+import { request, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { ScanSummaryResponse } from "../contracts";
 import { summaryCounts, type DryRunCounts } from "./dry-run/dryRunLogic";

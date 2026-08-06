@@ -8,7 +8,7 @@
  * SECURITY: reasons are rendered as React text nodes (auto-escaped).
  */
 import { useCallback, useEffect, useState } from "react";
-import { request, ApiError } from "@cove/extension-sdk";
+import { request, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 import { Undo2 } from "lucide-react";
 
 import { Dialog } from "../common/ui/Dialog";
