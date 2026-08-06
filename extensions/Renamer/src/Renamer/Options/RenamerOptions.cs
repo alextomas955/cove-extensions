@@ -57,6 +57,21 @@ public sealed record MultiValueOptions
     public List<string> Blacklist { get; init; } = [];
 
     /// <summary>
+    /// If non-empty, only items whose STABLE id is listed survive. Keyed on the id — never the name —
+    /// exactly like <see cref="RenamerOptions.StudioDestinations"/> and
+    /// <see cref="RenamerOptions.ExcludeTagIds"/>, so renaming a performer or a tag in Cove cannot
+    /// orphan the rule and two spelling variants of one item can never be treated as two. The joined
+    /// output still renders NAMES; the id only decides who survives.
+    /// </summary>
+    public List<int> WhitelistIds { get; init; } = [];
+
+    /// <summary>
+    /// If non-empty, items whose STABLE id is listed are removed. The id counterpart of
+    /// <see cref="Blacklist"/>, keyed exactly like <see cref="WhitelistIds"/>.
+    /// </summary>
+    public List<int> BlacklistIds { get; init; } = [];
+
+    /// <summary>
     /// Performer-only: genders to drop entirely (case-insensitive). Applied BEFORE the max-count
     /// limit, so dropping a gender frees an overflow slot for another performer. A performer with no
     /// gender set is always kept. Empty = no gender filtering.
@@ -88,6 +103,8 @@ public sealed record MultiValueOptions
         yield return Sort;
         yield return StructuralEquality.Sequence(Whitelist);
         yield return StructuralEquality.Sequence(Blacklist);
+        yield return StructuralEquality.Sequence(WhitelistIds);
+        yield return StructuralEquality.Sequence(BlacklistIds);
         yield return StructuralEquality.Sequence(IgnoreGenders);
         yield return StructuralEquality.Sequence(GenderOrder);
     }
