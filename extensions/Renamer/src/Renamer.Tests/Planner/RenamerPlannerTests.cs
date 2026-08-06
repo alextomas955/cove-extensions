@@ -42,6 +42,29 @@ public sealed class RenamerPlannerTests
     }
 
     [Fact]
+    public async Task TagWhitelistIds_FilterTheRenderedTagsToken_ProvingThePlannerPassesTagRecords()
+    {
+        // The tag-records side input is an OPTIONAL parameter, so a planner that stopped passing it
+        // would still compile and would silently render every tag. This is the assertion that fails
+        // in that case — it is the only place the production call site itself is exercised.
+        var entity = VideoEntity("My Film", VideoFile(1, "raw.mkv"));
+        var port = new FakeRenamerDataPort();
+        port.SeedEntity(entity with { Tags = ["hd", "fav"], TagRefs = [(7, "hd"), (9, "fav")] });
+        var planner = new RenamerPlanner(port);
+
+        var opts = new RenamerOptions
+        {
+            FilenameTemplate = "$title $tags",
+            Tags = new MultiValueOptions { Separator = " ", Sort = SortOrder.None, WhitelistIds = [9] },
+        };
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
+
+        // Only tag id 9 survives the whitelist, and it renders as its name, not its number.
+        Assert.Equal("My Film fav.mkv", Assert.Single(plan.Items).NewBasename);
+    }
+
+    [Fact]
     public async Task RenderedEqualsCurrent_IsNoOp_ZeroMutation()
     {
         var port = new FakeRenamerDataPort();

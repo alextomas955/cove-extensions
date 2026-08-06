@@ -27,7 +27,7 @@ public sealed class MetadataProjectorTests
     public void Video_Projects_AllScalarTokens_And_MultiValues()
     {
         var file = VideoFileRow();
-        var (tokens, multi, _) = MetadataProjector.Project(VideoEntity(file), file, new RenamerOptions());
+        var (tokens, multi, _, _) = MetadataProjector.Project(VideoEntity(file), file, new RenamerOptions());
 
         Assert.Equal("My Film", tokens[Tokens.Title]);
         Assert.Equal("ABC-1", tokens[Tokens.StudioCode]);
@@ -57,7 +57,7 @@ public sealed class MetadataProjectorTests
             EntityId: 20, Kind: RenamerFileKind.Audio, Title: "Track", Code: null, StudioName: null,
             Date: null, Organized: true, Performers: [], Tags: [], Files: [file]);
 
-        var (tokens, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
+        var (tokens, _, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
 
         Assert.Equal("Track", tokens[Tokens.Title]);
         Assert.Equal("mp3", tokens[Tokens.AudioCodec]);
@@ -80,7 +80,7 @@ public sealed class MetadataProjectorTests
             EntityId: 30, Kind: RenamerFileKind.Image, Title: "Shot", Code: null, StudioName: null,
             Date: null, Organized: true, Performers: [], Tags: [], Files: [file]);
 
-        var (tokens, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
+        var (tokens, _, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
 
         Assert.Equal("800", tokens[Tokens.Width]);
         Assert.Equal("600", tokens[Tokens.Height]);
@@ -103,7 +103,7 @@ public sealed class MetadataProjectorTests
 
         // Fallback forced off so a null title stays omitted: this case proves empty scalars are
         // absent (not empty string), distinct from the basename fallback which now defaults on.
-        var (tokens, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions { FilenameAsTitle = false });
+        var (tokens, _, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions { FilenameAsTitle = false });
 
         Assert.False(tokens.ContainsKey(Tokens.Title));
         Assert.False(tokens.ContainsKey(Tokens.StudioCode));
@@ -126,7 +126,7 @@ public sealed class MetadataProjectorTests
             EntityId: 50, Kind: RenamerFileKind.Video, Title: "Movie", Code: null, StudioName: null,
             Date: null, Organized: true, Performers: [], Tags: [], Files: [file]);
 
-        var (tokens, multi, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
+        var (tokens, multi, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
         Assert.Equal("mkv", tokens[Tokens.Ext]);
 
         // End-to-end: the rendered extension stays .mkv, not .matroska.
@@ -146,7 +146,7 @@ public sealed class MetadataProjectorTests
             EntityId: 60, Kind: RenamerFileKind.Video, Title: "Movie", Code: null, StudioName: null,
             Date: null, Organized: true, Performers: [], Tags: [], Files: [file]);
 
-        var (tokens, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
+        var (tokens, _, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
         Assert.Equal("mkv", tokens[Tokens.Ext]);
     }
 
@@ -154,7 +154,7 @@ public sealed class MetadataProjectorTests
     public void ProjectorOutput_FedThroughRender_ProducesExpectedName_Video()
     {
         var file = VideoFileRow();
-        var (tokens, multi, _) = MetadataProjector.Project(VideoEntity(file), file, new RenamerOptions());
+        var (tokens, multi, _, _) = MetadataProjector.Project(VideoEntity(file), file, new RenamerOptions());
 
         var options = new RenamerOptions { FilenameTemplate = "$studio - $title [$resolution]" };
         var result = TemplateEngine.Render(tokens, multi, options);
@@ -175,7 +175,7 @@ public sealed class MetadataProjectorTests
             ParentStudios = [(Id: 7, Name: "Acme Parent"), (Id: 3, Name: "Acme Grandparent")],
         };
 
-        var (tokens, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
+        var (tokens, _, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
 
         Assert.Equal("Acme Parent", tokens[Tokens.ParentStudio]);  // NEAREST parent (nearest-first)
         Assert.Equal("Jane Roe", tokens[Tokens.Director]);
@@ -190,7 +190,7 @@ public sealed class MetadataProjectorTests
         var file = VideoFileRow();                 // BitRate defaults null
         var entity = VideoEntity(file);            // Director + ParentStudios default null
 
-        var (tokens, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
+        var (tokens, _, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
 
         Assert.False(tokens.ContainsKey(Tokens.ParentStudio));
         Assert.False(tokens.ContainsKey(Tokens.Director));
@@ -205,7 +205,7 @@ public sealed class MetadataProjectorTests
         // undefined. Per the locked never-ship-garbage decision, $rating is NOT projected and there
         // is NO Tokens.Rating constant. This negative assertion documents + guards the deferral.
         var file = VideoFileRow();
-        var (tokens, _, _) = MetadataProjector.Project(VideoEntity(file), file, new RenamerOptions());
+        var (tokens, _, _, _) = MetadataProjector.Project(VideoEntity(file), file, new RenamerOptions());
 
         // Not emitted under any spelling the engine would resolve.
         Assert.False(tokens.ContainsKey("rating"));
@@ -229,7 +229,7 @@ public sealed class MetadataProjectorTests
         // Explicitly off: this case proves the strict omit-not-blank behavior, distinct from the
         // basename fallback (covered by Title_FallbackOn_*). The fallback now defaults on, so the
         // off behavior is pinned here by setting the flag rather than relying on the default.
-        var (tokens, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions { FilenameAsTitle = false });
+        var (tokens, _, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions { FilenameAsTitle = false });
 
         Assert.False(tokens.ContainsKey(Tokens.Title)); // omit-not-blank when the fallback is off
     }
@@ -240,7 +240,7 @@ public sealed class MetadataProjectorTests
         var file = VideoFileRow();
         var entity = VideoEntity(file); // Title = "My Film"
 
-        var (tokens, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions { FilenameAsTitle = true });
+        var (tokens, _, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions { FilenameAsTitle = true });
 
         Assert.Equal("My Film", tokens[Tokens.Title]); // a present title wins over the basename
     }
@@ -254,7 +254,7 @@ public sealed class MetadataProjectorTests
         var file = VideoFileRow() with { Basename = basename };
         var entity = VideoEntity(file) with { Title = null };
 
-        var (tokens, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions { FilenameAsTitle = true });
+        var (tokens, _, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions { FilenameAsTitle = true });
 
         Assert.Equal(expected, tokens[Tokens.Title]);
     }
@@ -268,7 +268,7 @@ public sealed class MetadataProjectorTests
         var entity = VideoEntity(file) with { Title = null };
         var options = new RenamerOptions { FilenameAsTitle = true };
 
-        var (tokens, multi, _) = MetadataProjector.Project(entity, file, options);
+        var (tokens, multi, _, _) = MetadataProjector.Project(entity, file, options);
         var resolved = TemplateEngine.ResolveField(tokens, multi, options, Tokens.Title);
 
         Assert.Equal("Some Recording", resolved);
@@ -284,12 +284,12 @@ public sealed class MetadataProjectorTests
         var entity = VideoEntity(firstFile) with { Title = null };
         var options = new RenamerOptions { FilenameTemplate = "$title", FilenameAsTitle = true };
 
-        var (tokens1, multi1, _) = MetadataProjector.Project(entity, firstFile, options);
+        var (tokens1, multi1, _, _) = MetadataProjector.Project(entity, firstFile, options);
         var firstTitle = tokens1[Tokens.Title];
         var rendered = TemplateEngine.Render(tokens1, multi1, options);
 
         var secondFile = firstFile with { Basename = rendered.Filename + rendered.Ext };
-        var (tokens2, _, _) = MetadataProjector.Project(entity, secondFile, options);
+        var (tokens2, _, _, _) = MetadataProjector.Project(entity, secondFile, options);
 
         Assert.Equal(firstTitle, tokens2[Tokens.Title]); // no progressive drift across a re-render
     }
@@ -303,12 +303,39 @@ public sealed class MetadataProjectorTests
         var entity = new RenamerEntity(
             EntityId: 50, Kind: RenamerFileKind.Audio, Title: "Track", Code: null, StudioName: null,
             Date: null, Organized: true, Performers: [], Tags: [], Files: [file]);
-        var (tokens, multi, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
+        var (tokens, multi, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
 
         // resolution + videoCodec groups have no value → engine drops the {} spans entirely.
         var options = new RenamerOptions { FilenameTemplate = "$title {[$resolution]} {$videoCodec}" };
         var result = TemplateEngine.Render(tokens, multi, options);
 
         Assert.Equal("Track", result.Filename);
+    }
+
+    [Fact]
+    public void TagRefs_ReachTheEngine_AndFilterTheTagsTokenByIdWhileRenderingNames()
+    {
+        var file = VideoFileRow();
+        var entity = VideoEntity(file) with { TagRefs = [(7, "hd"), (9, "fav")] };
+        var options = new RenamerOptions
+        {
+            FilenameTemplate = "$tags",
+            Tags = new MultiValueOptions { Separator = " ", Sort = SortOrder.None, WhitelistIds = [9] },
+        };
+
+        var (tokens, multi, performers, tagRefs) = MetadataProjector.Project(entity, file, options);
+
+        Assert.NotNull(tagRefs);
+        Assert.Equal(new[] { (7, "hd"), (9, "fav") }, tagRefs);
+
+        var filtered = TemplateEngine.Render(tokens, multi, options, performers: performers, tagRecords: tagRefs);
+
+        // The whitelisted id survives and renders as its NAME, never as "9".
+        Assert.Equal("fav", filtered.Filename);
+
+        // Contrast: with the channel unwired the engine falls back to the unfiltered name path, so
+        // this assertion is what distinguishes "the records were passed" from "they were not".
+        var unwired = TemplateEngine.Render(tokens, multi, options, performers: performers);
+        Assert.Equal("hd fav", unwired.Filename);
     }
 }

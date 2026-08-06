@@ -9,10 +9,14 @@ namespace Renamer.Engine;
 /// <see cref="MultiValueOptions"/> controls, in this fixed order:
 /// whitelist → blacklist → sort → max(KeepFirst/DropAll) → join.
 ///
-/// The engine's Render pulls each multi-value field's list from a
-/// <c>IReadOnlyDictionary&lt;string, IReadOnlyList&lt;string&gt;&gt;</c> side-input, calls
-/// <see cref="Resolve(IReadOnlyList{string}, MultiValueOptions)"/>, and feeds the joined string
-/// into the scalar token map. This is just the pure list→string resolver. No I/O, no host types.
+/// The engine's Render pulls each multi-value field's NAME list from a
+/// <c>IReadOnlyDictionary&lt;string, IReadOnlyList&lt;string&gt;&gt;</c> side-input and feeds the
+/// joined string into the scalar token map. Whitelisting and blacklisting key on the item's STABLE
+/// id, so the engine calls a record overload (performers, or <c>(int Id, string Name)</c> tag pairs)
+/// whenever the ids travelled alongside the names, and
+/// <see cref="Resolve(IReadOnlyList{string}, MultiValueOptions)"/> only for a name-only list that
+/// carries no ids to filter on. Every overload joins NAMES. This is just the pure list→string
+/// resolver. No I/O, no host types.
 /// </summary>
 public static class MultiValue
 {

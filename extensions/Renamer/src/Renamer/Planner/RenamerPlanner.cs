@@ -163,7 +163,7 @@ public sealed class RenamerPlanner
             var sample = entity.Files.Count > 0 ? entity.Files[0] : null;
             if (sample is not null)
             {
-                var (tokens, _, _) = MetadataProjector.Project(entity, sample, options);
+                var (tokens, _, _, _) = MetadataProjector.Project(entity, sample, options);
                 foreach (var field in options.RequiredFields)
                 {
                     if (!tokens.TryGetValue(field, out var v) || string.IsNullOrEmpty(v))
@@ -185,10 +185,13 @@ public sealed class RenamerPlanner
     {
         string oldFullPath = JoinPath(file.ParentFolderPath, file.Basename);
 
-        // (1) Project + render (pure). The performer records ride alongside the name side-input so
-        //     the engine can order/filter performers by id/favorite/gender before the max limit.
-        var (tokens, multi, performers) = MetadataProjector.Project(entity, file, options);
-        var rendered = TemplateEngine.Render(tokens, multi, options, performers: performers);
+        // (1) Project + render (pure). The performer records and the tag id/name pairs ride alongside
+        //     the name side-input so the engine can filter both by stable id — and order/filter
+        //     performers by favorite/gender — before the max limit. Dropping either argument here is
+        //     silent: both parameters are optional and the engine falls back to the unfiltered name
+        //     path, so the whitelist/blacklist would simply stop applying with nothing to see.
+        var (tokens, multi, performers, tagRefs) = MetadataProjector.Project(entity, file, options);
+        var rendered = TemplateEngine.Render(tokens, multi, options, performers: performers, tagRecords: tagRefs);
         string newBasename = rendered.Filename + rendered.Ext;
 
         // (2) Confine: the configured AllowedRoots are the permitted destinations. When a route

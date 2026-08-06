@@ -28,10 +28,16 @@ public static class MetadataProjector
     /// (so <c>$performers</c> rendering and the title-performer drop stay name-based).
     /// <c>performers</c>: the per-performer records carried alongside the names so the engine can
     /// order/filter performers by id/favorite/gender before the max-count limit.
+    /// <c>tagRefs</c>: the entity's <c>(int Id, string Name)</c> tag pairs, the tag counterpart of
+    /// <c>performers</c>, so the engine can apply the id-keyed tag whitelist/blacklist. <c>null</c>
+    /// when the entity carries no tag ids (a construction site predating
+    /// <see cref="RenamerEntity.TagRefs"/>), which the engine reads as "fall back to the name path"
+    /// — never as "this entity has no tags", so an unprojected entity still renders its tags.
     /// </returns>
     public static (IReadOnlyDictionary<string, string> tokens,
                    IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
-                   IReadOnlyList<RenamerPerformer> performers)
+                   IReadOnlyList<RenamerPerformer> performers,
+                   IReadOnlyList<(int Id, string Name)>? tagRefs)
         Project(RenamerEntity entity, RenamerFile file, RenamerOptions options)
     {
         var tokens = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -107,14 +113,15 @@ public static class MetadataProjector
 
         // --- Multi-value side-input: performer/tag NAME lists (already JOIN-resolved upstream). ---
         // $performers keeps a plain name list so rendering and the title-performer drop stay
-        // name-based; the per-performer records travel as a separate channel for ordering/filtering.
+        // name-based; the per-performer records and the tag id/name pairs travel as separate
+        // channels for ordering/filtering.
         var multi = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
         {
             [Tokens.Performers] = [.. entity.Performers.Select(p => p.Name)],
             [Tokens.Tags] = entity.Tags,
         };
 
-        return (tokens, multi, entity.Performers);
+        return (tokens, multi, entity.Performers, entity.TagRefs);
     }
 
     /// <summary>Adds <paramref name="value"/> under <paramref name="key"/> only when non-empty (omit-not-blank).</summary>

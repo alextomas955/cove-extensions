@@ -38,8 +38,8 @@ public static class Tokens
 /// to turn a token dictionary into a sanitized, length-safe <see cref="RenamerResult"/>.
 ///
 /// Pipeline: (1) build the effective resolved token map (scalar tokens, multi-value
-/// performers/tags via <see cref="MultiValue.Resolve(IReadOnlyList{string}, Options.MultiValueOptions)"/>,
-/// derived <c>$resolution</c>);
+/// performers/tags via <see cref="MultiValue"/> — through the id-filtering overload when the
+/// caller supplied the performer/tag records, else the name-only one — derived <c>$resolution</c>);
 /// (2) render the filename and folder templates independently — walk the <see cref="Segment"/>
 /// list, collapse <c>{}</c> spans whose every inner token resolved empty; (3) apply
 /// the case/transliteration transforms; (4) sanitize per segment (filename as one segment so
@@ -57,8 +57,9 @@ public static class TemplateEngine
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
         RenamerOptions options,
         Action<string>? logUnbalanced = null,
-        IReadOnlyList<RenamerPerformer>? performers = null)
-        => RenderWithDropped(tokens, multiValues, options, logUnbalanced, performers).result;
+        IReadOnlyList<RenamerPerformer>? performers = null,
+        IReadOnlyList<(int Id, string Name)>? tagRecords = null)
+        => RenderWithDropped(tokens, multiValues, options, logUnbalanced, performers, tagRecords).result;
 
     /// <summary>
     /// Identical to <see cref="Render"/>, but also returns the set of <see cref="RenamerOptions.DropOrder"/>
@@ -72,10 +73,11 @@ public static class TemplateEngine
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
         RenamerOptions options,
         Action<string>? logUnbalanced = null,
-        IReadOnlyList<RenamerPerformer>? performers = null)
+        IReadOnlyList<RenamerPerformer>? performers = null,
+        IReadOnlyList<(int Id, string Name)>? tagRecords = null)
     {
         // (1) Build the effective resolved token map (case-insensitive keys).
-        var resolved = BuildResolvedMap(tokens, multiValues, options, performers);
+        var resolved = BuildResolvedMap(tokens, multiValues, options, performers, tagRecords);
 
         // (5, partial) Resolve the extension up front so the filename template can reference
         // $ext without it appearing twice: the $ext token resolves empty during the
@@ -116,7 +118,8 @@ public static class TemplateEngine
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
         RenamerOptions options,
-        IReadOnlyList<RenamerPerformer>? performerRecords = null)
+        IReadOnlyList<RenamerPerformer>? performerRecords = null,
+        IReadOnlyList<(int Id, string Name)>? tagRecords = null)
     {
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var kv in tokens)
@@ -170,7 +173,16 @@ public static class TemplateEngine
 
         if (TryGetMulti(multiValues, Tokens.Tags, out var tags))
         {
-            map[Tokens.Tags] = MultiValue.Resolve(tags, options.Tags);
+            if (tagRecords is not null)
+            {
+                // The id-keyed whitelist/blacklist can only be applied when the tag ids travelled
+                // with the names; the resolver joins the NAMES, so the rendered token is unchanged.
+                map[Tokens.Tags] = MultiValue.Resolve(tagRecords, options.Tags);
+            }
+            else
+            {
+                map[Tokens.Tags] = MultiValue.Resolve(tags, options.Tags);
+            }
         }
 
         // Derive $resolution from height only if the caller didn't already supply it.
