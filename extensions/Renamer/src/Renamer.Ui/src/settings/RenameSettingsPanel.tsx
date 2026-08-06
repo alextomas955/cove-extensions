@@ -57,10 +57,14 @@ function SaveBar({
         className="pointer-events-auto flex w-full max-w-3xl items-center gap-4 rounded-2xl border border-border bg-card px-5 shadow-lg"
         style={{ paddingTop: "0.875rem", paddingBottom: "0.875rem" }}
       >
+        {/* The error dot's `bg-red-400` is host-absent (Cove's stylesheet carries red-400 only at
+            partial alpha), so it drew no fill; inline it from the theme variable. The saved and
+            dirty dots are host-emitted classes and stay as they are. */}
         <span
           className={`h-2 w-2 shrink-0 rounded-full ${
-            saveError ? "bg-red-400" : savedFlash ? "bg-green-400" : "bg-amber-400"
+            saveError ? "" : savedFlash ? "bg-green-400" : "bg-amber-400"
           }`}
+          style={saveError ? { backgroundColor: "var(--color-red-400)" } : undefined}
         />
         <div className="min-w-0 flex-1">
           {saveError ? (

@@ -9,7 +9,7 @@
  * filter and the stale-id resolution come from the tested studioFilterLogic.ts helpers — the
  * component never re-implements them.
  */
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { X } from "lucide-react";
 import { request } from "@cove/extension-sdk";
 
@@ -34,7 +34,11 @@ const RESULT_CLASS =
   "cursor-pointer rounded-lg px-2 py-1 text-left text-sm text-foreground hover:bg-card-hover";
 const CHIP_BASE =
   "inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-0.5 text-xs text-foreground";
-const CHIP_STALE = "border-red-400 text-red-400";
+const CHIP_STALE = "text-red-400";
+// The host stylesheet carries red-400 only at partial alpha (`/30`, `/80`), never the bare
+// `border-red-400` this chip wanted — as a class it drew no border at all. Inline it from the theme
+// variable, which the host does define, so the stale chip still tracks the host theme.
+const CHIP_STALE_STYLE: CSSProperties = { borderColor: "var(--color-red-400)" };
 
 /**
  * How a picked {@link EntityRef} becomes a stored value, and how a stored value resolves back to a
@@ -174,6 +178,7 @@ function EntityPicker<V>({
               <span
                 key={String(value)}
                 className={stale ? `${CHIP_BASE} ${CHIP_STALE}` : CHIP_BASE}
+                style={stale ? CHIP_STALE_STYLE : undefined}
               >
                 <span>{adapter.toLabel(value, fetched)}</span>
                 <button
