@@ -211,12 +211,6 @@ for (const entry of entries) {
   validateSettings(entry.id, manifest);
 }
 
-// A declared floor that ended up compared against nothing is a gate reporting coverage it never
-// provided — the same defect shape as the empty catalog above, so it is a finding, not a pass.
-if (coveMinVersion && entries.length > 0 && floorComparisons === 0) {
-  errors.push("Directory.Build.props: CoveMinVersion " + coveMinVersion + " is declared but no extension.json minCoveVersion was compared against it");
-}
-
 if (errors.length > 0) {
   for (const error of errors) console.error("ERROR: " + error);
   process.exit(1);

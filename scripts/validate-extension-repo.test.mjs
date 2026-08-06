@@ -159,21 +159,21 @@ test("a manifest floor below the repo floor fails, naming the entry and the floo
   }
 });
 
-test("a declared floor that got compared against nothing is itself a finding", () => {
-  // Every entry short-circuits on the path-existence check, so the loop reaches no comparison.
-  // A declared floor with a zero comparison count is a gate reporting coverage it never provided,
-  // so it must surface alongside the path error rather than letting the run look merely broken
-  // in one place.
+test("an entry whose path does not exist fails, and reports nothing about the floor", () => {
+  // The short-circuit that skips the floor comparison entirely. It is the reason a zero comparison
+  // count cannot be an independent finding — every entry that reaches the comparison increments the
+  // count, so the only way to reach zero is this error, which has already failed the run. The report
+  // line must not appear at all on a failed run: a count is a claim of coverage.
   const entry = validEntry("com.example.foo", "Missing");
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },
     buildProps: buildPropsWithFloor("1.1.0"),
   });
   try {
-    const { status, stderr } = runValidator(root);
+    const { status, stdout, stderr } = runValidator(root);
     assert.notEqual(status, 0);
-    assert.match(stderr, /path does not exist/);
-    assert.match(stderr, /CoveMinVersion 1\.1\.0 is declared but no extension\.json minCoveVersion was compared against it/);
+    assert.match(stderr, /com\.example\.foo: path does not exist/);
+    assert.doesNotMatch(stdout, /compared \d+ extension\.json minCoveVersion/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -181,7 +181,7 @@ test("a declared floor that got compared against nothing is itself a finding", (
 
 test("a catalog with zero entries is a finding, not a clean pass", () => {
   // The repo's worked example of "empty input is a hard failure" — validating nothing must never
-  // read as validating everything. The floor guard above follows this same precedent.
+  // read as validating everything.
   const root = makeFixture({ catalog: { schemaVersion: 1, extensions: [] } });
   try {
     const { status, stderr } = runValidator(root);
