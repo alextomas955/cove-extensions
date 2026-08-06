@@ -146,26 +146,64 @@ test("a UI package.json version that disagrees still reports FAILED with its dri
   }
 });
 
-test("the real committed call shape, built from extensions/catalog.json, exits 0", () => {
+test("the real committed call shape agrees in-repo, and drifts only where an unreleased floor must", () => {
   // Reproduces the argv the release workflow assembles per catalog entry: manifestPath,
   // versionSourcePath, "<uiPath>/package.json", and the registry manifest at
   // "<path>/extensions/<id>.json" appended only when that file exists.
+  //
+  // This case deliberately does NOT require the four-argument form to exit 0, and must not be
+  // "corrected" so that it does. `versions[]` in a registry manifest is an append-only record of
+  // artifacts that shipped: versions[0] describes the last published zip and carries the host floor
+  // that zip genuinely runs on. When the repo raises its minCoveVersion, the two in-repo
+  // declarations move immediately and versions[0] cannot follow, so the four-argument form — which
+  // CI runs only on a tag push — reports minCoveVersion drift on that row until the release prepends
+  // a new one. Editing versions[0] to silence it would publish a false claim about an immutable file
+  // users can still download, and block the users that file works for.
+  //
+  // So the invariant asserted here is narrower and still load-bearing: everything the repo controls
+  // today must agree (the three-argument form, which is also what a local pre-merge check runs), and
+  // adding the published registry row may disagree on the minCoveVersion axis ONLY. Any other
+  // finding — an artifact-version drift, an unreadable source — still fails.
   const catalog = JSON.parse(readFileSync(path.join(repoRoot, "extensions", "catalog.json"), "utf8"));
-  let checked = 0;
+  let checkedInRepo = 0;
+  let checkedRegistry = 0;
   for (const entry of catalog.extensions) {
     if (!entry.versionSourcePath) {
       continue;
     }
     const args = [entry.manifestPath, entry.versionSourcePath, `${entry.uiPath}/package.json`];
+
+    const inRepo = runParity(repoRoot, args);
+    assert.equal(inRepo.status, 0, `${entry.id}: three-argument form expected exit 0, stderr: ${inRepo.stderr}`);
+    assert.match(inRepo.stdout, /check-version-parity: OK/);
+    checkedInRepo += 1;
+
     const registry = `${entry.path}/extensions/${entry.id}.json`;
-    if (existsSync(path.join(repoRoot, registry))) {
-      args.push(registry);
+    if (!existsSync(path.join(repoRoot, registry))) {
+      continue;
     }
-    const { status, stdout, stderr } = runParity(repoRoot, args);
-    assert.equal(status, 0, `${entry.id}: expected exit 0, stderr: ${stderr}`);
-    assert.match(stdout, /check-version-parity: OK/);
-    checked += 1;
+    const withRegistry = runParity(repoRoot, [...args, registry]);
+    checkedRegistry += 1;
+    if (withRegistry.status === 0) {
+      assert.match(withRegistry.stdout, /check-version-parity: OK/);
+      continue;
+    }
+    // The banner line is dropped so only the per-finding lines at check-version-parity.mjs:125-127
+    // are examined; a FAILED banner with no findings would otherwise pass this loop vacuously.
+    const findings = withRegistry.stderr
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line && line !== "check-version-parity: FAILED");
+    assert.ok(findings.length > 0, `${entry.id}: reported FAILED with no findings: ${withRegistry.stderr}`);
+    for (const finding of findings) {
+      assert.match(
+        finding,
+        /^minCoveVersion drift: catalog manifest versions\[0\]\.minCoveVersion /,
+        `${entry.id}: the only disagreement the published registry row may carry is its minCoveVersion, pending the release that prepends a new versions[] row. Got: ${finding}`,
+      );
+    }
   }
-  // A catalog that exercised nothing would leave this case green on an empty loop.
-  assert.ok(checked > 0, "expected at least one catalog entry with a versionSourcePath");
+  // A catalog that exercised nothing would leave either half green on an empty loop.
+  assert.ok(checkedInRepo > 0, "expected at least one catalog entry with a versionSourcePath");
+  assert.ok(checkedRegistry > 0, "expected at least one catalog entry with a published registry manifest");
 });
