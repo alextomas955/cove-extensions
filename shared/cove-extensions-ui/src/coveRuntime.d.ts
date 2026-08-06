@@ -26,13 +26,37 @@ declare module "@cove/runtime/api" {
   ): Promise<Response>;
 }
 
-// Empty body on purpose. The host barrel behind this specifier exports roughly sixty values, and
-// transcribing them without a consumer would be invention. Declared-but-empty keeps the module
-// resolvable, so a premature import fails as TS2305 (no exported member) rather than TS2307 (cannot
-// find module) — the error then names the real problem.
+// The host barrel behind this specifier exports roughly sixty values; declaring one without a
+// consumer would be invention, so a symbol is added here together with the code that imports it,
+// transcribed from host source at the pinned tag and narrowed to the surface that consumer actually
+// passes. An undeclared symbol then fails as TS2305 (no exported member) rather than TS2307 (cannot
+// find module) — the error names the real problem. Where the vendored `@cove/extension-sdk` already
+// ships a type, import it rather than re-declaring it — as `import type` (`verbatimModuleSyntax` is
+// on) and written INSIDE this block, since a top-level import would un-ambient the whole file.
 //
-// Adding the first symbol: add it together with its first consumer, transcribed from host source at
-// the pinned tag. Where the vendored `@cove/extension-sdk` already ships the type, import it rather
-// than re-declaring it — as `import type` (`verbatimModuleSyntax` is on) and written INSIDE this
-// block, since a top-level import would un-ambient the whole file.
-declare module "@cove/runtime/components" {}
+// Nothing in this repo can check that these prop shapes match what the host actually renders: the
+// type-check only confirms call sites agree with this file, and would agree just as happily with a
+// wrong transcription. The L3 containerized spec, which loads a built bundle into a real host, is
+// what proves them.
+declare module "@cove/runtime/components" {
+  import type { ComponentType } from "react";
+
+  // Narrowed from the host's derived `Extract<CustomFieldType, …> | "face"` to the three kinds this
+  // repo selects over; the derived form would drag in a host type nothing here declares.
+  export type EntityReferenceType = "tag" | "performer" | "studio";
+
+  export const EntityReferenceMultiSelector: ComponentType<{
+    entityType: EntityReferenceType;
+    values: number[];
+    onChange: (values: number[]) => void;
+    placeholder?: string;
+    excludeIds?: Iterable<number>;
+    allowCreate?: boolean;
+    inputClassName?: string;
+  }>;
+
+  export const EntityReferenceValue: ComponentType<{
+    entityType: EntityReferenceType;
+    value: unknown;
+  }>;
+}
