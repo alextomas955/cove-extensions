@@ -5,9 +5,11 @@
  * host-native.
  *
  * Studios store the stable id (never the display name, so a later rename can't mis-target a renamed
- * studio); tags store the library's canonical name (the backend keys tags case-insensitively). The
- * filter and the stale-id resolution come from the tested studioFilterLogic.ts helpers — the
- * component never re-implements them.
+ * studio). Tags and performers still store the display name here — but the backend no longer keys
+ * their rules on it: tag routing, tag exclusion and both multi-value whitelists/blacklists all match
+ * on the stable id now, so these two adapters no longer speak the contract they serve. The filter and
+ * the stale-id resolution come from the tested studioFilterLogic.ts helpers — the component never
+ * re-implements them.
  */
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { X } from "lucide-react";
@@ -272,8 +274,9 @@ const TAG_ADAPTER: EntityAdapter<string> = {
   isResolved: (value, fetched) => fetched.some((e) => e.name.toLowerCase() === value.toLowerCase()),
 };
 
-// Performers key on NAME (the whitelist/blacklist match by name), so this mirrors the tag adapter:
-// a picked row carries its canonical name, and a stored value resolves by case-insensitive name.
+// Stores a performer's NAME, mirroring the tag adapter: a picked row carries its canonical name and
+// a stored value resolves by case-insensitive name. The backend's performer whitelist/blacklist now
+// matches on the stable id instead, so a name stored here no longer reaches a live rule.
 const PERFORMER_ADAPTER: EntityAdapter<string> = {
   toValue: (entity, fetched) => canonicalTagName(entity.name, fetched),
   valueOf: (entity) => entity.name,
@@ -311,7 +314,7 @@ export function StudioPicker({
   );
 }
 
-/** Tag picker: stores the library's canonical tag name (matching the backend's case-insensitive keying). */
+/** Tag picker: stores the library's canonical tag name, which the backend's tag rules no longer key on. */
 export function TagPicker({
   label,
   helper,

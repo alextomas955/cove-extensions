@@ -169,6 +169,43 @@ public sealed class CoveDataPortRoutingFieldsTests
     }
 
     [Fact]
+    public async Task LoadEntity_ATagWithNoName_DropsFromBothTagListsTogether()
+    {
+        // The alignment between Tags and TagRefs must survive a row that one of them would reject.
+        // While the two were filtered by two separate expressions, a nameless tag could leave the
+        // lists one element apart — and routing takes the FIRST tag whose id has a rule, so the
+        // whole cascade would shift onto the wrong tag with nothing failing.
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
+                db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip");
+
+            var nameless = new Tag { Name = "" };
+            var named = new Tag { Name = "raw" };
+            db.Set<Tag>().AddRange(nameless, named);
+            await db.SaveChangesAsync();
+
+            db.Set<VideoTag>().AddRange(
+                new VideoTag { VideoId = videoId, TagId = nameless.Id },
+                new VideoTag { VideoId = videoId, TagId = named.Id });
+            await db.SaveChangesAsync();
+
+            var port = new CoveRenamerDataPort(db);
+            var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
+
+            Assert.NotNull(entity);
+            Assert.Equal([(named.Id, named.Name)], entity!.TagRefs!);
+            Assert.Equal(entity.Tags, [.. entity.TagRefs!.Select(t => t.Name)]);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task LoadEntities_ReturnsDtos_FieldForFieldEqualToPerIdSingleLoad()
     {
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();

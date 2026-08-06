@@ -154,45 +154,67 @@ public class CoveRenamerDataPort : IRenamerDataPort
         .Include(x => x.AudioPerformers).ThenInclude(ap => ap.Performer)
         .Include(x => x.AudioTags).ThenInclude(at => at.Tag);
 
-    private static RenamerEntity MapVideoEntity(Video v) => new(
-        v.Id, RenamerFileKind.Video, v.Title, v.Code, v.Studio?.Name, v.Date, v.Organized,
-        [.. v.VideoPerformers
-            .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
-            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
-        [.. v.VideoTags.Select(t => t.Tag?.Name ?? "").Where(n => n.Length > 0)],
-        [.. v.Files.Select(MapVideoFile)],
-        StudioId: v.StudioId,
-        ParentStudios: WalkParentStudios(v.Studio),
-        Director: v.Director,
-        TagRefs: [.. v.VideoTags
-            .Where(t => t.Tag is not null && t.Tag.Name.Length > 0)
-            .Select(t => (t.Tag!.Id, t.Tag.Name))]);
+    private static RenamerEntity MapVideoEntity(Video v)
+    {
+        var tagRefs = TagPairs(v.VideoTags.Select(t => t.Tag));
+        return new(
+            v.Id, RenamerFileKind.Video, v.Title, v.Code, v.Studio?.Name, v.Date, v.Organized,
+            [.. v.VideoPerformers
+                .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
+                .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
+            [.. tagRefs.Select(t => t.Name)],
+            [.. v.Files.Select(MapVideoFile)],
+            StudioId: v.StudioId,
+            ParentStudios: WalkParentStudios(v.Studio),
+            Director: v.Director,
+            TagRefs: tagRefs);
+    }
 
-    private static RenamerEntity MapImageEntity(Image i) => new(
-        i.Id, RenamerFileKind.Image, i.Title, i.Code, i.Studio?.Name, i.Date, i.Organized,
-        [.. i.ImagePerformers
-            .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
-            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
-        [.. i.ImageTags.Select(t => t.Tag?.Name ?? "").Where(n => n.Length > 0)],
-        [.. i.Files.Select(MapImageFile)],
-        StudioId: i.StudioId,
-        ParentStudios: WalkParentStudios(i.Studio),
-        TagRefs: [.. i.ImageTags
-            .Where(t => t.Tag is not null && t.Tag.Name.Length > 0)
-            .Select(t => (t.Tag!.Id, t.Tag.Name))]);
+    private static RenamerEntity MapImageEntity(Image i)
+    {
+        var tagRefs = TagPairs(i.ImageTags.Select(t => t.Tag));
+        return new(
+            i.Id, RenamerFileKind.Image, i.Title, i.Code, i.Studio?.Name, i.Date, i.Organized,
+            [.. i.ImagePerformers
+                .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
+                .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
+            [.. tagRefs.Select(t => t.Name)],
+            [.. i.Files.Select(MapImageFile)],
+            StudioId: i.StudioId,
+            ParentStudios: WalkParentStudios(i.Studio),
+            TagRefs: tagRefs);
+    }
 
-    private static RenamerEntity MapAudioEntity(Audio a) => new(
-        a.Id, RenamerFileKind.Audio, a.Title, a.Code, a.Studio?.Name, a.Date, a.Organized,
-        [.. a.AudioPerformers
-            .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
-            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
-        [.. a.AudioTags.Select(t => t.Tag?.Name ?? "").Where(n => n.Length > 0)],
-        [.. a.Files.Select(MapAudioFile)],
-        StudioId: a.StudioId,
-        ParentStudios: WalkParentStudios(a.Studio),
-        TagRefs: [.. a.AudioTags
-            .Where(t => t.Tag is not null && t.Tag.Name.Length > 0)
-            .Select(t => (t.Tag!.Id, t.Tag.Name))]);
+    private static RenamerEntity MapAudioEntity(Audio a)
+    {
+        var tagRefs = TagPairs(a.AudioTags.Select(t => t.Tag));
+        return new(
+            a.Id, RenamerFileKind.Audio, a.Title, a.Code, a.Studio?.Name, a.Date, a.Organized,
+            [.. a.AudioPerformers
+                .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
+                .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
+            [.. tagRefs.Select(t => t.Name)],
+            [.. a.Files.Select(MapAudioFile)],
+            StudioId: a.StudioId,
+            ParentStudios: WalkParentStudios(a.Studio),
+            TagRefs: tagRefs);
+    }
+
+    /// <summary>
+    /// The single source of an item's tag id/name pairs: join rows with no tag, or a tag with no
+    /// name, are dropped once — and <see cref="RenamerEntity.Tags"/> is then derived from the
+    /// surviving pairs rather than filtered independently.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="RenamerEntity.TagRefs"/>' contract is that it is element-for-element aligned with
+    /// <see cref="RenamerEntity.Tags"/>, because tag routing takes the FIRST tag in that order whose
+    /// id has a rule and the multi-value whitelist filters on the id while rendering the name. Two
+    /// hand-written filters kept in agreement across three mappers is the same pairing footgun the
+    /// tuple list exists to remove, just moved one level up; deriving one list from the other makes
+    /// the alignment structural instead.
+    /// </remarks>
+    private static IReadOnlyList<(int Id, string Name)> TagPairs(IEnumerable<Tag?> tags) =>
+        [.. tags.Where(t => t is not null && !string.IsNullOrEmpty(t.Name)).Select(t => (t!.Id, t.Name))];
 
     /// <summary>
     /// An <c>AsNoTracking</c> id-only bulk query over the kind's table — Gallery (and any other

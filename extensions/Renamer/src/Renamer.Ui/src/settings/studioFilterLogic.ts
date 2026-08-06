@@ -66,11 +66,12 @@ export function isResolvedStudioId(id: number, entities: readonly EntityRef[]): 
 }
 
 /**
- * Map a typed/selected tag name to the library's canonical spelling. Tags key on NAME
- * case-insensitively on the backend, so a near-miss casing must store the library's stored spelling
- * rather than the user's keystrokes — otherwise two casings of the same tag would diverge. Returns
- * the canonical name when the list contains a case-insensitive match, or the trimmed input otherwise
- * (a tag the picker has not seen is stored as typed).
+ * Map a typed/selected tag name to the library's canonical spelling. The name-storing pickers need
+ * this because a near-miss casing must store the library's stored spelling rather than the user's
+ * keystrokes — otherwise two casings of the same tag would diverge. (The backend itself no longer
+ * keys tag rules on the name at all; it matches the stable id, which cannot diverge by casing.)
+ * Returns the canonical name when the list contains a case-insensitive match, or the trimmed input
+ * otherwise (a tag the picker has not seen is stored as typed).
  */
 export function canonicalTagName(name: string, entities: readonly EntityRef[]): string {
   const trimmed = name.trim();
