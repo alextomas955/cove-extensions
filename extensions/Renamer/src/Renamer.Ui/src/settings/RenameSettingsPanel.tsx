@@ -110,6 +110,7 @@ export function RenamePanelBody() {
     saveError,
     savedFlash,
     recoveredFromBadBlob,
+    pendingNameMigration,
     dirty,
     canSave,
     load,
@@ -204,6 +205,7 @@ export function RenamePanelBody() {
           activeTemplateRef={activeTemplateRef}
           emptySamples={emptySamples}
           recoveredFromBadBlob={recoveredFromBadBlob}
+          pendingNameMigration={pendingNameMigration}
         />
         <LivePreviewPane preview={preview} previewError={previewError} />
       </div>

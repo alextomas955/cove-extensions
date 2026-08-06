@@ -277,10 +277,12 @@ export function cloneDefaults(): RenamerOptions {
 //
 // The six id-keyed fields (both groups' WhitelistIds/BlacklistIds, TagDestinations, ExcludeTagIds) read
 // through the numeric coercers, so a blob still holding the pre-migration NAMES coerces to an empty list
-// or map rather than surviving as unusable strings. That is deliberate, not data loss: the backend's
-// one-time name→id conversion runs at host initialize — before any panel load in practice — and refuses
-// to write when it cannot resolve. Holding the old names in a parallel field here would re-introduce the
-// duplicate state the conversion exists to remove.
+// or map rather than surviving as unusable strings. Holding the old names in a parallel field here would
+// re-introduce the duplicate state the backend's one-time name→id conversion exists to remove — so the
+// panel keeps that erasure and instead refuses to SAVE while any name still awaits conversion
+// (hasUnmigratedNameRules below). A refusal is what the backend does when it cannot resolve, which is
+// precisely the state in which a save from here would persist these emptied fields over rules the
+// conversion has not applied yet.
 
 function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
@@ -394,6 +396,65 @@ export function extractUnmodeledFields(raw: unknown): Record<string, unknown> {
     if (!MODELED_KEYS.has(key)) extras[key] = value;
   }
   return extras;
+}
+
+/** Member lookup ignoring letter case, mirroring the C# converter's own key matching. */
+function findMember(owner: Record<string, unknown>, name: string): unknown {
+  const key = Object.keys(owner).find((k) => k.toLowerCase() === name.toLowerCase());
+  return key === undefined ? undefined : owner[key];
+}
+
+function countNames(owner: Record<string, unknown>, legacyName: string): number {
+  const list = findMember(owner, legacyName);
+  return Array.isArray(list) ? list.filter((x) => typeof x === "string").length : 0;
+}
+
+function countGroupNames(raw: Record<string, unknown>, group: string): number {
+  const g = findMember(raw, group);
+  if (!g || typeof g !== "object") return 0;
+  const r = g as Record<string, unknown>;
+  return countNames(r, "Whitelist") + countNames(r, "Blacklist");
+}
+
+/**
+ * True when a routing-map key is the invariant decimal spelling of a non-negative `int` — what a
+ * converted map holds. Bounded at int.MaxValue because the C# side parses with `int.TryParse`, where a
+ * larger number fails to parse and is read as a tag NAME; an unbounded check here would disagree.
+ */
+function isIdKey(key: string): boolean {
+  const n = Number(key);
+  return Number.isInteger(n) && n >= 0 && n <= 2147483647 && String(n) === key;
+}
+
+function countNameKeyedDestinations(raw: Record<string, unknown>): number {
+  const map = findMember(raw, "TagDestinations");
+  if (!map || typeof map !== "object") return 0;
+  return Object.keys(map as Record<string, unknown>).filter((k) => !isIdKey(k)).length;
+}
+
+/**
+ * True when a stored blob still holds tag or performer rules keyed on NAMES, which the backend's
+ * one-time conversion has not resolved to ids yet.
+ *
+ * Deliberately the same predicate the backend scans with (`OptionsMigration.Scan(...).Any`): count the
+ * names awaiting an id, never the legacy keys present. The pre-migration panel serialised its whole
+ * defaults object, so an install that configured neither group still stores an empty `Whitelist`,
+ * `Blacklist` and `ExcludeTags`; treating those as pending would lock this panel out of saving forever
+ * on a blob that has nothing left to convert.
+ *
+ * {@link normalizeOptions} rebuilds both groups and `TagDestinations` from the id-valued keys alone, so
+ * a save while this is true would persist those emptied fields over rules nothing else keeps a copy of.
+ */
+export function hasUnmigratedNameRules(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return false;
+  const r = raw as Record<string, unknown>;
+  return (
+    countNames(r, "ExcludeTags") +
+      countGroupNames(r, "Tags") +
+      countGroupNames(r, "Performers") +
+      countNameKeyedDestinations(r) >
+    0
+  );
 }
 
 /**
