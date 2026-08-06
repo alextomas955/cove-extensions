@@ -61,12 +61,19 @@ jobs:
       - name: Test repo tooling
         run: node --test scripts/*.test.mjs
 
+      # The tag is the version authority and extension.json is the single hand-edited declaration of
+      # it, so this is where the two are reconciled — in validate, before anything builds, rather than
+      # after a full matrix has run. It also confirms the registry manifest already carries a
+      # versions[] row for the release being cut, which is otherwise only discovered when the registry
+      # pull request fails days later. The registry file is checked only when it exists: an extension
+      # not yet published to the store has none, and its absence is not a defect.
       - name: Validate release tag
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: |
           node -e '
             const fs = require("fs");
+            const path = require("path");
             const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
             const tag = process.env.GITHUB_REF.replace("refs/tags/", "");
             const matches = catalog.extensions.filter((e) => tag.startsWith(e.tagPrefix));
@@ -74,13 +81,33 @@ jobs:
               console.error("Tag " + tag + " must match exactly one catalog tagPrefix, matched " + matches.length);
               process.exit(1);
             }
-            const versionTag = tag.slice(matches[0].tagPrefix.length);
+            const entry = matches[0];
+            const versionTag = tag.slice(entry.tagPrefix.length);
             const semver = /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
             if (!semver.test(versionTag)) {
               console.error("Tag version suffix " + versionTag + " is not valid semver (expected v<major>.<minor>.<patch>)");
               process.exit(1);
             }
-            console.log("Tag " + tag + " matches catalog entry " + matches[0].id + " with version " + versionTag.slice(1));
+            const version = versionTag.slice(1);
+            const manifestPath = entry.manifestPath || path.posix.join(entry.path, "extension.json");
+            const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+            if (manifest.version !== version) {
+              console.error("Tag " + tag + " releases " + version + ", but " + manifestPath + " declares version " + manifest.version + " — set that version to " + version + ", or retag.");
+              process.exit(1);
+            }
+            const registryPath = path.posix.join(entry.path, "extensions", entry.id + ".json");
+            let registryChecked = "no registry manifest at " + registryPath + ", so no versions[] row was checked";
+            if (fs.existsSync(registryPath)) {
+              const registry = JSON.parse(fs.readFileSync(registryPath, "utf8"));
+              const latest = Array.isArray(registry.versions) ? registry.versions[0] : null;
+              if (latest == null || latest.version !== version) {
+                const found = latest == null ? "there are no versions[] rows" : "versions[0] is " + latest.version;
+                console.error("Registry manifest " + registryPath + " does not describe this release: prepend a versions[] row for " + version + " (" + found + "). Do not edit an existing row — each one describes an immutable published artifact.");
+                process.exit(1);
+              }
+              registryChecked = registryPath + " versions[0] is " + version;
+            }
+            console.log("Tag " + tag + " releases " + entry.id + " " + version + "; " + manifestPath + " agrees; " + registryChecked + ".");
           '
         env:
           GITHUB_REF: ${{ github.ref }}
