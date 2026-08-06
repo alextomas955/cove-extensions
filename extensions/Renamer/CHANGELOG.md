@@ -17,13 +17,29 @@ User-facing changes, newest first.
   under Settings → Extensions, and no "Rename selected" action on your video and image lists. Nothing
   degrades; the extension is simply absent until you upgrade Cove. Renamer 0.3.0 stays installable on
   Cove 1.0.0 and keeps working there.
-- **The studio names shown in Per-studio destinations load with your session's credentials.** Renamer
-  used to look them up with a plain unauthenticated request of its own. That one lookup now goes
-  through Cove's request path, which sends your access token — or your share token and password on a
-  share link — and retries once when an access token has expired. Every other request Renamer makes —
-  the dry run, the rename, undo, and the studio picker itself — is unchanged in this release. Same
-  names, same place; that one lookup now behaves like the rest of Cove when your session needs
-  proving.
+- **Renamer's requests now carry your session the way the rest of Cove does.** Renamer used to make
+  them with a plain request of its own; in a signed-in browser Cove accepted those anyway, on your
+  session cookie. They now go through the request path Cove hands to extension pages, which sends your
+  access token — or your share token and password on a share link — and retries once when an access
+  token has expired. What changes for you: a settings page left open long enough for your access token
+  to lapse no longer fails the next save or dry run; it renews and carries on.
+- **Tag and performer rules now follow the item, not its name.** Whitelists, blacklists, *Exclude by
+  tag* and *Per-tag destinations* used to be stored as the tag's or performer's **name**, so renaming
+  one in Cove quietly broke every rule pointing at it. They now store Cove's own stable id for that
+  item, and a rename no longer breaks anything. **Your existing settings convert automatically** the
+  first time the Rename settings page loads after this upgrade — there is nothing to re-enter. Three
+  consequences are worth knowing before you upgrade. A stored name that matches no tag or performer in
+  your library is **dropped**, because it could never have matched anything. Where two of your tags or
+  performers differ only in capitalisation, a rule that used to match both now matches one of them,
+  since both names resolve to a single item. And if a tag or performer is later deleted from your
+  library, a rule still targeting it shows a **loading placeholder** in place of the name until you
+  remove that entry.
+- **The tag, performer and studio fields now search your library as you type.** They used to list
+  everything the moment you clicked into them, which is what made them slow on a large library. Type
+  at least one character to see matches; an empty field shows nothing.
+- **A failed search now reads the same as a search with no matches.** Both show *No tags found*. If a
+  value you know exists does not appear, change the search text and try again — there is no separate
+  message to tell a lookup that failed from a lookup that genuinely found nothing.
 
 ## 0.3.0 — Undo that cannot grow without bound
 

@@ -11,6 +11,12 @@ together in practice, start with the [User guide](./guide); for the template tok
 
 Settings are saved as one block when you click **Save**; **Discard** reverts unsaved edits.
 
+Any setting that picks a tag, performer or studio searches your library **as you type** — type at
+least one character to see matches; an empty field lists nothing. Each pick is stored as that item's
+stable id, so renaming it in Cove keeps the rule pointed at it. A search that fails reads the same as
+one that found nothing (*No tags found*), so if a value you know exists does not appear, change the
+search text and try again.
+
 ## Filename & destination
 
 | Setting | What it does | Default |
