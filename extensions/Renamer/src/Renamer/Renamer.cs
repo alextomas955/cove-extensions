@@ -141,6 +141,13 @@ public sealed partial class Renamer : FullExtensionBase
     /// writing after such a read would erase every tag and performer rule the user has. An empty library
     /// has nothing to convert, so refusing to write costs nothing and makes that outcome structurally
     /// impossible. The stamp is not advanced either, so the next load retries.
+    /// <para>
+    /// "Needs" is measured in NAMES awaiting an id, per half, and never in legacy keys present — see
+    /// <see cref="OptionsMigration.LegacyNames"/>. A half with nothing to resolve converts as a pure
+    /// no-op (it rewrites an empty list and drops the legacy spelling), so letting it through against an
+    /// empty table costs nothing, while demanding rows for it would strand a library that has tags but no
+    /// performers on the legacy blob permanently.
+    /// </para>
     /// </remarks>
     private async Task MigrateStoredOptionsToIdsAsync(CancellationToken ct)
     {
@@ -178,9 +185,17 @@ public sealed partial class Renamer : FullExtensionBase
             });
         }
 
-        if ((legacy.Tags && names.Tags.Count == 0) || (legacy.Performers && names.Performers.Count == 0))
+        if (legacy.Tags > 0 && names.Tags.Count == 0)
         {
-            LogOptionsMigrationDeferred("the library read returned no rows");
+            LogOptionsMigrationDeferred(
+                $"{legacy.Tags} stored tag name(s) need resolving and the library read returned no tags");
+            return;
+        }
+
+        if (legacy.Performers > 0 && names.Performers.Count == 0)
+        {
+            LogOptionsMigrationDeferred(
+                $"{legacy.Performers} stored performer name(s) need resolving and the library read returned no performers");
             return;
         }
 

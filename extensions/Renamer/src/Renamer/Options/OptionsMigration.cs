@@ -40,23 +40,29 @@ public static class OptionsMigration
     private const string TagDestinations = "TagDestinations";
 
     /// <summary>
-    /// What a stored blob still holds in the legacy, name-keyed shape — and therefore which entity
-    /// tables the conversion has to resolve against.
+    /// How many stored names in each half still have to be resolved against a live entity table.
     /// </summary>
-    public readonly record struct LegacyFields(bool Tags, bool Performers)
+    /// <remarks>
+    /// Counted, not flagged, because a legacy key being PRESENT says nothing about there being anything
+    /// to resolve: the pre-migration panel serialized its whole defaults object, so an install that
+    /// never touched either group still stored an empty <c>Whitelist</c>, <c>Blacklist</c> and
+    /// <c>ExcludeTags</c>. Treating those as work would demand rows from a table the user legitimately
+    /// has none of, and the conversion would defer on every start forever.
+    /// </remarks>
+    public readonly record struct LegacyNames(int Tags, int Performers)
     {
         /// <summary>True when anything at all still needs converting.</summary>
-        public bool Any => Tags || Performers;
+        public bool Any => Tags > 0 || Performers > 0;
     }
 
     /// <summary>The converted blob plus every stored name that matched no entity and was dropped.</summary>
     public sealed record Conversion(string Json, IReadOnlyList<string> DroppedNames);
 
     /// <summary>
-    /// Reports which halves of <paramref name="json"/> are still name-keyed, without touching a
+    /// Counts the names each half of <paramref name="json"/> still needs resolved, without touching a
     /// database. An absent, blank or unparseable blob needs nothing: there is no configuration to lose.
     /// </summary>
-    public static LegacyFields Scan(string? json)
+    public static LegacyNames Scan(string? json)
     {
         var root = TryParse(json);
         if (root is null)
@@ -64,11 +70,11 @@ public static class OptionsMigration
             return default;
         }
 
-        bool tags = Find(root, LegacyExcludeTags)?.Value is JsonArray
-            || GroupIsNameKeyed(root, TagsGroup)
-            || HasNameKeyedDestinations(root);
+        int tags = CountNames(root, LegacyExcludeTags)
+            + CountGroupNames(root, TagsGroup)
+            + CountNameKeyedDestinations(root);
 
-        return new LegacyFields(tags, GroupIsNameKeyed(root, PerformersGroup));
+        return new LegacyNames(tags, CountGroupNames(root, PerformersGroup));
     }
 
     /// <summary>
@@ -268,12 +274,22 @@ public static class OptionsMigration
         }
     }
 
-    private static bool GroupIsNameKeyed(JsonObject root, string group) =>
-        Find(root, group)?.Value is JsonObject g
-        && (Find(g, LegacyWhitelist)?.Value is JsonArray || Find(g, LegacyBlacklist)?.Value is JsonArray);
+    // Counted with the SAME string-valued predicate ConvertNameList resolves with, so the two can never
+    // disagree about whether a stored entry is a name awaiting an id.
+    private static int CountNames(JsonObject owner, string legacyName) =>
+        Find(owner, legacyName)?.Value is JsonArray list
+            ? list.Count(node => node is JsonValue value && value.TryGetValue(out string? _))
+            : 0;
 
-    private static bool HasNameKeyedDestinations(JsonObject root) =>
-        Find(root, TagDestinations)?.Value is JsonObject map && map.Any(entry => !IsIdKey(entry.Key));
+    private static int CountGroupNames(JsonObject root, string group) =>
+        Find(root, group)?.Value is JsonObject g
+            ? CountNames(g, LegacyWhitelist) + CountNames(g, LegacyBlacklist)
+            : 0;
+
+    private static int CountNameKeyedDestinations(JsonObject root) =>
+        Find(root, TagDestinations)?.Value is JsonObject map
+            ? map.Count(entry => !IsIdKey(entry.Key))
+            : 0;
 
     // A converted map's keys are the invariant decimal spelling of an int, which is also what a
     // fresh install writes before this conversion ever runs — so an int-spelled key is read as an id

@@ -269,24 +269,43 @@ public sealed class OptionsMigrationLogicTests
     // ── Scan: what the initialize seam asks before it touches a database ──────
 
     [Theory]
-    [InlineData(null, false, false)]
-    [InlineData("", false, false)]
-    [InlineData("not json at all", false, false)]
-    [InlineData("""{ "FilenameTemplate": "$title" }""", false, false)]
-    [InlineData("""{ "TagDestinations": { "9": "/media/anime" } }""", false, false)]
-    [InlineData("""{ "Tags": { "WhitelistIds": [88] } }""", false, false)]
-    [InlineData("""{ "ExcludeTags": [] }""", true, false)]
-    [InlineData("""{ "excludetags": ["4k"] }""", true, false)]
-    [InlineData("""{ "TagDestinations": { "Anime": "/media/anime" } }""", true, false)]
-    [InlineData("""{ "Tags": { "Whitelist": ["4k"] } }""", true, false)]
-    [InlineData("""{ "Performers": { "Blacklist": ["Jane Doe"] } }""", false, true)]
-    public void Scan_ReportsWhichHalvesAreStillNameKeyed(string? json, bool tags, bool performers)
+    [InlineData(null, 0, 0)]
+    [InlineData("", 0, 0)]
+    [InlineData("not json at all", 0, 0)]
+    [InlineData("""{ "FilenameTemplate": "$title" }""", 0, 0)]
+    [InlineData("""{ "TagDestinations": { "9": "/media/anime" } }""", 0, 0)]
+    [InlineData("""{ "Tags": { "WhitelistIds": [88] } }""", 0, 0)]
+    [InlineData("""{ "excludetags": ["4k"] }""", 1, 0)]
+    [InlineData("""{ "TagDestinations": { "Anime": "/media/anime" } }""", 1, 0)]
+    [InlineData("""{ "Tags": { "Whitelist": ["4k"], "Blacklist": ["Trailer"] } }""", 2, 0)]
+    [InlineData("""{ "Performers": { "Blacklist": ["Jane Doe"] } }""", 0, 1)]
+    // The shape every pre-migration install actually stored: each legacy key present, none of them
+    // holding a name. Counting the KEYS here instead would demand a performer table this user may
+    // legitimately not have, and the conversion would defer on every start forever.
+    [InlineData(
+        """
+        {
+          "Performers": { "Whitelist": [], "Blacklist": [] },
+          "Tags": { "Whitelist": [], "Blacklist": [] },
+          "ExcludeTags": []
+        }
+        """, 0, 0)]
+    [InlineData(
+        """
+        {
+          "Performers": { "Whitelist": [], "Blacklist": [] },
+          "Tags": { "Whitelist": [], "Blacklist": [] },
+          "ExcludeTags": [],
+          "TagDestinations": { "Anime": "/media/anime" }
+        }
+        """, 1, 0)]
+    public void Scan_CountsTheNamesEachHalfStillNeedsResolved(string? json, int tags, int performers)
     {
         var legacy = OptionsMigration.Scan(json);
 
         Assert.Equal(tags, legacy.Tags);
         Assert.Equal(performers, legacy.Performers);
-        Assert.Equal(tags || performers, legacy.Any);
+        Assert.Equal(tags + performers > 0, legacy.Any);
     }
 
     [Fact]
