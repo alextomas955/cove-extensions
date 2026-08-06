@@ -2,16 +2,17 @@
 #
 # Adapted from yourcove/multi-extension-repo-template's build.yml (forked 2026-07-01) to target
 # Renamer's real src/ subtree layout via extensions/catalog.json's additive path fields
-# (projectPath/manifestPath/uiPath/versionSourcePath — see catalog.json +
-# scripts/validate-extension-repo.mjs) instead of the template's flat {path}/{name}.csproj
-# convention. Folds in the old single-extension `rename` repo's strip-verify / stale-bundle /
-# version-parity / csharp-format / markdown-lint hardening as matrix steps (per-extension) or
-# root-level jobs (repo-wide) so future extensions inherit them automatically.
+# (projectPath/manifestPath/uiPath — see catalog.json + scripts/validate-extension-repo.mjs)
+# instead of the template's flat {path}/{name}.csproj convention. Folds in the old single-extension
+# `rename` repo's strip-verify / stale-bundle / csharp-format / markdown-lint hardening as matrix
+# steps (per-extension) or root-level jobs (repo-wide) so future extensions inherit them
+# automatically.
 #
 # The validate job computes the build matrix from catalog.json (all entries for a PR build; only
 # the tagged extension for a tag push) and — on a tag push — confirms the tag matches exactly one
-# catalog entry's tagPrefix and carries a valid semver suffix. No PR trigger path filtering is
-# used anywhere: every catalog entry is built on every PR.
+# catalog entry's tagPrefix, carries a valid semver suffix, and agrees with both that entry's
+# extension.json version and its registry manifest's newest versions[] row. No PR trigger path
+# filtering is used anywhere: every catalog entry is built on every PR.
 #
 # Required-check model: the `required-checks` aggregation job is the single
 # status check to mark required in branch protection; it transitively gates on `build` (bare C# unit
@@ -239,29 +240,6 @@ jobs:
       - name: Strip-verify (no host assemblies, no absolute paths, manifest matches the release)
         if: ${{ !matrix.extension.manifestOnly }}
         run: node scripts/strip-verify.mjs artifacts/${{ matrix.extension.name }} ${{ matrix.extension.id }} ${{ steps.check.outputs.version }}
-
-      # Version parity: the version the manifest, the assembly, the UI package, and (when it exists)
-      # the catalog registry manifest declare must agree, so a release can't ship a manifest that
-      # disagrees with the binary. The registry manifest (<path>/extensions/<id>.json) is the
-      # optional 4th arg and is passed ONLY when that file exists — an extension not yet registered
-      # in the store has no such file, and check-version-parity.mjs would otherwise crash on the
-      # missing path before packaging.
-      # PR-excluded like Package/Upload artifact below: on a PR build steps.check.outputs.version
-      # is the "0.0.0" placeholder (no real tag), which the "Stamp source package.json version"
-      # step above writes into package.json — but extension.json's own version is left at its real
-      # value (only the PACKAGED copy under artifacts/ gets stamped on a real release), so a PR
-      # build's package.json and extension.json versions are expected to disagree and would always
-      # fail this gate. The real check only makes sense once there's a real version being released.
-      - name: Check version parity
-        if: ${{ matrix.extension.versionSourcePath != '' && github.event_name != 'pull_request' }}
-        shell: bash
-        run: |
-          registry="${{ matrix.extension.path }}/extensions/${{ matrix.extension.id }}.json"
-          args=("${{ matrix.extension.manifestPath }}" "${{ matrix.extension.versionSourcePath }}" "${{ matrix.extension.uiPath }}/package.json")
-          if [[ -f "$registry" ]]; then
-            args+=("$registry")
-          fi
-          node scripts/check-version-parity.mjs "${args[@]}"
 
       - name: Package
         if: ${{ github.event_name != 'pull_request' }}

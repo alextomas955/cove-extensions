@@ -4,10 +4,9 @@
 //
 // Two behavioral differences from upstream.
 //
-// 1. This fork reads the additive
-// projectPath/manifestPath/uiPath/versionSourcePath catalog fields (when present on a catalog
-// entry) instead of unconditionally deriving {path}/{name}.csproj and {path}/extension.json by
-// convention. This lets a real 3-project src/ subtree layout (e.g. Renamer's
+// 1. This fork reads the additive projectPath/manifestPath/uiPath catalog fields (when present on a
+// catalog entry) instead of unconditionally deriving {path}/{name}.csproj and {path}/extension.json
+// by convention. This lets a real 3-project src/ subtree layout (e.g. Renamer's
 // extensions/Renamer/src/{Renamer,Renamer.Ui}/) be described explicitly, while a future
 // manifestOnly or flat-convention entry added WITHOUT these fields still validates correctly via
 // the upstream convention-derived fallback path — the fork is additive, not a breaking

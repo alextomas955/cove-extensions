@@ -20,18 +20,12 @@ public sealed partial class Renamer : FullExtensionBase
     // the exit is a fixture that applies extension.json, after which both overrides go. A peer
     // extension built from the same template overrides no metadata at all.
     //
-    // Do NOT re-add description, author, url or categories. The host's extension list reads those
-    // straight off the property, so a copy here silently wins over extension.json — which is how a
-    // dead repository URL and a truncated description both reached users.
+    // Do NOT re-add version, minCoveVersion, description, author, url or categories. The host reads
+    // each straight off the property, so a copy here silently wins over extension.json — which is how
+    // a dead repository URL and a truncated description both reached users, and how a hand-written
+    // version would go on advertising a number the release tag never stamped.
     public override string Id => "com.alextomas955.renamer";
     public override string Name => "Renamer";
-
-    // Repo-committed dev placeholders, not release-stamped: the published artifact's real version
-    // comes from the release tag (build.yml's -p:Version= and the packaged extension.json/
-    // package.json stamps). scripts/check-version-parity.mjs reconciles these against
-    // extension.json, package.json, and the catalog registry manifest so they can't drift.
-    public override string Version => "0.3.0";
-    public override string? MinCoveVersion => "1.1.0";
 
     // ── Executor wiring ───────────────────────────────────────────────────────
     // The executor needs a SCOPED CoveContext per run (a DbContext is scoped, not singleton) and the

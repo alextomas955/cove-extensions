@@ -35,7 +35,7 @@ extend an existing one), you work against the same contract:
 
 Register the extension in [`extensions/catalog.json`](extensions/catalog.json) so CI can build and
 release it. Each entry declares `name`, `id`, `path`, `tagPrefix`, `projectPath`, `manifestPath`,
-`versionSourcePath`, and the optional `testProjectPath`, `uiPath`, and `e2ePath`/`e2eProject`.
+and the optional `testProjectPath`, `uiPath`, and `e2ePath`/`e2eProject`.
 Adding an extension's build and release capability is a catalog edit, not a workflow-logic change.
 
 For the full authoring rules and a real layout to copy (`src/<Name>/`, `src/<Name>.Tests/`,
