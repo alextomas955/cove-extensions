@@ -2,9 +2,8 @@
 
 ## Project
 
-This is the Cove extensions monorepo — a single git repository holding one or more Cove extensions,
-following [yourcove](https://github.com/yourcove)'s official `multi-extension-repo-template` pattern.
-See `README.md` for the extension list and dev setup.
+This is the Cove extensions monorepo, following [yourcove](https://github.com/yourcove)'s official
+`multi-extension-repo-template` pattern. See `README.md` for the extension list and dev setup.
 
 ## What belongs in this file
 
@@ -27,23 +26,17 @@ content from this file is a valid outcome.
   build matrix. Adding a new extension's release capability is a `catalog.json` edit, not a change to
   workflow logic.
 - CI (`.github/workflows/build.yml`) is a catalog-driven `validate → build → release` matrix: every
-  catalog entry builds on every PR, and a release for one extension is cut by pushing a tag of the
-  form `<tagPrefix>v<semver>`, which builds, strip-verifies and packages only that extension.
-- See `website/docs/contributing/branching.md` and `website/docs/contributing/releasing.md` for the
-  full branching and release process.
+  catalog entry builds on every PR, and a `<tagPrefix>v<semver>` tag releases exactly that extension.
 
 ## Build wiring
 
 The root `Directory.Build.props`/`Directory.Build.targets` wire `Cove.Sdk` (which transitively carries
-`Cove.Plugins` + `Cove.Core`) and pin every package version for the whole monorepo, against either a
-local sibling `../cove` checkout or NuGet. An extension's `.csproj` should not add its own Cove
-reference, restate the relative-path math to `../cove`, or carry a package version.
-
-Build the whole monorepo from this root:
-
-```sh
-dotnet build CoveExtensions.slnx
-```
+`Cove.Plugins` + `Cove.Core`) into every project, against either a local sibling `../cove` checkout or
+NuGet. Package versions are centrally managed: they live in `Directory.Packages.props` and each
+`.csproj` carries a version-less `PackageReference`. `Cove.Sdk`/`Cove.Plugins` are the one exception,
+taking their version from `$(CoveSdkVersion)` in `Directory.Build.props` so the host SDK is bumped by
+hand in lockstep with the host rather than by a dependency bot. An extension's `.csproj` should add
+none of this — no Cove reference, no relative-path math to `../cove`, no package version.
 
 The one non-obvious piece: on a local project reference, the `Cove.Sdk` host-assembly stripping rules
 ship inside the package and so are not imported, which is why the root targets file imports
@@ -54,7 +47,8 @@ import arrives transitively — remove it and the transitive `Cove.Core.dll` get
 
 Every extension here is a dynamically-loaded `Cove.Sdk` plugin. The rules below apply to all of them;
 an extension's own `CLAUDE.md` adds only what is specific to it. First-party code shared across
-extensions lives in `shared/` and ships bundled, since the host does not provide it.
+extensions lives in `shared/`; its runtime packages ship bundled, since the host does not provide
+them, while the test-support packages there never ship.
 
 - **Implement `IExtension` from `Cove.Plugins`** — typically by subclassing `FullExtensionBase`.
   `extension.json` is the load manifest, and its `entryDll` MUST match the built assembly name.
@@ -70,12 +64,10 @@ extensions lives in `shared/` and ships bundled, since the host does not provide
 
 ## Extension authoring patterns
 
-The rules above are the load/build contract; these are the durable *shape* rules every extension
-follows. The shape rules themselves — the six-kind taxonomy, per-tier structure, no `features/`
-wrapper, capability-not-entity naming, suffix-as-kind, two-level shared code, UI conventions,
-correctness standards and test tiering — are stated with their reasoning at
-`website/docs/contributing/authoring-patterns.md`. Read that page before adding or reshaping an
-extension. What stays below is what that page does not carry, plus the handful of invariants whose
+The rules above are the load/build contract. The durable *shape* rules — folder conventions, wire
+layout, correctness and test structure — are stated with their reasoning at
+`website/docs/contributing/authoring-patterns.md`, which is the page to read before adding or
+reshaping an extension. What stays below is what that page does not carry, plus the invariants whose
 seam or vocabulary has to be named exactly to be actionable.
 
 - **Every module is exactly one of six kinds** — FEAT (a capability slice) · DOM (pure logic) · MODEL
@@ -95,7 +87,9 @@ seam or vocabulary has to be named exactly to be actionable.
   declares the wrong casing still type-checks — the compiler trusts the declaration — and then every
   field reads `undefined` at runtime with no error anywhere. That has shipped here. Whether the answer
   is generation, validation at the fetch boundary, or something else is an open question; what is
-  settled is that "it type-checks" proves nothing about the wire.
+  settled is that "it type-checks" proves nothing about the wire. One mechanical check does exist and
+  must not be lost: keep `*Logic.ts` free of runtime imports so it runs under the offline logic gate,
+  which is what makes a pinned wire-casing enum fail on drift.
 - **Nothing may be O(library).** Libraries here reach millions of files, so treat library size as
   unbounded input in every design — storage, memory, wire payload and browser state alike. Persist
   **aggregates**, and serve **rows paged on demand**; planning and projection are pure per entity, so
@@ -104,6 +98,8 @@ seam or vocabulary has to be named exactly to be actionable.
   a reconcile) it may be O(library) in *time*, but its output must still be O(1) in size. This has
   already happened here: a per-file collection persisted to the host's extension store grew large
   enough to fail that extension's entire settings page, survive reinstall, and require SQL to remove.
+  Where a journal must persist at all, it stays bounded through the shared `SingleWriterBlobStore<T>`
+  (`RevertLog` is the worked example) rather than a hand-rolled writer.
 - **Two correctness invariants whose failure is silent.** Background database reads run as System
   through one `RunAsSystemAsync` seam — under an Anonymous principal Cove's authorization filters
   return zero rows with no error, so an empty result is the symptom of getting this wrong rather than
@@ -134,6 +130,8 @@ seam or vocabulary has to be named exactly to be actionable.
   Cove extension repos face the same boundary and the same problems; where one solves it more simply,
   prefer that and record the reason for deviating. Never hand-mirror a list or a value that already
   lives in the upstream build — copies drift.
+- **A second extension is the test of whether a rule generalizes.** If following one requires
+  duplicating code or editing shared tooling, the rule is wrong, not the extension.
 
 ## Comments and doc tags
 
@@ -188,8 +186,11 @@ The docs site (`website/docs/`) follows Diátaxis plus the Google and Microsoft 
   sequence written for a competent user, reference is neutral and factual, explanation carries the
   why, and a tutorial is a single happy-path lesson.
 - **A reference's structure mirrors the product** — group settings by the UI panel section, in the
-  order the user meets them, and give each its default and its valid values.
+  order the user meets them, give each its default and its valid values, and flag a setting that
+  exists but is not exposed in the UI as exactly that.
 - **Show a complete worked example before explaining it**, and put conditions before instructions.
+- **Document a token vocabulary as it is** — never impose an UPPERCASE_UNDERSCORE convention, which
+  belongs to placeholders a user replaces, not to tokens the product defines.
 - **The README is an entry point, not the user story** — it says what the extension is, links to the
   site, and holds the dev/build/release detail; what it does and how to configure it lives on the site.
 - **Style:** second person, active voice, present tense; sentence-case headings; task headings take

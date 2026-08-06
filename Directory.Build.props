@@ -31,7 +31,7 @@
 
     <!-- Needed so IDE0005 (dead usings) is reported on build. CS1591 (missing XML doc) is silenced:
          we want dead-using detection, not a doc-comment mandate. Docs are earned by judgment, not
-         forced — see the "C# Comments & XML docs" policy in CLAUDE.md. -->
+         forced — see the "Comments and doc tags" policy in CLAUDE.md. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>

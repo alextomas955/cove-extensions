@@ -7,8 +7,8 @@ namespace Renamer.Contracts;
 /// <summary>
 /// The Cove-facing wire projection of a <see cref="RenamerPlanItem"/>: the fields the preview
 /// response serializes, decoupled from the plan/domain model so the planner and executor can evolve
-/// <see cref="RenamerPlanItem"/> without breaking the wire (CLAUDE.md: "every UI response is a
-/// projection DTO, never a live domain/EF type"). The property order and names are the wire contract
+/// <see cref="RenamerPlanItem"/> without breaking the wire: every UI response is a projection type,
+/// never a live domain or EF type. The property order and names are the wire contract
 /// the UI reads; <see cref="From"/> is the sole mapping from the domain item.
 /// </summary>
 /// <param name="FileId">The Cove <c>BaseFileEntity.Id</c> this item plans.</param>
