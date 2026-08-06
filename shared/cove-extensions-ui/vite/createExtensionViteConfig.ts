@@ -61,6 +61,14 @@ export function createExtensionViteConfig(
   const factoryDir = path.dirname(fileURLToPath(import.meta.url));
   const sharedSrcIndex = path.resolve(factoryDir, "../src/index.ts");
   const sharedSrcPostAction = path.resolve(factoryDir, "../src/postAction.ts");
+  const sharedSrcExtensionRequest = path.resolve(
+    factoryDir,
+    "../src/extensionRequest.ts",
+  );
+  const sharedSrcExtensionStore = path.resolve(
+    factoryDir,
+    "../src/extensionStore.ts",
+  );
   // The SDK is vendored per-UI (this package has no node_modules), so its bare specifier will not
   // resolve from the aliased shared source unless it is pinned to the consuming UI's own copy.
   const sdkDir = path.resolve(packageDir, "node_modules/@cove/extension-sdk");
@@ -70,10 +78,13 @@ export function createExtensionViteConfig(
     // Raw TS source, not a node_modules install: Vite runs it through the same transform pipeline as
     // this bundle's own src/; its react/lucide imports stay externalized by the rollup list below.
     resolve: {
-      // Vite string-alias matching is prefix-based, so the `/postAction` subpath must be listed
-      // before the bare barrel entry or the barrel would match it first.
+      // Vite string-alias matching is prefix-based, so every subpath must be listed before the bare
+      // barrel entry or the barrel would match it first.
       alias: {
         "@cove-extensions/ui-shared/postAction": sharedSrcPostAction,
+        "@cove-extensions/ui-shared/extensionRequest":
+          sharedSrcExtensionRequest,
+        "@cove-extensions/ui-shared/extensionStore": sharedSrcExtensionStore,
         "@cove-extensions/ui-shared": sharedSrcIndex,
         "@cove/extension-sdk": sdkDir,
       },

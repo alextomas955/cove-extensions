@@ -40,7 +40,8 @@
         "@cove/extension-sdk",
         "lucide-react",
         "vite",
-        "vitest"
+        "vitest",
+        "@cove/runtime"
       ]
     },
     "tests/e2e": {
@@ -59,6 +60,9 @@
       ],
       "project": [
         "**/*.mjs"
+      ],
+      "ignoreDependencies": [
+        "@playwright/test"
       ]
     }
   }

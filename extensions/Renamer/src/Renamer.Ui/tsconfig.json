@@ -20,6 +20,12 @@
       "@cove-extensions/ui-shared/postAction": [
         "../../../../shared/cove-extensions-ui/src/postAction.ts"
       ],
+      "@cove-extensions/ui-shared/extensionRequest": [
+        "../../../../shared/cove-extensions-ui/src/extensionRequest.ts"
+      ],
+      "@cove-extensions/ui-shared/extensionStore": [
+        "../../../../shared/cove-extensions-ui/src/extensionStore.ts"
+      ],
       "@cove/extension-sdk": ["./node_modules/@cove/extension-sdk"],
       "react": ["./node_modules/@types/react"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
