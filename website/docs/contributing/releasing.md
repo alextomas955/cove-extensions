@@ -57,6 +57,32 @@ If the registry pull request is opened before the asset exists, the checksum com
 nothing to hash and the pull request fails. Publishing the asset first is what makes the checksum
 step succeed against the real asset bytes.
 
+## Raising minCoveVersion
+
+An extension's minimum host version lives in three places: its `extension.json`, its C# version
+source, and the newest `versions[]` row of its registry manifest. `check-version-parity` reads the
+first two on every push, and the registry row as well on a tag push — so a raised floor that has not
+yet reached a release row makes the next tag push fail:
+
+```text
+check-version-parity: FAILED
+  minCoveVersion drift: catalog manifest versions[0].minCoveVersion
+  (extensions/Renamer/extensions/com.alextomas955.renamer.json) is "1.0.0", expected "1.1.0"
+```
+
+That failure is correct, and the fix is the release itself. Prepend a new `versions[]` row carrying
+the new version and the new floor, so `versions[0]` describes the release you are cutting. Parity
+then passes because all three sources agree.
+
+Do not resolve it by editing the existing top row. `versions[]` is an append-only record of
+artifacts that shipped: each row describes an immutable zip a user can still download, and a row
+that claims a higher floor than the zip actually needs both misdescribes that file and blocks users
+for whom it works.
+
+Raising the floor is also a user-facing change — a user below the new floor loses the extension
+entirely, rather than losing a feature. Say so in that extension's `CHANGELOG.md`, and name the
+capability that forced the floor, so the requirement reads as a reason rather than a version number.
+
 ## What the registry computes — do not hand-write it
 
 Each extension's registry draft carries the `id`, `repositoryUrl`, a `raw.githubusercontent.com`

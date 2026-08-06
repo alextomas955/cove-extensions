@@ -2,6 +2,29 @@
 
 User-facing changes, newest first.
 
+## 0.4.0 (unreleased) — Cove makes Renamer's requests
+
+<!-- Release step for whoever cuts `renamer/v0.4.0`, before pushing the tag: prepend a new row to
+     `extensions/com.alextomas955.renamer.json` `versions[]` with version 0.4.0 and minCoveVersion
+     1.1.0. Skip it and the tag push fails `check-version-parity`, which on a tag push (and only
+     then) also reads `versions[0].minCoveVersion` — still 1.0.0, describing the published 0.3.0
+     zip — against the 1.1.0 floor this release declares. Do NOT resolve that by editing the 0.3.0
+     row: it describes an immutable artifact that genuinely runs on a 1.0.0 host. The full rule is
+     in the repo-wide Releasing guide, under "Raising minCoveVersion". -->
+
+- **Requires Cove `1.1.0`.** Renamer now asks Cove itself to make its API requests, using the
+  authenticated fetch Cove hands to extension pages. That is served for the first time by the Cove
+  1.1.0 release; a 1.0.0 host does not serve it at all. So `minCoveVersion` is `1.1.0`, and on
+  anything older Renamer does not load — there is no Rename tab under Settings → Extensions, and no
+  "Rename selected" action on your video and image lists. Nothing degrades; the extension is simply
+  absent until you upgrade Cove. Renamer 0.3.0 stays installable on Cove 1.0.0 and keeps working
+  there.
+- **The studio list in Per-studio destinations loads with your session's credentials.** Renamer used
+  to fetch it with a plain unauthenticated request of its own. It now goes through Cove's request
+  path, which sends your access token — or your share token and password on a share link — and
+  retries once when an access token has expired. Same list, same place; it now behaves like the rest
+  of Cove when your session needs proving.
+
 ## 0.3.0 — Undo that cannot grow without bound
 
 - **Undo no longer grows without limit, and says up front when it won't cover a rename.** The undo
