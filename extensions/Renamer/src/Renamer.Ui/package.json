@@ -1,7 +1,6 @@
 {
   "name": "@cove-extensions/renamer-ui",
   "private": true,
-  "version": "0.3.0",
   "type": "module",
   "description": "RenameSettingsPanel — the Cove Renamer extension's settings + live-preview frontend (Vite library bundle → index.mjs).",
   "license": "AGPL-3.0",

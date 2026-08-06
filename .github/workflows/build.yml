@@ -205,11 +205,6 @@ jobs:
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm ci
 
-      - name: Stamp source package.json version
-        if: ${{ matrix.extension.uiPath != '' }}
-        working-directory: ${{ matrix.extension.uiPath }}
-        run: npm version ${{ steps.check.outputs.version }} --no-git-tag-version --allow-same-version
-
       - name: Verify frontend (typecheck + lint + format:check + check-classes + test)
         if: ${{ matrix.extension.uiPath != '' }}
         working-directory: ${{ matrix.extension.uiPath }}
