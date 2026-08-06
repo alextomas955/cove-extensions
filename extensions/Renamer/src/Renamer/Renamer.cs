@@ -656,15 +656,18 @@ public sealed partial class Renamer : FullExtensionBase
             }
         }
 
+        // Named, because studio and tag are type-identical on both the destination-map pair and the
+        // exclude pair: a transposition compiles clean and mis-targets silently (tag rules routing to
+        // studio destinations), where it used to be a compile error.
         return new RouteLookups(
-            o.StudioDestinations,
-            o.TagDestinations,
-            exact,
-            regexRules,
-            excludeTags,
-            excludeStudios,
-            excludePathsExact,
-            excludePathRegex);
+            StudioIdToDest: o.StudioDestinations,
+            TagIdToDest: o.TagDestinations,
+            PathExactToDest: exact,
+            PathRegexRules: regexRules,
+            ExcludeTagIds: excludeTags,
+            ExcludeStudioIds: excludeStudios,
+            ExcludePathsExact: excludePathsExact,
+            ExcludePathRegex: excludePathRegex);
     }
 
     /// <summary>

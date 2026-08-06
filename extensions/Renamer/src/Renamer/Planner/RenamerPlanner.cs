@@ -30,10 +30,10 @@ public sealed class RenamerPlanner
     /// file's own parent folder exactly as before this phase.
     /// </summary>
     private static readonly RouteLookups EmptyLookups = new(
-        new Dictionary<int, string>(),
-        new Dictionary<int, string>(),
-        new Dictionary<string, string>(),
-        Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
+        StudioIdToDest: new Dictionary<int, string>(),
+        TagIdToDest: new Dictionary<int, string>(),
+        PathExactToDest: new Dictionary<string, string>(),
+        PathRegexRules: Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
 
     /// <summary>
     /// Back-compat overload for callers that do not route (tests, single-entity callers): plans with

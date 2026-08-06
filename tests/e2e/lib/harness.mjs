@@ -179,11 +179,19 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
 // the only open question here is whether the host can reach it at all — answering that without
 // assuming which statuses /health may return keeps this independent of whether the instance
 // enforces authentication.
-async function waitForHostReachable(baseUrl, { timeoutMs = 60_000, intervalMs = 500 } = {}) {
+//
+// Each attempt carries its own abort signal, because the deadline below is only consulted BETWEEN
+// attempts and Node's fetch has no default timeout of its own. Docker's userland port proxy accepts
+// the TCP connection while the app inside is still starting, so an attempt that lands in the gap
+// connects and then waits for a response that never comes — with no per-attempt bound that single
+// call never settles, the loop never re-tests its deadline, and the run hangs until the outer job
+// timeout kills it without naming the restart.
+async function waitForHostReachable(baseUrl, { timeoutMs, intervalMs = 500 } = {}) {
+  const attemptTimeoutMs = Math.min(intervalMs * 4, 5_000);
   const deadline = Date.now() + timeoutMs;
   let lastError = 'never attempted';
   while (Date.now() < deadline) {
-    const res = await fetch(`${baseUrl}/health`).catch((err) => {
+    const res = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(attemptTimeoutMs) }).catch((err) => {
       lastError = err?.message ?? String(err);
       return null;
     });

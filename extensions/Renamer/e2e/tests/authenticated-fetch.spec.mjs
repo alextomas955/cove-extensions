@@ -85,9 +85,15 @@ async function dropAmbientAuthority(page) {
  * "Unsaved changes" indicator alone is not enough: it hides on the panel's local state, so a second
  * save can be driven before the first write has landed and the two arrive out of order.
  *
- * Drops the cookie again first rather than trusting the drop before the previous save: a 401 on any
+ * Dropping the cookie again first only narrows the window, it does not close it: a 401 on any
  * request in between drives the app's own refresh, and the host re-issues the access cookie on that
  * response — handing the remaining writes back the ambient authority this spec exists to rule out.
+ * A drop asserted at t=drop says nothing about what the request carried at t=PUT, so the claim is
+ * asserted on the exercised request itself. That is what stays red against a bundle calling plain
+ * `fetch`, whatever the status says.
+ *
+ * `allHeaders()`, not `headers()`: the latter strips cookie-related headers, so a `not.toContain`
+ * against it would pass no matter what the request actually carried.
  */
 async function saveAndAwaitWrite(page, settings, dataPathname) {
   await dropAmbientAuthority(page);
@@ -96,9 +102,18 @@ async function saveAndAwaitWrite(page, settings, dataPathname) {
     { timeout: 30_000 }
   );
   await settings.saveChangesButton.click();
-  const status = (await write).status();
+  const response = await write;
+  const headers = await response.request().allHeaders();
+  expect(
+    headers.authorization ?? '',
+    'the PUT carried no bearer of its own — it was authenticated by something other than the host authenticated fetch'
+  ).toMatch(/^Bearer /);
+  expect(
+    headers.cookie ?? '',
+    `the PUT carried the ${ACCESS_COOKIE} cookie, so its 200 proves ambient authority rather than the request's own credential`
+  ).not.toContain(ACCESS_COOKIE);
   await expect(settings.unsavedChangesIndicator).toBeHidden({ timeout: 10_000 });
-  return status;
+  return response.status();
 }
 
 /** Reads the stored options blob back as the raw string the host holds. */

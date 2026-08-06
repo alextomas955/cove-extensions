@@ -120,9 +120,16 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
     setUndoing(true);
     setFeedback(null);
     try {
-      // /undo takes NO body. It may return an empty 200 in edge cases — but the happy path
-      // returns the UndoResult JSON. Tolerate a throw on a 2xx as a non-informative success.
-      const res = await request<UndoResult>(UNDO_PATH, { method: "POST" });
+      // /undo takes NO body. It may answer an empty 200 in edge cases, which `request` resolves as
+      // undefined — a success carrying no counts to report, not a failure.
+      const res = await request<UndoResult | undefined>(UNDO_PATH, { method: "POST" });
+      if (!res) {
+        setFeedback({
+          kind: "success",
+          text: "Undone — your files were moved back to their original names.",
+        });
+        return;
+      }
       const failedCount = (res.failed?.length ?? 0) + (res.skipped?.length ?? 0);
       if (failedCount === 0) {
         setFeedback({
@@ -147,11 +154,13 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
         });
         return;
       }
-      // res.ok was true but the body was empty, so `request` resolved undefined and the read above
-      // threw → treat as a plain success.
+      // No response was ever produced: the host's fetch rejects on a redirect, and a connection
+      // dropped mid-POST rejects the same way. The server may already have moved part or all of the
+      // batch back before the connection died, so the outcome is unknown — never report it as
+      // "nothing was changed", which would tell the user there is nothing to re-check.
       setFeedback({
-        kind: "success",
-        text: "Undone — your files were moved back to their original names.",
+        kind: "error",
+        text: `Couldn't confirm the undo — ${errText(err)}. Some files may already have been moved back; check the batch before trying again.`,
       });
     } finally {
       setUndoing(false);
