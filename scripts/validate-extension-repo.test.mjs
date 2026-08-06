@@ -98,9 +98,9 @@ function runValidator(fixtureRoot) {
 }
 
 test("happy path: a fully-valid single-entry catalog exits 0 and says no floor was declared", () => {
-  // With no CoveMinVersion in Directory.Build.props the per-entry comparison deliberately no-ops
-  // (the documented fork deviation from upstream, which errors instead). The report line must say
-  // so outright, or a repo enforcing no floor at all is indistinguishable from one that passed.
+  // With no CoveMinVersion in Directory.Build.props the per-entry comparison no-ops, exactly as it
+  // does upstream — both guard it on the same `if (coveMinVersion)`. What the fork adds is saying so
+  // outright, or a repo enforcing no floor at all is indistinguishable from one that passed.
   const entry = validEntry("com.example.foo", "Foo");
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },

@@ -2,9 +2,9 @@
 // Forked on: 2026-07-01
 // Upstream diff base: https://github.com/yourcove/multi-extension-repo-template/blob/main/scripts/validate-extension-repo.mjs
 //
-// Two behavioral differences from upstream.
+// Three behavioral differences from upstream.
 //
-// 1. This fork reads the additive projectPath/manifestPath/uiPath catalog fields (when present on a
+// 1. This fork reads the additive projectPath/manifestPath catalog fields (when present on a
 // catalog entry) instead of unconditionally deriving {path}/{name}.csproj and {path}/extension.json
 // by convention. This lets a real 3-project src/ subtree layout (e.g. Renamer's
 // extensions/Renamer/src/{Renamer,Renamer.Ui}/) be described explicitly, while a future
@@ -19,6 +19,11 @@
 // never a PackageReference here, arriving transitively through Cove.Sdk. Deriving the version makes
 // that drift unrepresentable, which is stronger than detecting it after the fact. The per-entry
 // extension.json minCoveVersion comparison, which does have a real subject, survives.
+//
+// 3. Upstream's success line reports only how many catalog entries it walked. This fork reports
+// what it actually examined: how many floor comparisons it ran, or that no floor is declared to
+// compare against. Exit 0 alone cannot distinguish a check that passed from one that never had a
+// subject — which is exactly how the self-comparing checks removed in #2 stayed invisible.
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -145,9 +150,8 @@ if (!catalog.schemaVersion) errors.push("extensions/catalog.json missing schemaV
 if (entries.length === 0) errors.push("extensions/catalog.json has no extensions");
 
 // Counts the surviving floor comparisons so the success line can prove the check ran rather than
-// merely exited 0. Upstream errors outright when CoveMinVersion is absent; this fork lets the
-// comparison no-op instead, so a consumer that has not declared a floor still validates — but that
-// no-op is stated in the report line rather than left to look like a pass.
+// merely exited 0. A repo declaring no CoveMinVersion runs no comparison at all, and that no-op is
+// stated in the report line rather than left to look like a pass.
 let floorComparisons = 0;
 
 const ids = new Set();
