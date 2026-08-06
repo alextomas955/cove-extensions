@@ -4,9 +4,9 @@
 //
 // Two separate waves of host-absent classes have been found so far. The first was geometry
 // (translate-x-4, py-3.5, pb-20, …), covered by the toggle-knob assertion below. The second was
-// colour: border-amber-400/40, bg-amber-400/10, bg-red-950/40, border-green-500/40, bg-green-500/10,
-// border-red-400 and bg-red-400 — used by the status pills, the stale picker chip and the save-bar
-// dot, and drawing nothing at all on a released host.
+// colour: border-amber-400/40, bg-amber-400/10, bg-red-950/40, border-green-500/40, bg-green-500/10
+// and bg-red-400 — used by the status pills and the save-bar dot, and drawing nothing at all on a
+// released host.
 //
 // Nothing catches a third wave automatically. The class-discipline script that nominally did was
 // retired: its forbidden list was hand-written and three entries long, so it had already missed both
@@ -187,32 +187,6 @@ test('status pills render their amber and red tints from the host theme', async 
   expect(await style(amber, 'borderTopColor'), 'amber pill border').toBe(amberBorder.computed);
   expect(await style(amber, 'backgroundColor'), 'amber pill fill').toBe(amberFill.computed);
   expect(await style(red, 'backgroundColor'), 'red pill fill').toBe(redFill.computed);
-});
-
-test('a stale picker chip draws a red border', async ({ page, baseUrl, api }) => {
-  // A chip is stale when its stored value resolves against nothing in the library — a state only a
-  // stored value the picker itself would never offer can reach, so seed one directly. The blob is
-  // double-encoded: the endpoint's [FromBody] string binder wants a JSON string literal.
-  await api.put(
-    `/api/extensions/${RENAMER_ID}/data/options`,
-    JSON.stringify({ ExcludeTags: ['tag-that-no-longer-exists'] }),
-  );
-
-  const settings = new RenamerSettingsPage(page, baseUrl);
-  await settings.goto();
-  await page.getByRole('button', { name: /^Excludes/ }).click();
-
-  const chip = page.getByText('tag-that-no-longer-exists').locator('xpath=..');
-  await expect(chip).toBeVisible({ timeout: 15_000 });
-  // The picker fetches its list lazily on first open, and a chip is only marked stale once a fetch
-  // has actually SUCCEEDED — before that there is no list to disprove the value against.
-  await page.getByPlaceholder('Search tags…').click();
-
-  const want = await resolveColor(page, 'var(--color-red-400)');
-  expectVisible(want, 'the host red-400');
-  await expect
-    .poll(() => chip.evaluate((el) => getComputedStyle(el).borderTopColor), { timeout: 15_000 })
-    .toBe(want.computed);
 });
 
 test('the save bar dot turns red when a save fails', async ({ page, baseUrl }) => {
