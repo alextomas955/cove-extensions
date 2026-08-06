@@ -1,13 +1,8 @@
-/**
- * Behavior contract for the pure dry-run logic. The runner compiles dryRunLogic.ts and passes the
- * compiled module path in DRY_RUN_LOGIC_MODULE; importing the exact compiled artifact keeps the
- * test honest about what ships.
- */
-import test from "node:test";
+/** Behavior contract for the pure dry-run logic. */
+import { test } from "vitest";
 import assert from "node:assert/strict";
 
-const mod = await import(process.env.DRY_RUN_LOGIC_MODULE);
-const {
+import {
   classifyItem,
   bucketWireValue,
   summaryCounts,
@@ -19,7 +14,7 @@ const {
   etaFromSamples,
   ETA_SMOOTHING,
   ETA_MIN_RATES,
-} = mod;
+} from "./dryRunLogic";
 
 /**
  * Every RenamerStatus wire value with the bucket the SERVER assigns it, TRANSCRIBED BY HAND from
@@ -49,10 +44,11 @@ test("classifyItem agrees with ScanBucket.Of on every status the server can emit
     assert.equal(classifyItem({ status }), bucket, `status ${status}`);
   }
   // The three buckets are covered, so no arm of the map is left unexercised.
-  assert.deepEqual(
-    [...new Set(SERVER_BUCKETS.map(([, b]) => b))].sort(),
-    ["attention", "no-change", "will-change"],
-  );
+  assert.deepEqual([...new Set(SERVER_BUCKETS.map(([, b]) => b))].sort(), [
+    "attention",
+    "no-change",
+    "will-change",
+  ]);
 });
 
 test("classifyItem surfaces an unknown/future status as attention rather than hiding it", () => {
@@ -177,22 +173,40 @@ test("etaFromSamples is an EWMA of the rate; a warmed steady rate gives the plai
   );
 
   // Display-confidence gate: a SINGLE rate (one pair) is withheld (unsmoothed seed) → null.
-  assert.equal(etaFromSamples([{ timeMs: 1000, progress: 0.5 }, { timeMs: 2000, progress: 0.6 }]), null);
+  assert.equal(
+    etaFromSamples([
+      { timeMs: 1000, progress: 0.5 },
+      { timeMs: 2000, progress: 0.6 },
+    ]),
+    null,
+  );
 
   // Null guards: <2 samples (a rate needs two points), progress at the ends, no forward progress,
   // non-finite.
   assert.equal(etaFromSamples([]), null);
   assert.equal(etaFromSamples([{ timeMs: 0, progress: 0.5 }]), null);
   assert.equal(
-    etaFromSamples([{ timeMs: 0, progress: 0 }, { timeMs: 1000, progress: 0 }, { timeMs: 2000, progress: 0 }]),
+    etaFromSamples([
+      { timeMs: 0, progress: 0 },
+      { timeMs: 1000, progress: 0 },
+      { timeMs: 2000, progress: 0 },
+    ]),
     null,
   ); // no forward progress
   assert.equal(
-    etaFromSamples([{ timeMs: 0, progress: 0.8 }, { timeMs: 1000, progress: 0.9 }, { timeMs: 2000, progress: 1 }]),
+    etaFromSamples([
+      { timeMs: 0, progress: 0.8 },
+      { timeMs: 1000, progress: 0.9 },
+      { timeMs: 2000, progress: 1 },
+    ]),
     null,
   ); // latest at 1.0
   assert.equal(
-    etaFromSamples([{ timeMs: 0, progress: 0.5 }, { timeMs: 1000, progress: 0.5 }, { timeMs: 2000, progress: 0.5 }]),
+    etaFromSamples([
+      { timeMs: 0, progress: 0.5 },
+      { timeMs: 1000, progress: 0.5 },
+      { timeMs: 2000, progress: 0.5 },
+    ]),
     null,
   ); // flat
 });
@@ -201,12 +215,18 @@ test("etaFromSamples EWMA decays the cold-start rate instead of flashing a bogus
   // The reported symptom: a slow first pair (1% over 7.2s) then a fast steady rate. The EWMA pulls
   // toward the fast rate each poll, so the estimate is seconds — NOT minutes/hours — and it does so
   // WITHOUT dropping any samples (recency-weighting is the principled fix, not a magic threshold).
-  const samples = [{ timeMs: 0, progress: 0.01 }, { timeMs: 7200, progress: 0.02 }]; // slow warmup pair
+  const samples = [
+    { timeMs: 0, progress: 0.01 },
+    { timeMs: 7200, progress: 0.02 },
+  ]; // slow warmup pair
   for (let i = 1; i <= 8; i++) {
     samples.push({ timeMs: 7200 + i * 200, progress: Math.min(0.99, 0.02 + i * 0.1) }); // fast phase
   }
   const eta = etaFromSamples(samples);
-  assert.ok(eta !== null && eta < 10, `expected a small ETA after the EWMA absorbs the fast rate, got ${eta}`);
+  assert.ok(
+    eta !== null && eta < 10,
+    `expected a small ETA after the EWMA absorbs the fast rate, got ${eta}`,
+  );
 
   // The confidence gate means the FIRST fast poll (only 2 rate observations: slow seed + 1 fast) is
   // shown, and by then the EWMA already leans toward the fast rate — so it is seconds, not minutes.
@@ -224,7 +244,13 @@ test("etaFromSamples withholds the estimate until it has ETA_MIN_RATES smoothed 
   // Exactly one rate observation (unsmoothed seed) → null, no matter how clean the pair looks. This
   // is the fix for the intermittent one-poll "~2m" flash: never DISPLAY off a single raw seed.
   assert.equal(ETA_MIN_RATES, 2);
-  assert.equal(etaFromSamples([{ timeMs: 0, progress: 0.2 }, { timeMs: 1000, progress: 0.3 }]), null); // 1 rate
+  assert.equal(
+    etaFromSamples([
+      { timeMs: 0, progress: 0.2 },
+      { timeMs: 1000, progress: 0.3 },
+    ]),
+    null,
+  ); // 1 rate
   // A stalled step between doesn't count as a rate, so 3 samples with one flat gap = still 1 rate → null.
   assert.equal(
     etaFromSamples([

@@ -21,7 +21,8 @@
         "src/**/*.{ts,tsx}"
       ],
       "ignoreDependencies": [
-        "@vitejs/plugin-react"
+        "@vitejs/plugin-react",
+        "@cove/runtime"
       ]
     },
     "shared/cove-extensions-ui": {
@@ -39,7 +40,8 @@
         "react-dom",
         "@cove/extension-sdk",
         "lucide-react",
-        "vite"
+        "vite",
+        "vitest"
       ]
     },
     "tests/e2e": {

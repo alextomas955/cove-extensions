@@ -1,14 +1,11 @@
 /**
- * Behavior contract for the shared entity-picker subset. The runner compiles entityPickerLogic.ts and
- * passes the compiled module path in PICKER_LOGIC_MODULE; importing the exact compiled artifact keeps
- * the test honest about what ships. The entity-reference picker helpers that only Renamer uses are
- * tested in Renamer's own suite, not here.
+ * Behavior contract for the shared entity-picker subset. The entity-reference picker helpers that
+ * only Renamer uses are tested in Renamer's own suite, not here.
  */
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 
-const mod = await import(process.env.PICKER_LOGIC_MODULE);
-const { availableOptions } = mod;
+import { availableOptions } from "./entityPickerLogic";
 
 test("availableOptions offers only not-yet-picked options, in the canonical order", () => {
   const opts = [

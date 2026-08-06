@@ -9,7 +9,7 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "check-classes": "node ../../../../shared/cove-extensions-ui/scripts/check-classes.cjs --allow \"shadow-[0_12px_30px_-20px_rgba(0,0,0,0.7)]\"",
-    "test": "node ../../../../shared/cove-extensions-ui/scripts/run-logic-gate.mjs --manifest scripts/gates.json --manifest ../../../../shared/cove-extensions-ui/scripts/gates.json",
+    "test": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "verify": "npm run typecheck && npm run format:check && npm run check-classes && npm run test"
@@ -28,7 +28,8 @@
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "typescript": "6.0.3",
-    "vite": "8.1.5"
+    "vite": "8.1.5",
+    "vitest": "4.1.10"
   },
   "volta": {
     "node": "24.11.0"

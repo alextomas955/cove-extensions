@@ -1,16 +1,13 @@
 /**
- * Behavior contract for the pure bulk-rename confirm builder. The runner compiles preview.ts and
- * passes the compiled module path in PREVIEW_CONFIRM_MODULE; importing the exact compiled artifact
- * keeps the test honest about what ships.
+ * Behavior contract for the pure bulk-rename confirm builder.
  *
  * The claim under test is the one a user acts on: the confirm shown BEFORE a rename touches disk must
  * promise an undo only when the server says the batch will be journalled.
  */
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 
-const mod = await import(process.env.PREVIEW_CONFIRM_MODULE);
-const { buildConfirmSummary } = mod;
+import { buildConfirmSummary } from "./preview";
 
 const RENAME_ITEM = {
   fileId: 1,

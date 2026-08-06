@@ -1,19 +1,14 @@
-/**
- * Behavior contract for the pure entity-picker logic. The runner compiles studioFilterLogic.ts and
- * passes the compiled module path in PICKER_LOGIC_MODULE; importing the exact compiled artifact keeps
- * the test honest about what ships.
- */
-import test from "node:test";
+/** Behavior contract for the pure entity-picker logic Renamer layers over the shared subset. */
+import { test } from "vitest";
 import assert from "node:assert/strict";
 
-const mod = await import(process.env.PICKER_LOGIC_MODULE);
-const {
+import {
   filterEntities,
   resolveStudioLabel,
   isResolvedStudioId,
   canonicalTagName,
   excludeEntities,
-} = mod;
+} from "./studioFilterLogic";
 
 const studios = [
   { id: 10, name: "Alpha Studio" },

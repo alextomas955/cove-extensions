@@ -1,13 +1,8 @@
-/**
- * Behavior contract for the pure studio-map coercion. The runner compiles studioMapLogic.ts and passes the
- * compiled module path in STUDIO_MAP_MODULE; importing the exact compiled artifact keeps the test
- * honest about what ships.
- */
-import test from "node:test";
+/** Behavior contract for the pure studio-map coercion. */
+import { test } from "vitest";
 import assert from "node:assert/strict";
 
-const mod = await import(process.env.STUDIO_MAP_MODULE);
-const { toStringKeyed, fromStringKeyed } = mod;
+import { toStringKeyed, fromStringKeyed } from "./studioMapLogic";
 
 test("a number-keyed map becomes a string-keyed map preserving values", () => {
   assert.deepEqual(toStringKeyed({ 3: "/a", 12: "/b" }), { 3: "/a", 12: "/b" });
@@ -22,13 +17,13 @@ test("a round-trip through string keys restores number keys identically", () => 
 test("every back-converted key is an integer (value-equal with the backend's number keys)", () => {
   // JS object keys are always strings at the JS level, so a `typeof` check would be tautological;
   // the real invariant is that each key round-trips to an integer (no NaN/float survives).
-  const back = fromStringKeyed({ "7": "/x", "42": "/y" });
+  const back = fromStringKeyed({ 7: "/x", 42: "/y" });
   assert.ok(Object.keys(back).every((k) => Number.isInteger(Number(k))));
   assert.equal(back[7], "/x");
 });
 
 test("a non-integer key is dropped rather than producing a NaN key", () => {
-  const back = fromStringKeyed({ x: "/a", "1.5": "/b", "9": "/c" });
+  const back = fromStringKeyed({ x: "/a", 1.5: "/b", 9: "/c" });
   assert.deepEqual(back, { 9: "/c" });
 });
 

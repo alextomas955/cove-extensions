@@ -1,14 +1,17 @@
 /**
- * Round-trip + preservation contract for the options model. The runner compiles options.ts and
- * passes the compiled module path in OPTIONS_MODULE; importing the exact compiled artifact keeps the
- * test honest about what ships. The save merge is reproduced as `{ ...extras, ...options }` — the
- * literal merge RenameSettingsPanel.saveOptions uses — so a pass proves the SAME merge the panel runs.
+ * Round-trip + preservation contract for the options model. The save merge is reproduced as
+ * `{ ...extras, ...options }` — the literal merge RenameSettingsPanel.saveOptions uses — so a pass
+ * proves the SAME merge the panel runs.
  */
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 
-const mod = await import(process.env.OPTIONS_MODULE);
-const { normalizeOptions, extractUnmodeledFields, cloneDefaults, DEFAULT_OPTIONS } = mod;
+import {
+  normalizeOptions,
+  extractUnmodeledFields,
+  cloneDefaults,
+  DEFAULT_OPTIONS,
+} from "./options";
 
 // A blob with every modeled field at a value distinct from its default, in PascalCase (the wire
 // spelling). The round-trip must return all of these unchanged.

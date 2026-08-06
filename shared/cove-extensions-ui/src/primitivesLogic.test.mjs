@@ -1,13 +1,13 @@
-/**
- * Behavior contract for the pure primitive logic. The runner compiles primitivesLogic.ts and passes
- * the compiled module path in PRIMITIVES_LOGIC_MODULE; importing the exact compiled artifact keeps the
- * test honest about what ships.
- */
-import test from "node:test";
+/** Behavior contract for the pure primitive logic. */
+import { test } from "vitest";
 import assert from "node:assert/strict";
 
-const mod = await import(process.env.PRIMITIVES_LOGIC_MODULE);
-const { filterByText, isRegexValid, isAbsolutePathShape, extensionShapeAdvisory } = mod;
+import {
+  filterByText,
+  isRegexValid,
+  isAbsolutePathShape,
+  extensionShapeAdvisory,
+} from "./primitivesLogic";
 
 const items = [{ name: "Alpha" }, { name: "beta" }, { name: "Gamma" }, { name: "alphabet" }];
 const byName = (item) => item.name;
