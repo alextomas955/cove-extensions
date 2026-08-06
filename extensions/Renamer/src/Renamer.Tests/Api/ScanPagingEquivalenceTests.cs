@@ -129,8 +129,7 @@ public sealed class ScanPagingEquivalenceTests
 
                 port.SeedEntity(new RenamerEntity(
                     id, kind, title, Code: null, studio, Date: null, organized,
-                    Performers: [], Tags: [.. tagRefs.Select(t => t.Name)], Files: files,
-                    TagRefs: tagRefs));
+                    Performers: [], TagRefs: tagRefs, Files: files));
             }
 
             // Seeded out of ascending order on purpose: the walk's order must come from the port's

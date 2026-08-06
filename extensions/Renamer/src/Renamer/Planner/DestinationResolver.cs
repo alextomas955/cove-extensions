@@ -9,8 +9,8 @@ namespace Renamer.Planner;
 /// is called once per file.
 ///
 /// PURE: no <c>System.IO</c>, no <c>Cove.*</c> types, no DB. The cascade is classify-not-throw — a
-/// null <see cref="RenamerEntity.StudioId"/>, an empty <see cref="RenamerEntity.ParentStudios"/>, a
-/// null <see cref="RenamerEntity.TagRefs"/>, or empty destination maps all fall straight through to
+/// null <see cref="RenamerEntity.StudioId"/>, an empty <see cref="RenamerEntity.ParentStudios"/>, an
+/// empty <see cref="RenamerEntity.TagRefs"/>, or empty destination maps all fall straight through to
 /// <see cref="RouteCategory.SourceConfine"/>.
 /// The source-path regex set arrives PRE-PARSED in <see cref="RouteLookups.PathRegexRules"/> (built
 /// once per batch); this resolver only calls <c>IsMatch</c> — it never compiles a regex.
@@ -82,14 +82,11 @@ public static class DestinationResolver
         // 3. Cascade — first CATEGORY that produces a match wins.
         // 3a. Tag: first tag in entity list order whose stable id has a rule. The name is carried out
         //     of the pair only to build the label — matching never touches it.
-        if (e.TagRefs is { } tagRefs)
+        foreach (var (tagId, tagName) in e.TagRefs)
         {
-            foreach (var (tagId, tagName) in tagRefs)
+            if (lk.TagIdToDest.TryGetValue(tagId, out var tagDest))
             {
-                if (lk.TagIdToDest.TryGetValue(tagId, out var tagDest))
-                {
-                    return new RouteResult(RouteCategory.Tag, $"Tag:{tagName}", tagDest);
-                }
+                return new RouteResult(RouteCategory.Tag, $"Tag:{tagName}", tagDest);
             }
         }
 
@@ -179,9 +176,9 @@ public static class DestinationResolver
     private static RouteResult? ResolveExclusion(RenamerEntity e, RouteLookups lk)
     {
         // Tag exclude (on the stable tag id, mirroring tag routing; the name only builds the label).
-        if (lk.ExcludeTagIds is { Count: > 0 } excludeTags && e.TagRefs is { } excludeTagRefs)
+        if (lk.ExcludeTagIds is { Count: > 0 } excludeTags)
         {
-            foreach (var (tagId, tagName) in excludeTagRefs)
+            foreach (var (tagId, tagName) in e.TagRefs)
             {
                 if (excludeTags.Contains(tagId))
                 {

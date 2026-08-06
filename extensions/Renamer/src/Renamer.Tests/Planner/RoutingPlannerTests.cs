@@ -39,8 +39,8 @@ public sealed class RoutingPlannerTests
         params RenamerFile[] files) =>
         new(EntityId: 10, Kind: RenamerFileKind.Video, Title: "My Film", Code: "ABC-1", StudioName: "Acme",
             Date: new DateOnly(2024, 3, 2), Organized: true,
-            Performers: [new RenamerPerformer(1, "Bob", false, null)], Tags: ["anime"], Files: files,
-            TagRefs: [(AnimeTagId, "anime")]);
+            Performers: [new RenamerPerformer(1, "Bob", false, null)],
+            TagRefs: [(AnimeTagId, "anime")], Files: files);
 
     // A move-producing render: a non-empty folder template makes isMove true, so the routed root is
     // the confinement anchor and the absolute target lands on the destination volume.
@@ -67,7 +67,7 @@ public sealed class RoutingPlannerTests
     public async Task StudioRouted_CarriesRootRuleAndVolume()
     {
         var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, Tags = [], TagRefs = [] });
+        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
         var planner = new RenamerPlanner(port);
         var opts = MoveOptions([SrcRoot, StudioRoot]);
         var lk = Lookups(studio: new Dictionary<int, string> { [42] = StudioRoot });
@@ -91,7 +91,7 @@ public sealed class RoutingPlannerTests
         // source folder. (Every other routed test here pairs the route with a non-empty folder
         // template, which is why this empty-template path needs its own guard.)
         var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, Tags = [], TagRefs = [] });
+        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
         {
@@ -119,7 +119,7 @@ public sealed class RoutingPlannerTests
     {
         var port = new FakeRenamerDataPort();
         // The rule is keyed on the tag id; the reason string still renders the tag's name.
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { Tags = ["anime"], TagRefs = [(AnimeTagId, "anime")] });
+        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { TagRefs = [(AnimeTagId, "anime")] });
         var planner = new RenamerPlanner(port);
         var opts = MoveOptions([SrcRoot, TagRoot]);
         var lk = Lookups(tag: new Dictionary<int, string> { [AnimeTagId] = TagRoot });
@@ -138,7 +138,7 @@ public sealed class RoutingPlannerTests
     public async Task SourcePathRouted_Exact_CarriesRootAndRule()
     {
         var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { Tags = [], TagRefs = [] });
+        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { TagRefs = [] });
         var planner = new RenamerPlanner(port);
         var opts = MoveOptions([SrcRoot, PathRoot]);
         var lk = Lookups(exact: new Dictionary<string, string>(StringComparer.Ordinal) { [Fwd(SrcRoot)] = PathRoot });
@@ -157,7 +157,7 @@ public sealed class RoutingPlannerTests
     {
         var port = new FakeRenamerDataPort();
         // Organized=false + an UnorganizedDestination set → routes to it, does not gate to a skip.
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { Organized = false, Tags = [], TagRefs = [] });
+        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { Organized = false, TagRefs = [] });
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
         {
@@ -180,7 +180,7 @@ public sealed class RoutingPlannerTests
     public async Task SourceConfine_EmptyMaps_LegacyAnchor_NullRoot()
     {
         var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, Tags = [], TagRefs = [] });
+        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
         var planner = new RenamerPlanner(port);
         // Empty lookups + empty maps + no allowed roots → legacy source-confine: anchored on the file's
         // own folder, ResolvedDestinationRoot null.
@@ -205,7 +205,7 @@ public sealed class RoutingPlannerTests
     {
         var port = new FakeRenamerDataPort();
         // Unmatched entity (no studio/tag/path rule), a DefaultDestination set, but the flag OFF.
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 999, Tags = [], TagRefs = [] });
+        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 999, TagRefs = [] });
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
         {
@@ -237,7 +237,7 @@ public sealed class RoutingPlannerTests
         port.SeedEntity(Entity(
             VideoFile(1, "a.mkv", SrcRoot),
             VideoFile(2, "b.mkv", SrcRoot)) with
-        { Tags = ["anime"], TagRefs = [(AnimeTagId, "anime")] });
+        { TagRefs = [(AnimeTagId, "anime")] });
         var planner = new RenamerPlanner(port);
         var opts = MoveOptions([SrcRoot]);
         var lk = Lookups(excludeTags: new HashSet<int> { AnimeTagId });
@@ -261,7 +261,7 @@ public sealed class RoutingPlannerTests
         // matches an exclude rule is attributed to the exclude: excludes are evaluated before the
         // gate, so the preview/log shows the real reason (SkipExcluded) rather than the gate.
         var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity(VideoFile(1, "a.mkv", SrcRoot)) with { Organized = false, Tags = ["anime"], TagRefs = [(AnimeTagId, "anime")] });
+        port.SeedEntity(Entity(VideoFile(1, "a.mkv", SrcRoot)) with { Organized = false, TagRefs = [(AnimeTagId, "anime")] });
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
         {
@@ -292,7 +292,7 @@ public sealed class RoutingPlannerTests
         // root IS the file's source root, no subfolder, and the filename template reproduces the
         // current basename stem — so target full path == current full path.
         var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity(VideoFile(1, "My Film.mkv", SrcRoot)) with { StudioId = 999, Tags = [], TagRefs = [] });
+        port.SeedEntity(Entity(VideoFile(1, "My Film.mkv", SrcRoot)) with { StudioId = 999, TagRefs = [] });
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
         {
@@ -315,7 +315,7 @@ public sealed class RoutingPlannerTests
     public async Task DefaultRelocateEnabled_RoutesToDefaultRoot()
     {
         var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 999, Tags = [], TagRefs = [] });
+        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 999, TagRefs = [] });
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
         {

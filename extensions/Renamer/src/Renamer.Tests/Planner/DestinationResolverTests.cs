@@ -30,9 +30,9 @@ public sealed class DestinationResolverPrecedenceTests
         => new(
             EntityId: 1, Kind: RenamerFileKind.Video, Title: "T", Code: null,
             StudioName: studioName, Date: null, Organized: organized,
-            Performers: [], Tags: [.. (tagRefs ?? []).Select(t => t.Name)],
+            Performers: [], TagRefs: tagRefs ?? [],
             Files: [File(parentFolderPath)],
-            StudioId: studioId, ParentStudios: parentStudios, TagRefs: tagRefs);
+            StudioId: studioId, ParentStudios: parentStudios);
 
     private static RouteLookups Lookups(
         IReadOnlyDictionary<int, string>? studios = null,
@@ -200,9 +200,8 @@ public sealed class DestinationResolverTagRoutingTests
 
     private static RenamerEntity TaggedEntity(params (int Id, string Name)[] tagRefs)
         => new(1, RenamerFileKind.Video, "T", null, null, null, true,
-               [], [.. tagRefs.Select(t => t.Name)],
-               [new RenamerFile(1, RenamerFileKind.Video, "a.mkv", 1, "x")],
-               TagRefs: tagRefs);
+               [], tagRefs,
+               [new RenamerFile(1, RenamerFileKind.Video, "a.mkv", 1, "x")]);
 
     [Fact]
     public void TwoNameVariantsOfOneTagId_ResolveToOneDestination()
@@ -248,15 +247,11 @@ public sealed class DestinationResolverTagRoutingTests
     }
 
     [Fact]
-    public void EntityWithoutTagRefs_NeverMatchesATagRule()
+    public void AnEntityWithNoTags_NeverMatchesATagRule()
     {
-        // A construction site predating TagRefs leaves it null; that must fall through the tag
-        // category rather than throw or match on the surviving name list.
         var lk = TagLookups(new Dictionary<int, string> { [11] = "T:anime" });
-        var e = new RenamerEntity(1, RenamerFileKind.Video, "T", null, null, null, true,
-            [], ["anime"], [new RenamerFile(1, RenamerFileKind.Video, "a.mkv", 1, "x")]);
 
-        var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
+        var r = DestinationResolver.Resolve(TaggedEntity(), new RenamerOptions(), lk);
 
         Assert.Equal(RouteCategory.SourceConfine, r.Category);
     }
@@ -467,9 +462,9 @@ public sealed class DestinationResolverExcludeTests
         => new(
             EntityId: 1, Kind: RenamerFileKind.Video, Title: "T", Code: null,
             StudioName: null, Date: null, Organized: organized,
-            Performers: [], Tags: [.. (tagRefs ?? []).Select(t => t.Name)],
+            Performers: [], TagRefs: tagRefs ?? [],
             Files: [new RenamerFile(1, RenamerFileKind.Video, "clip.mkv", 1, parentFolderPath)],
-            StudioId: studioId, ParentStudios: parentStudios, TagRefs: tagRefs);
+            StudioId: studioId, ParentStudios: parentStudios);
 
     private static RouteLookups Lookups(
         IReadOnlyDictionary<int, string>? studios = null,

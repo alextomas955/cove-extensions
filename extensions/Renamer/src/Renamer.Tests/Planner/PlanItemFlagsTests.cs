@@ -20,7 +20,7 @@ public sealed class PlanItemFlagsTests
 
     private static RenamerEntity Entity(string title, params RenamerFile[] files) =>
         new(EntityId: 10, Kind: RenamerFileKind.Video, Title: title, Code: null, StudioName: null,
-            Date: null, Organized: true, Performers: [], Tags: [], Files: files);
+            Date: null, Organized: true, Performers: [], TagRefs: [], Files: files);
 
     [Fact]
     public async Task FreeName_NotSuffixed()
