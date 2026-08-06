@@ -1,6 +1,6 @@
 // Drives the two halves of the canonical-specifier contract against a real released host: that the
 // host's import map SERVES "@cove/runtime/api" and "@cove/runtime/components", and that the bundle
-// the host actually SERVES imports extensionFetch from the first of them by name.
+// the host actually SERVES imports a named symbol from each of them.
 //
 // The rest of this suite already goes red if a canonical specifier fails to resolve — an ESM
 // resolution failure kills the whole bundle, the settings tab never appears, and core-paths'
@@ -23,6 +23,14 @@ const EXTENSION_ID = 'com.alextomas955.renamer';
 // spaceless one. Byte-identical to the assertion the build-time check applies to dist/index.mjs.
 const NAMED_EXTENSION_FETCH_IMPORT =
   /import\s*\{[^}]*\bextensionFetch\b[^}]*\}\s*from\s*"@cove\/runtime\/api"/;
+
+// The components half, identical in shape. It could not be asserted until a consumer existed: the
+// module was declared but unused, and a specifier nothing imports is served without ever being
+// linked. The settings render below is what makes this more than a string match — a named export
+// missing from a live ESM module is a LINK-time failure, so the module never evaluates and the
+// whole bundle dies with it, taking every extension's UI on the page down together.
+const NAMED_MULTI_SELECTOR_IMPORT =
+  /import\s*\{[^}]*\bEntityReferenceMultiSelector\b[^}]*\}\s*from\s*"@cove\/runtime\/components"/;
 
 test('the host import map serves both canonical @cove/runtime specifiers', async ({ page }) => {
   const imports = await page.evaluate(() => {
@@ -96,6 +104,12 @@ test('the bundle the host serves imports extensionFetch by name, and the setting
     match,
     `the bundle served at ${bundleUrl} has no NAMED import binding extensionFetch from "@cove/runtime/api" ` +
       `(a bare side-effect import would not satisfy this). @cove/runtime imports actually present: ` +
+      `${runtimeImports.length ? runtimeImports.join(' | ') : '(none)'}`,
+  ).not.toBeNull();
+  expect(
+    served.text.match(NAMED_MULTI_SELECTOR_IMPORT),
+    `the bundle served at ${bundleUrl} has no NAMED import binding EntityReferenceMultiSelector from ` +
+      `"@cove/runtime/components". @cove/runtime imports actually present: ` +
       `${runtimeImports.length ? runtimeImports.join(' | ') : '(none)'}`,
   ).not.toBeNull();
 
