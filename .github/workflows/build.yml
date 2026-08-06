@@ -182,16 +182,6 @@ jobs:
         if: ${{ !matrix.extension.manifestOnly }}
         run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o artifacts/${{ matrix.extension.name }} --no-build -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
 
-      # Catalog-driven strip-verify gate: proves the publish set carries no host-provided
-      # (denylisted) assembly, carries the entry assembly plus any first-party runtime dependency
-      # the catalog entry declares in requiredBundledDlls, and leaks no absolute build path in its
-      # json. Runs on every build (not tag-gated), so a leak fails the build before anything is
-      # zipped. scripts/strip-verify.mjs reads the shared .github/DLL_DENYLIST.json, so the
-      # denylist does not drift when the host adds a provided dependency.
-      - name: Strip-verify (no host assemblies, no absolute paths)
-        if: ${{ !matrix.extension.manifestOnly }}
-        run: node scripts/strip-verify.mjs artifacts/${{ matrix.extension.name }} ${{ matrix.extension.id }}
-
       - name: Copy manifest
         if: ${{ !matrix.extension.manifestOnly }}
         run: cp ${{ matrix.extension.manifestPath }} artifacts/${{ matrix.extension.name }}/
@@ -232,6 +222,23 @@ jobs:
       - name: Copy frontend bundle
         if: ${{ matrix.extension.uiPath != '' }}
         run: cp ${{ matrix.extension.uiPath }}/dist/index.mjs artifacts/${{ matrix.extension.name }}/
+
+      # Catalog-driven strip-verify gate on the ASSEMBLED package: it proves the package carries no
+      # host-provided (denylisted) assembly, carries the entry assembly plus any first-party runtime
+      # dependency the catalog entry declares in requiredBundledDlls, leaks no absolute build path in
+      # its json, and ships a manifest declaring this extension id, this release version, and only
+      # files that are actually present inside the package.
+      #
+      # ORDERING IS LOAD-BEARING: this must run AFTER the manifest copy, the version stamp and the
+      # frontend-bundle copy, because the manifest assertions have no subject before those steps —
+      # placed earlier it would inspect a bare publish set and report a pass it never earned. It
+      # still runs on every build (not tag-gated) and before Package, so a defect fails the build
+      # before anything is zipped. scripts/strip-verify.mjs reads the shared
+      # .github/DLL_DENYLIST.json, so the denylist does not drift when the host adds a provided
+      # dependency.
+      - name: Strip-verify (no host assemblies, no absolute paths, manifest matches the release)
+        if: ${{ !matrix.extension.manifestOnly }}
+        run: node scripts/strip-verify.mjs artifacts/${{ matrix.extension.name }} ${{ matrix.extension.id }} ${{ steps.check.outputs.version }}
 
       # Version parity: the version the manifest, the assembly, the UI package, and (when it exists)
       # the catalog registry manifest declare must agree, so a release can't ship a manifest that
