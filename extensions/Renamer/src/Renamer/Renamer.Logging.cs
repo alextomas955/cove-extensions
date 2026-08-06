@@ -113,6 +113,30 @@ public sealed partial class Renamer
         Message = "[Renamer] batch {RunId}: {Files} file(s) exceeds the {Cap}-file undo cap — this batch is not undoable")]
     private partial void LogBatchNotJournalled(string runId, int files, int cap);
 
+    // The one-time name→id options conversion rewrites the stored settings IN PLACE and keeps no copy
+    // of the originals, so these four lines are the whole forensic trail: what it resolved against,
+    // what it discarded, and — for both refusal paths — why the settings are unchanged.
+
+    [LoggerMessage(
+        EventId = 1056, Level = LogLevel.Information,
+        Message = "[Renamer] options migration: converted against {Tags} tag(s) and {Performers} performer(s); {Dropped} name(s) dropped")]
+    private partial void LogOptionsMigrationConverted(int tags, int performers, int dropped);
+
+    [LoggerMessage(
+        EventId = 1057, Level = LogLevel.Information,
+        Message = "[Renamer] options migration: {Count} stored rule name(s) matched no tag or performer and were dropped: {Names}")]
+    private partial void LogOptionsMigrationDroppedNames(int count, string names);
+
+    [LoggerMessage(
+        EventId = 1058, Level = LogLevel.Warning,
+        Message = "[Renamer] options migration deferred ({Reason}); the stored settings are unchanged and the next load retries")]
+    private partial void LogOptionsMigrationDeferred(string reason);
+
+    [LoggerMessage(
+        EventId = 1059, Level = LogLevel.Warning,
+        Message = "[Renamer] options migration failed; the stored settings are unchanged and the next load retries")]
+    private partial void LogOptionsMigrationFailed(Exception ex);
+
     [LoggerMessage(
         EventId = 1010, Level = LogLevel.Information,
         Message = "[Renamer] undo {RunId}: {Kind} id={EntityId} restored to '{Old}'")]
