@@ -21,7 +21,7 @@ public sealed class MetadataProjectorTests
         EntityId: 10, Kind: RenamerFileKind.Video, Title: "My Film", Code: "ABC-1",
         StudioName: "Acme", Date: new DateOnly(2024, 3, 2), Organized: true,
         Performers: [new RenamerPerformer(1, "Bob", false, null), new RenamerPerformer(2, "Ann", false, null)],
-        Tags: ["hd", "fav"], Files: [file]);
+        TagRefs: [(7, "hd"), (9, "fav")], Files: [file]);
 
     [Fact]
     public void Video_Projects_AllScalarTokens_And_MultiValues()
@@ -55,7 +55,7 @@ public sealed class MetadataProjectorTests
             Duration: 200, AudioCodec: "mp3");
         var entity = new RenamerEntity(
             EntityId: 20, Kind: RenamerFileKind.Audio, Title: "Track", Code: null, StudioName: null,
-            Date: null, Organized: true, Performers: [], Tags: [], Files: [file]);
+            Date: null, Organized: true, Performers: [], TagRefs: [], Files: [file]);
 
         var (tokens, _, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
 
@@ -78,7 +78,7 @@ public sealed class MetadataProjectorTests
             Width: 800, Height: 600);
         var entity = new RenamerEntity(
             EntityId: 30, Kind: RenamerFileKind.Image, Title: "Shot", Code: null, StudioName: null,
-            Date: null, Organized: true, Performers: [], Tags: [], Files: [file]);
+            Date: null, Organized: true, Performers: [], TagRefs: [], Files: [file]);
 
         var (tokens, _, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
 
@@ -99,7 +99,7 @@ public sealed class MetadataProjectorTests
             ParentFolderPath: "a", Format: "mp3", Duration: 1, AudioCodec: "mp3");
         var entity = new RenamerEntity(
             EntityId: 40, Kind: RenamerFileKind.Audio, Title: null, Code: "", StudioName: null,
-            Date: null, Organized: true, Performers: [], Tags: [], Files: [file]);
+            Date: null, Organized: true, Performers: [], TagRefs: [], Files: [file]);
 
         // Fallback forced off so a null title stays omitted: this case proves empty scalars are
         // absent (not empty string), distinct from the basename fallback which now defaults on.
@@ -124,7 +124,7 @@ public sealed class MetadataProjectorTests
             ParentFolderPath: "media/videos", Format: "matroska", Height: 1080);
         var entity = new RenamerEntity(
             EntityId: 50, Kind: RenamerFileKind.Video, Title: "Movie", Code: null, StudioName: null,
-            Date: null, Organized: true, Performers: [], Tags: [], Files: [file]);
+            Date: null, Organized: true, Performers: [], TagRefs: [], Files: [file]);
 
         var (tokens, multi, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
         Assert.Equal("mkv", tokens[Tokens.Ext]);
@@ -144,7 +144,7 @@ public sealed class MetadataProjectorTests
             ParentFolderPath: "media/videos", Format: "mkv", Height: 1080);
         var entity = new RenamerEntity(
             EntityId: 60, Kind: RenamerFileKind.Video, Title: "Movie", Code: null, StudioName: null,
-            Date: null, Organized: true, Performers: [], Tags: [], Files: [file]);
+            Date: null, Organized: true, Performers: [], TagRefs: [], Files: [file]);
 
         var (tokens, _, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
         Assert.Equal("mkv", tokens[Tokens.Ext]);
@@ -302,7 +302,7 @@ public sealed class MetadataProjectorTests
             ParentFolderPath: "a", Format: "mp3", Duration: 200, AudioCodec: "mp3");
         var entity = new RenamerEntity(
             EntityId: 50, Kind: RenamerFileKind.Audio, Title: "Track", Code: null, StudioName: null,
-            Date: null, Organized: true, Performers: [], Tags: [], Files: [file]);
+            Date: null, Organized: true, Performers: [], TagRefs: [], Files: [file]);
         var (tokens, multi, _, _) = MetadataProjector.Project(entity, file, new RenamerOptions());
 
         // resolution + videoCodec groups have no value → engine drops the {} spans entirely.
@@ -325,7 +325,6 @@ public sealed class MetadataProjectorTests
 
         var (tokens, multi, performers, tagRefs) = MetadataProjector.Project(entity, file, options);
 
-        Assert.NotNull(tagRefs);
         Assert.Equal(new[] { (7, "hd"), (9, "fav") }, tagRefs);
 
         var filtered = TemplateEngine.Render(tokens, multi, options, performers: performers, tagRecords: tagRefs);

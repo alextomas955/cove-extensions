@@ -186,7 +186,16 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
 // connects and then waits for a response that never comes — with no per-attempt bound that single
 // call never settles, the loop never re-tests its deadline, and the run hangs until the outer job
 // timeout kills it without naming the restart.
-async function waitForHostReachable(baseUrl, { timeoutMs, intervalMs = 500 } = {}) {
+//
+// `timeoutMs` is REQUIRED, and stated by the caller rather than defaulted here: how long a restart may
+// take is a property of the instance under test, not of this helper, so no one value is right for every
+// call site. Absent, it produced a NaN deadline the `while` never entered — zero attempts, then a
+// failure blaming `undefinedms` and a "last error" of never having tried. A gate that inspects nothing
+// must say so, not report a timeout it never ran.
+async function waitForHostReachable(baseUrl, { timeoutMs, intervalMs = 500 }) {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error(`waitForHostReachable: timeoutMs must be a positive number, got ${timeoutMs}`);
+  }
   const attemptTimeoutMs = Math.min(intervalMs * 4, 5_000);
   const deadline = Date.now() + timeoutMs;
   let lastError = 'never attempted';

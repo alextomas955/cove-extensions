@@ -29,15 +29,14 @@ public static class MetadataProjector
     /// <c>performers</c>: the per-performer records carried alongside the names so the engine can
     /// order/filter performers by id/favorite/gender before the max-count limit.
     /// <c>tagRefs</c>: the entity's <c>(int Id, string Name)</c> tag pairs, the tag counterpart of
-    /// <c>performers</c>, so the engine can apply the id-keyed tag whitelist/blacklist. <c>null</c>
-    /// when the entity carries no tag ids (a construction site predating
-    /// <see cref="RenamerEntity.TagRefs"/>), which the engine reads as "fall back to the name path"
-    /// — never as "this entity has no tags", so an unprojected entity still renders its tags.
+    /// <c>performers</c>, so the engine can apply the id-keyed tag whitelist/blacklist. Always present:
+    /// an entity cannot be constructed without them, and the engine's name-only arm belongs to the
+    /// preview samples, which have no entity behind them.
     /// </returns>
     public static (IReadOnlyDictionary<string, string> tokens,
                    IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
                    IReadOnlyList<RenamerPerformer> performers,
-                   IReadOnlyList<(int Id, string Name)>? tagRefs)
+                   IReadOnlyList<(int Id, string Name)> tagRefs)
         Project(RenamerEntity entity, RenamerFile file, RenamerOptions options)
     {
         var tokens = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

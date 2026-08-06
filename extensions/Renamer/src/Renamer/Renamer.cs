@@ -114,7 +114,9 @@ public sealed partial class Renamer : FullExtensionBase
         }
         catch (Exception ex)
         {
-            // The conversion writes only after a successful read, so a throw here has changed nothing.
+            // Everything that can throw AFTER the settings write is caught closer in, so reaching this
+            // means no conversion was recorded. That is as far as the claim goes: if the settings write
+            // itself is what threw, whether it landed is the store's business and not knowable here.
             // Reported and stepped over rather than blocking the load; the next load retries.
             LogOptionsMigrationFailed(ex);
         }
@@ -141,6 +143,13 @@ public sealed partial class Renamer : FullExtensionBase
     /// writing after such a read would erase every tag and performer rule the user has. An empty library
     /// has nothing to convert, so refusing to write costs nothing and makes that outcome structurally
     /// impossible. The stamp is not advanced either, so the next load retries.
+    /// <para>
+    /// "Needs" is measured in NAMES awaiting an id, per half, and never in legacy keys present — see
+    /// <see cref="OptionsMigration.LegacyNames"/>. A half with nothing to resolve converts as a pure
+    /// no-op (it rewrites an empty list and drops the legacy spelling), so letting it through against an
+    /// empty table costs nothing, while demanding rows for it would strand a library that has tags but no
+    /// performers on the legacy blob permanently.
+    /// </para>
     /// </remarks>
     private async Task MigrateStoredOptionsToIdsAsync(CancellationToken ct)
     {
@@ -178,21 +187,57 @@ public sealed partial class Renamer : FullExtensionBase
             });
         }
 
-        if ((legacy.Tags && names.Tags.Count == 0) || (legacy.Performers && names.Performers.Count == 0))
+        if (legacy.Tags > 0 && names.Tags.Count == 0)
         {
-            LogOptionsMigrationDeferred("the library read returned no rows");
+            LogOptionsMigrationDeferred(
+                $"{legacy.Tags} stored tag name(s) need resolving and the library read returned no tags");
+            return;
+        }
+
+        if (legacy.Performers > 0 && names.Performers.Count == 0)
+        {
+            LogOptionsMigrationDeferred(
+                $"{legacy.Performers} stored performer name(s) need resolving and the library read returned no performers");
             return;
         }
 
         var converted = OptionsMigration.Convert(stored, names.Tags, names.Performers);
         await optionsStore.SaveRawAsync(converted.Json, ct);
-        await Store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema, ct);
 
+        // Written between the two store writes, not after both. The rewrite keeps no copy of the
+        // originals, so the dropped-name list is the only record of what it discarded — and a stamp
+        // write that throws must not take that record with it.
         LogOptionsMigrationConverted(names.Tags.Count, names.Performers.Count, converted.DroppedNames.Count);
         if (converted.DroppedNames.Count > 0)
         {
             string dropped = string.Join(", ", converted.DroppedNames);
             LogOptionsMigrationDroppedNames(converted.DroppedNames.Count, dropped);
+        }
+
+        if (converted.CaseCollapses.Count > 0)
+        {
+            string collapsed = string.Join("; ", converted.CaseCollapses.Select(
+                c => $"'{c.Name}' now matches only {c.MatchedId}, no longer {string.Join(" or ", c.AlsoMatchedIds)}"));
+            LogOptionsMigrationNarrowedNames(converted.CaseCollapses.Count, collapsed);
+        }
+
+        if (converted.DiscardedDestinations.Count > 0)
+        {
+            string discarded = string.Join("; ", converted.DiscardedDestinations.Select(
+                d => $"'{d.Key}' resolved to {d.Id}, already routed by '{d.ClaimedBy}'"));
+            LogOptionsMigrationDiscardedDestinations(converted.DiscardedDestinations.Count, discarded);
+        }
+
+        try
+        {
+            await Store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema, ct);
+        }
+        catch (Exception ex)
+        {
+            // Caught here rather than at the initialize-time seam so the failure can say that the
+            // settings WERE rewritten — the seam's own catch covers everything before the write and
+            // must not make that claim.
+            LogOptionsMigrationStampFailed(ex);
         }
     }
 

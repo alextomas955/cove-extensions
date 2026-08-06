@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import {
   normalizeOptions,
   extractUnmodeledFields,
+  hasUnmigratedNameRules,
   cloneDefaults,
   DEFAULT_OPTIONS,
 } from "./options";
@@ -317,6 +318,81 @@ test("a blob still holding the pre-migration names coerces every migrated field 
   // And nothing carries the old values forward under their old names.
   assert.ok(!("ExcludeTags" in loaded));
   assert.ok(!("Whitelist" in loaded.Tags));
+});
+
+// ── hasUnmigratedNameRules: what stops the erasure above from reaching the store ──
+//
+// The test above pins that normalizeOptions empties every name-keyed rule. `extractUnmodeledFields`
+// walks TOP-LEVEL keys only and both groups and TagDestinations are modeled, so the emptied shapes are
+// what a save would persist — over rules nothing else keeps a copy of. This predicate is what the panel
+// refuses to save on, so it must be true for exactly the blobs where that loss is real.
+
+test("a blob still holding names is reported as awaiting the backend conversion", () => {
+  for (const legacy of [
+    { Performers: { Whitelist: ["Jane Doe"] } },
+    { Performers: { Blacklist: ["John Roe"] } },
+    { Tags: { Whitelist: ["anime"] } },
+    { Tags: { Blacklist: ["spam"] } },
+    { TagDestinations: { Anime: "D:/anime" } },
+    { ExcludeTags: ["nsfw"] },
+    // Key casing is forgiving on the backend's own scan, so a hand-edited spelling must not read as
+    // "nothing pending" here and unblock a save the backend has not converted for.
+    { tags: { whitelist: ["anime"] } },
+  ]) {
+    assert.equal(hasUnmigratedNameRules(legacy), true, JSON.stringify(legacy));
+  }
+});
+
+test("the empty legacy keys every pre-migration install stored are not read as pending", () => {
+  // The shape the shipped panel wrote for a user who configured neither group: each legacy key
+  // present, none holding a name. The backend has nothing to resolve in it, so blocking Save here
+  // would lock the panel out permanently on a blob that will never be converted again.
+  const realistic = {
+    FilenameTemplate: "$title",
+    Performers: { Separator: " ", Whitelist: [], Blacklist: [] },
+    Tags: { Separator: " ", Whitelist: [], Blacklist: [] },
+    TagDestinations: {},
+    ExcludeTags: [],
+  };
+
+  assert.equal(hasUnmigratedNameRules(realistic), false);
+});
+
+test("a converted blob, the defaults and a non-object are all reported as nothing pending", () => {
+  const converted = {
+    Performers: { WhitelistIds: [11], BlacklistIds: [22] },
+    Tags: { WhitelistIds: [33], BlacklistIds: [44] },
+    TagDestinations: { 9: "D:/anime", 0: "D:/zero" },
+    ExcludeTagIds: [55],
+  };
+
+  assert.equal(hasUnmigratedNameRules(converted), false);
+  assert.equal(hasUnmigratedNameRules(cloneDefaults()), false);
+  assert.equal(hasUnmigratedNameRules(null), false);
+  assert.equal(hasUnmigratedNameRules("not an object"), false);
+});
+
+test("a destination key that is not an id's invariant spelling counts as a name", () => {
+  // The backend reads an int-spelled key as an ALREADY-migrated id and anything else as a tag name,
+  // so the two must agree on the spelling exactly or the panel unblocks a save the backend still
+  // has work for. int.MaxValue is the bound: past it the C# parse fails and the key is a name.
+  for (const [key, pending] of [
+    ["9", false],
+    ["0", false],
+    ["2147483647", false],
+    ["09", true],
+    ["-9", true],
+    ["1e3", true],
+    ["2147483648", true],
+    ["9 ", true],
+    ["Anime", true],
+  ]) {
+    assert.equal(
+      hasUnmigratedNameRules({ TagDestinations: { [key]: "D:/x" } }),
+      pending,
+      `TagDestinations key ${JSON.stringify(key)}`,
+    );
+  }
 });
 
 test("a malformed value for each migrated field yields an empty list or map, never a throw", () => {

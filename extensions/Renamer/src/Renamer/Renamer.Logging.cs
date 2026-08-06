@@ -114,8 +114,9 @@ public sealed partial class Renamer
     private partial void LogBatchNotJournalled(string runId, int files, int cap);
 
     // The one-time name→id options conversion rewrites the stored settings IN PLACE and keeps no copy
-    // of the originals, so these four lines are the whole forensic trail: what it resolved against,
-    // what it discarded, and — for both refusal paths — why the settings are unchanged.
+    // of the originals, so these lines are the whole forensic trail: what it resolved against, what it
+    // discarded, and why it refused when it did. The converted/dropped pair is written between the
+    // settings write and the stamp write, so its presence is also what says the rewrite happened.
 
     [LoggerMessage(
         EventId = 1056, Level = LogLevel.Information,
@@ -127,6 +128,21 @@ public sealed partial class Renamer
         Message = "[Renamer] options migration: {Count} stored rule name(s) matched no tag or performer and were dropped: {Names}")]
     private partial void LogOptionsMigrationDroppedNames(int count, string names);
 
+    // Matching was case-insensitive before the migration, so a rule stored as "4K" suppressed every tag
+    // whose name equalled it in any case. Keyed on an id it now suppresses one of them, and because the
+    // name still RESOLVED nothing is dropped — this line is the only place that narrowing surfaces.
+    [LoggerMessage(
+        EventId = 1061, Level = LogLevel.Warning,
+        Message = "[Renamer] options migration: {Count} stored rule name(s) matched several entities differing only by letter case and now match one: {Detail}")]
+    private partial void LogOptionsMigrationNarrowedNames(int count, string detail);
+
+    // A destination map is keyed, so two stored keys reaching one id leave one rule with nowhere to
+    // live. Which one survives is decided by JSON document order, which is not something a user chose.
+    [LoggerMessage(
+        EventId = 1062, Level = LogLevel.Warning,
+        Message = "[Renamer] options migration: {Count} tag destination rule(s) resolved to an id another rule already routed and were discarded: {Detail}")]
+    private partial void LogOptionsMigrationDiscardedDestinations(int count, string detail);
+
     [LoggerMessage(
         EventId = 1058, Level = LogLevel.Warning,
         Message = "[Renamer] options migration deferred ({Reason}); the stored settings are unchanged and the next load retries")]
@@ -134,8 +150,13 @@ public sealed partial class Renamer
 
     [LoggerMessage(
         EventId = 1059, Level = LogLevel.Warning,
-        Message = "[Renamer] options migration failed; the stored settings are unchanged and the next load retries")]
+        Message = "[Renamer] options migration failed before it recorded a conversion; the next load retries")]
     private partial void LogOptionsMigrationFailed(Exception ex);
+
+    [LoggerMessage(
+        EventId = 1060, Level = LogLevel.Warning,
+        Message = "[Renamer] options migration rewrote the stored settings but could not stamp them as converted; the next load re-scans an already-converted blob and changes nothing")]
+    private partial void LogOptionsMigrationStampFailed(Exception ex);
 
     [LoggerMessage(
         EventId = 1010, Level = LogLevel.Information,

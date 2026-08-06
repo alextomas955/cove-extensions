@@ -88,9 +88,8 @@ public sealed record RenamerPerformer(int Id, string Name, bool Favorite, string
 /// A loaded media item (Video/Image/Audio) in the renamer boundary's own vocabulary — the
 /// entity-level metadata the projector turns into scalar tokens + the per-file rows it renders
 /// independently (every file is processed, not just the first). Performers carry a per-performer
-/// record (name plus the id/favorite/gender used for ordering); tags carry a pre-flattened name
-/// list plus the id/name pairs the tag rules key on. Both are resolved from Cove's JOIN collections
-/// at the port boundary rather than here.
+/// record (name plus the id/favorite/gender used for ordering); tags carry the id/name pairs the tag
+/// rules key on. Both are resolved from Cove's JOIN collections at the port boundary rather than here.
 /// </summary>
 /// <param name="EntityId">The Cove entity id (Video/Image/Audio).</param>
 /// <param name="Kind">The media kind (used as the per-file <see cref="RenamerFile.Kind"/> too).</param>
@@ -104,7 +103,13 @@ public sealed record RenamerPerformer(int Id, string Name, bool Favorite, string
 /// token renders the names; the id/favorite/gender fields drive the optional performer ordering and
 /// gender filtering applied before the max-count limit.
 /// </param>
-/// <param name="Tags">Tag names (<c>$tags</c> multi-value side-input).</param>
+/// <param name="TagRefs">
+/// The item's tags as <c>(int Id, string Name)</c> pairs. The <c>Id</c> is the rule key — tag routing
+/// and tag exclusion both match on it, so a renamed tag keeps its rules — while the <c>Name</c> drives
+/// the <c>$tags</c> display token and the user-visible route reason. They travel as pairs rather than
+/// as parallel id and name lists precisely because routing takes the FIRST tag in this order whose id
+/// has a rule: two lists that drift by one element would silently route to another tag's destination.
+/// </param>
 /// <param name="Files">Every physical file of the item (all files, not just the first).</param>
 /// <param name="StudioId">
 /// The entity's STABLE studio id (Cove's <c>Video/Image/Audio.StudioId</c>; <c>null</c> when the item
@@ -125,16 +130,6 @@ public sealed record RenamerPerformer(int Id, string Name, bool Favorite, string
 /// Video-only column, like <see cref="RenamerFile.VideoCodec"/> — so the <c>$director</c> token omits
 /// naturally for image/audio. Projected as <c>$director</c>, omitted when null/empty.
 /// </param>
-/// <param name="TagRefs">
-/// The item's tags as <c>(int Id, string Name)</c> pairs, in the SAME order as <see cref="Tags"/>.
-/// The <c>Id</c> is the rule key — tag routing and tag exclusion both match on it, so a renamed tag
-/// keeps its rules — while the <c>Name</c> drives the <c>$tags</c> display token and the
-/// user-visible route reason. The two travel as pairs rather than as parallel id and name lists
-/// precisely because routing takes the FIRST tag in this order whose id has a rule: two lists that
-/// drift by one element would silently route to another tag's destination. <c>null</c>/empty means
-/// the tag ids were not projected (a construction site predating this field), which the resolver
-/// treats as "no tag rule can match."
-/// </param>
 public sealed record RenamerEntity(
     int EntityId,
     RenamerFileKind Kind,
@@ -144,12 +139,26 @@ public sealed record RenamerEntity(
     DateOnly? Date,
     bool Organized,
     IReadOnlyList<RenamerPerformer> Performers,
-    IReadOnlyList<string> Tags,
+    IReadOnlyList<(int Id, string Name)> TagRefs,
     IReadOnlyList<RenamerFile> Files,
     int? StudioId = null,
     IReadOnlyList<(int Id, string Name)>? ParentStudios = null,
-    string? Director = null,
-    IReadOnlyList<(int Id, string Name)>? TagRefs = null);
+    string? Director = null)
+{
+    /// <summary>The tag NAMES the <c>$tags</c> token renders, in <see cref="TagRefs"/> order.</summary>
+    /// <remarks>
+    /// Derived, and REQUIRED alongside the ids rather than accepted beside them, because the two being
+    /// out of alignment is silent in both directions: names without ids used to fall through to an
+    /// unfiltered render past the whitelist, and ids without names rendered the token empty. Neither
+    /// state is constructible now.
+    /// <para>
+    /// Recomputed per read rather than cached, because a cached list is copied verbatim by a <c>with</c>
+    /// expression and would go stale exactly where a caller replaces the pairs. One projection per file
+    /// over an item's own tags is bounded work; nothing here scales with the library.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<string> Tags => [.. TagRefs.Select(t => t.Name)];
+}
 
 /// <summary>
 /// The DB seam: the ONLY surface between the planner/executor and a live <c>CoveContext</c>.

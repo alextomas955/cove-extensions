@@ -108,7 +108,7 @@ public sealed class RollbackTests
         var file = new RenamerFile(fileId, RenamerFileKind.Video, basename, ParentFolderId: 1, ParentFolderPath: folderPath);
         fake.SeedEntity(new RenamerEntity(
             entityId, RenamerFileKind.Video, "Film A", Code: null, StudioName: null, Date: null,
-            Organized: true, Performers: [], Tags: [], Files: [file]));
+            Organized: true, Performers: [], TagRefs: [], Files: [file]));
         return fake;
     }
 }

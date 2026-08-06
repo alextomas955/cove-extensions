@@ -127,7 +127,7 @@ public sealed class CoveDataPortRoutingFieldsTests
     }
 
     [Fact]
-    public async Task LoadEntity_Surfaces_TagIdsPairedWithNames_InTheSameOrderAsTheNameList()
+    public async Task LoadEntity_Surfaces_TagIdsPairedWithNames_InJoinOrder()
     {
         // The whole tag-routing cascade keys on TagRefs. If this projection were empty or misordered,
         // every tag rule would silently stop matching with no error anywhere — so prove it against a
@@ -152,14 +152,9 @@ public sealed class CoveDataPortRoutingFieldsTests
             var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
 
             Assert.NotNull(entity);
-            Assert.NotNull(entity!.TagRefs);
             Assert.Equal(
                 [(first.Id, first.Name), (second.Id, second.Name)],
-                entity.TagRefs!);
-
-            // Paired, not parallel: the ids and the surviving name list must agree element for element,
-            // because routing takes the first tag in THIS order whose id has a rule.
-            Assert.Equal(entity.Tags, [.. entity.TagRefs!.Select(t => t.Name)]);
+                entity!.TagRefs);
         }
         finally
         {
@@ -169,12 +164,10 @@ public sealed class CoveDataPortRoutingFieldsTests
     }
 
     [Fact]
-    public async Task LoadEntity_ATagWithNoName_DropsFromBothTagListsTogether()
+    public async Task LoadEntity_ATagWithNoName_IsDropped_SoNoRuleKeysOnAnUnrenderableTag()
     {
-        // The alignment between Tags and TagRefs must survive a row that one of them would reject.
-        // While the two were filtered by two separate expressions, a nameless tag could leave the
-        // lists one element apart — and routing takes the FIRST tag whose id has a rule, so the
-        // whole cascade would shift onto the wrong tag with nothing failing.
+        // A tag row with no name renders nothing, so carrying its id would let a rule route on a tag
+        // the user cannot see named anywhere. The port drops the pair once, at the join.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
@@ -195,8 +188,8 @@ public sealed class CoveDataPortRoutingFieldsTests
             var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
 
             Assert.NotNull(entity);
-            Assert.Equal([(named.Id, named.Name)], entity!.TagRefs!);
-            Assert.Equal(entity.Tags, [.. entity.TagRefs!.Select(t => t.Name)]);
+            Assert.Equal([(named.Id, named.Name)], entity!.TagRefs);
+            Assert.Equal(["raw"], entity.Tags);
         }
         finally
         {
@@ -325,13 +318,13 @@ public sealed class CoveDataPortRoutingFieldsTests
         Assert.Equal(expected.StudioId, actual.StudioId);
         Assert.Equal(expected.Director, actual.Director);
         Assert.Equal(expected.Performers, actual.Performers);
-        Assert.Equal(expected.Tags, actual.Tags);
 
         var expectedParents = expected.ParentStudios ?? [];
         var actualParents = actual.ParentStudios ?? [];
         Assert.Equal(expectedParents, actualParents);
 
-        Assert.Equal(expected.TagRefs ?? [], actual.TagRefs ?? []);
+        // The names are derived from these pairs, so pinning the pairs pins both.
+        Assert.Equal(expected.TagRefs, actual.TagRefs);
 
         // RenamerFile carries an IReadOnlyList<RenamerCaption> member, which record value-equality
         // compares by reference — two field-identical files from distinct loads are never record-equal.

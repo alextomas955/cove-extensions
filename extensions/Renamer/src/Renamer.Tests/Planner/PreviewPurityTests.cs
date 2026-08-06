@@ -21,7 +21,7 @@ public sealed class PreviewPurityTests
 
     private static RenamerEntity Entity(params RenamerFile[] files) =>
         new(EntityId: 10, Kind: RenamerFileKind.Video, Title: "My Film", Code: null, StudioName: null,
-            Date: null, Organized: true, Performers: [], Tags: [], Files: files);
+            Date: null, Organized: true, Performers: [], TagRefs: [], Files: files);
 
     // A folder-template move: the rendered subfolder makes this a Move whose destination folder
     // ("media/videos/Archive") is NOT seeded in the fake port, so a get-or-create would mint+record it.

@@ -162,12 +162,11 @@ public class CoveRenamerDataPort : IRenamerDataPort
             [.. v.VideoPerformers
                 .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
                 .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
-            [.. tagRefs.Select(t => t.Name)],
+            tagRefs,
             [.. v.Files.Select(MapVideoFile)],
             StudioId: v.StudioId,
             ParentStudios: WalkParentStudios(v.Studio),
-            Director: v.Director,
-            TagRefs: tagRefs);
+            Director: v.Director);
     }
 
     private static RenamerEntity MapImageEntity(Image i)
@@ -178,11 +177,10 @@ public class CoveRenamerDataPort : IRenamerDataPort
             [.. i.ImagePerformers
                 .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
                 .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
-            [.. tagRefs.Select(t => t.Name)],
+            tagRefs,
             [.. i.Files.Select(MapImageFile)],
             StudioId: i.StudioId,
-            ParentStudios: WalkParentStudios(i.Studio),
-            TagRefs: tagRefs);
+            ParentStudios: WalkParentStudios(i.Studio));
     }
 
     private static RenamerEntity MapAudioEntity(Audio a)
@@ -193,25 +191,21 @@ public class CoveRenamerDataPort : IRenamerDataPort
             [.. a.AudioPerformers
                 .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
                 .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
-            [.. tagRefs.Select(t => t.Name)],
+            tagRefs,
             [.. a.Files.Select(MapAudioFile)],
             StudioId: a.StudioId,
-            ParentStudios: WalkParentStudios(a.Studio),
-            TagRefs: tagRefs);
+            ParentStudios: WalkParentStudios(a.Studio));
     }
 
     /// <summary>
-    /// The single source of an item's tag id/name pairs: join rows with no tag, or a tag with no
-    /// name, are dropped once — and <see cref="RenamerEntity.Tags"/> is then derived from the
-    /// surviving pairs rather than filtered independently.
+    /// The single source of an item's tag id/name pairs: a join row with no tag, or a tag with no name,
+    /// is dropped once here.
     /// </summary>
     /// <remarks>
-    /// <see cref="RenamerEntity.TagRefs"/>' contract is that it is element-for-element aligned with
-    /// <see cref="RenamerEntity.Tags"/>, because tag routing takes the FIRST tag in that order whose
-    /// id has a rule and the multi-value whitelist filters on the id while rendering the name. Two
-    /// hand-written filters kept in agreement across three mappers is the same pairing footgun the
-    /// tuple list exists to remove, just moved one level up; deriving one list from the other makes
-    /// the alignment structural instead.
+    /// Dropping once is what keeps the ids and the rendered names in step — tag routing takes the FIRST
+    /// tag in this order whose id has a rule, so a filter applied separately to each list and kept in
+    /// agreement by hand across three mappers is the same pairing footgun the tuple list exists to
+    /// remove, just moved one level up.
     /// </remarks>
     private static IReadOnlyList<(int Id, string Name)> TagPairs(IEnumerable<Tag?> tags) =>
         [.. tags.Where(t => t is not null && !string.IsNullOrEmpty(t.Name)).Select(t => (t!.Id, t.Name))];

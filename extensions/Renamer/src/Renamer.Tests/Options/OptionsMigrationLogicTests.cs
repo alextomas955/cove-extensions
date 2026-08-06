@@ -113,11 +113,12 @@ public sealed class OptionsMigrationLogicTests
     }
 
     [Fact]
-    public void TwoStoredNamesDifferingOnlyByCase_CollapseToOneId_AndTheCountIsPinned()
+    public void TwoStoredSpellingsOfOneTag_DeduplicateToOneId_AndTheCountIsPinned()
     {
-        // The one genuine narrowing this migration carries: "Sample" and "4K"/"4k" were three stored
-        // entries matching two tags; afterwards they are two ids. Pinning the COUNT records the
-        // narrowing rather than leaving it to be discovered.
+        // De-duplication, NOT narrowing: there is a single 4K tag here, so "4K" and "4k" both matched it
+        // before the migration and both resolve to it afterwards. Three stored entries become two ids
+        // and no rule changes what it covers — which is why nothing is reported. The narrowing that DOES
+        // change coverage needs two rows, and lives in the two tests below.
         var converted = OptionsMigration.Convert(
             """{ "ExcludeTags": ["Sample", "4K", "4k"] }""", Tags, Performers);
 
@@ -125,6 +126,7 @@ public sealed class OptionsMigrationLogicTests
         Assert.Equal(3 - 1, ids.Count);
         Assert.Equal([15, 88], ids);
         Assert.Empty(converted.DroppedNames);
+        Assert.Empty(converted.CaseCollapses);
     }
 
     [Fact]
@@ -138,6 +140,52 @@ public sealed class OptionsMigrationLogicTests
             Reload(OptionsMigration.Convert(blob, ascending, Performers).Json).ExcludeTagIds,
             Reload(OptionsMigration.Convert(blob, descending, Performers).Json).ExcludeTagIds);
         Assert.Equal([70], Reload(OptionsMigration.Convert(blob, descending, Performers).Json).ExcludeTagIds);
+    }
+
+    [Fact]
+    public void ARuleThatCoveredTwoCaseVariantRows_ReportsWhatItNoLongerCovers()
+    {
+        // The failure this reports: the blacklist entry suppressed BOTH rows before the migration, and
+        // suppresses only 70 after — so every file tagged 4k starts rendering that tag into its
+        // filename. The name resolved, so the dropped-name trail says nothing; without this the change
+        // is invisible.
+        (int, string)[] both = [(70, "4K"), (71, "4k")];
+
+        var converted = OptionsMigration.Convert(
+            """{ "Tags": { "Blacklist": ["4K"] } }""", both, Performers);
+
+        var collapse = Assert.Single(converted.CaseCollapses);
+        Assert.Equal("4K", collapse.Name);
+        Assert.Equal(70, collapse.MatchedId);
+        Assert.Equal([71], collapse.AlsoMatchedIds);
+        Assert.Empty(converted.DroppedNames);
+    }
+
+    [Fact]
+    public void ANameNarrowingAcrossSeveralFields_IsReportedOnce_AndAThirdRowIsNotLost()
+    {
+        (int, string)[] three = [(70, "4K"), (71, "4k"), (72, "4K")];
+
+        var converted = OptionsMigration.Convert(
+            """{ "Tags": { "Blacklist": ["4K"] }, "ExcludeTags": ["4k"], "TagDestinations": { "4K": "/x" } }""",
+            three,
+            Performers);
+
+        var collapse = Assert.Single(converted.CaseCollapses);
+        Assert.Equal(70, collapse.MatchedId);
+        Assert.Equal([71, 72], collapse.AlsoMatchedIds);
+    }
+
+    [Fact]
+    public void ACaseVariantPairNoStoredRuleNames_IsNotReported()
+    {
+        // Reporting every case-variant pair in a library would bury the ones a rule actually narrows,
+        // and a pair no rule names changes nothing for the user.
+        (int, string)[] rows = [(70, "4K"), (71, "4k"), (15, "Sample")];
+
+        var converted = OptionsMigration.Convert("""{ "ExcludeTags": ["Sample"] }""", rows, Performers);
+
+        Assert.Empty(converted.CaseCollapses);
     }
 
     [Fact]
@@ -252,41 +300,85 @@ public sealed class OptionsMigrationLogicTests
     }
 
     [Fact]
-    public void TwoDestinationNamesResolvingToOneId_KeepTheFirstInDocumentOrder()
+    public void TwoDestinationNamesResolvingToOneId_KeepTheFirstInDocumentOrder_AndTheLoserIsReported()
     {
         // Also the crash case: the panel's string-keyed map editor treats "4K" and "4k" as two rules, so
         // this blob is reachable. Reading it through a case-INSENSITIVE JsonNode parse throws
         // ArgumentException the first time the map is enumerated, which would abort the whole
         // conversion and leave the settings permanently unreadable.
+        //
+        // Which of the two survives is decided by JSON document order, which is not something the user
+        // chose — so the one that loses is named rather than vanishing.
         var converted = OptionsMigration.Convert(
             """{ "TagDestinations": { "4K": "/media/first", "4k": "/media/second" } }""", Tags, Performers);
 
         Assert.Equal(
             new Dictionary<int, string> { [88] = "/media/first" },
             Reload(converted.Json).TagDestinations);
+        Assert.Equal(
+            [new OptionsMigration.DiscardedDestination("4k", 88, "4K")],
+            converted.DiscardedDestinations);
+        Assert.Empty(converted.DroppedNames);
+    }
+
+    [Fact]
+    public void AHalfConvertedMapWhereANameResolvesToAnAlreadyRoutedId_ReportsTheLoser()
+    {
+        // Reachable without any case variance at all: a map part-way through conversion holds an id key
+        // beside a name key that resolves to it. The name's destination is the one with nowhere to go.
+        var converted = OptionsMigration.Convert(
+            """{ "TagDestinations": { "9": "/media/by-id", "Anime": "/media/by-name" } }""",
+            Tags,
+            Performers);
+
+        Assert.Equal(
+            new Dictionary<int, string> { [9] = "/media/by-id" },
+            Reload(converted.Json).TagDestinations);
+        Assert.Equal(
+            [new OptionsMigration.DiscardedDestination("Anime", 9, "9")],
+            converted.DiscardedDestinations);
     }
 
     // ── Scan: what the initialize seam asks before it touches a database ──────
 
     [Theory]
-    [InlineData(null, false, false)]
-    [InlineData("", false, false)]
-    [InlineData("not json at all", false, false)]
-    [InlineData("""{ "FilenameTemplate": "$title" }""", false, false)]
-    [InlineData("""{ "TagDestinations": { "9": "/media/anime" } }""", false, false)]
-    [InlineData("""{ "Tags": { "WhitelistIds": [88] } }""", false, false)]
-    [InlineData("""{ "ExcludeTags": [] }""", true, false)]
-    [InlineData("""{ "excludetags": ["4k"] }""", true, false)]
-    [InlineData("""{ "TagDestinations": { "Anime": "/media/anime" } }""", true, false)]
-    [InlineData("""{ "Tags": { "Whitelist": ["4k"] } }""", true, false)]
-    [InlineData("""{ "Performers": { "Blacklist": ["Jane Doe"] } }""", false, true)]
-    public void Scan_ReportsWhichHalvesAreStillNameKeyed(string? json, bool tags, bool performers)
+    [InlineData(null, 0, 0)]
+    [InlineData("", 0, 0)]
+    [InlineData("not json at all", 0, 0)]
+    [InlineData("""{ "FilenameTemplate": "$title" }""", 0, 0)]
+    [InlineData("""{ "TagDestinations": { "9": "/media/anime" } }""", 0, 0)]
+    [InlineData("""{ "Tags": { "WhitelistIds": [88] } }""", 0, 0)]
+    [InlineData("""{ "excludetags": ["4k"] }""", 1, 0)]
+    [InlineData("""{ "TagDestinations": { "Anime": "/media/anime" } }""", 1, 0)]
+    [InlineData("""{ "Tags": { "Whitelist": ["4k"], "Blacklist": ["Trailer"] } }""", 2, 0)]
+    [InlineData("""{ "Performers": { "Blacklist": ["Jane Doe"] } }""", 0, 1)]
+    // The shape every pre-migration install actually stored: each legacy key present, none of them
+    // holding a name. Counting the KEYS here instead would demand a performer table this user may
+    // legitimately not have, and the conversion would defer on every start forever.
+    [InlineData(
+        """
+        {
+          "Performers": { "Whitelist": [], "Blacklist": [] },
+          "Tags": { "Whitelist": [], "Blacklist": [] },
+          "ExcludeTags": []
+        }
+        """, 0, 0)]
+    [InlineData(
+        """
+        {
+          "Performers": { "Whitelist": [], "Blacklist": [] },
+          "Tags": { "Whitelist": [], "Blacklist": [] },
+          "ExcludeTags": [],
+          "TagDestinations": { "Anime": "/media/anime" }
+        }
+        """, 1, 0)]
+    public void Scan_CountsTheNamesEachHalfStillNeedsResolved(string? json, int tags, int performers)
     {
         var legacy = OptionsMigration.Scan(json);
 
         Assert.Equal(tags, legacy.Tags);
         Assert.Equal(performers, legacy.Performers);
-        Assert.Equal(tags || performers, legacy.Any);
+        Assert.Equal(tags + performers > 0, legacy.Any);
     }
 
     [Fact]

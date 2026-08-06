@@ -182,7 +182,8 @@ public static class TemplateEngine
             else
             {
                 // No ids came with the names, so nothing can be whitelisted or blacklisted here —
-                // the name-only arm sorts, limits and joins. Every real entity reaches the arm above.
+                // the name-only arm sorts, limits and joins. This is the settings page's preview
+                // samples, which have no entity behind them; a loaded entity always carries its ids.
                 map[Tokens.Tags] = MultiValue.Resolve(tags, options.Tags);
             }
         }
