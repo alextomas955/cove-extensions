@@ -274,6 +274,32 @@ test("a directory that is not a host checkout fails rather than being read as an
   }
 });
 
+test("an extension directory with no src/ is accounted for in the report, not crashed on", () => {
+  // A manifestOnly catalog entry (kind=bundle / scraper-pack) carries no `src/` at all, so this is a
+  // supported repo shape. The scan used to die on it with a raw ENOENT stack, which would break the
+  // pre-commit hook for every commit from the first such entry onward.
+  const fixture = makeFixture({
+    extraExtensionDirs: ["DocsOnly"],
+    shim: ["Check"],
+    sources: {
+      "Icons.tsx": 'import { Check } from "lucide-react";\nexport const a = Check;\n',
+    },
+  });
+  try {
+    const { status, stdout, stderr } = runGate(fixture);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.doesNotMatch(stderr, /ENOENT/);
+    // Unscannable is not the same as scanned-and-clean, so what the gate could not look at has to
+    // appear in what it reports.
+    assert.match(stdout, /DocsOnly/);
+    const inspected = stdout.match(/OK \((\d+) lucide-react imports/);
+    assert.ok(inspected, "expected the OK line to report an inspected count, got: " + stdout);
+    assert.strictEqual(inspected[1], "1");
+  } finally {
+    cleanup(fixture);
+  }
+});
+
 test("the shim path follows the host's declared runtime version rather than a mirrored literal", () => {
   // A host runtime bump must move the oracle with it. Mirroring the version here is what silently
   // pointed this gate at a path that never existed, so the version is read from the host's own

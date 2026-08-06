@@ -116,18 +116,33 @@ function* sources(dir) {
   }
 }
 
-const uiRoots = readdirSync(path.join(repoRoot, "extensions"), {
+const extensionDirs = readdirSync(path.join(repoRoot, "extensions"), {
   withFileTypes: true,
 })
   .filter((e) => e.isDirectory())
-  .flatMap((e) =>
-    readdirSync(path.join(repoRoot, "extensions", e.name, "src"), {
+  .map((e) => e.name);
+
+// A manifestOnly catalog entry (kind=bundle / scraper-pack) has no `src/` at all, so an extension
+// directory without one is a supported shape rather than a broken tree — scanning it blind died on
+// the first such entry with a raw ENOENT, taking the pre-commit hook with it. What cannot be scanned
+// is named in the report instead: silently dropping it is how a UI bundle that moved out from under
+// the scan roots would read as one with nothing to check.
+const unscannable = extensionDirs.filter(
+  (name) => !existsSync(path.join(repoRoot, "extensions", name, "src")),
+);
+const unscannedNote =
+  unscannable.length > 0
+    ? `; not scanned, no src/: ${unscannable.join(", ")}`
+    : "";
+
+const uiRoots = extensionDirs
+  .filter((name) => !unscannable.includes(name))
+  .flatMap((name) =>
+    readdirSync(path.join(repoRoot, "extensions", name, "src"), {
       withFileTypes: true,
     })
       .filter((u) => u.isDirectory() && u.name.endsWith(".Ui"))
-      .map((u) =>
-        path.join(repoRoot, "extensions", e.name, "src", u.name, "src"),
-      ),
+      .map((u) => path.join(repoRoot, "extensions", name, "src", u.name, "src")),
   )
   .filter(existsSync);
 
@@ -159,7 +174,7 @@ for (const root of uiRoots) {
 if (checked === 0) {
   console.error("check-host-imports: FAILED");
   console.error(
-    `  no lucide-react imports were inspected across ${uiRoots.length} UI bundle(s)`,
+    `  no lucide-react imports were inspected across ${uiRoots.length} UI bundle(s)${unscannedNote}`,
   );
   console.error(
     `  Either the scan roots no longer match the repo layout, or no extension UI imports lucide-react`,
@@ -192,5 +207,5 @@ if (missing.length > 0) {
 }
 
 console.log(
-  `check-host-imports: OK (${checked} lucide-react imports across ${uiRoots.length} UI bundles, ${hostExports.size} host exports from ${path.relative(repoRoot, shim)})`,
+  `check-host-imports: OK (${checked} lucide-react imports across ${uiRoots.length} UI bundles, ${hostExports.size} host exports from ${path.relative(repoRoot, shim)}${unscannedNote})`,
 );
