@@ -114,8 +114,9 @@ public sealed partial class Renamer
     private partial void LogBatchNotJournalled(string runId, int files, int cap);
 
     // The one-time name→id options conversion rewrites the stored settings IN PLACE and keeps no copy
-    // of the originals, so these four lines are the whole forensic trail: what it resolved against,
-    // what it discarded, and — for both refusal paths — why the settings are unchanged.
+    // of the originals, so these lines are the whole forensic trail: what it resolved against, what it
+    // discarded, and why it refused when it did. The converted/dropped pair is written between the
+    // settings write and the stamp write, so its presence is also what says the rewrite happened.
 
     [LoggerMessage(
         EventId = 1056, Level = LogLevel.Information,
@@ -134,8 +135,13 @@ public sealed partial class Renamer
 
     [LoggerMessage(
         EventId = 1059, Level = LogLevel.Warning,
-        Message = "[Renamer] options migration failed; the stored settings are unchanged and the next load retries")]
+        Message = "[Renamer] options migration failed before it recorded a conversion; the next load retries")]
     private partial void LogOptionsMigrationFailed(Exception ex);
+
+    [LoggerMessage(
+        EventId = 1060, Level = LogLevel.Warning,
+        Message = "[Renamer] options migration rewrote the stored settings but could not stamp them as converted; the next load re-scans an already-converted blob and changes nothing")]
+    private partial void LogOptionsMigrationStampFailed(Exception ex);
 
     [LoggerMessage(
         EventId = 1010, Level = LogLevel.Information,

@@ -8,6 +8,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Tests.TestSupport;
@@ -245,6 +246,67 @@ public sealed class OptionsMigrationInitializeTests
         Assert.Equal(OptionsMigration.CurrentSchema, await store.GetAsync(OptionsMigration.SchemaKey));
     }
 
+    // ── What survives a stamp write that fails after the settings were rewritten ──
+
+    [Fact]
+    public async Task WhenTheStampWriteFails_TheRewriteAndItsDroppedNamesAreStillOnTheRecord()
+    {
+        // A store write is a database write and can fail on its own. The conversion keeps no copy of
+        // the originals, so the dropped-name line is the only trace of what it discarded — logging it
+        // after BOTH writes would throw that trace away on exactly the run that rewrote the settings,
+        // while the seam's catch reported them as unchanged.
+        var store = await NewStoreAsync();
+        await new OptionsStore(store).SaveRawAsync(
+            """{"ExcludeTags":["Sample","tag-that-no-longer-exists"]}""");
+        var failing = new FailingStampStore(store);
+
+        await using var library = await Library.CreateAsync();
+        await library.SeedAsync(tags: ["Sample"], performers: []);
+
+        var log = new CapturingLogger();
+        await InitializeAsync(failing, library.BuildProvider(log));
+
+        // The settings write landed and is legible as such.
+        Assert.Single((await new OptionsStore(failing).LoadAsync()).ExcludeTagIds);
+        Assert.Contains(log.Messages, m => m.Contains("converted against", StringComparison.Ordinal));
+        Assert.Contains(log.Messages, m => m.Contains("tag-that-no-longer-exists", StringComparison.Ordinal));
+
+        // And the failure names the rewrite instead of denying it.
+        Assert.Contains(log.Messages, m => m.Contains("could not stamp", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            log.Messages, m => m.Contains("before it recorded a conversion", StringComparison.Ordinal));
+    }
+
+    /// <summary>Fails only the conversion's schema stamp, so the settings write ahead of it still lands.</summary>
+    private sealed class FailingStampStore(IExtensionStore inner) : IExtensionStore
+    {
+        public Task<string?> GetAsync(string key, CancellationToken ct = default) => inner.GetAsync(key, ct);
+
+        public Task SetAsync(string key, string value, CancellationToken ct = default) =>
+            key == OptionsMigration.SchemaKey
+                ? throw new InvalidOperationException("the stamp write failed")
+                : inner.SetAsync(key, value, ct);
+
+        public Task DeleteAsync(string key, CancellationToken ct = default) => inner.DeleteAsync(key, ct);
+
+        public Task<Dictionary<string, string>> GetAllAsync(CancellationToken ct = default) =>
+            inner.GetAllAsync(ct);
+    }
+
+    /// <summary>Records each rendered log line, which is the forensic trail the assertions are about.</summary>
+    private sealed class CapturingLogger : ILogger<global::Renamer.Renamer>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => Messages.Add(formatter(state, exception));
+    }
+
     // ── Fixtures ──────────────────────────────────────────────────────────────
 
     private static async Task<FakeStore> NewStoreAsync()
@@ -272,7 +334,7 @@ public sealed class OptionsMigrationInitializeTests
     private static Task<RenamerOptions> LoadOptionsAsync(FakeStore store) =>
         new OptionsStore(store).LoadAsync();
 
-    private static async Task InitializeAsync(FakeStore store, IServiceProvider provider)
+    private static async Task InitializeAsync(IExtensionStore store, IServiceProvider provider)
     {
         var ext = RenamerFixture.Create();
         ((IStatefulExtension)ext).SetStore(store);
@@ -320,12 +382,17 @@ public sealed class OptionsMigrationInitializeTests
             await db.SaveChangesAsync();
         }
 
-        public ServiceProvider BuildProvider()
+        public ServiceProvider BuildProvider(ILogger<global::Renamer.Renamer>? log = null)
         {
             var services = new ServiceCollection();
             services.AddSingleton<ICurrentPrincipalAccessor>(Principals);
             services.AddScoped<DbContext>(_ => NewContext());
             services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
+            if (log is not null)
+            {
+                services.AddSingleton(log);
+            }
+
             return services.BuildServiceProvider();
         }
 

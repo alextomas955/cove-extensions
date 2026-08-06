@@ -114,7 +114,9 @@ public sealed partial class Renamer : FullExtensionBase
         }
         catch (Exception ex)
         {
-            // The conversion writes only after a successful read, so a throw here has changed nothing.
+            // Everything that can throw AFTER the settings write is caught closer in, so reaching this
+            // means no conversion was recorded. That is as far as the claim goes: if the settings write
+            // itself is what threw, whether it landed is the store's business and not knowable here.
             // Reported and stepped over rather than blocking the load; the next load retries.
             LogOptionsMigrationFailed(ex);
         }
@@ -201,13 +203,27 @@ public sealed partial class Renamer : FullExtensionBase
 
         var converted = OptionsMigration.Convert(stored, names.Tags, names.Performers);
         await optionsStore.SaveRawAsync(converted.Json, ct);
-        await Store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema, ct);
 
+        // Written between the two store writes, not after both. The rewrite keeps no copy of the
+        // originals, so the dropped-name list is the only record of what it discarded — and a stamp
+        // write that throws must not take that record with it.
         LogOptionsMigrationConverted(names.Tags.Count, names.Performers.Count, converted.DroppedNames.Count);
         if (converted.DroppedNames.Count > 0)
         {
             string dropped = string.Join(", ", converted.DroppedNames);
             LogOptionsMigrationDroppedNames(converted.DroppedNames.Count, dropped);
+        }
+
+        try
+        {
+            await Store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema, ct);
+        }
+        catch (Exception ex)
+        {
+            // Caught here rather than at the initialize-time seam so the failure can say that the
+            // settings WERE rewritten — the seam's own catch covers everything before the write and
+            // must not make that claim.
+            LogOptionsMigrationStampFailed(ex);
         }
     }
 
