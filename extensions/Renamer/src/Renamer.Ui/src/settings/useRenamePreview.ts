@@ -12,7 +12,7 @@
  * raises `previewError`.
  */
 import { useEffect, useState } from "react";
-import { request } from "@cove/extension-sdk";
+import { request } from "@cove-extensions/ui-shared/extensionRequest";
 
 import { type RenamerOptions } from "./options";
 import { type PreviewSampleResult } from "./PreviewCard";

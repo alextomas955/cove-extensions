@@ -18,7 +18,7 @@
  * SECURITY: every filename/path is a React text node (auto-escaped); no dangerouslySetInnerHTML.
  */
 import { useEffect, useRef, useState } from "react";
-import { request, ApiError } from "@cove/extension-sdk";
+import { request, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Search } from "lucide-react";
 
