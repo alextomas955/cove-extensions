@@ -1,4 +1,4 @@
-# lefthook — one pre-commit gate spanning the mixed C# + TypeScript repo (plan §4.3).
+# lefthook — one pre-commit gate spanning the mixed C# + TypeScript repo.
 #
 # Why lefthook (not husky+lint-staged): a single language-agnostic YAML runs the .NET and Node
 # checks together. ESLint is one repo-root config (eslint.config.mjs) covering every extension's UI
@@ -26,11 +26,12 @@ pre-commit:
       run: npm run check-classes
 
     # Every host import-map external (lucide-react) resolved against the module the HOST actually
-    # serves, not the one in node_modules. Those differ: a name can typecheck, build and pass every
-    # offline gate while the shipped bundle fails to load in the browser and every surface renders
-    # "Extension component not found". That shipped once. Local-only by construction — it reads the
-    # host's generated shim, so it skips with a notice when no ../cove sibling is present (the
-    # sdk-drift-check precedent), which also means CI cannot run it.
+    # serves, not the one in node_modules. Those are two different files even at the same version: a
+    # name can typecheck, build and pass every offline gate while the shipped bundle fails to load in
+    # the browser and every surface renders "Extension component not found". That shipped once.
+    # Local-only by construction — the oracle is the generated shim inside a Cove host checkout, so
+    # this skips with a notice when none is present (the sdk-drift-check precedent), which is also
+    # why CI cannot run it and why it can never block a merge.
     check-host-imports:
       glob: "*.{ts,tsx}"
       run: node scripts/check-host-imports.mjs
