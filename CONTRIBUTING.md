@@ -35,7 +35,9 @@ extend an existing one), you work against the same contract:
 
 Register the extension in [`extensions/catalog.json`](extensions/catalog.json) so CI can build and
 release it. Each entry declares `name`, `id`, `path`, `tagPrefix`, `projectPath`, `manifestPath`,
-and the optional `testProjectPath`, `uiPath`, and `e2ePath`/`e2eProject`.
+and the optional `testProjectPath`, `uiPath`, and `e2ePath`/`e2eProject`. Every path you declare
+must exist: `scripts/validate-extension-repo.mjs` fails the build on one that does not, rather than
+letting the typo surface later as an `npm ci` in a missing directory partway through a matrix leg.
 Adding an extension's build and release capability is a catalog edit, not a workflow-logic change.
 
 For the full authoring rules and a real layout to copy (`src/<Name>/`, `src/<Name>.Tests/`,

@@ -302,6 +302,73 @@ test("duplicate tagPrefix produces a non-zero exit and the expected error", () =
   }
 });
 
+test("a declared catalog path that does not exist fails, naming the field", () => {
+  // uiPath/testProjectPath/e2ePath/e2eNodeTestsPath are consumed by the CI build matrix but by none
+  // of the convention-derived checks, so a typo in one used to surface only inside a matrix leg — an
+  // `npm ci` in a directory that is not there, or a dotnet restore several steps in. The error must
+  // name the FIELD: the path value alone does not say which CI step is about to break.
+  const entry = validEntry("com.example.foo", "Foo", { uiPath: "extensions/Foo/DoesNotExist.Ui" });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo"),
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(stderr, /com\.example\.foo: uiPath does not exist: extensions\/Foo\/DoesNotExist\.Ui/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("declared catalog paths that all exist pass, and the report line names how many were checked", () => {
+  // The "prove it ran" half, for this check. Two fields are declared and both resolve, so the run is
+  // clean — and the count is what distinguishes that from a check that silently examined nothing.
+  const entry = validEntry("com.example.foo", "Foo", {
+    uiPath: "extensions/Foo/ui",
+    e2ePath: "extensions/Foo/e2e",
+  });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo"),
+      // Each planted file is only a way to make its parent directory exist on disk; the validator
+      // checks the declared directory, never these.
+      "extensions/Foo/ui/package.json": { name: "foo-ui" },
+      "extensions/Foo/e2e/package.json": { name: "foo-e2e" },
+    },
+  });
+  try {
+    const { status, stdout, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(stdout, /confirmed 2 declared catalog path\(s\) exist/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("an entry declaring no optional catalog path says so, rather than reporting nothing", () => {
+  // Zero checked paths is the case that must not be invisible: an entry set that declares none is
+  // legitimate, but it is NOT the same as one whose paths were all confirmed, and a report line that
+  // simply omitted the clause would read identically to both.
+  const entry = validEntry("com.example.foo", "Foo");
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo"),
+    },
+  });
+  try {
+    const { status, stdout, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(stdout, /no entry declared an optional catalog path, so none were checked/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("non-semver extension.json minCoveVersion produces a non-zero exit and the expected error", () => {
   // The per-entry comparison only runs when CoveMinVersion is set, so the fixture declares a
   // floor to activate that path; only the manifest's minCoveVersion is malformed, isolating the

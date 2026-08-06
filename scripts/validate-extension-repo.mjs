@@ -2,7 +2,7 @@
 // Forked on: 2026-07-01
 // Upstream diff base: https://github.com/yourcove/multi-extension-repo-template/blob/main/scripts/validate-extension-repo.mjs
 //
-// Three behavioral differences from upstream.
+// Four behavioral differences from upstream.
 //
 // 1. This fork reads the additive projectPath/manifestPath catalog fields (when present on a
 // catalog entry) instead of unconditionally deriving {path}/{name}.csproj and {path}/extension.json
@@ -21,9 +21,15 @@
 // extension.json minCoveVersion comparison, which does have a real subject, survives.
 //
 // 3. Upstream's success line reports only how many catalog entries it walked. This fork reports
-// what it actually examined: how many floor comparisons it ran, or that no floor is declared to
-// compare against. Exit 0 alone cannot distinguish a check that passed from one that never had a
-// subject — which is exactly how the self-comparing checks removed in #2 stayed invisible.
+// what it actually examined: how many floor comparisons it ran and how many declared catalog paths
+// it confirmed, or that neither had a subject. Exit 0 alone cannot distinguish a check that passed
+// from one that never ran — which is exactly how the self-comparing checks removed in #2 stayed
+// invisible.
+//
+// 4. This fork confirms that every optional catalog path field the CI build matrix consumes exists
+// on disk (see matrixPathFields below). Upstream's catalog declares no such fields, so it has
+// nothing to check; here a typo in one is otherwise caught only late and cryptically inside a
+// matrix leg, as an `npm ci` in a directory that is not there or a dotnet restore several steps in.
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -154,6 +160,14 @@ if (entries.length === 0) errors.push("extensions/catalog.json has no extensions
 // stated in the report line rather than left to look like a pass.
 let floorComparisons = 0;
 
+// The catalog's optional path fields, as consumed by .github/workflows/build.yml — every
+// `matrix.extension.*` value there that names a location on disk and is not already covered by a
+// check above (path, manifestPath and projectPath are). e2eProject is excluded deliberately: it is
+// a Playwright project name, not a path. Each of these is optional, so an entry declaring none is
+// valid; only a declared one is required to exist.
+const matrixPathFields = ["testProjectPath", "uiPath", "e2ePath", "e2eNodeTestsPath"];
+let declaredPathChecks = 0;
+
 const ids = new Set();
 const tagPrefixes = new Set();
 for (const entry of entries) {
@@ -176,6 +190,16 @@ for (const entry of entries) {
   const manifestPath = entry.manifestPath ? path.join(root, entry.manifestPath) : path.join(extensionDir, "extension.json");
   const projectPath = entry.projectPath ? path.join(root, entry.projectPath) : path.join(extensionDir, `${entry.name}.csproj`);
   const isManifestOnly = entry.manifestOnly === true;
+
+  // Deliberately ahead of the short-circuits below: a mis-pointed CI path is worth reporting even
+  // on an entry whose missing directory or manifest would otherwise `continue` straight past it.
+  for (const field of matrixPathFields) {
+    if (!entry[field]) continue;
+    declaredPathChecks++;
+    if (!fs.existsSync(path.join(root, entry[field]))) {
+      errors.push(`${entry.id}: ${field} does not exist: ${entry[field]}`);
+    }
+  }
 
   if (!fs.existsSync(extensionDir)) {
     errors.push(`${entry.id}: path does not exist: ${entry.path}`);
@@ -222,4 +246,7 @@ if (errors.length > 0) {
 const floorReport = coveMinVersion
   ? `compared ${floorComparisons} extension.json minCoveVersion declaration(s) against CoveMinVersion ${coveMinVersion}`
   : "no CoveMinVersion declared in Directory.Build.props, so no floor comparison ran";
-console.log(`Validated ${entries.length} extension catalog entries (${floorReport}).`);
+const pathReport = declaredPathChecks
+  ? `confirmed ${declaredPathChecks} declared catalog path(s) exist`
+  : "no entry declared an optional catalog path, so none were checked";
+console.log(`Validated ${entries.length} extension catalog entries (${floorReport}; ${pathReport}).`);
