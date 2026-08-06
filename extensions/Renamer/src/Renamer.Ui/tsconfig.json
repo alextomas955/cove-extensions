@@ -14,7 +14,7 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
-    "types": ["node", "react", "react-dom"],
+    "types": ["node", "react"],
     "paths": {
       "@cove-extensions/ui-shared": ["../../../../shared/cove-extensions-ui/src/index.ts"],
       "@cove-extensions/ui-shared/postAction": [
@@ -29,8 +29,6 @@
       "@cove/extension-sdk": ["./node_modules/@cove/extension-sdk"],
       "react": ["./node_modules/@types/react"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
-      "react-dom": ["./node_modules/@types/react-dom"],
-      "react-dom/client": ["./node_modules/@types/react-dom/client"],
       "lucide-react": ["./node_modules/lucide-react"],
       "vite": ["./node_modules/vite/dist/node/index.d.ts"],
       "@vitejs/plugin-react": ["./node_modules/@vitejs/plugin-react/dist/index.d.ts"]
