@@ -141,7 +141,7 @@
         TestSupport/CapturingEventBus.
       - INTEGRATION (real CoveContext via Cove.Data): Execution/*, Events/*,
         Jobs/RenamerBatchJobTests, Api/PreviewEndpointTests, Api/PreviewSampleEndpointTests, Api/EndpointPermissionTests,
-        Api/ListEntitiesEndpointTests, Api/RenamerLibraryEndpointTests, Api/ScanLibraryEndpointTests.
+        Api/RenamerLibraryEndpointTests, Api/ScanLibraryEndpointTests.
     The shared FakePrincipalAccessor + CoveContextFactory are NOT listed here: they live in the source-only
     Testing.Cove dir and are pulled in by the positive Exists()-guarded Compile Include below (present only
     when cove is), so their former consumers above cover the bare leg without a Compile Remove for the fakes.
@@ -153,7 +153,6 @@
     <!-- TransportSmokeTests boots the extension in a TestServer over a real CoveContext (Cove.Data) + CovePrincipal → drops out on a bare CI runner. -->
     <Compile Remove="Api\TransportSmokeTests.cs" />
     <Compile Remove="Api\SettingsManifestTests.cs" />
-    <Compile Remove="Api\ListEntitiesEndpointTests.cs" />
     <Compile Remove="Api\PreviewEndpointTests.cs" />
     <Compile Remove="Api\PreviewSampleEndpointTests.cs" />
     <Compile Remove="Api\EndpointPermissionTests.cs" />

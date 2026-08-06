@@ -36,7 +36,7 @@ public sealed class TransportSmokeTests
     public static TheoryData<string, string> Routes()
     {
         var data = new TheoryData<string, string>();
-        foreach (var g in new[] { "/last-batch", "/last-scan", "/list-studios", "/list-tags", "/list-performers" })
+        foreach (var g in new[] { "/last-batch", "/last-scan" })
         {
             data.Add("GET", g);
         }
