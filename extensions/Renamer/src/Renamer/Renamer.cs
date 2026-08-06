@@ -494,8 +494,8 @@ public sealed partial class Renamer : FullExtensionBase
     private static readonly TimeSpan RouteRegexMatchTimeout = TimeSpan.FromMilliseconds(100);
 
     /// <summary>
-    /// Builds the per-batch <see cref="RouteLookups"/> ONCE: the studio-id and exact-source-path
-    /// dictionaries pass through; the tag map is rebuilt with <see cref="StringComparer.OrdinalIgnoreCase"/>;
+    /// Builds the per-batch <see cref="RouteLookups"/> ONCE: the studio-id, tag-id and
+    /// exact-source-path dictionaries pass through;
     /// each <see cref="PathDestinationRule.IsRegex"/> rule is PRE-PARSED here with a bounded match
     /// timeout (NOT <c>RegexOptions.Compiled</c> — overkill for a short batch). An invalid user pattern
     /// is caught at THIS build step and skipped-with-a-log (classify, don't throw at the batch
@@ -533,12 +533,11 @@ public sealed partial class Renamer : FullExtensionBase
             }
         }
 
-        // Pre-parse the exclude lookups ONCE beside the routing sets. The exact tag-name set is
-        // case-insensitive (mirroring tag routing); the exact path set uses the same
+        // Pre-parse the exclude lookups ONCE beside the routing sets. The exact path set uses the same
         // OS-aware comparer + NormalizeSourcePath keys as the routing exact map; each exclude regex is
         // compiled ONCE with the SAME RouteRegexMatchTimeout and the SAME classify-not-throw shape, so
         // an invalid exclude pattern is skipped-with-a-log at build time and never aborts the batch.
-        var excludeTags = new HashSet<string>(o.ExcludeTags, StringComparer.OrdinalIgnoreCase);
+        var excludeTags = new HashSet<int>(o.ExcludeTagIds);
         var excludeStudios = new HashSet<int>(o.ExcludeStudioIds);
         var excludePathsExact = new HashSet<string>(DestinationResolver.SourcePathComparer);
         var excludePathRegex = new List<Regex>();
@@ -564,7 +563,7 @@ public sealed partial class Renamer : FullExtensionBase
 
         return new RouteLookups(
             o.StudioDestinations,
-            new Dictionary<string, string>(o.TagDestinations, StringComparer.OrdinalIgnoreCase),
+            o.TagDestinations,
             exact,
             regexRules,
             excludeTags,

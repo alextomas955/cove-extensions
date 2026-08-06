@@ -48,12 +48,15 @@ public sealed class ScanPagingEquivalenceTests
         OnlyOrganized = true,
     };
 
+    private const int RoutedTagId = 71;
+    private const int SkipTagId = 72;
+
     private static readonly RouteLookups Lookups = new(
         StudioIdToDest: new Dictionary<int, string>(),
-        TagNameToDest: new Dictionary<string, string> { ["routed"] = RoutedDest },
+        TagIdToDest: new Dictionary<int, string> { [RoutedTagId] = RoutedDest },
         PathExactToDest: new Dictionary<string, string>(),
         PathRegexRules: [],
-        ExcludeTagNames: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "skipme" });
+        ExcludeTagIds: new HashSet<int> { SkipTagId });
 
     /// <summary>
     /// Seeds a fixture that reaches every planner branch: a plain rename, a multi-file rename, a folder
@@ -83,7 +86,7 @@ public sealed class ScanPagingEquivalenceTests
                 string? title = $"Title{id}";
                 string? studio = null;
                 bool organized = true;
-                var tags = new List<string>();
+                var tagRefs = new List<(int Id, string Name)>();
                 string basename = $"raw{id}.mkv";
                 int fileCount = 1;
 
@@ -98,7 +101,7 @@ public sealed class ScanPagingEquivalenceTests
                         basename = $"Title{id}.mkv";                  // already at its computed destination
                         break;
                     case 4:
-                        tags.Add("skipme");                           // excluded
+                        tagRefs.Add((SkipTagId, "skipme"));           // excluded
                         break;
                     case 5:
                         organized = false;                            // fails the only-organized gate
@@ -113,7 +116,7 @@ public sealed class ScanPagingEquivalenceTests
                         studio = "Acme";                              // folder template renders a subfolder
                         break;
                     default:
-                        tags.Add("routed");                           // routed to another root
+                        tagRefs.Add((RoutedTagId, "routed"));         // routed to another root
                         break;
                 }
 
@@ -126,7 +129,8 @@ public sealed class ScanPagingEquivalenceTests
 
                 port.SeedEntity(new RenamerEntity(
                     id, kind, title, Code: null, studio, Date: null, organized,
-                    Performers: [], Tags: tags, Files: files));
+                    Performers: [], Tags: [.. tagRefs.Select(t => t.Name)], Files: files,
+                    TagRefs: tagRefs));
             }
 
             // Seeded out of ascending order on purpose: the walk's order must come from the port's

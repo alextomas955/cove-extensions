@@ -6,9 +6,10 @@ using Renamer.Planner;
 namespace Renamer.Tests.Execution;
 
 /// <summary>
-/// Host-fact proof that <see cref="CoveRenamerDataPort.LoadEntityAsync"/> surfaces the three routing
+/// Host-fact proof that <see cref="CoveRenamerDataPort.LoadEntityAsync"/> surfaces the routing
 /// foundations onto the Renamer-owned DTO from a REAL Cove entity graph: the stable studio id, the
-/// nearest-first parent-studio chain, and each file's projected byte size. Runs against a SQLite-backed
+/// nearest-first parent-studio chain, the paired tag ids and names, and each file's projected byte
+/// size. Runs against a SQLite-backed
 /// <see cref="Cove.Data.CoveContext"/> (not EF-InMemory) so the self-referencing Studio parent FK and
 /// the relational graph hydrate exactly as production would (per MEMORY: bind the base DbContext;
 /// SQLite for graph-shape fidelity). Without these fields surfacing, Plan 02's resolver could not route
@@ -117,6 +118,48 @@ public sealed class CoveDataPortRoutingFieldsTests
             Assert.Equal(parent.Id, entity.ParentStudios[0].Id);
             Assert.Equal(grandparent.Id, entity.ParentStudios[1].Id);
             Assert.Equal(greatGrand.Id, entity.ParentStudios[2].Id);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task LoadEntity_Surfaces_TagIdsPairedWithNames_InTheSameOrderAsTheNameList()
+    {
+        // The whole tag-routing cascade keys on TagRefs. If this projection were empty or misordered,
+        // every tag rule would silently stop matching with no error anywhere — so prove it against a
+        // real entity graph rather than against the fake port the resolver tests use.
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
+                db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip");
+
+            var first = new Tag { Name = "anime" };
+            var second = new Tag { Name = "raw" };
+            db.Set<Tag>().AddRange(first, second);
+            await db.SaveChangesAsync();
+
+            db.Set<VideoTag>().AddRange(
+                new VideoTag { VideoId = videoId, TagId = first.Id },
+                new VideoTag { VideoId = videoId, TagId = second.Id });
+            await db.SaveChangesAsync();
+
+            var port = new CoveRenamerDataPort(db);
+            var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
+
+            Assert.NotNull(entity);
+            Assert.NotNull(entity!.TagRefs);
+            Assert.Equal(
+                [(first.Id, first.Name), (second.Id, second.Name)],
+                entity.TagRefs!);
+
+            // Paired, not parallel: the ids and the surviving name list must agree element for element,
+            // because routing takes the first tag in THIS order whose id has a rule.
+            Assert.Equal(entity.Tags, [.. entity.TagRefs!.Select(t => t.Name)]);
         }
         finally
         {
@@ -250,6 +293,8 @@ public sealed class CoveDataPortRoutingFieldsTests
         var expectedParents = expected.ParentStudios ?? [];
         var actualParents = actual.ParentStudios ?? [];
         Assert.Equal(expectedParents, actualParents);
+
+        Assert.Equal(expected.TagRefs ?? [], actual.TagRefs ?? []);
 
         // RenamerFile carries an IReadOnlyList<RenamerCaption> member, which record value-equality
         // compares by reference — two field-identical files from distinct loads are never record-equal.

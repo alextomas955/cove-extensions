@@ -382,12 +382,13 @@ public sealed record RenamerOptions
     public Dictionary<int, string> StudioDestinations { get; init; } = [];
 
     /// <summary>
-    /// Tag routing map: tag NAME → absolute destination-root template, keyed and compared
-    /// case-insensitively (a rule for <c>"Anime"</c> matches an entity tagged <c>"anime"</c>).
-    /// Tag routing keys on the name (matching the existing flattened tag-name list). Default empty =
-    /// no tag routing (legacy source-confine behavior).
+    /// Tag routing map: stable tag <c>Id</c> → absolute destination-root template. The tag cascade
+    /// keys on this id (never the name), exactly like <see cref="StudioDestinations"/>, so renaming a
+    /// tag in Cove cannot orphan or mis-target its rule and two spelling variants of one tag can
+    /// never split across two destination trees. Default empty = no tag routing (legacy
+    /// source-confine behavior).
     /// </summary>
-    public Dictionary<string, string> TagDestinations { get; init; } = [];
+    public Dictionary<int, string> TagDestinations { get; init; } = [];
 
     /// <summary>
     /// Source-path routing rules, in user order. Each <see cref="PathDestinationRule"/> is an exact OR
@@ -399,12 +400,13 @@ public sealed record RenamerOptions
     public List<PathDestinationRule> PathDestinations { get; init; } = [];
 
     /// <summary>
-    /// Tag excludes: tag NAMES (matched case-insensitively, mirroring tag routing). An item carrying
-    /// any of these tags is EXCLUDED from renamer/move BEFORE any routing category is considered
-    /// (excludes are evaluated first), surfaced as a visible <c>SkipExcluded</c> in the preview.
-    /// Default empty = no tag excludes (legacy behavior, no regression).
+    /// Tag excludes: STABLE tag ids (never the name), keyed exactly like <see cref="TagDestinations"/>
+    /// and mirroring <see cref="ExcludeStudioIds"/>. An item carrying any of these tags is EXCLUDED
+    /// from renamer/move BEFORE any routing category is considered (excludes are evaluated first),
+    /// surfaced as a visible <c>SkipExcluded</c> in the preview. Default empty = no tag excludes
+    /// (legacy behavior, no regression).
     /// </summary>
-    public List<string> ExcludeTags { get; init; } = [];
+    public List<int> ExcludeTagIds { get; init; } = [];
 
     /// <summary>
     /// Studio excludes: STABLE studio ids (never the name). An item is excluded when its own
@@ -485,7 +487,7 @@ public sealed record RenamerOptions
     // new member added to one can never be forgotten in the other (the twin-list footgun, 45-R4). Each
     // collection member is wrapped to compare by VALUE: order-SENSITIVE for lists, order-INDEPENDENT for
     // the destination maps (a Dictionary has no guaranteed order and a round-trip may reorder keys), with
-    // the map's original key comparer (ordinal ids, OrdinalIgnoreCase tag names) preserved.
+    // the map's original key comparer preserved.
     public bool Equals(RenamerOptions? other)
         => other is not null && StructuralEquality.Members(EqualityComponents(), other.EqualityComponents());
 
@@ -523,9 +525,9 @@ public sealed record RenamerOptions
         yield return StructuralEquality.Sequence(AllowedRoots);
         yield return StructuralEquality.Sequence(AssociatedExtensions);
         yield return StructuralEquality.Map(StudioDestinations, EqualityComparer<int>.Default);
-        yield return StructuralEquality.Map(TagDestinations, StringComparer.OrdinalIgnoreCase);
+        yield return StructuralEquality.Map(TagDestinations, EqualityComparer<int>.Default);
         yield return StructuralEquality.Sequence(PathDestinations);
-        yield return StructuralEquality.Sequence(ExcludeTags);
+        yield return StructuralEquality.Sequence(ExcludeTagIds);
         yield return StructuralEquality.Sequence(ExcludeStudioIds);
         yield return StructuralEquality.Sequence(ExcludePaths);
         yield return DefaultDestination;

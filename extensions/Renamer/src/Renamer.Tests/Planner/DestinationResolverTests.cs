@@ -7,8 +7,8 @@ namespace Renamer.Tests.Planner;
 /// <summary>
 /// Pure unit tests for <see cref="DestinationResolver.Resolve"/> — no DB, no disk. Proves the
 /// locked routing precedence (Excludes → Unorganized → Tag → Studio → Source-path → Default →
-/// SourceConfine), within-category list order, direct-outranks-ancestor, route-on-stable-id,
-/// tag case-insensitivity, source-path exact-beats-regex, the unorganized slot, and the
+/// SourceConfine), within-category list order, direct-outranks-ancestor, route-on-stable-id for
+/// both studios and tags, source-path exact-beats-regex, the unorganized slot, and the
 /// default-relocate code guard (off → SourceConfine, on → Default).
 /// </summary>
 [Trait("Tier", "L0")]
@@ -24,27 +24,28 @@ public sealed class DestinationResolverPrecedenceTests
         bool organized = true,
         int? studioId = null,
         IReadOnlyList<(int Id, string Name)>? parentStudios = null,
-        IReadOnlyList<string>? tags = null,
+        IReadOnlyList<(int Id, string Name)>? tagRefs = null,
         string? studioName = null,
         string parentFolderPath = "media/in")
         => new(
             EntityId: 1, Kind: RenamerFileKind.Video, Title: "T", Code: null,
             StudioName: studioName, Date: null, Organized: organized,
-            Performers: [], Tags: tags ?? [], Files: [File(parentFolderPath)],
-            StudioId: studioId, ParentStudios: parentStudios);
+            Performers: [], Tags: [.. (tagRefs ?? []).Select(t => t.Name)],
+            Files: [File(parentFolderPath)],
+            StudioId: studioId, ParentStudios: parentStudios, TagRefs: tagRefs);
 
     private static RouteLookups Lookups(
         IReadOnlyDictionary<int, string>? studios = null,
-        IReadOnlyDictionary<string, string>? tags = null,
+        IReadOnlyDictionary<int, string>? tags = null,
         IReadOnlyDictionary<string, string>? pathExact = null,
         IReadOnlyList<(Regex, string)>? pathRegex = null,
-        IReadOnlySet<string>? excludeTags = null,
+        IReadOnlySet<int>? excludeTags = null,
         IReadOnlySet<int>? excludeStudios = null,
         IReadOnlySet<string>? excludePathsExact = null,
         IReadOnlyList<Regex>? excludePathRegex = null)
         => new(
             studios ?? new Dictionary<int, string>(),
-            tags ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            tags ?? new Dictionary<int, string>(),
             pathExact ?? new Dictionary<string, string>(StringComparer.Ordinal),
             pathRegex ?? [],
             excludeTags,
@@ -52,12 +53,12 @@ public sealed class DestinationResolverPrecedenceTests
             excludePathsExact,
             excludePathRegex);
 
-    private static Dictionary<string, string> TagMap(params (string name, string dest)[] entries)
+    private static Dictionary<int, string> TagMap(params (int id, string dest)[] entries)
     {
-        var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (name, dest) in entries)
+        var d = new Dictionary<int, string>();
+        foreach (var (id, dest) in entries)
         {
-            d[name] = dest;
+            d[id] = dest;
         }
 
         return d;
@@ -69,10 +70,10 @@ public sealed class DestinationResolverPrecedenceTests
     public void Unorganized_OutranksTagAndStudio()
     {
         // Unorganized + tag + studio all "match": Unorganized wins (runs before the cascade).
-        var e = Entity(organized: false, studioId: 42, tags: ["anime"]);
+        var e = Entity(organized: false, studioId: 42, tagRefs: [(11, "anime")]);
         var lk = Lookups(
             studios: new Dictionary<int, string> { [42] = "S:42" },
-            tags: TagMap(("anime", "T:anime")));
+            tags: TagMap((11, "T:anime")));
         var o = new RenamerOptions { UnorganizedDestination = "U:dest" };
 
         var r = DestinationResolver.Resolve(e, o, lk);
@@ -85,10 +86,10 @@ public sealed class DestinationResolverPrecedenceTests
     public void Tag_OutranksStudioAndSourcePath()
     {
         // Tag + studio + source-path all match: Tag wins (higher category).
-        var e = Entity(studioId: 42, tags: ["anime"], parentFolderPath: "media/raw");
+        var e = Entity(studioId: 42, tagRefs: [(11, "anime")], parentFolderPath: "media/raw");
         var lk = Lookups(
             studios: new Dictionary<int, string> { [42] = "S:42" },
-            tags: TagMap(("anime", "T:anime")),
+            tags: TagMap((11, "T:anime")),
             pathExact: new Dictionary<string, string>(StringComparer.Ordinal) { ["media/raw"] = "P:raw" });
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
@@ -114,9 +115,11 @@ public sealed class DestinationResolverPrecedenceTests
     [Fact]
     public void WithinTagCategory_FirstTagInEntityListOrderWins()
     {
-        // Both tags have a rule; the entity lists "first" before "second" → first wins.
-        var e = Entity(tags: ["first", "second"]);
-        var lk = Lookups(tags: TagMap(("first", "T:first"), ("second", "T:second")));
+        // Both tag IDS have a rule; the entity lists tag 1 before tag 2 → tag 1 wins. The rule map is
+        // built in the OPPOSITE order to prove the winner comes from the entity's tag order, not from
+        // the map's insertion order.
+        var e = Entity(tagRefs: [(1, "first"), (2, "second")]);
+        var lk = Lookups(tags: TagMap((2, "T:second"), (1, "T:first")));
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
@@ -165,7 +168,7 @@ public sealed class DestinationResolverRouteOnStableStudioIdTests
     {
         var lk = new RouteLookups(
             new Dictionary<int, string> { [42] = "S:42" },
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal),
             []);
 
@@ -183,25 +186,79 @@ public sealed class DestinationResolverRouteOnStableStudioIdTests
     }
 }
 
-/// <summary>Tag routing is case-insensitive on the tag name.</summary>
+/// <summary>
+/// Route-on-stable-tag-id: the tag NAME never affects the match, but it is still the text the
+/// preview shows. Both halves matter — the first is why the migration off names happened, the second
+/// is what the migration must not cost the user.
+/// </summary>
 [Trait("Tier", "L0")]
 public sealed class DestinationResolverTagRoutingTests
 {
-    [Fact]
-    public void TagRule_MatchesCaseInsensitively()
-    {
-        var tags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["Anime"] = "T:anime" };
-        var lk = new RouteLookups(
-            new Dictionary<int, string>(), tags,
-            new Dictionary<string, string>(StringComparer.Ordinal), []);
+    private static RouteLookups TagLookups(IReadOnlyDictionary<int, string> tags)
+        => new(new Dictionary<int, string>(), tags,
+               new Dictionary<string, string>(StringComparer.Ordinal), []);
 
+    private static RenamerEntity TaggedEntity(params (int Id, string Name)[] tagRefs)
+        => new(1, RenamerFileKind.Video, "T", null, null, null, true,
+               [], [.. tagRefs.Select(t => t.Name)],
+               [new RenamerFile(1, RenamerFileKind.Video, "a.mkv", 1, "x")],
+               TagRefs: tagRefs);
+
+    [Fact]
+    public void TwoNameVariantsOfOneTagId_ResolveToOneDestination()
+    {
+        // The rename the id migration exists for: the SAME tag id spelled two different ways (a
+        // rename, a case variant) routes to one destination. Under name-keying the renamed one would
+        // have silently stopped matching.
+        var lk = TagLookups(new Dictionary<int, string> { [11] = "T:anime" });
+
+        var before = DestinationResolver.Resolve(TaggedEntity((11, "anime")), new RenamerOptions(), lk);
+        var after = DestinationResolver.Resolve(TaggedEntity((11, "Japanese Animation")), new RenamerOptions(), lk);
+
+        Assert.Equal("T:anime", before.DestinationRootTemplate);
+        Assert.Equal("T:anime", after.DestinationRootTemplate);
+        Assert.Equal(before.DestinationRootTemplate, after.DestinationRootTemplate);
+    }
+
+    [Fact]
+    public void TagRoutedById_ReasonStringNamesTheTag_NotItsId()
+    {
+        // The preview's route reason is user-visible text. Matching moved to the id; the label must
+        // still read the tag's CURRENT name, so a user reading a preview sees "Tag:anime", never
+        // "Tag:11". Nothing else in the suite pins this.
+        var lk = TagLookups(new Dictionary<int, string> { [11] = "T:anime" });
+
+        var r = DestinationResolver.Resolve(TaggedEntity((11, "anime")), new RenamerOptions(), lk);
+
+        Assert.Equal(RouteCategory.Tag, r.Category);
+        Assert.Equal("Tag:anime", r.MatchedRule);
+        Assert.DoesNotContain("11", r.MatchedRule);
+    }
+
+    [Fact]
+    public void TagRoutedById_AfterARename_ReasonStringShowsTheNewName()
+    {
+        // The name is read off the entity, not off the stored rule, so the label follows a rename.
+        var lk = TagLookups(new Dictionary<int, string> { [11] = "T:anime" });
+
+        var r = DestinationResolver.Resolve(
+            TaggedEntity((11, "Japanese Animation")), new RenamerOptions(), lk);
+
+        Assert.Equal("Tag:Japanese Animation", r.MatchedRule);
+    }
+
+    [Fact]
+    public void EntityWithoutTagRefs_NeverMatchesATagRule()
+    {
+        // A construction site predating TagRefs leaves it null; that must fall through the tag
+        // category rather than throw or match on the surviving name list.
+        var lk = TagLookups(new Dictionary<int, string> { [11] = "T:anime" });
         var e = new RenamerEntity(1, RenamerFileKind.Video, "T", null, null, null, true,
             [], ["anime"], [new RenamerFile(1, RenamerFileKind.Video, "a.mkv", 1, "x")]);
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
-        Assert.Equal(RouteCategory.Tag, r.Category);
-        Assert.Equal("T:anime", r.DestinationRootTemplate);
+        Assert.Equal(RouteCategory.SourceConfine, r.Category);
     }
 }
 
@@ -223,7 +280,7 @@ public sealed class DestinationResolverSourcePathRoutingTests
         };
         var lk = new RouteLookups(
             new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             exact, regex);
 
         var r = DestinationResolver.Resolve(AtPath("media/raw"), new RenamerOptions(), lk);
@@ -242,7 +299,7 @@ public sealed class DestinationResolverSourcePathRoutingTests
         };
         var lk = new RouteLookups(
             new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal), regex);
 
         var r = DestinationResolver.Resolve(AtPath("media/raw/2024"), new RenamerOptions(), lk);
@@ -281,7 +338,7 @@ public sealed class DestinationResolverRegexTimeoutTests
         // exercise the regex-timeout fall-through we set ONLY the regex rule and assert SourceConfine).
         var lk = new RouteLookups(
             new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal),
             [(redos, "P:never")]);
 
@@ -305,7 +362,7 @@ public sealed class DestinationResolverRegexTimeoutTests
             StudioId: 42);
         var lk = new RouteLookups(
             new Dictionary<int, string> { [42] = "S:42" },
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal),
             [(redos, "P:never")]);
 
@@ -329,7 +386,7 @@ public sealed class DestinationResolverUnorganizedRouteTests
 
         var r = DestinationResolver.Resolve(e, o, new RouteLookups(
             new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal), []));
 
         Assert.Equal(RouteCategory.Unorganized, r.Category);
@@ -345,7 +402,7 @@ public sealed class DestinationResolverUnorganizedRouteTests
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), new RouteLookups(
             new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal), []));
 
         Assert.Equal(RouteCategory.SourceConfine, r.Category);
@@ -365,7 +422,7 @@ public sealed class DestinationResolverDefaultRelocateDisabledTests
 
     private static RouteLookups Empty()
         => new(new Dictionary<int, string>(),
-               new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+               new Dictionary<int, string>(),
                new Dictionary<string, string>(StringComparer.Ordinal), []);
 
     [Fact]
@@ -405,33 +462,32 @@ public sealed class DestinationResolverExcludeTests
         bool organized = true,
         int? studioId = null,
         IReadOnlyList<(int Id, string Name)>? parentStudios = null,
-        IReadOnlyList<string>? tags = null,
+        IReadOnlyList<(int Id, string Name)>? tagRefs = null,
         string parentFolderPath = "media/in")
         => new(
             EntityId: 1, Kind: RenamerFileKind.Video, Title: "T", Code: null,
             StudioName: null, Date: null, Organized: organized,
-            Performers: [], Tags: tags ?? [],
+            Performers: [], Tags: [.. (tagRefs ?? []).Select(t => t.Name)],
             Files: [new RenamerFile(1, RenamerFileKind.Video, "clip.mkv", 1, parentFolderPath)],
-            StudioId: studioId, ParentStudios: parentStudios);
+            StudioId: studioId, ParentStudios: parentStudios, TagRefs: tagRefs);
 
     private static RouteLookups Lookups(
         IReadOnlyDictionary<int, string>? studios = null,
-        IReadOnlyDictionary<string, string>? tags = null,
+        IReadOnlyDictionary<int, string>? tags = null,
         IReadOnlyDictionary<string, string>? pathExact = null,
         IReadOnlyList<(Regex, string)>? pathRegex = null,
-        IReadOnlySet<string>? excludeTags = null,
+        IReadOnlySet<int>? excludeTags = null,
         IReadOnlySet<int>? excludeStudios = null,
         IReadOnlySet<string>? excludePathsExact = null,
         IReadOnlyList<Regex>? excludePathRegex = null)
         => new(
             studios ?? new Dictionary<int, string>(),
-            tags ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            tags ?? new Dictionary<int, string>(),
             pathExact ?? new Dictionary<string, string>(StringComparer.Ordinal),
             pathRegex ?? [],
             excludeTags, excludeStudios, excludePathsExact, excludePathRegex);
 
-    private static HashSet<string> TagSet(params string[] names)
-        => new(names, StringComparer.OrdinalIgnoreCase);
+    private static HashSet<int> TagSet(params int[] ids) => [.. ids];
 
     private static HashSet<string> PathSet(params string[] paths)
         => new(paths, DestinationResolver.SourcePathComparer);
@@ -441,8 +497,8 @@ public sealed class DestinationResolverExcludeTests
     [Fact]
     public void ExcludeByTag_Exact_ReturnsExcluded()
     {
-        var e = Entity(tags: ["anime"]);
-        var lk = Lookups(excludeTags: TagSet("anime"));
+        var e = Entity(tagRefs: [(11, "anime")]);
+        var lk = Lookups(excludeTags: TagSet(11));
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
@@ -452,15 +508,17 @@ public sealed class DestinationResolverExcludeTests
     }
 
     [Fact]
-    public void ExcludeByTag_CaseInsensitive()
+    public void ExcludeByTag_SurvivesARename_AndTheReasonShowsTheNewName()
     {
-        // Entity tag "Anime", exclude set keyed "anime" → OrdinalIgnoreCase matches.
-        var e = Entity(tags: ["Anime"]);
-        var lk = Lookups(excludeTags: TagSet("anime"));
+        // The exclude is keyed on the id, so renaming the tag keeps the item excluded — and the
+        // user-visible reason follows the rename rather than degrading to the bare id.
+        var e = Entity(tagRefs: [(11, "Japanese Animation")]);
+        var lk = Lookups(excludeTags: TagSet(11));
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
         Assert.Equal(RouteCategory.Excluded, r.Category);
+        Assert.Equal("Exclude:Tag:Japanese Animation", r.MatchedRule);
     }
 
     // --- EXCL-02: studio (direct + ancestor, stable id) -----------------------------------------
@@ -534,15 +592,20 @@ public sealed class DestinationResolverExcludeTests
     [Fact]
     public void Exclude_BeatsAMatchingTagRoute()
     {
-        // The SAME tag is both a route and an exclude → the exclude wins (runs first).
-        var e = Entity(tags: ["anime"]);
+        // The SAME tag id carries BOTH a destination rule and an exclude rule. The exclude wins (it
+        // runs first) and reports its OWN reason — the two outcomes must not collapse into one, so
+        // the label is the exclude's, no destination is carried, and the route reason is absent.
+        var e = Entity(tagRefs: [(11, "anime")]);
         var lk = Lookups(
-            tags: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["anime"] = "T:anime" },
-            excludeTags: TagSet("anime"));
+            tags: new Dictionary<int, string> { [11] = "T:anime" },
+            excludeTags: TagSet(11));
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
         Assert.Equal(RouteCategory.Excluded, r.Category);
+        Assert.Equal("Exclude:Tag:anime", r.MatchedRule);
+        Assert.NotEqual("Tag:anime", r.MatchedRule);
+        Assert.Null(r.DestinationRootTemplate);
     }
 
     [Fact]
@@ -563,9 +626,9 @@ public sealed class DestinationResolverExcludeTests
     public void Exclude_BeatsUnorganized()
     {
         // An unorganized item that matches an exclude is Excluded, NOT routed to the unorganized dest.
-        var e = Entity(organized: false, tags: ["anime"]);
+        var e = Entity(organized: false, tagRefs: [(11, "anime")]);
         var o = new RenamerOptions { UnorganizedDestination = "U:dest" };
-        var lk = Lookups(excludeTags: TagSet("anime"));
+        var lk = Lookups(excludeTags: TagSet(11));
 
         var r = DestinationResolver.Resolve(e, o, lk);
 
@@ -576,10 +639,10 @@ public sealed class DestinationResolverExcludeTests
     public void NoExcludeMatch_FallsThroughToRoutingUnchanged()
     {
         // An entity whose tag is NOT excluded still routes normally (additive / non-breaking).
-        var e = Entity(tags: ["keep"]);
+        var e = Entity(tagRefs: [(12, "keep")]);
         var lk = Lookups(
-            tags: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["keep"] = "T:keep" },
-            excludeTags: TagSet("anime"));
+            tags: new Dictionary<int, string> { [12] = "T:keep" },
+            excludeTags: TagSet(11));
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
@@ -591,10 +654,10 @@ public sealed class DestinationResolverExcludeTests
     public void NullExcludeLookups_BehaveAsEmpty_NoRegression()
     {
         // The legacy 4-arg lookups (exclude params default null) must never exclude anything.
-        var e = Entity(studioId: 42, tags: ["anime"], parentFolderPath: "media/protected");
+        var e = Entity(studioId: 42, tagRefs: [(11, "anime")], parentFolderPath: "media/protected");
         var lk = new RouteLookups(
             new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal),
             []);
 

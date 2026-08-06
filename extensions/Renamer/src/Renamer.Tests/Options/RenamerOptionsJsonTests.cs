@@ -363,7 +363,7 @@ public sealed class RenamerOptionsJsonTests
     public void ExcludeConfig_Defaults_Empty()
     {
         var o = new RenamerOptions();
-        Assert.Empty(o.ExcludeTags);       // EXCL-01 default empty = no excludes (legacy behavior)
+        Assert.Empty(o.ExcludeTagIds);     // EXCL-01 default empty = no excludes (legacy behavior)
         Assert.Empty(o.ExcludeStudioIds);  // EXCL-02 default empty
         Assert.Empty(o.ExcludePaths);      // EXCL-03 default empty
     }
@@ -373,7 +373,7 @@ public sealed class RenamerOptionsJsonTests
     {
         var original = new RenamerOptions
         {
-            ExcludeTags = ["anime", "raw"],
+            ExcludeTagIds = [11, 12],
             ExcludeStudioIds = [42, 7],
             ExcludePaths =
             [
@@ -388,16 +388,16 @@ public sealed class RenamerOptionsJsonTests
         // Proves the ExcludeRule record AND the three collections are wired into structural equality
         // (fresh lists of fresh records must still compare value-equal).
         Assert.Equal(original, reloaded);
-        Assert.Equal(2, reloaded!.ExcludeTags.Count);
+        Assert.Equal(2, reloaded!.ExcludeTagIds.Count);
         Assert.Equal(2, reloaded.ExcludeStudioIds.Count);
         Assert.Equal(2, reloaded.ExcludePaths.Count);
     }
 
     [Fact]
-    public void ExcludeTags_Participates_In_Equality()
+    public void ExcludeTagIds_Participates_In_Equality()
     {
         var none = new RenamerOptions();
-        var withTag = new RenamerOptions { ExcludeTags = ["anime"] };
+        var withTag = new RenamerOptions { ExcludeTagIds = [11] };
         Assert.NotEqual(none, withTag);
     }
 
@@ -429,7 +429,7 @@ public sealed class RenamerOptionsJsonTests
         var loaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
         Assert.NotNull(loaded);
-        Assert.Empty(loaded!.ExcludeTags);
+        Assert.Empty(loaded!.ExcludeTagIds);
         Assert.Empty(loaded.ExcludeStudioIds);
         Assert.Empty(loaded.ExcludePaths);
     }

@@ -9,8 +9,9 @@ namespace Renamer.Planner;
 /// is called once per file.
 ///
 /// PURE: no <c>System.IO</c>, no <c>Cove.*</c> types, no DB. The cascade is classify-not-throw — a
-/// null <see cref="RenamerEntity.StudioId"/>, an empty <see cref="RenamerEntity.ParentStudios"/>, or
-/// empty destination maps all fall straight through to <see cref="RouteCategory.SourceConfine"/>.
+/// null <see cref="RenamerEntity.StudioId"/>, an empty <see cref="RenamerEntity.ParentStudios"/>, a
+/// null <see cref="RenamerEntity.TagRefs"/>, or empty destination maps all fall straight through to
+/// <see cref="RouteCategory.SourceConfine"/>.
 /// The source-path regex set arrives PRE-PARSED in <see cref="RouteLookups.PathRegexRules"/> (built
 /// once per batch); this resolver only calls <c>IsMatch</c> — it never compiles a regex.
 ///
@@ -18,7 +19,7 @@ namespace Renamer.Planner;
 /// <c>Excludes → Unorganized → Tag → Studio (incl. parent) → Source-path → Default</c>; within a
 /// category the first user-ordered rule wins, and within Studio a DIRECT match outranks an ANCESTOR.
 ///
-/// Excludes run FIRST and beat every routing category including Unorganized: a matching tag name,
+/// Excludes run FIRST and beat every routing category including Unorganized: a matching tag id,
 /// studio id (direct or any ParentStudios ancestor id), or source-path (exact then regex)
 /// short-circuits to <see cref="RouteCategory.Excluded"/> (the planner then produces a
 /// <c>SkipExcluded</c> for every file). The exclude lookups arrive PRE-PARSED in the
@@ -79,12 +80,16 @@ public static class DestinationResolver
         }
 
         // 3. Cascade — first CATEGORY that produces a match wins.
-        // 3a. Tag: first tag in entity list order whose name (OrdinalIgnoreCase) has a rule.
-        foreach (var tag in e.Tags)
+        // 3a. Tag: first tag in entity list order whose stable id has a rule. The name is carried out
+        //     of the pair only to build the label — matching never touches it.
+        if (e.TagRefs is { } tagRefs)
         {
-            if (lk.TagNameToDest.TryGetValue(tag, out var tagDest))
+            foreach (var (tagId, tagName) in tagRefs)
             {
-                return new RouteResult(RouteCategory.Tag, $"Tag:{tag}", tagDest);
+                if (lk.TagIdToDest.TryGetValue(tagId, out var tagDest))
+                {
+                    return new RouteResult(RouteCategory.Tag, $"Tag:{tagName}", tagDest);
+                }
             }
         }
 
@@ -161,7 +166,7 @@ public static class DestinationResolver
     }
 
     /// <summary>
-    /// The exclude cascade — tag NAME, studio id (direct OR any ParentStudios ancestor id), then
+    /// The exclude cascade — tag id, studio id (direct OR any ParentStudios ancestor id), then
     /// source-path (exact FIRST, then the first matching pre-parsed regex). Returns the
     /// <see cref="RouteCategory.Excluded"/> result on the first match, or <c>null</c> when nothing
     /// excludes the entity.
@@ -173,14 +178,14 @@ public static class DestinationResolver
     /// </remarks>
     private static RouteResult? ResolveExclusion(RenamerEntity e, RouteLookups lk)
     {
-        // Tag exclude (case-insensitive on the tag NAME, mirroring tag routing).
-        if (lk.ExcludeTagNames is { Count: > 0 } excludeTags)
+        // Tag exclude (on the stable tag id, mirroring tag routing; the name only builds the label).
+        if (lk.ExcludeTagIds is { Count: > 0 } excludeTags && e.TagRefs is { } excludeTagRefs)
         {
-            foreach (var tag in e.Tags)
+            foreach (var (tagId, tagName) in excludeTagRefs)
             {
-                if (excludeTags.Contains(tag))
+                if (excludeTags.Contains(tagId))
                 {
-                    return new RouteResult(RouteCategory.Excluded, $"Exclude:Tag:{tag}", null);
+                    return new RouteResult(RouteCategory.Excluded, $"Exclude:Tag:{tagName}", null);
                 }
             }
         }

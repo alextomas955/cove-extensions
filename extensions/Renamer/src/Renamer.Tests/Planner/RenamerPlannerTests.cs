@@ -108,7 +108,7 @@ public sealed class RenamerPlannerTests
     }
 
     private static readonly RouteLookups EmptyLookups = new(
-        new Dictionary<int, string>(), new Dictionary<string, string>(),
+        new Dictionary<int, string>(), new Dictionary<int, string>(),
         new Dictionary<string, string>(), Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
 
     [Fact]

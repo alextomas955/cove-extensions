@@ -33,7 +33,7 @@ public sealed class RenamerOptionsEqualityTests
             DropOrder = ["studio", "date"],
             AllowedRoots = ["/media/a", "/media/b"],
             StudioDestinations = new() { [1] = "/x", [2] = "/y" },
-            TagDestinations = new() { ["anime"] = "/anime" },
+            TagDestinations = new() { [11] = "/anime" },
             PathDestinations = [new PathDestinationRule { Pattern = "p", Dest = "/d" }],
             Performers = new() { Whitelist = ["Ann", "Bob"] },
         };
@@ -68,15 +68,15 @@ public sealed class RenamerOptionsEqualityTests
     }
 
     [Fact]
-    public void TagDestinationsKey_IsCaseInsensitive_OrderIndependent()
+    public void TagDestinations_OrderIndependent_ValueSensitive()
     {
-        var lower = new RenamerOptions { TagDestinations = new() { ["anime"] = "/x", ["drama"] = "/y" } };
-        var upperReordered = new RenamerOptions { TagDestinations = new() { ["DRAMA"] = "/y", ["ANIME"] = "/x" } };
+        var a = new RenamerOptions { TagDestinations = new() { [11] = "/x", [12] = "/y" } };
+        var reordered = new RenamerOptions { TagDestinations = new() { [12] = "/y", [11] = "/x" } };
 
-        Assert.Equal(lower, upperReordered);
-        Assert.Equal(lower.GetHashCode(), upperReordered.GetHashCode());
+        Assert.Equal(a, reordered);
+        Assert.Equal(a.GetHashCode(), reordered.GetHashCode());
 
-        Assert.NotEqual(lower, new RenamerOptions { TagDestinations = new() { ["anime"] = "/DIFFERENT", ["drama"] = "/y" } });
+        Assert.NotEqual(a, new RenamerOptions { TagDestinations = new() { [11] = "/x", [12] = "/DIFFERENT" } });
     }
 
     [Fact]

@@ -36,14 +36,14 @@ public sealed class DestAnchoredMaxPathTests
     private static RouteLookups StudioLookup(string dest) =>
         new(
             new Dictionary<int, string> { [42] = dest },
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal),
             Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
 
     private static RouteLookups EmptyLookup() =>
         new(
             new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal),
             Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
 
