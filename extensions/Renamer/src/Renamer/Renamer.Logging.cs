@@ -136,6 +136,13 @@ public sealed partial class Renamer
         Message = "[Renamer] options migration: {Count} stored rule name(s) matched several entities differing only by letter case and now match one: {Detail}")]
     private partial void LogOptionsMigrationNarrowedNames(int count, string detail);
 
+    // A destination map is keyed, so two stored keys reaching one id leave one rule with nowhere to
+    // live. Which one survives is decided by JSON document order, which is not something a user chose.
+    [LoggerMessage(
+        EventId = 1062, Level = LogLevel.Warning,
+        Message = "[Renamer] options migration: {Count} tag destination rule(s) resolved to an id another rule already routed and were discarded: {Detail}")]
+    private partial void LogOptionsMigrationDiscardedDestinations(int count, string detail);
+
     [LoggerMessage(
         EventId = 1058, Level = LogLevel.Warning,
         Message = "[Renamer] options migration deferred ({Reason}); the stored settings are unchanged and the next load retries")]

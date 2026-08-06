@@ -61,11 +61,18 @@ public static class OptionsMigration
     /// </summary>
     public sealed record CaseCollapse(string Name, int MatchedId, IReadOnlyList<int> AlsoMatchedIds);
 
+    /// <summary>
+    /// A destination rule whose key resolved to an id an earlier key had already routed, and which is
+    /// therefore gone: the surviving destination is <paramref name="ClaimedBy"/>'s.
+    /// </summary>
+    public sealed record DiscardedDestination(string Key, int Id, string ClaimedBy);
+
     /// <summary>The converted blob and everything the conversion discarded or narrowed on the way.</summary>
     public sealed record Conversion(
         string Json,
         IReadOnlyList<string> DroppedNames,
-        IReadOnlyList<CaseCollapse> CaseCollapses);
+        IReadOnlyList<CaseCollapse> CaseCollapses,
+        IReadOnlyList<DiscardedDestination> DiscardedDestinations);
 
     /// <summary>
     /// Counts the names each half of <paramref name="json"/> still needs resolved, without touching a
@@ -105,7 +112,7 @@ public static class OptionsMigration
         var root = TryParse(json);
         if (root is null)
         {
-            return new Conversion(json, [], []);
+            return new Conversion(json, [], [], []);
         }
 
         var tagIds = BuildLookup(tags);
@@ -122,7 +129,8 @@ public static class OptionsMigration
         ConvertNameList(root, LegacyExcludeTags, ExcludeTagIds, tagIds, trail);
         ConvertDestinations(root, tagIds, trail);
 
-        return new Conversion(root.ToJsonString(), trail.Dropped, trail.Collapsed);
+        return new Conversion(
+            root.ToJsonString(), trail.Dropped, trail.Collapsed, trail.DiscardedDestinations);
     }
 
     /// <summary>Everything the conversion discarded or narrowed, accumulated across every field.</summary>
@@ -131,6 +139,8 @@ public static class OptionsMigration
         public List<string> Dropped { get; } = [];
 
         public List<CaseCollapse> Collapsed { get; } = [];
+
+        public List<DiscardedDestination> DiscardedDestinations { get; } = [];
 
         /// <summary>
         /// Records a narrowing once per stored name rather than once per field that carries it: the
@@ -309,20 +319,33 @@ public static class OptionsMigration
         }
 
         var converted = new JsonObject();
+
+        // Which stored key claimed each id, so a rule that loses can name the one that beat it. Two keys
+        // reach the same id both by case variance ("4K" and "4k" against one tag) and on a half-converted
+        // map where an id key and a name key meet — and either way the loser used to vanish with no
+        // trace at all, its destination decided by nothing but JSON document order.
+        var claimedBy = new Dictionary<int, string>();
+
         foreach (var (key, value) in legacy)
         {
-            string? idKey = IsIdKey(key)
-                ? key
-                : TryResolve(lookup, key, trail, out int id)
-                    ? id.ToString(CultureInfo.InvariantCulture)
-                    : null;
-
-            if (idKey is null || converted.ContainsKey(idKey))
+            int id;
+            if (IsIdKey(key))
+            {
+                id = int.Parse(key, NumberStyles.None, CultureInfo.InvariantCulture);
+            }
+            else if (!TryResolve(lookup, key, trail, out id))
             {
                 continue;
             }
 
-            converted[idKey] = value?.DeepClone();
+            if (claimedBy.TryGetValue(id, out string? winner))
+            {
+                trail.DiscardedDestinations.Add(new DiscardedDestination(key, id, winner));
+                continue;
+            }
+
+            claimedBy[id] = key;
+            converted[id.ToString(CultureInfo.InvariantCulture)] = value?.DeepClone();
         }
 
         root[entry.Key] = converted;

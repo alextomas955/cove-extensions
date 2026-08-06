@@ -221,6 +221,13 @@ public sealed partial class Renamer : FullExtensionBase
             LogOptionsMigrationNarrowedNames(converted.CaseCollapses.Count, collapsed);
         }
 
+        if (converted.DiscardedDestinations.Count > 0)
+        {
+            string discarded = string.Join("; ", converted.DiscardedDestinations.Select(
+                d => $"'{d.Key}' resolved to {d.Id}, already routed by '{d.ClaimedBy}'"));
+            LogOptionsMigrationDiscardedDestinations(converted.DiscardedDestinations.Count, discarded);
+        }
+
         try
         {
             await Store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema, ct);

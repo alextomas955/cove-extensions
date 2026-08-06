@@ -300,18 +300,43 @@ public sealed class OptionsMigrationLogicTests
     }
 
     [Fact]
-    public void TwoDestinationNamesResolvingToOneId_KeepTheFirstInDocumentOrder()
+    public void TwoDestinationNamesResolvingToOneId_KeepTheFirstInDocumentOrder_AndTheLoserIsReported()
     {
         // Also the crash case: the panel's string-keyed map editor treats "4K" and "4k" as two rules, so
         // this blob is reachable. Reading it through a case-INSENSITIVE JsonNode parse throws
         // ArgumentException the first time the map is enumerated, which would abort the whole
         // conversion and leave the settings permanently unreadable.
+        //
+        // Which of the two survives is decided by JSON document order, which is not something the user
+        // chose — so the one that loses is named rather than vanishing.
         var converted = OptionsMigration.Convert(
             """{ "TagDestinations": { "4K": "/media/first", "4k": "/media/second" } }""", Tags, Performers);
 
         Assert.Equal(
             new Dictionary<int, string> { [88] = "/media/first" },
             Reload(converted.Json).TagDestinations);
+        Assert.Equal(
+            [new OptionsMigration.DiscardedDestination("4k", 88, "4K")],
+            converted.DiscardedDestinations);
+        Assert.Empty(converted.DroppedNames);
+    }
+
+    [Fact]
+    public void AHalfConvertedMapWhereANameResolvesToAnAlreadyRoutedId_ReportsTheLoser()
+    {
+        // Reachable without any case variance at all: a map part-way through conversion holds an id key
+        // beside a name key that resolves to it. The name's destination is the one with nowhere to go.
+        var converted = OptionsMigration.Convert(
+            """{ "TagDestinations": { "9": "/media/by-id", "Anime": "/media/by-name" } }""",
+            Tags,
+            Performers);
+
+        Assert.Equal(
+            new Dictionary<int, string> { [9] = "/media/by-id" },
+            Reload(converted.Json).TagDestinations);
+        Assert.Equal(
+            [new OptionsMigration.DiscardedDestination("Anime", 9, "9")],
+            converted.DiscardedDestinations);
     }
 
     // ── Scan: what the initialize seam asks before it touches a database ──────
