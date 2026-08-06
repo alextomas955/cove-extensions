@@ -9,8 +9,7 @@
     "syncpack": "syncpack lint",
     "jscpd": "jscpd .",
     "prepare": "lefthook install",
-    "test": "node --test scripts/*.test.mjs",
-    "wire-usage": "node scripts/check-wire-usage.mjs"
+    "test": "node --test scripts/*.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
