@@ -121,7 +121,7 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
     setFeedback(null);
     try {
       // /undo takes NO body. It may return an empty 200 in edge cases — but the happy path
-      // returns the UndoResult JSON. Tolerate a parse-throw on a 2xx as a non-informative success.
+      // returns the UndoResult JSON. Tolerate a throw on a 2xx as a non-informative success.
       const res = await request<UndoResult>(UNDO_PATH, { method: "POST" });
       const failedCount = (res.failed?.length ?? 0) + (res.skipped?.length ?? 0);
       if (failedCount === 0) {
@@ -147,7 +147,8 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
         });
         return;
       }
-      // res.ok was true but res.json() failed on an empty body → treat as a plain success.
+      // res.ok was true but the body was empty, so `request` resolved undefined and the read above
+      // threw → treat as a plain success.
       setFeedback({
         kind: "success",
         text: "Undone — your files were moved back to their original names.",
