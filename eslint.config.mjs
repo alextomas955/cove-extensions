@@ -23,6 +23,21 @@ const noUnusedVars = [
 // e2e specs pass browser-context callbacks to page.evaluate(...), so those files legitimately name
 // browser globals (document/window) alongside the Node globals every script uses.
 const scriptGlobals = { ...globals.node, ...globals.browser };
+
+// R13 no-internal-barrels: import the concrete module, not an index re-export. The pattern matches
+// ONLY index-file names — deliberately NOT ".", "./", ".." (a group containing those degenerates
+// via minimatch into match-everything, 127 false positives; CITATION-RECHECK §2). The alias
+// `@cove-extensions/ui-shared` is unaffected — that specifier does not end in `index`, and its
+// src/index.ts is the one sanctioned barrel (the package's public entry).
+//
+// Hoisted to a const because two blocks below set `no-restricted-imports`, and flat config REPLACES
+// a rule's entire options object per rule name rather than merging: a second block that names this
+// rule for files the first block also covers would silently drop the barrel ban for them.
+const noInternalBarrels = {
+  group: ["**/index", "**/index.js", "**/index.ts", "**/index.mjs"],
+  message:
+    "No internal barrels: import the concrete module, not an index re-export (Wave-1 slice architecture).",
+};
 const scriptRules = {
   ...js.configs.recommended.rules,
   "no-unused-vars": noUnusedVars,
@@ -136,19 +151,33 @@ export default tseslint.config(
       // entries and the two vite configs legitimately default-export (defineExtension / Vite's config
       // contract) and are exempted in the override block below.
       "import-x/no-default-export": "error",
-      // No internal barrels: import the concrete module, not an index re-export. The pattern matches
-      // ONLY index-file names — deliberately NOT ".", "./", ".." (a group containing those degenerates
-      // via minimatch into match-everything, 127 false positives; CITATION-RECHECK §2). The alias
-      // `@cove-extensions/ui-shared` is unaffected — that specifier does not end in `index`, and its
-      // src/index.ts is the one sanctioned barrel (the package's public entry).
+      "no-restricted-imports": ["error", { patterns: [noInternalBarrels] }],
+    },
+  },
+
+  // --- `*Logic.ts` purity: relative imports only ---
+  // These modules are the L0 tier — pure, mock-free, deterministic, and unit-testable with no
+  // environment. Nothing here may reach for react, a host runtime module, the shared barrel, or even
+  // node: builtins; a logic module that needs one of those is doing I/O and belongs in an INFRA or
+  // FEAT module instead. Until this rule existed the constraint was enforced only as a side effect of
+  // the old offline logic gate, which compiled each module in an isolated temp dir where a runtime
+  // import simply failed to resolve. The gate is gone (its suite runs under vitest, which resolves
+  // everything), so the constraint is now stated directly rather than emerging from a sandbox.
+  //
+  // `noInternalBarrels` is restated because this block re-declares `no-restricted-imports` for files
+  // the MF-44 block above also matches, and flat config replaces the whole options object.
+  {
+    files: ["extensions/*/src/**/*Logic.ts", "shared/cove-extensions-ui/**/*Logic.ts"],
+    rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [
+            noInternalBarrels,
             {
-              group: ["**/index", "**/index.js", "**/index.ts", "**/index.mjs"],
+              regex: "^[^.]",
               message:
-                "No internal barrels: import the concrete module, not an index re-export (Wave-1 slice architecture).",
+                "A *Logic.ts module stays pure (L0): relative imports only — no react, no host runtime, no shared barrel, no node: builtin. Move the I/O to an INFRA module and pass its result in.",
             },
           ],
         },
