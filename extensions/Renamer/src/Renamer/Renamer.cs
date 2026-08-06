@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Cove.Core.Events;
+using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Cove.Sdk;
 using Microsoft.EntityFrameworkCore;
@@ -103,7 +104,96 @@ public sealed partial class Renamer : FullExtensionBase
             LogRevertLogPurgeFailed(ex);
         }
 
+        // ONE-TIME name→id options conversion. A blob written before the identity migration keys its
+        // tag and performer rules on NAMES, which the current model cannot bind at all, so until this
+        // runs every settings read falls back to defaults. Like the journal discard above it rides its
+        // own stamp rather than repeating on every deploy, restart and reboot.
+        try
+        {
+            await MigrateStoredOptionsToIdsAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            // The conversion writes only after a successful read, so a throw here has changed nothing.
+            // Reported and stepped over rather than blocking the load; the next load retries.
+            LogOptionsMigrationFailed(ex);
+        }
+
         await base.InitializeAsync(services, ct);
+    }
+
+    /// <summary>The id/name pairs a stored rule name is resolved against.</summary>
+    private readonly record struct EntityNames(
+        IReadOnlyList<(int Id, string Name)> Tags,
+        IReadOnlyList<(int Id, string Name)> Performers);
+
+    /// <summary>
+    /// Converts the stored options blob from name-keyed rules to id-keyed rules exactly once, writing
+    /// only when the library read it resolves against came back with at least one row of each kind the
+    /// blob actually needs.
+    /// </summary>
+    /// <remarks>
+    /// The at-least-one-row rule is the whole safety argument, and it is stronger than "do not write
+    /// when the read failed". Cove's authorization query filters are bypassed only for a null, System or
+    /// wildcard principal, and the principal flows by async context rather than by DI scope — so an
+    /// unelevated background read returns ZERO ROWS successfully, with no exception, indistinguishable
+    /// from a library that genuinely has no tags. The conversion keeps no copy of the originals, so
+    /// writing after such a read would erase every tag and performer rule the user has. An empty library
+    /// has nothing to convert, so refusing to write costs nothing and makes that outcome structurally
+    /// impossible. The stamp is not advanced either, so the next load retries.
+    /// </remarks>
+    private async Task MigrateStoredOptionsToIdsAsync(CancellationToken ct)
+    {
+        if (await Store.GetAsync(OptionsMigration.SchemaKey, ct) == OptionsMigration.CurrentSchema)
+        {
+            return;
+        }
+
+        var optionsStore = new OptionsStore(Store);
+        string? stored = await optionsStore.LoadRawAsync(ct);
+        var legacy = OptionsMigration.Scan(stored);
+        if (stored is null || !legacy.Any)
+        {
+            return;
+        }
+
+        EntityNames names;
+        await using (var scope = ScopeFactory.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<DbContext>();
+
+            // Every DETACHED body in this extension — this conversion, the job bodies and the
+            // auto-rename hook — elevates, because none of them carries a principal of its own. The
+            // two request-path scopes (/undo and /scan-rows) deliberately do not: they must stay on
+            // the caller's principal, and elevating them would bypass that caller's authorization.
+            names = await RunAsSystem.RunAsSystemAsync(scope.ServiceProvider, async () =>
+            {
+                var tagRows = await db.Set<Cove.Core.Entities.Tag>()
+                    .AsNoTracking().Select(t => new { t.Id, t.Name }).ToListAsync(ct);
+                var performerRows = await db.Set<Cove.Core.Entities.Performer>()
+                    .AsNoTracking().Select(p => new { p.Id, p.Name }).ToListAsync(ct);
+                return new EntityNames(
+                    [.. tagRows.Select(r => (r.Id, r.Name))],
+                    [.. performerRows.Select(r => (r.Id, r.Name))]);
+            });
+        }
+
+        if ((legacy.Tags && names.Tags.Count == 0) || (legacy.Performers && names.Performers.Count == 0))
+        {
+            LogOptionsMigrationDeferred("the library read returned no rows");
+            return;
+        }
+
+        var converted = OptionsMigration.Convert(stored, names.Tags, names.Performers);
+        await optionsStore.SaveRawAsync(converted.Json, ct);
+        await Store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema, ct);
+
+        LogOptionsMigrationConverted(names.Tags.Count, names.Performers.Count, converted.DroppedNames.Count);
+        if (converted.DroppedNames.Count > 0)
+        {
+            string dropped = string.Join(", ", converted.DroppedNames);
+            LogOptionsMigrationDroppedNames(converted.DroppedNames.Count, dropped);
+        }
     }
 
     // ── Shared batch core ─────────────────────────────────────────────────────
@@ -272,7 +362,8 @@ public sealed partial class Renamer : FullExtensionBase
             foreach (var id in ids)
             {
                 ct.ThrowIfCancellationRequested();
-                var (plan, entity) = await planner.PlanWithEntityAsync(kind, id, options, lookups, ct);
+                var (plan, entity) = await RunAsSystem.RunAsSystemAsync(
+                    readScope.ServiceProvider, () => planner.PlanWithEntityAsync(kind, id, options, lookups, ct));
 
                 // File sizes for the free-space sum live on the loaded entity's files, not on the plan
                 // item — so read them off the entity the planner just loaded rather than loading it a
@@ -313,20 +404,23 @@ public sealed partial class Renamer : FullExtensionBase
             // before any parallel worker runs, and each worker reads its id from this map instead of
             // doing a check-then-act create on a shared row. An in-place Renamer uses the source folder
             // id (no entry needed). This is the single source of folder creation for the batch.
-            foreach (var unit in acting)
+            await RunAsSystem.RunAsSystemAsync(readScope.ServiceProvider, async () =>
             {
-                var planItem = unit.Plan.Items[0];
-                if (planItem.Status != RenamerStatus.Move)
+                foreach (var unit in acting)
                 {
-                    continue;
-                }
+                    var planItem = unit.Plan.Items[0];
+                    if (planItem.Status != RenamerStatus.Move)
+                    {
+                        continue;
+                    }
 
-                if (!folderIdByPath.ContainsKey(planItem.TargetFolderPath))
-                {
-                    folderIdByPath[planItem.TargetFolderPath] =
-                        await port.GetOrCreateFolderIdAsync(planItem.TargetFolderPath, ct);
+                    if (!folderIdByPath.ContainsKey(planItem.TargetFolderPath))
+                    {
+                        folderIdByPath[planItem.TargetFolderPath] =
+                            await port.GetOrCreateFolderIdAsync(planItem.TargetFolderPath, ct);
+                    }
                 }
-            }
+            });
         }
 
         // UP-FRONT free-space refusal: sum the projected cross-volume bytes per destination volume and
@@ -436,7 +530,8 @@ public sealed partial class Renamer : FullExtensionBase
             var db = scope.ServiceProvider.GetRequiredService<DbContext>();
             var exec = new RenamerExecutor(new CoveRenamerDataPort(db), EventBus, revertLog, new DiskMover());
 
-            var result = await exec.ExecuteAsync(unit.Plan, options, folderIdByPath, token);
+            var result = await RunAsSystem.RunAsSystemAsync(
+                scope.ServiceProvider, () => exec.ExecuteAsync(unit.Plan, options, folderIdByPath, token));
             LogBatchItem(runId, kind, unit.EntityId, result);
 
             // Thread-safe tally: a racing `+=` would lose increments under parallel workers.

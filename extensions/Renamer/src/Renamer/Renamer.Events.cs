@@ -1,3 +1,4 @@
+using Cove.Extensions.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
@@ -73,7 +74,11 @@ public sealed partial class Renamer
             // still passes the allowlist/canonical confinement gate via the routed anchor.
             // Preview, auto-renamer, and batch all resolve destinations identically.
             var lookups = BuildLookups(options);
-            var plan = await new RenamerPlanner(port).PlanAsync(kind, entityId, options, lookups, ct);
+            // The host raises this event fire-and-forget, so the flow carries whichever principal
+            // happened to make the edit — or none. Unelevated, the entity load returns null under a
+            // limited or anonymous principal and the hook silently no-ops.
+            var plan = await RunAsSystem.RunAsSystemAsync(
+                scope.ServiceProvider, () => new RenamerPlanner(port).PlanAsync(kind, entityId, options, lookups, ct));
 
             // Re-entrancy guard: if nothing would actually move, do NOT touch the executor. No save
             // means no re-raised update event, so the save→event→re-enter loop never starts. Gated
@@ -117,7 +122,8 @@ public sealed partial class Renamer
             var executor = new RenamerExecutor(port, EventBus, revertLog, new DiskMover());
             // Single-entity hook path (no batch concurrency): no pre-resolved folder map — the executor
             // resolves the destination folder itself, safe because this call is not parallelized.
-            var result = await executor.ExecuteAsync(plan, options, ct: ct);
+            var result = await RunAsSystem.RunAsSystemAsync(
+                scope.ServiceProvider, () => executor.ExecuteAsync(plan, options, ct: ct));
 
             foreach (var r in result.Renamed)
             {
