@@ -3,7 +3,8 @@
 // suite's normal `COVE__Auth__Enabled=false` default every request resolves to a bypass principal
 // whatever headers it carries, so neither a header assertion nor a 200 distinguishes fixed from
 // unfixed there — the check would be unfalsifiable. Flipping auth is instance-global, hence the
-// per-test harness rather than the worker-shared one, and hence the tag keeping it out of that run.
+// per-test harness rather than the worker-shared one. It stays in the default run regardless: it
+// provisions its own instance and shares no state, and a spec CI does not run guards nothing.
 //
 // WHAT MAKES IT FALSIFIABLE, and it is not what it looks like. A logged-in browser holds an
 // `cove_access_token` cookie, and the host's principal middleware falls back to that cookie whenever
@@ -109,7 +110,7 @@ async function readStoredOptions(harness, dataPathname) {
   return (await res.json()).options;
 }
 
-test('@authonly the settings panel reads and writes its options through an authenticated request', async ({
+test('the settings panel reads and writes its options through an authenticated request', async ({
   page,
   authHarness,
 }) => {
