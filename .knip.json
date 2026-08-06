@@ -37,7 +37,6 @@
       ],
       "ignoreDependencies": [
         "react",
-        "react-dom",
         "@cove/extension-sdk",
         "lucide-react",
         "vite",

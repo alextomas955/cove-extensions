@@ -459,47 +459,6 @@ export function SegmentedReplace({
   );
 }
 
-export function Checkbox({
-  label,
-  checked,
-  onChange,
-  helper,
-  ariaLabel,
-}: {
-  label?: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  helper?: string;
-  ariaLabel?: string;
-}) {
-  const id = useId();
-  // A label-less checkbox (an overlay control with no visible text) names itself through aria-label on the
-  // input, mirroring Toggle — otherwise the visible label span carries the accessible name.
-  const hasVisibleLabel = Boolean(label);
-  return (
-    <div>
-      <label
-        htmlFor={id}
-        className="flex items-center gap-2 text-sm text-secondary"
-        title={helper}
-      >
-        <input
-          id={id}
-          type="checkbox"
-          checked={checked}
-          aria-label={hasVisibleLabel ? undefined : ariaLabel}
-          onChange={(e) => {
-            onChange(e.target.checked);
-          }}
-          className="h-4 w-4 rounded border-border bg-card text-accent focus:ring-0"
-        />
-        {hasVisibleLabel ? <span>{label}</span> : null}
-      </label>
-      {helper ? <p className="mt-1 text-xs text-secondary">{helper}</p> : null}
-    </div>
-  );
-}
-
 export function Toggle({
   label,
   checked,
@@ -1296,29 +1255,6 @@ export function StatusPill({
       {icon}
       {children}
     </span>
-  );
-}
-
-/**
- * A section-group divider header: an uppercase label, a hairline rule that fills the row, and an
- * optional muted hint on the right. Groups the flat cards beneath it (What gets renamed, Run &
- * automation, Token settings, Destination routing, Advanced) without being a collapsible itself.
- */
-export function SectionGroupHeader({
-  title,
-  hint,
-}: {
-  title: string;
-  hint?: string;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <h2 className="text-xs font-bold uppercase tracking-wider text-secondary">
-        {title}
-      </h2>
-      <div className="h-px flex-1 bg-border" />
-      {hint ? <span className="text-xs text-muted">{hint}</span> : null}
-    </div>
   );
 }
 

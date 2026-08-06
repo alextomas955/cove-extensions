@@ -14,7 +14,6 @@ export * from "./actions";
 // `primitives`, so a blanket `export *` would collide. Consumers use the component by that name; the
 // result interface stays internal to the module (it is only `isRegexValid`'s return shape).
 export {
-  filterByText,
   isRegexValid,
   isAbsolutePathShape,
   extensionShapeAdvisory,
