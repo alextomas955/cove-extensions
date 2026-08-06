@@ -33,7 +33,7 @@ import { Loader2, X, ChevronUp, ChevronDown } from "lucide-react";
 import { isRegexValid, isAbsolutePathShape } from "./primitivesLogic";
 import { availableOptions, type ValueOption } from "./entityPickerLogic";
 
-const INPUT_CLASS =
+export const INPUT_CLASS =
   "w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none";
 
 /**
@@ -1016,7 +1016,7 @@ export function KeyValueMapEditor({
   renderValue: (value: string, setValue: (value: string) => void) => ReactNode;
   // How a committed row's key displays. Defaults to the raw key; an opaque-id key (e.g. a studio id)
   // supplies this to show a human label so a saved rule reads "Studio Name → …" not "42 → …".
-  renderKeyLabel?: (key: string) => string;
+  renderKeyLabel?: (key: string) => ReactNode;
   addLabel: string;
 }) {
   const [draftKey, setDraftKey] = useState("");
