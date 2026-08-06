@@ -31,6 +31,7 @@ import { RenamerSettingsPage } from '../lib/pages/renamer-settings-page.mjs';
 
 const EXTENSION_ID = 'com.alextomas955.renamer';
 const DATA_PATHNAME = `/api/extensions/${EXTENSION_ID}/data`;
+const ACCESS_COOKIE = 'cove_access_token';
 
 const test = base.extend({
   authHarness: [
@@ -59,11 +60,34 @@ async function putStoredOptions(harness, payload) {
 }
 
 /**
+ * Drops the access cookie and proves it is gone.
+ *
+ * The proof is the whole spec: with that cookie in place the host's principal middleware
+ * authenticates an extension's plain same-origin `fetch` by ambient authority, so every assertion
+ * below passes whether or not the request carries a credential of its own — which is the measured
+ * historical behavior of this exact test, not a hypothesis. An unasserted `clearCookies` can stop
+ * clearing (its filter semantics are Playwright's to change) or clear a cookie the host has since
+ * started setting on a second path, and nothing would say so.
+ */
+async function dropAmbientAuthority(page) {
+  await page.context().clearCookies({ name: ACCESS_COOKIE });
+  expect(
+    (await page.context().cookies()).map((c) => c.name),
+    `the ${ACCESS_COOKIE} cookie survived clearCookies — ambient authority is still in play, so a 200 below would prove nothing`
+  ).not.toContain(ACCESS_COOKIE);
+}
+
+/**
  * Clicks Save and waits for that save's own write to answer, returning its status. Gating on the
  * "Unsaved changes" indicator alone is not enough: it hides on the panel's local state, so a second
  * save can be driven before the first write has landed and the two arrive out of order.
+ *
+ * Drops the cookie again first rather than trusting the drop before the previous save: a 401 on any
+ * request in between drives the app's own refresh, and the host re-issues the access cookie on that
+ * response — handing the remaining writes back the ambient authority this spec exists to rule out.
  */
 async function saveAndAwaitWrite(page, settings) {
+  await dropAmbientAuthority(page);
   const write = page.waitForResponse(
     (res) => new URL(res.url()).pathname.startsWith(DATA_PATHNAME) && res.request().method() === 'PUT',
     { timeout: 30_000 }
@@ -117,7 +141,7 @@ test('@authonly the settings panel reads and writes its options through an authe
   // Ambient authority gone, session intact — from here only a request carrying the app's own bearer
   // can reach the host store. The panel is already mounted, so its bundle (itself cookie-delivered)
   // is not refetched and this isolates the extension's request from how it was delivered.
-  await page.context().clearCookies({ name: 'cove_access_token' });
+  await dropAmbientAuthority(page);
 
   const editedTemplate = `${seededTemplate} edited`;
   await settings.setFilenameTemplate(editedTemplate);
