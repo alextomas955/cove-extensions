@@ -1,7 +1,7 @@
 /**
  * Pure, DOM-free logic the primitive components render on top of. Kept import-free (no React, no DOM)
- * so the offline test runner can compile it in isolation exactly like options.ts — the same logic the
- * components use is the logic the offline suite covers.
+ * so it stays L0 — testable with no environment — and so the logic the components render on top of is
+ * exactly the logic the suite covers.
  */
 
 /** The outcome of validating a rule pattern. */

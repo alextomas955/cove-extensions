@@ -2,7 +2,7 @@
  * Bridges the number-keyed `StudioDestinations` field onto the string-keyed `KeyValueMapEditor`: the
  * key cell is a single-select `StudioPicker` (the picked studio's stable id), the value cell is the
  * destination-path text input. Reuses both primitives verbatim — the only new logic is the numeric-key
- * coercion (studioMapLogic.ts), kept out here so it is offline-tested in isolation.
+ * coercion (studioMapLogic.ts), kept out here so it is tested in isolation.
  */
 import { useEffect, useState } from "react";
 import { extensionFetch } from "@cove/runtime/api";

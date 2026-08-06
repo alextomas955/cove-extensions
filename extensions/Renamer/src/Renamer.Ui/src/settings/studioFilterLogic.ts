@@ -1,7 +1,7 @@
 /**
- * Pure, DOM-free logic behind the studio/tag picker. Kept import-free (no React, no DOM, no SDK) so
- * the offline test runner can compile it in isolation exactly like options.ts/primitivesLogic.ts —
- * the same logic the picker renders on top of is the logic the offline suite covers.
+ * Pure, DOM-free logic behind the studio/tag picker. Kept import-free (no React, no DOM, no SDK) so it
+ * stays L0 — testable with no environment — and so the logic the picker renders on top of is exactly
+ * the logic the suite covers.
  */
 
 /**

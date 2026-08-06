@@ -88,8 +88,16 @@ seam or vocabulary has to be named exactly to be actionable.
   field reads `undefined` at runtime with no error anywhere. That has shipped here. Whether the answer
   is generation, validation at the fetch boundary, or something else is an open question; what is
   settled is that "it type-checks" proves nothing about the wire. One mechanical check does exist and
-  must not be lost: keep `*Logic.ts` free of runtime imports so it runs under the offline logic gate,
-  which is what makes a pinned wire-casing enum fail on drift.
+  must not be lost: a test that pins each wire value against the server's own spelling, transcribed by
+  hand rather than derived from the code under test, so drift fails loudly instead of reading
+  `undefined`. An expectation computed from the module it checks agrees with itself forever.
+- **A `*Logic.ts` module imports nothing but its relative siblings.** That is what keeps the L0 tier
+  worth having — pure, mock-free, deterministic, runnable with no environment — and it is why those
+  modules are the cheapest place in the codebase to pin a contract. The rule once held only as a side
+  effect of a test runner that compiled each module alone in a temp dir, where a runtime import simply
+  failed to resolve; that runner is gone, and the constraint is now stated directly as a
+  `no-restricted-imports` rule in `eslint.config.mjs`. Prefer that shape generally: a structural
+  guarantee that fails at lint time beats one that depends on how the suite happens to run.
 - **Nothing may be O(library).** Libraries here reach millions of files, so treat library size as
   unbounded input in every design — storage, memory, wire payload and browser state alike. Persist
   **aggregates**, and serve **rows paged on demand**; planning and projection are pure per entity, so

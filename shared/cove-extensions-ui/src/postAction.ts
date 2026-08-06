@@ -1,5 +1,5 @@
-// Not in the barrel: the offline gates compile the barrel with `types: []` and would fail to resolve
-// this `@cove/extension-sdk` import. Consumers reach it via the `./postAction` subpath instead.
+// Not in the barrel: this is the one shared module that touches `@cove/extension-sdk`, and keeping it
+// behind the `./postAction` subpath is what lets a consumer import the barrel without taking the SDK.
 import { request, ApiError } from "@cove/extension-sdk";
 
 /**

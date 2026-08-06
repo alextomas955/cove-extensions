@@ -1,8 +1,8 @@
 /**
  * Pure, DOM-free coercion between the backend's number-keyed `StudioDestinations` and the string-keyed
- * map the reusable `KeyValueMapEditor` works in. Kept import-free (no React, no DOM, no SDK) so the
- * offline test runner can compile it in isolation exactly like options.ts/studioFilterLogic.ts — the
- * same coercion the editor relies on is the coercion the offline suite covers.
+ * map the reusable `KeyValueMapEditor` works in. Kept import-free (no React, no DOM, no SDK) so it
+ * stays L0 — testable with no environment — and so the coercion the editor relies on is exactly the
+ * coercion the suite covers.
  *
  * A studio destination keys on the stable studio id. The id must stay a NUMBER end to end so the
  * persisted map is value-equal with the backend `Record<number, string>` and with normalizeOptions'
