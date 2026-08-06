@@ -53,8 +53,8 @@ Both are multi-value lists shaped by the same options (a few apply to performers
 | Max count | Maximum items to include; `0` = unlimited. | `0` |
 | On overflow | When over the max: *Drop all* or *Keep the first N*. | Drop all |
 | Sort | Order before joining: Name (A→Z), Keep original order, and — performers only — By internal id, Favorites first then name. | Name (A→Z) |
-| Whitelist | If non-empty, only these values are kept (case-insensitive). | *(empty)* |
-| Blacklist | These values are removed (case-insensitive). | *(empty)* |
+| Whitelist | If non-empty, only the listed performers or tags are kept. Each is matched on its stable id in your library, not on its name, so renaming one keeps the rule pointed at it. | *(empty)* |
+| Blacklist | The listed performers or tags are removed. Matched the same way as the whitelist. | *(empty)* |
 | Ignore genders *(performers only)* | Genders to drop before the max-count limit. A performer with no gender set is always kept. | *(empty)* |
 | Gender order *(performers only)* | Preferred gender order, most-preferred first; controls who survives the max-count limit. | *(empty)* |
 
