@@ -2,7 +2,9 @@
 // Forked on: 2026-07-01
 // Upstream diff base: https://github.com/yourcove/multi-extension-repo-template/blob/main/scripts/validate-extension-repo.mjs
 //
-// Sole behavioral difference from upstream: this fork reads the additive
+// Two behavioral differences from upstream.
+//
+// 1. This fork reads the additive
 // projectPath/manifestPath/uiPath/versionSourcePath catalog fields (when present on a catalog
 // entry) instead of unconditionally deriving {path}/{name}.csproj and {path}/extension.json by
 // convention. This lets a real 3-project src/ subtree layout (e.g. Renamer's
@@ -10,6 +12,11 @@
 // manifestOnly or flat-convention entry added WITHOUT these fields still validates correctly via
 // the upstream convention-derived fallback path — the fork is additive, not a breaking
 // replacement.
+//
+// 2. Upstream floor-checks both CoveSdkVersion and CoveCoreVersion against CoveMinVersion. This
+// fork checks only CoveSdkVersion, because Cove.Core is never a PackageReference here — it arrives
+// transitively through Cove.Sdk — so no CoveCoreVersion property is declared and there is no
+// version for the second check to compare. Porting it would report a missing property as an error.
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -134,15 +141,11 @@ const coveMinVersion = buildProps.CoveMinVersion;
 
 if (!catalog.schemaVersion) errors.push("extensions/catalog.json missing schemaVersion");
 if (entries.length === 0) errors.push("extensions/catalog.json has no extensions");
-// NOTE (fork adaptation, not upstream): upstream unconditionally errors when CoveMinVersion is
-// absent from Directory.Build.props. This repo's root Directory.Build.props deliberately defines
-// only CoveSdkVersion/CoveCoreVersion (no CoveMinVersion property exists yet) — confirmed during
-// planning (RESEARCH.md Open Decision #3). Per plan instruction, its absence must silently no-op
-// the floor checks below rather than fail, so the upstream's unconditional
-// "missing CoveMinVersion" error line is intentionally NOT ported here.
+// Upstream errors outright when CoveMinVersion is absent; this fork lets the floor checks no-op
+// instead, so a consumer that has not declared a floor still validates. See the CoveCoreVersion
+// note in the file header for why only one property is compared here.
 if (coveMinVersion) {
   validateVersionFloor("Directory.Build.props", "CoveSdkVersion", buildProps.CoveSdkVersion, coveMinVersion);
-  validateVersionFloor("Directory.Build.props", "CoveCoreVersion", buildProps.CoveCoreVersion, coveMinVersion);
 }
 
 const ids = new Set();

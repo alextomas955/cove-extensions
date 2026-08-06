@@ -4,7 +4,17 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <EnableDynamicLoading>true</EnableDynamicLoading>
-    <CoveSdkVersion Condition="'$(CoveSdkVersion)' == ''">1.0.0</CoveSdkVersion>
+    <!-- The single declared host floor, from which the SDK package version derives. 1.1.0 is where
+         the host commit that introduced the `@cove/runtime/api` runtime module first ships, measured
+         against the released image — the floor follows the capability the extensions actually use, it
+         is not a number picked to look current. Declaration order here is load-bearing:
+         scripts/validate-extension-repo.mjs expands $(...) against properties it has already seen, so
+         reversing these two lines makes it read the literal placeholder text instead of a version and
+         silently skip every per-manifest floor comparison. No companion property is declared for
+         Cove.Core, deliberately: it is never a PackageReference in this repo (it arrives transitively
+         through Cove.Sdk), so such a value would have no consumer. -->
+    <CoveMinVersion Condition="'$(CoveMinVersion)' == ''">1.1.0</CoveMinVersion>
+    <CoveSdkVersion Condition="'$(CoveSdkVersion)' == ''">$(CoveMinVersion)</CoveSdkVersion>
 
     <!-- Local-Cove source selector precedence (highest wins):
          1. Explicit -p:UseLocalCoveSource=true|false (set before this file evaluates) — honored as-is.

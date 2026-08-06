@@ -163,6 +163,16 @@ export default tseslint.config(
     rules: { "import-x/no-default-export": "off" },
   },
 
+  // The shared barrel carries a triple-slash reference to the ambient host-runtime declarations, and
+  // the rule's suggested `import` is not a substitute: that file declares modules and emits nothing,
+  // so importing it would add a runtime import of a module that does not exist. TypeScript honors a
+  // reference directive only above the first statement, which also leaves no room for an inline
+  // disable comment — hence the override here rather than at the call site.
+  {
+    files: ["shared/cove-extensions-ui/src/index.ts"],
+    rules: { "@typescript-eslint/triple-slash-reference": "off" },
+  },
+
   // --- MF-44 architectural boundaries (eslint-plugin-boundaries v7, `boundaries/dependencies`) ---
   // Encodes the Wave-1 slice isolation over both UIs: each feature slice folder is an element, its
   // sibling slices are off-limits (route through common/ or the entry), and common/ is importable by

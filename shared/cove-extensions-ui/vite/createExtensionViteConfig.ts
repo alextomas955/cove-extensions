@@ -20,6 +20,17 @@ export interface ExtensionViteOptions {
 // The host import-map provides these; a second React bundled here would break hook identity.
 // `@cove/extension-sdk` is intentionally absent — it is not in the host import-map, so it must ship
 // bundled.
+//
+// The mixed spelling is deliberate, and each host module is named here exactly once. The seven bare
+// names are host modules the import map also serves under a bare alias; the two `@cove/runtime/*`
+// entries are host modules that carry no such alias, so their canonical name is the only spelling
+// that reaches them. A live peer extension generated from the same upstream template ships the
+// identical mix. Do NOT collapse this to a `@cove/runtime/` prefix match — it matches none of the
+// seven bare names, which would silently bundle a second React with no build failure.
+//
+// The list is hand-mirrored from the host because the host's specifier contract lives only inside its
+// own UI app and is not carried by the installable `@cove/extension-sdk`. Delete the mirror the day
+// Cove publishes that contract in an installable package.
 const HOST_EXTERNALS = [
   "react",
   "react-dom",
@@ -28,6 +39,8 @@ const HOST_EXTERNALS = [
   "react/jsx-dev-runtime",
   "@tanstack/react-query",
   "lucide-react",
+  "@cove/runtime/components",
+  "@cove/runtime/api",
 ];
 
 /**
