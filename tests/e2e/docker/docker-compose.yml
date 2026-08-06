@@ -52,7 +52,11 @@ services:
       COVE__GeneratedPath: /generated
       COVE__CachePath: /cache
       COVE__BackupPath: /backups
-      COVE__Auth__Enabled: "false"
+      # Authentication is OFF by default: every existing spec runs against the bypass principal and
+      # must keep doing so. A suite that needs a real credential flow opts in per instance with
+      # `startHarness({ env: { COVE_E2E_AUTH_ENABLED: 'true' } })` — flipping it is instance-global,
+      # so it belongs to an isolated harness, never to a worker-shared one.
+      COVE__Auth__Enabled: "${COVE_E2E_AUTH_ENABLED:-false}"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5073/health"]
       interval: 2s

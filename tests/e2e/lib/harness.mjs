@@ -24,21 +24,32 @@ const DEFAULT_STARTUP_TIMEOUT_MS = process.env.CI ? 240_000 : 180_000;
  * Brings up an isolated Cove instance and returns a handle with baseUrl + install/teardown methods.
  * Every instance gets a random project name (Testcontainers) and a random host port so parallel
  * test runs never collide.
+ *
+ * `env` is passed to the compose invocation, so it reaches any `${VAR:-default}` substitution in
+ * docker-compose.yml — e.g. `{ COVE_E2E_AUTH_ENABLED: 'true' }` for an instance that must enforce
+ * real authentication.
  */
-export async function startHarness({ image, timeoutMs = DEFAULT_STARTUP_TIMEOUT_MS } = {}) {
+export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIMEOUT_MS } = {}) {
   let environment = new DockerComposeEnvironment(COMPOSE_DIR, COMPOSE_FILE)
     .withStartupTimeout(timeoutMs)
     .withWaitStrategy('cove', Wait.forHealthCheck())
     .withWaitStrategy('db', Wait.forHealthCheck());
 
-  if (image) {
-    environment = environment.withEnvironment({ COVE_E2E_IMAGE: image });
+  const composeEnv = { ...(image ? { COVE_E2E_IMAGE: image } : {}), ...env };
+  if (Object.keys(composeEnv).length > 0) {
+    environment = environment.withEnvironment(composeEnv);
   }
 
   const started = await environment.up();
   let coveContainer = started.getContainer('cove-1');
 
   const handle = {
+    /**
+     * The bootstrapped owner's bearer token, set by `bootstrapOwner()`. Undefined until then, which
+     * is why every consumer applies it as a conditional header rather than an unconditional one.
+     */
+    token: undefined,
+
     get baseUrl() {
       return `http://${coveContainer.getHost()}:${coveContainer.getMappedPort(5073)}`;
     },
@@ -57,7 +68,7 @@ export async function startHarness({ image, timeoutMs = DEFAULT_STARTUP_TIMEOUT_
       // port — re-fetch the started container's own view of itself rather than trusting a cached
       // port number. `restart()` mutates the same StartedGenericContainer in place (its internal
       // port-binding state is refreshed), so re-reading getMappedPort() after restart is correct.
-      await waitForExtensionEnabled(handle.baseUrl, result.id, { timeoutMs });
+      await waitForExtensionEnabled(handle.baseUrl, result.id, { timeoutMs, token: handle.token });
       return result;
     },
 
@@ -93,7 +104,18 @@ export async function startHarness({ image, timeoutMs = DEFAULT_STARTUP_TIMEOUT_
         const body = await res.text().catch(() => '<unreadable body>');
         throw new Error(`bootstrapOwner: POST /api/auth/bootstrap-owner failed (${res.status}): ${body}`);
       }
-      return res.json();
+      const owner = await res.json();
+      // The access token is `token` — NOT `accessToken`. Reading the wrong field yields
+      // `Bearer undefined`, which the host rejects identically to sending no header at all, so a
+      // spec would go red for a broken fixture rather than for the behavior it means to prove.
+      // Asserted here, at the one place the field name is spelled, so that failure names itself.
+      if (typeof owner?.token !== 'string' || owner.token.length === 0) {
+        throw new Error(
+          `bootstrapOwner: response carried no usable token (top-level keys: ${Object.keys(owner ?? {}).join(', ') || '<none>'})`
+        );
+      }
+      handle.token = owner.token;
+      return owner;
     },
 
     async stop() {
@@ -103,10 +125,15 @@ export async function startHarness({ image, timeoutMs = DEFAULT_STARTUP_TIMEOUT_
   return handle;
 }
 
-async function waitForExtensionEnabled(baseUrl, extensionId, { timeoutMs = 60_000, intervalMs = 1000 } = {}) {
+// `GET /api/extensions` carries a permission requirement, so under an auth-enabled instance this
+// poll answers 401 forever without a token — and it runs inside installExtension(), before any test
+// body. Hence the token parameter: an auth-on suite cannot reach its first assertion without it.
+async function waitForExtensionEnabled(baseUrl, extensionId, { timeoutMs = 60_000, intervalMs = 1000, token } = {}) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const res = await fetch(`${baseUrl}/api/extensions`).catch(() => null);
+    const res = await fetch(`${baseUrl}/api/extensions`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    }).catch(() => null);
     if (res?.ok) {
       const extensions = await res.json();
       const match = extensions.find((e) => e.id === extensionId);

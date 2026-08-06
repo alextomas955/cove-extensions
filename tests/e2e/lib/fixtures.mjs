@@ -50,11 +50,17 @@ export const test = base.extend({
     await use(page);
   },
 
-  api: async ({ baseUrl }, use) => {
+  // Takes `harness` as well as `baseUrl` only for the bearer token: against an auth-enabled
+  // instance every route this fixture reaches answers 401 without it, and under the auth-off
+  // default `harness.token` is still set but the host's bypass principal ignores it.
+  api: async ({ harness, baseUrl }, use) => {
     async function call(method, path, body) {
       const res = await fetch(`${baseUrl}${path}`, {
         method,
-        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        headers: {
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+          ...(harness.token ? { Authorization: `Bearer ${harness.token}` } : {}),
+        },
         body: body ? JSON.stringify(body) : undefined,
       });
       const text = await res.text();
@@ -74,5 +80,38 @@ export const test = base.extend({
     });
   },
 });
+
+/**
+ * Signs in through Cove's own login form, the way a user does, so the host frontend populates its
+ * own auth store and every later request the app makes carries a real credential.
+ *
+ * There is nothing to navigate to: the auth gate renders the login form IN PLACE of the app (a
+ * render branch, not a route), so the page only has to already be on the base URL. Defaults match
+ * `bootstrapOwner`'s. Returns the login response status, which the caller may record.
+ *
+ * Waits on the login response rather than on browser storage: it names the failure ("login answered
+ * 401") instead of timing out on a symptom, and it does not depend on which view renders next.
+ */
+export async function loginThroughUi(page, { username = 'e2e-owner', password = 'E2eTestPassword123!' } = {}) {
+  const responsePromise = page.waitForResponse(
+    (res) => new URL(res.url()).pathname === '/api/auth/login',
+    { timeout: 30_000 }
+  );
+
+  await page.locator('#login-username').fill(username);
+  await page.locator('#login-password').fill(password);
+  await page.locator('button[type=submit]').click();
+
+  const response = await responsePromise;
+  expect(
+    response.status(),
+    `POST /api/auth/login answered ${response.status()} — the browser is not authenticated, so anything asserted after this would be measuring the wrong thing`
+  ).toBe(200);
+
+  // Only now the form's own unmount, which is the gate handing the app over.
+  await expect(page.locator('#login-username')).toHaveCount(0);
+
+  return response.status();
+}
 
 export { expect };

@@ -14,8 +14,11 @@ const FIXTURES_DIR = join(__dirname, 'fixtures-media');
 /**
  * Copies fixtures-media/<fixtureName> into the container at <destDir>/<destName> (default /data)
  * and registers it as a video via POST /api/videos/from-file. Returns the created video's id.
+ *
+ * `token` is required only against an auth-enabled instance (pass `harness.token`); the import
+ * route answers 401 there without it.
  */
-export async function seedVideo({ container, baseUrl, fixtureName = 'test-video.mp4', destName, destDir = '/data' }) {
+export async function seedVideo({ container, baseUrl, token, fixtureName = 'test-video.mp4', destName, destDir = '/data' }) {
   const name = destName ?? `${Date.now()}-${randomUUID()}-${fixtureName}`;
   const hostPath = join(FIXTURES_DIR, fixtureName);
   const containerPath = `${destDir}/${name}`;
@@ -25,7 +28,10 @@ export async function seedVideo({ container, baseUrl, fixtureName = 'test-video.
 
   const res = await fetch(`${baseUrl}/api/videos/from-file`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({ filePath: containerPath }),
   });
 
