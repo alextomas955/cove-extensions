@@ -116,8 +116,8 @@ test("fails: a json with a unix home path prefix leaks an absolute path", () => 
 });
 
 // ── Packaged-manifest assertions ────────────────────────────────────────────────────────────────
-// These replace the release-time version-parity gate: the packaged manifest is the artifact a host
-// actually reads, so it — not a source declaration — is what has to name this release.
+// The packaged manifest is the only version declaration a host ever reads, so it is the one that
+// has to name the release being cut and the files that shipped with it.
 
 test("fails HARD: no extension.json in the package (never a skip)", () => {
   const dir = tmpDir();
