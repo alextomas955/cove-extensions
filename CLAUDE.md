@@ -34,11 +34,10 @@ content from this file is a valid outcome.
 
 ## Build wiring
 
-The root `Directory.Build.props`/`Directory.Build.targets` auto-wire `Cove.Sdk` (which transitively
-carries `Cove.Plugins` + `Cove.Core`) for every project in the monorepo, either against a local
-sibling `../cove` checkout or from NuGet. Package versions are pinned centrally there too. An
-extension's `.csproj` should not add its own direct Cove reference, restate the relative-path math to
-`../cove`, or carry a package version — all of that is centralized at the root.
+The root `Directory.Build.props`/`Directory.Build.targets` wire `Cove.Sdk` (which transitively carries
+`Cove.Plugins` + `Cove.Core`) and pin every package version for the whole monorepo, against either a
+local sibling `../cove` checkout or NuGet. An extension's `.csproj` should not add its own Cove
+reference, restate the relative-path math to `../cove`, or carry a package version.
 
 Build the whole monorepo from this root:
 
@@ -76,10 +75,15 @@ follows. The shape rules themselves — the six-kind taxonomy, per-tier structur
 wrapper, capability-not-entity naming, suffix-as-kind, two-level shared code, UI conventions,
 correctness standards and test tiering — are stated with their reasoning at
 `website/docs/contributing/authoring-patterns.md`. Read that page before adding or reshaping an
-extension; what stays below is what that page does not carry.
+extension. What stays below is what that page does not carry, plus the handful of invariants whose
+seam or vocabulary has to be named exactly to be actionable.
 
-- **Depend downward and sideways, never upward and never across sibling features.** This is the one
-  dependency rule of the taxonomy, and the invariant the import-boundary lint enforces as an error.
+- **Every module is exactly one of six kinds** — FEAT (a capability slice) · DOM (pure logic) · MODEL
+  (a data or wire shape) · INFRA (I/O: HTTP, DB, disk, host store, timers) · UIP (a business-agnostic
+  UI primitive) · TOOL (commit, CI and build time). Classify a file by what it *is*, then place it.
+- **Depend downward (toward MODEL) and sideways onto shared code and UI primitives, never upward and
+  never across sibling features.** This is the taxonomy's one dependency rule, and the invariant the
+  import-boundary lint enforces as an error.
 - **Before adding to a repo-level shared package, check whether the host already provides it.** Cove
   exposes shared runtime modules and a component library to extensions, and reimplementing those is
   the most common way the two-level-shared rule gets violated.
@@ -100,6 +104,15 @@ extension; what stays below is what that page does not carry.
   a reconcile) it may be O(library) in *time*, but its output must still be O(1) in size. This has
   already happened here: a per-file collection persisted to the host's extension store grew large
   enough to fail that extension's entire settings page, survive reinstall, and require SQL to remove.
+- **Two correctness invariants whose failure is silent.** Background database reads run as System
+  through one `RunAsSystemAsync` seam — under an Anonymous principal Cove's authorization filters
+  return zero rows with no error, so an empty result is the symptom of getting this wrong rather than
+  of an empty library. And on shutdown, work classifies as `Cancelled`, never `Failed`, so a clean
+  stop is never read as a defect.
+- **Every backend test class carries exactly one tier trait** — L0 pure logic · L1 host double · L2
+  in-process endpoint · L3 containerized end-to-end — so a tier runs in isolation. A shared reflection
+  guard (`TierTraitGuard`) fails the suite when a class lacks one, which keeps the taxonomy exhaustive
+  by mechanism rather than by hand. L3 is the safety gate; the bare compile-and-pure-logic leg is not.
 - **Only a check that a CI workflow runs can block a merge.** An entry in the local hook runner is
   advice a contributor can skip, so wire a check you need enforced into a workflow.
 - **A gate must be able to fail, and must prove it ran.** A gate that inspects zero input and exits 0
