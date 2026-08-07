@@ -137,23 +137,43 @@ function protectedPaths(absoluteRoot, absolutePublishDir, entry, manifestSource)
 // this at a live install location, where the directory's own existence and identity is what the host
 // holds open. The enumeration exists solely to clear leftovers from an earlier run — nothing reads
 // the package back afterwards to decide or confirm what shipped.
-function emptyPackageDir(packageDir) {
+//
+// Flat files only, and never a tree. Every declared artifact is a bare filename that lands at the
+// package root — checkArtifactName refuses anything else before a source is read — so this packer
+// cannot have written a subdirectory or a link here, and one found is always someone else's data.
+// Treating it as a leftover to delete is what turned a path-math slip into a wiped source tree, so
+// the refusal is a second defense that holds even if the packageDir guard is wrong again: the blast
+// radius of a wrong answer is capped at the flat files in one directory.
+//
+// Nothing is removed unless the whole directory passed, so a refusal cannot take a sibling with it.
+function emptyPackageDir(packageDir, failures) {
   if (!fs.existsSync(packageDir)) {
     fs.mkdirSync(packageDir, { recursive: true });
-    return;
+    return true;
   }
 
-  for (const leftover of fs.readdirSync(packageDir)) {
-    fs.rmSync(path.join(packageDir, leftover), { recursive: true, force: true });
+  const leftovers = fs.readdirSync(packageDir, { withFileTypes: true });
+  const foreign = leftovers.find((leftover) => !leftover.isFile());
+  if (foreign) {
+    failures.push(
+      "INVALID: package directory holds " + foreign.name + ", which is not a regular file and cannot be " +
+        "something this packer wrote — refusing to empty " + packageDir,
+    );
+    return false;
   }
+
+  // force tolerates a file that vanished between the enumeration and the unlink; recursive is absent
+  // deliberately, and the case above is why it can be.
+  for (const leftover of leftovers) fs.rmSync(path.join(packageDir, leftover.name), { force: true });
+  return true;
 }
 
 /**
  * Assembles a catalog entry's declared package into `packageDir`.
  *
- * Nothing is written unless every declared artifact resolved and every shipped json passed the
- * absolute-path refusal — a partially-assembled package is worse than none, because it looks like a
- * complete one.
+ * Nothing is written unless every declared artifact resolved, every shipped json passed the
+ * absolute-path refusal, and the package directory held nothing but regular files — a partially-
+ * assembled package is worse than none, because it looks like a complete one.
  *
  * @param {object} opts
  * @param {string} opts.root - the repo root holding `extensions/catalog.json`.
@@ -294,7 +314,8 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
 
   if (failures.length > 0) return done();
 
-  emptyPackageDir(absolutePackageDir);
+  if (!emptyPackageDir(absolutePackageDir, failures)) return done();
+
   for (const item of staged) {
     const destination = path.join(absolutePackageDir, item.name);
     if (item.text == null) {
