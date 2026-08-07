@@ -140,15 +140,22 @@ jobs:
     permissions:
       contents: read
     steps:
+      # Every catalog- and version-derived value in this job's shell bodies arrives through the step's
+      # own environment and is read as a quoted variable, never spliced into the body text:
+      # extensions/catalog.json is editable by a pull request from a fork, and a value in the
+      # environment is data the shell reads, where the same value in the body is code the shell runs.
       - name: Derive version
         id: check
         shell: bash
         run: |
-          if [[ "${GITHUB_REF}" == refs/tags/${{ matrix.extension.tagPrefix }}v* ]]; then
-            echo "version=${GITHUB_REF#refs/tags/${{ matrix.extension.tagPrefix }}v}" >> "$GITHUB_OUTPUT"
+          prefix="refs/tags/${TAG_PREFIX}v"
+          if [[ "${GITHUB_REF}" == "${prefix}"* ]]; then
+            echo "version=${GITHUB_REF#"${prefix}"}" >> "$GITHUB_OUTPUT"
           else
             echo "version=0.0.0" >> "$GITHUB_OUTPUT"
           fi
+        env:
+          TAG_PREFIX: ${{ matrix.extension.tagPrefix }}
 
       # Unconditional: the validate job's matrix computation already filters to only the tagged
       # extension on a tag push (all entries on a PR), so there is nothing left for this job to
@@ -163,11 +170,16 @@ jobs:
 
       - name: Restore
         if: ${{ !matrix.extension.manifestOnly }}
-        run: dotnet restore ${{ matrix.extension.projectPath }} -p:UseLocalCoveSource=false
+        run: dotnet restore "$PROJECT_PATH" -p:UseLocalCoveSource=false
+        env:
+          PROJECT_PATH: ${{ matrix.extension.projectPath }}
 
       - name: Build
         if: ${{ !matrix.extension.manifestOnly }}
-        run: dotnet build ${{ matrix.extension.projectPath }} -c Release --no-restore -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
+        run: dotnet build "$PROJECT_PATH" -c Release --no-restore -p:UseLocalCoveSource=false "-p:Version=$EXTENSION_VERSION" -p:ContinuousIntegrationBuild=true
+        env:
+          PROJECT_PATH: ${{ matrix.extension.projectPath }}
+          EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
       # Unit tier only — this bare runner has no ../cove sibling checkout, so the test project's
       # cove-referencing sources are Compile-Removed (see Renamer.Tests.csproj's cove-absent
@@ -176,14 +188,20 @@ jobs:
       # testProjectPath entry in catalog.json skips this step (manifestOnly-style opt-out).
       - name: Test (unit tier)
         if: ${{ !matrix.extension.manifestOnly && matrix.extension.testProjectPath != '' }}
-        run: dotnet test ${{ matrix.extension.testProjectPath }} -c Release -p:UseLocalCoveSource=false
+        run: dotnet test "$TEST_PROJECT_PATH" -c Release -p:UseLocalCoveSource=false
+        env:
+          TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
 
       # Publishes to a throwaway directory, NOT the package directory: the package receives only what
       # the assemble step below copies into it, so nothing the build happens to emit alongside the
       # shipped files can reach a release without being declared.
       - name: Publish
         if: ${{ !matrix.extension.manifestOnly }}
-        run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o artifacts/publish/${{ matrix.extension.name }} --no-build -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
+        run: dotnet publish "$PROJECT_PATH" -c Release -o "artifacts/publish/$EXTENSION_NAME" --no-build -p:UseLocalCoveSource=false "-p:Version=$EXTENSION_VERSION" -p:ContinuousIntegrationBuild=true
+        env:
+          PROJECT_PATH: ${{ matrix.extension.projectPath }}
+          EXTENSION_NAME: ${{ matrix.extension.name }}
+          EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
       # Conditional frontend build — only extensions with a uiPath field ship a frontend bundle.
       - name: Setup Node
@@ -213,7 +231,11 @@ jobs:
       # rehearsal: the same script assembles the same declared set a tag push ships.
       - name: Assemble package
         if: ${{ !matrix.extension.manifestOnly }}
-        run: node scripts/assemble-package.mjs --publish-dir artifacts/publish/${{ matrix.extension.name }} --package-dir artifacts/${{ matrix.extension.name }} --extension ${{ matrix.extension.id }} --version ${{ steps.check.outputs.version }}
+        run: node scripts/assemble-package.mjs --publish-dir "artifacts/publish/$EXTENSION_NAME" --package-dir "artifacts/$EXTENSION_NAME" --extension "$EXTENSION_ID" --version "$EXTENSION_VERSION"
+        env:
+          EXTENSION_NAME: ${{ matrix.extension.name }}
+          EXTENSION_ID: ${{ matrix.extension.id }}
+          EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
       # Archives what the assemble step wrote, so it carries the same manifest-only guard that step
       # carries. Without it the two conditions disagree: on a tag push a manifest-only entry would cd
@@ -224,8 +246,12 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/tags/') && !matrix.extension.manifestOnly }}
         shell: bash
         run: |
-          cd artifacts/${{ matrix.extension.name }}
-          zip -r ../../${{ matrix.extension.id }}-${{ steps.check.outputs.version }}.zip .
+          cd "artifacts/$EXTENSION_NAME"
+          zip -r "../../${EXTENSION_ID}-${EXTENSION_VERSION}.zip" .
+        env:
+          EXTENSION_NAME: ${{ matrix.extension.name }}
+          EXTENSION_ID: ${{ matrix.extension.id }}
+          EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
       - name: Upload artifact
         if: ${{ startsWith(github.ref, 'refs/tags/') && !matrix.extension.manifestOnly }}
