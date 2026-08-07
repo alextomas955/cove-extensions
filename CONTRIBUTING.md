@@ -30,7 +30,7 @@ extend an existing one), you work against the same contract:
   reference and the source-selection math are wired once at the repo root
   (`Directory.Build.props`/`Directory.Build.targets`); your extension inherits it.
 - Never bundle host-provided assemblies (`Cove.Core`/`Cove.Plugins`/`Cove.Sdk`, EF Core, Npgsql,
-  Pgvector) — the host provides them, and shipping them causes runtime type-identity mismatches.
+  Pgvector) — the host loads its own copy and warns once, so a leak costs weight, not correctness.
 - Never write to Cove's database directly; go through `CoveContext` and `SaveChangesAsync`.
 
 Register the extension in [`extensions/catalog.json`](extensions/catalog.json) so CI can build and
