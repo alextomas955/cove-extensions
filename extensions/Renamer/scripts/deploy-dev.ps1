@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Build -> strip-verify -> frontend-build -> deploy -> restart pipeline for the Renamer Cove
+    Build -> frontend-build -> assemble -> deploy -> restart pipeline for the Renamer Cove
     extension (Windows dev loop).
 
 .DESCRIPTION
@@ -11,22 +11,21 @@
                     running dev host. Publish (not plain build) because Cove.Sdk.targets strips
                     the host-provided closure from the *publish* set (AfterTargets=ComputeFilesToPublish).
 
-      2. STRIP-VERIFY  Enumerate the published *.dll set and BLOCK before any
-                    copy if a host-provided assembly is present. The denylist mirrors
-                    Cove.Sdk.targets' CoveHostProvidedAssemblies. This empirically proves the
-                    Cove.Sdk reference stripped the host closure. Also asserts Renamer.dll IS present.
-
-      2b. FRONTEND BUILD  Build the src/Renamer.Ui Vite library bundle to dist/index.mjs and
+      2. FRONTEND BUILD  Build the src/Renamer.Ui Vite library bundle to dist/index.mjs and
                     assert it exists. `npm install` runs only when node_modules is absent (keeps the
-                    dev loop fast). index.mjs is a UI asset, NOT a .NET assembly, so it is exempt from
-                    the host-assembly strip-verify denylist and is copied as a separate explicit
-                    Copy-Item in the deploy step. No CSS bundle is shipped (host-Tailwind path).
+                    dev loop fast). No CSS bundle is shipped (host-Tailwind path).
+
+      2b. ASSEMBLE  Copy the file set extensions/catalog.json declares for this extension into
+                    artifacts/package, with the manifest version stamped, via the shared
+                    scripts/assemble-package.mjs. That declaration is the one statement of what
+                    ships: this script and CI copy the same list, so a dev deploy installs what a
+                    release ships. A declared file the build did not produce fails here, before the
+                    deploy target is touched.
 
       3. DEPLOY  Resolve the Cove data root (COVE_HOME if set, else %LOCALAPPDATA%\cove),
                     target the FIXED subdir <root>\extensions\com.alextomas955.renamer (never an
                     arbitrary/caller-supplied path), clean only that subdir's contents (never the
-                    sibling host-managed .load-cache), then copy the published set + extension.json +
-                    the Renamer.Ui dist/index.mjs bundle in.
+                    sibling host-managed .load-cache), then copy the assembled package in.
 
       4. RESTART    Detect the process owning port 5073 and attempt a graceful restart. The exact
                     launcher is environment-specific (dotnet run vs InstanceManager); if a reliable
@@ -34,7 +33,8 @@
                     Loaded DLLs are not hot-reloaded, so a restart is required to pick up the new build.
 
     Safety controls:
-      * The strip-verify gate throws BEFORE copy on any host-assembly leak.
+      * The assemble writes nothing unless every declared file resolved, so an incomplete package
+                cannot reach the deploy step.
       * The deploy target is a fixed, validated path; no arbitrary destination argument is
                 accepted; the clean step touches only the id subdir and never the sibling .load-cache;
                 the restart step never kills unrelated processes.
@@ -49,7 +49,7 @@
 param(
     # Local Cove checkout the publish references for the ABI-matched build. Falls back to
     # $env:COVE_REPO, then the conventional ../cove sibling (relative to the monorepo root).
-    # Selects the build SOURCE only — the deploy TARGET is always COVE_HOME-resolved (see step 4),
+    # Selects the build SOURCE only — the deploy TARGET is always COVE_HOME-resolved (see step 3),
     # never this value.
     [string]$CoveRepo
 )
@@ -59,7 +59,6 @@ Set-StrictMode -Version Latest
 
 # --- Fixed, validated identity (never caller-supplied) -----------------------------------------
 $ExtensionId   = 'com.alextomas955.renamer'
-$EntryDll      = 'Renamer.dll'
 $CovePort      = 5073
 
 # --- 1. Resolve repo paths (location-independent) ----------------------------------------------
@@ -69,18 +68,9 @@ $ExtensionRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $MonorepoRoot  = Resolve-Path (Join-Path $ExtensionRoot '../..')
 $Csproj        = Join-Path $ExtensionRoot 'src/Renamer/Renamer.csproj'
 $PublishDir    = Join-Path $ExtensionRoot 'artifacts/publish'
+$PackageDir    = Join-Path $ExtensionRoot 'artifacts/package'
 $UiDir         = Join-Path $ExtensionRoot 'src/Renamer.Ui'
 $UiBundle      = Join-Path $UiDir 'dist/index.mjs'
-
-# Host-provided assemblies that MUST NOT ship — the single source of truth shared with CI's
-# strip-verify gate (.github/workflows/build.yml), defined in .github/DLL_DENYLIST.json. Read here
-# (after $MonorepoRoot resolves) rather than hand-copied, so a host-dependency change updates one file.
-$DenylistPath = Join-Path $MonorepoRoot '.github/DLL_DENYLIST.json'
-if (-not (Test-Path $DenylistPath)) {
-    throw "Shared host-assembly denylist not found at $DenylistPath — cannot verify host-assembly " +
-          "stripping. Refusing to deploy (fail-closed)."
-}
-$HostProvidedAssemblies = Get-Content -Raw -Path $DenylistPath | ConvertFrom-Json
 
 if (-not (Test-Path $Csproj)) {
     throw "Cannot find project at $Csproj"
@@ -103,7 +93,7 @@ Write-Host "    Cove repo      : $CoveRepo (build source)"
 # --- 2. BUILD (publish, local source) ----------------------------------------------------------
 # Best-effort pre-clean: `dotnet publish` overwrites/refreshes stale output on its own, so a
 # leftover directory handle (e.g. an editor/watcher with the folder open) is not fatal here — only
-# the strip-verify gate below (which inspects the fresh publish output) needs to actually succeed.
+# the assemble below (which reads the fresh publish output) needs to actually succeed.
 if (Test-Path $PublishDir) {
     try {
         Remove-Item -Recurse -Force $PublishDir -ErrorAction Stop
@@ -121,49 +111,10 @@ if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed with exit code $LASTEXITCODE — deploy aborted."
 }
 
-# --- 3. STRIP-VERIFY GATE — runs BEFORE any copy ------------------------------------------------
-Write-Host "`n==> Strip-verify gate (no host assemblies may ship)…" -ForegroundColor Cyan
-
-$publishedDlls = Get-ChildItem -Path $PublishDir -Filter '*.dll' -File
-$leaked = $publishedDlls | Where-Object { $HostProvidedAssemblies -contains $_.BaseName }
-
-if ($leaked) {
-    Write-Host "STRIP-VERIFY FAILED — host-provided assemblies present in publish output:" -ForegroundColor Red
-    $leaked | ForEach-Object { Write-Host "    LEAK: $($_.Name)" -ForegroundColor Red }
-    throw "Host assemblies leaked into the publish set. Refusing to deploy. " +
-          "Ensure src/Renamer/Renamer.csproj references Cove.Sdk (via the root Directory.Build.targets, " +
-          "which imports Cove.Sdk.targets) and that the local ProjectReferences carry " +
-          "<Private>false</Private><ExcludeAssets>runtime</ExcludeAssets>."
-}
-
-# Sanity: the extension's own DLL must be present.
-if (-not ($publishedDlls | Where-Object { $_.Name -eq $EntryDll })) {
-    throw "Expected $EntryDll in the publish output but it is missing — build produced no extension assembly."
-}
-
-# Must-ship: System.IO.Hashing is a BUNDLED (NOT host-provided) dependency the cross-volume mover
-# hashes with (XxHash3 for the size+hash verify). It is intentionally NOT in $HostProvidedAssemblies
-# — it is the opposite of a host assembly: it MUST ship, not be stripped. This is the mirror-image
-# of the $EntryDll presence check above (inverted to require presence). Its absence means the
-# System.IO.Hashing bundling regressed (e.g. it was wrongly added to a strip denylist or marked
-# Private=false), which would break the cross-volume verify at runtime — refuse to deploy.
-if (-not ($publishedDlls | Where-Object { $_.Name -eq 'System.IO.Hashing.dll' })) {
-    throw "Expected System.IO.Hashing.dll in the publish output but it is missing — the bundled hashing " +
-          "dependency (used by CrossVolumeMover's size+hash verify) did not ship. Ensure " +
-          "src/Renamer/Renamer.csproj keeps the <PackageReference Include='System.IO.Hashing' /> outside " +
-          "any UseLocalCoveSource conditional groups (NOT Private=false) and that it is NOT in any strip " +
-          "denylist."
-}
-
-Write-Host "    PASS — no host assemblies present. Approved publish set:" -ForegroundColor Green
-Get-ChildItem -Path $PublishDir -File | Sort-Object Name | ForEach-Object {
-    Write-Host "      $($_.Name)"
-}
-
-# --- 3b. FRONTEND BUILD — build the Renamer.Ui bundle ------------------------------------------
-# index.mjs is the panel ESM bundle the manifest's jsBundle field points at. It is a UI asset,
-# NOT a .NET assembly, so it is intentionally exempt from the strip-verify denylist above. It is
-# copied into the extension dir as a separate explicit Copy-Item in the deploy step below.
+# --- 3. FRONTEND BUILD — build the Renamer.Ui bundle -------------------------------------------
+# index.mjs is the panel ESM bundle the manifest's jsBundle field points at, and one ordinary row of
+# the catalog's declared artifacts — the assemble below resolves it out of dist/, so it needs no
+# copy of its own.
 $UiPackageJson = Join-Path $UiDir 'package.json'
 if (Test-Path $UiPackageJson) {
     Write-Host "`n==> Building frontend bundle (src/Renamer.Ui)…" -ForegroundColor Cyan
@@ -197,6 +148,19 @@ if (Test-Path $UiPackageJson) {
     throw "Expected $UiPackageJson but it is missing — cannot build the frontend bundle."
 }
 
+# --- 3b. ASSEMBLE — the declared package set ----------------------------------------------------
+# extensions/catalog.json's artifacts array is the one declaration of what ships, and this shared
+# script is what CI runs too, so the dev deploy installs the same list a release does. The version
+# comes from the source manifest because the packer defaults no argument.
+$SourceManifest = Join-Path $ExtensionRoot 'src/Renamer/extension.json'
+$Version = (Get-Content -Raw -Path $SourceManifest | ConvertFrom-Json).version
+
+Write-Host "`n==> Assembling the declared package (extensions/catalog.json)…" -ForegroundColor Cyan
+node (Join-Path $MonorepoRoot 'scripts/assemble-package.mjs') --publish-dir $PublishDir --package-dir $PackageDir --extension $ExtensionId --version $Version
+if ($LASTEXITCODE -ne 0) {
+    throw "Package assemble failed with exit code $LASTEXITCODE — deploy aborted."
+}
+
 # --- 4. DEPLOY ---------------------------------------------------------------------------------
 $CoveRoot = if ($env:COVE_HOME) { $env:COVE_HOME } else { Join-Path $env:LOCALAPPDATA 'cove' }
 $ExtensionsDir = Join-Path $CoveRoot 'extensions'
@@ -217,11 +181,7 @@ if (Test-Path $Target) {
     New-Item -ItemType Directory -Force -Path $Target | Out-Null
 }
 
-Copy-Item -Path (Join-Path $PublishDir '*') -Destination $Target -Recurse -Force
-
-# Copy the frontend bundle separately (UI asset, exempt from the strip-verify set). The manifest's
-# jsBundle="index.mjs" is relative to this dir, so it must land at <Target>\index.mjs. No CSS bundle.
-Copy-Item -Path $UiBundle -Destination $Target -Force
+Copy-Item -Path (Join-Path $PackageDir '*') -Destination $Target -Recurse -Force
 
 Write-Host "    Deployed files:" -ForegroundColor Green
 Get-ChildItem -Path $Target -File | Sort-Object Name | ForEach-Object {
