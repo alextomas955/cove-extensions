@@ -231,9 +231,9 @@ test("CLI: exit 0 on pass, non-zero on failure, resolving the entry from the rea
 
   const pass = tmpDir();
   write(pass, "Renamer.dll");
-  // The catalog's Renamer entry declares requiredBundledDlls: ["System.IO.Hashing"], so a passing
-  // package must carry it (this is the CLI's catalog-resolution path, unlike the unit tests above
-  // that pass requiredBundledDlls explicitly).
+  // No catalog entry declares requiredBundledDlls any more, so the CLI resolves it to [] and this
+  // file is not what makes the run pass — the unit tests above, which pass the list explicitly, are
+  // the only remaining subject for that check.
   write(pass, "System.IO.Hashing.dll");
   // The CI step assembles the package by copying the real source manifest in and stamping the
   // release version onto it, so the fixture is built the same way rather than hand-written.

@@ -7,10 +7,12 @@
 // It runs on the ASSEMBLED package — after the manifest and the frontend bundle have been copied in
 // and the manifest version stamped — because the manifest assertions have no subject before that.
 //
-// The host-assembly denylist is the single shared source at .github/DLL_DENYLIST.json. The
-// per-extension "must be bundled" set comes from the catalog entry's requiredBundledDlls field
-// (Renamer bundles System.IO.Hashing for its cross-volume mover; an extension that bundles no
-// first-party runtime dependency declares [] and this check is a no-op).
+// The host-assembly denylist is the single shared source at .github/DLL_DENYLIST.json.
+//
+// The per-extension "must be bundled" set came from the catalog entry's requiredBundledDlls field.
+// No entry declares that field any more — the shipped set is declared in one place, the entry's
+// `artifacts` array, which scripts/assemble-package.mjs both reads and enforces — so this parameter
+// now receives [] from every caller and its check has no subject.
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
