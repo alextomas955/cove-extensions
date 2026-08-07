@@ -13,7 +13,9 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { assemblePackage } from "./assemble-package.mjs";
+// The core is imported directly, while the CLI cases below spawn ./assemble-package.mjs — the entry
+// point a caller names — so the command line is exercised as a caller actually reaches it.
+import { assemblePackage } from "./assemble-package-core.mjs";
 
 const scriptPath = fileURLToPath(new URL("./assemble-package.mjs", import.meta.url));
 const scriptDir = fileURLToPath(new URL("./", import.meta.url));
