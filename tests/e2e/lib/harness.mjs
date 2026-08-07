@@ -233,20 +233,41 @@ async function waitForHostReachable(baseUrl, { timeoutMs, intervalMs = 500 }) {
 // `GET /api/extensions` carries a permission requirement, so under an auth-enabled instance this
 // poll answers 401 forever without a token — and it runs inside installExtension(), before any test
 // body. Hence the token parameter: an auth-on suite cannot reach its first assertion without it.
-async function waitForExtensionEnabled(baseUrl, extensionId, { timeoutMs = 60_000, intervalMs = 1000, token } = {}) {
+//
+// Per-attempt abort bound and required `timeoutMs` for the same reasons spelled out above
+// waitForHostReachable, and this poll runs immediately after the very restart that function was
+// bounded for — the container's port proxy is accepting connections the app is not yet answering.
+// The bound covers reading the body too, not just the headers: an abort landing mid-read rejects,
+// and a rejection escaping the loop would fail the suite blaming the abort rather than the wait.
+async function waitForExtensionEnabled(baseUrl, extensionId, { timeoutMs, intervalMs = 1000, token }) {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error(`waitForExtensionEnabled: timeoutMs must be a positive number, got ${timeoutMs}`);
+  }
+  const attemptTimeoutMs = Math.min(intervalMs * 4, 5_000);
   const deadline = Date.now() + timeoutMs;
+  let lastPoll = 'never attempted';
   while (Date.now() < deadline) {
-    const res = await fetch(`${baseUrl}/api/extensions`, {
+    const match = await fetch(`${baseUrl}/api/extensions`, {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    }).catch(() => null);
-    if (res?.ok) {
-      const extensions = await res.json();
-      const match = extensions.find((e) => e.id === extensionId);
-      if (match?.enabled) return match;
-    }
+      signal: AbortSignal.timeout(attemptTimeoutMs),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          lastPoll = `HTTP ${res.status}`;
+          return null;
+        }
+        const found = (await res.json()).find((e) => e.id === extensionId) ?? null;
+        lastPoll = found ? `present, enabled=${found.enabled}` : 'not present in the list';
+        return found;
+      })
+      .catch((err) => {
+        lastPoll = err?.message ?? String(err);
+        return null;
+      });
+    if (match?.enabled) return match;
     await new Promise((r) => setTimeout(r, intervalMs));
   }
   throw new Error(
-    `waitForExtensionEnabled: extension "${extensionId}" was not found/enabled within ${timeoutMs}ms at ${baseUrl}/api/extensions`
+    `waitForExtensionEnabled: extension "${extensionId}" was not found/enabled within ${timeoutMs}ms at ${baseUrl}/api/extensions (last poll: ${lastPoll})`
   );
 }
