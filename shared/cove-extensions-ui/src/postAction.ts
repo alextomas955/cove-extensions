@@ -14,9 +14,9 @@ export async function postAction<T extends object = Record<string, never>>(
   body?: unknown,
 ): Promise<T | Record<string, never>> {
   try {
-    // The coalesce is load-bearing: `request` resolves `undefined` for a bodyless 2xx — which the
-    // /renamer response is — while its declared return type says it cannot. Without it this returns
-    // a value its own signature forbids, and the empty-body case is the live path here.
+    // The coalesce is load-bearing, not defensive: the /renamer response IS the bodyless 2xx that
+    // `request` resolves `undefined` for, so this is the live path here. `request` rather than
+    // `requestJson` for exactly that reason — an empty body is this route's success, not its failure.
     const res = await request<T>(path, {
       method: "POST",
       body: JSON.stringify(body),

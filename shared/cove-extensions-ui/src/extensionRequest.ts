@@ -8,17 +8,15 @@ import { ApiError } from "@cove/extension-sdk";
 export { ApiError };
 
 /**
- * Request an extension route through the host's authenticated fetch, which attaches the signed-in
- * user's credential and constrains the request to same-origin `/api`.
- *
- * A drop-in for the SDK's `request<T>(path, options?)`: identical signature, identical `/api`
- * prefixing, and the same {@link ApiError} — carrying status, response body and the unprefixed path
- * — thrown for any non-ok response. Resolves `undefined` when the response carries no body.
+ * Sends one request through the host's authenticated fetch, which attaches the signed-in user's
+ * credential and constrains the request to same-origin `/api`, and returns the raw response text
+ * alongside its status. Any non-ok response raises {@link ApiError}, carrying status, response body
+ * and the unprefixed path.
  */
-export async function request<T>(
+async function send(
   path: string,
-  options: RequestInit = {},
-): Promise<T> {
+  options: RequestInit,
+): Promise<{ status: number; body: string }> {
   // The `/api` prefix belongs here rather than at each call site: `extensionFetch` throws a
   // TypeError for a path outside `/api/`, and a TypeError is not an ApiError, so a mis-prefixed
   // path falls through every `instanceof ApiError` branch into the generic string-error arm and
@@ -41,10 +39,49 @@ export async function request<T>(
     throw new ApiError(res.status, text || res.statusText, path);
   }
 
-  // An empty body is a success, not a parse error. The host answers its extension-data PUT with 200
-  // and no body at all; handing that to the JSON parser raises a SyntaxError that a caller can only
-  // read as failure.
-  if (res.status === 204) return undefined as T;
-  const body = await res.text();
-  return (body ? JSON.parse(body) : undefined) as T;
+  // A 204's body is null and reads as "", the same as the bodyless 200 the host answers its
+  // extension-data PUT with — one empty-body case for the two functions below to decide over, not a
+  // status test each would have to repeat.
+  return { status: res.status, body: await res.text() };
+}
+
+/**
+ * Request an extension route that may legitimately answer with no body, resolving `undefined` in
+ * that case: an empty body is a success here, not a parse error, and handing it to the JSON parser
+ * would raise a SyntaxError a caller could only read as failure.
+ *
+ * The `undefined` is in the return type because it is reachable — a caller that cannot act on one
+ * wants {@link requestJson}, whose empty-body failure surfaces through the error path the call site
+ * already has.
+ */
+export async function request<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T | undefined> {
+  const { body } = await send(path, options);
+  return body ? (JSON.parse(body) as T) : undefined;
+}
+
+/**
+ * Request an extension route that must answer with a JSON body, the drop-in for the SDK's
+ * `request<T>(path, options?)`: identical signature, identical `/api` prefixing, and the same
+ * {@link ApiError} raised for a non-ok response.
+ *
+ * An empty body raises {@link ApiError} too, rather than resolving a value the declared type forbids.
+ * A `T` that is really `undefined` type-checks at every call site and then fails somewhere else
+ * entirely — a `.length` that throws, or a render stuck on its loading state with nothing reported.
+ */
+export async function requestJson<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const { status, body } = await send(path, options);
+  if (!body) {
+    throw new ApiError(
+      status,
+      "response carried no body, but JSON was expected",
+      path,
+    );
+  }
+  return JSON.parse(body) as T;
 }

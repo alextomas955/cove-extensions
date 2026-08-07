@@ -1,6 +1,6 @@
 // Not in the barrel: this module reaches the host runtime through `./extensionRequest`, so it is
 // kept behind its own `./extensionStore` subpath for the same reason that module is.
-import { request } from "./extensionRequest";
+import { request, requestJson } from "./extensionRequest";
 
 /** Scoped key-value storage for one extension, over the two routes the host actually serves. */
 export interface ExtensionDataStore {
@@ -26,7 +26,7 @@ export function createExtensionDataStore(
   const base = `/extensions/${extensionId}/data`;
 
   return {
-    getAll: () => request<Record<string, string | undefined>>(base),
+    getAll: () => requestJson<Record<string, string | undefined>>(base),
 
     set: async (key, value) => {
       await request<unknown>(`${base}/${encodeURIComponent(key)}`, {

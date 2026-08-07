@@ -8,7 +8,7 @@
  * SECURITY: reasons are rendered as React text nodes (auto-escaped).
  */
 import { useCallback, useEffect, useState } from "react";
-import { request, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
+import { request, requestJson, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 import { Undo2 } from "lucide-react";
 
 import { Dialog } from "../common/ui/Dialog";
@@ -94,7 +94,7 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
     setLoading(true);
     setSummaryError(null);
     try {
-      const res = await request<LastBatchSummary>(LAST_BATCH_PATH);
+      const res = await requestJson<LastBatchSummary>(LAST_BATCH_PATH);
       setSummary(res);
     } catch (err) {
       setSummaryError(errText(err));
@@ -121,8 +121,9 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
     setFeedback(null);
     try {
       // /undo takes NO body. It may answer an empty 200 in edge cases, which `request` resolves as
-      // undefined — a success carrying no counts to report, not a failure.
-      const res = await request<UndoResult | undefined>(UNDO_PATH, { method: "POST" });
+      // undefined — a success carrying no counts to report, not a failure, so this stays on
+      // `request` rather than moving to `requestJson`.
+      const res = await request<UndoResult>(UNDO_PATH, { method: "POST" });
       if (!res) {
         setFeedback({
           kind: "success",

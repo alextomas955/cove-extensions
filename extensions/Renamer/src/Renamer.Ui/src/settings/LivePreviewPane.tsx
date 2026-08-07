@@ -23,16 +23,18 @@ export function LivePreviewPane({ preview, previewError }: LivePreviewPaneProps)
         {previewError ? (
           <StatusText kind="error">Preview unavailable — saved naming still works.</StatusText>
         ) : null}
-        {preview == null ? (
-          <div className="flex items-center gap-2 text-sm text-secondary">
-            <Spinner />
-            Rendering preview…
-          </div>
-        ) : (
+        {preview != null ? (
           <div className="space-y-3">
             {preview.map((r) => (
               <PreviewCard key={r.sampleLabel} result={r} />
             ))}
+          </div>
+        ) : previewError ? null : (
+          // Only while no failure has been reported: a spinner beneath the error line above would say
+          // the preview is still coming when nothing further is in flight.
+          <div className="flex items-center gap-2 text-sm text-secondary">
+            <Spinner />
+            Rendering preview…
           </div>
         )}
       </div>

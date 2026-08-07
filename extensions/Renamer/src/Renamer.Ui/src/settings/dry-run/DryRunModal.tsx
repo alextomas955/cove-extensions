@@ -18,7 +18,7 @@
  * SECURITY: every filename/path is a React text node (auto-escaped); no dangerouslySetInnerHTML.
  */
 import { useEffect, useRef, useState } from "react";
-import { request, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
+import { requestJson, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Search } from "lucide-react";
 
@@ -125,7 +125,7 @@ function usePollJob(
     if (!jobId) return;
     let cancelled = false;
     const interval = setInterval(() => {
-      request<JobInfo>(`/jobs/${jobId}`)
+      requestJson<JobInfo>(`/jobs/${jobId}`)
         .then((job) => {
           if (cancelled) return;
           if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
@@ -239,7 +239,7 @@ export function DryRunModal({
     // computes a bogus slow rate → a brief "~2m"/"~2h" flash before it self-corrects).
     scanSamples.current = [];
     scanMaxPercent.current = 0;
-    request<{ jobId: string }>(SCAN_LIBRARY_PATH, {
+    requestJson<{ jobId: string }>(SCAN_LIBRARY_PATH, {
       method: "POST",
       body: JSON.stringify({ Options: scanOptionsBlob }),
     })
@@ -259,7 +259,7 @@ export function DryRunModal({
         setScanError(job.error ?? "the scan job did not complete");
         return;
       }
-      request<ScanSummaryResponse>(LAST_SCAN_PATH)
+      requestJson<ScanSummaryResponse>(LAST_SCAN_PATH)
         .then((res) => {
           setSummary(res);
         })
