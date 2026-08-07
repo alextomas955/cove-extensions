@@ -195,10 +195,10 @@ Locally: `npm test` (runs every project, 4 parallel workers) or `npx playwright 
 extensions" above.
 
 CI: the `.github/workflows/build.yml` `e2e` job runs `npx playwright test --project=<name>` for
-each catalog entry that declares an `e2ePath`/`e2eProject`, against that entry's just-built
-`artifacts/<name>/` output (not a downloaded zip) — see that workflow for the exact steps. There is
-no CI-only fork of the harness itself; the same `docker-compose.yml`, install helpers, and fixtures
-run in both places.
+each catalog entry that declares an `e2ePath`/`e2eProject`, against that entry's own just-built
+publish output (not a downloaded zip), which the harness assembles as above — see that workflow
+for the exact steps. There is no CI-only fork of the harness itself; the same `docker-compose.yml`,
+install helpers, and fixtures run in both places.
 
 ## When a test fails
 
@@ -223,9 +223,10 @@ the cleanup command.
   cleanup even on a killed process, and it owns port resolution + health-check waiting natively).
   Returns a handle with `baseUrl`, `container` (the raw Testcontainers container object),
   `installExtension`, `installExtensionFromUrl`, `bootstrapOwner`, `exec`, and `stop`.
-- [`lib/stage-extension.mjs`](lib/stage-extension.mjs) — copies a build's publish output +
-  manifest + UI bundle into the on-disk shape Cove expects (`<id>/extension.json` + DLLs + optional
-  `index.mjs`).
+- [`lib/stage-extension.mjs`](lib/stage-extension.mjs) — assembles the package that extension's
+  `catalog.json` entry declares, with the repo's shared packer, into the on-disk shape Cove expects
+  (`<id>/extension.json` + DLLs + optional `index.mjs`). It runs the same packer a release and a
+  local dev deploy run, so a test installs the file set a release ships, not an approximation.
 - [`lib/install-extension.mjs`](lib/install-extension.mjs) — two install paths:
   - `installViaContainerCopy` — stages the extension, then copies it into the running container's
     `/config/extensions/<id>/` via Testcontainers' own container API and restarts (mirrors Cove's
