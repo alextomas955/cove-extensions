@@ -467,6 +467,58 @@ test("the three real caller shapes still assemble", () => {
   }
 });
 
+test("refuses to empty a package directory that holds anything other than regular files", (t) => {
+  const linkType = process.platform === "win32" ? "junction" : "dir";
+  const cases = [
+    {
+      form: "a subdirectory",
+      plant: (dir) => {
+        fs.mkdirSync(path.join(dir, "nested"), { recursive: true });
+        fs.writeFileSync(path.join(dir, "nested", "someone-elses-data.txt"), "keep me");
+        return "nested";
+      },
+    },
+    {
+      form: "a " + linkType + " entry",
+      plant: (dir) => {
+        const target = tmpDir();
+        fs.writeFileSync(path.join(target, "someone-elses-data.txt"), "keep me");
+        fs.symlinkSync(target, path.join(dir, "linked"), linkType);
+        return "linked";
+      },
+    },
+  ];
+
+  for (const { form, plant } of cases) {
+    t.diagnostic("exercised form: " + form);
+    const fixture = fixtureRoot();
+    fs.mkdirSync(fixture.packageDir, { recursive: true });
+    const planted = plant(fixture.packageDir);
+    // Sorts before both planted names, so a refusal raised partway through the removal loop rather
+    // than before it would already have taken this file.
+    write(fixture.packageDir, "Leftover.dll", "MZ");
+
+    const r = assemble(fixture);
+
+    assert.equal(r.ok, false, form + " — a package directory holding a non-file entry must be refused");
+    assert.ok(
+      r.failures.some((f) => f.startsWith("INVALID:") && f.includes(planted)),
+      form + " — expected an INVALID failure naming " + planted + ", got: " + r.failures.join("; "),
+    );
+    assert.equal(fs.existsSync(path.join(fixture.packageDir, planted)), true, form + " — " + planted + " was removed");
+    assert.equal(
+      fs.existsSync(path.join(fixture.packageDir, planted, "someone-elses-data.txt")),
+      true,
+      form + " — data under " + planted + " was removed",
+    );
+    assert.equal(
+      fs.existsSync(path.join(fixture.packageDir, "Leftover.dll")),
+      true,
+      form + " — a sibling file was removed before the refusal fired",
+    );
+  }
+});
+
 // ── CLI leg ─────────────────────────────────────────────────────────────────────────────────────
 
 function runCli(fixture, argv) {
