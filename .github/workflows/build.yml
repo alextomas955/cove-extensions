@@ -215,15 +215,20 @@ jobs:
         if: ${{ !matrix.extension.manifestOnly }}
         run: node scripts/assemble-package.mjs --publish-dir artifacts/publish/${{ matrix.extension.name }} --package-dir artifacts/${{ matrix.extension.name }} --extension ${{ matrix.extension.id }} --version ${{ steps.check.outputs.version }}
 
+      # Archives what the assemble step wrote, so it carries the same manifest-only guard that step
+      # carries. Without it the two conditions disagree: on a tag push a manifest-only entry would cd
+      # into a directory the skipped assemble never created. With it, such an entry archives nothing
+      # and uploads nothing, so no artifact for it reaches the release job — this workflow does not
+      # release a manifest-only entry, it skips one.
       - name: Package
-        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ startsWith(github.ref, 'refs/tags/') && !matrix.extension.manifestOnly }}
         shell: bash
         run: |
           cd artifacts/${{ matrix.extension.name }}
           zip -r ../../${{ matrix.extension.id }}-${{ steps.check.outputs.version }}.zip .
 
       - name: Upload artifact
-        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ startsWith(github.ref, 'refs/tags/') && !matrix.extension.manifestOnly }}
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.extension.id }}-${{ steps.check.outputs.version }}
@@ -414,8 +419,19 @@ jobs:
           fi
           echo "All required legs green."
 
+  # ---- Release. Depends on the aggregation job rather than on `build` directly, so a tag push must
+  # clear the same set that must be green to merge. Naming that set a second time here would leave two
+  # lists free to drift apart; a leg added to `required-checks` reaches the release path with no edit
+  # in this job.
+  #
+  # What a green aggregate does NOT establish: the containerized install-and-enable run is the only
+  # check that would notice a package the host cannot load, and it runs for a catalog entry only when
+  # that entry declares e2ePath/e2eProject — both optional. For an entry declaring neither, the e2e
+  # job's first step sets has_suite=false, every later step in it is skipped, and the job still reports
+  # success. So a green aggregate proves the containerized install ran ONLY for an entry that declares
+  # the path; for an entry without one it proves nothing about the package, and the release proceeds.
   release:
-    needs: build
+    needs: required-checks
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
