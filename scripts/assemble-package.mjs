@@ -74,8 +74,63 @@ function checkNoAbsolutePath(name, text, failures) {
   });
 }
 
-function isAncestorOf(candidate, descendant) {
-  return descendant.startsWith(candidate + path.sep);
+// Returns a key for comparing two paths for identity, never a path to open. One directory has many
+// spellings — a Windows drive letter is case-insensitive to the filesystem and case-sensitive to
+// `===`, and a junction or symlink reaches the same directory under a different name — so a refusal
+// that compares resolve() output as raw text is defeated by a caller who merely spells its argument
+// differently, which is how a green run deleted a source tree here.
+//
+// The walk up to the deepest existing ancestor is what makes this usable on a package directory,
+// which legitimately does not exist yet on a first run: realpath throws on a path that is not there.
+// A realpath that fails on an ancestor that does exist falls back to the resolved form — the same
+// text the previous guard compared, so the key is never weaker than what it replaced.
+function canonicalPathKey(candidate) {
+  const resolved = path.resolve(candidate);
+
+  let existing = resolved;
+  const missingSegments = [];
+  while (!fs.existsSync(existing)) {
+    const parent = path.dirname(existing);
+    if (parent === existing) break;
+    missingSegments.unshift(path.basename(existing));
+    existing = parent;
+  }
+
+  let key;
+  try {
+    key = fs.realpathSync.native(existing);
+  } catch {
+    key = existing;
+  }
+  if (missingSegments.length > 0) key = path.join(key, ...missingSegments);
+
+  return process.platform === "win32" ? key.toLowerCase() : key;
+}
+
+function isSameOrContains(candidateKey, protectedKey) {
+  const prefix = candidateKey.endsWith(path.sep) ? candidateKey : candidateKey + path.sep;
+  return candidateKey === protectedKey || protectedKey.startsWith(prefix);
+}
+
+// The set a package directory may neither be nor contain, labelled so a refusal names what the run
+// would have destroyed. The catalog, the entry's source directory, its manifest and its UI directory
+// are here because the entry declares them as source: a package directory containing any of them is
+// pointed at source, whatever its relationship to the repo root happens to be.
+//
+// Deliberately not "anything under the repo root": two of the three real callers write inside the
+// checkout by construction (CI's artifacts/<Name>, the dev deploy's <ext>/artifacts/package), so a
+// containment rule in that direction refuses the callers this script exists to serve.
+function protectedPaths(absoluteRoot, absolutePublishDir, entry, manifestSource) {
+  const declared = [
+    { label: "the repo root", target: absoluteRoot },
+    { label: "the publish directory", target: absolutePublishDir },
+    { label: "the catalog", target: path.join(absoluteRoot, "extensions", "catalog.json") },
+    { label: "the extension source directory", target: path.join(absoluteRoot, entry.path) },
+    { label: "the source manifest", target: manifestSource },
+  ];
+  if (entry.uiPath) declared.push({ label: "the UI directory", target: path.join(absoluteRoot, entry.uiPath) });
+
+  return declared.map((item) => ({ ...item, key: canonicalPathKey(item.target) }));
 }
 
 // Empties the package directory's contents without removing the directory itself: a caller may point
@@ -157,20 +212,29 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
   // directory is touched, so a malformed declaration cannot destroy an earlier good package.
   if (failures.length > 0) return done();
 
-  if (absolutePackageDir === absoluteRoot || absolutePackageDir === absolutePublishDir) {
-    failures.push("INVALID: packageDir must not be the repo root or the publish directory: " + absolutePackageDir);
-  } else if (isAncestorOf(absolutePackageDir, absoluteRoot) || isAncestorOf(absolutePackageDir, absolutePublishDir)) {
-    failures.push("INVALID: packageDir must not be an ancestor of the repo root or the publish directory: " + absolutePackageDir);
-  }
-  if (failures.length > 0) return done();
-
   // The packaged manifest is sourced from the entry's declared manifestPath rather than from the
   // publish output, because the publish output's copy is a build side effect: the manifest the host
-  // reads at install time must be the one under source control, stamped with this release.
+  // reads at install time must be the one under source control, stamped with this release. Derived
+  // here rather than below the refusal because the protected set needs it; the manifest is still not
+  // read until after the refusal has passed.
   const manifestSource = entry.manifestPath
     ? path.join(absoluteRoot, entry.manifestPath)
     : path.join(absoluteRoot, entry.path, MANIFEST_BY_CONVENTION);
   const manifestName = path.basename(manifestSource);
+
+  const packageDirKey = canonicalPathKey(absolutePackageDir);
+  const collision = protectedPaths(absoluteRoot, absolutePublishDir, entry, manifestSource).find((item) =>
+    isSameOrContains(packageDirKey, item.key),
+  );
+  if (collision) {
+    // Only the first collision is named: the refusal is binary, and a package directory wide enough
+    // to swallow one protected path usually swallows several, which lengthens the message without
+    // changing what the caller must do.
+    failures.push(
+      "INVALID: packageDir is or contains " + collision.label + " (" + collision.target + "): " + absolutePackageDir,
+    );
+    return done();
+  }
 
   let sourceManifest = null;
   if (fs.existsSync(manifestSource)) {

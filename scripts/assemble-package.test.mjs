@@ -85,6 +85,90 @@ function assemble({ root, publishDir, packageDir }, overrides = {}) {
   return assemblePackage({ root, publishDir, packageDir, idOrName: ID, version: VERSION, ...overrides });
 }
 
+// Restages the fake build output under the CI layout — artifacts/publish/<Name> at the repo root
+// rather than under the extension — because the descendant bypass below is only reachable with a
+// publish directory that sits outside extensions/, which is exactly the shape build.yml passes.
+function ciShapedPublish(fixture) {
+  const publishDir = path.join(fixture.root, "artifacts", "publish", NAME);
+  fs.mkdirSync(publishDir, { recursive: true });
+  for (const name of fs.readdirSync(fixture.publishDir)) {
+    fs.copyFileSync(path.join(fixture.publishDir, name), path.join(publishDir, name));
+  }
+  return publishDir;
+}
+
+function linkToDir(target, linkName) {
+  // A junction needs no elevation on Windows, where a directory symlink does; elsewhere a directory
+  // symlink is the same identity-through-an-alias. Picking per platform is what makes this portable.
+  const linkType = process.platform === "win32" ? "junction" : "dir";
+  const link = path.join(tmpDir(), linkName);
+  fs.symlinkSync(target, link, linkType);
+  return { link, linkType };
+}
+
+/**
+ * The three spellings of a destructive packageDir that phase 22's verifier reproduced, each building
+ * its own fixture. Shared between the per-spelling refusal cases and the "removes nothing" case so a
+ * spelling cannot be closed in one and forgotten in the other.
+ *
+ * Every fixture root here is a fresh OS temp directory. These cases are destructive by construction
+ * against an unfixed packer — that discipline is the only thing between them and a real tree, so no
+ * packageDir in this file may ever point outside tmpDir().
+ */
+const DESTRUCTIVE_SPELLINGS = [
+  // The same directory, a different string: on Windows a drive letter is case-insensitive to the
+  // filesystem and case-sensitive to `===`, and this workspace's own docs spell its root both ways.
+  // A platform with no drive letters has no such spelling, so it exercises the equivalent alias
+  // through a symlink — reported, never skipped.
+  function driveCaseAlias() {
+    const fixture = fixtureRoot();
+    const drive = /^([A-Za-z]):/.exec(fixture.root);
+    if (drive) {
+      const flipped = drive[1] === drive[1].toLowerCase() ? drive[1].toUpperCase() : drive[1].toLowerCase();
+      return {
+        fixture,
+        form: "drive-letter case alias (" + flipped + ": for " + drive[1] + ":)",
+        overrides: { packageDir: flipped + fixture.root.slice(1) },
+      };
+    }
+    const { link } = linkToDir(fixture.root, "root-alias");
+    return {
+      fixture,
+      form: "directory symlink alias (this platform spells no drive letter)",
+      overrides: { packageDir: link },
+    };
+  },
+  function linkAlias() {
+    const fixture = fixtureRoot();
+    const { link, linkType } = linkToDir(fixture.root, "link-to-root");
+    return { fixture, form: linkType + " to the repo root", overrides: { packageDir: link } };
+  },
+  // The upward-only ancestor test had nothing to say about this one: <root>/extensions is neither the
+  // root nor an ancestor of it, so a green run replaced the catalog and the whole source tree with
+  // the packaged files.
+  function sourceBearingDescendant() {
+    const fixture = fixtureRoot();
+    return {
+      fixture,
+      form: "<root>/extensions with a CI-shaped publish dir",
+      overrides: { packageDir: path.join(fixture.root, "extensions"), publishDir: ciShapedPublish(fixture) },
+    };
+  },
+];
+
+function snapshotTree(root) {
+  const sizes = new Map();
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else sizes.set(path.relative(root, full), fs.statSync(full).size);
+    }
+  };
+  walk(root);
+  return sizes;
+}
+
 test("copies exactly the declared set, resolved from the catalog rather than a built-in list", () => {
   const fixture = fixtureRoot();
   const r = assemble(fixture);
@@ -285,6 +369,101 @@ test("refuses a packageDir that is the repo root, the publish dir, or an ancesto
     // Nothing may have been removed on the way to that refusal.
     assert.equal(fs.existsSync(path.join(fixture.root, "LICENSE")), true);
     assert.equal(fs.existsSync(path.join(fixture.publishDir, "Fixture.dll")), true);
+  }
+});
+
+test("refuses a packageDir that is the repo root spelled with a different drive-letter case", (t) => {
+  const { fixture, form, overrides } = DESTRUCTIVE_SPELLINGS[0]();
+  // Emitted so the passing run itself names which spelling ran on this platform: a case whose value
+  // depends on having been exercised must report which form it exercised, never skip quietly.
+  t.diagnostic("exercised form: " + form);
+
+  const r = assemble(fixture, overrides);
+
+  assert.equal(r.ok, false, "exercised form: " + form + " — " + overrides.packageDir + " is the fixture root and must be refused");
+  assert.ok(
+    r.failures.some((f) => f.startsWith("INVALID:")),
+    "exercised form: " + form + " — expected an INVALID refusal, got: " + r.failures.join("; "),
+  );
+});
+
+test("refuses a packageDir reached through a junction or symlink to a protected path", (t) => {
+  const { fixture, form, overrides } = DESTRUCTIVE_SPELLINGS[1]();
+  t.diagnostic("exercised form: " + form);
+
+  const r = assemble(fixture, overrides);
+
+  assert.equal(r.ok, false, "exercised form: " + form + " — a link resolving onto the repo root must be refused");
+  assert.ok(
+    r.failures.some((f) => f.startsWith("INVALID:")),
+    "exercised form: " + form + " — expected an INVALID refusal, got: " + r.failures.join("; "),
+  );
+});
+
+test("refuses a packageDir that contains the catalog, the extension source tree, the manifest or the UI directory", () => {
+  const { fixture, form, overrides } = DESTRUCTIVE_SPELLINGS[2]();
+
+  const r = assemble(fixture, overrides);
+
+  assert.equal(r.ok, false, form + " — packageDir holds the catalog and the whole extension source tree");
+  assert.ok(
+    r.failures.some((f) => f.startsWith("INVALID:")),
+    form + " — expected an INVALID refusal, got: " + r.failures.join("; "),
+  );
+  assert.deepEqual(
+    fs.readdirSync(path.join(fixture.root, "extensions")).sort(),
+    ["Fixture", "catalog.json"],
+    form + " — the catalog and the extension source directory must both survive the refusal",
+  );
+});
+
+test("a refused packageDir removes nothing — every fixture file still exists afterwards", () => {
+  for (const spelling of DESTRUCTIVE_SPELLINGS) {
+    const { fixture, form, overrides } = spelling();
+    const before = snapshotTree(fixture.root);
+
+    const r = assemble(fixture, overrides);
+    assert.equal(r.ok, false, form + " — expected a refusal, got ok:true");
+
+    for (const [relative, size] of before) {
+      const full = path.join(fixture.root, relative);
+      assert.equal(fs.existsSync(full), true, form + " — a refusal removed " + relative);
+      assert.equal(fs.statSync(full).size, size, form + " — a refusal rewrote " + relative);
+    }
+    // Named as well as swept, because these are what each reproduction was measured destroying.
+    for (const survivor of ["extensions/catalog.json", "extensions/Fixture/README.md", "LICENSE"]) {
+      assert.equal(fs.existsSync(path.join(fixture.root, survivor)), true, form + " — " + survivor + " was removed");
+    }
+    const publishDir = overrides.publishDir ?? fixture.publishDir;
+    assert.ok(fs.readdirSync(publishDir).length > 0, form + " — the publish directory was emptied by a refused run");
+  }
+});
+
+test("the three real caller shapes still assemble", () => {
+  // The widened refusal only holds if no live caller's package directory collides with the protected
+  // set. Each shape is exercised against a fixture rather than assumed safe.
+  const shapes = [
+    {
+      name: "CI: artifacts/publish/<Name> -> artifacts/<Name>",
+      build: (f) => ({ publishDir: ciShapedPublish(f), packageDir: path.join(f.root, "artifacts", NAME) }),
+    },
+    {
+      name: "dev deploy: <ext>/artifacts/publish -> <ext>/artifacts/package",
+      build: (f) => ({ publishDir: f.publishDir, packageDir: f.packageDir }),
+    },
+    {
+      name: "E2E harness: a per-run temp directory",
+      build: (f) => ({ publishDir: f.publishDir, packageDir: path.join(tmpDir(), ID) }),
+    },
+  ];
+
+  for (const shape of shapes) {
+    const fixture = fixtureRoot();
+    const overrides = shape.build(fixture);
+    const r = assemble(fixture, overrides);
+
+    assert.equal(r.ok, true, shape.name + " — " + r.failures.join("; "));
+    assert.deepEqual(fs.readdirSync(overrides.packageDir).sort(), [...DECLARED].sort(), shape.name);
   }
 });
 
