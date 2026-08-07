@@ -29,18 +29,17 @@ old single-extension-repo scheme, which used a flat `v*` tag with no extension p
     `manifestPath`, and `uiPath` (only present when the extension ships a frontend) — not hardcoded
     to one extension. Adding a new extension's release capability requires only a correct
     `catalog.json` entry; the workflow logic itself does not need editing.
-  - The packaged `extension.json` has its `version` field stamped with the tag's version before
-    zipping, so the shipped manifest always agrees with the release it came from.
-  - The strip-verify gate runs on every build for every extension in the matrix, after the package
-    is assembled and before it is zipped — so any asset that reaches a release has already passed
-    it. It proves the package carries no host-provided assembly, leaks no absolute build path, and
-    ships a manifest that declares this extension's id, the version being released, and only files
-    that are actually present inside the package.
+  - Packaging is one `Assemble package` step. The job publishes into a throwaway directory, then that
+    step copies the file set the extension's `catalog.json` `artifacts` array declares into a clean
+    package directory, stamping the release version into the packaged `extension.json` as it copies —
+    so the shipped manifest always agrees with the release it came from. A declared file the build did
+    not produce fails the job before anything is zipped, and the step prints every file it copied and
+    a count.
 - **release** — triggers only on a tag push, downloads every build job's artifact, and attaches
   the matching `.zip` to a GitHub release for that tag.
 
 Renamer is the concrete worked example today: its `tagPrefix` is `renamer/`, its manifest id is
-`com.alextomas955.renamer`, and cutting `renamer/v0.1.0` builds, strip-verifies, and packages
+`com.alextomas955.renamer`, and cutting `renamer/v0.1.0` builds, assembles, and packages
 `com.alextomas955.renamer-0.1.0.zip`.
 
 ## Publish order: release asset first, then the registry pull request

@@ -66,7 +66,7 @@ specifics:
 - The **dev local-source build** is the path used to load into the running dev Cove: it resolves
   `Cove.Sdk` from a local Cove checkout so the extension is ABI-identical to the running host (the
   source-selection precedence and host-assembly stripping are handled at the repo root). Use
-  `scripts/deploy-dev.ps1` for the full build → strip-verify → deploy → restart loop.
+  `scripts/deploy-dev.ps1` for the full build → frontend-build → assemble → deploy → restart loop.
 - **Publish-readiness** targets the published NuGet packages (the pinned `CoveSdkVersion`,
   `Private=false`), where `Cove.Sdk.targets` is imported transitively from the package.
 
