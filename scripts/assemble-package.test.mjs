@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { assemblePackage } from "./assemble-package.mjs";
 
 const scriptPath = fileURLToPath(new URL("./assemble-package.mjs", import.meta.url));
+const scriptDir = fileURLToPath(new URL("./", import.meta.url));
 
 const ID = "com.example.fixture";
 const NAME = "Fixture";
@@ -521,8 +522,30 @@ test("refuses to empty a package directory that holds anything other than regula
 
 // ── CLI leg ─────────────────────────────────────────────────────────────────────────────────────
 
-function runCli(fixture, argv) {
-  return spawnSync(process.execPath, [scriptPath, "--root", fixture.root, ...argv], { encoding: "utf8" });
+function runCli(fixture, argv, script = scriptPath) {
+  return spawnSync(process.execPath, [script, "--root", fixture.root, ...argv], { encoding: "utf8" });
+}
+
+/**
+ * The entry script reached through an alias of its own directory — the same mechanism this
+ * repository's documented worktree workflow uses, which is why an invocation path that changes
+ * behaviour is a defect here rather than a hypothetical.
+ *
+ * A failure to create the link is asserted, never skipped: a case that quietly does not run restores
+ * exactly the zero-input-green shape these two cases exist to remove.
+ */
+function aliasedEntryScript() {
+  const linkType = process.platform === "win32" ? "junction" : "dir";
+  const link = path.join(tmpDir(), "scripts-alias");
+  try {
+    fs.symlinkSync(scriptDir, link, linkType);
+  } catch (error) {
+    assert.fail(
+      "could not create a " + linkType + " alias of the scripts directory in this environment, so the " +
+        "aliased-invocation case could not run: " + error.message,
+    );
+  }
+  return { aliased: path.join(link, path.basename(scriptPath)), form: linkType + " alias of the scripts directory" };
 }
 
 function fullArgv(fixture, overrides = {}) {
@@ -584,4 +607,34 @@ test("CLI: each required flag omitted in turn prints usage and exits non-zero", 
     assert.notEqual(run.status, 0, "omitting " + omitted + " must not exit 0");
     assert.match(run.stderr, /Usage:/, "omitting " + omitted + " must print usage");
   }
+});
+
+// One directory has many spellings, and which one a caller happens to use must not decide whether the
+// script does anything at all. These two cases are the whole cover for that: run with no arguments the
+// entry point must refuse, and run with a full set it must assemble — identically through an alias and
+// through the real path.
+test("CLI: invoked through an aliased path, no arguments still prints usage and exits non-zero", (t) => {
+  const { aliased, form } = aliasedEntryScript();
+  t.diagnostic("exercised form: " + form);
+
+  const run = spawnSync(process.execPath, [aliased], { encoding: "utf8" });
+
+  assert.notEqual(
+    run.status,
+    0,
+    form + " — a run that assembled nothing must not exit 0; stdout: " + JSON.stringify(run.stdout) +
+      " stderr: " + JSON.stringify(run.stderr),
+  );
+  assert.match(run.stderr, /Usage:/, form + " — expected usage on stderr, got: " + JSON.stringify(run.stderr));
+});
+
+test("CLI: invoked through an aliased path, a full invocation still assembles the declared set", (t) => {
+  const fixture = fixtureRoot();
+  const { aliased, form } = aliasedEntryScript();
+  t.diagnostic("exercised form: " + form);
+
+  const run = runCli(fixture, fullArgv(fixture), aliased);
+
+  assert.equal(run.status, 0, form + " — " + run.stdout + run.stderr);
+  assert.deepEqual(fs.readdirSync(fixture.packageDir).sort(), [...DECLARED].sort(), form);
 });
