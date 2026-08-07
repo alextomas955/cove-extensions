@@ -325,6 +325,91 @@ test("rejects a declared name that is not a non-empty string, before any source 
   }
 });
 
+// A declaration can name only files that exist and still describe a package the host cannot load.
+// These are the replacement for the two checks that went with the deleted strip-verification gate, so
+// each one names the property rather than the gate.
+
+test("fails: a declaration with no source manifest — the host cannot load a package without one", () => {
+  const fixture = fixtureRoot({ artifacts: ["Fixture.deps.json"] });
+  const r = assemble(fixture);
+
+  assert.equal(r.ok, false, "a package with no load manifest is one the host cannot install");
+  assert.ok(
+    r.failures.some((f) => f.startsWith("UNLOADABLE:") && f.includes("extension.json")),
+    "expected an UNLOADABLE failure naming the manifest, got: " + r.failures.join("; "),
+  );
+  assert.equal(fs.existsSync(fixture.packageDir), false, "nothing may be written for an unloadable declaration");
+});
+
+test("fails: a manifest whose entry assembly is not in the declared set", () => {
+  const fixture = fixtureRoot({ artifacts: ["extension.json", "Fixture.deps.json"] });
+  const r = assemble(fixture);
+
+  assert.equal(r.ok, false, "a manifest naming an assembly the package does not carry cannot load");
+  assert.ok(
+    r.failures.some((f) => f.startsWith("UNLOADABLE:") && f.includes("entryDll") && f.includes("Fixture.dll")),
+    "expected an UNLOADABLE failure naming both the field and its value, got: " + r.failures.join("; "),
+  );
+});
+
+test("fails: a manifest whose script bundle is not in the declared set", () => {
+  const fixture = fixtureRoot({ artifacts: ["extension.json", "Fixture.dll"] });
+  const r = assemble(fixture);
+
+  assert.equal(r.ok, false);
+  assert.ok(
+    r.failures.some((f) => f.startsWith("UNLOADABLE:") && f.includes("jsBundle") && f.includes("bundle.mjs")),
+    "expected an UNLOADABLE failure naming both the field and its value, got: " + r.failures.join("; "),
+  );
+});
+
+test("fails: a manifest whose stylesheet bundle is not in the declared set", () => {
+  const fixture = fixtureRoot({ manifest: { cssBundle: "styles.css" } });
+  const r = assemble(fixture);
+
+  assert.equal(r.ok, false);
+  assert.ok(
+    r.failures.some((f) => f.startsWith("UNLOADABLE:") && f.includes("cssBundle") && f.includes("styles.css")),
+    "expected an UNLOADABLE failure naming both the field and its value, got: " + r.failures.join("; "),
+  );
+});
+
+// The other half of the same check: a field the manifest does not carry makes no claim, so it must not
+// be failed for. Without this the branch above could pass by refusing everything.
+test("a manifest declaring no stylesheet bundle is not failed for the field it does not have", () => {
+  const fixture = fixtureRoot();
+  const r = assemble(fixture);
+
+  assert.equal(r.ok, true, r.failures.join("; "));
+  assert.equal(
+    r.failures.filter((f) => f.includes("cssBundle")).length,
+    0,
+    "an absent optional field must not be treated as an unsatisfied claim",
+  );
+});
+
+// The loadability failures are pushed rather than returned, so one run still reports everything wrong
+// with a declaration. The two LEAK cases above are the other half of that cover: they declare a subset
+// carrying no manifest, so a short-circuiting refusal would fire before the scan they exist to exercise.
+test("an unloadable declaration and an absolute path in a shipped json are reported in one result", () => {
+  const driveRoot = "C:" + String.fromCodePoint(92) + String.fromCodePoint(92) + "build" + String.fromCodePoint(92) + String.fromCodePoint(92) + "out";
+  const fixture = fixtureRoot({
+    artifacts: ["Leaky.json"],
+    publishFiles: { "Leaky.json": '{\n  "target": "' + driveRoot + '"\n}\n' },
+  });
+  const r = assemble(fixture);
+
+  assert.equal(r.ok, false);
+  assert.ok(
+    r.failures.some((f) => f.startsWith("UNLOADABLE:")),
+    "expected the unloadable declaration to be reported, got: " + r.failures.join("; "),
+  );
+  assert.ok(
+    r.failures.some((f) => f.startsWith("LEAK:")),
+    "an unloadable declaration must not short-circuit the absolute-path scan, got: " + r.failures.join("; "),
+  );
+});
+
 test("a .pdb and a .xml sitting in the publish output cannot reach the package", () => {
   const fixture = fixtureRoot({
     artifacts: ["Fixture.dll", "Fixture.deps.json"],
