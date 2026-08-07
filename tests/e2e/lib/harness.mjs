@@ -72,22 +72,40 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
 
     async installExtension({ publishDir, manifestPath, uiBundlePath }) {
       const result = await installViaContainerCopy({ container: coveContainer, publishDir, manifestPath, uiBundlePath });
+      await handle.restart();
+      await waitForExtensionEnabled(handle.baseUrl, result.id, { timeoutMs, token: handle.token });
+      return result;
+    },
+
+    /**
+     * Restarts the Cove container and returns once the host can reach it again with a usable token.
+     *
+     * `installExtension` needs this because a copied-in extension is only discovered on a (re)start,
+     * and a test needs it to reach anything an extension does at INITIALIZE time — a one-time
+     * startup conversion of stored settings, say, whose precondition has to be written into the
+     * running instance and the host then started over on top of it. There is no other way in: an
+     * initialize-time code path does not run again while the host stays up.
+     *
+     * `baseUrl` MAY CHANGE across this call. A container published on an ephemeral host port can be
+     * reassigned a new one on restart, so a caller holding a previously-read `baseUrl` — or anything
+     * built from one — must re-read it after this resolves. `restart()` refreshes the same
+     * StartedGenericContainer's port-binding state in place, so the getter above is correct
+     * immediately afterwards.
+     *
+     * Returning does NOT mean an extension has finished initializing: this waits on the host being
+     * reachable, which is a weaker condition. A caller that depends on initialize-time work having
+     * landed must wait for that work's own observable outcome.
+     */
+    async restart() {
       await coveContainer.restart();
-      // A restart on a container published with an ephemeral host port can reassign a NEW host
-      // port — re-fetch the started container's own view of itself rather than trusting a cached
-      // port number. `restart()` mutates the same StartedGenericContainer in place (its internal
-      // port-binding state is refreshed), so re-reading getMappedPort() after restart is correct.
-      // That re-bound port is also why the next line exists.
       await waitForHostReachable(handle.baseUrl, { timeoutMs });
       // An access token does NOT survive the restart: measured against 1.1.0, a token that answered
       // 200 before it answers 401 after, while a fresh login on the restarted instance answers 200.
-      // So the token is re-minted here, or every later call in an auth-enabled instance — starting
-      // with the enabled-poll on the next line — fails as an authentication error.
+      // So the token is re-minted here, or every later call in an auth-enabled instance fails as an
+      // authentication error.
       if (handle.token) {
         await handle.login();
       }
-      await waitForExtensionEnabled(handle.baseUrl, result.id, { timeoutMs, token: handle.token });
-      return result;
     },
 
     async installExtensionFromUrl(zipUrl) {
