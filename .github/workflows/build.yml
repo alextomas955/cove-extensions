@@ -4,9 +4,8 @@
 # Renamer's real src/ subtree layout via extensions/catalog.json's additive path fields
 # (projectPath/manifestPath/uiPath — see catalog.json + scripts/validate-extension-repo.mjs)
 # instead of the template's flat {path}/{name}.csproj convention. Folds in the old single-extension
-# `rename` repo's strip-verify / stale-bundle / csharp-format / markdown-lint hardening as matrix
-# steps (per-extension) or root-level jobs (repo-wide) so future extensions inherit them
-# automatically.
+# `rename` repo's packaging, csharp-format and markdown-lint hardening as matrix steps
+# (per-extension) or root-level jobs (repo-wide) so future extensions inherit them automatically.
 #
 # The validate job computes the build matrix from catalog.json (all entries for a PR build; only
 # the tagged extension for a tag push) and — on a tag push — confirms the tag matches exactly one
@@ -179,18 +178,12 @@ jobs:
         if: ${{ !matrix.extension.manifestOnly && matrix.extension.testProjectPath != '' }}
         run: dotnet test ${{ matrix.extension.testProjectPath }} -c Release -p:UseLocalCoveSource=false
 
+      # Publishes to a throwaway directory, NOT the package directory: the package receives only what
+      # the assemble step below copies into it, so nothing the build happens to emit alongside the
+      # shipped files can reach a release without being declared.
       - name: Publish
         if: ${{ !matrix.extension.manifestOnly }}
-        run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o artifacts/${{ matrix.extension.name }} --no-build -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
-
-      - name: Copy manifest
-        if: ${{ !matrix.extension.manifestOnly }}
-        run: cp ${{ matrix.extension.manifestPath }} artifacts/${{ matrix.extension.name }}/
-
-      - name: Stamp packaged extension.json version
-        if: ${{ !matrix.extension.manifestOnly }}
-        run: |
-          node -e "const fs=require('fs'); const p='artifacts/${{ matrix.extension.name }}/extension.json'; const m=JSON.parse(fs.readFileSync(p,'utf8')); m.version='${{ steps.check.outputs.version }}'; fs.writeFileSync(p, JSON.stringify(m, null, 2) + '\n');"
+        run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o artifacts/publish/${{ matrix.extension.name }} --no-build -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
 
       # Conditional frontend build — only extensions with a uiPath field ship a frontend bundle.
       - name: Setup Node
@@ -215,36 +208,22 @@ jobs:
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm run build
 
-      - name: Copy frontend bundle
-        if: ${{ matrix.extension.uiPath != '' }}
-        run: cp ${{ matrix.extension.uiPath }}/dist/index.mjs artifacts/${{ matrix.extension.name }}/
-
-      # Catalog-driven strip-verify gate on the ASSEMBLED package: it proves the package carries no
-      # host-provided (denylisted) assembly, carries the entry assembly plus any first-party runtime
-      # dependency the catalog entry declares in requiredBundledDlls, leaks no absolute build path in
-      # its json, and ships a manifest declaring this extension id, this release version, and only
-      # files that are actually present inside the package.
-      #
-      # ORDERING IS LOAD-BEARING: this must run AFTER the manifest copy, the version stamp and the
-      # frontend-bundle copy, because the manifest assertions have no subject before those steps —
-      # placed earlier it would inspect a bare publish set and report a pass it never earned. It
-      # still runs on every build (not tag-gated) and before Package, so a defect fails the build
-      # before anything is zipped. scripts/strip-verify.mjs reads the shared
-      # .github/DLL_DENYLIST.json, so the denylist does not drift when the host adds a provided
-      # dependency.
-      - name: Strip-verify (no host assemblies, no absolute paths, manifest matches the release)
+      # Runs after the frontend build because the UI bundle is one of the declared artifacts and does
+      # not exist before that step. Unconditional on the event, so every pull request is the release
+      # rehearsal: the same script assembles the same declared set a tag push ships.
+      - name: Assemble package
         if: ${{ !matrix.extension.manifestOnly }}
-        run: node scripts/strip-verify.mjs artifacts/${{ matrix.extension.name }} ${{ matrix.extension.id }} ${{ steps.check.outputs.version }}
+        run: node scripts/assemble-package.mjs --publish-dir artifacts/publish/${{ matrix.extension.name }} --package-dir artifacts/${{ matrix.extension.name }} --extension ${{ matrix.extension.id }} --version ${{ steps.check.outputs.version }}
 
       - name: Package
-        if: ${{ github.event_name != 'pull_request' }}
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
         shell: bash
         run: |
           cd artifacts/${{ matrix.extension.name }}
           zip -r ../../${{ matrix.extension.id }}-${{ steps.check.outputs.version }}.zip .
 
       - name: Upload artifact
-        if: ${{ github.event_name != 'pull_request' }}
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.extension.id }}-${{ steps.check.outputs.version }}
@@ -298,11 +277,19 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       # Publishes to <extension.path>/artifacts/publish, NOT the build job's repo-root-relative
-      # artifacts/<name> — this must match the path each extension's own e2e fixtures file expects
+      # publish directory — this must match the path each extension's own e2e fixtures file expects
       # (e.g. Renamer's RENAMER_EXTENSION.publishDir), which mirrors what a local dev deploy script
       # (deploy-dev.ps1) produces. A mismatch here fails every E2E test at harness install time with
       # "publishDir does not exist" — found via this repo's actual first CI run, since this job's
       # own publish path was never exercised against the real fixtures before.
+      #
+      # The harness assembles the declared package from this publish output in-process, so a change to
+      # the package shape reaches this job through extensions/catalog.json with no workflow edit here.
+      #
+      # This publish carries no -p:ContinuousIntegrationBuild=true, unlike the build job's, so it is
+      # the one Linux publish whose generated json is not path-normalised by construction — and the
+      # in-process assemble applies the absolute-path refusal to it. If that refusal ever fires here,
+      # the remedy is adding that flag to this step, never weakening the check.
       - name: Build extension (publish output for the harness to install)
         if: (steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true') && !matrix.extension.manifestOnly
         run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o ${{ matrix.extension.path }}/artifacts/publish -p:UseLocalCoveSource=false
