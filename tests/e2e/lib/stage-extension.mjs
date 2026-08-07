@@ -1,11 +1,15 @@
-// Stages a built extension's publish output into a folder shaped the way Cove's
-// bind-mount install expects: <stagingRoot>/<extensionId>/{extension.json, *.dll, index.mjs, ...}.
-// This mirrors what Renamer's own scripts/deploy-dev.ps1 does for a native install, but targets a
-// throwaway staging dir instead of a live COVE_HOME.
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+// Stages an extension into a folder shaped the way Cove's bind-mount install expects:
+// <stagingRoot>/<extensionId>/{extension.json, *.dll, index.mjs, ...}.
+//
+// The staged folder is produced by the repo's own package assembler, the same one a release and a
+// local dev deploy run, so what a test installs is the declared package rather than an approximation
+// of it — a file that would not ship cannot reach a passing test, and one that must ship cannot be
+// missing from it.
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { assemblePackage } from '../../../scripts/assemble-package.mjs';
 
-export function stageExtension({ publishDir, manifestPath, uiBundlePath, stagingRoot }) {
+export function stageExtension({ repoRoot, publishDir, manifestPath, stagingRoot }) {
   if (!existsSync(publishDir)) {
     throw new Error(`stageExtension: publishDir does not exist: ${publishDir}`);
   }
@@ -17,21 +21,20 @@ export function stageExtension({ publishDir, manifestPath, uiBundlePath, staging
   if (!manifest.id) {
     throw new Error(`stageExtension: manifest at ${manifestPath} has no "id" field`);
   }
+  if (!manifest.version) {
+    throw new Error(`stageExtension: manifest at ${manifestPath} has no "version" field`);
+  }
 
   const target = join(stagingRoot, manifest.id);
-  if (existsSync(target)) {
-    rmSync(target, { recursive: true, force: true });
-  }
-  mkdirSync(target, { recursive: true });
-
-  cpSync(publishDir, target, { recursive: true });
-  cpSync(manifestPath, join(target, 'extension.json'));
-
-  if (uiBundlePath) {
-    if (!existsSync(uiBundlePath)) {
-      throw new Error(`stageExtension: uiBundlePath does not exist: ${uiBundlePath}`);
-    }
-    cpSync(uiBundlePath, join(target, 'index.mjs'));
+  const result = assemblePackage({
+    root: repoRoot,
+    publishDir,
+    packageDir: target,
+    idOrName: manifest.id,
+    version: manifest.version,
+  });
+  if (!result.ok) {
+    throw new Error(`stageExtension: assembling ${manifest.id} failed: ${result.failures.join('; ')}`);
   }
 
   return { id: manifest.id, path: target };

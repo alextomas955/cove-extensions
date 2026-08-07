@@ -70,8 +70,8 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
       return coveContainer;
     },
 
-    async installExtension({ publishDir, manifestPath, uiBundlePath }) {
-      const result = await installViaContainerCopy({ container: coveContainer, publishDir, manifestPath, uiBundlePath });
+    async installExtension({ repoRoot, publishDir, manifestPath }) {
+      const result = await installViaContainerCopy({ container: coveContainer, repoRoot, publishDir, manifestPath });
       await handle.restart();
       await waitForExtensionEnabled(handle.baseUrl, result.id, { timeoutMs, token: handle.token });
       return result;

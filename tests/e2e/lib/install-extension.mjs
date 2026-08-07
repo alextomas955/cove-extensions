@@ -12,10 +12,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { stageExtension } from './stage-extension.mjs';
 
-export async function installViaContainerCopy({ container, publishDir, manifestPath, uiBundlePath }) {
+export async function installViaContainerCopy({ container, repoRoot, publishDir, manifestPath }) {
   const stagingRoot = mkdtempSync(join(tmpdir(), 'cove-e2e-stage-'));
   try {
-    const { id, path } = stageExtension({ publishDir, manifestPath, uiBundlePath, stagingRoot });
+    const { id, path } = stageExtension({ repoRoot, publishDir, manifestPath, stagingRoot });
     const target = `/config/extensions/${id}`;
 
     await container.exec(['mkdir', '-p', target]);

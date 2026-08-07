@@ -1,0 +1,304 @@
+// Shared, catalog-driven package assembler: copies exactly the files a catalog entry's `artifacts`
+// array declares into a clean package directory, stamping the release version onto the manifest on
+// the way through. The declaration is the whole answer to "what ships" — a reviewer reads
+// extensions/catalog.json rather than running a build and listing a directory.
+//
+// Because the set is declared rather than discovered, anything the build happens to emit alongside
+// the shipped files (debug symbols, XML documentation) cannot reach the package: it is not named, so
+// it is not copied. The build is left free to keep producing it.
+//
+// Three callers share this one script: the CI build job, the local dev deploy, and the E2E harness,
+// which imports the core below in-process so the package it installs is the package a release ships.
+import fs from "node:fs";
+import path from "node:path";
+import process from "node:process";
+import { pathToFileURL } from "node:url";
+
+// import.meta.dirname, never a filesystem path read off a module URL's path component: on Windows
+// that yields a leading-slash form which resolves to a doubled drive prefix.
+const scriptRoot = path.resolve(import.meta.dirname, "..");
+
+const BACKSLASH = String.fromCodePoint(92);
+
+// Absolute-path markers are constructed from parts rather than written as bare literals so a
+// downstream scan of this script's own source does not mistake the markers for a real leak.
+//
+// The drive-root marker requires a BACKSLASH after the colon, and must not be widened to accept
+// either separator: a manifest `url` value is a scheme followed by a colon and two forward slashes,
+// and the manifest is itself a shipped json this scan reads. A marker accepting `/` would therefore
+// match every manifest and hard-fail every assemble.
+const WINDOWS_DRIVE_ROOT = new RegExp("[A-Za-z]:" + BACKSLASH + BACKSLASH);
+const UNIX_HOME_PREFIXES = ["/" + "home" + "/", "/" + "Users" + "/"];
+
+// A declared artifact name is a bare filename that lands at the package root, so an absolute path,
+// a `..` segment or any separator would send the copy writing outside the package directory.
+// Rejected on shape before any source is read, since a path that escapes cannot be made safe by
+// happening to resolve to something that exists.
+const PATH_ESCAPE_PREFIX = new RegExp("^([A-Za-z]:|[/" + BACKSLASH + BACKSLASH + "])");
+const PATH_SEPARATORS = new RegExp("[/" + BACKSLASH + BACKSLASH + "]");
+
+const MANIFEST_BY_CONVENTION = "extension.json";
+
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
+}
+
+function resolveEntry(catalog, idOrName) {
+  return catalog.extensions.find((entry) => entry.id === idOrName || entry.name === idOrName);
+}
+
+function checkArtifactName(name, failures) {
+  if (typeof name !== "string" || name === "") {
+    failures.push("INVALID: artifacts entry must be a non-empty string, found: " + JSON.stringify(name));
+    return false;
+  }
+
+  const segments = name.split(PATH_SEPARATORS);
+  if (PATH_ESCAPE_PREFIX.test(name) || segments.length > 1 || segments.includes("..") || name === ".") {
+    failures.push("ESCAPE: artifacts entry must be a bare filename with no path separator, found: " + name);
+    return false;
+  }
+
+  return true;
+}
+
+// Scans the text that is about to be WRITTEN, not the text on disk: the manifest's outgoing copy
+// carries a caller-supplied version the source file does not, and the refusal is about package
+// contents rather than about build output.
+function checkNoAbsolutePath(name, text, failures) {
+  text.split(/\r?\n/).forEach((line, index) => {
+    const hit = WINDOWS_DRIVE_ROOT.test(line) || UNIX_HOME_PREFIXES.some((prefix) => line.includes(prefix));
+    if (hit) {
+      failures.push("LEAK: absolute path found in shipped json: " + name + ":" + (index + 1) + ": " + line.trim());
+    }
+  });
+}
+
+function isAncestorOf(candidate, descendant) {
+  return descendant.startsWith(candidate + path.sep);
+}
+
+// Empties the package directory's contents without removing the directory itself: a caller may point
+// this at a live install location, where the directory's own existence and identity is what the host
+// holds open. The enumeration exists solely to clear leftovers from an earlier run — nothing reads
+// the package back afterwards to decide or confirm what shipped.
+function emptyPackageDir(packageDir) {
+  if (!fs.existsSync(packageDir)) {
+    fs.mkdirSync(packageDir, { recursive: true });
+    return;
+  }
+
+  for (const leftover of fs.readdirSync(packageDir)) {
+    fs.rmSync(path.join(packageDir, leftover), { recursive: true, force: true });
+  }
+}
+
+/**
+ * Assembles a catalog entry's declared package into `packageDir`.
+ *
+ * Nothing is written unless every declared artifact resolved and every shipped json passed the
+ * absolute-path refusal — a partially-assembled package is worse than none, because it looks like a
+ * complete one.
+ *
+ * @param {object} opts
+ * @param {string} opts.root - the repo root holding `extensions/catalog.json`.
+ * @param {string} opts.publishDir - the throwaway build output the declared names are searched in first.
+ * @param {string} opts.packageDir - where the declared set is written; created or emptied.
+ * @param {string} opts.idOrName - the catalog entry's `id` or `name`.
+ * @param {string} opts.version - written into the packaged manifest verbatim, with no normalisation.
+ * @returns {{ ok: boolean, failures: string[], copied: Array<{ name: string, source: string, root: string }> }}
+ */
+export function assemblePackage({ root, publishDir, packageDir, idOrName, version }) {
+  const failures = [];
+  const copied = [];
+  const done = () => ({ ok: failures.length === 0, failures, copied });
+
+  const absoluteRoot = path.resolve(root);
+  const absolutePublishDir = path.resolve(publishDir);
+  const absolutePackageDir = path.resolve(packageDir);
+
+  const catalog = readJson(path.join(absoluteRoot, "extensions", "catalog.json"));
+  const entry = resolveEntry(catalog, idOrName);
+  if (!entry) {
+    failures.push("INVALID: no catalog entry matches id/name: " + idOrName);
+    return done();
+  }
+
+  if (typeof version !== "string" || version === "") {
+    failures.push("INVALID: version must be a non-empty string, found: " + JSON.stringify(version));
+  }
+
+  // The declared set is the only source of what ships. An entry that declares nothing, or declares
+  // an empty array, is a hard failure rather than a run that copies nothing and exits 0 — there is
+  // no narrower field to fall back to and no set to infer.
+  const declared = entry.artifacts;
+  if (declared == null) {
+    failures.push("MISSING: catalog entry " + entry.id + " declares no artifacts array — the shipped file set must be declared.");
+    return done();
+  }
+  if (!Array.isArray(declared) || declared.length === 0) {
+    failures.push("INVALID: catalog entry " + entry.id + " declares an empty artifacts array — an assemble that copies nothing inspected nothing.");
+    return done();
+  }
+
+  const seen = new Set();
+  const names = [];
+  for (const name of declared) {
+    if (!checkArtifactName(name, failures)) continue;
+    if (seen.has(name)) {
+      failures.push("DUPLICATE: artifacts declares " + name + " more than once.");
+      continue;
+    }
+    seen.add(name);
+    names.push(name);
+  }
+
+  // Shape and declaration failures are returned before any source is read and before the package
+  // directory is touched, so a malformed declaration cannot destroy an earlier good package.
+  if (failures.length > 0) return done();
+
+  if (absolutePackageDir === absoluteRoot || absolutePackageDir === absolutePublishDir) {
+    failures.push("INVALID: packageDir must not be the repo root or the publish directory: " + absolutePackageDir);
+  } else if (isAncestorOf(absolutePackageDir, absoluteRoot) || isAncestorOf(absolutePackageDir, absolutePublishDir)) {
+    failures.push("INVALID: packageDir must not be an ancestor of the repo root or the publish directory: " + absolutePackageDir);
+  }
+  if (failures.length > 0) return done();
+
+  // The packaged manifest is sourced from the entry's declared manifestPath rather than from the
+  // publish output, because the publish output's copy is a build side effect: the manifest the host
+  // reads at install time must be the one under source control, stamped with this release.
+  const manifestSource = entry.manifestPath
+    ? path.join(absoluteRoot, entry.manifestPath)
+    : path.join(absoluteRoot, entry.path, MANIFEST_BY_CONVENTION);
+  const manifestName = path.basename(manifestSource);
+
+  let sourceManifest = null;
+  if (fs.existsSync(manifestSource)) {
+    try {
+      sourceManifest = readJson(manifestSource);
+    } catch (error) {
+      failures.push("INVALID: source manifest " + path.relative(absoluteRoot, manifestSource) + " is not parseable json: " + error.message);
+      return done();
+    }
+  } else {
+    failures.push("MISSING: source manifest is absent: " + path.relative(absoluteRoot, manifestSource));
+    return done();
+  }
+
+  const uiBundleDir = entry.uiPath ? path.join(absoluteRoot, entry.uiPath, "dist") : null;
+
+  // Ordered source search. The first two rules are exact — a declared name that matches one of them
+  // is resolved from that root or not at all — and the remaining three are tried in order, so
+  // precedence between roots is stated rather than left to whichever happens to hold the file.
+  function resolveArtifactSource(name) {
+    const searched =
+      name === manifestName
+        ? [{ source: manifestSource, root: "manifest" }]
+        : uiBundleDir && sourceManifest.jsBundle === name
+          ? [{ source: path.join(uiBundleDir, name), root: "ui-bundle" }]
+          : [
+              { source: path.join(absolutePublishDir, name), root: "publish" },
+              { source: path.join(absoluteRoot, entry.path, name), root: "extension" },
+              { source: path.join(absoluteRoot, name), root: "repo-root" },
+            ];
+
+    for (const candidate of searched) {
+      if (fs.existsSync(candidate.source)) return { ...candidate, searched };
+    }
+    return { source: null, root: null, searched };
+  }
+
+  const staged = [];
+  for (const name of names) {
+    const { source, root: sourceRoot, searched } = resolveArtifactSource(name);
+    if (source == null) {
+      const roots = searched.map((candidate) => path.relative(absoluteRoot, candidate.source) || candidate.source);
+      failures.push("MISSING: declared artifact " + name + " was not found in any source root: " + roots.join(", "));
+      continue;
+    }
+
+    // The version is assigned as given: no semver parse, no coercion, so a placeholder such as a
+    // triple zero survives into the package exactly as the caller spelled it.
+    const text = name === manifestName ? JSON.stringify({ ...sourceManifest, version }, null, 2) + "\n" : null;
+    staged.push({ name, source, root: sourceRoot, text });
+  }
+
+  for (const item of staged) {
+    if (!item.name.endsWith(".json")) continue;
+    checkNoAbsolutePath(item.name, item.text ?? fs.readFileSync(item.source, "utf8"), failures);
+  }
+
+  if (failures.length > 0) return done();
+
+  emptyPackageDir(absolutePackageDir);
+  for (const item of staged) {
+    const destination = path.join(absolutePackageDir, item.name);
+    if (item.text == null) {
+      fs.copyFileSync(item.source, destination);
+    } else {
+      fs.writeFileSync(destination, item.text);
+    }
+    // Recorded at the point of the write, so the reported count is what landed rather than what was
+    // declared.
+    copied.push({ name: item.name, source: path.relative(absoluteRoot, item.source), root: item.root });
+  }
+
+  return done();
+}
+
+const REQUIRED_FLAGS = ["--publish-dir", "--package-dir", "--extension", "--version"];
+// --root exists so the CLI leg can be exercised against a fixture tree rather than only against this
+// checkout, which is the same reason assemblePackage takes `root` instead of closing over the
+// constant above. It is the one flag with a default, because the answer for every real caller is the
+// checkout the script itself lives in.
+const ALL_FLAGS = [...REQUIRED_FLAGS, "--root"];
+
+function usage() {
+  console.error(
+    "Usage: node scripts/assemble-package.mjs " + REQUIRED_FLAGS.map((flag) => flag + " <value>").join(" ") + " [--root <dir>]",
+  );
+}
+
+function main(argv) {
+  const options = new Map();
+  for (let i = 0; i < argv.length; i += 2) {
+    if (!ALL_FLAGS.includes(argv[i]) || argv[i + 1] == null) {
+      usage();
+      return 1;
+    }
+    options.set(argv[i], argv[i + 1]);
+  }
+
+  // Every other flag is required rather than defaulted: a default would let a caller that forgot one
+  // still exit 0, which is the shape of a run that assembled something other than what was asked for.
+  if (REQUIRED_FLAGS.some((flag) => !options.get(flag))) {
+    usage();
+    return 1;
+  }
+
+  const root = options.get("--root") ? path.resolve(options.get("--root")) : scriptRoot;
+  const result = assemblePackage({
+    root,
+    publishDir: path.resolve(options.get("--publish-dir")),
+    packageDir: path.resolve(options.get("--package-dir")),
+    idOrName: options.get("--extension"),
+    version: options.get("--version"),
+  });
+
+  if (!result.ok) {
+    for (const failure of result.failures) console.error(failure);
+    console.error("Assemble FAILED — nothing was written.");
+    return 1;
+  }
+
+  console.log(
+    "Assembled " + options.get("--extension") + " " + options.get("--version") + " into " +
+      path.relative(root, path.resolve(options.get("--package-dir"))) + " — " + result.copied.length + " file(s):",
+  );
+  for (const file of result.copied) console.log("  " + file.name + "  <- " + file.root + ": " + file.source);
+  return 0;
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+  process.exit(main(process.argv.slice(2)));
+}

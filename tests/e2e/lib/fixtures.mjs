@@ -4,7 +4,7 @@
 //
 // Usage in a test file:
 //   import { test, expect } from '../../lib/fixtures.mjs';
-//   test.use({ extension: { publishDir: '...', manifestPath: '...', uiBundlePath: '...' } });
+//   test.use({ extension: { repoRoot: '...', publishDir: '...', manifestPath: '...' } });
 //   test('...', async ({ page, baseUrl, api }) => { ... });
 import { test as base, expect } from '@playwright/test';
 import { startHarness } from './harness.mjs';

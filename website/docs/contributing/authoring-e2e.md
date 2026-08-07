@@ -13,6 +13,8 @@ Renamer is the reference implementation — copy its shape from
 - Your extension builds to a publish output (`artifacts/publish/` with the built DLL +
   `extension.json`) and, if it has a frontend, a UI bundle at `src/<UiProject>/dist/index.mjs`. This
   is what Renamer's `scripts/deploy-dev.ps1` produces (minus the deploy).
+- Your `catalog.json` entry declares an `artifacts` array. The harness installs the package that
+  array declares — not the publish directory — so a file missing from it fails the run by name.
 - Docker running (the harness boots a real Cove + Postgres instance per worker).
 
 ## Step 1 — Create the extension's `e2e/` folder
@@ -49,7 +51,6 @@ import { resolveExtensionPaths } from '@cove-extensions/e2e/resolve-extension';
 
 export const YOUREXT_EXTENSION = resolveExtensionPaths(import.meta.url, {
   srcProject: 'YourProject', // → src/YourProject/extension.json
-  uiProject: 'YourProject.Ui', // → src/YourProject.Ui/dist/index.mjs
 });
 
 export const test = baseTest.extend({

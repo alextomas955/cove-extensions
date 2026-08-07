@@ -1,6 +1,6 @@
 // Copyable starting point for a new extension's E2E suite. Copy this file into your extension's own
-// test directory (extensions/<YourExt>/e2e/tests/), then change the two `*Project` strings below to
-// your extension's .NET + UI project names and replace the example tests with your own.
+// test directory (extensions/<YourExt>/e2e/tests/), then change the `srcProject` string below to
+// your extension's .NET project name and replace the example tests with your own.
 //
 // NOTE ON IMPORTS: this template lives INSIDE the shared harness (tests/e2e/), so it imports the
 // harness with relative paths (`../lib/...`). When you copy it into your extension, change those to
@@ -15,11 +15,12 @@ import { test, expect } from '../lib/fixtures.mjs';
 import { resolveExtensionPaths } from '../lib/resolve-extension.mjs';
 
 // resolveExtensionPaths derives your extension's build outputs from THIS file's own location — no
-// hand-rolled repo-root math. When copied into your extension it resolves relative to the copy.
+// hand-rolled repo-root math. When copied into your extension it resolves relative to the copy. The
+// UI bundle needs no argument here: what a package ships is declared in your extension's
+// catalog.json entry, and the harness installs exactly that declared set.
 test.use({
   extension: resolveExtensionPaths(import.meta.url, {
     srcProject: 'Renamer', // → src/<srcProject>/extension.json  (change to your .NET project name)
-    uiProject: 'Renamer.Ui', // → src/<uiProject>/dist/index.mjs  (change to your UI project name)
   }),
 });
 

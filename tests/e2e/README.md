@@ -125,8 +125,10 @@ In short:
    repo root once (the workspace glob registers your suite automatically).
 
 The `extension` fixture option is filled by `resolveExtensionPaths(import.meta.url, …)`, which
-derives `publishDir`/`manifestPath`/`uiBundlePath` from the fixture file's own location — no
-hand-rolled repo-root paths.
+derives `repoRoot`/`publishDir`/`manifestPath` from the fixture file's own location — no
+hand-rolled repo-root paths. The harness then assembles the package your extension's `catalog.json`
+entry declares in its `artifacts` array and installs that, so a test runs against the same file set a
+release ships.
 
 ```js
 // from e.g. extensions/<YourExtension>/e2e/tests/your-test.spec.mjs
@@ -136,7 +138,6 @@ import { resolveExtensionPaths } from '@cove-extensions/e2e/resolve-extension';
 test.use({
   extension: resolveExtensionPaths(import.meta.url, {
     srcProject: 'YourProject', // → src/YourProject/extension.json
-    uiProject: 'YourProject.Ui', // → src/YourProject.Ui/dist/index.mjs (omit usage if no frontend)
   }),
 });
 
