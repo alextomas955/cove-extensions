@@ -55,9 +55,9 @@ them, while the test-support packages there never ship.
 - **Do not add a direct Cove reference or a `Directory.Build.props` to an extension `.csproj`.** Both
   are wired once at the repo root (see *Build wiring*).
 - **Never bundle host-provided assemblies.** `Cove.Core` / `Cove.Plugins` / `Cove.Sdk`, EF Core,
-  Npgsql and Pgvector come from the host and are referenced `Private=false`. Shipping them causes
-  `AssemblyLoadContext` type-identity mismatches at runtime. `Cove.Sdk.targets` strips them — verify
-  the published output rather than trusting it.
+  Npgsql and Pgvector come from the host and are referenced `Private=false`. The host ignores a
+  bundled copy and warns once naming it, so a leak costs weight, not correctness. `Cove.Sdk.targets`
+  strips them, and `extensions/catalog.json` declares what ships, readable without a build.
 - **Never write to Cove's database directly** — direct SQLite/Postgres writes are schema-fragile and
   corrupt the DB. Go through `CoveContext` + `SaveChangesAsync`.
 - **Register the extension in `extensions/catalog.json`** so CI can build and release it.

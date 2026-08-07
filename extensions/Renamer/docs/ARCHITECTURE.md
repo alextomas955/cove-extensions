@@ -198,9 +198,10 @@ These are the guarantees the design exists to protect. Preserve them when you ch
 - **Options persist and survive upgrades.** Configuration lives in Cove's per-extension store, not in
   a local file.
 - **No host assemblies shipped.** The extension must never bundle host-provided assemblies
-  (`Cove.Core` / `Cove.Plugins` / `Cove.Sdk`, EF Core, Npgsql, …). They're stripped from the publish
-  set, and the deploy script's strip-verify gate refuses to deploy if any leak in. Bundling them
-  would cause load-context type-identity mismatches at runtime.
+  (`Cove.Core` / `Cove.Plugins` / `Cove.Sdk`, EF Core, Npgsql, …). `Cove.Sdk.targets` strips them from
+  the publish set, and the package is copied from an explicit declaration, so an undeclared file never
+  reaches it. A leak on the current host is ignored — it loads its own copy and warns once — so the
+  cost is package weight, not correctness.
 - **ABI-matched local-source build.** When building against a local Cove checkout, the extension
   references the host's own Cove projects so it's binary-compatible with the running host. This is the
   path the deploy script uses.
