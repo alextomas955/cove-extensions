@@ -56,8 +56,7 @@ jobs:
 
       # Globbed rather than named file-by-file: a hand-maintained list silently stops covering a
       # test the moment one is added, and a check no workflow runs cannot block a merge. Every
-      # scripts/*.test.mjs is fixture-driven and needs only node — including the host-import gate's
-      # test, whose fixtures stand in for the Cove checkout the gate itself requires and CI lacks.
+      # scripts/*.test.mjs is fixture-driven and needs only node.
       - name: Test repo tooling
         run: node --test scripts/*.test.mjs
 
