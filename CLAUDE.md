@@ -92,10 +92,14 @@ seam or vocabulary has to be named exactly to be actionable.
   hand rather than derived from the code under test, so drift fails loudly instead of reading
   `undefined`. An expectation computed from the module it checks agrees with itself forever.
 - **A `*Logic.ts` module imports nothing but its relative siblings.** That is what keeps the L0 tier
-  worth having — pure, mock-free, deterministic, runnable with no environment — and it is why those
-  modules are the cheapest place in the codebase to pin a contract. The rule once held only as a side
-  effect of a test runner that compiled each module alone in a temp dir, where a runtime import simply
-  failed to resolve; that runner is gone, and the constraint is now stated directly as a
+  worth having — pure, mock-free, deterministic, runnable with no environment — so a test of one needs
+  no setup, no doubles and no running service. What purity does **not** buy is drift detection, and
+  conflating the two is worth guarding against: a pinned contract catches drift because its expectation
+  was transcribed by hand instead of derived from the module under test, which is a property of how the
+  expectation was written and holds wherever the pin lives. A pin inside a pure module that computes its
+  expectation from that module is exactly as blind as one anywhere else. The import rule once held only
+  as a side effect of a test runner that compiled each module alone in a temp dir, where a runtime import
+  simply failed to resolve; that runner is gone, and the constraint is now stated directly as a
   `no-restricted-imports` rule in `eslint.config.mjs`. Prefer that shape generally: a structural
   guarantee that fails at lint time beats one that depends on how the suite happens to run.
 - **Nothing may be O(library).** Libraries here reach millions of files, so treat library size as
