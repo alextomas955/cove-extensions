@@ -27,13 +27,11 @@
     },
     "shared/cove-extensions-ui": {
       "entry": [
-        "vite/createExtensionViteConfig.ts",
-        "scripts/*.{mjs,cjs}"
+        "vite/createExtensionViteConfig.ts"
       ],
       "project": [
         "src/**/*.{ts,tsx}",
-        "vite/**/*.ts",
-        "scripts/**/*.{mjs,cjs}"
+        "vite/**/*.ts"
       ],
       "ignoreDependencies": [
         "react",
