@@ -4,7 +4,7 @@
     {
       "label": "The e2e projects depend on the shared @cove-extensions/e2e workspace package by wildcard: npm resolves it to the local copy, and pinning a fixed range would break workspace resolution the moment that local version bumps.",
       "dependencies": ["@cove-extensions/e2e"],
-      "packages": ["@cove-extensions/renamer-e2e"],
+      "packages": ["@cove-extensions/*-e2e"],
       "isIgnored": true
     }
   ]
