@@ -294,6 +294,90 @@ test("refuses to write a shipped json carrying a unix home path prefix, naming f
   assert.equal(fs.existsSync(fixture.packageDir), false, "the refused json must not reach the package");
 });
 
+// An absolute path reaches a shipped json in more spellings than the two cases above cover, and a
+// Windows path inside json is escaped — so the text the scan actually meets is not the text a human
+// writes. Every needle below is assembled from character codes for the same reason those two are.
+function leakyFixture(value) {
+  return fixtureRoot({
+    artifacts: ["Fixture.dll", "Leaky.json"],
+    publishFiles: { "Fixture.dll": "MZ", "Leaky.json": '{\n  "target": "' + value + '"\n}\n' },
+  });
+}
+
+const BACKSLASH = String.fromCodePoint(92);
+const FORWARD_SLASH = String.fromCodePoint(47);
+// A drive path as a build tool writes it, and as a json file then escapes it.
+const DRIVE_FORWARD = "D:" + FORWARD_SLASH + "build/agent/_work/out";
+const DRIVE_ESCAPED = "C:" + BACKSLASH + BACKSLASH + "build" + BACKSLASH + BACKSLASH + "out";
+// A network share in both spellings: raw, and escaped the way a generated json carries it.
+const SHARE_RAW = BACKSLASH + BACKSLASH + "buildsrv" + BACKSLASH + "share" + BACKSLASH + "out";
+const SHARE_ESCAPED =
+  BACKSLASH + BACKSLASH + BACKSLASH + BACKSLASH + "buildsrv" + BACKSLASH + BACKSLASH + "share" + BACKSLASH + BACKSLASH + "out";
+
+test("refuses a shipped json carrying a drive path spelled with a forward slash", () => {
+  const fixture = leakyFixture(DRIVE_FORWARD);
+  const r = assemble(fixture);
+
+  assert.equal(r.ok, false, "a drive path is absolute whichever separator follows the colon");
+  assert.ok(
+    r.failures.some((f) => f.startsWith("LEAK:") && f.includes("Leaky.json") && f.includes(":2:")),
+    "expected a LEAK failure naming Leaky.json line 2, got: " + r.failures.join("; "),
+  );
+  assert.equal(fs.existsSync(fixture.packageDir), false, "the refused json must not reach the package");
+});
+
+test("refuses a shipped json carrying a network share path, in the spelling a generated json contains", () => {
+  for (const { form, value } of [
+    { form: "escaped, as a generated json spells it", value: SHARE_ESCAPED },
+    { form: "raw, as a build tool writes it", value: SHARE_RAW },
+  ]) {
+    const fixture = leakyFixture(value);
+    const r = assemble(fixture);
+
+    assert.equal(r.ok, false, form + " — a network share path is absolute and must be refused");
+    assert.ok(
+      r.failures.some((f) => f.startsWith("LEAK:") && f.includes("Leaky.json") && f.includes(":2:")),
+      form + " — expected a LEAK failure naming Leaky.json line 2, got: " + r.failures.join("; "),
+    );
+    assert.equal(fs.existsSync(fixture.packageDir), false, form + " — the refused json must not reach the package");
+  }
+});
+
+// The two classes are separate markers so a future narrowing of one cannot silently narrow the other,
+// and that separation is worth nothing unless each still refuses only its own class. A share marker
+// written against the raw spelling alone collapses into the drive one, because an escaped drive path
+// also carries doubled backslashes — that mistake was made once while designing this and is what this
+// case exists to catch.
+test("the two absolute-path marker families stay distinguishable", () => {
+  const drive = assemble(leakyFixture(DRIVE_ESCAPED)).failures.filter((f) => f.startsWith("LEAK:")).join("; ");
+  const share = assemble(leakyFixture(SHARE_ESCAPED)).failures.filter((f) => f.startsWith("LEAK:")).join("; ");
+
+  assert.ok(drive.includes("drive root"), "a drive line must be named as a drive root, got: " + drive);
+  assert.ok(!drive.includes("network share"), "a drive line must not read as a network share, got: " + drive);
+  assert.ok(share.includes("network share"), "a share line must be named as a network share, got: " + share);
+  assert.ok(!share.includes("drive root"), "a share line must not read as a drive root, got: " + share);
+});
+
+// The whole subject of the comment beside the markers: a project url is a scheme, a colon and two
+// forward slashes, and the manifest carrying it is itself a shipped json this scan reads. Without this
+// case the widening would rest on the same untested reasoning the comment it replaced did.
+test("the three marker families produce no hit on a project url value", () => {
+  const url = "https" + ":" + FORWARD_SLASH + FORWARD_SLASH + "github.com/alextomas955/extensions";
+  const fixture = fixtureRoot({ manifest: { url } });
+  const r = assemble(fixture);
+
+  assert.equal(r.ok, true, r.failures.join("; "));
+  assert.equal(
+    r.failures.filter((f) => f.startsWith("LEAK:")).length,
+    0,
+    "a project url is not an absolute build path and must not be refused as one",
+  );
+  // Asserted rather than assumed: a fixture whose value never reached the scanned text would pass this
+  // case while proving nothing.
+  const packaged = JSON.parse(fs.readFileSync(path.join(fixture.packageDir, "extension.json"), "utf8"));
+  assert.equal(packaged.url, url, "the url must have reached the packaged manifest for this case to mean anything");
+});
+
 test("rejects a declared name that escapes the package, before any source is read", () => {
   const escapes = [
     "/" + "etc/passwd",
