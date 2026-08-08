@@ -201,6 +201,43 @@ test("fails: one declared artifact absent from every source root, named with the
   assert.equal(fs.existsSync(fixture.packageDir), false, "a failed assemble must leave no package directory behind");
 });
 
+// The ordered search ends at the repository root, which exists for one kind of name: a file a
+// repository carries once, at its root, by convention. Any other name matching a root file would ship
+// a different file under the declared name with nothing reporting it. Both halves are in one case so
+// neither can be closed while the other rots.
+test("a declared name that is not a repository-level file is not resolved from the repository root", () => {
+  const fixture = fixtureRoot();
+  const extensionRelative = path.join("extensions", NAME);
+  fs.rmSync(path.join(fixture.root, extensionRelative, "README.md"));
+  write(fixture.root, "README.md", "# the repository, which is not the extension\n");
+
+  const r = assemble(fixture);
+
+  assert.equal(r.ok, false, "a file of the right name in the wrong place is a substitution, not a resolution");
+  const missing = r.failures.find((f) => f.startsWith("MISSING:") && f.includes("README.md"));
+  assert.ok(missing, "expected a MISSING failure naming README.md, got: " + r.failures.join("; "));
+  for (const searchedRoot of [
+    path.join(extensionRelative, "artifacts", "publish", "README.md"),
+    path.join(extensionRelative, "README.md"),
+  ]) {
+    assert.ok(missing.includes(searchedRoot), "the MISSING message must still list " + searchedRoot + ", got: " + missing);
+  }
+  // The repository root is last in the reported list, so this is what proves the message still names
+  // every root tried rather than narrowing with the rule.
+  assert.ok(missing.endsWith(", README.md"), "the repository root must still be named as searched, got: " + missing);
+  assert.equal(fs.existsSync(fixture.packageDir), false);
+
+  // The one legitimate user of the same fallback, proven still to work rather than assumed.
+  const licensed = fixtureRoot();
+  const green = assemble(licensed);
+  assert.equal(green.ok, true, green.failures.join("; "));
+  assert.equal(
+    green.copied.find((f) => f.name === "LICENSE").root,
+    "repo-root",
+    "a licence is a repository-level file and must still resolve from the repository root",
+  );
+});
+
 test("re-assembling into a dirty package directory leaves no leftover from the earlier run", () => {
   const fixture = fixtureRoot();
   assert.equal(assemble(fixture).ok, true);
@@ -836,6 +873,25 @@ test("CLI: each required flag omitted in turn prints usage and exits non-zero", 
     assert.notEqual(run.status, 0, "omitting " + omitted + " must not exit 0");
     assert.match(run.stderr, /Usage:/, "omitting " + omitted + " must print usage");
   }
+});
+
+// The same class the required-flag check exists to catch: a run that exits 0 having assembled from an
+// argument the caller did not choose.
+test("CLI: a flag supplied twice is refused rather than silently taking one value", () => {
+  const fixture = fixtureRoot();
+  const elsewhere = path.join(tmpDir(), "somewhere-else");
+
+  const repeated = runCli(fixture, [...fullArgv(fixture), "--package-dir", elsewhere]);
+
+  assert.notEqual(repeated.status, 0, "a repeated flag must not exit 0: " + repeated.stdout + repeated.stderr);
+  assert.match(repeated.stderr, /Usage:/, "a repeated flag must print usage, got: " + repeated.stderr);
+  // Neither value may have been used, so the refusal is not "the wrong one won" but "no run happened".
+  assert.equal(fs.existsSync(elsewhere), false, "the second value must not have been assembled into");
+  assert.equal(fs.existsSync(fixture.packageDir), false, "the first value must not have been assembled into");
+
+  // The same invocation without the repeat, so the refusal is about the repeat rather than the flags.
+  const clean = runCli(fixture, fullArgv(fixture));
+  assert.equal(clean.status, 0, clean.stdout + clean.stderr);
 });
 
 // One directory has many spellings, and which one a caller happens to use must not decide whether the
