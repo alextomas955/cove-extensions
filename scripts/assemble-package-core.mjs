@@ -63,6 +63,19 @@ const PATH_SEPARATORS = new RegExp("[/" + BACKSLASH + BACKSLASH + "]");
 
 const MANIFEST_BY_CONVENTION = "extension.json";
 
+// The only names the repository root may supply: files a repository carries once, at its root, by
+// convention, so a package's copy and the repository's copy are the same document. Every other name
+// belongs to one extension, and a repository-root file matching it is a different document under the
+// same name — which is why the root is offered for this list rather than for anything that happens to
+// be there. Generic by construction: a name specific to any extension in this repository does not
+// belong here, or the packer stops being catalog-driven.
+const REPO_ROOT_FALLBACK_NAMES = [
+  "LICENSE", "LICENSE.md", "LICENSE.txt",
+  "LICENCE", "LICENCE.md", "LICENCE.txt",
+  "COPYING", "COPYING.LESSER",
+  "NOTICE", "NOTICE.md", "NOTICE.txt",
+];
+
 // The manifest fields whose value the host resolves as a file inside the installed package, in the
 // order their failures are reported so identical input yields an identical message sequence. Each is
 // optional; only a field the manifest actually carries makes a claim.
@@ -350,10 +363,13 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
           : [
               { source: path.join(absolutePublishDir, name), root: "publish" },
               { source: path.join(absoluteRoot, entry.path, name), root: "extension" },
-              { source: path.join(absoluteRoot, name), root: "repo-root" },
+              { source: path.join(absoluteRoot, name), root: "repo-root", repoLevelOnly: true },
             ];
 
     for (const candidate of searched) {
+      // Skipped rather than dropped from `searched`: a root that was not offered is still a root the
+      // caller has to know was considered, so the MISSING message stays as wide as the search.
+      if (candidate.repoLevelOnly && !REPO_ROOT_FALLBACK_NAMES.includes(name)) continue;
       if (fs.existsSync(candidate.source)) return { ...candidate, searched };
     }
     return { source: null, root: null, searched };
@@ -423,15 +439,16 @@ function usage() {
 export function main(argv) {
   const options = new Map();
   for (let i = 0; i < argv.length; i += 2) {
-    if (!ALL_FLAGS.includes(argv[i]) || argv[i + 1] == null) {
+    if (!ALL_FLAGS.includes(argv[i]) || argv[i + 1] == null || options.has(argv[i])) {
       usage();
       return 1;
     }
     options.set(argv[i], argv[i + 1]);
   }
 
-  // Every other flag is required rather than defaulted: a default would let a caller that forgot one
-  // still exit 0, which is the shape of a run that assembled something other than what was asked for.
+  // Every other flag is required rather than defaulted, and a flag supplied twice is refused above:
+  // both otherwise let a run exit 0 having assembled from an argument the caller did not choose — one
+  // they forgot, one they did not mean to win.
   if (REQUIRED_FLAGS.some((flag) => !options.get(flag))) {
     usage();
     return 1;
