@@ -5,7 +5,7 @@
       "entry": ["scripts/*.{mjs,cjs}"],
       "project": ["scripts/**/*.{mjs,cjs}"]
     },
-    "extensions/Renamer/src/Renamer.Ui": {
+    "extensions/*/src/*.Ui": {
       "vite": false,
       "entry": ["src/index.ts", "src/**/*Logic.ts", "src/contracts.ts", "src/settings/options.ts"],
       "project": ["src/**/*.{ts,tsx}"],
@@ -27,7 +27,7 @@
       "entry": ["**/*.spec.mjs", "lib/**/*.mjs"],
       "project": ["**/*.mjs"]
     },
-    "extensions/Renamer/e2e": {
+    "extensions/*/e2e": {
       "entry": ["tests/**/*.spec.mjs", "lib/**/*.mjs"],
       "project": ["**/*.mjs"],
       "ignoreDependencies": ["@playwright/test"]
