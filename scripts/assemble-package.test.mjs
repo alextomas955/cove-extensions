@@ -706,6 +706,49 @@ test("refuses to empty a package directory that holds anything other than regula
   }
 });
 
+// Resolution is an existence check and the copy happens later, so a source that resolves can still
+// fail to be written — and by then the package directory has already been emptied. This case is the
+// tested form of the two clauses that were carried as a backstop: the package directory is left
+// incomplete, and nothing outside it is created, modified or removed.
+test("a write that fails partway reports a named failure and touches nothing outside the package directory", () => {
+  const fixture = fixtureRoot();
+  // A directory bearing a declared artifact's name. The existence check that resolves a source is
+  // satisfied by a directory, so resolution succeeds and the copy is what fails — and it is the
+  // fourth declared name, so the loop has already written three files when it does.
+  const planted = "Fixture.Extra.dll";
+  fs.rmSync(path.join(fixture.publishDir, planted));
+  fs.mkdirSync(path.join(fixture.publishDir, planted));
+
+  const packageRelative = path.relative(fixture.root, fixture.packageDir) + path.sep;
+  const outside = (tree) => [...tree].filter(([relative]) => !relative.startsWith(packageRelative)).sort();
+  const before = outside(snapshotTree(fixture.root));
+
+  // Called with no try/catch on purpose: an exception escaping the exported function fails this case
+  // as itself, which is the pre-fix behaviour this exists to remove.
+  const r = assemble(fixture);
+
+  assert.equal(r.ok, false, "a write that could not happen must not report success");
+  assert.ok(
+    r.failures.some((f) => f.startsWith("WRITE:") && f.includes(planted)),
+    "expected a WRITE failure naming " + planted + ", got: " + r.failures.join("; "),
+  );
+
+  assert.deepEqual(
+    outside(snapshotTree(fixture.root)),
+    before,
+    "nothing outside the package directory may be created, modified or removed by a failed write",
+  );
+
+  // The loop stops at the failure rather than reporting a count that implies a package which is not
+  // there: the three names before the planted one landed, and nothing after it did.
+  assert.deepEqual(fs.readdirSync(fixture.packageDir).sort(), ["Fixture.dll", "bundle.mjs", "extension.json"].sort());
+  assert.deepEqual(r.copied.map((f) => f.name), ["extension.json", "bundle.mjs", "Fixture.dll"]);
+
+  const run = runCli(fixture, fullArgv(fixture));
+  assert.notEqual(run.status, 0, "the CLI leg must exit non-zero: " + run.stdout + run.stderr);
+  assert.match(run.stderr, /WRITE:/, "the CLI leg must print the WRITE failure on stderr, got: " + run.stderr);
+});
+
 // ── CLI leg ─────────────────────────────────────────────────────────────────────────────────────
 
 function runCli(fixture, argv, script = scriptPath) {
