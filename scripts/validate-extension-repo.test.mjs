@@ -68,24 +68,59 @@ function buildPropsWithFloor(floor = "1.1.0") {
   ].join("\n");
 }
 
+// Renders a solution file from a list of project paths. Passing raw text instead lets a case
+// express a solution the path-attribute match cannot read, which must fail loudly rather than
+// report an empty set — an empty set would read as every membership passing.
+function solutionXml(projectPaths) {
+  return [
+    "<Solution>",
+    '  <Folder Name="/extensions/">',
+    ...projectPaths.map((p) => `    <Project Path="${p}" />`),
+    "  </Folder>",
+    "</Solution>",
+    "",
+  ].join("\n");
+}
+
 // Builds a temp fixture tree:
 //   <root>/scripts/validate-extension-repo.mjs   (real validator bytes, copied at run time)
 //   <root>/extensions/catalog.json                (the catalog under test)
 //   <root>/Directory.Build.props                  (defaults to "" — declares no floor, so the
 //                                                    per-entry floor comparison no-ops)
+//   <root>/CoveExtensions.slnx                    (only when `solution` is supplied — omitting it
+//                                                    is how a case expresses an absent solution)
 //   <root>/<relPath> for each [relPath, manifest] in extensionJsonByPath (a real extension.json
 //   on disk for each catalog entry that must NOT short-circuit on path-existence)
-function makeFixture({ catalog, buildProps = "", extensionJsonByPath = {} }) {
+//   <root>/<relPath> for each [relPath, text] in filesByPath (raw bytes — a .csproj fixture is not
+//   JSON, and only has to exist for the checks that consume it)
+function makeFixture({
+  catalog,
+  buildProps = "",
+  extensionJsonByPath = {},
+  filesByPath = {},
+  solution,
+}) {
   const root = mkdtempSync(path.join(tmpdir(), "validate-fixture-"));
   mkdirSync(path.join(root, "scripts"), { recursive: true });
   copyFileSync(realValidatorPath, path.join(root, "scripts", "validate-extension-repo.mjs"));
   mkdirSync(path.join(root, "extensions"), { recursive: true });
   writeFileSync(path.join(root, "extensions", "catalog.json"), JSON.stringify(catalog, null, 2));
   writeFileSync(path.join(root, "Directory.Build.props"), buildProps);
+  if (solution !== undefined) {
+    writeFileSync(
+      path.join(root, "CoveExtensions.slnx"),
+      typeof solution === "string" ? solution : solutionXml(solution),
+    );
+  }
   for (const [relPath, manifest] of Object.entries(extensionJsonByPath)) {
     const full = path.join(root, relPath);
     mkdirSync(path.dirname(full), { recursive: true });
     writeFileSync(full, JSON.stringify(manifest, null, 2));
+  }
+  for (const [relPath, text] of Object.entries(filesByPath)) {
+    const full = path.join(root, relPath);
+    mkdirSync(path.dirname(full), { recursive: true });
+    writeFileSync(full, text);
   }
   return root;
 }
@@ -241,6 +276,9 @@ test("nonexistent projectPath produces a non-zero exit and the expected error", 
   });
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },
+    // The solution declares the very path under test, so the membership check has nothing to say
+    // here and the promise above — that only one error fires — survives.
+    solution: ["extensions/Foo/DoesNotExist.csproj"],
     extensionJsonByPath: {
       "extensions/Foo/extension.json": validManifest("com.example.foo", { entryDll: "Foo.dll" }),
     },
@@ -384,6 +422,178 @@ test("an entry declaring no optional catalog path says so, rather than reporting
     const { status, stdout, stderr } = runValidator(root);
     assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
     assert.match(stdout, /no entry declared an optional catalog path, so none were checked/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// A C#-bearing entry, complete enough that only the membership check can speak: the project files
+// exist, so the existence checks are silent, and the manifest is valid for a non-manifestOnly entry.
+function csharpFixture({ solution, projectPath, testProjectPath, name = "Foo" }) {
+  const entry = validEntry("com.example.foo", "Foo", {
+    name,
+    manifestOnly: false,
+    ...(projectPath === undefined ? {} : { projectPath }),
+    ...(testProjectPath === undefined ? {} : { testProjectPath }),
+  });
+  const filesByPath = {};
+  for (const declared of [projectPath, testProjectPath]) {
+    if (declared) filesByPath[declared] = "<Project />\n";
+  }
+  if (projectPath === undefined) filesByPath[`extensions/Foo/${name}.csproj`] = "<Project />\n";
+  return makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    solution,
+    filesByPath,
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", { entryDll: "Foo.dll" }),
+    },
+  });
+}
+
+test("a projectPath absent from the solution fails, naming the entry, the field, the path and the file", () => {
+  // The gap this closes is silent by nature: the format and analyzer gates take their whole subject
+  // list from the solution, so a project missing from it is simply never compiled and nothing says
+  // so. The error therefore has to name which CI step is about to under-cover, not only which string
+  // was absent — hence the field and the solution file alongside the path.
+  const root = csharpFixture({
+    projectPath: "extensions/Foo/Foo.csproj",
+    solution: ["extensions/Bar/Bar.csproj"],
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(
+      stderr,
+      /com\.example\.foo: projectPath extensions\/Foo\/Foo\.csproj is not declared in CoveExtensions\.slnx/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a testProjectPath absent from the solution fails independently of a projectPath that is present", () => {
+  // The two fields reach different gates — the format and analyzer jobs compile the solution, while
+  // the Windows unit job runs each catalog testProjectPath — so one being declared cannot excuse the
+  // other. The present projectPath is what makes this case about independence rather than about
+  // whether the check runs at all.
+  const root = csharpFixture({
+    projectPath: "extensions/Foo/Foo.csproj",
+    testProjectPath: "extensions/Foo/Foo.Tests.csproj",
+    solution: ["extensions/Foo/Foo.csproj"],
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(
+      stderr,
+      /com\.example\.foo: testProjectPath extensions\/Foo\/Foo\.Tests\.csproj is not declared in CoveExtensions\.slnx/,
+    );
+    assert.doesNotMatch(stderr, /projectPath extensions\/Foo\/Foo\.csproj is not declared/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a non-manifestOnly entry declaring no projectPath has its convention-derived path checked", () => {
+  // The upstream convention path is a real entry shape, not a legacy one, so an entry that omits
+  // projectPath still compiles something and can still be missing from the solution. The error says
+  // the path was derived, or a reader greps the catalog for it and finds nothing.
+  const root = csharpFixture({ solution: ["extensions/Bar/Bar.csproj"] });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(
+      stderr,
+      /com\.example\.foo: projectPath \(by convention\) extensions\/Foo\/Foo\.csproj is not declared in CoveExtensions\.slnx/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("every catalog-implied project present exits 0, and the report line names the confirmed count", () => {
+  // The "prove it ran" half for this check. Exit 0 alone cannot distinguish two confirmed
+  // memberships from a parse that read nothing and therefore found nothing to complain about.
+  const root = csharpFixture({
+    projectPath: "extensions/Foo/Foo.csproj",
+    testProjectPath: "extensions/Foo/Foo.Tests.csproj",
+    solution: ["extensions/Foo/Foo.csproj", "extensions/Foo/Foo.Tests.csproj"],
+  });
+  try {
+    const { status, stdout, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(stdout, /confirmed 2 project membership\(s\) in CoveExtensions\.slnx/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a catalog implying no C# project says so, rather than omitting the clause", () => {
+  // A catalog of manifestOnly entries implies nothing to compile, which is legitimate — but it is
+  // not the same as a catalog whose projects were all confirmed, and a report line that dropped the
+  // clause would read identically to both.
+  const entry = validEntry("com.example.foo", "Foo");
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo"),
+    },
+  });
+  try {
+    const { status, stdout, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(
+      stdout,
+      /no catalog entry implied a C# project, so no solution membership was checked/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a solution whose project paths cannot be read is a named failure, not a silent pass", () => {
+  // The failure mode that would make this whole check decorative: a match that stops finding path
+  // attributes yields an empty set, and an empty set makes every membership look confirmed. The
+  // element count and the extracted count are compared so that divergence speaks.
+  const root = csharpFixture({
+    projectPath: "extensions/Foo/Foo.csproj",
+    solution: '<Solution>\n  <Project Include="extensions/Foo/Foo.csproj" />\n</Solution>\n',
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(stderr, /CoveExtensions\.slnx: found 1 project element\(s\) but read 0 path/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a solution declaring backslash separators matches a catalog declaring forward slashes", () => {
+  // The repository is authored on Windows and built on Linux, so the two spellings of the same path
+  // must agree. Case is deliberately not folded: a case mismatch breaks the Linux build, so failing
+  // on it is the correct outcome on both platforms.
+  const root = csharpFixture({
+    projectPath: "extensions/Foo/Foo.csproj",
+    solution: ["extensions\\Foo\\Foo.csproj"],
+  });
+  try {
+    const { status, stdout, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(stdout, /confirmed 1 project membership\(s\) in CoveExtensions\.slnx/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a catalog implying a project while the solution file is absent is a named failure", () => {
+  // Absence is the one case a set-membership comparison cannot express: with no file there is no set
+  // to be missing from, so the miss has to be reported against the file itself.
+  const root = csharpFixture({ projectPath: "extensions/Foo/Foo.csproj" });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(stderr, /CoveExtensions\.slnx is missing, so 1 catalog-implied C# project/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
