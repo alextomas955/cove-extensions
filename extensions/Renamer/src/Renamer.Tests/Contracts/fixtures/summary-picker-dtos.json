@@ -22,9 +22,7 @@
     "oldName": "raw.mkv",
     "newName": "Title.mkv",
     "folder": "Studio/2021",
-    "flags": [
-      "sanitized"
-    ],
+    "flags": ["sanitized"],
     "droppedFields": []
   }
 }

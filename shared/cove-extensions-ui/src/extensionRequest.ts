@@ -13,10 +13,7 @@ export { ApiError };
  * alongside its status. Any non-ok response raises {@link ApiError}, carrying status, response body
  * and the unprefixed path.
  */
-async function send(
-  path: string,
-  options: RequestInit,
-): Promise<{ status: number; body: string }> {
+async function send(path: string, options: RequestInit): Promise<{ status: number; body: string }> {
   // The `/api` prefix belongs here rather than at each call site: `extensionFetch` throws a
   // TypeError for a path outside `/api/`, and a TypeError is not an ApiError, so a mis-prefixed
   // path falls through every `instanceof ApiError` branch into the generic string-error arm and
@@ -54,10 +51,7 @@ async function send(
  * wants {@link requestJson}, whose empty-body failure surfaces through the error path the call site
  * already has.
  */
-export async function request<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T | undefined> {
+export async function request<T>(path: string, options: RequestInit = {}): Promise<T | undefined> {
   const { body } = await send(path, options);
   return body ? (JSON.parse(body) as T) : undefined;
 }
@@ -71,17 +65,10 @@ export async function request<T>(
  * A `T` that is really `undefined` type-checks at every call site and then fails somewhere else
  * entirely — a `.length` that throws, or a render stuck on its loading state with nothing reported.
  */
-export async function requestJson<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
+export async function requestJson<T>(path: string, options: RequestInit = {}): Promise<T> {
   const { status, body } = await send(path, options);
   if (!body) {
-    throw new ApiError(
-      status,
-      "response carried no body, but JSON was expected",
-      path,
-    );
+    throw new ApiError(status, "response carried no body, but JSON was expected", path);
   }
   return JSON.parse(body) as T;
 }

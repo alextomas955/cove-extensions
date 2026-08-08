@@ -4,10 +4,7 @@
   "summary": "Bulk-renames Cove library items from configurable metadata templates, updating the file on disk and its Cove database record together, with preview and undo.",
   "repositoryUrl": "https://github.com/alextomas955/cove-extensions",
   "sourceManifestUrl": "https://raw.githubusercontent.com/alextomas955/cove-extensions/main/extensions/Renamer/src/Renamer/extension.json",
-  "categories": [
-    "tools",
-    "automation"
-  ],
+  "categories": ["tools", "automation"],
   "versions": [
     {
       "version": "0.3.0",

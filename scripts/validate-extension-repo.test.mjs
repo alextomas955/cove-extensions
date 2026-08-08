@@ -91,9 +91,13 @@ function makeFixture({ catalog, buildProps = "", extensionJsonByPath = {} }) {
 }
 
 function runValidator(fixtureRoot) {
-  const result = spawnSync(process.execPath, [path.join(fixtureRoot, "scripts", "validate-extension-repo.mjs")], {
-    encoding: "utf8",
-  });
+  const result = spawnSync(
+    process.execPath,
+    [path.join(fixtureRoot, "scripts", "validate-extension-repo.mjs")],
+    {
+      encoding: "utf8",
+    },
+  );
   return { status: result.status, stderr: result.stderr, stdout: result.stdout };
 }
 
@@ -111,7 +115,10 @@ test("happy path: a fully-valid single-entry catalog exits 0 and says no floor w
   try {
     const { status, stdout, stderr } = runValidator(root);
     assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-    assert.match(stdout, /no CoveMinVersion declared in Directory\.Build\.props, so no floor comparison ran/);
+    assert.match(
+      stdout,
+      /no CoveMinVersion declared in Directory\.Build\.props, so no floor comparison ran/,
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -126,13 +133,18 @@ test("a declared floor is compared, and the report line names the count and the 
     catalog: { schemaVersion: 1, extensions: [entry] },
     buildProps: buildPropsWithFloor("1.1.0"),
     extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo", { minCoveVersion: "1.1.0" }),
+      "extensions/Foo/extension.json": validManifest("com.example.foo", {
+        minCoveVersion: "1.1.0",
+      }),
     },
   });
   try {
     const { status, stdout, stderr } = runValidator(root);
     assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-    assert.match(stdout, /compared 1 extension\.json minCoveVersion declaration\(s\) against CoveMinVersion 1\.1\.0/);
+    assert.match(
+      stdout,
+      /compared 1 extension\.json minCoveVersion declaration\(s\) against CoveMinVersion 1\.1\.0/,
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -147,13 +159,18 @@ test("a manifest floor below the repo floor fails, naming the entry and the floo
     catalog: { schemaVersion: 1, extensions: [entry] },
     buildProps: buildPropsWithFloor("1.1.0"),
     extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo", { minCoveVersion: "1.0.0" }),
+      "extensions/Foo/extension.json": validManifest("com.example.foo", {
+        minCoveVersion: "1.0.0",
+      }),
     },
   });
   try {
     const { status, stderr } = runValidator(root);
     assert.notEqual(status, 0);
-    assert.match(stderr, /com\.example\.foo: extension\.json minCoveVersion 1\.0\.0 is below repo CoveMinVersion 1\.1\.0/);
+    assert.match(
+      stderr,
+      /com\.example\.foo: extension\.json minCoveVersion 1\.0\.0 is below repo CoveMinVersion 1\.1\.0/,
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -317,7 +334,10 @@ test("a declared catalog path that does not exist fails, naming the field", () =
   try {
     const { status, stderr } = runValidator(root);
     assert.notEqual(status, 0);
-    assert.match(stderr, /com\.example\.foo: uiPath does not exist: extensions\/Foo\/DoesNotExist\.Ui/);
+    assert.match(
+      stderr,
+      /com\.example\.foo: uiPath does not exist: extensions\/Foo\/DoesNotExist\.Ui/,
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -378,7 +398,9 @@ test("non-semver extension.json minCoveVersion produces a non-zero exit and the 
     catalog: { schemaVersion: 1, extensions: [entry] },
     buildProps: buildPropsWithFloor("0.1.0"),
     extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo", { minCoveVersion: "not-a-version" }),
+      "extensions/Foo/extension.json": validManifest("com.example.foo", {
+        minCoveVersion: "not-a-version",
+      }),
     },
   });
   try {

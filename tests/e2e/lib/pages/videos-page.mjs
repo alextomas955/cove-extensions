@@ -1,21 +1,21 @@
 // Shared Page Object for Cove's /videos grid, consumed by every extension's e2e specs. The core
 // (goto / cardByFilename / selectCard) is extension-agnostic; "Rename selected" is Renamer's own
 // affordance and lives here so a second extension can add its own beside it.
-import { expect } from '@cove-extensions/e2e';
+import { expect } from "@cove-extensions/e2e";
 
 export class VideosPage {
   constructor(page, baseUrl) {
     this.page = page;
     this.baseUrl = baseUrl;
     // Renamer: the bulk "Rename selected" action button.
-    this.renameSelectedButton = page.getByRole('button', { name: 'Rename selected' });
+    this.renameSelectedButton = page.getByRole("button", { name: "Rename selected" });
   }
 
   async goto() {
     await this.page.goto(`${this.baseUrl}/videos`);
     // The grid's content loads via a client-side fetch after navigation — waiting for the network
     // to go idle (not just the initial HTML load) avoids reading the DOM before cards render.
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState("networkidle");
   }
 
   /**
@@ -29,14 +29,14 @@ export class VideosPage {
    */
   cardByFilename(filename) {
     return this.page
-      .locator('div', { has: this.page.getByRole('link', { name: `Open video ${filename}` }) })
+      .locator("div", { has: this.page.getByRole("link", { name: `Open video ${filename}` }) })
       .last();
   }
 
   async selectCard(filename) {
     const card = this.cardByFilename(filename);
     await card.scrollIntoViewIfNeeded();
-    const selectButton = card.getByRole('button', { name: /^(Select|Deselect) item$/ });
+    const selectButton = card.getByRole("button", { name: /^(Select|Deselect) item$/ });
     await expect(selectButton).toHaveCount(1);
     await selectButton.click();
   }
@@ -58,7 +58,7 @@ export class VideosPage {
       await dialog.accept();
       resolveConfirm();
     };
-    this.page.on('dialog', handler);
+    this.page.on("dialog", handler);
     try {
       await this.renameSelectedButton.click();
       // Only the before-disk confirm() gate fires; wait for it to be accepted (a fixed sleep was
@@ -66,21 +66,20 @@ export class VideosPage {
       await Promise.race([
         confirmSeen,
         this.page.waitForTimeout(10_000).then(() => {
-          throw new Error('renameSelected: confirm dialog never fired within 10s');
+          throw new Error("renameSelected: confirm dialog never fired within 10s");
         }),
       ]);
     } finally {
-      this.page.off('dialog', handler);
+      this.page.off("dialog", handler);
     }
     return messages;
   }
 
   /** Reads every currently-visible video card's displayed filename, in DOM order. */
   async visibleFilenames() {
-    const texts = await this.page.locator('main p').allTextContents();
+    const texts = await this.page.locator("main p").allTextContents();
     return texts.filter((t) => /\.(mp4|jpg|png|flac)$/i.test(t.trim()));
   }
-
 
   /**
    * Selects the first {@link count} grid cards by their "Select item" buttons — robust to whether a card's
@@ -88,7 +87,7 @@ export class VideosPage {
    * specific card).
    */
   async selectFirstCards(count = 1) {
-    const selectButtons = this.page.getByRole('button', { name: 'Select item' });
+    const selectButtons = this.page.getByRole("button", { name: "Select item" });
     await expect(selectButtons.first()).toBeVisible({ timeout: 15_000 });
     const available = await selectButtons.count();
     const n = Math.min(count, available);

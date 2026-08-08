@@ -53,7 +53,7 @@ them, while the test-support packages there never ship.
 - **Implement `IExtension` from `Cove.Plugins`** — typically by subclassing `FullExtensionBase`.
   `extension.json` is the load manifest, and its `entryDll` MUST match the built assembly name.
 - **Do not add a direct Cove reference or a `Directory.Build.props` to an extension `.csproj`.** Both
-  are wired once at the repo root (see *Build wiring*).
+  are wired once at the repo root (see _Build wiring_).
 - **Never bundle host-provided assemblies.** `Cove.Core` / `Cove.Plugins` / `Cove.Sdk`, EF Core,
   Npgsql and Pgvector come from the host and are referenced `Private=false`. The host ignores a
   bundled copy and warns once naming it, so a leak costs weight, not correctness. `Cove.Sdk.targets`
@@ -64,7 +64,7 @@ them, while the test-support packages there never ship.
 
 ## Extension authoring patterns
 
-The rules above are the load/build contract. The durable *shape* rules — folder conventions, wire
+The rules above are the load/build contract. The durable _shape_ rules — folder conventions, wire
 layout, correctness and test structure — are stated with their reasoning at
 `website/docs/contributing/authoring-patterns.md`, which is the page to read before adding or
 reshaping an extension. What stays below is what that page does not carry, plus the invariants whose
@@ -72,7 +72,7 @@ seam or vocabulary has to be named exactly to be actionable.
 
 - **Every module is exactly one of six kinds** — FEAT (a capability slice) · DOM (pure logic) · MODEL
   (a data or wire shape) · INFRA (I/O: HTTP, DB, disk, host store, timers) · UIP (a business-agnostic
-  UI primitive) · TOOL (commit, CI and build time). Classify a file by what it *is*, then place it.
+  UI primitive) · TOOL (commit, CI and build time). Classify a file by what it _is_, then place it.
 - **Depend downward (toward MODEL) and sideways onto shared code and UI primitives, never upward and
   never across sibling features.** This is the taxonomy's one dependency rule, and the invariant the
   import-boundary lint enforces as an error.
@@ -103,7 +103,7 @@ seam or vocabulary has to be named exactly to be actionable.
   **aggregates**, and serve **rows paged on demand**; planning and projection are pure per entity, so
   a slice computes identically to a full pass. A row cap is not the remedy — it converts a hard
   failure into a silently truncated answer, which is worse. Where a full pass is unavoidable (a count,
-  a reconcile) it may be O(library) in *time*, but its output must still be O(1) in size. This has
+  a reconcile) it may be O(library) in _time_, but its output must still be O(1) in size. This has
   already happened here: a per-file collection persisted to the host's extension store grew large
   enough to fail that extension's entire settings page, survive reinstall, and require SQL to remove.
   Where a journal must persist at all, it stays bounded through the shared `SingleWriterBlobStore<T>`

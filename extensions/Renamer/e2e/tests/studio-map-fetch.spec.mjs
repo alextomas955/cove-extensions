@@ -17,10 +17,10 @@
 // own `list-studios` call and asserted its status — but that call is gone, and
 // `authenticated-fetch.spec.mjs` owns that role now, against an auth-ENABLED instance where the
 // claim is falsifiable at all.
-import { test, expect } from '../lib/renamer-fixtures.mjs';
-import { RenamerSettingsPage } from '../lib/pages/renamer-settings-page.mjs';
+import { test, expect } from "../lib/renamer-fixtures.mjs";
+import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
-const EXTENSION_ID = 'com.alextomas955.renamer';
+const EXTENSION_ID = "com.alextomas955.renamer";
 
 // Pathname-exact, never a substring: a caller pointed at a neighbouring route (".../list-tags-2")
 // must NOT satisfy the negative half, or the check would green-light the very defect it exists to
@@ -31,20 +31,20 @@ const DELETED_ROUTES = [
   `/api/extensions/${EXTENSION_ID}/list-performers`,
 ];
 
-test('a full settings interaction reaches the host for its entities and never the deleted extension routes', async ({
+test("a full settings interaction reaches the host for its entities and never the deleted extension routes", async ({
   page,
   baseUrl,
   api,
 }) => {
   const errors = [];
-  page.on('pageerror', (err) => errors.push(err.message));
+  page.on("pageerror", (err) => errors.push(err.message));
 
   // Every same-origin API request the page makes, captured for the WHOLE interaction. Both halves
   // read this one list, so they are answering questions about the same run.
   const requests = [];
-  page.on('request', (request) => {
+  page.on("request", (request) => {
     const url = new URL(request.url());
-    if (url.pathname.startsWith('/api/')) {
+    if (url.pathname.startsWith("/api/")) {
       requests.push({ pathname: url.pathname, query: url.searchParams });
     }
   });
@@ -55,9 +55,9 @@ test('a full settings interaction reaches the host for its entities and never th
   const studioName = `E2E NoCaller Studio ${stamp}`;
   const tagName = `E2E NoCaller Tag ${stamp}`;
 
-  const studio = await api.post('/api/studios', { name: studioName });
+  const studio = await api.post("/api/studios", { name: studioName });
   expect(studio.ok, `POST /api/studios returned ${studio.status}: ${studio.text}`).toBe(true);
-  const tag = await api.post('/api/tags', { name: tagName });
+  const tag = await api.post("/api/tags", { name: tagName });
   expect(tag.ok, `POST /api/tags returned ${tag.status}: ${tag.text}`).toBe(true);
 
   // Seed a committed rule in BOTH maps so both rule tables render a row whose key is a bare stored
@@ -67,12 +67,14 @@ test('a full settings interaction reaches the host for its entities and never th
     `/api/extensions/${EXTENSION_ID}/data/options`,
     JSON.stringify({
       EnableStudioDestinations: true,
-      StudioDestinations: { [studio.json.id]: '/data/studio-dest' },
+      StudioDestinations: { [studio.json.id]: "/data/studio-dest" },
       EnableTagDestinations: true,
-      TagDestinations: { [tag.json.id]: '/data/tag-dest' },
+      TagDestinations: { [tag.json.id]: "/data/tag-dest" },
     }),
   );
-  expect(seeded.ok, `seeding the options blob returned ${seeded.status}: ${seeded.text}`).toBe(true);
+  expect(seeded.ok, `seeding the options blob returned ${seeded.status}: ${seeded.text}`).toBe(
+    true,
+  );
 
   const settings = new RenamerSettingsPage(page, baseUrl);
   await settings.goto();
@@ -80,80 +82,87 @@ test('a full settings interaction reaches the host for its entities and never th
 
   // --- both committed-rule tables, so both key labels resolve ---
   const studioCard = page
-    .getByRole('heading', { name: 'Per-studio destinations', exact: true })
-    .locator('xpath=ancestor::section[1]');
+    .getByRole("heading", { name: "Per-studio destinations", exact: true })
+    .locator("xpath=ancestor::section[1]");
   const tagCard = page
-    .getByRole('heading', { name: 'Per-tag destinations', exact: true })
-    .locator('xpath=ancestor::section[1]');
+    .getByRole("heading", { name: "Per-tag destinations", exact: true })
+    .locator("xpath=ancestor::section[1]");
 
   // The row anchor is the remove control, which still names the RAW stored key — so it locates the
   // row whether or not the label beside it resolved. That is the point: a locator keyed on the
   // resolved name could not tell an unresolved row from an absent one.
   const studioRow = studioCard
-    .getByRole('button', { name: `Remove ${studio.json.id}`, exact: true })
-    .locator('xpath=..');
+    .getByRole("button", { name: `Remove ${studio.json.id}`, exact: true })
+    .locator("xpath=..");
   const tagRow = tagCard
-    .getByRole('button', { name: `Remove ${tag.json.id}`, exact: true })
-    .locator('xpath=..');
+    .getByRole("button", { name: `Remove ${tag.json.id}`, exact: true })
+    .locator("xpath=..");
 
-  await expect(studioRow, 'the seeded per-studio rule did not render').toBeVisible({ timeout: 15_000 });
-  await expect(tagRow, 'the seeded per-tag rule did not render').toBeVisible({ timeout: 15_000 });
-  await expect(studioRow, `the committed studio rule never resolved to "${studioName}"`).toContainText(
-    studioName,
-    { timeout: 15_000 },
-  );
-  await expect(tagRow, `the committed tag rule never resolved to "${tagName}"`).toContainText(tagName, {
+  await expect(studioRow, "the seeded per-studio rule did not render").toBeVisible({
     timeout: 15_000,
   });
+  await expect(tagRow, "the seeded per-tag rule did not render").toBeVisible({ timeout: 15_000 });
+  await expect(
+    studioRow,
+    `the committed studio rule never resolved to "${studioName}"`,
+  ).toContainText(studioName, { timeout: 15_000 });
+  await expect(tagRow, `the committed tag rule never resolved to "${tagName}"`).toContainText(
+    tagName,
+    {
+      timeout: 15_000,
+    },
+  );
 
   // --- a tag field and a studio field, typed far enough to trigger a search ---
-  const excludesHeader = page.getByRole('button', { name: /^Excludes/ });
-  const excludes = excludesHeader.locator('xpath=..');
+  const excludesHeader = page.getByRole("button", { name: /^Excludes/ });
+  const excludes = excludesHeader.locator("xpath=..");
   await excludesHeader.click();
 
   // The host renders its results list in a portal at the document root, NOT inside the field's own
   // subtree — so the option lookup is page-scoped. Safe: the seeded names carry this run's stamp.
-  const excludeTag = excludes.getByPlaceholder('Search tags…');
+  const excludeTag = excludes.getByPlaceholder("Search tags…");
   await excludeTag.click();
   await excludeTag.fill(tagName);
   await expect(
-    page.getByRole('option', { name: tagName, exact: true }),
-    'typing a seeded tag name produced no host result — the search this test relies on never ran',
+    page.getByRole("option", { name: tagName, exact: true }),
+    "typing a seeded tag name produced no host result — the search this test relies on never ran",
   ).toBeVisible({ timeout: 15_000 });
 
-  const excludeStudio = excludes.getByPlaceholder('Search studios…');
+  const excludeStudio = excludes.getByPlaceholder("Search studios…");
   await excludeStudio.click();
   await excludeStudio.fill(studioName);
   await expect(
-    page.getByRole('option', { name: studioName, exact: true }),
-    'typing a seeded studio name produced no host result — the search this test relies on never ran',
+    page.getByRole("option", { name: studioName, exact: true }),
+    "typing a seeded studio name produced no host result — the search this test relies on never ran",
   ).toBeVisible({ timeout: 15_000 });
 
   // --- POSITIVE: the host answered for its own entities, in this run ---
   const searched = (pathname, term) =>
-    requests.some((r) => r.pathname === pathname && r.query.get('q') === term);
+    requests.some((r) => r.pathname === pathname && r.query.get("q") === term);
   expect(
-    searched('/api/tags', tagName),
+    searched("/api/tags", tagName),
     `no GET /api/tags?q=${tagName} in the captured traffic — the tag field's search never reached the host, so the negative assertion below would be inspecting a run that did nothing`,
   ).toBe(true);
   expect(
-    searched('/api/studios', studioName),
+    searched("/api/studios", studioName),
     `no GET /api/studios?q=${studioName} in the captured traffic — the studio field's search never reached the host, so the negative assertion below would be inspecting a run that did nothing`,
   ).toBe(true);
 
   const lookedUp = (pathname) => requests.some((r) => r.pathname === pathname);
   expect(
     lookedUp(`/api/studios/${studio.json.id}`),
-    'the committed studio rule rendered no host label lookup — the label came from somewhere other than the host',
+    "the committed studio rule rendered no host label lookup — the label came from somewhere other than the host",
   ).toBe(true);
   expect(
     lookedUp(`/api/tags/${tag.json.id}`),
-    'the committed tag rule rendered no host label lookup — the label came from somewhere other than the host',
+    "the committed tag rule rendered no host label lookup — the label came from somewhere other than the host",
   ).toBe(true);
 
   // --- NEGATIVE: and never the routes this extension no longer serves ---
   const hits = requests.filter((r) => DELETED_ROUTES.includes(r.pathname)).map((r) => r.pathname);
-  expect(hits, `something still calls a deleted entity-listing route: ${hits.join(', ')}`).toEqual([]);
+  expect(hits, `something still calls a deleted entity-listing route: ${hits.join(", ")}`).toEqual(
+    [],
+  );
 
-  expect(errors, `the settings panel raised page errors: ${errors.join('; ')}`).toEqual([]);
+  expect(errors, `the settings panel raised page errors: ${errors.join("; ")}`).toEqual([]);
 });

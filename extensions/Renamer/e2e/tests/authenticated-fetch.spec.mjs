@@ -24,18 +24,18 @@
 // worker-scoped auth-off harness and boot a second Cove instance this spec never talks to. The
 // setup-wizard pre-seed below is the one thing it borrows, because the no-library-path gate is
 // orthogonal to authentication and still fires here.
-import { test as base, expect } from '@playwright/test';
-import { loginThroughUi } from '@cove-extensions/e2e';
-import { startHarness } from '@cove-extensions/e2e/harness';
-import { RENAMER_EXTENSION } from '../lib/renamer-fixtures.mjs';
-import { RenamerSettingsPage } from '../lib/pages/renamer-settings-page.mjs';
+import { test as base, expect } from "@playwright/test";
+import { loginThroughUi } from "@cove-extensions/e2e";
+import { startHarness } from "@cove-extensions/e2e/harness";
+import { RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
+import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
-const ACCESS_COOKIE = 'cove_access_token';
+const ACCESS_COOKIE = "cove_access_token";
 
 const test = base.extend({
   authHarness: [
     async ({}, use) => {
-      const harness = await startHarness({ env: { COVE_E2E_AUTH_ENABLED: 'true' } });
+      const harness = await startHarness({ env: { COVE_E2E_AUTH_ENABLED: "true" } });
       await harness.bootstrapOwner();
       // The install reads the id out of the manifest, which is where it is defined; a copy here
       // would go stale silently, because the panel would follow the manifest to the new route while
@@ -45,16 +45,16 @@ const test = base.extend({
       await use({ harness, extensionId: id });
       await harness.stop();
     },
-    { scope: 'test' },
+    { scope: "test" },
   ],
 });
 
 /** Writes the stored options blob out-of-band, as the host's own route wants it (double-encoded). */
 async function putStoredOptions(harness, dataPathname, payload) {
   const res = await fetch(`${harness.baseUrl}${dataPathname}/options`, {
-    method: 'PUT',
+    method: "PUT",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${harness.token}`,
     },
     body: JSON.stringify(JSON.stringify(payload)),
@@ -76,7 +76,7 @@ async function dropAmbientAuthority(page) {
   await page.context().clearCookies({ name: ACCESS_COOKIE });
   expect(
     (await page.context().cookies()).map((c) => c.name),
-    `the ${ACCESS_COOKIE} cookie survived clearCookies — ambient authority is still in play, so a 200 below would prove nothing`
+    `the ${ACCESS_COOKIE} cookie survived clearCookies — ambient authority is still in play, so a 200 below would prove nothing`,
   ).not.toContain(ACCESS_COOKIE);
 }
 
@@ -98,19 +98,20 @@ async function dropAmbientAuthority(page) {
 async function saveAndAwaitWrite(page, settings, dataPathname) {
   await dropAmbientAuthority(page);
   const write = page.waitForResponse(
-    (res) => new URL(res.url()).pathname.startsWith(dataPathname) && res.request().method() === 'PUT',
-    { timeout: 30_000 }
+    (res) =>
+      new URL(res.url()).pathname.startsWith(dataPathname) && res.request().method() === "PUT",
+    { timeout: 30_000 },
   );
   await settings.saveChangesButton.click();
   const response = await write;
   const headers = await response.request().allHeaders();
   expect(
-    headers.authorization ?? '',
-    'the PUT carried no bearer of its own — it was authenticated by something other than the host authenticated fetch'
+    headers.authorization ?? "",
+    "the PUT carried no bearer of its own — it was authenticated by something other than the host authenticated fetch",
   ).toMatch(/^Bearer /);
   expect(
-    headers.cookie ?? '',
-    `the PUT carried the ${ACCESS_COOKIE} cookie, so its 200 proves ambient authority rather than the request's own credential`
+    headers.cookie ?? "",
+    `the PUT carried the ${ACCESS_COOKIE} cookie, so its 200 proves ambient authority rather than the request's own credential`,
   ).not.toContain(ACCESS_COOKIE);
   await expect(settings.unsavedChangesIndicator).toBeHidden({ timeout: 10_000 });
   return response.status();
@@ -125,7 +126,7 @@ async function readStoredOptions(harness, dataPathname) {
   return (await res.json()).options;
 }
 
-test('the settings panel reads and writes its options through an authenticated request', async ({
+test("the settings panel reads and writes its options through an authenticated request", async ({
   page,
   authHarness,
 }) => {
@@ -136,15 +137,15 @@ test('the settings panel reads and writes its options through an authenticated r
   await putStoredOptions(harness, dataPathname, { FilenameTemplate: seededTemplate });
 
   await page.addInitScript(() => {
-    sessionStorage.setItem('cove-setup-dismissed', 'true');
+    sessionStorage.setItem("cove-setup-dismissed", "true");
   });
   await page.goto(harness.baseUrl);
   await loginThroughUi(page);
 
   const settings = new RenamerSettingsPage(page, harness.baseUrl);
   const firstRead = page.waitForResponse(
-    (res) => new URL(res.url()).pathname === dataPathname && res.request().method() === 'GET',
-    { timeout: 30_000 }
+    (res) => new URL(res.url()).pathname === dataPathname && res.request().method() === "GET",
+    { timeout: 30_000 },
   );
   await settings.goto();
 
@@ -169,7 +170,7 @@ test('the settings panel reads and writes its options through an authenticated r
   const firstWriteStatus = await saveAndAwaitWrite(page, settings, dataPathname);
   expect(
     firstWriteStatus,
-    `the panel's PUT to ${dataPathname} answered ${firstWriteStatus} with no access cookie in play — an extension request that carries no credential of its own cannot write to the host store`
+    `the panel's PUT to ${dataPathname} answered ${firstWriteStatus} with no access cookie in play — an extension request that carries no credential of its own cannot write to the host store`,
   ).toBe(200);
 
   const afterFirstSave = await readStoredOptions(harness, dataPathname);
@@ -185,6 +186,6 @@ test('the settings panel reads and writes its options through an authenticated r
 
   expect(
     await readStoredOptions(harness, dataPathname),
-    'the same payload saved twice produced two different stored blobs'
+    "the same payload saved twice produced two different stored blobs",
   ).toBe(afterFirstSave);
 });

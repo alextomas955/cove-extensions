@@ -20,9 +20,7 @@ export interface ExtensionDataStore {
  * and the per-key `PUT /api/extensions/{id}/data/{key}`. There is no per-key GET, no collection
  * POST and no DELETE — a store offering those targets routes that do not exist.
  */
-export function createExtensionDataStore(
-  extensionId: string,
-): ExtensionDataStore {
+export function createExtensionDataStore(extensionId: string): ExtensionDataStore {
   const base = `/extensions/${extensionId}/data`;
 
   return {

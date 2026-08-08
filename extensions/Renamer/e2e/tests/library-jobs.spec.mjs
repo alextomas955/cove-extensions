@@ -1,11 +1,11 @@
 // Whole-library job flow coverage: the scan-library (whole-library Dry Run) and renamer-library
 // (Rename All) job pair, driven through the job-polling API.
-import { test as base, expect, pollJob, RENAMER_EXTENSION } from '../lib/renamer-fixtures.mjs';
-import { startHarness } from '@cove-extensions/e2e/harness';
-import { seedVideo } from '@cove-extensions/e2e/seed-media';
-import { assertRenamedTo } from '../lib/rename-assertions.mjs';
+import { test as base, expect, pollJob, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
+import { startHarness } from "@cove-extensions/e2e/harness";
+import { seedVideo } from "@cove-extensions/e2e/seed-media";
+import { assertRenamedTo } from "../lib/rename-assertions.mjs";
 
-const EXTENSION_ID = 'com.alextomas955.renamer';
+const EXTENSION_ID = "com.alextomas955.renamer";
 const ROUTE = `/api/extensions/${EXTENSION_ID}`;
 
 const test = base.extend({
@@ -17,11 +17,11 @@ const test = base.extend({
       await use(isolatedHarness);
       await isolatedHarness.stop();
     },
-    { scope: 'test' },
+    { scope: "test" },
   ],
 });
 
-test('scan-library aggregates and pages every seeded item without mutating any of them', async ({
+test("scan-library aggregates and pages every seeded item without mutating any of them", async ({
   harness,
   baseUrl,
   api,
@@ -40,7 +40,7 @@ test('scan-library aggregates and pages every seeded item without mutating any o
   expect(enqueue.status).toBe(202);
 
   const job = await pollJob(api, enqueue.json.jobId);
-  expect(job.status.toLowerCase()).toBe('completed');
+  expect(job.status.toLowerCase()).toBe("completed");
 
   // The scan persists an AGGREGATE, so the readback reports counts; the rows themselves come from the
   // page query, planned on demand. Asserting both is a stronger check of the same behaviour than the
@@ -77,13 +77,13 @@ test('scan-library aggregates and pages every seeded item without mutating any o
 // EVERY item in the library, not just the ones this test seeds — under real parallel execution,
 // a sibling test in the same worker could have its own seeded/mid-rename video swept into this
 // job's "whole library" scope, occasionally missing the polling window for its own rename.
-test('renamer-library renames every seeded item in one run', async ({ isolatedHarness }) => {
+test("renamer-library renames every seeded item in one run", async ({ isolatedHarness }) => {
   const baseUrl = isolatedHarness.baseUrl;
   const container = isolatedHarness.container;
   async function callApi(method, path, body) {
     const res = await fetch(`${baseUrl}${path}`, {
       method,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     });
     const text = await res.text();
@@ -96,14 +96,17 @@ test('renamer-library renames every seeded item in one run', async ({ isolatedHa
     return { status: res.status, ok: res.ok, json, text };
   }
   const api = {
-    get: (p) => callApi('GET', p),
-    post: (p, b) => callApi('POST', p, b),
-    put: (p, b) => callApi('PUT', p, b),
+    get: (p) => callApi("GET", p),
+    post: (p, b) => callApi("POST", p, b),
+    put: (p, b) => callApi("PUT", p, b),
   };
 
   // A "$title"-only template over distinct safe titles makes each item's computed name deterministic,
   // so each EXACT resulting basename can be asserted rather than merely "the path changed".
-  const setTemplate = await api.put(`${ROUTE}/data/options`, JSON.stringify({ FilenameTemplate: '$title' }));
+  const setTemplate = await api.put(
+    `${ROUTE}/data/options`,
+    JSON.stringify({ FilenameTemplate: "$title" }),
+  );
   expect(setTemplate.ok).toBe(true);
 
   const videos = await Promise.all([
@@ -113,7 +116,7 @@ test('renamer-library renames every seeded item in one run', async ({ isolatedHa
   ]);
   const originalPaths = videos.map((v) => v.files[0].path);
 
-  const titles = ['Library Item Alpha', 'Library Item Bravo', 'Library Item Charlie'];
+  const titles = ["Library Item Alpha", "Library Item Bravo", "Library Item Charlie"];
   for (let i = 0; i < videos.length; i++) {
     const update = await api.put(`/api/videos/${videos[i].id}`, { Title: titles[i] });
     expect(update.ok).toBe(true);
@@ -123,7 +126,7 @@ test('renamer-library renames every seeded item in one run', async ({ isolatedHa
   expect(enqueue.status).toBe(202);
 
   const job = await pollJob(api, enqueue.json.jobId, { timeoutMs: 60_000 });
-  expect(job.status.toLowerCase()).toBe('completed');
+  expect(job.status.toLowerCase()).toBe("completed");
 
   for (let i = 0; i < videos.length; i++) {
     await assertRenamedTo({
