@@ -230,9 +230,15 @@ function emptyPackageDir(packageDir, failures) {
 /**
  * Assembles a catalog entry's declared package into `packageDir`.
  *
- * Nothing is written unless every declared artifact resolved, every shipped json passed the
- * absolute-path refusal, and the package directory held nothing but regular files — a partially-
- * assembled package is worse than none, because it looks like a complete one.
+ * Nothing is written at all unless every declared artifact resolved, every shipped json passed the
+ * absolute-path refusal, and the package directory held nothing but regular files.
+ *
+ * Past that point the guarantee is narrower, and the difference is what a caller has to act on. If a
+ * write fails, the package directory is left INCOMPLETE — already emptied of the previous run, and
+ * holding only what was written before the failure. That failure is reported as a named `WRITE:`
+ * entry rather than thrown, and nothing outside the package directory is created, modified or
+ * removed. So a caller reading a non-zero result as "nothing shipped" is right about the rest of its
+ * tree and wrong about the package directory, whose contents it must not treat as a package.
  *
  * @param {object} opts
  * @param {string} opts.root - the repo root holding `extensions/catalog.json`.
@@ -379,10 +385,19 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
 
   for (const item of staged) {
     const destination = path.join(absolutePackageDir, item.name);
-    if (item.text == null) {
-      fs.copyFileSync(item.source, destination);
-    } else {
-      fs.writeFileSync(destination, item.text);
+    try {
+      if (item.text == null) {
+        fs.copyFileSync(item.source, destination);
+      } else {
+        fs.writeFileSync(destination, item.text);
+      }
+    } catch (error) {
+      // A source resolves on an existence check but is written here, so this is reachable — a
+      // directory bearing a declared name, a locked destination, a full disk. The loop stops rather
+      // than carrying on: a run that failed one write and wrote the rest would print a count for a
+      // package that is not there, which is the shape the count exists to prevent.
+      failures.push("WRITE: " + item.name + " could not be written to " + destination + ": " + error.message);
+      break;
     }
     // Recorded at the point of the write, so the reported count is what landed rather than what was
     // declared.
