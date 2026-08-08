@@ -35,8 +35,9 @@ const QUOTE = String.fromCodePoint(34);
 // from the other:
 //
 //   - The drive marker accepts either separator, behind a word boundary. The boundary is what keeps a
-//     url out: a scheme has no word boundary before its final letter, so `https:` is not a hit while
-//     a drive letter after a quote or a space is.
+//     url out: a multi-letter scheme has no word boundary before its last letter, so `https:` is not
+//     a hit while a drive letter following a quote or a space is. A one-letter scheme would be a hit,
+//     and is spelled exactly like a drive letter — there is nothing left to tell them apart by.
 //   - The share marker instead requires its backslash run to BEGIN a value. Doubled backslashes in
 //     the middle of a value are json escaping one separator, which an escaped drive path is full of,
 //     so a share marker without that anchor matches every escaped drive path and stops being a
