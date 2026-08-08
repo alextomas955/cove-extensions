@@ -247,7 +247,11 @@ test("fails: a name repeated in artifacts, rather than collapsing into one copy 
 });
 
 test("two distinct failures are emitted in declaration order", () => {
-  const fixture = fixtureRoot({ artifacts: ["Aardvark.dll", "Fixture.dll", "Zebra.dll"] });
+  // The manifest and its script bundle are declared so the only failures left are the two absent
+  // artifacts: this case's subject is the order they are emitted in, not how many classes can fire.
+  const fixture = fixtureRoot({
+    artifacts: ["Aardvark.dll", "extension.json", "bundle.mjs", "Fixture.dll", "Zebra.dll"],
+  });
   const r = assemble(fixture);
 
   assert.equal(r.ok, false);
@@ -411,8 +415,12 @@ test("an unloadable declaration and an absolute path in a shipped json are repor
 });
 
 test("a .pdb and a .xml sitting in the publish output cannot reach the package", () => {
+  // A loadable declaration — the manifest and the two files it names — that still omits the symbol and
+  // documentation files the fake build emitted beside them. The point is what a declaration leaves out,
+  // so it has to be a declaration that would otherwise ship.
+  const shipped = ["extension.json", "bundle.mjs", "Fixture.dll", "Fixture.deps.json"];
   const fixture = fixtureRoot({
-    artifacts: ["Fixture.dll", "Fixture.deps.json"],
+    artifacts: shipped,
     publishFiles: {
       "Fixture.dll": "MZ",
       "Fixture.deps.json": "{}\n",
@@ -423,7 +431,14 @@ test("a .pdb and a .xml sitting in the publish output cannot reach the package",
   const r = assemble(fixture);
 
   assert.equal(r.ok, true, r.failures.join("; "));
-  assert.deepEqual(fs.readdirSync(fixture.packageDir).sort(), ["Fixture.deps.json", "Fixture.dll"]);
+  assert.deepEqual(fs.readdirSync(fixture.packageDir).sort(), [...shipped].sort());
+  for (const excluded of ["Fixture.pdb", "Fixture.xml"]) {
+    assert.equal(
+      fs.existsSync(path.join(fixture.packageDir, excluded)),
+      false,
+      excluded + " was emitted by the build and must not reach the package, because it is not declared",
+    );
+  }
 });
 
 test("stamps the packaged manifest with the version passed in, byte-for-byte and only there", () => {

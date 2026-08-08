@@ -44,6 +44,11 @@ const PATH_SEPARATORS = new RegExp("[/" + BACKSLASH + BACKSLASH + "]");
 
 const MANIFEST_BY_CONVENTION = "extension.json";
 
+// The manifest fields whose value the host resolves as a file inside the installed package, in the
+// order their failures are reported so identical input yields an identical message sequence. Each is
+// optional; only a field the manifest actually carries makes a claim.
+const MANIFEST_FILE_FIELDS = ["entryDll", "jsBundle", "cssBundle"];
+
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
 }
@@ -77,6 +82,32 @@ function checkNoAbsolutePath(name, text, failures) {
       failures.push("LEAK: absolute path found in shipped json: " + name + ":" + (index + 1) + ": " + line.trim());
     }
   });
+}
+
+// A declaration can name only files that exist and still describe a package the host refuses to load:
+// the catalog and the manifest are two hand-edited files that have to agree, and nothing until now
+// made them. The strip-verification gate asserted these same two properties against the finished
+// folder; asserting them against the declaration on the way in makes the unloadable package
+// unrepresentable instead of detected, and costs no second read — the manifest is already parsed here
+// to stamp the version.
+//
+// Failures are pushed, never returned, so one run still reports everything wrong with a declaration.
+function checkDeclarationIsLoadable(sourceManifest, manifestName, names, failures) {
+  if (!names.includes(manifestName)) {
+    failures.push(
+      "UNLOADABLE: artifacts does not declare " + manifestName + " — a package with no load manifest cannot be installed.",
+    );
+  }
+
+  for (const field of MANIFEST_FILE_FIELDS) {
+    const value = sourceManifest[field];
+    if (typeof value !== "string" || value === "") continue;
+    if (!names.includes(value)) {
+      failures.push(
+        "UNLOADABLE: the source manifest's " + field + " names " + value + ", which artifacts does not declare.",
+      );
+    }
+  }
 }
 
 // Returns a key for comparing two paths for identity, never a path to open. One directory has many
@@ -273,6 +304,8 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
     failures.push("MISSING: source manifest is absent: " + path.relative(absoluteRoot, manifestSource));
     return done();
   }
+
+  checkDeclarationIsLoadable(sourceManifest, manifestName, names, failures);
 
   const uiBundleDir = entry.uiPath ? path.join(absoluteRoot, entry.uiPath, "dist") : null;
 
