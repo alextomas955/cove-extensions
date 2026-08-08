@@ -24,16 +24,35 @@ import process from "node:process";
 const scriptRoot = path.resolve(import.meta.dirname, "..");
 
 const BACKSLASH = String.fromCodePoint(92);
+const QUOTE = String.fromCodePoint(34);
 
 // Absolute-path markers are constructed from parts rather than written as bare literals so a
 // downstream scan of this script's own source does not mistake the markers for a real leak.
 //
-// The drive-root marker requires a BACKSLASH after the colon, and must not be widened to accept
-// either separator: a manifest `url` value is a scheme followed by a colon and two forward slashes,
-// and the manifest is itself a shipped json this scan reads. A marker accepting `/` would therefore
-// match every manifest and hard-fail every assemble.
-const WINDOWS_DRIVE_ROOT = new RegExp("[A-Za-z]:" + BACKSLASH + BACKSLASH);
+// A Windows path inside json arrives escaped, so the text these markers read is not the text the
+// build wrote: every separator is doubled, and a network share's two leading backslashes arrive as
+// four. That escaping is what forces the two Windows classes apart, and it is why one anchor differs
+// from the other:
+//
+//   - The drive marker accepts either separator, behind a word boundary. The boundary is what keeps a
+//     url out: a scheme has no word boundary before its final letter, so `https:` is not a hit while
+//     a drive letter after a quote or a space is.
+//   - The share marker instead requires its backslash run to BEGIN a value. Doubled backslashes in
+//     the middle of a value are json escaping one separator, which an escaped drive path is full of,
+//     so a share marker without that anchor matches every escaped drive path and stops being a
+//     separate class at all.
+const WINDOWS_DRIVE_ROOT = new RegExp(BACKSLASH + "b[A-Za-z]:[/" + BACKSLASH + BACKSLASH + "]");
+const UNC_SHARE_ROOT = new RegExp("(?<![^" + QUOTE + BACKSLASH + "s])" + BACKSLASH + BACKSLASH + "{2,}[A-Za-z0-9_.-]");
 const UNIX_HOME_PREFIXES = ["/" + "home" + "/", "/" + "Users" + "/"];
+
+// Each class is labelled so a refusal says which one fired. Two markers rather than one widened
+// marker, because a later narrowing of either must be visible as a narrowing of that class alone —
+// and a message that named neither would hide it.
+const ABSOLUTE_PATH_MARKERS = [
+  { label: "drive root", hits: (line) => WINDOWS_DRIVE_ROOT.test(line) },
+  { label: "network share", hits: (line) => UNC_SHARE_ROOT.test(line) },
+  { label: "unix home", hits: (line) => UNIX_HOME_PREFIXES.some((prefix) => line.includes(prefix)) },
+];
 
 // A declared artifact name is a bare filename that lands at the package root, so an absolute path,
 // a `..` segment or any separator would send the copy writing outside the package directory.
@@ -77,9 +96,13 @@ function checkArtifactName(name, failures) {
 // contents rather than about build output.
 function checkNoAbsolutePath(name, text, failures) {
   text.split(/\r?\n/).forEach((line, index) => {
-    const hit = WINDOWS_DRIVE_ROOT.test(line) || UNIX_HOME_PREFIXES.some((prefix) => line.includes(prefix));
-    if (hit) {
-      failures.push("LEAK: absolute path found in shipped json: " + name + ":" + (index + 1) + ": " + line.trim());
+    // The first matching class names the line: a line is one kind of absolute path, and reporting a
+    // second class for it would say nothing more about what the caller has to change.
+    const marker = ABSOLUTE_PATH_MARKERS.find((candidate) => candidate.hits(line));
+    if (marker) {
+      failures.push(
+        "LEAK: absolute path (" + marker.label + ") found in shipped json: " + name + ":" + (index + 1) + ": " + line.trim(),
+      );
     }
   });
 }
