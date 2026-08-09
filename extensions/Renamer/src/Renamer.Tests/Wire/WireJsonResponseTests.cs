@@ -1,6 +1,7 @@
 using System.Text;
 using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Renamer.Contracts;
 using Renamer.Planner;
 
@@ -52,11 +53,25 @@ public sealed class WireJsonResponseTests
             Undoable: true));
 
     /// <summary>Executes a result against a real response body and returns what it wrote, as UTF-8 text.</summary>
-    private static async Task<(int status, string body)> ExecuteAsync(IResult result)
+    /// <param name="result">The result to execute.</param>
+    /// <param name="withHostServices">
+    /// Supplies <see cref="HttpContext.RequestServices"/> configured the way the host leaves it — no
+    /// <c>ConfigureHttpJsonOptions</c> call, so the framework defaults apply. Only the framework's own
+    /// result types need it: <see cref="WireJson{T}"/> writes with the extension's options directly and
+    /// resolves nothing, which is the property that makes it immune to a host serializer change.
+    /// </param>
+    private static async Task<(int status, string body)> ExecuteAsync(
+        IResult result,
+        bool withHostServices = false)
     {
         var ctx = new DefaultHttpContext();
         var body = new MemoryStream();
         ctx.Response.Body = body;
+
+        if (withHostServices)
+        {
+            ctx.RequestServices = new ServiceCollection().AddLogging().AddOptions().BuildServiceProvider();
+        }
 
         await result.ExecuteAsync(ctx);
 
@@ -141,5 +156,24 @@ public sealed class WireJsonResponseTests
         var (_, capped) = await ExecuteAsync(new BadRequestCode("TOO_MANY_IDS", 1000));
         Assert.Contains("\"code\":\"TOO_MANY_IDS\"", capped, StringComparison.Ordinal);
         Assert.Contains("\"max\":1000", capped, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AcceptedJobEnqueued_WritesJobIdCamelCase_FromTheHostSerializer()
+    {
+        // The three enqueue routes are the one place the extension does NOT pick the serializer:
+        // TypedResults.Accepted goes through the host's options, not WireJson<T>'s. So this is the
+        // only wire shape here that a host-side serializer change could re-case out from under the
+        // UI, and the panel reads `res.jobId` — a PascalCase JobId would leave it undefined, poll a
+        // job id of "undefined" forever, and raise no error anywhere.
+        //
+        // Asserted against the raw text for the same reason as every other case in this class: the
+        // existing endpoint tests read the unwrapped object, which launders exactly this difference.
+        var (status, body) = await ExecuteAsync(
+            TypedResults.Accepted((string?)null, new JobEnqueued("job-123")),
+            withHostServices: true);
+
+        Assert.Equal(StatusCodes.Status202Accepted, status);
+        Assert.Contains("\"jobId\":\"job-123\"", body, StringComparison.Ordinal);
     }
 }
