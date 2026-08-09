@@ -162,7 +162,24 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UndoResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
           }
         }
       }
@@ -248,7 +265,27 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanSummaryView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
           }
         }
       }
@@ -1050,6 +1087,81 @@
           }
         }
       },
+      "ScanStatusCount": {
+        "required": [
+          "status",
+          "count"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/RenamerStatus"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ScanSummaryView": {
+        "required": [
+          "totalFiles",
+          "totalEntities",
+          "willChange",
+          "attention",
+          "noChange",
+          "statusCounts",
+          "blastRadius",
+          "volumePairsTruncated",
+          "completedAtUtcTicks",
+          "kinds"
+        ],
+        "type": "object",
+        "properties": {
+          "totalFiles": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalEntities": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "willChange": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "attention": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "noChange": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "statusCounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScanStatusCount"
+            }
+          },
+          "blastRadius": {
+            "$ref": "#/components/schemas/PreviewSummary"
+          },
+          "volumePairsTruncated": {
+            "type": "boolean"
+          },
+          "completedAtUtcTicks": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RenamerFileKind"
+            }
+          }
+        }
+      },
       "SortOrder": {
         "enum": [
           "nameAsc",
@@ -1057,6 +1169,56 @@
           "idAsc",
           "favoriteFirst"
         ]
+      },
+      "UndoEntryError": {
+        "required": [
+          "fileId",
+          "oldPath",
+          "newPath",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "oldPath": {
+            "type": "string"
+          },
+          "newPath": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "UndoResult": {
+        "required": [
+          "undone",
+          "failed",
+          "skipped"
+        ],
+        "type": "object",
+        "properties": {
+          "undone": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UndoEntryError"
+            }
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UndoEntryError"
+            }
+          }
+        }
       },
       "VolumePairDelta": {
         "required": [

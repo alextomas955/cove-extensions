@@ -119,8 +119,32 @@ public abstract class ExtensionOpenApiDocumentTests
         var provider = app.Services.GetRequiredKeyedService<IOpenApiDocumentProvider>(DocumentName);
         var document = await provider.GetOpenApiDocumentAsync(CancellationToken.None);
 
-        var documented = document.Paths.Sum(path => path.Value.Operations?.Count ?? 0);
-        Assert.Equal(routes.Count, documented);
+        var operations = document.Paths
+            .Where(path => path.Value.Operations is not null)
+            .SelectMany(path => path.Value.Operations!.Select(
+                entry => (Path: path.Key, Method: entry.Key, Operation: entry.Value)))
+            .ToList();
+
+        Assert.Equal(routes.Count, operations.Count);
+
+        // Every mounted route must also SAY what it returns. A documented operation with no response
+        // content is the failure mode this whole mechanism exists to close: it reads as covered, emits a
+        // valid document, and describes nothing a client could be generated from. Both counts are
+        // compared against the live route table rather than against each other, and the assertion sits
+        // after the non-empty check above, so an empty document can never satisfy it by having nothing
+        // to disagree about. There is deliberately NO list of routes expected to be documented — an
+        // allowlist is the shape that lets a gate lose a route in silence.
+        var withoutResponseSchema = operations
+            .Where(entry => entry.Operation.Responses?.Values
+                .Any(response => response.Content is { Count: > 0 }) != true)
+            .Select(entry => $"{entry.Method} {entry.Path}")
+            .ToList();
+
+        Assert.True(
+            operations.Count - withoutResponseSchema.Count == routes.Count,
+            $"{routes.Count} route(s) are mounted but only {operations.Count - withoutResponseSchema.Count} "
+                + "operation(s) describe a response body. These say nothing about what they return: "
+                + string.Join(", ", withoutResponseSchema));
 
         var writer = new StringWriter();
         document.SerializeAsV31(new OpenApiJsonWriter(writer));

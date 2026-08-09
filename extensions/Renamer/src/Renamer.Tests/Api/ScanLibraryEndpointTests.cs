@@ -383,7 +383,7 @@ public sealed class ScanLibraryEndpointTests
 
         var result = await ext.ScanLibraryResultAsync(principal, default);
 
-        Assert.IsType<NotFound>(result);
+        Assert.IsType<NotFound>(Unwrap(result));
     }
 
     [Fact]
@@ -406,7 +406,8 @@ public sealed class ScanLibraryEndpointTests
         global::Renamer.Renamer ext, ICurrentPrincipalAccessor principal)
     {
         var result = await ext.ScanLibraryResultAsync(principal, default);
-        return Assert.IsType<JsonHttpResult<global::Renamer.Contracts.ScanSummaryView>>(result).Value!;
+        return Assert.IsType<Cove.Extensions.Shared.WireJson<global::Renamer.Contracts.ScanSummaryView>>(
+            Unwrap(result)).Value!;
     }
 
     /// <summary>Invokes the page query and unwraps the page.</summary>
@@ -481,8 +482,8 @@ public sealed class ScanLibraryEndpointTests
         var (ext, store) = await NewExtensionAsync();
 
         await store.SetAsync(global::Renamer.Renamer.LastScanSummaryKey, "{not json");
-        Assert.IsType<NotFound>(await ext.ScanLibraryResultAsync(
-            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default));
+        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
 
         await store.SetAsync(
             global::Renamer.Renamer.LastScanSummaryKey,
@@ -490,8 +491,8 @@ public sealed class ScanLibraryEndpointTests
                 new global::Renamer.Contracts.ScanSummary(
                     global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion + 1, 0L, []),
                 EnumJson));
-        Assert.IsType<NotFound>(await ext.ScanLibraryResultAsync(
-            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default));
+        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
     }
 
     [Fact]

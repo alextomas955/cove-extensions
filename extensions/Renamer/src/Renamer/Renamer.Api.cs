@@ -341,7 +341,8 @@ public sealed partial class Renamer
     /// log, or already-consumed) is a clean <c>{undone:0}</c> no-op.
     /// </para>
     /// </summary>
-    internal async Task<IResult> UndoAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
+    internal async Task<Results<WireJson<UndoResult>, ForbiddenCode>> UndoAsync(
+        ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         // 403 FIRST for a caller holding NO renamer-write permission of any kind — before any RevertLog
         // read or disk touch, so an unauthorized caller cannot even learn whether a batch exists. The
@@ -353,7 +354,7 @@ public sealed partial class Renamer
                 || principal.Current.Has(Permissions.AudiosWrite));
         if (!canWriteAny)
         {
-            return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
+            return new ForbiddenCode();
         }
 
         var revertLog = new RevertLog(Store);
@@ -368,7 +369,7 @@ public sealed partial class Renamer
         // can never turn the `summary.Value.RunId` dereferences below into a runtime NRE.
         if (batch is null || batch.Entries.Count == 0 || summary is null)
         {
-            return Results.Ok(new UndoResult(0, [], []));
+            return new WireJson<UndoResult>(new UndoResult(0, [], []));
         }
 
         // Re-gate on the WRITE permission of the kind that was actually renamed (the batch header
@@ -409,7 +410,7 @@ public sealed partial class Renamer
             await revertLog.MarkLastBatchConsumedAsync(summary.Value.RunId, ct);
         }
 
-        return Results.Ok(new UndoResult(
+        return new WireJson<UndoResult>(new UndoResult(
             run.Undone,
             [.. run.Failed.Select(f => new UndoEntryError(f.FileId, f.OldPath, f.NewPath, f.Reason))],
             [.. run.Skipped.Select(s => new UndoEntryError(s.FileId, s.OldPath, s.NewPath, s.Reason))]));
@@ -594,17 +595,18 @@ public sealed partial class Renamer
     /// future version costs the user one dry run and not a 500.
     /// </para>
     /// </summary>
-    internal async Task<IResult> ScanLibraryResultAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
+    internal async Task<Results<WireJson<ScanSummaryView>, NotFound, ForbiddenCode>> ScanLibraryResultAsync(
+        ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         if (!HasAnyReadPermission(principal))
         {
-            return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
+            return new ForbiddenCode();
         }
 
         var json = await Store.GetAsync(LastScanSummaryKey, ct);
         if (string.IsNullOrEmpty(json))
         {
-            return Results.NotFound();
+            return TypedResults.NotFound();
         }
 
         ScanSummary? summary;
@@ -614,16 +616,16 @@ public sealed partial class Renamer
         }
         catch (JsonException)
         {
-            return Results.NotFound();
+            return TypedResults.NotFound();
         }
 
         if (summary is null || summary.SchemaVersion != ScanSummary.CurrentSchemaVersion)
         {
-            return Results.NotFound();
+            return TypedResults.NotFound();
         }
 
         var readableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
-        return Results.Json(ScanSummaryView.From(summary, readableKinds), PreviewResponseJsonOptions);
+        return new WireJson<ScanSummaryView>(ScanSummaryView.From(summary, readableKinds));
     }
 
     /// <summary>
