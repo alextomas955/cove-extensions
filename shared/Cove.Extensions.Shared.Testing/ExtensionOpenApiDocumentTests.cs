@@ -135,9 +135,12 @@ public abstract class ExtensionOpenApiDocumentTests
         var json = writer.ToString().ReplaceLineEndings("\n").Replace("\\r\\n", "\\n", StringComparison.Ordinal);
         Assert.DoesNotContain("\\r", json, StringComparison.Ordinal);
 
+        var path = ResolveDocumentPath();
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
         // One call, so an interrupted or concurrent run leaves either the previous complete document or
         // the new one, never a half-written file that the CI diff would report as a wire change.
-        File.WriteAllText(ResolveDocumentPath(), json);
+        File.WriteAllText(path, json);
     }
 
     // The document path is repo-relative so the same test writes the same file from any working
