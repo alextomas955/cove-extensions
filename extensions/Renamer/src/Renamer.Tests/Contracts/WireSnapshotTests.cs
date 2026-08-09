@@ -8,21 +8,35 @@ using Renamer.Planner;
 namespace Renamer.Tests.Contracts;
 
 /// <summary>
-/// Pins the server-side JSON wire of Renamer's response DTOs + status enums. The
-/// <c>/preview</c>, <c>/renamer-library</c>, and picker responses all ride the product's own
-/// <c>PreviewResponseJsonOptions</c> static (camelCase properties + camelCase string enum values), so a
-/// regression that drops the <see cref="JsonStringEnumConverter"/> or changes the naming policy flips a
-/// fixture red. The response enums (<see cref="RenamerStatus"/> / <see cref="RenamerFileKind"/> /
-/// <see cref="ConfirmLevel"/>) emit camelCase values, unified with the rest of the Cove-facing
-/// wire; the persisted <c>RenamerOptions</c> blob keeps its own PascalCase spelling independently.
-/// Post-flip these fixtures are frozen again. Set <c>WIRE_SNAPSHOT_UPDATE=1</c> to (re)write the
-/// fixtures. Bare-safe.
+/// Pins the exact bytes every response DTO and status enum serializes to under
+/// <c>CoveJsonOptions.WebWithEnumStrings()</c> — the configuration each wire result is built from
+/// (camelCase properties, camelCase string enum values). A regression that drops the
+/// <see cref="JsonStringEnumConverter"/> or changes the naming policy flips a fixture red.
+/// <para>
+/// Three things keep this class earning its place now that the TypeScript wire types are generated.
+/// Its expectations are transcribed by hand from real serialized bytes, so it is the one wire check
+/// here that does not derive from the emitted document — the document, its schemas and the generated
+/// types all descend from a single source, and everything descending from a wrong source agrees with
+/// the mistake. Its committed fixtures are the evidence that moving every response onto one serializer
+/// changed no output. And the failure it guards stays reachable: nothing stops that shared
+/// configuration from losing its converter or its naming policy, which would leave the document and
+/// the generated types untouched while every enum on the wire moved.
+/// </para>
+/// <para>
+/// What it does not cover is WHICH options instance a handler hands its result. <c>WireJsonResponseTests</c>
+/// reads the bytes a result actually writes, and that is the check for this one's blind spot.
+/// </para>
+/// The response enums (<see cref="RenamerStatus"/> / <see cref="RenamerFileKind"/> /
+/// <see cref="ConfirmLevel"/>) emit camelCase values; the persisted <c>RenamerOptions</c> blob keeps its
+/// own PascalCase spelling independently. Set <c>WIRE_SNAPSHOT_UPDATE=1</c> to (re)write the fixtures.
+/// Bare-safe.
 /// </summary>
 [Trait("Tier", "L0")]
 public sealed class WireSnapshotTests
 {
     // Web is test-local because it serializes the synthetic snapshot envelopes and the RenamerRequest
-    // body, which no product response endpoint emits; the DTO responses ride PreviewResponseJsonOptions.
+    // body, which no product response endpoint emits; the DTO responses ride an instance of the same
+    // configuration PreviewResponseJsonOptions is built from.
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
     private static readonly JsonSerializerOptions PreviewResponse_ = PreviewContracts.PreviewResponseJsonOptions;
     private static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };

@@ -268,7 +268,9 @@ public sealed record ScanRowsPage(
 /// Bound typed rather than parsed from the raw <c>HttpContext</c> (the treatment <c>/preview-sample</c>
 /// needs) because every member is a string or an int — the host's minimal-API serializer lacks a
 /// string-enum converter, so only a body carrying a bare enum value would fail typed binding. The
-/// options blob travels as a string for exactly that reason, as it does on <c>/scan-library</c>.
+/// options blob travels as a string for exactly that reason, as it does on <c>/scan-library</c>;
+/// retyping it to <c>RenamerOptions</c> would put its enum members back through that converter-less
+/// binder, whatever the generated wire type for it looks like.
 /// </remarks>
 /// <param name="Options">The caller's current options as a PascalCase JSON blob, or null to plan with the saved options.</param>
 /// <param name="Kind">The cursor's kind (<c>video</c>/<c>image</c>/<c>audio</c>), or null to start at the first readable kind.</param>
