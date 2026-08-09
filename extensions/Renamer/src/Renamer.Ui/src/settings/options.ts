@@ -394,6 +394,12 @@ export function hasUnmigratedNameRules(raw: unknown): boolean {
  * Rebuild a fully-canonical {@link RenamerOptions} from an untrusted/legacy blob, reading only the known
  * PascalCase keys and dropping everything else (including stale camelCase duplicates). Returns
  * cloneDefaults() when `raw` is null/not-an-object.
+ *
+ * The PascalCase reads here are not redundant with the derived types above. {@link RenamerOptions} is
+ * derived from a camelCase source, but the SPELLING it derives to is the stored blob's, and this is
+ * the only place that fact is enforced against untrusted data — a camelCase read added "to match the
+ * generated source" would let a legacy blob's stale duplicate back in and re-create the dual-source
+ * preview bug this function exists to fix.
  */
 export function normalizeOptions(raw: unknown): RenamerOptions {
   if (!raw || typeof raw !== "object") return cloneDefaults();
