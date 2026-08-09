@@ -8,35 +8,19 @@
  * SECURITY: reasons are rendered as React text nodes (auto-escaped).
  */
 import { useCallback, useEffect, useState } from "react";
-import { request, requestJson, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
+import { requestJson, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 import { Undo2 } from "lucide-react";
 
 import { Dialog } from "../common/ui/Dialog";
 import { Button, StatusText, Spinner } from "@cove-extensions/ui-shared";
 import { api } from "../common/lib/extension";
-import type { LastBatchSummary } from "../wire/api";
+import type { LastBatchSummary, UndoResult } from "../wire/api";
 
 const LAST_BATCH_PATH = api("last-batch");
 const UNDO_PATH = api("undo");
 
 const UNDO_TITLE_ID = "rename-undo-confirm-title";
 const UNDO_DESC_ID = "rename-undo-confirm-message";
-
-/** POST /undo: failed/skipped entries are { fileId, oldPath, newPath, reason }. */
-interface UndoEntryError {
-  fileId: number;
-  oldPath: string;
-  newPath: string;
-  reason: string;
-}
-interface UndoResult {
-  undone: number;
-  // Optional on the wire: /undo may return a minimal/empty 200 in edge cases (see onUndo), so the
-  // arrays are not guaranteed present in the response. Typing them optional keeps the defensive
-  // `?.`/`?? 0` reads honest rather than asserting a shape the server doesn't promise.
-  failed?: UndoEntryError[];
-  skipped?: UndoEntryError[];
-}
 
 /**
  * .NET DateTime ticks → epoch ms (ticks are 100ns since 0001-01-01).
@@ -113,32 +97,29 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
     setUndoing(true);
     setFeedback(null);
     try {
-      // /undo takes NO body. It may answer an empty 200 in edge cases, which `request` resolves as
-      // undefined — a success carrying no counts to report, not a failure, so this stays on
-      // `request` rather than moving to `requestJson`.
-      const res = await request<UndoResult>(UNDO_PATH, { method: "POST" });
-      if (!res) {
-        setFeedback({
-          kind: "success",
-          text: "Undone — your files were moved back to their original names.",
-        });
-        return;
-      }
-      const failedCount = (res.failed?.length ?? 0) + (res.skipped?.length ?? 0);
-      if (failedCount === 0) {
+      // /undo takes NO body and always answers with counts — even the "nothing open to undo" arm
+      // writes `{undone:0, failed:[], skipped:[]}`. So a bodyless 200 is not an outcome to report as
+      // a success; `requestJson` raises it as the anomaly it would be.
+      const res = await requestJson<UndoResult>(UNDO_PATH, { method: "POST" });
+      // The two buckets are reported the same way — a count and the first reason — so they are read
+      // as one list, which is also what makes the reason below a plain read rather than a guess at
+      // which bucket happens to be non-empty.
+      const problems = [...res.failed, ...res.skipped];
+      if (problems.length === 0) {
         setFeedback({
           kind: "success",
           text: `Undone — ${res.undone} file${res.undone === 1 ? "" : "s"} moved back to their original names.`,
         });
       } else if (res.undone > 0) {
-        const reason = res.failed?.[0]?.reason ?? res.skipped?.[0]?.reason ?? "unknown reason";
         setFeedback({
           kind: "error",
-          text: `Undo finished with problems — ${failedCount} file${failedCount === 1 ? "" : "s"} couldn't be moved back (${reason}). The rest were restored.`,
+          text: `Undo finished with problems — ${problems.length} file${problems.length === 1 ? "" : "s"} couldn't be moved back (${problems[0].reason}). The rest were restored.`,
         });
       } else {
-        const reason = res.failed?.[0]?.reason ?? res.skipped?.[0]?.reason ?? "unknown reason";
-        setFeedback({ kind: "error", text: `Couldn't undo — ${reason}. Nothing was changed.` });
+        setFeedback({
+          kind: "error",
+          text: `Couldn't undo — ${problems[0].reason}. Nothing was changed.`,
+        });
       }
     } catch (err) {
       if (err instanceof ApiError) {
