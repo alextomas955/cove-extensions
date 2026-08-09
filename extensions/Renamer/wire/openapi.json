@@ -80,7 +80,24 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LastBatchSummary"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
           }
         }
       }
@@ -168,6 +185,42 @@
   },
   "components": {
     "schemas": {
+      "ErrorCode": {
+        "required": [
+          "code"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "LastBatchSummary": {
+        "required": [
+          "hasBatch",
+          "count",
+          "writtenAtUtcTicks",
+          "consumed"
+        ],
+        "type": "object",
+        "properties": {
+          "hasBatch": {
+            "type": "boolean"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "writtenAtUtcTicks": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "consumed": {
+            "type": "boolean"
+          }
+        }
+      },
       "RenamerRequest": {
         "required": [
           "entityType",

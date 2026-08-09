@@ -14,20 +14,13 @@ import { Undo2 } from "lucide-react";
 import { Dialog } from "../common/ui/Dialog";
 import { Button, StatusText, Spinner } from "@cove-extensions/ui-shared";
 import { api } from "../common/lib/extension";
+import type { LastBatchSummary } from "../wire/api";
 
 const LAST_BATCH_PATH = api("last-batch");
 const UNDO_PATH = api("undo");
 
 const UNDO_TITLE_ID = "rename-undo-confirm-title";
 const UNDO_DESC_ID = "rename-undo-confirm-message";
-
-/** GET /last-batch. */
-interface LastBatchSummary {
-  hasBatch: boolean;
-  count: number;
-  writtenAtUtcTicks: number;
-  consumed: boolean;
-}
 
 /** POST /undo: failed/skipped entries are { fileId, oldPath, newPath, reason }. */
 interface UndoEntryError {

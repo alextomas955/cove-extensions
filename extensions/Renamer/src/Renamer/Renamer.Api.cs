@@ -1,10 +1,12 @@
 using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
+using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Cove.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -447,7 +449,8 @@ public sealed partial class Renamer
     /// in-handler (403-first; minimal-API <c>[RequiresPermission]</c> is inert). An empty log
     /// returns <see cref="LastBatchSummary"/> with <c>HasBatch:false</c>.
     /// </summary>
-    internal async Task<IResult> LastBatchAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
+    internal async Task<Results<WireJson<LastBatchSummary>, ForbiddenCode>> LastBatchAsync(
+        ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         // This is the undo panel's paths-free "is there a batch to undo?" probe (count + timestamp +
         // consumed flag only — no paths). A user who can renamer ANY kind may see it, so gate on holding
@@ -459,11 +462,11 @@ public sealed partial class Renamer
                 || principal.Current.Has(Permissions.AudiosRead));
         if (!canReadAny)
         {
-            return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
+            return new ForbiddenCode();
         }
 
         var summary = await new RevertLog(Store).ReadLastBatchSummaryAsync(ct);
-        return Results.Ok(new LastBatchSummary(
+        return new WireJson<LastBatchSummary>(new LastBatchSummary(
             HasBatch: summary is not null,
             Count: summary?.Count ?? 0,
             WrittenAtUtcTicks: summary?.WrittenAtUtcTicks ?? 0,

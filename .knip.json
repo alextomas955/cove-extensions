@@ -7,7 +7,13 @@
     },
     "extensions/*/src/*.Ui": {
       "vite": false,
-      "entry": ["src/index.ts", "src/**/*Logic.ts", "src/contracts.ts", "src/settings/options.ts"],
+      "entry": [
+        "src/index.ts",
+        "src/**/*Logic.ts",
+        "src/contracts.ts",
+        "src/wire/api.ts",
+        "src/settings/options.ts"
+      ],
       "project": ["src/**/*.{ts,tsx}"],
       "ignoreDependencies": ["@vitejs/plugin-react", "@cove/runtime"]
     },

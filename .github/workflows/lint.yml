@@ -121,6 +121,14 @@ jobs:
             (cd "$ui" && npm ci)
             echo "::endgroup::"
           done
+      # Every UI's wire types are gitignored and generated from its committed OpenAPI document, so on a
+      # fresh checkout the module a UI imports does not exist yet — and the type-aware rules below then
+      # report every read off it as an error-typed value. No --extension argument: neither Node job here
+      # is matrix-driven, so the generator walks the whole catalog, which is the same catalog-driven
+      # property stated once instead of once per extension.
+      - name: Generate wire types
+        run: node scripts/generate-wire-types.mjs
+
       - name: ESLint (whole monorepo)
         run: npm run lint
 
@@ -161,6 +169,13 @@ jobs:
           done
       - name: syncpack (dependency-version drift)
         run: npm run syncpack
+      # Same reason as js-lint's copy: knip builds a TypeScript program per UI, and .knip.json names
+      # each UI's generated wire module as an entry — which on a fresh checkout points at a file that
+      # does not exist. The run treats that as an error rather than a hint, so skipping this step turns
+      # the gate red instead of leaving it green over a program it could not fully resolve.
+      - name: Generate wire types
+        run: node scripts/generate-wire-types.mjs
+
       - name: knip (dead files / exports / dependencies)
         run: npm run knip
       - name: jscpd (copy-paste)

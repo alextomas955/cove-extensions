@@ -237,6 +237,23 @@ jobs:
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm ci
 
+      # The UI's wire types are generated from the committed OpenAPI document and are gitignored, so a
+      # fresh checkout carries none and the typecheck below would fail on a module that does not exist.
+      # The generator is a repo-ROOT devDependency and the frontend install above is scoped to the
+      # extension's UI directory, so the root has to be installed too. --no-workspaces keeps that to the
+      # root's own tooling: a plain root install would also pull in the browser-driven end-to-end
+      # harness workspace, which this job never uses. Both steps carry the generate step's condition so
+      # an entry declaring no wire document pays for neither.
+      - name: Install root tooling (wire-type generator)
+        if: ${{ matrix.extension.uiPath != '' && matrix.extension.wireDocumentPath != '' }}
+        run: npm ci --no-workspaces
+
+      - name: Generate wire types
+        if: ${{ matrix.extension.uiPath != '' && matrix.extension.wireDocumentPath != '' }}
+        run: node scripts/generate-wire-types.mjs --extension "$EXTENSION_ID"
+        env:
+          EXTENSION_ID: ${{ matrix.extension.id }}
+
       - name: Verify frontend (typecheck + format:check + test)
         if: ${{ matrix.extension.uiPath != '' }}
         working-directory: ${{ matrix.extension.uiPath }}

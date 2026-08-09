@@ -5,6 +5,7 @@
 
 # Build and generated output.
 **/dist/
+**/src/wire/
 **/.docusaurus/
 **/.cache-loader/
 
