@@ -124,4 +124,22 @@ public sealed class WireJsonResponseTests
         Assert.Equal(StatusCodes.Status400BadRequest, status);
         Assert.Contains("\"code\":\"INVALID_BODY\"", body, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task BadRequestCode_WritesMaxOnlyForACapRejection()
+    {
+        // One status code admits one response schema, so the cap arm and the plain arm share ErrorCode
+        // and the cap's bound rides an optional member. That member must stay INVISIBLE on every other
+        // code: a "max":null appearing on each 403 would be a silent wire change that still type-checks,
+        // still returns the right status and still validates against the same schema.
+        var (_, plain) = await ExecuteAsync(new BadRequestCode("UNSUPPORTED_ENTITY_TYPE"));
+        Assert.DoesNotContain("max", plain, StringComparison.Ordinal);
+
+        var (_, forbidden) = await ExecuteAsync(new ForbiddenCode());
+        Assert.DoesNotContain("max", forbidden, StringComparison.Ordinal);
+
+        var (_, capped) = await ExecuteAsync(new BadRequestCode("TOO_MANY_IDS", 1000));
+        Assert.Contains("\"code\":\"TOO_MANY_IDS\"", capped, StringComparison.Ordinal);
+        Assert.Contains("\"max\":1000", capped, StringComparison.Ordinal);
+    }
 }

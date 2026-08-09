@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
@@ -99,14 +100,18 @@ public sealed class ForbiddenCode
 
 /// <summary>A <c>400 BAD REQUEST</c> result carrying a caller-supplied <see cref="ErrorCode"/> body.</summary>
 /// <param name="code">The stable machine-readable code the UI branches on.</param>
-public sealed class BadRequestCode(string code)
+/// <param name="max">
+/// The bound a cap rejection exceeded, or <c>null</c> for every other code. Omitted from the body when
+/// null, so a plain code writes the same bytes it always has.
+/// </param>
+public sealed class BadRequestCode(string code, int? max = null)
     : IResult,
         IEndpointMetadataProvider,
         IStatusCodeHttpResult,
         IValueHttpResult,
         IValueHttpResult<ErrorCode>
 {
-    private readonly ErrorCode _body = new(code);
+    private readonly ErrorCode _body = new(code, max);
 
     /// <summary>The error body this result writes.</summary>
     public ErrorCode? Value => _body;
@@ -141,7 +146,14 @@ public sealed class BadRequestCode(string code)
 /// Not localized and not for display; it is part of the wire contract, so changing one is a breaking
 /// change even though nothing in the type system says so.
 /// </param>
-public sealed record ErrorCode(string Code);
+/// <param name="Max">
+/// The bound a cap rejection exceeded, so the caller can batch to fit rather than guess. Written only
+/// when a code carries one — one status code admits exactly one response schema in the document, so a
+/// second error record for the cap arm could not be described alongside this one.
+/// </param>
+public sealed record ErrorCode(
+    string Code,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? Max = null);
 
 internal static class WireJsonOptions
 {

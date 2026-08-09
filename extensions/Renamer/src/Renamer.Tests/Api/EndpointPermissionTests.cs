@@ -121,10 +121,10 @@ public sealed class EndpointPermissionTests
             new global::Renamer.Api.RenamerRequest("video", [1, 2]), principal, jobs);
 
         Assert.Equal(202, StatusOf(result));
-        var value = Assert.IsAssignableFrom<IValueHttpResult>(result).Value;
+        var value = Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value;
         Assert.NotNull(value);
         // The 202 body carries the enqueued jobId the fake returned.
-        Assert.Equal("job-123", value!.GetType().GetProperty("jobId")!.GetValue(value));
+        Assert.Equal("job-123", Assert.IsType<global::Renamer.Contracts.JobEnqueued>(value).JobId);
 
         var (type, _, exclusive) = Assert.Single(jobs.Enqueued);
         Assert.Equal("ext:com.alextomas955.renamer:renamer-batch", type);

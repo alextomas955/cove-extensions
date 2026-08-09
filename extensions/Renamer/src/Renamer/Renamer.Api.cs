@@ -275,12 +275,13 @@ public sealed partial class Renamer
     /// <c>videos.write</c> in-handler (the host permission filter is inert on minimal-API endpoints)
     /// — and crucially returns 403 BEFORE any enqueue.
     /// </summary>
-    internal IResult RenamerEnqueue(RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs)
+    internal Results<Accepted<JobEnqueued>, BadRequestCode, ForbiddenCode> RenamerEnqueue(
+        RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         // Kind first so the write check gates on the request's own kind (videos/images/audios.write).
         if (!TryParseKind(req.EntityType, out var kind))
         {
-            return Results.BadRequest(new { code = "UNSUPPORTED_ENTITY_TYPE" });
+            return new BadRequestCode("UNSUPPORTED_ENTITY_TYPE");
         }
 
         var (_, writePermission) = PermissionsFor(kind);
@@ -292,7 +293,7 @@ public sealed partial class Renamer
         // Reject an oversized id array before encoding/enqueuing the job (see MaxEntityIdsPerRequest).
         if (req.EntityIds.Length > MaxEntityIdsPerRequest)
         {
-            return Results.BadRequest(new { code = "TOO_MANY_IDS", max = MaxEntityIdsPerRequest });
+            return new BadRequestCode("TOO_MANY_IDS", MaxEntityIdsPerRequest);
         }
 
         var parameters = RenamerJob.Encode(req.EntityType, req.EntityIds);
@@ -306,7 +307,7 @@ public sealed partial class Renamer
             (coreProgress, ct) => RunRenamerBatchAsync(parameters, new HostProgress(coreProgress), ct),
             exclusive: true);
 
-        return Results.Accepted(value: new { jobId });
+        return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));
     }
 
     /// <summary>
@@ -508,11 +509,12 @@ public sealed partial class Renamer
     /// "the last batch") rather than a per-jobId key, since the id <c>Enqueue</c> mints is not available
     /// to the job body before <c>Enqueue</c> returns.
     /// </summary>
-    internal IResult ScanLibraryEnqueue(ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs)
+    internal Results<Accepted<JobEnqueued>, ForbiddenCode> ScanLibraryEnqueue(
+        ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         if (!HasAnyReadPermission(principal))
         {
-            return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
+            return new ForbiddenCode();
         }
 
         // Dry-run-on-unsaved-edits: when the caller sends its current options blob, parse it with the
@@ -530,7 +532,7 @@ public sealed partial class Renamer
             (coreProgress, ct) => RunScanLibraryJobAsync(readableKinds, overrideOptions, new HostProgress(coreProgress), ct),
             exclusive: true);
 
-        return Results.Accepted(value: new { jobId });
+        return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));
     }
 
     /// <summary>
@@ -809,11 +811,12 @@ public sealed partial class Renamer
     /// the principal's held write kinds into the job closure (the job runs detached from the request, so
     /// it cannot re-resolve <see cref="ICurrentPrincipalAccessor"/> itself).
     /// </summary>
-    internal IResult RenamerLibraryEnqueue(ICurrentPrincipalAccessor principal, IJobService jobs)
+    internal Results<Accepted<JobEnqueued>, ForbiddenCode> RenamerLibraryEnqueue(
+        ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         if (!HasAnyWritePermission(principal))
         {
-            return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
+            return new ForbiddenCode();
         }
 
         var writableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Write)).ToArray();
@@ -824,7 +827,7 @@ public sealed partial class Renamer
             (coreProgress, ct) => RunRenamerLibraryJobAsync(writableKinds, new HostProgress(coreProgress), ct),
             exclusive: true);
 
-        return Results.Accepted(value: new { jobId });
+        return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));
     }
 
     /// <summary>
