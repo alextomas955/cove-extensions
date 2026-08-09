@@ -33,6 +33,17 @@ const config: Config = {
     locales: ["en"],
   },
 
+  // Parse `.md` as CommonMark and reserve MDX for `.mdx`. Docusaurus 3 defaults to `mdx`, which
+  // parses EVERY `.md` as MDX — so an HTML comment or a bare `<Word>` anywhere in a sourced file
+  // fails the build. That is a live hazard here rather than a hypothetical one: this site sources
+  // each extension's own `docs/` folder, and one of those pages imports the extension's
+  // `CHANGELOG.md` — a file whose primary reader is GitHub, where `{/* */}` would render as
+  // literal text and an HTML comment is the only correct way to hide a note. Under `detect` the
+  // changelog stays valid CommonMark for GitHub and still builds here.
+  markdown: {
+    format: "detect",
+  },
+
   presets: [
     [
       "classic",
