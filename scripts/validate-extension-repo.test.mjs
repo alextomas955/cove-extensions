@@ -407,6 +407,61 @@ test("declared catalog paths that all exist pass, and the report line names how 
   }
 });
 
+test("a declared wireDocumentPath that does not exist fails, naming the field", () => {
+  // The wire document is written by a test and diffed by CI against the committed bytes. A path that
+  // points nowhere makes that diff step read a file that is not there, several steps into a matrix
+  // leg — and the error there names a filename, not the catalog field that produced it.
+  const entry = validEntry("com.example.foo", "Foo", {
+    wireDocumentPath: "extensions/Foo/wire/openapi.json",
+  });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo"),
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(
+      stderr,
+      /com\.example\.foo: wireDocumentPath does not exist: extensions\/Foo\/wire\/openapi\.json/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("an entry with a UI and a test project but no wireDocumentPath fails, naming the missing field", () => {
+  // The silent-loss case, and the one that only appears with a SECOND extension: everything else about
+  // such an entry is well-formed, so nothing else in this file can speak for it. Without this check the
+  // CI step keyed on the absent field simply never runs and the leg is green, which reads as coverage.
+  const entry = validEntry("com.example.foo", "Foo", {
+    uiPath: "extensions/Foo/ui",
+    testProjectPath: "extensions/Foo/Foo.Tests.csproj",
+  });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    // Declared so the membership check is silent and this case has exactly one malformation.
+    solution: ["extensions/Foo/Foo.Tests.csproj"],
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo"),
+      "extensions/Foo/ui/package.json": { name: "foo-ui" },
+    },
+    filesByPath: { "extensions/Foo/Foo.Tests.csproj": "<Project />\n" },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(
+      stderr,
+      /com\.example\.foo: declares uiPath and testProjectPath but no wireDocumentPath/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("an entry declaring no optional catalog path says so, rather than reporting nothing", () => {
   // Zero checked paths is the case that must not be invisible: an entry set that declares none is
   // legitimate, but it is NOT the same as one whose paths were all confirmed, and a report line that

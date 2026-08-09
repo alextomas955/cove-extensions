@@ -2,7 +2,7 @@
 // Forked on: 2026-07-01
 // Upstream diff base: https://github.com/yourcove/multi-extension-repo-template/blob/main/scripts/validate-extension-repo.mjs
 //
-// Five behavioral differences from upstream.
+// Six behavioral differences from upstream.
 //
 // 1. This fork reads the additive projectPath/manifestPath catalog fields (when present on a
 // catalog entry) instead of unconditionally deriving {path}/{name}.csproj and {path}/extension.json
@@ -41,6 +41,13 @@
 // pointing the gates at a glob instead would change what actually gets compiled. Asserting
 // membership changes neither, and costs one named error instead of a hole. The assertion runs one
 // way only — the solution may hold projects the catalog does not describe, as shared libraries are.
+//
+// 6. This fork requires a wireDocumentPath on any entry that declares both a UI and a test project.
+// Upstream has no wire-document mechanism to require. Here the whole point of that mechanism is that
+// a hand-declared TypeScript wire type type-checks while reading undefined at runtime, so an
+// extension that acquires a UI without acquiring the derived document loses the only check that would
+// have caught it — and loses it silently, because the CI step reads this very field to decide whether
+// to run. Requiring the declaration is what makes the omission speak.
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -203,10 +210,22 @@ let floorComparisons = 0;
 // The catalog's optional path fields, as consumed by .github/workflows/build.yml — every
 // `matrix.extension.*` value there that names a location on disk and is not already covered by a
 // check above (path, manifestPath and projectPath are). e2eProject is excluded deliberately: it is
-// a Playwright project name, not a path. Each of these is optional, so an entry declaring none is
-// valid; only a declared one is required to exist.
-const matrixPathFields = ["testProjectPath", "uiPath", "e2ePath", "e2eNodeTestsPath"];
+// a Playwright project name, not a path. Each of these is optional to DECLARE, so an entry declaring
+// none is valid and only a declared one is required to exist — with one exception, checked separately
+// below: wireDocumentPath stops being optional once an entry has both halves the wire mechanism needs.
+const matrixPathFields = [
+  "testProjectPath",
+  "uiPath",
+  "e2ePath",
+  "e2eNodeTestsPath",
+  "wireDocumentPath",
+];
 let declaredPathChecks = 0;
+
+// Counts the entries the wire-document requirement actually had a subject on. Without it a catalog
+// where no entry qualifies is indistinguishable from one where every entry was checked, which is the
+// shape that lets the second extension slip through unexamined.
+let wireDocumentSubjects = 0;
 
 // Every C# project the catalog implies, as {id, field, value}, gathered across all entries so the
 // solution is read once rather than per entry.
@@ -249,6 +268,20 @@ for (const entry of entries) {
     declaredPathChecks++;
     if (!fs.existsSync(path.join(root, entry[field]))) {
       errors.push(`${entry.id}: ${field} does not exist: ${entry[field]}`);
+    }
+  }
+
+  // An entry with both a UI and a test project has everything the wire-document mechanism needs: a
+  // TypeScript consumer that can silently read the wrong shape, and a test tier that can emit the
+  // document describing the right one. Omitting the field there is a lost gate, not an opt-out, and it
+  // is lost quietly — the CI step keyed on this value simply does not run. Name the field: "no wire
+  // document" says nothing about which of the catalog's many optional strings is missing.
+  if (entry.uiPath && entry.testProjectPath) {
+    wireDocumentSubjects++;
+    if (!entry.wireDocumentPath) {
+      errors.push(
+        `${entry.id}: declares uiPath and testProjectPath but no wireDocumentPath, so its wire document is never emitted or diffed`,
+      );
     }
   }
 
@@ -357,6 +390,9 @@ const pathReport = declaredPathChecks
 const solutionReport = impliedProjects.length
   ? `confirmed ${solutionMemberships} project membership(s) in ${solutionFileName}`
   : "no catalog entry implied a C# project, so no solution membership was checked";
+const wireDocumentReport = wireDocumentSubjects
+  ? `required a wireDocumentPath on ${wireDocumentSubjects} entr(y|ies) declaring both a UI and a test project`
+  : "no entry declared both a UI and a test project, so no wire document was required";
 console.log(
-  `Validated ${entries.length} extension catalog entries (${floorReport}; ${pathReport}; ${solutionReport}).`,
+  `Validated ${entries.length} extension catalog entries (${floorReport}; ${pathReport}; ${solutionReport}; ${wireDocumentReport}).`,
 );

@@ -10,6 +10,7 @@
       "testProjectPath": "extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj",
       "manifestPath": "extensions/Renamer/src/Renamer/extension.json",
       "uiPath": "extensions/Renamer/src/Renamer.Ui",
+      "wireDocumentPath": "extensions/Renamer/wire/openapi.json",
       "artifacts": [
         "extension.json",
         "index.mjs",
