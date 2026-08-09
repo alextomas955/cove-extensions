@@ -88,7 +88,7 @@ public sealed class EndpointPermissionTests
             var allowed = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("image", [1]), db, imageOk, default);
             Assert.NotEqual(403, StatusOf(allowed));
-            Assert.IsAssignableFrom<IValueHttpResult>(allowed);
+            Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(allowed));
         }
         finally
         {

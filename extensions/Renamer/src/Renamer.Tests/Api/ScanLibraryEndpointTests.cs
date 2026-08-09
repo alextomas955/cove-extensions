@@ -415,7 +415,8 @@ public sealed class ScanLibraryEndpointTests
         global::Renamer.Contracts.ScanRowsRequest? body = null)
     {
         var result = await ext.ScanRowsAsync(body, principal, default);
-        return Assert.IsType<JsonHttpResult<global::Renamer.Contracts.ScanRowsPage>>(result).Value!;
+        return Assert.IsType<Cove.Extensions.Shared.WireJson<global::Renamer.Contracts.ScanRowsPage>>(
+            Unwrap(result)).Value!;
     }
 
     /// <summary>A one-kind aggregate whose per-status counts are the only thing the readback merges.</summary>

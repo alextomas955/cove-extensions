@@ -22,7 +22,34 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
           }
         }
       }
@@ -81,9 +108,49 @@
         "tags": [
           "Renamer"
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewSampleRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PreviewSampleResult"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
           }
         }
       }
@@ -209,7 +276,34 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanRowsPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
           }
         }
       }
@@ -246,6 +340,20 @@
   },
   "components": {
     "schemas": {
+      "CaseTransform": {
+        "enum": [
+          "none",
+          "lower",
+          "title"
+        ]
+      },
+      "ConfirmLevel": {
+        "enum": [
+          "light",
+          "standard",
+          "heavy"
+        ]
+      },
       "ErrorCode": {
         "required": [
           "code"
@@ -261,6 +369,31 @@
               "integer"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "ExcludeRule": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string"
+          },
+          "isRegex": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FieldReplaceRule": {
+        "type": "object",
+        "properties": {
+          "targetToken": {
+            "type": "string"
+          },
+          "find": {
+            "type": "string"
+          },
+          "replace": {
+            "type": "string"
           }
         }
       },
@@ -300,6 +433,426 @@
           }
         }
       },
+      "MultiValueOptions": {
+        "type": "object",
+        "properties": {
+          "separator": {
+            "type": "string"
+          },
+          "maxCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "onOverflow": {
+            "$ref": "#/components/schemas/OverflowPolicy"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortOrder"
+          },
+          "whitelistIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "blacklistIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "ignoreGenders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "genderOrder": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "OverflowPolicy": {
+        "enum": [
+          "dropAll",
+          "keepFirst"
+        ]
+      },
+      "PathDestinationRule": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string"
+          },
+          "dest": {
+            "type": "string"
+          },
+          "isRegex": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PreviewItemView": {
+        "required": [
+          "fileId",
+          "oldFullPath",
+          "newFullPath",
+          "status",
+          "newBasename",
+          "targetFolderPath",
+          "reason",
+          "suffixed",
+          "sanitized",
+          "resolvedDestinationRoot",
+          "matchedRule",
+          "targetVolume"
+        ],
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "oldFullPath": {
+            "type": "string"
+          },
+          "newFullPath": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RenamerStatus"
+          },
+          "newBasename": {
+            "type": "string"
+          },
+          "targetFolderPath": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "suffixed": {
+            "type": "boolean"
+          },
+          "sanitized": {
+            "type": "boolean"
+          },
+          "resolvedDestinationRoot": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "matchedRule": {
+            "type": "string"
+          },
+          "targetVolume": {
+            "type": "string"
+          }
+        }
+      },
+      "PreviewResponse": {
+        "required": [
+          "items",
+          "summary"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewItemView"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PreviewSummary"
+          }
+        }
+      },
+      "PreviewSampleRequest": {
+        "required": [
+          "options"
+        ],
+        "type": "object",
+        "properties": {
+          "options": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RenamerOptions"
+              }
+            ]
+          }
+        }
+      },
+      "PreviewSampleResult": {
+        "required": [
+          "sampleLabel",
+          "oldName",
+          "newName",
+          "folder",
+          "flags",
+          "droppedFields"
+        ],
+        "type": "object",
+        "properties": {
+          "sampleLabel": {
+            "type": "string"
+          },
+          "oldName": {
+            "type": "string"
+          },
+          "newName": {
+            "type": "string"
+          },
+          "folder": {
+            "type": "string"
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "droppedFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PreviewSummary": {
+        "required": [
+          "totalCount",
+          "sameVolumeCount",
+          "crossVolumeCount",
+          "crossVolumeBytes",
+          "volumePairs",
+          "confirmLevel",
+          "undoable"
+        ],
+        "type": "object",
+        "properties": {
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sameVolumeCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "crossVolumeCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "crossVolumeBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "volumePairs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VolumePairDelta"
+            }
+          },
+          "confirmLevel": {
+            "$ref": "#/components/schemas/ConfirmLevel"
+          },
+          "undoable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RenamerFileKind": {
+        "enum": [
+          "video",
+          "image",
+          "audio",
+          "gallery"
+        ]
+      },
+      "RenamerOptions": {
+        "type": "object",
+        "properties": {
+          "filenameTemplate": {
+            "type": "string"
+          },
+          "folderTemplate": {
+            "type": "string"
+          },
+          "dateFormat": {
+            "type": "string"
+          },
+          "durationFormat": {
+            "type": "string"
+          },
+          "performers": {
+            "$ref": "#/components/schemas/MultiValueOptions"
+          },
+          "tags": {
+            "$ref": "#/components/schemas/MultiValueOptions"
+          },
+          "illegalReplacement": {
+            "type": "string"
+          },
+          "spaceReplacement": {
+            "type": "string"
+          },
+          "case": {
+            "$ref": "#/components/schemas/CaseTransform"
+          },
+          "removeCharacters": {
+            "type": "string"
+          },
+          "filenameAsTitle": {
+            "type": "boolean"
+          },
+          "removeEmptyFolder": {
+            "type": "boolean"
+          },
+          "asciiTransliterate": {
+            "type": "boolean"
+          },
+          "normalizePunctuation": {
+            "type": "boolean"
+          },
+          "filenameMax": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fullPathMax": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dropOrder": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowedRoots": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "associatedExtensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "onlyOrganized": {
+            "type": "boolean"
+          },
+          "requiredFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "duplicateSuffixFormat": {
+            "type": "string"
+          },
+          "autoRenamerOnUpdate": {
+            "type": "boolean"
+          },
+          "squeezeStudioNames": {
+            "type": "boolean"
+          },
+          "fieldReplacers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldReplaceRule"
+            }
+          },
+          "stripLeadingArticles": {
+            "type": "boolean"
+          },
+          "articles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "preventTitlePerformer": {
+            "type": "boolean"
+          },
+          "preventConsecutiveSegments": {
+            "type": "boolean"
+          },
+          "studioDestinations": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "tagDestinations": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "pathDestinations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PathDestinationRule"
+            }
+          },
+          "excludeTagIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "excludeStudioIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "excludePaths": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExcludeRule"
+            }
+          },
+          "defaultDestination": {
+            "type": "string"
+          },
+          "unorganizedDestination": {
+            "type": "string"
+          },
+          "enableDefaultRelocate": {
+            "type": "boolean"
+          },
+          "freeSpaceHeadroomBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "crossVolumeConcurrency": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sameVolumeConcurrency": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "RenamerRequest": {
         "required": [
           "entityType",
@@ -319,6 +872,37 @@
           }
         }
       },
+      "RenamerStatus": {
+        "enum": [
+          "renamer",
+          "move",
+          "noOp",
+          "skipCollision",
+          "skipGated",
+          "skipExcluded",
+          "skipLocked",
+          "skipMissingSource",
+          "skipNoSpace",
+          "skipBlocked",
+          "failed"
+        ]
+      },
+      "ScanCursor": {
+        "required": [
+          "kind",
+          "afterEntityId"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/RenamerFileKind"
+          },
+          "afterEntityId": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "ScanLibraryRequest": {
         "required": [
           "options"
@@ -330,6 +914,88 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "ScanRow": {
+        "required": [
+          "kind",
+          "entityId",
+          "fileId",
+          "oldFullPath",
+          "newFullPath",
+          "status",
+          "reason",
+          "suffixed",
+          "sanitized"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/RenamerFileKind"
+          },
+          "entityId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fileId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "oldFullPath": {
+            "type": "string"
+          },
+          "newFullPath": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RenamerStatus"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "suffixed": {
+            "type": "boolean"
+          },
+          "sanitized": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ScanRowsPage": {
+        "required": [
+          "rows",
+          "next",
+          "entitiesExamined",
+          "budgetExhausted"
+        ],
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScanRow"
+            }
+          },
+          "next": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ScanCursor"
+              }
+            ]
+          },
+          "entitiesExamined": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "budgetExhausted": {
+            "type": "boolean"
           }
         }
       },
@@ -381,6 +1047,39 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "SortOrder": {
+        "enum": [
+          "nameAsc",
+          "none",
+          "idAsc",
+          "favoriteFirst"
+        ]
+      },
+      "VolumePairDelta": {
+        "required": [
+          "from",
+          "to",
+          "count",
+          "bytes"
+        ],
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "bytes": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       }
