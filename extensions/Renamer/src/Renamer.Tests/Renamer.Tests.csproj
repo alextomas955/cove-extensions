@@ -74,10 +74,11 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
-    <!-- Shared host-free test fakes (FakeStore/ConcurrentFakeStore) live in the Testing project, and the
-         host-dependent fakes (FakePrincipalAccessor/CoveContextFactory) are linked in below — both in the
-         Cove.Extensions.Shared.Testing namespace. Import it globally so consumers resolve the types without
-         a per-file using. Always resolves: the namespace has at least the Testing-project types on both legs. -->
+    <!-- Shared test fakes that need no Cove SOURCE checkout (FakeStore/ConcurrentFakeStore,
+         FakePrincipalAccessor, the OpenAPI emit base) live in the Testing project, and the one that does
+         (CoveContextFactory) is linked in below — both in the Cove.Extensions.Shared.Testing namespace.
+         Import it globally so consumers resolve the types without a per-file using. Always resolves: the
+         namespace has at least the Testing-project types on both legs. -->
     <Using Include="Cove.Extensions.Shared.Testing" />
   </ItemGroup>
 
@@ -102,8 +103,8 @@
   </ItemGroup>
 
   <!--
-    HOST-DEPENDENT shared test fakes: FakePrincipalAccessor (Cove.Core auth) + CoveContextFactory (Cove.Data).
-    They live in a source-only sibling dir with NO csproj and are pulled in as ordinary per-project Compile
+    SOURCE-DEPENDENT shared test fakes: CoveContextFactory, which needs Cove.Data. They live in a
+    source-only sibling dir with NO csproj and are pulled in as ordinary per-project Compile
     items — NOT a conditional ProjectReference (IDEs don't fully respect reference conditions; msbuild#5410).
     Guarded by the SAME Cove.Data Exists() key this project already uses for its cove ProjectReference, so
     they are present ONLY when the cove source is on disk. On a bare CI runner the condition is false, the
@@ -142,9 +143,11 @@
       - INTEGRATION (real CoveContext via Cove.Data): Execution/*, Events/*,
         Jobs/RenamerBatchJobTests, Api/PreviewEndpointTests, Api/PreviewSampleEndpointTests, Api/EndpointPermissionTests,
         Api/RenamerLibraryEndpointTests, Api/ScanLibraryEndpointTests.
-    The shared FakePrincipalAccessor + CoveContextFactory are NOT listed here: they live in the source-only
-    Testing.Cove dir and are pulled in by the positive Exists()-guarded Compile Include below (present only
-    when cove is), so their former consumers above cover the bare leg without a Compile Remove for the fakes.
+    The shared CoveContextFactory is NOT listed here: it lives in the source-only Testing.Cove dir and is
+    pulled in by the positive Exists()-guarded Compile Include below (present only when cove is), so its
+    consumers above cover the bare leg without a Compile Remove for the fake itself. FakePrincipalAccessor
+    is not there either — it needs only Cove.Core.Auth, which NuGet supplies, so it sits in the
+    unconditional Testing project and compiles on both legs.
     FakeJobProgress.cs is Cove.Plugins-only (available via NuGet) and stays compiled; FakeStore/ConcurrentFakeStore
     now come from the unconditional Cove.Extensions.Shared.Testing ProjectReference (Cove.Plugins-only too).
   -->

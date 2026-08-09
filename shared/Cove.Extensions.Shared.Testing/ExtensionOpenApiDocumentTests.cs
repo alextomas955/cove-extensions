@@ -1,0 +1,160 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Cove.Plugins;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.OpenApi;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OpenApi;
+using Xunit;
+
+namespace Cove.Extensions.Shared.Testing;
+
+/// <summary>
+/// Emits an extension's OpenAPI document from its own <c>MapEndpoints</c> registration and writes it
+/// to a committed file, so a route or a wire shape that moves shows up as a diff on that file.
+/// </summary>
+/// <remarks>
+/// Derive once per extension and supply the four hooks; the invariants that decide whether the
+/// document describes anything at all live here, where a second extension inherits rather than
+/// restates them. The host is never contacted: the endpoints are mounted in an in-memory
+/// <see cref="WebApplication"/>, no request is sent, and the binding services are never dereferenced,
+/// which is what keeps the emit runnable on a CI leg with no Cove checkout.
+/// </remarks>
+public abstract class ExtensionOpenApiDocumentTests
+{
+    // AddOpenApi() registers IOpenApiDocumentProvider KEYED by document name, and "v1" is the name it
+    // adds by default; an unkeyed resolve finds nothing.
+    private const string DocumentName = "v1";
+
+    // The untransformed title is derived from the ENTRY assembly, so it reads "testhost | v1" under
+    // vstest and would move the committed document the day the runner changes — a diff about the
+    // toolchain on a file whose diffs are supposed to be about the wire. Pinning both fields makes the
+    // info block a constant.
+    private const string PinnedTitle = "cove extension wire contract";
+    private const string PinnedVersion = "1.0.0";
+
+    /// <summary>The extension under test, built the way the host builds it (shipped manifest applied).</summary>
+    protected abstract IApiExtension CreateExtension();
+
+    /// <summary>
+    /// The serializer options the extension's own responses ride, which decide the document's property
+    /// casing and enum spelling. Returns the product's instance; this class copies from it.
+    /// </summary>
+    protected abstract JsonSerializerOptions ResponseOptions();
+
+    /// <summary>The repo-relative path the emitted document is written to.</summary>
+    protected abstract string DocumentPath { get; }
+
+    /// <summary>
+    /// Registers whatever the extension's endpoint lambdas take as non-body parameters. Minimal-API
+    /// binding treats an unregistered complex type as a second body parameter and throws at
+    /// registration, so these have to resolve — but the document never invokes any of them, so a
+    /// factory returning null is enough and is what keeps the emit off a real database.
+    /// </summary>
+    protected virtual void ConfigureBindingServices(IServiceCollection services) { }
+
+    [Fact]
+    public async Task EmitsTheCurrentWireDocument()
+    {
+        var responseOptions = ResponseOptions();
+        Assert.NotEmpty(responseOptions.Converters);
+
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.WebHost.UseTestServer();
+        ConfigureBindingServices(builder.Services);
+        builder.Services.AddRouting();
+        builder.Services.AddOpenApi(DocumentName, options => options.AddDocumentTransformer(
+            (document, _, _) =>
+            {
+                document.Info ??= new OpenApiInfo();
+                document.Info.Title = PinnedTitle;
+                document.Info.Version = PinnedVersion;
+                return Task.CompletedTask;
+            }));
+
+        // The schema generator reads ONE document-wide options object — the one ConfigureHttpJsonOptions
+        // fills — so seeding it from the extension's own response options is what makes the document's
+        // casing and enum spelling a consequence of the product rather than a second declaration of it.
+        // JsonSerializerOptions is frozen after first use, so the members are copied across and the
+        // instance is never assigned. NumberHandling is narrowed to Strict deliberately: the Web default
+        // also accepts numbers written as strings, which the generator reports as an integer-or-string
+        // union on EVERY numeric field, while the server only ever writes a JSON number.
+        var copiedConverters = 0;
+        builder.Services.ConfigureHttpJsonOptions(options =>
+        {
+            options.SerializerOptions.PropertyNamingPolicy = responseOptions.PropertyNamingPolicy;
+            foreach (var converter in responseOptions.Converters)
+            {
+                options.SerializerOptions.Converters.Add(converter);
+                copiedConverters++;
+            }
+
+            options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;
+        });
+
+        var app = builder.Build();
+        CreateExtension().MapEndpoints(app);
+
+        // MANDATORY, and the single most dangerous line to omit here. A WebApplication's own route
+        // registrations are not folded into the DI EndpointDataSource until routing middleware is built
+        // at start, so without this the data source is empty, the provider still returns a perfectly
+        // valid ~110-byte document with ZERO paths, and a test that only checked for non-empty JSON
+        // would pass over it.
+        await app.StartAsync();
+
+        var routes = app.Services
+            .GetRequiredService<EndpointDataSource>()
+            .Endpoints.OfType<RouteEndpoint>()
+            .ToList();
+
+        // Before any write: an empty route set is a hard failure, never a pass.
+        Assert.NotEmpty(routes);
+
+        // Proves the seeding callback actually ran. It is resolved lazily through DI, so a mis-wired
+        // registration would leave the document generated from host defaults with nothing to say so.
+        Assert.Equal(responseOptions.Converters.Count, copiedConverters);
+
+        var provider = app.Services.GetRequiredKeyedService<IOpenApiDocumentProvider>(DocumentName);
+        var document = await provider.GetOpenApiDocumentAsync(CancellationToken.None);
+
+        var documented = document.Paths.Sum(path => path.Value.Operations?.Count ?? 0);
+        Assert.Equal(routes.Count, documented);
+
+        var writer = new StringWriter();
+        document.SerializeAsV31(new OpenApiJsonWriter(writer));
+
+        // Two kinds of carriage return can reach this string and only one of them is a line ending the
+        // CLR recognizes. .NET 10 folds C# /// comments into schema descriptions, and the compiler
+        // writes its XML doc file with the platform's newline — so a description built on Windows
+        // carries a CRLF that the JSON writer emits as the two-character ESCAPE \r\n, which
+        // ReplaceLineEndings does not see. Both are normalized, and the assertion then refuses to write
+        // a file that still holds a carriage return in either form: without it the Windows and Linux
+        // runs disagree about this file forever, each rewriting what the other committed.
+        var json = writer.ToString().ReplaceLineEndings("\n").Replace("\\r\\n", "\\n", StringComparison.Ordinal);
+        Assert.DoesNotContain("\\r", json, StringComparison.Ordinal);
+
+        // One call, so an interrupted or concurrent run leaves either the previous complete document or
+        // the new one, never a half-written file that the CI diff would report as a wire change.
+        File.WriteAllText(ResolveDocumentPath(), json);
+    }
+
+    // The document path is repo-relative so the same test writes the same file from any working
+    // directory and on either platform; the test assembly sits several unstable levels below the root
+    // (configuration, framework), so the root is found by the catalog rather than counted out in "..".
+    private string ResolveDocumentPath()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "extensions", "catalog.json")))
+            {
+                return Path.Combine(directory.FullName, DocumentPath);
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"No extensions/catalog.json above {AppContext.BaseDirectory}, so the repo-relative "
+                + $"document path '{DocumentPath}' cannot be resolved.");
+    }
+}
