@@ -246,12 +246,14 @@ public sealed record ScanCursor(RenamerFileKind Kind, int AfterEntityId);
 /// <param name="Rows">The rows of this page, in walk order.</param>
 /// <param name="Next">
 /// Where to resume, or null once the walk has observed the end of the last readable kind. A non-null
-/// cursor means "there may be more" — the following request is what proves it either way.
+/// cursor means "there may be more" — the following request is what proves it either way, so a final
+/// empty page is normal rather than an error.
 /// </param>
 /// <param name="EntitiesExamined">Entities planned to fill this page, whether or not their rows survived the filters.</param>
 /// <param name="BudgetExhausted">
 /// True iff the request hit its per-request entity budget before filling the page — the honest signal
 /// that more of the library is unexamined, which a narrow filter over a large library hits routinely.
+/// It NEVER means there are no more results.
 /// </param>
 public sealed record ScanRowsPage(
     IReadOnlyList<ScanRow> Rows,

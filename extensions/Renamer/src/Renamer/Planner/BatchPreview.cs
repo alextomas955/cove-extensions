@@ -4,9 +4,10 @@ namespace Renamer.Planner;
 
 /// <summary>
 /// How loud the pre-renamer confirmation must be, scaled to the blast radius of the planned batch.
-/// Serialized as the string "Light"/"Standard"/"Heavy" (the response rides the
-/// <c>JsonStringEnumConverter</c> the preview endpoint already uses), so the UI renders the level
-/// rather than re-deriving it.
+/// Serialized as the string <c>"light"</c>/<c>"standard"</c>/<c>"heavy"</c> — the response rides a
+/// <c>JsonStringEnumConverter</c> with the camelCase naming policy, which re-cases the enum NAME just
+/// as it does a property name, so the member stays PascalCase and only the wire string is lowered.
+/// The UI renders the level rather than re-deriving it.
 /// </summary>
 public enum ConfirmLevel
 {

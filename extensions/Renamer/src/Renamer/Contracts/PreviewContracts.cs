@@ -21,8 +21,14 @@ namespace Renamer.Contracts;
 /// <param name="Suffixed">UI badge signal: true iff the collision suffix loop ran.</param>
 /// <param name="Sanitized">UI badge signal: true iff the engine cleaned the rendered name.</param>
 /// <param name="ResolvedDestinationRoot">The routed destination-root template, or null for a source-confine/in-place item.</param>
-/// <param name="MatchedRule">The resolver's matched-rule label for preview/log.</param>
-/// <param name="TargetVolume">The destination volume of the resolved absolute target.</param>
+/// <param name="MatchedRule">
+/// The resolver's matched-rule label for preview/log (<c>"Studio:42(direct)"</c>, <c>"InPlace"</c>, …),
+/// or <c>""</c> for an item the resolver never routed — a skip or a no-op.
+/// </param>
+/// <param name="TargetVolume">
+/// The destination volume of the resolved absolute target, or <c>""</c> when the item is not a routed
+/// move.
+/// </param>
 public sealed record PreviewItemView(
     int FileId,
     string OldFullPath,
