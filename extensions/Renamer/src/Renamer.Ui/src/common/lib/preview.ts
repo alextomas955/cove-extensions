@@ -1,17 +1,17 @@
 /**
  * The pure window.confirm summary builder for a real-selection `/preview`.
  *
- * CRITICAL: `/preview` returns `RenamePlanItem[]` (camelCase over the wire), NOT the
- * `/preview-sample` `flags[]` array. The warning taxonomy is derived from the `status` STRING enum
- * (the host serializes the enum as a string) PLUS the additive `suffixed` / `sanitized` bools the
- * planner sets — there is no `flags[]` field here.
+ * CRITICAL: `/preview` returns `PreviewItemView[]`, NOT the `/preview-sample` `flags[]` array. The
+ * warning taxonomy is derived from the `status` STRING enum (the endpoint's own result type writes
+ * it as a camelCase string) PLUS the additive `suffixed` / `sanitized` bools the planner sets —
+ * there is no `flags[]` field here.
  *
  * `buildConfirmSummary` is intentionally pure (no DOM, no fetch) so the confirm-dialog wording logic
  * can be unit-reasoned in isolation; the handler (renameSelected.ts) wraps it with window.confirm + fetch.
- * The wire shapes it consumes live in contracts.ts.
+ * The wire shapes it consumes are generated from the extension's own OpenAPI document.
  */
 
-import type { ConfirmLevel, PreviewItem, PreviewSummary } from "../../contracts";
+import type { ConfirmLevel, PreviewItemView, PreviewSummary } from "../../wire/api";
 
 /** Last path segment, tolerant of both `/` and `\` separators (Windows paths). */
 function basename(p: string): string {
@@ -85,7 +85,7 @@ function confirmCallToAction(level: ConfirmLevel, undoable: boolean): string {
  * Pure (no DOM/fetch) so it stays unit-reasonable.
  */
 export function buildConfirmSummary(
-  items: PreviewItem[],
+  items: PreviewItemView[],
   summary?: PreviewSummary,
 ): {
   text: string;

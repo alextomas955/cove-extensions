@@ -10,7 +10,7 @@
 import { useCallback, useState } from "react";
 import { requestJson, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type { ScanSummaryResponse } from "../contracts";
+import type { ScanSummaryView } from "../wire/api";
 import { summaryCounts, type DryRunCounts } from "./dry-run/dryRunLogic";
 import { api } from "../common/lib/extension";
 
@@ -114,7 +114,7 @@ export function useRenameLibrary(): UseRenameLibrary {
           method: "POST",
         });
         await pollJobToCompletion(scanJobId);
-        counts = summaryCounts(await requestJson<ScanSummaryResponse>(api("last-scan")));
+        counts = summaryCounts(await requestJson<ScanSummaryView>(api("last-scan")));
       }
 
       const { jobId } = await requestJson<{ jobId: string }>(RENAME_LIBRARY_PATH, {

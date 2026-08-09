@@ -1,5 +1,5 @@
 /**
- * Per-row status pill. Badges derive from the PreviewItem `status`
+ * Per-row status pill. Badges derive from the PreviewItemView `status`
  * STRING enum PLUS the `suffixed` / `sanitized` bools — there is NO `flags[]` array on /preview.
  *
  * Color is NEVER the only signal: amber/red badges lead with a lucide `AlertTriangle` glyph and
@@ -8,7 +8,7 @@
 import { AlertTriangle } from "lucide-react";
 import { StatusPill } from "@cove-extensions/ui-shared";
 
-import type { PreviewStatus } from "../../contracts";
+import type { RenamerStatus } from "../../wire/api";
 
 type Variant = "amber" | "gray" | "red";
 
@@ -18,12 +18,12 @@ interface Badge {
 }
 
 /**
- * The three fields a badge is derived from. Declared structurally rather than as `PreviewItem` so a
- * `/preview` item and a leaner `/scan-rows` row both qualify without either wire shape gaining a field
- * only the badges would read.
+ * The three fields a badge is derived from. Declared structurally rather than as `PreviewItemView` so
+ * a `/preview` item and a leaner `/scan-rows` row both qualify without either wire shape gaining a
+ * field only the badges would read.
  */
 export interface Badgeable {
-  status: PreviewStatus;
+  status: RenamerStatus;
   suffixed: boolean;
   sanitized: boolean;
 }

@@ -26,7 +26,7 @@ import { Dialog, ErrorBox } from "../../common/ui/Dialog";
 import { Button, ProgressBar, Spinner } from "@cove-extensions/ui-shared";
 import { WarningBadges } from "./WarningBadge";
 import { api } from "../../common/lib/extension";
-import type { ScanSummaryResponse } from "../../contracts";
+import type { ScanSummaryView } from "../../wire/api";
 import type { RenamerOptions } from "../options";
 import { useScanRows } from "./useScanRows";
 import {
@@ -199,7 +199,7 @@ export function DryRunModal({
   renameProgress?: { progress: number; subTask?: string | null; etaSeconds?: number | null } | null;
 }) {
   const [scanJobId, setScanJobId] = useState<string | null>(null);
-  const [summary, setSummary] = useState<ScanSummaryResponse | null>(null);
+  const [summary, setSummary] = useState<ScanSummaryView | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [filter, setFilter] = useState<DryRunFilter>("all");
   const [search, setSearch] = useState("");
@@ -259,7 +259,7 @@ export function DryRunModal({
         setScanError(job.error ?? "the scan job did not complete");
         return;
       }
-      requestJson<ScanSummaryResponse>(LAST_SCAN_PATH)
+      requestJson<ScanSummaryView>(LAST_SCAN_PATH)
         .then((res) => {
           setSummary(res);
         })
