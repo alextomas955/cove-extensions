@@ -35,7 +35,7 @@ seam is the wire contract, not a shared folder layout — so do not force the tw
   extension is one rich capability, layer it by domain instead (Renamer's `Engine/`, `Planner/`,
   `Execution/`).
 - **The UI** is sliced by feature directly under `src/` (`settings/`, `scene/`, `monitor/`) next to
-  `index.ts`, `contracts.ts`, and `common/`.
+  `index.ts`, the wire module, and `common/`.
 
 Seeing the same name on both sides (`Monitor/` and `monitor/`) is intended alignment — you find both
 halves of a capability instantly — not duplication to collapse.
@@ -57,9 +57,9 @@ would masquerade as an entity home.
 ### Let the filename suffix carry the kind
 
 Inside a slice, the suffix tells you the kind — `*Logic.ts` is domain, `*Store.ts` is infrastructure,
-`use*.ts` is a data hook, `*.tsx` is a view, `contracts.ts` is the wire model; in C#, `*Service` /
-`*Guard` / `*Projector` are domain, `*Port` / `*Client` are infrastructure, `*Contracts` / `*Models`
-are models. Don't add `ui/`, `lib/`, or `model/` sub-folders that only restate the suffix. Give a
+`use*.ts` is a data hook, `*.tsx` is a view; in C#, `*Service` / `*Guard` / `*Projector` are domain,
+`*Port` / `*Client` are infrastructure, `*Contracts` / `*Models` are models. Wire types are the one kind
+you do not name by suffix, because you do not write them — see the wire contract below. Don't add `ui/`, `lib/`, or `model/` sub-folders that only restate the suffix. Give a
 section its own folder only when it holds more than one file.
 
 ## Two levels of shared code
@@ -83,21 +83,30 @@ unchanged: if yes it is repo-level, if only one extension can it belongs in that
 and if only one feature can it stays inside that feature's slice. Business-agnosticism is what the test
 measures — never whether the code happens to be presentational.
 
-## One wire contract, all camelCase
+## The wire contract
 
-The entire C#↔TypeScript wire is camelCase — property names and enum values alike — because that is the
-convention on the external boundary (the Cove host). The host serializer also binds incoming properties
-case-insensitively, so there is one casing convention on the wire, not a separate one for requests.
-Keep the wire types in one home per tier: a `Contracts/` unit in the C# assembly (cross-cutting enums
-defined once in a neutral vocabulary file) and one `contracts.ts` per UI `src/` root, imported with
-`import type` so it erases at runtime. Every response the UI reads is a projection type, never a live
-domain object, so the backend can evolve without breaking the wire.
+A response an extension writes is camelCase, property names and enum values alike, because that is the
+convention on the external boundary (the Cove host). A request is not automatically the same. The host
+serializer binds incoming properties case-insensitively, so a request body is free to carry another
+spelling, and one here does: an extension that persists a settings blob sends that blob back in the
+spelling it stores. Read the casing off the server for each direction rather than assuming one
+convention covers both — and expect a request body an extension parses itself to answer to whatever
+options that parse names, not to the response convention.
 
-Treat a hand-declared wire type as an unverified assumption. A response interface with the wrong casing
-still type-checks — the compiler trusts your declaration — so every field reads `undefined` at runtime
-with no error anywhere. That has shipped here. Whether the answer is generation, validation at the
-fetch boundary, or something else is an open question; what is settled is that "it type-checks" proves
-nothing about the wire.
+Keep the wire types in one home per tier: a `Contracts/` unit in the C# assembly, with cross-cutting
+enums defined once in a neutral vocabulary file, and a single wire module per UI `src/` root that every
+slice imports from. Import a wire type with `import type` so it erases at runtime and costs the bundle
+nothing. Every response the UI reads is a projection type, never a live domain object, so the backend can
+evolve without breaking the wire.
+
+Treat a hand-declared wire type as an unverified assumption. The compiler checks your declaration against
+itself and never against the server, so a response interface with the wrong casing still type-checks, and
+every field then reads `undefined` at runtime with no error anywhere. That has shipped here. It is why the
+UI's wire module is better derived from the server than written by hand: a type the server produces cannot
+disagree with the server, which removes the mistake rather than looking for it afterward. Where you cannot
+derive one, pin the wire values in a test whose expectation you transcribe by hand from the server's own
+spelling. An expectation computed from the module it checks agrees with itself forever and reports
+nothing, so the transcription is the whole of what makes such a pin worth keeping.
 
 ## Frontend conventions
 
