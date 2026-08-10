@@ -72,13 +72,11 @@ services:
       # link not permitted"), the same error a move across two real drives raises. This is the one
       # mount strategy that actually triggers cross-device behavior inside a single container.
       #
-      # Caveat (see extensions/Renamer/.planning/ for the full finding): Renamer's own same-vs-
-      # cross-volume DECISION is `Path.GetPathRoot()`-based (Windows drive-letter shaped), which
-      # always returns "/" on Linux — so Renamer's code still classifies a move into /data2 as
-      # "same volume" and routes it through the fast-path `File.Move`, which then throws the real
-      # EXDEV as a plain IOException. That exception IS caught (not a crash), but by the same
-      # branch as "locked/destination exists", so the reported reason is misleading on Linux. This
-      # mount exists to make that real, verified behavior testable and regression-protected, not to
-      # exercise Renamer's CrossVolumeMover verify/copy path (which is Windows-only reachable by
-      # the code's own design — see the existing CrossVolumeMoverTests.cs xUnit suite for that).
+      # The caveat that used to sit here — that the same-vs-cross-volume decision is
+      # `Path.GetPathRoot()`-based, that /data2 is therefore classified "same volume", and that
+      # CrossVolumeMover is Windows-only reachable — was true when written and became false on
+      # 2026-07-28, when v0.3.0 made VolumeClassifier mount-aware. Measured in a Linux container on
+      # .NET 10: DriveInfo.GetDrives() enumerates this container's mounts, so /data keys to "/" and
+      # /data2 keys to "/data2" and the pair classifies CROSS-volume. So this mount now does exercise
+      # the verified copy path, which is more than it was originally built for.
       - /data2
