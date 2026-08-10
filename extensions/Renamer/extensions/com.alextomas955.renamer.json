@@ -9,7 +9,7 @@
     {
       "version": "0.3.0",
       "downloadUrl": "https://github.com/alextomas955/cove-extensions/releases/download/renamer/v0.3.0/com.alextomas955.renamer-0.3.0.zip",
-      "minCoveVersion": "1.0.0",
+      "minCoveVersion": "1.1.0",
       "changelog": "Undo is now bounded: it keeps only the most recent rename, records less per file, and refuses to record a rename of more than 5,000 files \u2014 the confirmation and the dry-run footer say so before it runs. Any undo pending from before this upgrade is cleared once, on first load; after that undo persists across restarts as before."
     },
     {
