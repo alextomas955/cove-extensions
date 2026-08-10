@@ -1,0 +1,11 @@
+{
+  "//": "Second jscpd pass, for TEST code — the files .jscpd.json deliberately excludes. jscpd has one global minTokens, so a different threshold for tests needs a separate config rather than a per-path setting. minTokens is 100 here against 50 for product code: test arrange/assert blocks repeat legitimately and DRY-ing them usually hurts readability, but a copied fixture or helper is a real defect, and 100 tokens is roughly where 'similar shape' ends and 'copied wholesale' begins. Selected by pattern (**/*.mjs) rather than by naming extension folders, so a new extension is covered with no edit. Measured when set: 0 clones at 100, 5 at 75, 22 at 50 — so threshold is 0, not a percentage: at zero clones today, ANY wholesale copy is a regression, and a percentage budget would let a single copied helper (0.30%) slip through.",
+  "threshold": 0,
+  "minTokens": 100,
+  "format": ["javascript"],
+  "gitignore": true,
+  "pattern": "**/*.mjs",
+  "ignore": ["website/**"],
+  "reporters": ["console"],
+  "absolute": true
+}

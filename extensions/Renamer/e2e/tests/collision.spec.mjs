@@ -11,58 +11,24 @@
 // "$title" filename template so both items' computed target names are deterministic, and a global
 // option would otherwise leak into every other test sharing that worker's instance.
 import {
-  test as base,
+  isolatedTest as test,
   expect,
   pollJob,
   pollUntil,
-  RENAMER_EXTENSION,
+  seedVideo,
+  createApiClient,
 } from "../lib/renamer-fixtures.mjs";
-import { startHarness } from "@cove-extensions/e2e/harness";
-import { seedVideo } from "@cove-extensions/e2e/seed-media";
 import { assertRenamedTo, basename } from "../lib/rename-assertions.mjs";
 
 const EXTENSION_ID = "com.alextomas955.renamer";
 const ROUTE = `/api/extensions/${EXTENSION_ID}`;
-
-const test = base.extend({
-  isolatedHarness: [
-    async ({}, use) => {
-      const isolatedHarness = await startHarness();
-      isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
-      await isolatedHarness.installExtension(RENAMER_EXTENSION);
-      await use(isolatedHarness);
-      await isolatedHarness.stop();
-    },
-    { scope: "test" },
-  ],
-});
-
-async function callApi(baseUrl, method, path, body) {
-  const res = await fetch(`${baseUrl}${path}`, {
-    method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  let json;
-  try {
-    json = text ? JSON.parse(text) : undefined;
-  } catch {
-    json = undefined;
-  }
-  return { status: res.status, ok: res.ok, json, text };
-}
 
 test("renaming two items to the same computed target name auto-suffixes rather than clobbering", async ({
   isolatedHarness,
 }) => {
   const baseUrl = isolatedHarness.baseUrl;
   const container = isolatedHarness.container;
-  const api = {
-    get: (p) => callApi(baseUrl, "GET", p),
-    post: (p, b) => callApi(baseUrl, "POST", p, b),
-    put: (p, b) => callApi(baseUrl, "PUT", p, b),
-  };
+  const api = createApiClient(baseUrl, isolatedHarness.token);
 
   // A "$title"-only template makes both items' computed target basename exactly "<title>.mp4" — a
   // deterministic collision whose auto-suffixed second name (" (1)") can then be asserted exactly.

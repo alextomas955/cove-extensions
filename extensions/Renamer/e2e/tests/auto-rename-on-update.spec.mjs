@@ -8,53 +8,26 @@
 // first was covered and the second silently did nothing (issue #108). Both live here now, so the
 // cheaper single-item case can never again stand in for the whole feature.
 //
-// Uses its OWN harness instance PER TEST (same pattern as extension-lifecycle.spec.mjs), NOT the
-// shared per-worker harness: AutoRenamerOnUpdate is a global extension setting that would leak
-// into every other test sharing that worker's instance once enabled, silently changing their
-// behavior (e.g. the collision test relies on the default template/no-auto-rename state).
-import { test as base, expect } from "@cove-extensions/e2e";
-import { startHarness } from "@cove-extensions/e2e/harness";
-import { seedVideo } from "@cove-extensions/e2e/seed-media";
-import { RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
+// Uses `isolatedTest` — its OWN harness instance PER TEST, not the shared per-worker one:
+// AutoRenamerOnUpdate is a global extension setting that would leak into every other test sharing
+// that worker's instance once enabled, silently changing their behaviour (the collision test, for
+// one, relies on the default template/no-auto-rename state).
+import {
+  isolatedTest as test,
+  expect,
+  seedVideo,
+  createApiClient,
+} from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 import { VideoDetailPage } from "../lib/pages/video-detail-page.mjs";
 import { assertRenamedTo } from "../lib/rename-assertions.mjs";
-
-const test = base.extend({
-  isolatedHarness: [
-    async ({}, use) => {
-      const isolatedHarness = await startHarness();
-      isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
-      await isolatedHarness.installExtension(RENAMER_EXTENSION);
-      await use(isolatedHarness);
-      await isolatedHarness.stop();
-    },
-    { scope: "test" },
-  ],
-});
-
-async function callApi(baseUrl, method, path, body) {
-  const res = await fetch(`${baseUrl}${path}`, {
-    method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  let json;
-  try {
-    json = text ? JSON.parse(text) : undefined;
-  } catch {
-    json = undefined;
-  }
-  return { status: res.status, ok: res.ok, json, text };
-}
 
 test("enabling Auto-rename on update and editing a title through the UI renames the file automatically", async ({
   page,
   isolatedHarness,
 }) => {
   const baseUrl = isolatedHarness.baseUrl;
-  const api = { get: (p) => callApi(baseUrl, "GET", p) };
+  const api = createApiClient(baseUrl, isolatedHarness.token);
 
   const settingsPage = new RenamerSettingsPage(page, baseUrl);
   await settingsPage.goto();
@@ -96,7 +69,7 @@ test("with Auto-rename on update left OFF (the default), editing a title does no
   isolatedHarness,
 }) => {
   const baseUrl = isolatedHarness.baseUrl;
-  const api = { get: (p) => callApi(baseUrl, "GET", p) };
+  const api = createApiClient(baseUrl, isolatedHarness.token);
 
   // No settings change here — AutoRenamerOnUpdate defaults to false. This is the negative-path
   // counterpart to the test above: confirms the hook is genuinely opt-in, not just untested.
@@ -133,26 +106,6 @@ const HOST_PUBLISHES_BULK_EVENTS = !/:(0\.|1\.0|1\.1\.0)/.test(HOST_IMAGE);
 const EXTENSION_ID = "com.alextomas955.renamer";
 const BULK_COUNT = 6;
 
-/** Authenticated variant of `callApi` above — the writes below answer 401 without a bearer token. */
-async function callApiAs(baseUrl, token, method, path, body) {
-  const res = await fetch(`${baseUrl}${path}`, {
-    method,
-    headers: {
-      ...(body ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  let json;
-  try {
-    json = text ? JSON.parse(text) : undefined;
-  } catch {
-    json = undefined;
-  }
-  return { status: res.status, ok: res.ok, json, text };
-}
-
 test.describe("multi-item edits", () => {
   test.skip(
     !HOST_PUBLISHES_BULK_EVENTS,
@@ -164,12 +117,7 @@ test.describe("multi-item edits", () => {
     isolatedHarness,
   }) => {
     const baseUrl = isolatedHarness.baseUrl;
-    const token = isolatedHarness.token;
-    const api = {
-      get: (p) => callApiAs(baseUrl, token, "GET", p),
-      put: (p, b) => callApiAs(baseUrl, token, "PUT", p, b),
-      post: (p, b) => callApiAs(baseUrl, token, "POST", p, b),
-    };
+    const api = createApiClient(baseUrl, isolatedHarness.token);
 
     // The reporter's configuration: auto-rename on update, gated to organized items only. "$title"
     // alone makes each expected basename exact rather than merely "the path changed".

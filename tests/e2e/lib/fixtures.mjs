@@ -9,6 +9,77 @@
 import { test as base, expect } from "@playwright/test";
 import { startHarness } from "./harness.mjs";
 
+/**
+ * A `{get,post,put,delete}` JSON client over one Cove instance.
+ *
+ * `baseUrl` may be a string OR a getter, and the getter form is not a convenience: `startHarness`
+ * documents that `baseUrl` MAY CHANGE across an install call, because a container published on an
+ * ephemeral host port can be reassigned a new one on restart. A client that captured the string
+ * would keep addressing the old port and fail only on the runs where the port moved — so any spec
+ * that installs, uninstalls or restarts mid-test must pass `() => harness.baseUrl`.
+ *
+ * Pass the harness token: against an auth-enabled instance every route answers 401 without it, and
+ * under the auth-off default the host's bypass principal ignores it — so passing it is always
+ * correct and omitting it is correct only by luck. Bodies are JSON-encoded, which means a caller
+ * sending an already-stringified value (the extension data store takes its blob as a STRING) gets
+ * the second encoding that endpoint expects.
+ *
+ * Exported because the per-test isolated harness cannot use the `api` fixture below — that one is
+ * bound to the worker-scoped `harness` — and every spec that needed one had hand-rolled its own.
+ */
+export function createApiClient(baseUrl, token) {
+  const resolveBase = () => (typeof baseUrl === "function" ? baseUrl() : baseUrl);
+  async function call(method, path, body) {
+    const res = await fetch(`${resolveBase()}${path}`, {
+      method,
+      headers: {
+        ...(body ? { "Content-Type": "application/json" } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const text = await res.text();
+    let json;
+    try {
+      json = text ? JSON.parse(text) : undefined;
+    } catch {
+      json = undefined;
+    }
+    return { status: res.status, ok: res.ok, json, text };
+  }
+  return {
+    get: (path) => call("GET", path),
+    post: (path, body) => call("POST", path, body),
+    put: (path, body) => call("PUT", path, body),
+    delete: (path) => call("DELETE", path),
+  };
+}
+
+/**
+ * A per-TEST harness fixture with `extension` already installed — its own Cove instance, torn down
+ * after the test.
+ *
+ * Use it for a test that changes a GLOBAL extension setting, or the extension's installed state:
+ * the worker-scoped `harness` above is shared, so such a change leaks into every other test in that
+ * worker and silently alters their behaviour. It costs a container boot per test, so reach for it
+ * only when isolation is the point.
+ *
+ * Takes the extension rather than closing over one, so this stays extension-agnostic; each
+ * extension's own fixtures module binds it (see `renamer-fixtures.mjs`).
+ */
+export function isolatedHarnessFixture(extension) {
+  return [
+    async ({}, use) => {
+      const isolatedHarness = await startHarness();
+      isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
+      await isolatedHarness.installExtension(extension);
+      await use(isolatedHarness);
+      await isolatedHarness.stop();
+    },
+    { scope: "test" },
+  ];
+}
+
 export const test = base.extend({
   extension: [undefined, { option: true }],
 
@@ -54,30 +125,7 @@ export const test = base.extend({
   // instance every route this fixture reaches answers 401 without it, and under the auth-off
   // default `harness.token` is still set but the host's bypass principal ignores it.
   api: async ({ harness, baseUrl }, use) => {
-    async function call(method, path, body) {
-      const res = await fetch(`${baseUrl}${path}`, {
-        method,
-        headers: {
-          ...(body ? { "Content-Type": "application/json" } : {}),
-          ...(harness.token ? { Authorization: `Bearer ${harness.token}` } : {}),
-        },
-        body: body ? JSON.stringify(body) : undefined,
-      });
-      const text = await res.text();
-      let json;
-      try {
-        json = text ? JSON.parse(text) : undefined;
-      } catch {
-        json = undefined;
-      }
-      return { status: res.status, ok: res.ok, json, text };
-    }
-    await use({
-      get: (path) => call("GET", path),
-      post: (path, body) => call("POST", path, body),
-      put: (path, body) => call("PUT", path, body),
-      delete: (path) => call("DELETE", path),
-    });
+    await use(createApiClient(baseUrl, harness.token));
   },
 });
 
