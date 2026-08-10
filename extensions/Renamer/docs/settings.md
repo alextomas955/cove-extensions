@@ -42,6 +42,12 @@ also requires an entry under [Allowed roots](#destination-routing).
 | --------------------- | ------------------------------------------------------------------------------------------- | ------- |
 | Auto-rename on update | Re-rename an item automatically when Cove raises a `video.updated` / `image.updated` event. | Off     |
 
+Auto-rename can only act on an event Cove actually raises. On **Cove 1.1.0 and earlier, editing
+several items at once does not raise those events at all** — the host saves the rows and stays
+silent, so nothing is renamed, and no error appears anywhere. Editing one item at a time still
+works, and so do **Dry run** and **Rename all files**, which do not depend on events. Cove fixed
+this after 1.1.0; on a newer host a multi-item edit renames every item it selected.
+
 This section also holds the **Dry run** and **Rename all files** actions (see the
 [User guide](./guide#preview-with-a-dry-run)). Those run a rename; they aren't saved settings.
 

@@ -50,15 +50,30 @@ async function callApi(baseUrl, token, method, path, body) {
   return { status: res.status, ok: res.ok, json, text };
 }
 
-// KNOWN FAILING — issue #108, unfixed. Marked expected-to-fail so the suite stays green while the
-// defect stays pinned executably rather than living only in an issue tracker. When the fix lands this
-// test PASSES, which Playwright reports as an unexpected pass and fails the run — so the marker cannot
-// outlive the bug. Remove `test.fail()` in the same change that fixes it.
+// Issue #108: "Set a few files to organized, last one renamed only".
 //
-// Reproduced 2026-08-09: options read back applied, the single-item control renamed, and the bulk path
-// renamed 0 of 6. The control is what makes the 0 meaningful — without it, an unapplied setting and a
-// broken hook are indistinguishable.
-test.fail();
+// ROOT CAUSE — measured, and it is NOT in this extension. Cove publishes entity events for bulk
+// mutations only since `ca14830` ("Publish entity events for successful mutations", 2026-08-02),
+// which is in nightly and in NO released tag. On a host without it, POST /videos/bulk saves the rows
+// and raises nothing, so the auto-rename hook is never invoked and cannot be: an extension cannot
+// observe an event the host does not publish.
+//
+// Same test, same extension build, only the host image differing:
+//   cove-app:1.1.0   -> 0 of 6 renamed
+//   cove-app:nightly -> 6 of 6 renamed
+//
+// So this asserts a HOST CAPABILITY the extension depends on, and is skipped — loudly, never
+// silently — on a host known to lack it. When the repo's pinned image moves to a release carrying
+// ca14830, the skip stops firing and the assertion starts running with no edit here.
+const HOST_IMAGE = process.env.COVE_E2E_IMAGE ?? "ghcr.io/yourcove/cove-app:1.1.0";
+const HOST_PUBLISHES_BULK_EVENTS = !/:(0\.|1\.0|1\.1\.0)/.test(HOST_IMAGE);
+
+test.skip(
+  !HOST_PUBLISHES_BULK_EVENTS,
+  `host ${HOST_IMAGE} predates Cove ca14830, so POST /videos/bulk publishes no entity events — the ` +
+    `auto-rename hook cannot fire. A host limitation, not a Renamer defect (issue #108). Declared at ` +
+    `file scope so no harness is booted only to skip.`,
+);
 test("setting Organized on several videos at once renames every one of them, not just one", async ({
   isolatedHarness,
 }) => {
