@@ -120,4 +120,66 @@ public sealed class PreviewEndpointTests
             await conn.DisposeAsync();
         }
     }
+
+    /// <summary>
+    /// Several selected entities each get their own plan item — the fan-out, not just the first id.
+    /// </summary>
+    /// <remarks>
+    /// Both other cases here pass a single-element id array, and so does every e2e that drives
+    /// "Rename selected" (one `selectCard` call, no multi-select helper existed). So the N&gt;1 fan-out
+    /// of the user's actual selection was unexercised at every tier — the same shape as issue #108,
+    /// where a bulk edit renamed nothing because only the one-item path had ever been walked. A preview
+    /// that answered for the first id alone would have satisfied every prior assertion, and it is what
+    /// the confirm dialog counts before anything touches disk.
+    /// </remarks>
+    [Fact]
+    public async Task PreviewAsync_WithSeveralEntityIds_ReturnsAnItemForEveryOne()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+
+            // One folder for all four: folders.Path is unique, so a second SeedVideoAsync against the
+            // same path violates it. Same shape ParallelBatchTests uses to build a multi-entity batch.
+            var (folderId, firstId, _) = await ExecutorTestSeed.SeedVideoAsync(
+                db, folderPath, "raw 0.mkv", "Film 0");
+            File.WriteAllText(Path.Combine(dir.Root, "raw 0.mkv"), "bytes-0");
+            List<int> ids = [firstId];
+            for (int i = 1; i < 4; i++)
+            {
+                var video = new Cove.Core.Entities.Video { Title = $"Film {i}", Organized = true };
+                db.Set<Cove.Core.Entities.Video>().Add(video);
+                await db.SaveChangesAsync();
+                await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, video.Id, $"raw {i}.mkv");
+                File.WriteAllText(Path.Combine(dir.Root, $"raw {i}.mkv"), $"bytes-{i}");
+                ids.Add(video.Id);
+            }
+
+            var ext = await BuildExtensionAsync();
+            var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
+
+            var result = await ext.PreviewAsync(
+                new global::Renamer.Api.RenamerRequest("video", [.. ids]), db, principal, default);
+
+            var ok = Assert.IsType<WireJson<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
+
+            // Every seeded entity is represented, and by its OWN computed name — asserting only the
+            // count would pass on four copies of the first id's answer.
+            Assert.Equal(ids.Count, ok.Value!.Items.Count);
+            for (int i = 0; i < ids.Count; i++)
+            {
+                Assert.Contains(ok.Value.Items, item => item.NewBasename == $"Film {i}.mkv");
+                Assert.Contains(
+                    ok.Value.Items,
+                    item => item.OldFullPath.EndsWith($"raw {i}.mkv", StringComparison.Ordinal));
+            }
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
 }
