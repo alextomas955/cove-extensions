@@ -399,13 +399,31 @@ public sealed class RenamerExecutor
                     continue;
                 }
 
-                string source = JoinPath(oldDir, srcStem + "." + normExt);
-                if (!System.IO.File.Exists(ToNative(source)))
+                // Case-insensitive matching is the intent, but File.Exists needs the exact bytes on a
+                // case-SENSITIVE filesystem — so a configured "SRT" silently matched nothing against
+                // clip.srt on Linux, while Windows matched it by accident of its filesystem. Linux is
+                // Cove's usual host, so the platform that failed is the one users run.
+                string? source = null;
+                string? matchedExt = null;
+                foreach (string extCasing in ExtensionCasingCandidates(normExt))
+                {
+                    string probe = JoinPath(oldDir, srcStem + "." + extCasing);
+                    if (System.IO.File.Exists(ToNative(probe)))
+                    {
+                        source = probe;
+                        matchedExt = extCasing;
+                        break;
+                    }
+                }
+
+                if (source is null)
                 {
                     continue;
                 }
 
-                string target = JoinPath(targetFolder, newStem + "." + normExt);
+                // The on-disk casing, not the configured casing: a rename must not silently change a
+                // sidecar's extension from .srt to .SRT because that is how the option was typed.
+                string target = JoinPath(targetFolder, newStem + "." + matchedExt);
 
                 // An in-place / case-only renamer leaves source == target; skipping it mirrors the
                 // primary's self-path discipline and avoids a spurious skip-not-clobber warning.
@@ -426,6 +444,38 @@ public sealed class RenamerExecutor
         }
 
         return (plannedSidecars, captionRenames);
+    }
+
+    /// <summary>
+    /// The bounded set of extension casings to probe for a sidecar: as configured, then lower, then
+    /// upper, without repeats.
+    /// </summary>
+    /// <remarks>
+    /// Bounded on purpose. True case-insensitive matching on a case-sensitive filesystem needs the
+    /// directory enumerated and names compared, which is O(directory) for EVERY renamed file — and a
+    /// media folder is unbounded input, so that cost is not acceptable here. Three exact probes keep it
+    /// O(1) per sidecar and cover the casings that occur in practice (.srt / .SRT).
+    /// <para>
+    /// LIMIT, stated rather than implied: a mixed-case on-disk extension such as <c>.Srt</c> is matched
+    /// only when the option is typed with that same casing.
+    /// </para>
+    /// </remarks>
+    private static IEnumerable<string> ExtensionCasingCandidates(string ext)
+    {
+        yield return ext;
+
+        string lower = ext.ToLowerInvariant();
+        if (!string.Equals(lower, ext, StringComparison.Ordinal))
+        {
+            yield return lower;
+        }
+
+        string upper = ext.ToUpperInvariant();
+        if (!string.Equals(upper, ext, StringComparison.Ordinal)
+            && !string.Equals(upper, lower, StringComparison.Ordinal))
+        {
+            yield return upper;
+        }
     }
 
     /// <summary>
