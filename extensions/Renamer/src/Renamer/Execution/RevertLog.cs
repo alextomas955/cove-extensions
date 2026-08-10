@@ -39,7 +39,7 @@ namespace Renamer.Execution;
 /// Takes the <see cref="IExtensionStore"/> directly (not <c>FullExtensionBase.Store</c>) so it is
 /// unit-testable host-free against a <c>FakeStore</c>.
 /// </summary>
-public sealed class RevertLog : SingleWriterBlobStore<RevertLog.RevertEntry>
+public sealed class RevertLog : SingleWriterBlobStore
 {
     /// <summary>The store key the appended, newline-delimited blob lives under.</summary>
     public const string Key = "revertlog";

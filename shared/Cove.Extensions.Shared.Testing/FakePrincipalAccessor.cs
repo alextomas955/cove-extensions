@@ -39,10 +39,4 @@ public sealed class FakePrincipalAccessor : ICurrentPrincipalAccessor
         accessor.Set(CovePrincipal.Anonymous());
         return accessor;
     }
-
-    /// <summary>
-    /// An accessor whose <see cref="Current"/> is null — the no-principal arm of the permission gate,
-    /// distinct from <see cref="None"/>'s non-null anonymous principal.
-    /// </summary>
-    public static FakePrincipalAccessor NullPrincipal() => new();
 }

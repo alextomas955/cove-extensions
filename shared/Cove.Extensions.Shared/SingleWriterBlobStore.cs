@@ -1,14 +1,12 @@
 using System.Collections.Concurrent;
-using System.Text.Json;
-using System.Text.Json.Serialization.Metadata;
 using Cove.Plugins;
 
 namespace Cove.Extensions.Shared;
 
 /// <summary>
 /// Opt-in base for a journal persisted as ONE blob under a single <see cref="IExtensionStore"/> key,
-/// factoring the single-writer gate, the defensive JSON-array parse, and the <see cref="Compact"/>
-/// retention hook every such journal hand-rolls.
+/// factoring the single-writer gate and the <see cref="Compact"/> retention hook every such journal
+/// hand-rolls.
 /// </summary>
 /// <remarks>
 /// The subclass supplies the key: this is a base-class swap under the SAME key and shape, not a re-key.
@@ -17,8 +15,7 @@ namespace Cove.Extensions.Shared;
 /// <see cref="Compact"/> returns the blob unchanged, so a non-overriding subclass keeps its current
 /// unbounded behavior.
 /// </remarks>
-/// <typeparam name="T">The array element the JSON blob (de)serializes to.</typeparam>
-public abstract class SingleWriterBlobStore<T>
+public abstract class SingleWriterBlobStore
 {
     // Single-writer serialization keyed on the store key, process-lifetime (never disposed). Because the
     // map is shared and keyed on the key string, two instances over the same key resolve the SAME
@@ -53,38 +50,6 @@ public abstract class SingleWriterBlobStore<T>
         finally
         {
             _gate.Release();
-        }
-    }
-
-    /// <summary>Gate-guarded variant of <see cref="RunExclusiveAsync(Func{Task},CancellationToken)"/> that returns a value.</summary>
-    protected async Task<TResult> RunExclusiveAsync<TResult>(Func<Task<TResult>> action, CancellationToken ct = default)
-    {
-        await _gate.WaitAsync(ct);
-        try
-        {
-            return await action();
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
-    /// <summary>Defensive JSON-array parse: an absent or corrupt blob is the empty array, never a throw.</summary>
-    protected static T[] ParseArray(string? json, JsonTypeInfo<T[]> typeInfo)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            return [];
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize(json, typeInfo) ?? [];
-        }
-        catch (JsonException)
-        {
-            return []; // corrupt/hand-edited blob → empty, never throws
         }
     }
 
