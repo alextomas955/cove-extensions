@@ -173,6 +173,7 @@
     <Compile Remove="Concurrency\**\*.cs" />
     <Compile Remove="Preview\**\*.cs" />
     <Compile Remove="TestSupport\CapturingEventBus.cs" />
+    <Compile Remove="TestSupport\Library.cs" />
     <Compile Remove="TestSupport\SharedCacheSqlite.cs" />
   </ItemGroup>
 </Project>
