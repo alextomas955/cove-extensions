@@ -30,16 +30,13 @@ public sealed class CrossVolumeUndoTests
 {
     private const string PartialSuffix = ".renamer-partial";
 
-    [Fact]
+    [SkippableFact]
     public async Task CrossDrive_Undo_RestoresByteForByte()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return; // subst is Windows-only; a live cross-volume run is a manual cross-platform check.
-        }
+        Skip.IfNot(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var oldDir = new TempDir();
-        using var newDrive = new SubstDrive();
+        using var newDrive = new SecondVolume();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
@@ -75,16 +72,13 @@ public sealed class CrossVolumeUndoTests
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task BitFlipOnCopyBack_VerifyFails_FileNotLost()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        Skip.IfNot(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var oldDir = new TempDir();
-        using var newDrive = new SubstDrive();
+        using var newDrive = new SecondVolume();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
@@ -130,16 +124,13 @@ public sealed class CrossVolumeUndoTests
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task CrossSaveThrows_RollsBackToNEW()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        Skip.IfNot(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var oldDir = new TempDir();
-        using var newDrive = new SubstDrive();
+        using var newDrive = new SecondVolume();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
@@ -174,16 +165,13 @@ public sealed class CrossVolumeUndoTests
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task DirMissing_Skip_NotRecreated()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        Skip.IfNot(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var oldDir = new TempDir();
-        using var newDrive = new SubstDrive();
+        using var newDrive = new SecondVolume();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
@@ -223,15 +211,12 @@ public sealed class CrossVolumeUndoTests
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task DestinationFull_or_Offline_ReportedSkip()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        Skip.IfNot(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
-        using var oldDrive = new SubstDrive();
+        using var oldDrive = new SecondVolume();
         using var newDir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
@@ -272,16 +257,13 @@ public sealed class CrossVolumeUndoTests
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task CrossReoccupiedOldSlot_SkippedNotClobbered()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        Skip.IfNot(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var oldDir = new TempDir();
-        using var newDrive = new SubstDrive();
+        using var newDrive = new SecondVolume();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {

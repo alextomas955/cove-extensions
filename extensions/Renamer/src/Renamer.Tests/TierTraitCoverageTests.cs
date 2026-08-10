@@ -7,9 +7,12 @@ namespace Renamer.Tests;
 [Trait("Tier", "L0")]
 public sealed class TierTraitCoverageTests
 {
-    // Well below the ~90 test classes here, and only ever crossed downward by deleting most of the
-    // suite — which is itself worth a red build. A floor cannot go stale upward.
-    private const int MinimumTestClasses = 50;
+    // This project compiles as two different assemblies. With the `../cove` sibling present it carries
+    // ~92 test classes; on the bare leg CI runs, the cove-referencing sources are Compile-Removed
+    // (see Renamer.Tests.csproj) and 44 remain. A single floor therefore has to clear the SMALLER leg,
+    // measured at 44 — so this is deliberately not "~90 minus a bit". It only ever trips on a mass
+    // deletion, which is itself worth a red build, and it cannot go stale upward.
+    private const int MinimumTestClasses = 40;
 
     [Fact]
     public void AllTestClassesCarryATierTrait()

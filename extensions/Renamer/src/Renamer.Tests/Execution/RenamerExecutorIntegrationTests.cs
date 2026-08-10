@@ -186,10 +186,10 @@ public sealed class RenamerExecutorIntegrationTests
     [SkippableFact]
     public async Task CrossVolumeBranch_HappyMove_UsesCrossMover_DiskAndDbUpdated()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
+        Skip.IfNot(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var src = new TempDir();
-        using var dst = new SubstDrive();
+        using var dst = new SecondVolume();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
@@ -262,10 +262,10 @@ public sealed class RenamerExecutorIntegrationTests
     [SkippableFact]
     public async Task CrossVolumeSaveFailure_RollsBackThroughCrossMover_SourceRestored()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
+        Skip.IfNot(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var src = new TempDir();
-        using var dst = new SubstDrive();
+        using var dst = new SecondVolume();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
@@ -340,10 +340,10 @@ public sealed class RenamerExecutorIntegrationTests
     [SkippableFact]
     public async Task CrossVolumeSaveFailure_RollbackWarnings_Surfaced_NotSilentlyRolledBack()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
+        Skip.IfNot(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var src = new TempDir();
-        using var dst = new SubstDrive();
+        using var dst = new SecondVolume();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
