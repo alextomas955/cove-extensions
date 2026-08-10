@@ -77,6 +77,9 @@ If a rename batch wasn't what you wanted, open the **Undo** section and click **
 Undo is deliberately small, so know what it covers:
 
 - Only the **most recent** batch is kept — starting another rename replaces it.
+- **Rename all files** renames each media kind as its own batch, so undo restores only the **last kind**
+  the run reached. If your library holds videos and images, undoing after a whole-library rename brings
+  back one of them, not both. The success message says so when the run finishes.
 - A batch of more than **5,000 files** is **not recorded at all**, and both the rename confirmation
   and the dry-run footer say so before it runs. A whole-library rename usually lands here.
 - Undo does **not** re-create a source folder that ["Delete the source folder when a move leaves it

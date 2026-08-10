@@ -106,6 +106,13 @@ export function useRenameLibrary(): UseRenameLibrary {
    * path has no scan yet and runs one first, then reads the counts off the scan's own aggregate — both
    * paths execute the SAME server-derived id set either way, since the scan and the rename job
    * independently call the identical LoadAllEntityIdsAsync query.
+   *
+   * The success banner names undo's real reach. A whole-library run loops the writable media kinds and
+   * opens a SEPARATE revert batch per kind, while /undo replays only the last open batch — so a run
+   * spanning videos and images leaves the videos unrecoverable. Reporting one success next to one Undo
+   * button made the whole run look like one reversible operation. The sentence is unconditional
+   * because the UI cannot know which kinds actually acted: with a single kind it is still true, merely
+   * uninformative, and that is the right way round for a claim about recoverability.
    */
   const renameLibrary = useCallback(async (scanCounts?: DryRunCounts) => {
     setRenamingLibrary(true);
@@ -134,7 +141,7 @@ export function useRenameLibrary(): UseRenameLibrary {
         text:
           `Renamed ${counts.willChange} file${counts.willChange === 1 ? "" : "s"}` +
           (counts.attention > 0 ? `, ${counts.attention} skipped` : "") +
-          `.`,
+          `. Undo covers only the last media kind in this run.`,
       });
       setUndoRefreshKey((k) => k + 1);
     } catch (err) {
