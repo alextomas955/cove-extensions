@@ -32,9 +32,13 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      # Formatting/style check — reads root .editorconfig.
+      # Formatting/style check — reads root .editorconfig. Same invocation as `npm run
+      # format:cs:check`, so a contributor's local run and this job cannot disagree. The exclude is a
+      # no-op here (CI has no ../cove sibling, so Cove arrives from NuGet); it earns its place locally,
+      # where Directory.Build.props auto-detects the sibling and dotnet format then walks the
+      # ProjectReference graph into Cove's own source. A path that does not exist is accepted silently.
       - name: dotnet format (verify)
-        run: dotnet format CoveExtensions.slnx --verify-no-changes --severity warn
+        run: dotnet format CoveExtensions.slnx --verify-no-changes --severity warn --exclude ../cove/
       # Analyzer gate: a Release build with TreatWarningsAsErrors=true (root Directory.Build.props)
       # fails on any CA/IDE warning.
       - name: Build with analyzers (warnings = errors)
