@@ -35,12 +35,12 @@ function validManifest(id, overrides = {}) {
 }
 
 // A fully-valid catalog entry baseline (mirrors extensions/catalog.json's real Renamer entry:
-// name, id, path, tagPrefix ending in "/", manifestPath). The mirrored field list is no longer
-// prose to be trusted — the drift check at the end of this file asserts it against the real
-// entry. manifestOnly:true (with
-// a valid manifest kind, set in validManifest) avoids needing a real .csproj fixture file for
-// every case — the validator skips the projectPath existence check entirely when manifestOnly
-// is true. Callers override individual fields to create exactly one malformation.
+// name, id, path, tagPrefix ending in "/", manifestPath). That mirrored list is not prose to be
+// trusted — the drift check at the end of this file asserts it against the real entry.
+//
+// manifestOnly:true (with a valid manifest kind, set in validManifest) avoids needing a real .csproj
+// fixture file for every case — the validator skips the projectPath existence check entirely when
+// manifestOnly is true. Callers override individual fields to create exactly one malformation.
 function validEntry(id, dirName, overrides = {}) {
   return {
     name: id,
