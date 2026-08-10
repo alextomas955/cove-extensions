@@ -218,21 +218,6 @@ public sealed class ParallelBatchTests
     [SkippableFact]
     public async Task InFlightFreeSpaceDrop_SkipsCrossVolumeItemGracefully()
     {
-        // Windows-only for a REASON, not for a platform semantic: measured on Linux (with /dev/shm as
-        // the second volume) this test fails on its first assertion — the source file does not stay put
-        // when the in-flight free-space re-check should have skipped the move. The probe below is keyed
-        // on CALL COUNT rather than on the volume it is asked about, so how many probe calls land in
-        // PHASE A versus PHASE B is platform-shaped, and the sequence that models "ample, then nearly
-        // full" on Windows does not model it elsewhere. Whether the guard itself has a Linux gap or only
-        // this probe does is NOT yet established, and guessing would put a wrong claim in a comment.
-        // Until that is diagnosed, run it where its premise is known to hold and say so out loud.
-        //
-        // It reached this state by being honest: it previously returned early on non-Windows and
-        // reported PASS, so nothing revealed the difference. The failure is the fix working.
-        Skip.IfNot(
-            OperatingSystem.IsWindows(),
-            "the call-count-keyed free-space probe models the PHASE A/B sequence only on Windows; "
-                + "fails on Linux for a cause not yet diagnosed");
         Skip.IfNot(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var dir = new TempDir();
@@ -246,8 +231,18 @@ public sealed class ParallelBatchTests
             string destRootFwd = drive.Root.Replace('\\', '/'); // e.g. "P:/"
 
             await using var seedDb = shared.NewContext();
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(seedDb, srcPathFwd, "raw.mkv", "My Film");
+            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(seedDb, srcPathFwd, "raw.mkv", "My Film");
             File.WriteAllText(Path.Combine(srcFolder, "raw.mkv"), "bytes");
+
+            // The guard's Needed is the DB's RECORDED size, never the file on disk, and a seeded row
+            // defaults to Size 0 - which makes Needed 0 and `Needed > Available` unsatisfiable for any
+            // probe value whatsoever. So without a real size here the in-flight check is a no-op and
+            // this test proves nothing. Measured, which is how it was found: it passed on Windows only
+            // because the destination was refused for an unrelated reason, and the moment it ran on
+            // Linux the file moved. A test whose premise cannot hold is worse than no test.
+            var fileRow = await seedDb.Set<Cove.Core.Entities.VideoFile>().FirstAsync(f => f.Id == fileId);
+            fileRow.Size = 4096;
+            await seedDb.SaveChangesAsync();
 
             // Route the item across volumes (src on the temp drive → dest on the subst drive root), so
             // the partition classifies it cross-volume and the worker runs the in-flight Shortfall.
