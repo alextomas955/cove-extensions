@@ -20,7 +20,7 @@ namespace Renamer.Tests.TestSupport;
 /// row-level consequence of getting elevation wrong cannot be reproduced — <c>CoveContext</c>
 /// installs its authorization filters only under Npgsql — so the proof available at this tier is the
 /// principal AT THE COMMAND, which is the fact those filters consult. Assert on
-/// <see cref="PrincipalPerCommand"/>, never on a row count.
+/// <see cref="CommandsExecuted"/>, never on a row count.
 /// </remarks>
 public sealed class Library : IAsyncDisposable
 {
@@ -30,8 +30,21 @@ public sealed class Library : IAsyncDisposable
 
     public FakePrincipalAccessor Principals { get; } = new();
 
-    /// <summary>The principal kind in effect at each executed command, oldest first.</summary>
-    public List<PrincipalKind?> PrincipalPerCommand { get; } = [];
+    /// <summary>One executed command: the principal in effect when it ran, and the statement itself.</summary>
+    /// <param name="Principal">The principal kind at the command, or null when none was set.</param>
+    /// <param name="Sql">
+    /// The statement text, which is what tells one scope's read from another's — a body may hold several
+    /// scopes with different elevation, so "which principal" is only half the observation.
+    /// </param>
+    public readonly record struct ExecutedCommand(PrincipalKind? Principal, string Sql);
+
+    /// <summary>Every command the contexts executed, oldest first.</summary>
+    /// <remarks>
+    /// The principal and the statement are recorded as ONE value rather than as two parallel lists,
+    /// because the pair is the observation: two lists can be cleared or read apart, and a verdict about
+    /// which principal ran which read would then be assembled from two facts that can disagree.
+    /// </remarks>
+    public List<ExecutedCommand> CommandsExecuted { get; } = [];
 
     public static async Task<Library> CreateAsync()
     {
@@ -47,7 +60,7 @@ public sealed class Library : IAsyncDisposable
         new(
             new DbContextOptionsBuilder<CoveContext>()
                 .UseSqlite(_conn)
-                .AddInterceptors(new PrincipalRecorder(Principals, PrincipalPerCommand))
+                .AddInterceptors(new PrincipalRecorder(Principals, CommandsExecuted))
                 .Options,
             Principals);
 
@@ -75,7 +88,7 @@ public sealed class Library : IAsyncDisposable
 
     public ValueTask DisposeAsync() => _conn.DisposeAsync();
 
-    private sealed class PrincipalRecorder(ICurrentPrincipalAccessor principals, List<PrincipalKind?> sink)
+    private sealed class PrincipalRecorder(ICurrentPrincipalAccessor principals, List<ExecutedCommand> sink)
         : DbCommandInterceptor
     {
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
@@ -84,8 +97,21 @@ public sealed class Library : IAsyncDisposable
             InterceptionResult<DbDataReader> result,
             CancellationToken cancellationToken = default)
         {
-            sink.Add(principals.Current?.Kind);
+            sink.Add(new ExecutedCommand(principals.Current?.Kind, command.CommandText));
             return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+
+        // A bulk ExecuteDelete/ExecuteUpdate carries no reader, so without this override a statement that
+        // ran under the wrong principal would leave no trace at all — the observation would be silently
+        // incomplete for exactly the writes a background body performs.
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            sink.Add(new ExecutedCommand(principals.Current?.Kind, command.CommandText));
+            return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
         }
     }
 }

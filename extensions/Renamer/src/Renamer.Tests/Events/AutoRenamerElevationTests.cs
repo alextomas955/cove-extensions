@@ -10,13 +10,13 @@ namespace Renamer.Tests.Events;
 /// The auto-renamer hook's background database work runs as System.
 /// </summary>
 /// <remarks>
-/// Renamer has eight <c>RunAsSystemAsync</c> sites and, before this, exactly one of them was
-/// observable by any test — <c>Library</c>/<c>PrincipalRecorder</c> lived as private classes in the
-/// options-migration file, so nothing else could see the principal at all. That mattered most here:
-/// the host dispatches entity events fire-and-forget, so this flow carries whichever principal made
-/// the edit, or none, and under an unelevated principal Cove's authorization filters return zero rows
-/// SUCCESSFULLY. The hook would then silently rename nothing, which is indistinguishable from an empty
-/// library.
+/// The host dispatches entity events fire-and-forget, so this flow carries whichever principal made the
+/// edit. Under a present but under-privileged one — the dangerous case, and what this test drives —
+/// Cove's authorization filters return zero rows SUCCESSFULLY: the hook then silently renames nothing,
+/// which is indistinguishable from an empty library. A dispatch carrying NO principal is the safe case
+/// rather than the dangerous one, because <c>CoveContext</c> bypasses those filters for a null principal
+/// exactly as it does for System — which is why an absent principal must never stand in for an
+/// unprivileged one here.
 /// <para>
 /// Asserted on the principal AT THE COMMAND rather than on a row count, for the reason
 /// <c>Library</c> documents: <c>CoveContext</c> installs those filters only under Npgsql, so this tier
@@ -51,16 +51,17 @@ public sealed class AutoRenamerElevationTests
         ((IStatefulExtension)ext).SetStore(store);
         await ext.InitializeAsync(library.BuildProvider());
 
-        // Anonymous is what a fire-and-forget dispatch carries when no principal rode along with it.
+        // Present but unprivileged, which is the case the elevation exists for. Leaving the accessor
+        // empty instead would prove the safe case: no principal bypasses the filters anyway.
         library.Principals.Set(CovePrincipal.Anonymous());
-        library.PrincipalPerCommand.Clear();
+        library.CommandsExecuted.Clear();
 
         await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
         // Non-empty first: an all-System verdict over zero commands would be a vacuous pass, and a hook
         // that never reached the database at all is exactly the failure this is here to catch.
-        Assert.NotEmpty(library.PrincipalPerCommand);
-        Assert.All(library.PrincipalPerCommand, kind => Assert.Equal(PrincipalKind.System, kind));
+        Assert.NotEmpty(library.CommandsExecuted);
+        Assert.All(library.CommandsExecuted, c => Assert.Equal(PrincipalKind.System, c.Principal));
 
         // Elevation is a span, not a mode: the caller's principal is put back afterwards.
         Assert.Equal(PrincipalKind.Anonymous, library.Principals.Current!.Kind);
