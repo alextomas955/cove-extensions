@@ -4,178 +4,136 @@ using Renamer.Planner;
 namespace Renamer.Tests.Execution.Undo;
 
 /// <summary>
-/// The batch-aware, backward-readable revert log. Each batch header carries the
-/// run-level kind; each row carries its own entityId (entityId|fileId|old). Reading the last open
-/// batch returns ONLY the newest run's rows, newest-first, with its kind. A 2-entity batch round-trips
-/// both distinct entityIds (each ≠ its fileId), proving undo can publish the right per-row event id. A
-/// flat pre-header blob parses as one implicit Video batch with EntityId=FileId. Consuming the batch
-/// leaves nothing open for a second undo. Malformed/short lines are tolerated (skipped, never thrown).
-/// DB-free over <see cref="FakeStore"/>.
+/// The tolerant parsers that read a legacy stored journal — the only part of that type still reached,
+/// and the only reader the one-shot migration uses. Locating a batch finds the LAST still-replayable
+/// header and the line range holding its rows; parsing that range yields <c>entityId|fileId|old</c>
+/// rows in append order, each entity id distinct from its file id. A flat pre-header blob is one
+/// implicit Video batch with EntityId = FileId. A batch already spent leaves nothing to locate.
+/// Malformed and short lines are skipped, never thrown.
 /// </summary>
+/// <remarks>
+/// Every fixture is hand-written. There is no writer left to build one with, and that is the point:
+/// a fixture produced by the code under test agrees with it forever, whatever the real stored format is.
+/// </remarks>
 [Trait("Tier", "L0")]
 public sealed class RevertLogBatchTests
 {
-    private static RevertLog NewLog(FakeStore store) => new(store);
+    private static (RevertLog.LegacyBatch Batch, List<RevertLog.RevertEntry> Rows) Read(string blob)
+    {
+        var lines = RevertLog.SplitLines(blob);
+        var located = RevertLog.LocateLastOpenBatch(lines);
+        Assert.NotNull(located);
+        var batch = located.Value;
+        return (batch, RevertLog.ParseRows(lines, batch.RowStart, batch.RowEnd, batch.Headerless));
+    }
 
     [Fact]
-    public async Task TwoRuns_ReadLastOpenBatch_ReturnsOnlySecondRun_WithItsKind()
+    public void TwoRuns_TheLocatedBatchIsTheSecond_WithItsKindAndItsRowsOnly()
     {
-        var store = new FakeStore();
-        var log = NewLog(store);
+        var (batch, rows) = Read(string.Join("\n",
+            "#batch|R1|638000000000000000|Video|open",
+            "7|70|media/a.mkv",
+            "8|80|media/b.mkv",
+            "#batch|R2|638000000000000001|Video|open",
+            "9|90|media/c.mkv"));
 
-        // Run 1 (kind=Video): two rows.
-        await log.BeginBatchAsync("R1", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 7, fileId: 70, oldPath: "media/a.mkv");
-        await log.AppendAsync(entityId: 8, fileId: 80, oldPath: "media/b.mkv");
+        Assert.Equal("R2", batch.RunId);
+        Assert.Equal(638000000000000001L, batch.WrittenAtUtcTicks);
+        Assert.Equal(RenamerFileKind.Video, batch.Kind);
+        Assert.False(batch.Headerless);
 
-        // Run 2 (kind=Video): one row.
-        await log.BeginBatchAsync("R2", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 9, fileId: 90, oldPath: "media/c.mkv");
-
-        // Reading the last open batch returns ONLY R2's one entry, with R2's kind.
-        var batch = await log.ReadLastOpenBatchAsync();
-        Assert.NotNull(batch);
-        Assert.Equal(RenamerFileKind.Video, batch!.Kind);
-        var only = Assert.Single(batch.Entries);
-        // The entry's EntityId is 9 (the parent entity), NOT its fileId (90).
+        var only = Assert.Single(rows);
+        // The entry's EntityId is the PARENT entity (9), never its fileId (90).
         Assert.Equal(9, only.EntityId);
         Assert.Equal(90, only.FileId);
         Assert.NotEqual(only.EntityId, only.FileId);
     }
 
     [Fact]
-    public async Task TwoEntityBatch_RoundTrips_BothDistinctEntityIds()
+    public void TwoEntityBatch_RoundTrips_BothDistinctEntityIds_InAppendOrder()
     {
-        var store = new FakeStore();
-        var log = NewLog(store);
+        var (_, rows) = Read(string.Join("\n",
+            "#batch|R1|638000000000000000|Image|open",
+            "7|70|media/a.mkv",
+            "8|80|media/b.mkv"));
 
-        await log.BeginBatchAsync("R1", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 7, fileId: 70, oldPath: "media/a.mkv");
-        await log.AppendAsync(entityId: 8, fileId: 80, oldPath: "media/b.mkv");
-
-        var batch = await log.ReadLastOpenBatchAsync();
-        Assert.NotNull(batch);
-        Assert.Equal(2, batch!.Entries.Count);
-
-        // Each entry's EntityId is distinct from its fileId; both entity ids present.
-        var entityIds = batch.Entries.Select(e => e.EntityId).ToHashSet();
-        Assert.Contains(7, entityIds);
-        Assert.Contains(8, entityIds);
-        foreach (var e in batch.Entries)
-        {
-            Assert.NotEqual(e.EntityId, e.FileId);
-        }
+        // Append order, not reversed: the reversal undo needs is the journal port's, and it is minted
+        // from the sequence number the table owns rather than from a position in a parsed list.
+        Assert.Equal([7, 8], rows.Select(e => e.EntityId));
+        Assert.All(rows, e => Assert.NotEqual(e.EntityId, e.FileId));
     }
 
     [Fact]
-    public async Task ReadLastOpenBatch_ReturnsRowsNewestFirst()
+    public void TheHeadersKindIsCarried_AndAnUnknownKindFallsBackToVideo()
     {
-        var store = new FakeStore();
-        var log = NewLog(store);
+        Assert.Equal(RenamerFileKind.Image,
+            Read("#batch|R1|1|Image|open\n7|70|a").Batch.Kind);
 
-        await log.BeginBatchAsync("R1", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 1, fileId: 11, oldPath: "x/1.mkv");
-        await log.AppendAsync(entityId: 2, fileId: 22, oldPath: "x/2.mkv");
-        await log.AppendAsync(entityId: 3, fileId: 33, oldPath: "x/3.mkv");
-
-        var batch = await log.ReadLastOpenBatchAsync();
-        Assert.NotNull(batch);
-        // Newest-first (reverse append order): last appended (entity 3) is first.
-        Assert.Equal(new[] { 3, 2, 1 }, batch!.Entries.Select(e => e.EntityId).ToArray());
+        Assert.Equal(RenamerFileKind.Video,
+            Read("#batch|R1|1|Sculpture|open\n7|70|a").Batch.Kind);
     }
 
     [Fact]
-    public async Task FlatLegacyBlob_ParsesAsOneVideoBatch_EntityIdEqualsFileId()
+    public void FlatLegacyBlob_ReadsAsOneVideoBatch_EntityIdEqualsFileId()
     {
-        var store = new FakeStore();
-        // An old flat blob: id|old|new rows, NO #batch headers.
-        await store.SetAsync(RevertLog.Key,
-            "70|media/a.mkv|media/A.mkv\n80|media/b.mkv|media/B.mkv");
-        var log = NewLog(store);
+        // An old flat blob: fileId|old|new rows, NO #batch headers.
+        var (batch, rows) = Read("70|media/a.mkv|media/A.mkv\n80|media/b.mkv|media/B.mkv");
 
-        var batch = await log.ReadLastOpenBatchAsync();
-        Assert.NotNull(batch);
-        Assert.Equal(RenamerFileKind.Video, batch!.Kind);
-        Assert.Equal(2, batch.Entries.Count);
-        // Best-effort legacy fallback: each entry's EntityId == its FileId.
-        foreach (var e in batch.Entries)
-        {
-            Assert.Equal(e.FileId, e.EntityId);
-        }
-        // Still newest-first.
-        Assert.Equal(80, batch.Entries[0].FileId);
-        Assert.Equal(70, batch.Entries[1].FileId);
+        Assert.True(batch.Headerless);
+        Assert.Equal("", batch.RunId);
+        Assert.Equal(0, batch.WrittenAtUtcTicks);
+        Assert.Equal(RenamerFileKind.Video, batch.Kind);
+
+        Assert.Equal(2, rows.Count);
+        Assert.All(rows, e => Assert.Equal(e.FileId, e.EntityId));
+        Assert.Equal([70, 80], rows.Select(e => e.FileId));
+        Assert.Equal("media/a.mkv", rows[0].OldPath);
     }
 
     [Fact]
-    public async Task ReadLastBatchSummary_ReturnsShape_NullWhenEmpty()
+    public void ABlobWhoseOnlyBatchIsSpent_LocatesNothing()
     {
-        var store = new FakeStore();
-        var log = NewLog(store);
+        var lines = RevertLog.SplitLines("#batch|R1|1|Video|consumed\n7|70|media/a.mkv");
 
-        // Empty blob → null summary.
-        Assert.Null(await log.ReadLastBatchSummaryAsync());
-
-        await log.BeginBatchAsync("R1", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 7, fileId: 70, oldPath: "a");
-        await log.BeginBatchAsync("R2", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 8, fileId: 80, oldPath: "b");
-        await log.AppendAsync(entityId: 9, fileId: 90, oldPath: "c");
-
-        var summary = await log.ReadLastBatchSummaryAsync();
-        Assert.NotNull(summary);
-        Assert.Equal("R2", summary!.Value.RunId);
-        Assert.Equal(2, summary.Value.Count);          // R2's data-row count
-        Assert.True(summary.Value.WrittenAtUtcTicks > 0);
-        Assert.False(summary.Value.Consumed);
+        Assert.Null(RevertLog.LocateLastOpenBatch(lines));
     }
 
     [Fact]
-    public async Task MarkLastBatchConsumed_NextReadSkipsConsumed_FlipsSummary()
+    public void MalformedLines_AreTolerated_NeverThrow()
     {
-        var store = new FakeStore();
-        var log = NewLog(store);
+        // A short header (missing fields), a non-integer row and a short row, mixed with one valid
+        // header and one valid row. Nothing throws; only the valid row parses.
+        var (batch, rows) = Read(string.Join("\n",
+            "#batch|RBAD",                       // header with too few fields → skipped
+            "#batch|R1|123456789|Video|open",    // valid open header
+            "notanint|x|y|z",                    // non-int entityId → skipped
+            "7|short",                           // too few fields → skipped
+            "7|70|media/a.mkv|media/A.mkv"));    // valid row, with a trailing field the parser ignores
 
-        await log.BeginBatchAsync("R1", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 7, fileId: 70, oldPath: "a");
-        await log.BeginBatchAsync("R2", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 9, fileId: 90, oldPath: "c");
-
-        // R1 was superseded when R2 opened.
-        var open = await log.ReadLastOpenBatchAsync();
-        Assert.NotNull(open);
-        Assert.Equal(9, Assert.Single(open!.Entries).EntityId);
-
-        await log.MarkLastBatchConsumedAsync("R2");
-
-        Assert.Null(await log.ReadLastOpenBatchAsync());
-
-        // The summary survives the consume — the panel shows the outcome of the rename just undone.
-        var summary = await log.ReadLastBatchSummaryAsync();
-        Assert.NotNull(summary);
-        Assert.Equal("R2", summary!.Value.RunId);
-        Assert.True(summary.Value.Consumed);
-    }
-
-    [Fact]
-    public async Task MalformedLines_AreTolerated_NeverThrow()
-    {
-        var store = new FakeStore();
-        // A blob with a short header (missing fields), a short data row, and a non-int row mixed with
-        // one valid header + one valid row. Nothing should throw; the valid row should still parse.
-        await store.SetAsync(RevertLog.Key, string.Join("\n",
-            "#batch|RBAD",                          // header with too few fields → skipped
-            "#batch|R1|123456789|Video|open",       // valid open header
-            "notanint|x|y|z",                        // non-int entityId → skipped
-            "7|short",                               // too few fields → skipped
-            "7|70|media/a.mkv|media/A.mkv"));        // valid row
-
-        var log = NewLog(store);
-
-        var batch = await log.ReadLastOpenBatchAsync();   // must not throw
-        Assert.NotNull(batch);
-        var only = Assert.Single(batch!.Entries);
+        Assert.Equal("R1", batch.RunId);
+        var only = Assert.Single(rows);
         Assert.Equal(7, only.EntityId);
         Assert.Equal(70, only.FileId);
+        Assert.Equal("media/a.mkv", only.OldPath);
+    }
+
+    [Fact]
+    public void ARangeCanBeParsedInSlices_AndTheSlicesRebuildTheWholeBatch()
+    {
+        // The shape the migration relies on: the located range is parsed a window at a time, so no list
+        // the size of the stored value ever exists beside it.
+        var lines = RevertLog.SplitLines(string.Join("\n",
+            ["#batch|R1|1|Video|open", .. Enumerable.Range(0, 9).Select(i => $"{i}|{100 + i}|f-{i}.mkv")]));
+        var batch = RevertLog.LocateLastOpenBatch(lines)!.Value;
+
+        var sliced = new List<RevertLog.RevertEntry>();
+        for (int start = batch.RowStart; start < batch.RowEnd; start += 4)
+        {
+            sliced.AddRange(RevertLog.ParseRows(lines, start, Math.Min(start + 4, batch.RowEnd), batch.Headerless));
+        }
+
+        Assert.Equal(
+            RevertLog.ParseRows(lines, batch.RowStart, batch.RowEnd, batch.Headerless),
+            sliced);
     }
 }

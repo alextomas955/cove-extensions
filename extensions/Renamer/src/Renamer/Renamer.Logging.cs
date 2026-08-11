@@ -105,8 +105,8 @@ public sealed partial class Renamer
 
     [LoggerMessage(
         EventId = 1054, Level = LogLevel.Warning,
-        Message = "[Renamer] could not discard the pre-upgrade undo journal; the settings page may stay unreadable until the next load retries")]
-    private partial void LogRevertLogPurgeFailed(Exception ex);
+        Message = "[Renamer] could not migrate or clear the legacy stored undo journal; the settings page may stay unreadable until the next load retries")]
+    private partial void LogJournalBlobMigrationFailed(Exception ex);
 
     // The one-time name→id options conversion rewrites the stored settings IN PLACE and keeps no copy
     // of the originals, so these lines are the whole forensic trail: what it resolved against, what it
@@ -201,4 +201,12 @@ public sealed partial class Renamer
         EventId = 1030, Level = LogLevel.Warning,
         Message = "[Renamer] routing: skipped invalid source-path regex '{Pattern}': {Reason}")]
     private partial void LogInvalidRouteRegex(string pattern, string reason);
+
+    // The legacy journal migration deletes its own source, so this line is the only lasting trace that
+    // it ran and what it moved. A COUNT and nothing else: the value it read is a list of the user's
+    // file paths, and a log is the wrong place for those.
+    [LoggerMessage(
+        EventId = 1064, Level = LogLevel.Information,
+        Message = "[Renamer] undo journal migration: moved {Rows} row(s) out of the legacy stored journal and deleted both legacy keys")]
+    private partial void LogJournalBlobMigrated(int rows);
 }

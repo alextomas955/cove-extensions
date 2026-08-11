@@ -89,24 +89,24 @@ public sealed partial class Renamer : FullExtensionBase
             LogLegacyScanPurgeFailed(ex);
         }
 
-        // ONE-TIME journal discard: before the row cap the undo journal also grew one line per renamed
-        // file with no bound, so an earlier version's value can be as unreadable as the scan result.
-        // Unlike that one this is NOT unconditional — Cove reloads on every deploy, restart and reboot,
-        // and purging each time would take the user's undo with it. The condition rides a separate
-        // few-byte stamp, so the journal itself is still never read.
+        // ONE-TIME journal migration: an installation upgrading into the table-backed journal still
+        // carries its undo under the two legacy store keys, so a code change alone would silently throw
+        // that undo away. This moves it into the table and then deletes both keys — which also stops an
+        // oversized leftover being served by the bulk extension-data read, with no SQL.
+        //
+        // Safe HERE, after the assertion above: the host applies this extension's schema migration
+        // BEFORE InitializeAsync on all three lifecycle paths (boot, runtime install, enable), so the
+        // table already exists. There is no marker to check first — deleting the source keys IS the
+        // marker, so a second load finds nothing and does nothing.
         try
         {
-            if (await Store.GetAsync(RevertLog.SchemaKey, ct) != RevertLog.CurrentSchema)
-            {
-                await Store.DeleteAsync(RevertLog.Key, ct);
-                await Store.SetAsync(RevertLog.SchemaKey, RevertLog.CurrentSchema, ct);
-            }
+            await MigrateStoredJournalAsync(ct);
         }
         catch (Exception ex)
         {
-            // A failed stamp write only costs one more discard on the next load, so this is reported
-            // and stepped over rather than blocking the load.
-            LogRevertLogPurgeFailed(ex);
+            // Reported and stepped over rather than blocking the load: an install that refuses to come
+            // up because a legacy cleanup failed leaves the user worse off than the leftover did.
+            LogJournalBlobMigrationFailed(ex);
         }
 
         // ONE-TIME name→id options conversion. A blob written before the identity migration keys its
@@ -169,6 +169,28 @@ public sealed partial class Renamer : FullExtensionBase
                     + "move files with no record of where they came from and no way to undo it. The "
                     + "extension refuses to load rather than rename unjournalled.",
                 ex);
+        }
+    }
+
+    /// <summary>Moves the legacy stored journal into the journal table exactly once, then clears it.</summary>
+    /// <remarks>
+    /// Elevated, like every other background database body here: the principal flows by async context
+    /// rather than by DI scope, and this extension's own elevation suite asserts that every command run
+    /// during the load carries the System principal.
+    /// </remarks>
+    private async Task MigrateStoredJournalAsync(CancellationToken ct)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<DbContext>();
+        using var journal = new CoveRevertJournal(db);
+
+        int moved = await RunAsSystem.RunAsSystemAsync(
+            scope.ServiceProvider,
+            () => JournalBlobMigration.RunAsync(Store, journal, DateTime.UtcNow, ct));
+
+        if (moved > 0)
+        {
+            LogJournalBlobMigrated(moved);
         }
     }
 
