@@ -79,11 +79,31 @@ public sealed class UndoReplayer
     }
 
     /// <summary>One failed/skipped reverse-replay entry surfaced in the run result's buckets.</summary>
+    /// <param name="RunId">The batch the stopped row belongs to.</param>
+    /// <param name="Seq">The row's position within that batch; the rest of its identity.</param>
     /// <param name="FileId">The file row.</param>
     /// <param name="OldPath">The path the reverse move targeted (the original location).</param>
     /// <param name="NewPath">The path the file currently sits at; empty when it is no longer in the library.</param>
     /// <param name="Reason">A human-readable note for the skip/failure.</param>
-    public sealed record UndoFailure(int FileId, string OldPath, string NewPath, string Reason);
+    /// <param name="Stop">
+    /// The same fact as <paramref name="Reason"/> as a value, which is what decides whether the row is
+    /// retired as unrestorable or left pending. Mapped from the typed outcome each arm already has, never
+    /// parsed back out of <paramref name="Reason"/>.
+    /// </param>
+    /// <remarks>
+    /// <paramref name="RunId"/> and <paramref name="Seq"/> ride along for the same reason
+    /// <see cref="UndoRunResult.Restored"/> carries rows rather than paths: a single batch can hold two
+    /// rows for one file id, so a caller that must retire exactly this row cannot reconstruct which one
+    /// it was from the file id or the paths.
+    /// </remarks>
+    public sealed record UndoFailure(
+        string RunId,
+        long Seq,
+        int FileId,
+        string OldPath,
+        string NewPath,
+        string Reason,
+        UndoStopReason Stop);
 
     /// <summary>A non-fatal note about an entry that was RESTORED anyway.</summary>
     /// <param name="FileId">The physical file row the note belongs to.</param>
@@ -150,7 +170,9 @@ public sealed class UndoReplayer
                     // The row outlived its file (deleted since the rename): nothing to move back, and no
                     // current path to name. Reported rather than guessed at from the logged old location.
                     skipped.Add(new UndoFailure(
-                        entry.FileId, entry.OldPath, "", "skipped: the renamed file is no longer in the library"));
+                        entry.RunId, entry.Seq, entry.FileId, entry.OldPath, "",
+                        "skipped: the renamed file is no longer in the library",
+                        UndoStopReason.FileNoLongerInLibrary));
                     continue;
                 }
 
@@ -168,7 +190,9 @@ public sealed class UndoReplayer
                 // A cancellation (host shutdown) is cancellation, not a per-entry failure — the filter
                 // excludes it. Any other unexpected throw outside the save path is reported as a failure
                 // for that entry only — the batch continues (each entry is independent).
-                failed.Add(new UndoFailure(entry.FileId, entry.OldPath, currentPath, $"unexpected error: {ex.Message}"));
+                failed.Add(new UndoFailure(
+                    entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath,
+                    $"unexpected error: {ex.Message}", UndoStopReason.UnexpectedError));
             }
         }
 
@@ -211,13 +235,14 @@ public sealed class UndoReplayer
         string nativeOld = ToNative(entry.OldPath);
         bool sameVolume = VolumeClassifier.SameVolume(currentPath, entry.OldPath);
 
-        var (moved, moveReason, movedSidecars, sidecarWarnings) =
+        var (moved, moveReason, moveStop, movedSidecars, sidecarWarnings) =
             await ReverseMoveOnDisk(sameVolume, nativeNew, nativeOld, reverseSidecars, ct);
 
         if (!moved)
         {
             return new RevertOutcome.Skipped(new UndoFailure(
-                entry.FileId, entry.OldPath, currentPath, moveReason ?? "skipped: reverse move did not happen"));
+                entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath,
+                moveReason ?? "skipped: reverse move did not happen", moveStop));
         }
 
         // A sidecar that could not go back — its old slot is occupied, or it is locked — is a WARNING,
@@ -267,7 +292,8 @@ public sealed class UndoReplayer
                     ? $"recomputed Path '{savedFile.RecomputedPath}' != restored path '{expected}'; rollback INCOMPLETE: {string.Join("; ", rbWarnings)}"
                     : $"recomputed Path '{savedFile.RecomputedPath}' != restored path '{expected}'; rolled back";
                 return new RevertOutcome.Failed(new UndoFailure(
-                    entry.FileId, entry.OldPath, currentPath, note));
+                    entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath, note,
+                    UndoStopReason.RestoredPathMismatch));
             }
 
             // (6) Success: publish the EXACT forward-equivalent event — kind from the batch header,
@@ -298,7 +324,8 @@ public sealed class UndoReplayer
                 ? $"DB save failed; rollback INCOMPLETE: {ex.Message}; rollback warnings: {string.Join("; ", rbWarnings)}"
                 : $"DB save failed; file rolled back: {ex.Message}";
             return new RevertOutcome.Failed(new UndoFailure(
-                entry.FileId, entry.OldPath, currentPath, note));
+                entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath, note,
+                UndoStopReason.DatabaseSaveFailed));
         }
     }
 
@@ -330,8 +357,9 @@ public sealed class UndoReplayer
             if (!guard.Accepted)
             {
                 return (new RevertOutcome.Skipped(new UndoFailure(
-                    entry.FileId, entry.OldPath, currentPath,
-                    $"skipped: restore target rejected by allowlist: {guard.Reason}")), 0);
+                    entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath,
+                    $"skipped: restore target rejected by allowlist: {guard.Reason}",
+                    UndoStopReason.RestoreTargetRejectedByAllowlist)), 0);
             }
         }
 
@@ -342,7 +370,9 @@ public sealed class UndoReplayer
         if (!Directory.Exists(ToNative(oldDir)))
         {
             return (new RevertOutcome.Skipped(new UndoFailure(
-                entry.FileId, entry.OldPath, currentPath, "skipped: original directory no longer exists")), 0);
+                entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath,
+                "skipped: original directory no longer exists",
+                UndoStopReason.OriginalDirectoryUnavailable)), 0);
         }
 
         int oldFolderId = await _port.GetOrCreateFolderIdAsync(oldDir, ct);
@@ -352,7 +382,9 @@ public sealed class UndoReplayer
             || await _port.CollisionExistsAsync(oldFolderId, oldBasename, entry.FileId, ct))
         {
             return (new RevertOutcome.Skipped(new UndoFailure(
-                entry.FileId, entry.OldPath, currentPath, "skipped: old location is occupied on disk or in the database")), 0);
+                entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath,
+                "skipped: old location is occupied on disk or in the database",
+                UndoStopReason.OriginalLocationOccupied)), 0);
         }
 
         return (null, oldFolderId);
@@ -365,11 +397,13 @@ public sealed class UndoReplayer
     /// <see cref="CrossVolumeMover.MoveAsync"/>. Both tiers return the identical shape.
     /// </summary>
     /// <returns>
-    /// Whether the PRIMARY moved, the skip reason when it did not, the sidecars that ACTUALLY moved
-    /// back (what a rollback reverses, and what decides which caption filenames may be written back),
-    /// and the non-fatal notes naming any sidecar that stayed put.
+    /// Whether the PRIMARY moved, the skip reason when it did not — both as prose for the panel and as
+    /// the value the retirement decision reads — the sidecars that ACTUALLY moved back (what a rollback
+    /// reverses, and what decides which caption filenames may be written back), and the non-fatal notes
+    /// naming any sidecar that stayed put.
     /// </returns>
-    private async Task<(bool moved, string? reason, IReadOnlyList<(string From, string To)> movedSidecars,
+    private async Task<(bool moved, string? reason, UndoStopReason stop,
+        IReadOnlyList<(string From, string To)> movedSidecars,
         IReadOnlyList<string> warnings)> ReverseMoveOnDisk(
         bool sameVolume, string nativeNew, string nativeOld,
         List<DiskMover.SidecarMove> sidecars, CancellationToken ct)
@@ -377,13 +411,35 @@ public sealed class UndoReplayer
         if (sameVolume)
         {
             var move = _disk.Move(nativeNew, nativeOld, sidecars);
-            return (move.Moved, move.Reason, [.. move.MovedSidecars.Select(s => (s.From, s.To))], move.Warnings);
+            return (move.Moved, move.Reason, StopFor(move.Outcome),
+                [.. move.MovedSidecars.Select(s => (s.From, s.To))], move.Warnings);
         }
 
         var cross = await _cross.MoveAsync(nativeNew, nativeOld,
             [.. sidecars.Select(s => new CrossVolumeMover.SidecarMove(s.From, s.To))], ct);
-        return (cross.Moved, cross.Reason, [.. cross.MovedSidecars.Select(s => (s.From, s.To))], cross.Warnings);
+        return (cross.Moved, cross.Reason, StopFor(cross.Outcome),
+            [.. cross.MovedSidecars.Select(s => (s.From, s.To))], cross.Warnings);
     }
+
+    // The two movers classify their own failures, so a reverse move's stop reason is a translation of a
+    // value that already exists rather than a fresh judgement about what went wrong. The `Moved` arm is
+    // unreachable from a caller that only asks when the move did NOT happen; it maps to the retryable
+    // catch-all so an unreachable arm becoming reachable cannot silently retire a row.
+    private static UndoStopReason StopFor(DiskMover.MoveOutcome outcome) => outcome switch
+    {
+        DiskMover.MoveOutcome.LockedOrExists => UndoStopReason.ReverseMoveLockedOrTargetExists,
+        DiskMover.MoveOutcome.PermissionDenied => UndoStopReason.ReverseMovePermissionDenied,
+        _ => UndoStopReason.UnexpectedError,
+    };
+
+    private static UndoStopReason StopFor(CrossVolumeMover.MoveOutcome outcome) => outcome switch
+    {
+        CrossVolumeMover.MoveOutcome.LockedOrExists => UndoStopReason.ReverseMoveLockedOrTargetExists,
+        CrossVolumeMover.MoveOutcome.PermissionDenied => UndoStopReason.ReverseMovePermissionDenied,
+        CrossVolumeMover.MoveOutcome.VerifyFailed => UndoStopReason.ReverseMoveVerifyFailed,
+        CrossVolumeMover.MoveOutcome.Cancelled => UndoStopReason.ReverseMoveCancelled,
+        _ => UndoStopReason.UnexpectedError,
+    };
 
     /// <summary>
     /// Rolls a completed reverse move back to NEW through the SAME mover tier that performed it, taking
