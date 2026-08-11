@@ -59,6 +59,14 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <!--
+      TEST-ONLY, and a version PIN on an edge that already exists rather than a new dependency: Npgsql
+      is restored here anyway through Cove.Core → Pgvector, at a version two majors behind the one the
+      released host runs. Naming it puts the compile graph on the runtime users receive. See the
+      reasoning at its Directory.Packages.props entry; the symptom without it is an MSB3277 that
+      TreatWarningsAsErrors cannot catch.
+    -->
+    <PackageReference Include="Npgsql" />
+    <!--
       TEST-ONLY: TransportSmokeTests mounts the extension's MapEndpoints in an in-process
       WebApplication/TestServer to cover the real minimal-API transport boundary. On nuget.org; the
       smoke file itself is cove-present (Compile-Removed on the bare leg with the other endpoint tests).

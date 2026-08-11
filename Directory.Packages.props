@@ -39,6 +39,18 @@
       the ASP.NET Core integration is compiled against 2.x.
     -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.11.0" />
+    <!--
+      Aligns the compile graph with the runtime users actually receive. Cove.Core 1.1.0's nuspec
+      declares Pgvector 0.3.2, whose nuspec declares Npgsql >= 8.0.5, while the released cove-app image
+      ships Npgsql 10.0.3 — so without this the extension is compiled against a dependency closure two
+      majors behind anything that runs. Not a new dependency to vet: Npgsql is already restored
+      transitively along that same edge, and the version was read from the image's own Npgsql.dll
+      identity rather than chosen.
+
+      The symptom without it is a non-fatal MSB3277 conflict, which TreatWarningsAsErrors does NOT
+      cover — that setting is compiler-only — so it would sit in the log unnoticed indefinitely.
+    -->
+    <PackageVersion Include="Npgsql" Version="10.0.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.9" />

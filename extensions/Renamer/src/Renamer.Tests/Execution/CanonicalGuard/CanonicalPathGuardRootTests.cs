@@ -151,14 +151,34 @@ public sealed class CanonicalPathGuardRootTests
         Assert.Contains("canonical resolution failed", r.Reason);
     }
 
+    // The path below is a UNC share on Windows and an ordinary non-existent POSIX path on Linux, so the
+    // guard refuses on BOTH — for different stated reasons. The refusal is the property worth holding
+    // everywhere and is asserted unconditionally; only the wording is platform-specific, and it gets its
+    // own gated case rather than being skipped wholesale. Skipping the pair would delete Linux coverage
+    // of a fail-closed guard, which is the species of hole this suite exists to close.
+    private const string UnreachableUncTarget = @"\\renamer-no-such-host\share\media\out";
+    private const string UnreachableUncRoot = @"\\renamer-no-such-host\share";
+
     [Fact] // The property the fix must not trade away: an ancestor that cannot be resolved is a REJECT.
     public void UnresolvableAncestor_IsStillRejectedFailClosed()
     {
         // The owner allowlisted this UNC root, so it clears the syntax gate and reaches resolution —
-        // where the host is unreachable, containment cannot be proven, and the guard refuses.
-        string target = @"\\renamer-no-such-host\share\media\out".Replace('\\', '/');
+        // where containment cannot be proven and the guard refuses.
+        var r = CanonicalPathGuard.Check(UnreachableUncTarget.Replace('\\', '/'), [UnreachableUncRoot]);
 
-        var r = CanonicalPathGuard.Check(target, [@"\\renamer-no-such-host\share"]);
+        Assert.False(r.Accepted);
+        Assert.NotNull(r.Reason);
+    }
+
+    [SkippableFact] // The Windows WORDING of the same refusal: an unreachable host is a canonical-resolution failure.
+    public void UnresolvableAncestor_WindowsReasonNamesCanonicalFailure()
+    {
+        Skip.IfNot(
+            OperatingSystem.IsWindows(),
+            "asserts the Windows UNC reason string; on Unix the same path is an ordinary missing directory and the guard refuses on containment instead"
+        );
+
+        var r = CanonicalPathGuard.Check(UnreachableUncTarget.Replace('\\', '/'), [UnreachableUncRoot]);
 
         Assert.False(r.Accepted);
         Assert.NotNull(r.Reason);
