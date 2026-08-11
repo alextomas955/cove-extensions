@@ -26,6 +26,7 @@ import { test as base, expect } from "@playwright/test";
 import { createApiClient } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { seedVideo } from "@cove-extensions/e2e/seed-media";
+import { pollJob } from "@cove-extensions/e2e/poll";
 import { RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
 
 // Small and fixed. Every assertion below compares two live responses to each other, so nothing here
@@ -60,7 +61,7 @@ const test = base.extend({
 
       await use({
         harness,
-        extensionId,
+        routeBase: `/api/extensions/${extensionId}`,
         owner: createApiClient(() => harness.baseUrl, harness.token),
         restricted: createApiClient(() => harness.baseUrl, restricted.token),
       });
@@ -127,4 +128,87 @@ test("Cove's row-level filters bite for a restricted principal and not for the o
     restrictedTotal,
     "the owner and the restricted user read the same count from the same library, so the filters are not discriminating between them",
   ).not.toBe(ownerTotal);
+});
+
+test("the elevated detached read sees the library its own caller cannot", async ({ authz }) => {
+  const { owner, restricted, routeBase } = authz;
+
+  // The denominator, read live from the host as somebody the filters do not apply to. Nothing below
+  // compares against a literal count.
+  const ownerTotal = await readVideoTotal(owner, "the owner");
+  expect(
+    ownerTotal,
+    "the seeded library is empty, so neither figure below can mean anything",
+  ).toBeGreaterThan(0);
+
+  // Everything from here is driven as the restricted user — the same principal that just read zero
+  // videos in the test above.
+  const enqueued = await restricted.post(`${routeBase}/scan-library`, {});
+  expect(
+    enqueued.status,
+    `POST ${routeBase}/scan-library as the restricted user answered ${enqueued.status}: ${enqueued.text}`,
+  ).toBe(202);
+  const jobId = enqueued.json?.jobId;
+  expect(typeof jobId, `the enqueue carried no jobId: ${enqueued.text}`).toBe("string");
+
+  const job = await pollJob(restricted, jobId, { timeoutMs: 120_000 });
+  expect(
+    job?.status?.toLowerCase(),
+    `the scan job did not complete (status ${job?.status}, error ${job?.error})`,
+  ).toBe("completed");
+
+  // The job body runs detached and elevates, so it plans the whole library.
+  //
+  // WHAT THIS HALF DOES AND DOES NOT GATE, measured rather than reasoned. Cove dispatches an
+  // exclusive job from a queue processor its job service starts at host startup, and the principal
+  // lives in an AsyncLocal — so a queued body has NO ambient principal, and a missing principal
+  // bypasses the filters exactly as the wildcard does. Removing the elevation from this job body was
+  // therefore observed to leave the figure below unchanged: the assertion is not a gate on that one
+  // line. What it does pin is the PAIR — a detached body that reaches the library beside a request
+  // path that does not — so it goes red if the host ever begins propagating a caller's principal into
+  // a queued body while the elevation is absent. The elevation still earns its place for every
+  // dispatch that DOES propagate one (a non-exclusive job, an inline event handler); that case is
+  // asserted at the seam, not here.
+  const summary = await restricted.get(`${routeBase}/last-scan`);
+  expect(
+    summary.status,
+    `GET ${routeBase}/last-scan as the restricted user answered ${summary.status}: ${summary.text}`,
+  ).toBe(200);
+  const elevatedEntities = summary.json?.totalEntities;
+  expect(
+    typeof elevatedEntities,
+    `the scan aggregate carried no numeric totalEntities: ${summary.text}`,
+  ).toBe("number");
+
+  // The request path, by contrast, deliberately stays on the caller's principal. Renamer's own source
+  // states the invariant both ways: every detached body elevates, and the two request-path scopes
+  // (/undo and /scan-rows) do NOT, because elevating them would hand a caller rows their principal is
+  // not allowed to see. So ZERO HERE IS THE CORRECT ANSWER and must never be "fixed" — this assertion
+  // is what makes a future change that elevates this path fail a test instead of silently widening
+  // every caller's reach.
+  const rows = await restricted.post(`${routeBase}/scan-rows`, { take: SEEDED_VIDEOS * 10 });
+  expect(
+    rows.status,
+    `POST ${routeBase}/scan-rows as the restricted user answered ${rows.status}: ${rows.text}`,
+  ).toBe(200);
+  expect(
+    rows.json?.rows?.length,
+    "the non-elevated request path returned rows to a principal whose own video read is denied — it is running elevated",
+  ).toBe(0);
+  expect(
+    rows.json?.entitiesExamined,
+    "the non-elevated request path examined entities its caller cannot read",
+  ).toBe(0);
+
+  // The proof, in one comparison on one library for one user: the detached body reports what the
+  // owner reports, and the same caller's own request path reports nothing. Both figures come from
+  // live responses and are compared to each other, never to a number this file supplied.
+  expect(
+    elevatedEntities,
+    "the elevated scan did not see the whole library — the detached body is running on the caller's principal",
+  ).toBe(ownerTotal);
+  expect(
+    elevatedEntities,
+    "the elevated and non-elevated paths agree, so this test is not observing the difference it exists for",
+  ).not.toBe(rows.json?.rows?.length);
 });
