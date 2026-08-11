@@ -26,8 +26,10 @@ public sealed partial class Renamer : FullExtensionBase
     // ── Executor wiring ───────────────────────────────────────────────────────
     // The executor needs a SCOPED CoveContext per run (a DbContext is scoped, not singleton) and the
     // host IEventBus for the post-renamer reindex event. Capture the scope factory + event bus
-    // in InitializeAsync; a run opens its own scope via CreateAsyncScope() and resolves the scoped
-    // DbContext there.
+    // in InitializeAsync. A DETACHED run takes its scope from RunAsSystem.RunInSystemScopeAsync, which
+    // hands one out already elevated, so elevation is not a second step such a body can be written
+    // without; only a request path (which must stay on its caller's principal) and the extension-owned
+    // journal (which carries no per-principal filters to unlock) create a scope directly.
 
     // Resolved once at load and never null afterwards. The fields are nullable only because they are
     // assigned in InitializeAsync rather than the ctor; every use site is reached only after init, so
@@ -151,15 +153,14 @@ public sealed partial class Renamer : FullExtensionBase
     {
         try
         {
-            await using var scope = ScopeFactory.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-
-            // A load-time read has no ambient principal, so it goes through the one elevation seam
-            // like every other background read here — a filtered read that returns nothing is the
-            // failure mode this whole check exists to make impossible to mistake for success.
-            await RunAsSystem.RunAsSystemAsync(
-                scope.ServiceProvider,
-                () => db.Set<RevertBatchEntity>().AsNoTracking().AnyAsync(ct));
+            // The scope arrives already elevated, like every other detached body here — a filtered read
+            // that returns nothing is the failure mode this whole check exists to make impossible to
+            // mistake for success.
+            await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, services =>
+            {
+                var db = services.GetRequiredService<DbContext>();
+                return db.Set<RevertBatchEntity>().AsNoTracking().AnyAsync(ct);
+            });
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -180,13 +181,12 @@ public sealed partial class Renamer : FullExtensionBase
     /// </remarks>
     private async Task MigrateStoredJournalAsync(CancellationToken ct)
     {
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-        using var journal = new CoveRevertJournal(db);
-
-        int moved = await RunAsSystem.RunAsSystemAsync(
-            scope.ServiceProvider,
-            () => JournalBlobMigration.RunAsync(Store, journal, DateTime.UtcNow, ct));
+        int moved = await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
+        {
+            var db = services.GetRequiredService<DbContext>();
+            using var journal = new CoveRevertJournal(db);
+            return await JournalBlobMigration.RunAsync(Store, journal, DateTime.UtcNow, ct);
+        });
 
         if (moved > 0)
         {
@@ -236,26 +236,21 @@ public sealed partial class Renamer : FullExtensionBase
             return;
         }
 
-        EntityNames names;
-        await using (var scope = ScopeFactory.CreateAsyncScope())
+        // Every DETACHED body in this extension — this conversion, the job bodies and the auto-rename
+        // hook — takes its scope from the elevating seam, because none of them carries a principal of its
+        // own. The request-path scopes (/undo, /scan-rows and /last-batch) deliberately do not: they must
+        // stay on the caller's principal, and elevating them would bypass that caller's authorization.
+        var names = await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
         {
-            var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-
-            // Every DETACHED body in this extension — this conversion, the job bodies and the
-            // auto-rename hook — elevates, because none of them carries a principal of its own. The
-            // two request-path scopes (/undo and /scan-rows) deliberately do not: they must stay on
-            // the caller's principal, and elevating them would bypass that caller's authorization.
-            names = await RunAsSystem.RunAsSystemAsync(scope.ServiceProvider, async () =>
-            {
-                var tagRows = await db.Set<Cove.Core.Entities.Tag>()
-                    .AsNoTracking().Select(t => new { t.Id, t.Name }).ToListAsync(ct);
-                var performerRows = await db.Set<Cove.Core.Entities.Performer>()
-                    .AsNoTracking().Select(p => new { p.Id, p.Name }).ToListAsync(ct);
-                return new EntityNames(
-                    [.. tagRows.Select(r => (r.Id, r.Name))],
-                    [.. performerRows.Select(r => (r.Id, r.Name))]);
-            });
-        }
+            var db = services.GetRequiredService<DbContext>();
+            var tagRows = await db.Set<Cove.Core.Entities.Tag>()
+                .AsNoTracking().Select(t => new { t.Id, t.Name }).ToListAsync(ct);
+            var performerRows = await db.Set<Cove.Core.Entities.Performer>()
+                .AsNoTracking().Select(p => new { p.Id, p.Name }).ToListAsync(ct);
+            return new EntityNames(
+                [.. tagRows.Select(r => (r.Id, r.Name))],
+                [.. performerRows.Select(r => (r.Id, r.Name))]);
+        });
 
         if (legacy.Tags > 0 && names.Tags.Count == 0)
         {
@@ -465,9 +460,13 @@ public sealed partial class Renamer : FullExtensionBase
         // the log — otherwise a large library sits at 0% here with no signal that it is still planning.
         LogPlanningStarted(runId, kind, ids.Length);
 
-        await using (var readScope = ScopeFactory.CreateAsyncScope())
+        // ONE elevated span for the whole of PHASE A, rather than one per planned entity plus one for the
+        // folder pre-create. Nothing between the reads touches the database, so this widens no query's
+        // reach — and a single span is what stops a scope running half its work as System and half as
+        // whatever principal happened to arrive, which surfaces only as an empty result much later.
+        await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
         {
-            var readDb = readScope.ServiceProvider.GetRequiredService<DbContext>();
+            var readDb = services.GetRequiredService<DbContext>();
             var port = new CoveRenamerDataPort(readDb);
             var planner = new RenamerPlanner(port);
 
@@ -475,8 +474,7 @@ public sealed partial class Renamer : FullExtensionBase
             foreach (var id in ids)
             {
                 ct.ThrowIfCancellationRequested();
-                var (plan, entity) = await RunAsSystem.RunAsSystemAsync(
-                    readScope.ServiceProvider, () => planner.PlanWithEntityAsync(kind, id, options, lookups, ct));
+                var (plan, entity) = await planner.PlanWithEntityAsync(kind, id, options, lookups, ct);
 
                 // File sizes for the free-space sum live on the loaded entity's files, not on the plan
                 // item — so read them off the entity the planner just loaded rather than loading it a
@@ -517,24 +515,21 @@ public sealed partial class Renamer : FullExtensionBase
             // before any parallel worker runs, and each worker reads its id from this map instead of
             // doing a check-then-act create on a shared row. An in-place Renamer uses the source folder
             // id (no entry needed). This is the single source of folder creation for the batch.
-            await RunAsSystem.RunAsSystemAsync(readScope.ServiceProvider, async () =>
+            foreach (var unit in acting)
             {
-                foreach (var unit in acting)
+                var planItem = unit.Plan.Items[0];
+                if (planItem.Status != RenamerStatus.Move)
                 {
-                    var planItem = unit.Plan.Items[0];
-                    if (planItem.Status != RenamerStatus.Move)
-                    {
-                        continue;
-                    }
-
-                    if (!folderIdByPath.ContainsKey(planItem.TargetFolderPath))
-                    {
-                        folderIdByPath[planItem.TargetFolderPath] =
-                            await port.GetOrCreateFolderIdAsync(planItem.TargetFolderPath, ct);
-                    }
+                    continue;
                 }
-            });
-        }
+
+                if (!folderIdByPath.ContainsKey(planItem.TargetFolderPath))
+                {
+                    folderIdByPath[planItem.TargetFolderPath] =
+                        await port.GetOrCreateFolderIdAsync(planItem.TargetFolderPath, ct);
+                }
+            }
+        });
 
         // UP-FRONT free-space refusal: sum the projected cross-volume bytes per destination volume and
         // refuse the whole batch before touching disk if a volume would not fit. Same-volume moves are
@@ -642,13 +637,13 @@ public sealed partial class Renamer : FullExtensionBase
             LogItemStarting(runId, doneNow, totalUnits, kind, unit.EntityId,
                 crossVolume, sizeMb, unit.Move.OldFullPath);
 
-            await using var scope = ScopeFactory.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-            var exec = new RenamerExecutor(
-                new CoveRenamerDataPort(db), EventBus, journal, runId, new DiskMover());
-
-            var result = await RunAsSystem.RunAsSystemAsync(
-                scope.ServiceProvider, () => exec.ExecuteAsync(unit.Plan, options, folderIdByPath, token));
+            var result = await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, services =>
+            {
+                var db = services.GetRequiredService<DbContext>();
+                var exec = new RenamerExecutor(
+                    new CoveRenamerDataPort(db), EventBus, journal, runId, new DiskMover());
+                return exec.ExecuteAsync(unit.Plan, options, folderIdByPath, token);
+            });
             LogBatchItem(runId, kind, unit.EntityId, result);
 
             // Thread-safe tally: a racing `+=` would lose increments under parallel workers.

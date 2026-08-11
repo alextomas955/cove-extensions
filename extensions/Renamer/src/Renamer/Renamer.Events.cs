@@ -59,75 +59,72 @@ public sealed partial class Renamer
                 return; // opt-in, default off — do zero DB work when disabled.
             }
 
-            await using var scope = ScopeFactory.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-
-            var port = new CoveRenamerDataPort(db);
-            // Route auto-renamer IDENTICALLY to the manual batch and to /preview. Build the same
-            // RouteLookups from the same RenamerOptions and use the routing overload, so a matched
-            // studio/tag/path rule relocates the just-edited item to its configured destination — the
-            // same on-disk outcome the user previews and the batch executes.
-            //
-            // This does NOT enable dribble-relocate of the whole library: default-relocate
-            // stays gated behind EnableDefaultRelocate (default false), so an UNMATCHED item stays in
-            // place (SourceConfine). Only an explicitly-MATCHED routing rule relocates, and the move
-            // still passes the allowlist/canonical confinement gate via the routed anchor.
-            // Preview, auto-renamer, and batch all resolve destinations identically.
-            var lookups = BuildLookups(options);
-            // The host raises this event fire-and-forget, so the flow carries whichever principal
-            // happened to make the edit — or none. Unelevated, the entity load returns null under a
-            // limited or anonymous principal and the hook silently no-ops.
-            var plan = await RunAsSystem.RunAsSystemAsync(
-                scope.ServiceProvider, () => new RenamerPlanner(port).PlanAsync(kind, entityId, options, lookups, ct));
-
-            // Re-entrancy guard: if nothing would actually move, do NOT touch the executor. No save
-            // means no re-raised update event, so the save→event→re-enter loop never starts. Gated
-            // items land here as SkipGated (only-organized / require-fields respected) and are
-            // likewise skipped.
-            //
-            // Dribble guard (defense in depth): this hook fires once per metadata edit with NO user
-            // confirm — unlike the manual batch (which previews + confirms the blast radius) and unlike
-            // /preview. So a default-relocate reaching the executor on THIS path would let a single edit
-            // quietly relocate the whole library one item at a time. We therefore EXCLUDE the
-            // default-relocate category from "acting" here, regardless of the EnableDefaultRelocate flag:
-            // even if that flag were later flipped on, an unmatched item is never moved by the per-edit
-            // hook. An explicitly-matched rule still acts and still relocates. This is a code-level
-            // guarantee on the hook path on top of the flag default, not merely a config default.
-            int actingFiles = plan.Items.Count(i =>
-                i.Status is RenamerStatus.Renamer or RenamerStatus.Move && !IsDefaultRelocate(i));
-            if (actingFiles == 0)
+            // One elevated scope for the whole handler, obtained from the seam that elevates as it
+            // creates. The hook carries whichever principal made the edit, or none, and a scope running
+            // half its work as System and half as the caller is the kind of split that only shows up as
+            // an empty result much later.
+            await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
             {
-                return;
-            }
+                var db = services.GetRequiredService<DbContext>();
+                var port = new CoveRenamerDataPort(db);
 
-            // Open exactly one batch for this per-edit rename, mirroring the manual batch
-            // (RunRenamerBatchAsync): mint a runId and call BeginBatchAsync only now, on the acting path,
-            // so nothing-acts opens no batch. Opening one here no longer costs the previous batch its
-            // rows — each batch is its own set of rows keyed by run id, so a background edit can no
-            // longer erase the undo record of a deliberate rename.
-            //
-            // Elevated like every other command on this scope: the hook carries whichever principal
-            // made the edit, or none, and one scope running half its work as System and half as the
-            // caller is the kind of split that only shows up as an empty result much later.
-            var runId = Guid.NewGuid().ToString("N");
-            using var journal = new CoveRevertJournal(db);
-            await RunAsSystem.RunAsSystemAsync(
-                scope.ServiceProvider, () => journal.BeginBatchAsync(runId, kind, DateTime.UtcNow, ct));
+                // Route auto-renamer IDENTICALLY to the manual batch and to /preview. Build the same
+                // RouteLookups from the same RenamerOptions and use the routing overload, so a matched
+                // studio/tag/path rule relocates the just-edited item to its configured destination — the
+                // same on-disk outcome the user previews and the batch executes.
+                //
+                // This does NOT enable dribble-relocate of the whole library: default-relocate
+                // stays gated behind EnableDefaultRelocate (default false), so an UNMATCHED item stays in
+                // place (SourceConfine). Only an explicitly-MATCHED routing rule relocates, and the move
+                // still passes the allowlist/canonical confinement gate via the routed anchor.
+                // Preview, auto-renamer, and batch all resolve destinations identically.
+                var lookups = BuildLookups(options);
+                var plan = await new RenamerPlanner(port).PlanAsync(kind, entityId, options, lookups, ct);
 
-            var executor = new RenamerExecutor(port, EventBus, journal, runId, new DiskMover());
-            // Single-entity hook path (no batch concurrency): no pre-resolved folder map — the executor
-            // resolves the destination folder itself, safe because this call is not parallelized.
-            var result = await RunAsSystem.RunAsSystemAsync(
-                scope.ServiceProvider, () => executor.ExecuteAsync(plan, options, ct: ct));
+                // Re-entrancy guard: if nothing would actually move, do NOT touch the executor. No save
+                // means no re-raised update event, so the save→event→re-enter loop never starts. Gated
+                // items land here as SkipGated (only-organized / require-fields respected) and are
+                // likewise skipped.
+                //
+                // Dribble guard (defense in depth): this hook fires once per metadata edit with NO user
+                // confirm — unlike the manual batch (which previews + confirms the blast radius) and unlike
+                // /preview. So a default-relocate reaching the executor on THIS path would let a single edit
+                // quietly relocate the whole library one item at a time. We therefore EXCLUDE the
+                // default-relocate category from "acting" here, regardless of the EnableDefaultRelocate flag:
+                // even if that flag were later flipped on, an unmatched item is never moved by the per-edit
+                // hook. An explicitly-matched rule still acts and still relocates. This is a code-level
+                // guarantee on the hook path on top of the flag default, not merely a config default.
+                int actingFiles = plan.Items.Count(i =>
+                    i.Status is RenamerStatus.Renamer or RenamerStatus.Move && !IsDefaultRelocate(i));
+                if (actingFiles == 0)
+                {
+                    return;
+                }
 
-            foreach (var r in result.Renamed)
-            {
-                LogAutoRenamed(kind, entityId, r.Status, r.OldPath, r.NewPath);
-            }
-            foreach (var f in result.Failed)
-            {
-                LogAutoRenamerFailed(kind, entityId, f.OldPath, f.NewPath, f.Reason ?? "no reason given");
-            }
+                // Open exactly one batch for this per-edit rename, mirroring the manual batch
+                // (RunRenamerBatchAsync): mint a runId and call BeginBatchAsync only now, on the acting
+                // path, so nothing-acts opens no batch. Opening one here no longer costs the previous
+                // batch its rows — each batch is its own set of rows keyed by run id, so a background edit
+                // can no longer erase the undo record of a deliberate rename.
+                var runId = Guid.NewGuid().ToString("N");
+                using var journal = new CoveRevertJournal(db);
+                await journal.BeginBatchAsync(runId, kind, DateTime.UtcNow, ct);
+
+                var executor = new RenamerExecutor(port, EventBus, journal, runId, new DiskMover());
+                // Single-entity hook path (no batch concurrency): no pre-resolved folder map — the
+                // executor resolves the destination folder itself, safe because this call is not
+                // parallelized.
+                var result = await executor.ExecuteAsync(plan, options, ct: ct);
+
+                foreach (var r in result.Renamed)
+                {
+                    LogAutoRenamed(kind, entityId, r.Status, r.OldPath, r.NewPath);
+                }
+                foreach (var f in result.Failed)
+                {
+                    LogAutoRenamerFailed(kind, entityId, f.OldPath, f.NewPath, f.Reason ?? "no reason given");
+                }
+            });
         }
         catch (OperationCanceledException)
         {
