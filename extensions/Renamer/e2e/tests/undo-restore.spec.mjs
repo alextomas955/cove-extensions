@@ -216,9 +216,11 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   const undo = await api.post(`${ROUTE}/undo`);
   expect(undo.status, `undo failed: ${undo.text}`).toBe(200);
   expect(undo.json.undone).toBe(1);
-  expect(undo.json.failed).toEqual([]);
-  expect(undo.json.skipped).toEqual([]);
-  expect(undo.json.warnings).toEqual([]);
+  // The TOTALS, not the sample lengths: the response describes a bounded sample of each channel, so
+  // a run of any size is claimed clean here only if the counts say so.
+  expect(undo.json.failedCount).toBe(0);
+  expect(undo.json.skippedCount).toBe(0);
+  expect(undo.json.warningCount).toBe(0);
 
   await assertRestoredTo({
     api,
@@ -295,11 +297,17 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   const partialUndo = await api.post(`${ROUTE}/undo`);
   expect(partialUndo.status, `undo failed: ${partialUndo.text}`).toBe(200);
   expect(partialUndo.json.undone, "the unobstructed file should have come back").toBe(1);
-  // One stopped entry, and it names the file whose slot is taken. Asserted as one value rather than
-  // as "failed or skipped", so there is no shape this can pass in two different ways.
+  // HOW MANY stopped comes from the totals, which is what the response states. Summed across the two
+  // channels rather than read as "failed or skipped", so there is no shape this can pass in two
+  // different ways.
   expect(
-    [...partialUndo.json.failed, ...partialUndo.json.skipped].map((e) => e.fileId),
-    "exactly the obstructed file should have stopped",
+    partialUndo.json.failedCount + partialUndo.json.skippedCount,
+    "exactly one file should have stopped",
+  ).toBe(1);
+  // WHICH one comes from the samples, merged the same way. This is the only thing a sample is read for.
+  expect(
+    [...partialUndo.json.failedSample, ...partialUndo.json.skippedSample].map((e) => e.fileId),
+    "the stopped entry should name the obstructed file",
   ).toEqual([blocked.fileId]);
 
   await assertRestoredTo({ api, container, videoId: clear.id, originalPath: clear.originalPath });
@@ -329,8 +337,8 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   const retry = await api.post(`${ROUTE}/undo`);
   expect(retry.status, `retry failed: ${retry.text}`).toBe(200);
   expect(retry.json.undone, "the retry must act on the remainder, not on the whole batch").toBe(1);
-  expect(retry.json.failed).toEqual([]);
-  expect(retry.json.skipped).toEqual([]);
+  expect(retry.json.failedCount).toBe(0);
+  expect(retry.json.skippedCount).toBe(0);
 
   await assertRestoredTo({
     api,

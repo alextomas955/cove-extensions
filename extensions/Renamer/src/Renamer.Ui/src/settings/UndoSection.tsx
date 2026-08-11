@@ -16,6 +16,7 @@ import { Button, StatusText, Spinner } from "@cove-extensions/ui-shared";
 import { api } from "../common/lib/extension";
 import type { LastBatchSummary, UndoResult } from "../wire/api";
 import { buildUndoStatus } from "./undoSummaryLogic";
+import { buildUndoFeedback, type UndoFeedback } from "./undoFeedbackLogic";
 
 const LAST_BATCH_PATH = api("last-batch");
 const UNDO_PATH = api("undo");
@@ -27,7 +28,7 @@ function errText(err: unknown): string {
   return err instanceof ApiError ? `${err.status} ${err.body}` : String(err);
 }
 
-type Feedback = { kind: "success"; text: string } | { kind: "error"; text: string } | null;
+type Feedback = UndoFeedback | null;
 
 export function UndoSection({ refreshKey }: { refreshKey: number }) {
   const [summary, setSummary] = useState<LastBatchSummary | null>(null);
@@ -79,34 +80,10 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
       // writes `{undone:0, failed:[], skipped:[]}`. So a bodyless 200 is not an outcome to report as
       // a success; `requestJson` raises it as the anomaly it would be.
       const res = await requestJson<UndoResult>(UNDO_PATH, { method: "POST" });
-      // The two buckets are reported the same way — a count and the first reason — so they are read
-      // as one list, which is also what makes the reason below a plain read rather than a guess at
-      // which bucket happens to be non-empty.
-      const problems = [...res.failed, ...res.skipped];
-      // A file that came back minus a companion is in NEITHER problem bucket — the media file is at
-      // its original path and its row agrees, which is what undo promises. Reported alongside the
-      // outcome rather than folded into it, because the user has to clear the companion's slot
-      // themselves and nothing else will tell them so.
-      const stranded =
-        res.warnings.length > 0
-          ? ` ${res.warnings.length} companion file${res.warnings.length === 1 ? "" : "s"} stayed behind (${res.warnings[0].detail}).`
-          : "";
-      if (problems.length === 0) {
-        setFeedback({
-          kind: stranded ? "error" : "success",
-          text: `Undone — ${res.undone} file${res.undone === 1 ? "" : "s"} moved back to their original names.${stranded}`,
-        });
-      } else if (res.undone > 0) {
-        setFeedback({
-          kind: "error",
-          text: `Undo finished with problems — ${problems.length} file${problems.length === 1 ? "" : "s"} couldn't be moved back (${problems[0].reason}). The rest were restored.${stranded}`,
-        });
-      } else {
-        setFeedback({
-          kind: "error",
-          text: `Couldn't undo — ${problems[0].reason}. Nothing was changed.`,
-        });
-      }
+      // Composed by a pure module, not here: every figure in that sentence has to come from a total
+      // and never from the length of the response's capped sample, and that is a claim a test can hold
+      // and a render function cannot show.
+      setFeedback(buildUndoFeedback(res));
     } catch (err) {
       if (err instanceof ApiError) {
         setFeedback({
@@ -135,8 +112,9 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
       <h3 className="text-base font-semibold text-foreground">Undo last rename</h3>
       <p className="mb-4 mt-1 text-sm text-secondary">
         This moves every file in that batch back to its original name, and the undo itself
-        can&apos;t be undone. The button reaches the most recent rename, and a rename stays undoable
-        for 7 days whatever its size — the dry run is the check before that window closes.
+        can&apos;t be undone. The button reaches the most recent rename that still has files to put
+        back, and a rename stays undoable for 7 days whatever its size — the dry run is the check
+        before that window closes.
       </p>
 
       {loading ? (
