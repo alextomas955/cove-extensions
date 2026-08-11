@@ -47,7 +47,7 @@ public sealed class RevertJournalConcurrencyTests
                 new RevertRow("R-parallel", Seq: 0, EntityId: 1000 + i, FileId: 5000 + i, $"media/old-{i}.mkv", ""));
         }));
 
-        var batch = await journal.ReadLastOpenBatchAsync();
+        var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
         Assert.NotNull(batch);
         Assert.Equal("R-parallel", batch.RunId);
 
@@ -68,7 +68,7 @@ public sealed class RevertJournalConcurrencyTests
 
         // The aggregate counted every one of them, since it accrues per append rather than being
         // declared up front — a race there would leave the panel promising the wrong number.
-        var summary = await journal.ReadLastBatchSummaryAsync();
+        var summary = await journal.ReadUndoTargetAsync();
         Assert.NotNull(summary);
         Assert.Equal(N, summary.Value.OriginalCount);
     }
@@ -95,7 +95,7 @@ public sealed class RevertJournalConcurrencyTests
         var reads = Enumerable.Range(0, 40).Select(async _ =>
         {
             await Task.Yield();
-            var seen = await journal.ReadLastBatchSummaryAsync();
+            var seen = await journal.ReadUndoTargetAsync();
             Assert.NotNull(seen);
 
             // Whatever moment it caught, the aggregate describes a real state: nothing settled, and a
@@ -107,7 +107,7 @@ public sealed class RevertJournalConcurrencyTests
 
         await Task.WhenAll(appends.Concat(reads));
 
-        var batch = await journal.ReadLastOpenBatchAsync();
+        var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
         Assert.NotNull(batch);
         Assert.Equal(N, batch.Rows.Count);
         Assert.Equal(N, batch.Rows.Select(r => r.Seq).Distinct().Count());

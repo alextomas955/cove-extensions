@@ -352,7 +352,7 @@ public sealed class EmptySourceFolderCleanerTests
             Assert.False(Directory.Exists(Path.Combine(dir.Root, "src")), "the move + cleanup deleted the source dir");
 
             // Undo the batch: the original directory is gone, so the restore SKIPS — it is NOT recreated.
-            var batch = await journal.ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var replayer = new UndoReplayer(port, new CapturingEventBus(), new DiskMover());
             var undo = await replayer.RevertAsync(batch!, default);

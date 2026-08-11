@@ -64,7 +64,7 @@ public sealed class UndoRetryTests
 
             // The table is the record of what is left — exactly the row that did not come back.
             using var journal = new CoveRevertJournal(db);
-            var open = await journal.ReadLastOpenBatchAsync();
+            var open = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(open);
             var remaining = Assert.Single(open!.Rows);
             Assert.Equal(stays.FileId, remaining.FileId);
@@ -105,7 +105,7 @@ public sealed class UndoRetryTests
 
             // Nothing left to offer — and a third call is a clean no-op rather than an error.
             using var journal = new CoveRevertJournal(db);
-            Assert.Null(await journal.ReadLastOpenBatchAsync());
+            Assert.Null(await JournalPageReader.ReadWholeUndoTargetAsync(journal));
             Assert.Equal(0, UndoValue(await ext.UndoAsync(Write, default)).Undone);
         }
         finally
@@ -139,10 +139,10 @@ public sealed class UndoRetryTests
 
             // Both rows are gone — the terminal one too, so the batch can reach spent instead of
             // offering an undo that could never complete.
-            Assert.Null(await journal.ReadLastOpenBatchAsync());
+            Assert.Null(await JournalPageReader.ReadWholeUndoTargetAsync(journal));
 
             // …and the aggregate still says HOW it ended, on the counter that keeps the two apart.
-            var summary = await journal.ReadLastBatchSummaryAsync();
+            var summary = await journal.ReadUndoTargetAsync();
             Assert.NotNull(summary);
             Assert.Equal(2, summary!.Value.OriginalCount);
             Assert.Equal(1, summary.Value.RestoredCount);
@@ -174,11 +174,11 @@ public sealed class UndoRetryTests
             // The previous defect spent the batch on the FIRST partial success, which is what made the
             // remaining work unreachable. Row presence is the state, so the read that feeds the button
             // must still return this batch.
-            var open = await journal.ReadLastOpenBatchAsync();
+            var open = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(open);
             Assert.Single(open!.Rows);
 
-            var summary = await journal.ReadLastBatchSummaryAsync();
+            var summary = await journal.ReadUndoTargetAsync();
             Assert.NotNull(summary);
             Assert.Equal(open.RunId, summary!.Value.RunId);
             Assert.Equal(1, summary.Value.Remaining);
@@ -209,7 +209,7 @@ public sealed class UndoRetryTests
             await ext.UndoAsync(Write, default);
 
             using var journal = new CoveRevertJournal(db);
-            var afterFirst = await journal.ReadLastBatchSummaryAsync();
+            var afterFirst = await journal.ReadUndoTargetAsync();
             Assert.NotNull(afterFirst);
             Assert.Equal(3, afterFirst!.Value.OriginalCount);
             Assert.Equal(1, afterFirst.Value.RestoredCount);
@@ -220,7 +220,7 @@ public sealed class UndoRetryTests
             File.Delete(blocked.OldFull);
             await ext.UndoAsync(Write, default);
 
-            var afterRetry = await journal.ReadLastBatchSummaryAsync();
+            var afterRetry = await journal.ReadUndoTargetAsync();
             Assert.NotNull(afterRetry);
             // The count of what the run journalled never moves; only how it was settled does.
             Assert.Equal(3, afterRetry!.Value.OriginalCount);

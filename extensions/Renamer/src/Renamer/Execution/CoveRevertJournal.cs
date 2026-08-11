@@ -24,6 +24,21 @@ namespace Renamer.Execution;
 /// </summary>
 public sealed class CoveRevertJournal : IRevertJournal, IDisposable
 {
+    /// <summary>How many rows an undo reads at a time when it is not told otherwise.</summary>
+    /// <remarks>
+    /// A READ GRANULARITY, never a ceiling on what an undo restores: the run pages until a page comes
+    /// back empty, so a batch of any size is restored in full. A cap would be the wrong shape here — it
+    /// converts a hard failure into a silently truncated answer, which is worse than the memory it saves.
+    /// <para>
+    /// 500 because it is the same number <see cref="JournalBlobMigration.LinesPerChunk"/> already uses
+    /// for the other place journal rows are handled in bulk, so the codebase has one answer to "how many
+    /// journal rows at once" rather than two. At two paths a row a page is tens of kilobytes, while the
+    /// whole-batch read this replaced grew with the library — which on a real library is already past
+    /// the file-count ceiling that was retired on the premise that undo pages.
+    /// </para>
+    /// </remarks>
+    public const int DefaultPageSize = 500;
+
     private readonly DbContext _db;
 
     // The single-writer gate over this instance's context. Held across the whole mutation — the Add,
@@ -102,18 +117,30 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
         }
     }
 
-    public async Task<RevertBatchSummary?> ReadLastBatchSummaryAsync(CancellationToken ct = default)
+    public async Task<RevertBatchSummary?> ReadUndoTargetAsync(CancellationToken ct = default)
     {
         await _writes.WaitAsync(ct);
         try
         {
-            var batch = await NewestFirst(_db.Set<RevertBatchEntity>().AsNoTracking())
+            var rows = _db.Set<RevertRowEntity>();
+
+            // ONE query, expressing "newest replayable, else newest" as an ordering rather than as two
+            // reads with a fallback between them. Having a row left is the FIRST sort key, so a batch
+            // that can still be replayed outranks a newer one that is settled; ties then fall back to
+            // the newest batch there is, which is what keeps a fully-settled rename describable.
+            var batch = await _db.Set<RevertBatchEntity>().AsNoTracking()
+                .OrderByDescending(b => rows.Any(r => r.RunId == b.RunId))
+                .ThenByDescending(b => b.OpenedAtUtcTicks)
+                // Ties broken by run id so "the newest batch" is one batch, deterministically, rather
+                // than whichever row the provider happened to return first.
+                .ThenByDescending(b => b.RunId)
                 .FirstOrDefaultAsync(ct);
 
             return batch is null
                 ? null
                 : new RevertBatchSummary(
                     batch.RunId,
+                    ParseKind(batch.Kind),
                     batch.OpenedAtUtcTicks,
                     batch.OriginalCount,
                     batch.RestoredCount,
@@ -125,31 +152,21 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
         }
     }
 
-    public async Task<RevertBatch?> ReadLastOpenBatchAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<RevertRow>> ReadBatchPageAsync(
+        string runId, long belowSeq, int limit, CancellationToken ct = default)
     {
         await _writes.WaitAsync(ct);
         try
         {
-            var rows = _db.Set<RevertRowEntity>();
-
-            var batch = await NewestFirst(_db.Set<RevertBatchEntity>().AsNoTracking())
-                .Where(b => rows.Any(r => r.RunId == b.RunId))
-                .FirstOrDefaultAsync(ct);
-
-            if (batch is null)
-            {
-                return null;
-            }
-
-            var pending = await rows.AsNoTracking()
-                .Where(r => r.RunId == batch.RunId)
+            // The Take is what keeps this materialization bounded by the page rather than by the
+            // library: it is the reason there is no read here that has none.
+            var page = await _db.Set<RevertRowEntity>().AsNoTracking()
+                .Where(r => r.RunId == runId && r.Seq < belowSeq)
                 .OrderByDescending(r => r.Seq)
+                .Take(limit)
                 .ToListAsync(ct);
 
-            return new RevertBatch(
-                batch.RunId,
-                ParseKind(batch.Kind),
-                [.. pending.Select(r => new RevertRow(r.RunId, r.Seq, r.EntityId, r.FileId, r.OldPath, r.SidecarsJson))]);
+            return [.. page.Select(r => new RevertRow(r.RunId, r.Seq, r.EntityId, r.FileId, r.OldPath, r.SidecarsJson))];
         }
         finally
         {
@@ -231,11 +248,6 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
 
     private Task<RevertBatchEntity?> FindBatchAsync(string runId, CancellationToken ct) =>
         _db.Set<RevertBatchEntity>().FirstOrDefaultAsync(b => b.RunId == runId, ct);
-
-    // Ties are broken by run id so "the newest batch" is one batch, deterministically, rather than
-    // whichever row the provider happened to return first.
-    private static IQueryable<RevertBatchEntity> NewestFirst(IQueryable<RevertBatchEntity> batches) =>
-        batches.OrderByDescending(b => b.OpenedAtUtcTicks).ThenByDescending(b => b.RunId);
 
     // Tolerant, matching how the journal's stored lines have always been read: a kind that no longer
     // parses costs the batch its entity type, not the user's whole undo.

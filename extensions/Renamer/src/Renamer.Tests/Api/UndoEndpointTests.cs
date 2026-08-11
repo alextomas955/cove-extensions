@@ -317,7 +317,7 @@ public sealed class UndoEndpointTests
             // that read right while the journal disagreed would fail here.
             using (var journal = new global::Renamer.Execution.CoveRevertJournal(db))
             {
-                var open = await journal.ReadLastOpenBatchAsync();
+                var open = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
                 Assert.NotNull(open);
                 Assert.Equal(blockedFileId, Assert.Single(open!.Rows).FileId);
             }

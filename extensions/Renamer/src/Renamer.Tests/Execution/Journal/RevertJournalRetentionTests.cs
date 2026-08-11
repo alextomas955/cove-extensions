@@ -102,7 +102,7 @@ public sealed class RevertJournalRetentionTests
 
         Assert.Empty(await BatchRunIdsAsync(db, "run-only"));
         Assert.Empty(await RowRunIdsAsync(db, "run-only"));
-        Assert.Null(await journal.ReadLastBatchSummaryAsync());
+        Assert.Null(await journal.ReadUndoTargetAsync());
     }
 
     [Fact]

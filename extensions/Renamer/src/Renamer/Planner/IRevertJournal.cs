@@ -42,25 +42,50 @@ public interface IRevertJournal
     Task AppendAsync(RevertRow row, CancellationToken ct = default);
 
     /// <summary>
-    /// The newest batch's aggregate, whatever remains of it, or null when nothing was ever journalled.
+    /// The batch an undo would act on: the newest batch that still has rows to restore, or — when no
+    /// batch has any — the newest batch there is. Null only when nothing was ever journalled.
     /// </summary>
     /// <remarks>
-    /// Deliberately NOT restricted to a batch with work left: a spent batch is still what the panel
-    /// must describe ("500 files renamed on 3 Aug, 497 restored, 3 could not be"), and that sentence
-    /// is derivable only while the aggregate outlives the rows.
+    /// The ONE read that selects a batch. Both the undo endpoint and the panel's summary endpoint call
+    /// it and nothing else picks a batch, so the sentence the panel renders and the batch the button
+    /// acts on are one value rather than two reads that happen to agree. They did once disagree: a
+    /// newest-batch-whatever read described a settled batch as "nothing to undo" while an older batch's
+    /// partly-restored rows were still live and still restorable.
+    /// <para>
+    /// The fallback arm is load-bearing, not a convenience. A spent batch is still what the panel must
+    /// describe ("500 files renamed on 3 Aug, 497 restored, 3 could not be"), and that sentence is
+    /// derivable only while the aggregate outlives the rows — so when nothing is replayable the newest
+    /// aggregate is still the right answer, and a further undo over it is a clean no-op.
+    /// </para>
+    /// <para>
+    /// Reaching FURTHER back than the newest replayable batch is deliberately not offered here: undo
+    /// targets one batch, and multi-level undo is a feature that was not chosen.
+    /// </para>
     /// </remarks>
-    Task<RevertBatchSummary?> ReadLastBatchSummaryAsync(CancellationToken ct = default);
+    Task<RevertBatchSummary?> ReadUndoTargetAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// The newest batch that still has rows to restore, with those rows newest-first, or null when no
-    /// batch has any left.
+    /// At most <paramref name="limit"/> of <paramref name="runId"/>'s rows whose sequence is strictly
+    /// below <paramref name="belowSeq"/>, newest-first. Empty when the batch has no such row left.
     /// </summary>
     /// <remarks>
+    /// There is deliberately NO read that returns every row of a batch. A batch is as large as the
+    /// library — a whole-library rename is undoable by design — so materializing one would make memory
+    /// grow with the library. Pass <see cref="long.MaxValue"/> for the first page and the lowest
+    /// sequence the previous page returned for each one after it.
+    /// <para>
+    /// A KEYSET cursor, never a skip-and-take offset: rows are deleted as they restore, and an offset
+    /// over a shrinking table silently skips work. <paramref name="limit"/> bounds one read and never
+    /// the run — an undo pages until a page comes back empty, so it restores a batch of any size.
+    /// </para>
+    /// <para>
     /// The newest-first order is a correctness requirement, not a presentation one: one run can rename
     /// A→B and then B→C, so reversing in reverse-append order is what frees each slot before the next
-    /// row needs it.
+    /// row needs it — and that ordering has to hold ACROSS a page boundary, not only within a page.
+    /// </para>
     /// </remarks>
-    Task<RevertBatch?> ReadLastOpenBatchAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<RevertRow>> ReadBatchPageAsync(
+        string runId, long belowSeq, int limit, CancellationToken ct = default);
 
     /// <summary>
     /// Retires one row: removes it, and counts it on its batch as restored, or as unrestorable when
@@ -106,20 +131,31 @@ public sealed record RevertRow(
     string OldPath,
     string SidecarsJson);
 
-/// <summary>A batch with the rows it still has to restore.</summary>
+/// <summary>A batch with rows to restore.</summary>
 /// <param name="RunId">The batch's run id.</param>
 /// <param name="Kind">The run's entity kind — single per run, so it lives on the batch and never on a row.</param>
-/// <param name="Rows">The rows still pending, newest-first.</param>
+/// <param name="Rows">
+/// Rows still pending, newest-first — ONE PAGE of the batch rather than all of it, since
+/// <see cref="IRevertJournal.ReadBatchPageAsync"/> is the only way rows are read. A replay over this
+/// record is therefore a replay over part of a run, which is why the caller loops.
+/// </param>
 public sealed record RevertBatch(string RunId, RenamerFileKind Kind, IReadOnlyList<RevertRow> Rows);
 
 /// <summary>A batch's aggregate: what it started as, and how much of it has been settled.</summary>
 /// <param name="RunId">The batch's run id.</param>
+/// <param name="Kind">
+/// The run's entity kind. SERVER-SIDE ONLY: the undo endpoint needs it for its per-kind write re-gate
+/// and for the replayer, and carrying it here is what lets one read answer both. It deliberately does
+/// NOT reach the wire summary — a kind on that response would tell a caller holding one kind's read
+/// permission which kind was renamed, and would cost the summary endpoint its coarse read gate.
+/// </param>
 /// <param name="WrittenAtUtcTicks">Server UTC ticks at which the batch opened; what the retention window is measured from.</param>
 /// <param name="OriginalCount">How many files the batch journalled. Never decremented.</param>
 /// <param name="RestoredCount">How many have been put back.</param>
 /// <param name="UnrestorableCount">How many can never be put back.</param>
 public readonly record struct RevertBatchSummary(
     string RunId,
+    RenamerFileKind Kind,
     long WrittenAtUtcTicks,
     int OriginalCount,
     int RestoredCount,

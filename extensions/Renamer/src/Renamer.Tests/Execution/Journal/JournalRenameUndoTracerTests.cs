@@ -66,7 +66,7 @@ public sealed class JournalRenameUndoTracerTests
             Assert.True(File.Exists(newFull));
 
             // One ROW in the table — not one entry in a list the executor happened to keep.
-            var batch = await journal.ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             Assert.Equal(runId, batch!.RunId);
             Assert.Equal(RenamerFileKind.Video, batch.Kind);
@@ -98,8 +98,8 @@ public sealed class JournalRenameUndoTracerTests
 
             // Nothing left to offer, and yet the batch can still describe itself: the row went away as
             // the file came back, while the count of what the run journalled never moves.
-            Assert.Null(await journal.ReadLastOpenBatchAsync());
-            var summary = await journal.ReadLastBatchSummaryAsync();
+            Assert.Null(await JournalPageReader.ReadWholeUndoTargetAsync(journal));
+            var summary = await journal.ReadUndoTargetAsync();
             Assert.NotNull(summary);
             Assert.Equal(runId, summary!.Value.RunId);
             Assert.Equal(1, summary.Value.OriginalCount);
@@ -128,7 +128,7 @@ public sealed class JournalRenameUndoTracerTests
             await SeedBatchAsync(journal, "background-edit", rows: 1, Opened.AddMinutes(5));
 
             // The newest batch is what an undo is offered first…
-            var newest = await journal.ReadLastOpenBatchAsync();
+            var newest = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(newest);
             Assert.Equal("background-edit", newest!.RunId);
             var backgroundRow = Assert.Single(newest.Rows);
@@ -136,7 +136,7 @@ public sealed class JournalRenameUndoTracerTests
             // …and once it is spent, the earlier run is still there, whole.
             await journal.DeleteRowAsync(backgroundRow.RunId, backgroundRow.Seq, unrestorable: false);
 
-            var earlier = await journal.ReadLastOpenBatchAsync();
+            var earlier = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(earlier);
             Assert.Equal("deliberate-run", earlier!.RunId);
             Assert.Equal(3, earlier.Rows.Count);
@@ -167,14 +167,14 @@ public sealed class JournalRenameUndoTracerTests
             var journal = new CoveRevertJournal(db);
             await SeedBatchAsync(journal, "huge-run", pastTheOldCeiling, Opened);
 
-            var batch = await journal.ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             Assert.Equal(pastTheOldCeiling, batch!.Rows.Count);
             // One row per file, each with its own place in the batch — a count alone would not rule out
             // rows sharing an identity and therefore being un-retirable one at a time.
             Assert.Equal(pastTheOldCeiling, batch.Rows.Select(r => r.Seq).Distinct().Count());
 
-            var summary = await journal.ReadLastBatchSummaryAsync();
+            var summary = await journal.ReadUndoTargetAsync();
             Assert.NotNull(summary);
             Assert.Equal(pastTheOldCeiling, summary!.Value.OriginalCount);
         }
@@ -334,7 +334,7 @@ public sealed class JournalRenameUndoTracerTests
             .ExecuteAsync(plan, options, default);
         Assert.Single(forward.Renamed);
 
-        var batch = await journal.ReadLastOpenBatchAsync();
+        var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
         Assert.NotNull(batch);
         return Assert.Single(batch!.Rows);
     }

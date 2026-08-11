@@ -58,7 +58,7 @@ public sealed class UndoReplayerTests
             Assert.False(File.Exists(oldFull));
 
             // Reverse-replay the logged batch.
-            var batch = await journal.ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var undoBus = new CapturingEventBus();
             var replayer = new UndoReplayer(port, undoBus, new DiskMover());
@@ -125,7 +125,7 @@ public sealed class UndoReplayerTests
                     .ExecuteAsync(plan, options, default);
             }
 
-            var batch = await journal.ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             Assert.Equal(2, batch!.Rows.Count);
 
@@ -174,7 +174,7 @@ public sealed class UndoReplayerTests
             // Pre-occupy the OLD slot of "one.mkv" (video1) on disk so its reverse move must skip.
             File.WriteAllText(Path.Combine(dir.Root, "one.mkv"), "squatter");
 
-            var batch = await journal.ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var undoBus = new CapturingEventBus();
             var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch!, default);
@@ -224,7 +224,7 @@ public sealed class UndoReplayerTests
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
             Assert.True(File.Exists(newFull));
 
-            var batch = await journal.ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
 
             // A port that throws on the reverse save forces the rollback path.
@@ -277,7 +277,7 @@ public sealed class UndoReplayerTests
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
             Assert.True(File.Exists(newFull));
 
-            var batch = await journal.ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
 
             // A reverse save that cancels forces the OCE path: rollback to NEW, then propagate.
@@ -321,7 +321,7 @@ public sealed class UndoReplayerTests
             await new RenamerExecutor(port, new CapturingEventBus(), journal, "RUN-1", new DiskMover())
                 .ExecuteAsync(plan, options, default);
 
-            var batch = await journal.ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
             Assert.True(VolumeClassifier.SameVolume(newFull, oldFull),

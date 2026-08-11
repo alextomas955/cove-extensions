@@ -573,10 +573,11 @@ public sealed partial class Renamer : FullExtensionBase
         using var journal = new CoveRevertJournal(journalScope.ServiceProvider.GetRequiredService<DbContext>());
 
         // Now — and only now — open exactly one batch: PHASE A produced acting work and the batch fits.
-        // A later ReadLastOpenBatchAsync returns this run's still-pending rows with its kind, which
-        // /undo replays. Opened ONCE here, single-threaded, never per worker. There is no file-count
-        // ceiling: rows are appended one at a time and read back paged by batch, so a rename of any
-        // size is journalled in full.
+        // A later ReadUndoTargetAsync names this run while it still has pending rows, and /undo pages
+        // those rows back out of it. Opened ONCE here, single-threaded, never per worker. There is no
+        // file-count ceiling: rows are appended one at a time and read back a page at a time, so a
+        // rename of any size is journalled in full and undone in full without either side holding the
+        // whole of it in memory.
         await journal.BeginBatchAsync(runId, kind, DateTime.UtcNow, ct);
 
         // Marks the PHASE A → PHASE B boundary in the log: PHASE B's percentage now advances per

@@ -83,7 +83,7 @@ public sealed class ParallelBatchTests
             // each with the distinct sequence number that half-identifies it — a lost or torn append
             // under real parallel workers would show up as a short count or a repeated key.
             await using var readDb = shared.NewContext();
-            var batch = await new CoveRevertJournal(readDb).ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(new CoveRevertJournal(readDb));
             Assert.NotNull(batch);
             Assert.Equal(k, batch!.Rows.Count);
             Assert.Equal(k, batch.Rows.Select(e => e.FileId).Distinct().Count());

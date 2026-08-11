@@ -48,26 +48,24 @@ public sealed class FakeRevertJournal : IRevertJournal
         return Task.CompletedTask;
     }
 
-    public Task<RevertBatchSummary?> ReadLastBatchSummaryAsync(CancellationToken ct = default)
+    // The real journal's semantics, including the fallback and the keyset cursor — a double that
+    // answered an easier question would let a case pass here that the storage would fail.
+    public Task<RevertBatchSummary?> ReadUndoTargetAsync(CancellationToken ct = default)
     {
-        var newest = Newest(_batches.Keys);
-        return Task.FromResult(newest is null ? null : (RevertBatchSummary?)Summarize(newest));
+        var replayable = Newest(PendingRows.Select(r => r.RunId).Distinct(StringComparer.Ordinal));
+        var target = replayable ?? Newest(_batches.Keys);
+        return Task.FromResult(target is null ? null : (RevertBatchSummary?)Summarize(target));
     }
 
-    public Task<RevertBatch?> ReadLastOpenBatchAsync(CancellationToken ct = default)
-    {
-        var pending = PendingRows;
-        var newest = Newest(pending.Select(r => r.RunId).Distinct(StringComparer.Ordinal));
-        if (newest is null)
-        {
-            return Task.FromResult<RevertBatch?>(null);
-        }
-
-        return Task.FromResult<RevertBatch?>(new RevertBatch(
-            newest,
-            _batches[newest].Kind,
-            [.. pending.Where(r => r.RunId == newest).OrderByDescending(r => r.Seq)]));
-    }
+    public Task<IReadOnlyList<RevertRow>> ReadBatchPageAsync(
+        string runId, long belowSeq, int limit, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<RevertRow>>(
+        [
+            .. PendingRows
+                .Where(r => r.RunId == runId && r.Seq < belowSeq)
+                .OrderByDescending(r => r.Seq)
+                .Take(limit),
+        ]);
 
     public Task DeleteRowAsync(
         string runId, long seq, bool unrestorable, CancellationToken ct = default)
@@ -93,7 +91,7 @@ public sealed class FakeRevertJournal : IRevertJournal
     {
         var batch = _batches[runId];
         return new RevertBatchSummary(
-            runId, batch.OpenedAtUtcTicks, batch.Original, batch.Restored, batch.Unrestorable);
+            runId, batch.Kind, batch.OpenedAtUtcTicks, batch.Original, batch.Restored, batch.Unrestorable);
     }
 
     private string? Newest(IEnumerable<string> runIds) =>

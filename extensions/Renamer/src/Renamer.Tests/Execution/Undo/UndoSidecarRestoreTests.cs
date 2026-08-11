@@ -284,7 +284,7 @@ public sealed class UndoSidecarRestoreTests
             await betweenRenameAndUndo();
         }
 
-        var batch = await journal.ReadLastOpenBatchAsync();
+        var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
         Assert.NotNull(batch);
 
         return await new UndoReplayer(port, new CapturingEventBus(), new DiskMover()).RevertAsync(batch!);

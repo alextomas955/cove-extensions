@@ -53,7 +53,7 @@ public sealed class AutoRenamerRevertLogBatchTests
 
             // (a) A fresh reader over the journal sees exactly one batch with rows, carrying the kind.
             var readBack = new CoveRevertJournal(db);
-            var batch = await readBack.ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(readBack);
             Assert.NotNull(batch);
             Assert.Equal(RenamerFileKind.Video, batch!.Kind);
 

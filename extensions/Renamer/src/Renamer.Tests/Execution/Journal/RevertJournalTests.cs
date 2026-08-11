@@ -33,7 +33,7 @@ public sealed class RevertJournalTests
         await using var __ = conn;
         var journal = await SeedBatchAsync(db, "run-1", 3);
 
-        var batch = await journal.ReadLastOpenBatchAsync();
+        var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
 
         Assert.NotNull(batch);
         Assert.Equal("run-1", batch.RunId);
@@ -52,7 +52,7 @@ public sealed class RevertJournalTests
 
         await journal.DeleteRowAsync("run-1", seq: 2, unrestorable: false);
 
-        var batch = await journal.ReadLastOpenBatchAsync();
+        var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
         Assert.NotNull(batch);
         Assert.Equal([3L, 1L], batch.Rows.Select(r => r.Seq));
     }
@@ -71,10 +71,10 @@ public sealed class RevertJournalTests
         }
 
         // Nothing left to offer…
-        Assert.Null(await journal.ReadLastOpenBatchAsync());
+        Assert.Null(await JournalPageReader.ReadWholeUndoTargetAsync(journal));
 
         // …and yet the panel can still say what the run was: the aggregate outlives its rows.
-        var summary = await journal.ReadLastBatchSummaryAsync();
+        var summary = await journal.ReadUndoTargetAsync();
         Assert.NotNull(summary);
         Assert.Equal("run-1", summary.Value.RunId);
         Assert.Equal(Opened.Ticks, summary.Value.WrittenAtUtcTicks);
@@ -94,7 +94,7 @@ public sealed class RevertJournalTests
         await journal.DeleteRowAsync("run-1", seq: 1, unrestorable: false);
         await journal.DeleteRowAsync("run-1", seq: 2, unrestorable: true);
 
-        var summary = await journal.ReadLastBatchSummaryAsync();
+        var summary = await journal.ReadUndoTargetAsync();
         Assert.NotNull(summary);
         Assert.Equal(3, summary.Value.OriginalCount);
         Assert.Equal(1, summary.Value.RestoredCount);
@@ -114,7 +114,7 @@ public sealed class RevertJournalTests
         await journal.DeleteRowAsync("run-1", seq: 1, unrestorable: false);
         await journal.DeleteRowAsync("run-1", seq: 1, unrestorable: false);
 
-        var summary = await journal.ReadLastBatchSummaryAsync();
+        var summary = await journal.ReadUndoTargetAsync();
         Assert.NotNull(summary);
         Assert.Equal(1, summary.Value.RestoredCount);
         Assert.Equal(0, summary.Value.Remaining);
@@ -132,7 +132,7 @@ public sealed class RevertJournalTests
         await SeedBatchAsync(db, "run-old", 2, Opened);
         var journal = await SeedBatchAsync(db, "run-new", 1, Opened.AddMinutes(5));
 
-        var batch = await journal.ReadLastOpenBatchAsync();
+        var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
         Assert.NotNull(batch);
         Assert.Equal("run-new", batch.RunId);
         Assert.Single(batch.Rows);
@@ -151,8 +151,8 @@ public sealed class RevertJournalTests
 
         await journal.PurgeExpiredAsync(Opened);
 
-        Assert.Null(await journal.ReadLastBatchSummaryAsync());
-        Assert.Null(await journal.ReadLastOpenBatchAsync());
+        Assert.Null(await journal.ReadUndoTargetAsync());
+        Assert.Null(await JournalPageReader.ReadWholeUndoTargetAsync(journal));
     }
 
     [Fact]

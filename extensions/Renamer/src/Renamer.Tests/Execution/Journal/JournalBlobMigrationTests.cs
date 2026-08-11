@@ -41,7 +41,7 @@ public sealed class JournalBlobMigrationTests
 
         Assert.Equal(2, moved);
 
-        var summary = await journal.ReadLastBatchSummaryAsync();
+        var summary = await journal.ReadUndoTargetAsync();
         Assert.NotNull(summary);
         Assert.Equal("R1", summary.Value.RunId);
 
@@ -51,7 +51,7 @@ public sealed class JournalBlobMigrationTests
         Assert.NotEqual(Now.Ticks, summary.Value.WrittenAtUtcTicks);
         Assert.Equal(2, summary.Value.OriginalCount);
 
-        var batch = await journal.ReadLastOpenBatchAsync();
+        var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
         Assert.NotNull(batch);
         Assert.Equal(RenamerFileKind.Video, batch.Kind);
         Assert.Equal([(8, 80, "/lib/b.mkv"), (7, 70, "/lib/a.mkv")],
@@ -75,7 +75,7 @@ public sealed class JournalBlobMigrationTests
 
         Assert.Equal(2, moved);
 
-        var batch = await journal.ReadLastOpenBatchAsync();
+        var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
         Assert.NotNull(batch);
         Assert.Equal(RenamerFileKind.Video, batch.Kind);
 
@@ -86,7 +86,7 @@ public sealed class JournalBlobMigrationTests
         // No header means no timestamp to inherit. Treating an unknown age as EXPIRED would delete a
         // pending undo on the next batch open with nothing to say so, which is the outcome this phase
         // exists to make impossible — so an unknown age gets the full window instead.
-        var summary = await journal.ReadLastBatchSummaryAsync();
+        var summary = await journal.ReadUndoTargetAsync();
         Assert.NotNull(summary);
         Assert.Equal(Now.Ticks, summary.Value.WrittenAtUtcTicks);
 
@@ -105,7 +105,7 @@ public sealed class JournalBlobMigrationTests
 
         Assert.Equal(0, await JournalBlobMigration.RunAsync(store, journal, Now));
 
-        Assert.Null(await journal.ReadLastBatchSummaryAsync());
+        Assert.Null(await journal.ReadUndoTargetAsync());
         await AssertBothKeysGoneAsync(store);
     }
 
@@ -124,7 +124,7 @@ public sealed class JournalBlobMigrationTests
         Assert.Equal(1, await JournalBlobMigration.RunAsync(store, journal, Now));
         Assert.Equal(0, await JournalBlobMigration.RunAsync(store, journal, Now));
 
-        var summary = await journal.ReadLastBatchSummaryAsync();
+        var summary = await journal.ReadUndoTargetAsync();
         Assert.NotNull(summary);
         Assert.Equal(1, summary.Value.OriginalCount);
     }
@@ -148,7 +148,7 @@ public sealed class JournalBlobMigrationTests
 
         Assert.Equal(rows, await JournalBlobMigration.RunAsync(store, journal, Now));
 
-        var batch = await journal.ReadLastOpenBatchAsync();
+        var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
         Assert.NotNull(batch);
         Assert.Equal(rows, batch.Rows.Count);
 
@@ -175,7 +175,7 @@ public sealed class JournalBlobMigrationTests
         Assert.Equal(0, await JournalBlobMigration.RunAsync(store, journal, Now));
 
         // Nothing was invented from an unreadable value — no empty batch was opened either.
-        Assert.Null(await journal.ReadLastBatchSummaryAsync());
+        Assert.Null(await journal.ReadUndoTargetAsync());
         await AssertBothKeysGoneAsync(store);
     }
 
@@ -212,7 +212,7 @@ public sealed class JournalBlobMigrationTests
 
         Assert.Equal(0, await JournalBlobMigration.RunAsync(store, journal, Now));
 
-        Assert.Null(await journal.ReadLastBatchSummaryAsync());
+        Assert.Null(await journal.ReadUndoTargetAsync());
         await AssertBothKeysGoneAsync(store);
     }
 
@@ -236,7 +236,7 @@ public sealed class JournalBlobMigrationTests
         Assert.Empty(await store.GetAllAsync());
 
         await using var db = library.NewContext();
-        var batch = await new CoveRevertJournal(db).ReadLastOpenBatchAsync();
+        var batch = await JournalPageReader.ReadWholeUndoTargetAsync(new CoveRevertJournal(db));
         Assert.NotNull(batch);
         Assert.Equal("R1", batch.RunId);
         Assert.Equal("/lib/a.mkv", Assert.Single(batch.Rows).OldPath);

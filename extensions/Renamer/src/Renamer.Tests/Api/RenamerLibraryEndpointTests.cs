@@ -150,7 +150,7 @@ public sealed class RenamerLibraryEndpointTests
             // second batch never cost the first its rows.
             var journal = new CoveRevertJournal(db);
 
-            var imageBatch = await journal.ReadLastOpenBatchAsync();
+            var imageBatch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(imageBatch);
             Assert.Equal(RenamerFileKind.Image, imageBatch!.Kind);
             var imageRow = Assert.Single(imageBatch.Rows);
@@ -158,7 +158,7 @@ public sealed class RenamerLibraryEndpointTests
 
             await journal.DeleteRowAsync(imageRow.RunId, imageRow.Seq, unrestorable: false);
 
-            var videoBatch = await journal.ReadLastOpenBatchAsync();
+            var videoBatch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(videoBatch);
             Assert.Equal(RenamerFileKind.Video, videoBatch!.Kind);
             Assert.Equal(videoFileId, Assert.Single(videoBatch.Rows).FileId);
@@ -193,9 +193,13 @@ public sealed class RenamerLibraryEndpointTests
             await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
 
             // Only Video opened a batch — Image had zero candidates, so RunRenamerBatchAsync was never
-            // called for it and no empty batch opened. An empty Image batch opened after the Video one
-            // would show up here as a newest batch that journalled nothing.
-            var summary = await new CoveRevertJournal(db).ReadLastBatchSummaryAsync();
+            // called for it and no empty batch opened. Counted on the TABLE rather than inferred from
+            // the undo target: that read names the newest batch with rows left, so an empty Image batch
+            // opened after the Video one would be passed over silently and leave the assertion below
+            // reading exactly as it does now.
+            Assert.Equal(1, await db.Set<RevertBatchEntity>().AsNoTracking().CountAsync());
+
+            var summary = await new CoveRevertJournal(db).ReadUndoTargetAsync();
             Assert.NotNull(summary);
             Assert.Equal(1, summary!.Value.OriginalCount);
         }

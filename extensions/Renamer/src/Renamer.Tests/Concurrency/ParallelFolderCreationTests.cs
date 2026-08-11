@@ -105,7 +105,7 @@ public sealed class ParallelFolderCreationTests
 
             // The journal recorded one row per moved file under one batch (no torn/lost append).
             await using var readDb = shared.NewContext();
-            var batch = await new CoveRevertJournal(readDb).ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(new CoveRevertJournal(readDb));
             Assert.NotNull(batch);
             Assert.Equal(k, batch!.Rows.Count);
         }
