@@ -334,10 +334,11 @@ public sealed partial class Renamer
     /// Reads the newest batch that still has rows (its <see cref="RenamerFileKind"/> from the batch,
     /// its entityId-bearing rows newest-first), reverse-replays it via <see cref="UndoReplayer"/>
     /// (kind from the batch, entityId from each row — there is NO hardcoded Video default on this
-    /// path), then RETIRES each row that was actually restored. A row that was skipped or failed stays
-    /// in the journal, so a later <c>/undo</c> retries exactly the work that is still outstanding, and
-    /// a batch with nothing left is not offered again. A null/empty batch is a clean <c>{undone:0}</c>
-    /// no-op.
+    /// path), then RETIRES every row whose outcome is settled: one that was restored, and one that
+    /// stopped for the single reason no retry can improve on. A row that stopped for any other reason
+    /// stays in the journal, so a later <c>/undo</c> retries exactly the work that is still outstanding,
+    /// and a batch with nothing left is not offered again. A null/empty batch is a clean
+    /// <c>{undone:0}</c> no-op.
     /// </para>
     /// </summary>
     internal async Task<Results<WireJson<UndoResult>, ForbiddenCode>> UndoAsync(
@@ -392,16 +393,31 @@ public sealed partial class Renamer
 
         LogUndo(batch.RunId, batch, run);
 
-        // Retire each row whose file actually came back, and ONLY those. A skipped or failed row stays
-        // in the journal, so it is offered again on the next undo — which is what makes a retry act on
+        // Retire each row whose file actually came back. A row that stopped for a reason the world can
+        // clear STAYS, so it is offered again on the next undo — which is what makes a retry act on
         // exactly the work still outstanding after the cause is corrected (an allowlist that didn't yet
-        // cover the original location, an offline source drive, a temporarily-locked file). The
-        // unrestorable flag is always false here: nothing on this path can yet establish that a file can
-        // NEVER be restored, and a row wrongly retired as unrestorable is a row the user can never
-        // recover.
+        // cover the original location, an offline source drive, a temporarily-locked file).
         foreach (var row in run.Restored)
         {
             await journal.DeleteRowAsync(row.RunId, row.Seq, unrestorable: false, ct);
+        }
+
+        // A row that can NEVER be restored is retired too, on the other counter. Leaving it would keep
+        // the batch offering an undo that cannot complete, and the panel promising work that will never
+        // happen; the aggregate still records that it ended unrestorable, and the reason was already
+        // surfaced in this very response. The decision reads the TYPED stop reason — the same fact as
+        // the note beside it, but as a value, so rewording a message for a human cannot change which
+        // rows get deleted for good.
+        //
+        // The same single call carries both outcomes, which is what keeps row presence and the batch
+        // aggregate from drifting apart: the row goes away either way and the flag only chooses which
+        // counter moves.
+        foreach (var stopped in run.Failed.Concat(run.Skipped))
+        {
+            if (UndoTerminalClassifier.IsTerminal(stopped.Stop))
+            {
+                await journal.DeleteRowAsync(stopped.RunId, stopped.Seq, unrestorable: true, ct);
+            }
         }
 
         return new WireJson<UndoResult>(new UndoResult(
