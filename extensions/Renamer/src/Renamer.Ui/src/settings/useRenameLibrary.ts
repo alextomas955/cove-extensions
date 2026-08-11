@@ -7,11 +7,20 @@
  * UndoSection to re-read /last-batch after a rename succeeds. The panel consumes this hook; the
  * sections stay presentational.
  */
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { JobEnqueued, ScanSummaryView } from "../wire/api";
 import { summaryCounts, type DryRunCounts } from "./dry-run/dryRunLogic";
+import {
+  JOB_FAILURE_ALLOWANCE,
+  JOB_STALL_BUDGET_MS,
+  JobUnresponsiveError,
+  advanceStallClock,
+  decidePoll,
+  nextFailureCount,
+  type StallClock,
+} from "./jobPollLogic";
 import { api } from "../common/lib/extension";
 
 const RENAME_LIBRARY_PATH = api("renamer-library");
@@ -27,21 +36,45 @@ interface RenameProgress {
   etaSeconds?: number | null;
 }
 
+/** A running poll: the promise the caller awaits, and the handle that stops it. */
+interface JobPoll {
+  /** Resolves when the job completes; rejects on failure, on expiry, and on {@link JobPoll.cancel}. */
+  done: Promise<void>;
+  /**
+   * Stops the poll and rejects `done`. Called from the hook's unmount cleanup, which is why the
+   * caller must also guard its post-await state writes — the rejection lands after the component
+   * that would render it is gone.
+   */
+  cancel: () => void;
+}
+
 /**
- * Polls `GET /jobs/{jobId}` until it leaves pending/running; rejects on failed/cancelled. The
- * host's minimal-API JSON options apply JsonStringEnumConverter(JsonNamingPolicy.CamelCase),
- * which lowercases the leading character of the JobStatus enum's PascalCase member names
- * (Completed -> "completed") — the status strings here must be camelCase, not PascalCase.
+ * Polls `GET /jobs/{jobId}` until {@link decidePoll} says to stop. The host's minimal-API JSON
+ * options apply JsonStringEnumConverter(JsonNamingPolicy.CamelCase), which lowercases the leading
+ * character of the JobStatus enum's PascalCase member names (Completed -> "completed") — the status
+ * strings here must be camelCase, not PascalCase.
  *
  * This is the one response shape in the panel still declared by hand, deliberately: `/jobs/{id}` is
  * the HOST's endpoint, so it is absent from the extension's OpenAPI document and no generated type
  * for it can exist. Anything the extension itself serves is read from `../wire/api` instead.
+ *
+ * Every bound is the logic module's: a read failure counts against an allowance rather than being
+ * swallowed, and silence counts against a stall budget that restarts whenever progress moves. The
+ * clock reads live here, in the poll handler, so the module stays testable without one.
  */
-function pollJobToCompletion(
-  jobId: string,
-  onProgress?: (p: RenameProgress) => void,
-): Promise<void> {
-  return new Promise((resolve, reject) => {
+function pollJobToCompletion(jobId: string, onProgress?: (p: RenameProgress) => void): JobPoll {
+  let stop: () => void = () => undefined;
+
+  const done = new Promise<void>((resolve, reject) => {
+    let failures = 0;
+    // NaN as the seed so the first reading always counts as movement: nothing has been observed yet,
+    // and treating that as silence would spend budget the job never had a chance to use.
+    let stall: StallClock = { progress: Number.NaN, sinceMs: Date.now() };
+    // Clearing the interval does not cancel the reads already in flight, and at a one-second interval
+    // a slow endpoint has more than one. Without this, a read issued before the run ended settles
+    // after it and calls onProgress — a progress write for a job the caller has finished reporting on.
+    let settled = false;
+
     const interval = setInterval(() => {
       requestJson<{
         status: string;
@@ -51,26 +84,85 @@ function pollJobToCompletion(
         etaSeconds?: number | null;
       }>(`/jobs/${jobId}`)
         .then((job) => {
-          if (job.status === "completed") {
-            clearInterval(interval);
-            resolve();
-          } else if (job.status === "failed" || job.status === "cancelled") {
-            clearInterval(interval);
-            reject(new Error(job.error ?? "the job did not complete"));
-          } else {
-            // Still pending/running — surface live progress from this SAME poll (no second poller).
+          if (settled) return;
+          const now = Date.now();
+          failures = nextFailureCount(failures, true);
+          stall = advanceStallClock(stall, job.progress ?? 0, now);
+          const decision = decidePoll(
+            { read: "ok", status: job.status, error: job.error },
+            {
+              msSinceProgress: now - stall.sinceMs,
+              consecutiveFailures: failures,
+              stallBudgetMs: JOB_STALL_BUDGET_MS,
+              failureAllowance: JOB_FAILURE_ALLOWANCE,
+            },
+          );
+
+          if (decision.action === "continue") {
+            // Still going — surface live progress from this SAME poll (no second poller).
             onProgress?.({
               progress: job.progress ?? 0,
               subTask: job.subTask,
               etaSeconds: job.etaSeconds,
             });
+            return;
           }
+
+          settled = true;
+          clearInterval(interval);
+          if (decision.action === "resolve") resolve();
+          else if (decision.action === "reject") reject(new Error(decision.message));
+          else reject(new JobUnresponsiveError(decision.message));
         })
         .catch(() => {
-          // Transient poll failure — keep polling; a real failure surfaces via job.status.
+          if (settled) return;
+          failures = nextFailureCount(failures, false);
+          const decision = decidePoll(
+            { read: "failed" },
+            {
+              msSinceProgress: Date.now() - stall.sinceMs,
+              consecutiveFailures: failures,
+              stallBudgetMs: JOB_STALL_BUDGET_MS,
+              failureAllowance: JOB_FAILURE_ALLOWANCE,
+            },
+          );
+          if (decision.action === "expire") {
+            settled = true;
+            clearInterval(interval);
+            reject(new JobUnresponsiveError(decision.message));
+          }
         });
     }, JOB_POLL_INTERVAL_MS);
+
+    stop = () => {
+      settled = true;
+      clearInterval(interval);
+      reject(new Error("the poll was stopped"));
+    };
   });
+
+  return {
+    done,
+    cancel: () => {
+      stop();
+    },
+  };
+}
+
+/**
+ * The banner sentence for a run that did not finish.
+ *
+ * An expiry gets its own sentence and deliberately does NOT claim nothing was changed. The poll gave
+ * up watching; the job may have renamed thousands of files before it went quiet, and the UI has no way
+ * to know. Telling the user their library is untouched would be a confident falsehood about a
+ * destructive operation — the worse of the two errors available here.
+ */
+function renameFailureText(err: unknown): string {
+  if (err instanceof JobUnresponsiveError) {
+    return `Couldn't confirm the rename — ${err.message}.`;
+  }
+  const text = err instanceof ApiError ? `${err.status} ${err.body}` : String(err);
+  return `Couldn't rename — ${text}. Nothing was changed; you can try again.`;
 }
 
 export interface UseRenameLibrary {
@@ -94,6 +186,33 @@ export function useRenameLibrary(): UseRenameLibrary {
   // Null before/after the job (falls back to the bare spinner); a {progress, subTask, etaSeconds}
   // sample while it runs.
   const [renameProgress, setRenameProgress] = useState<RenameProgress | null>(null);
+  // The poll currently running, so unmounting stops it. Without a handle there is nothing to call:
+  // the poll lives inside a callback rather than an effect, so React's own cleanup never sees it.
+  const activePoll = useRef<(() => void) | null>(null);
+  // Whether this hook's component is still mounted. Every state write below the first `await` is
+  // guarded by it, because a poll rejected by the unmount cleanup settles after there is anything to
+  // render — and re-set to true in the effect body, since StrictMode's dev-only remount would
+  // otherwise leave it false for the rest of the session.
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      activePoll.current?.();
+    };
+  }, []);
+
+  /** Run one poll to settlement while keeping it reachable by the unmount cleanup. */
+  const runPoll = useCallback(async (jobId: string, onProgress?: (p: RenameProgress) => void) => {
+    const poll = pollJobToCompletion(jobId, onProgress);
+    activePoll.current = poll.cancel;
+    try {
+      await poll.done;
+    } finally {
+      activePoll.current = null;
+    }
+  }, []);
 
   /**
    * The SHARED "Rename all files" handler — called identically by the panel-level button and
@@ -114,47 +233,49 @@ export function useRenameLibrary(): UseRenameLibrary {
    * because the UI cannot know which kinds actually acted: with a single kind it is still true, merely
    * uninformative, and that is the right way round for a claim about recoverability.
    */
-  const renameLibrary = useCallback(async (scanCounts?: DryRunCounts) => {
-    setRenamingLibrary(true);
-    setRunLibraryFeedback(null);
-    setRenameProgress(null);
-    try {
-      let counts = scanCounts;
-      if (!counts) {
-        const { jobId: scanJobId } = await requestJson<JobEnqueued>(api("scan-library"), {
+  const renameLibrary = useCallback(
+    async (scanCounts?: DryRunCounts) => {
+      setRenamingLibrary(true);
+      setRunLibraryFeedback(null);
+      setRenameProgress(null);
+      try {
+        let counts = scanCounts;
+        if (!counts) {
+          const { jobId: scanJobId } = await requestJson<JobEnqueued>(api("scan-library"), {
+            method: "POST",
+          });
+          await runPoll(scanJobId);
+          counts = summaryCounts(await requestJson<ScanSummaryView>(api("last-scan")));
+        }
+
+        const { jobId } = await requestJson<JobEnqueued>(RENAME_LIBRARY_PATH, {
           method: "POST",
         });
-        await pollJobToCompletion(scanJobId);
-        counts = summaryCounts(await requestJson<ScanSummaryView>(api("last-scan")));
+        await runPoll(jobId, (p) => {
+          if (mounted.current) setRenameProgress(p);
+        });
+
+        if (!mounted.current) return;
+        setDryRunOpen(false);
+        setRunLibraryFeedback({
+          kind: "success",
+          text:
+            `Renamed ${counts.willChange} file${counts.willChange === 1 ? "" : "s"}` +
+            (counts.attention > 0 ? `, ${counts.attention} skipped` : "") +
+            `. Undo covers only the last media kind in this run.`,
+        });
+        setUndoRefreshKey((k) => k + 1);
+      } catch (err) {
+        if (mounted.current) setRunLibraryFeedback({ kind: "error", text: renameFailureText(err) });
+      } finally {
+        if (mounted.current) {
+          setRenamingLibrary(false);
+          setRenameProgress(null);
+        }
       }
-
-      const { jobId } = await requestJson<JobEnqueued>(RENAME_LIBRARY_PATH, {
-        method: "POST",
-      });
-      await pollJobToCompletion(jobId, (p) => {
-        setRenameProgress(p);
-      });
-
-      setDryRunOpen(false);
-      setRunLibraryFeedback({
-        kind: "success",
-        text:
-          `Renamed ${counts.willChange} file${counts.willChange === 1 ? "" : "s"}` +
-          (counts.attention > 0 ? `, ${counts.attention} skipped` : "") +
-          `. Undo covers only the last media kind in this run.`,
-      });
-      setUndoRefreshKey((k) => k + 1);
-    } catch (err) {
-      const text = err instanceof ApiError ? `${err.status} ${err.body}` : String(err);
-      setRunLibraryFeedback({
-        kind: "error",
-        text: `Couldn't rename — ${text}. Nothing was changed; you can try again.`,
-      });
-    } finally {
-      setRenamingLibrary(false);
-      setRenameProgress(null);
-    }
-  }, []);
+    },
+    [runPoll],
+  );
 
   return {
     dryRunOpen,
