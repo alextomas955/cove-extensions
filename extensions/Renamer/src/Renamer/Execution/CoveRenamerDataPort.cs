@@ -346,9 +346,21 @@ public class CoveRenamerDataPort : IRenamerDataPort
 
             if (m.CaptionRenames is { Count: > 0 } && file is VideoFile vf)
             {
+                // The rows are QUERIED, never reached through file.Captions. Every read this port
+                // makes is AsNoTracking, so in production nothing has put this file's captions in the
+                // change tracker and the navigation is an empty collection — a lookup through it finds
+                // nothing and each rename is dropped in silence, leaving the row naming a file the move
+                // has just taken away. It survived because a test that seeds a caption through the same
+                // context gets the navigation populated by relationship fix-up, so the fixture supplied
+                // the state production does not have.
+                var captionIds = m.CaptionRenames.Select(cr => cr.CaptionId).ToList();
+                var captions = await _db.Set<VideoCaption>()
+                    .Where(c => c.FileId == vf.Id && captionIds.Contains(c.Id))
+                    .ToListAsync(ct);
+
                 foreach (var (captionId, newFilename) in m.CaptionRenames)
                 {
-                    var cap = vf.Captions.FirstOrDefault(c => c.Id == captionId);
+                    var cap = captions.FirstOrDefault(c => c.Id == captionId);
                     if (cap is not null)
                     {
                         cap.Filename = newFilename;

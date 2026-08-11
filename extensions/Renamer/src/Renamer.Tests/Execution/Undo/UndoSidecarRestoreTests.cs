@@ -120,6 +120,7 @@ public sealed class UndoSidecarRestoreTests
                 // must refuse to clobber it — and that refusal must not strand the film's recovery on a
                 // subtitle.
                 File.WriteAllText(Path.Combine(dir.Root, "clip.srt"), "someone else's subs");
+                return Task.CompletedTask;
             });
 
             Assert.Equal(1, run.Undone);
@@ -168,6 +169,7 @@ public sealed class UndoSidecarRestoreTests
             var run = await RenameThenUndoAsync(db, "caption-stranded-run", videoId, options, betweenRenameAndUndo: () =>
             {
                 File.WriteAllText(Path.Combine(dir.Root, "clip.en.vtt"), "someone else's caption");
+                return Task.CompletedTask;
             });
 
             Assert.Equal(1, run.Undone);
@@ -177,6 +179,48 @@ public sealed class UndoSidecarRestoreTests
             // original name back here would leave the database naming a file that does not exist.
             Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.en.vtt")));
             Assert.Equal("My Film.en.vtt", await ReadCaptionFilenameAsync(db, captionId));
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ACaptionRowThatIsNotAlreadyTracked_StillFollowsTheRenameAndComesBack()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, videoId, fileId) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "My Film");
+            int captionId = await SeedCaptionAsync(db, fileId, "clip.en.vtt");
+
+            File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
+            File.WriteAllText(Path.Combine(dir.Root, "clip.en.vtt"), "caption");
+
+            // The one line that makes this case measure the code rather than the fixture. Seeding a
+            // caption through this context leaves it in the change tracker, and relationship fix-up
+            // then populates the file's Captions navigation — state PRODUCTION never has, because
+            // every read the port makes is AsNoTracking and each batch worker saves through a context
+            // that has loaded nothing. Every other case here inherits that fixture-supplied state, so
+            // a rename whose caption write silently did nothing passed all of them.
+            db.ChangeTracker.Clear();
+
+            string afterRename = "";
+            var run = await RenameThenUndoAsync(
+                db, "caption-untracked-run", videoId, new RenamerOptions { FilenameTemplate = "$title" },
+                betweenRenameAndUndo: async () => afterRename = await ReadCaptionFilenameAsync(db, captionId));
+
+            // The forward half is asserted on its own: a round trip that never wrote in either
+            // direction ends on the original name too, and would read as a pass.
+            Assert.Equal("My Film.en.vtt", afterRename);
+
+            Assert.Equal(1, run.Undone);
+            Assert.Equal("clip.en.vtt", await ReadCaptionFilenameAsync(db, captionId));
         }
         finally
         {
@@ -224,7 +268,7 @@ public sealed class UndoSidecarRestoreTests
     /// </summary>
     private static async Task<UndoReplayer.UndoRunResult> RenameThenUndoAsync(
         CoveContext db, string runId, int videoId, RenamerOptions options,
-        Action? betweenRenameAndUndo = null)
+        Func<Task>? betweenRenameAndUndo = null)
     {
         var port = new CoveRenamerDataPort(db);
         using var journal = new CoveRevertJournal(db);
@@ -235,7 +279,10 @@ public sealed class UndoSidecarRestoreTests
             .ExecuteAsync(plan, options, default);
         Assert.Single(forward.Renamed);
 
-        betweenRenameAndUndo?.Invoke();
+        if (betweenRenameAndUndo is not null)
+        {
+            await betweenRenameAndUndo();
+        }
 
         var batch = await journal.ReadLastOpenBatchAsync();
         Assert.NotNull(batch);
