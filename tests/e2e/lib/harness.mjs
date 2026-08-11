@@ -135,12 +135,15 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
      * having loaded. Nothing behavioural needs this: a failed extension migration is a host log line
      * and the load continues, so an extension can be enabled with no table behind it.
      *
-     * Pass an argv array as `exec` does. Read the credentials from the container's own environment
-     * (`sh -c 'psql -U "$POSTGRES_USER" …'`) rather than repeating them here — the compose file sets
-     * them, and a second copy would be free to disagree with it.
+     * Takes an argv array plus Testcontainers' own exec options, and `opts` is not optional dressing:
+     * passing the statement through `env` is what lets it carry quotes with no escaping rule to get
+     * wrong, and reading the credentials from the container's own environment
+     * (`sh -c 'psql -U "$POSTGRES_USER" …'`) keeps the compose file the one place they are written.
+     * Dropping `opts` here does not fail loudly — psql exits 0 on an empty statement — so a caller
+     * would see a successful query that returned nothing.
      */
-    execDb(command) {
-      return dbContainer.exec(command);
+    execDb(command, opts) {
+      return dbContainer.exec(command, opts);
     },
 
     /**
