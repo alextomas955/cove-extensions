@@ -9,8 +9,8 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// physical drive — the mover is called regardless of the real volume layout, exactly like
 /// <see cref="DiskMover"/>'s tests). Proves: a verified happy move; no-clobber on an existing dest;
 /// a same-size-but-different-content copy is rejected (size-only would false-pass); a locked source
-/// is a classified skip not a throw; sidecars skip-not-clobber; a stale <c>.partial</c> is never
-/// promoted unverified.
+/// is a classified skip not a throw; sidecars skip-not-clobber; an in-flight copy orphaned by an
+/// earlier crash is left in place and never promoted unverified.
 /// </summary>
 [Trait("Tier", "L1")]
 public sealed class CrossVolumeMoverTests
@@ -170,25 +170,29 @@ public sealed class CrossVolumeMoverTests
     }
 
     [Fact]
-    public async Task LeftoverPartial_NeverPromoted_FreshVerifiedFinalProduced()
+    public async Task CrashOrphanedInFlightCopy_LeftInPlace_NeverPromoted_FreshVerifiedFinalProduced()
     {
         using var dir = new TempDir();
         var old = dir.Touch("clip.mkv", "the genuine bytes");
         var dest = Path.Combine(dir.Root, "moved", "clip.mkv");
 
-        // A stale, UNVERIFIED .partial left from a crashed prior run.
-        var stalePartial = dest + PartialSuffix;
-        Directory.CreateDirectory(Path.GetDirectoryName(stalePartial)!);
-        File.WriteAllText(stalePartial, "STALE UNVERIFIED GARBAGE - must never be promoted");
+        // An unverified in-flight copy orphaned by a crashed prior run, at a name that run minted.
+        const string orphanContent = "ORPHANED UNVERIFIED BYTES - must never be promoted";
+        var orphan = dest + ".rnm0cf1c5d4";
+        Directory.CreateDirectory(Path.GetDirectoryName(orphan)!);
+        File.WriteAllText(orphan, orphanContent);
 
         var mover = new CrossVolumeMover();
         var result = await mover.MoveAsync(old, dest, sidecars: null, CancellationToken.None);
 
         Assert.True(result.Moved);
         Assert.Equal(CrossVolumeMover.MoveOutcome.Moved, result.Outcome);
-        // The final is the FRESH verified copy of the source, never the stale .partial's contents.
+        // The final is the FRESH verified copy of the source, never the orphan's contents.
         Assert.Equal("the genuine bytes", File.ReadAllText(dest));
         Assert.False(File.Exists(old));
-        Assert.False(File.Exists(stalePartial), "the stale .partial must be cleaned, never promoted");
+        // The orphan is inert, not garbage to collect: this call minted a different name, so it is
+        // neither promoted nor collided with — and the mover deletes only what it created.
+        Assert.True(File.Exists(orphan), "an orphan the mover did not create must be left alone");
+        Assert.Equal(orphanContent, File.ReadAllText(orphan));
     }
 }
