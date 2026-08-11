@@ -124,9 +124,17 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
       return result;
     },
 
-    /** Runs a command inside the Cove container (e.g. to inspect /data2 for the cross-device test). */
-    exec(command) {
-      return coveContainer.exec(command);
+    /**
+     * Runs a command inside the Cove container (e.g. to inspect /data2 for the cross-device test).
+     *
+     * Takes Testcontainers' own exec options alongside the argv, for the same reason `execDb` below
+     * does: passing a value through `env` is what lets a command carry quotes with no escaping rule
+     * to get wrong, and `user` is what reaches a path the container's own user may not. Dropping the
+     * options does not fail loudly — the command still runs and still exits 0, just without what the
+     * caller meant to supply — so the caller reads a successful run of a command that did nothing.
+     */
+    exec(command, opts) {
+      return coveContainer.exec(command, opts);
     },
 
     /**
@@ -170,7 +178,9 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
         );
       }
       credentials = { username, password };
-      return takeToken(await res.json(), "bootstrapOwner");
+      const payload = await res.json();
+      handle.token = readToken(payload, "bootstrapOwner");
+      return payload;
     },
 
     /**
@@ -191,7 +201,107 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
         throw new Error(`login: POST /api/auth/login failed (${res.status}): ${body}`);
       }
       credentials = { username, password };
-      return takeToken(await res.json(), "login");
+      const payload = await res.json();
+      handle.token = readToken(payload, "login");
+      return payload;
+    },
+
+    /**
+     * Creates a NON-OWNER user Cove's row-level authorization filters actually apply to, and returns
+     * its token WITHOUT replacing the handle's own.
+     *
+     * Why this exists at all: `CoveContext` short-circuits every one of those filters to true for a
+     * principal holding the `"*"` permission, and Cove's bootstrap grants exactly that to the owner
+     * role. So a spec driven with `bootstrapOwner()`'s token cannot observe row-level authorization —
+     * every assertion it makes about which rows a principal sees passes whatever the filters do. The
+     * same clause treats a MISSING principal as bypassed too, so "send no credential" proves the safe
+     * case rather than the dangerous one. What discriminates is a present, under-privileged user.
+     *
+     * Why a permission list is not enough on its own, and the deny rule is what does the work: Cove's
+     * write permissions declare the matching read as implied, so a role granted `videos.write` is
+     * expanded to hold `videos.read` and reaches every video read endpoint. A CONTENT RULE denying
+     * read on a kind is the mechanism that leaves the permission in place while making the per-entity
+     * SQL predicate answer false — which is the shape worth testing, because it is the one where a
+     * caller gets 200 and zero rows rather than a 403 that names itself.
+     *
+     * The handle's `token` deliberately stays the owner's: the caller still needs it to seed the
+     * fixture and to read the same data back as somebody the filters do not apply to, which is the
+     * comparison that gives a zero-row assertion any meaning.
+     *
+     * @param {object} opts
+     * @param {string[]} opts.permissions - Host permission keys granted to the role, verbatim; this
+     *   helper never adds to them.
+     * @param {string[]} opts.denyReadEntityKinds - Cove entity kinds (its own lowercase vocabulary,
+     *   e.g. `video`) to deny read on for the whole role.
+     * @returns {Promise<{token: string, userId: number, roleId: number, roleName: string,
+     *   username: string, password: string}>}
+     */
+    async createRestrictedUser({
+      username = "e2e-restricted",
+      password = "E2eRestrictedPassword123!",
+      roleName = "e2e-restricted",
+      permissions = [],
+      denyReadEntityKinds = [],
+    } = {}) {
+      // Every call below is made as the OWNER: creating a role, a content rule and a user require
+      // RolesWrite/UsersWrite, which at this point only the bootstrapped owner holds.
+      const asOwner = async (path, body) => {
+        const res = await fetch(`${handle.baseUrl}${path}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(handle.token ? { Authorization: `Bearer ${handle.token}` } : {}),
+          },
+          body: JSON.stringify(body),
+        });
+        const text = await res.text().catch(() => "<unreadable body>");
+        if (!res.ok) {
+          throw new Error(
+            `createRestrictedUser: POST ${path} failed (${res.status}): ${text || "<empty body>"}`,
+          );
+        }
+        try {
+          return text ? JSON.parse(text) : undefined;
+        } catch {
+          throw new Error(
+            `createRestrictedUser: POST ${path} answered ${res.status} with a body that is not JSON: ${text}`,
+          );
+        }
+      };
+
+      const role = await asOwner("/api/roles", {
+        Name: roleName,
+        Description: "Restricted e2e role — no wildcard, read denied by content rule.",
+        Permissions: permissions,
+      });
+      const roleId = requireId(role, "id", `createRestrictedUser: POST /api/roles`);
+
+      for (const entityKind of denyReadEntityKinds) {
+        // The vocabulary is the host's own (ContentRuleService's valid effect/scope/appliesTo sets);
+        // it is lowercase there and matched case-insensitively, so it is written that way here rather
+        // than in an invented uppercase form. An empty ScopeValue is normalised to `{}` by the host,
+        // which is what a scope of "all" wants.
+        await asOwner("/api/content-rules", {
+          RoleId: roleId,
+          EntityKind: entityKind,
+          Effect: "deny",
+          ScopeKind: "all",
+          ScopeValue: "",
+          AppliesTo: "read",
+        });
+      }
+
+      const user = await asOwner("/api/users", {
+        Username: username,
+        Password: password,
+        Roles: [roleName],
+      });
+      const userId = requireId(user, "id", `createRestrictedUser: POST /api/users`);
+
+      const loginPayload = await asOwner("/api/auth/login", { username, password });
+      const token = readToken(loginPayload, "createRestrictedUser login");
+
+      return { token, userId, roleId, roleName, username, password };
     },
 
     async stop() {
@@ -202,18 +312,35 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
   // The access token is `token` — NOT `accessToken`. Reading the wrong field yields
   // `Bearer undefined`, which the host rejects identically to sending no header at all, so a spec
   // would go red for a broken fixture rather than for the behavior it means to prove. Asserted here,
-  // at the one place either response's field name is spelled, so that failure names itself.
-  function takeToken(response, source) {
+  // at the one place any login response's field name is spelled, so that failure names itself.
+  //
+  // Returns the token instead of storing it: the handle's `token` is the owner's by contract, and a
+  // helper that mints a second, deliberately less privileged one must not be able to overwrite it —
+  // silently swapping the owner's credential for a restricted one turns every later fixture call into
+  // a permission failure a long way from its cause.
+  function readToken(response, source) {
     if (typeof response?.token !== "string" || response.token.length === 0) {
       throw new Error(
         `${source}: response carried no usable token (top-level keys: ${Object.keys(response ?? {}).join(", ") || "<none>"})`,
       );
     }
-    handle.token = response.token;
-    return response;
+    return response.token;
   }
 
   return handle;
+}
+
+// Reads an id the host minted, failing with the keys it actually returned rather than handing a
+// caller `undefined` to put in a URL — where it reads as a 404 about a missing entity instead of as
+// a wire-shape mismatch.
+function requireId(payload, field, source) {
+  const value = payload?.[field];
+  if (typeof value !== "number") {
+    throw new Error(
+      `${source}: response carried no numeric "${field}" (top-level keys: ${Object.keys(payload ?? {}).join(", ") || "<none>"})`,
+    );
+  }
+  return value;
 }
 
 // The restart's own wait strategy is a health check, but that probe runs INSIDE the container and
