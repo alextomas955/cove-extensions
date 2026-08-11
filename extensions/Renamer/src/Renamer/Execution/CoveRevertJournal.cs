@@ -40,6 +40,12 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
     public async Task BeginBatchAsync(
         string runId, RenamerFileKind kind, DateTime nowUtc, CancellationToken ct = default)
     {
+        // Retention runs HERE and nowhere else. Opening a batch is the only place a batch is created,
+        // so it is the only place the window can be crossed by new work — which is what lets the whole
+        // model be a constant plus this one line, with no timer, scheduler or background service to own
+        // a lifetime, fail silently, or need a setting. Outside the gate because the purge takes it.
+        await PurgeExpiredAsync(nowUtc, ct);
+
         await _writes.WaitAsync(ct);
         try
         {
@@ -190,12 +196,35 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
         }
     }
 
-    public Task PurgeExpiredAsync(DateTime nowUtc, CancellationToken ct = default) =>
-        throw new NotImplementedException(
-            "The revert journal's retention purge is not built yet. It throws rather than returning "
-                + "quietly because a purge that reports success while deleting nothing is "
-                + "indistinguishable from one that works, and what it would hide is the journal "
-                + "growing without a bound.");
+    public async Task PurgeExpiredAsync(DateTime nowUtc, CancellationToken ct = default)
+    {
+        await _writes.WaitAsync(ct);
+        try
+        {
+            long cutoff = (nowUtc - JournalRetention.Window).Ticks;
+
+            // Keyed on the BATCH's own open timestamp, never on a row. That single choice is what makes
+            // "a batch expires whole" structural instead of a rule someone has to remember: there is no
+            // per-row age to disagree with the batch's, so no sweep can leave half a batch behind and
+            // turn a later undo silently partial.
+            var expired = _db.Set<RevertBatchEntity>().Where(b => b.OpenedAtUtcTicks < cutoff);
+
+            // TWO statements, whatever the batch holds. The run ids are deliberately NOT materialized
+            // into an IN(...) list: the auto-renamer opens a batch per metadata edit, so the number of
+            // expired batches is itself unbounded input, and a parameter per batch (or a delete per row)
+            // would make the purge the O(library) failure retention exists to prevent.
+            await _db.Set<RevertRowEntity>()
+                .Where(r => expired.Any(b => b.RunId == r.RunId))
+                .ExecuteDeleteAsync(ct);
+
+            // Rows first, while their batch row is still there to correlate against.
+            await expired.ExecuteDeleteAsync(ct);
+        }
+        finally
+        {
+            _writes.Release();
+        }
+    }
 
     /// <summary>Releases the write gate. The context is the scope's to dispose, never this instance's.</summary>
     public void Dispose() => _writes.Dispose();

@@ -139,17 +139,20 @@ public sealed class RevertJournalTests
     }
 
     [Fact]
-    public async Task ThePurge_RefusesRatherThanReportingASuccessItCannotDeliver()
+    public async Task ThePurge_OverAnEmptyJournal_CompletesAndChangesNothing()
     {
-        // A purge that returns quietly while deleting nothing is indistinguishable from one that
-        // works, and what it would hide is the journal growing without a bound.
+        // It runs on every batch open, so the ordinary case is a journal with nothing expired in it —
+        // and on a fresh install, nothing in it at all. That path must be a quiet no-op, not a throw.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         await using var _ = db;
         await using var __ = conn;
 
         var journal = new CoveRevertJournal(db);
 
-        await Assert.ThrowsAsync<NotImplementedException>(() => journal.PurgeExpiredAsync(Opened));
+        await journal.PurgeExpiredAsync(Opened);
+
+        Assert.Null(await journal.ReadLastBatchSummaryAsync());
+        Assert.Null(await journal.ReadLastOpenBatchAsync());
     }
 
     [Fact]
