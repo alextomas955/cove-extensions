@@ -21,6 +21,11 @@ import {
   nextFailureCount,
   type StallClock,
 } from "./jobPollLogic";
+import {
+  buildRenameLibraryError,
+  buildRenameLibrarySuccess,
+  type RenameFailure,
+} from "./renameLibraryBannerLogic";
 import { api } from "../common/lib/extension";
 
 const RENAME_LIBRARY_PATH = api("renamer-library");
@@ -150,19 +155,20 @@ function pollJobToCompletion(jobId: string, onProgress?: (p: RenameProgress) => 
 }
 
 /**
- * The banner sentence for a run that did not finish.
+ * Classify a thrown value for the banner.
  *
- * An expiry gets its own sentence and deliberately does NOT claim nothing was changed. The poll gave
- * up watching; the job may have renamed thousands of files before it went quiet, and the UI has no way
- * to know. Telling the user their library is untouched would be a confident falsehood about a
- * destructive operation — the worse of the two errors available here.
+ * The narrowing lives here rather than in the banner module because it needs `ApiError`, which the
+ * module may not import — a `*Logic.ts` module takes relative imports only. So this decides WHICH
+ * failure occurred and the module decides what to SAY about it.
  */
-function renameFailureText(err: unknown): string {
+function describeFailure(err: unknown): RenameFailure {
   if (err instanceof JobUnresponsiveError) {
-    return `Couldn't confirm the rename — ${err.message}.`;
+    return { kind: "unconfirmed", detail: err.message };
   }
-  const text = err instanceof ApiError ? `${err.status} ${err.body}` : String(err);
-  return `Couldn't rename — ${text}. Nothing was changed; you can try again.`;
+  return {
+    kind: "failed",
+    detail: err instanceof ApiError ? `${err.status} ${err.body}` : String(err),
+  };
 }
 
 export interface UseRenameLibrary {
@@ -226,12 +232,9 @@ export function useRenameLibrary(): UseRenameLibrary {
    * paths execute the SAME server-derived id set either way, since the scan and the rename job
    * independently call the identical LoadAllEntityIdsAsync query.
    *
-   * The success banner names undo's real reach. A whole-library run loops the writable media kinds and
-   * opens a SEPARATE revert batch per kind, while /undo replays only the last open batch — so a run
-   * spanning videos and images leaves the videos unrecoverable. Reporting one success next to one Undo
-   * button made the whole run look like one reversible operation. The sentence is unconditional
-   * because the UI cannot know which kinds actually acted: with a single kind it is still true, merely
-   * uninformative, and that is the right way round for a claim about recoverability.
+   * The banner text itself is {@link buildRenameLibrarySuccess}'s, which is also where the reasoning
+   * behind its undo-reach clause lives — at the line an editor tempted to gate that clause would
+   * change, rather than here where they would not look.
    */
   const renameLibrary = useCallback(
     async (scanCounts?: DryRunCounts) => {
@@ -257,16 +260,15 @@ export function useRenameLibrary(): UseRenameLibrary {
 
         if (!mounted.current) return;
         setDryRunOpen(false);
-        setRunLibraryFeedback({
-          kind: "success",
-          text:
-            `Renamed ${counts.willChange} file${counts.willChange === 1 ? "" : "s"}` +
-            (counts.attention > 0 ? `, ${counts.attention} skipped` : "") +
-            `. Undo covers only the last media kind in this run.`,
-        });
+        setRunLibraryFeedback({ kind: "success", text: buildRenameLibrarySuccess(counts) });
         setUndoRefreshKey((k) => k + 1);
       } catch (err) {
-        if (mounted.current) setRunLibraryFeedback({ kind: "error", text: renameFailureText(err) });
+        if (mounted.current) {
+          setRunLibraryFeedback({
+            kind: "error",
+            text: buildRenameLibraryError(describeFailure(err)),
+          });
+        }
       } finally {
         if (mounted.current) {
           setRenamingLibrary(false);
