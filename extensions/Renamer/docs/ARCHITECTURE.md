@@ -57,6 +57,13 @@ length safety settings, case transforms, required-field gating, and the auto-ren
 - `OptionsStore.cs` — loads and saves options through Cove's per-extension data store, so the
   configuration persists in Cove and survives extension upgrades.
 
+Two kinds of persisted state, and the boundary between them is load-bearing. The host's per-extension
+key/value store holds what is bounded by configuration — the options, and the last scan's summary. The
+undo journal is deliberately **not** there: it is the two extension-owned database tables described
+under Execution below. A journal grows with the library, and a growing value under one store key put
+every writer into a read-modify-write race and once grew large enough to fail this extension's whole
+settings page, survive a reinstall, and need SQL to remove. A row insert has neither problem.
+
 ### Engine — `src/Renamer/Engine/`
 
 A pure, side-effect-free renderer: given an item's tokens and the options, it produces the new
