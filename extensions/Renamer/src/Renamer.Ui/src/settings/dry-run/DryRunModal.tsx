@@ -30,6 +30,14 @@ import type { JobEnqueued, ScanSummaryView } from "../../wire/api";
 import type { RenamerOptions } from "../options";
 import { useScanRows } from "./useScanRows";
 import {
+  JOB_FAILURE_ALLOWANCE,
+  JOB_STALL_BUDGET_MS,
+  advanceStallClock,
+  decidePoll,
+  nextFailureCount,
+  type StallClock,
+} from "../jobPollLogic";
+import {
   assetHref,
   classifyItem,
   etaFromSamples,
@@ -115,40 +123,76 @@ function dirname(p: string): string {
 }
 
 /**
- * Polls `GET /jobs/{jobId}` every second until the job leaves Pending/Running, then calls
- * `onDone` once. No polling hook exists anywhere in `@cove/extension-sdk` — this is new code
- * (first job-polling UI in this codebase). Clears its interval on unmount or job change so no
- * timer leaks and no state updates fire after unmount.
+ * Polls `GET /jobs/{jobId}` every second until {@link decidePoll} says to stop, then calls `onDone`
+ * once — or `onExpire` when the run ended on a bound rather than on the job's own verdict. No polling
+ * hook exists anywhere in `@cove/extension-sdk` — this is new code (first job-polling UI in this
+ * codebase). Clears its interval on unmount or job change so no timer leaks and no state updates fire
+ * after unmount.
+ *
+ * Both bounds come from the logic module, and they are what stop this hook polling forever: it used to
+ * clear its interval only on a terminal status, so a job stuck running kept a request per second going
+ * for as long as the modal stayed open.
  */
 function usePollJob(
   jobId: string | null,
   onDone: (job: JobInfo) => void,
   onProgress?: (job: JobInfo) => void,
+  onExpire?: (message: string) => void,
 ) {
   useEffect(() => {
     if (!jobId) return;
     let cancelled = false;
+    let failures = 0;
+    // NaN seeds the clock so the first reading counts as movement rather than as silence the job never
+    // had a chance to break.
+    let stall: StallClock = { progress: Number.NaN, sinceMs: Date.now() };
+
+    const bounds = (msSinceProgress: number) => ({
+      msSinceProgress,
+      consecutiveFailures: failures,
+      stallBudgetMs: JOB_STALL_BUDGET_MS,
+      failureAllowance: JOB_FAILURE_ALLOWANCE,
+    });
+
     const interval = setInterval(() => {
       requestJson<JobInfo>(`/jobs/${jobId}`)
         .then((job) => {
           if (cancelled) return;
-          if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
-            clearInterval(interval);
-            onDone(job);
-          } else {
+          const now = Date.now();
+          failures = nextFailureCount(failures, true);
+          stall = advanceStallClock(stall, job.progress, now);
+          const decision = decidePoll(
+            { read: "ok", status: job.status, error: job.error },
+            bounds(now - stall.sinceMs),
+          );
+
+          if (decision.action === "continue") {
             // Still pending/running — surface live progress. Terminal polls never fire onProgress.
             onProgress?.(job);
+            return;
           }
+
+          clearInterval(interval);
+          // resolve and reject both hand the job back: the caller reads its status to decide between
+          // the summary and an error, which is the split it has always made.
+          if (decision.action === "expire") onExpire?.(decision.message);
+          else onDone(job);
         })
         .catch(() => {
-          // Transient poll failure — keep polling; a real failure surfaces via job.status.
+          if (cancelled) return;
+          failures = nextFailureCount(failures, false);
+          const decision = decidePoll({ read: "failed" }, bounds(Date.now() - stall.sinceMs));
+          if (decision.action === "expire") {
+            clearInterval(interval);
+            onExpire?.(decision.message);
+          }
         });
     }, POLL_INTERVAL_MS);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- onDone/onProgress are stable refs from the caller
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onDone/onProgress/onExpire are stable refs from the caller
   }, [jobId]);
 }
 
@@ -298,6 +342,11 @@ export function DryRunModal({
         eta,
         line: finalizing ? "Finalizing…" : (job.subTask ?? `Scanning your library… ${percent}%`),
       });
+    },
+    (message) => {
+      // A scan that went quiet or an id that stopped answering. Reported as a scan error because from
+      // this modal's side that is what it is — there is no summary to render and none is coming.
+      setScanError(message);
     },
   );
 

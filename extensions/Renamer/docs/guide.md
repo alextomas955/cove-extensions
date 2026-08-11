@@ -69,6 +69,10 @@ destination, and any warnings — without changing anything.
 3. Renamer renames each file and updates its Cove record together. A file is never renamed onto an
    existing file — a collision gets a numbered suffix such as `(1)` instead.
 
+If the panel says it **couldn't confirm the rename**, the job stopped telling Renamer how it was
+getting on — it did not necessarily stop working. Some of your files may already have been renamed.
+Run a dry run again to see where your library actually stands before you start another rename.
+
 When a move crosses to another drive, Renamer copies the file, verifies the copy, and only then
 removes the original. If the machine loses power in the middle of that, you may find one stray file
 in the destination folder, named after the file being moved with `.rnm` and eight characters added.
