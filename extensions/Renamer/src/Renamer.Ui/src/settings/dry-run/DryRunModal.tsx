@@ -142,6 +142,11 @@ function usePollJob(
   useEffect(() => {
     if (!jobId) return;
     let cancelled = false;
+    // `cancelled` covers unmount only. Clearing the interval does not cancel the reads already in
+    // flight, and at this interval a slow endpoint has more than one, so a terminal decision needs its
+    // own latch: without it a read issued before the run ended settles after it and reaches onDone —
+    // reporting a completed scan for a job already declared expired, or reporting completion twice.
+    let settled = false;
     let failures = 0;
     // NaN seeds the clock so the first reading counts as movement rather than as silence the job never
     // had a chance to break.
@@ -157,7 +162,7 @@ function usePollJob(
     const interval = setInterval(() => {
       requestJson<JobInfo>(`/jobs/${jobId}`)
         .then((job) => {
-          if (cancelled) return;
+          if (cancelled || settled) return;
           const now = Date.now();
           failures = nextFailureCount(failures, true);
           stall = advanceStallClock(stall, job.progress, now);
@@ -172,6 +177,7 @@ function usePollJob(
             return;
           }
 
+          settled = true;
           clearInterval(interval);
           // resolve and reject both hand the job back: the caller reads its status to decide between
           // the summary and an error, which is the split it has always made.
@@ -179,10 +185,11 @@ function usePollJob(
           else onDone(job);
         })
         .catch(() => {
-          if (cancelled) return;
+          if (cancelled || settled) return;
           failures = nextFailureCount(failures, false);
           const decision = decidePoll({ read: "failed" }, bounds(Date.now() - stall.sinceMs));
           if (decision.action === "expire") {
+            settled = true;
             clearInterval(interval);
             onExpire?.(decision.message);
           }
