@@ -120,12 +120,14 @@
     Private=true because a test project must RUN: it needs its full runtime closure copied local, and
     it is never published, so nothing here can reach a release.
 
-    The reference set is deliberately the SMALLEST that resolves cleanly, and it is chosen by
-    measurement rather than by symmetry: an assembly is added only when leaving it out produces an
-    MSB3277 naming a Cove assembly. Cove.Core is here because the image's Cove.Data (1.1.1.0) binds to
-    the matching Cove.Core, while the NuGet Cove.Core that arrives transitively through Cove.Sdk is
-    1.1.0 — a two-version skew that MSBuild reports as a WARNING, and MSBuild warnings are not covered
-    by TreatWarningsAsErrors, which is compiler-only.
+    The reference set is every Cove assembly the image carries, and it is chosen by measurement rather
+    than by symmetry. MSB3277 is NOT the selector, though it is the obvious candidate: with Cove.Data
+    referenced alone the Cove-scoped MSB3277 count is zero and the build is clean, and the suite still
+    fails at run time. What selects an assembly is whether leaving it out SPLITS the closure — the
+    image's Cove.Data binds the matching image Cove.Core, while a NuGet Cove.Core arrives transitively
+    through Cove.Sdk at whatever version the feed last published. MSBuild reports that skew as a
+    WARNING at most, and MSBuild warnings are not covered by TreatWarningsAsErrors, which is
+    compiler-only.
 
     THE TEST PROJECT ONLY. Applying this to Renamer.csproj is measured to break it: a raw assembly
     reference carries no NuGet dependency graph, so Cove.Plugins' Microsoft.EntityFrameworkCore.Relational
@@ -143,12 +145,13 @@
       PackageReference, and a package asset BEATS a hand-written Reference of the same simple name — so
       without these three exclusions the image references below are silently dropped and the NuGet
       assemblies are what compile and run. Measured, and worth stating because the failure is invisible
-      at build time: image Cove.Data 1.1.1.0 bound to NuGet Cove.Core 1.1.0.0 produced 198
-      `TypeLoadException: Could not load type 'Cove.Core.Entities.Auth.ExternalIdentityLink'` at run
-      time while the build reported ZERO warnings — not even an MSB3277 — about the split closure.
+      at build time: binding the image's Cove.Data against the NuGet Cove.Core failed most of the suite
+      at run time with TypeLoadException on entity types the NuGet build does not carry, while the
+      build reported ZERO warnings — not even an MSB3277 — about the split closure.
 
       ExcludeAssets="all" rather than a version bump because there is no matching NuGet version to bump
-      to: nuget.org carries these three at 1.1.0 only, which is exactly why the image is the route.
+      to: the feed does not publish the image's Cove build at all, which is exactly why the image is
+      the route.
     -->
     <PackageReference Include="Cove.Core" ExcludeAssets="all" />
     <PackageReference Include="Cove.Plugins" ExcludeAssets="all" />

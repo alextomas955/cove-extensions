@@ -35,8 +35,8 @@
     Cove.Plugins' Microsoft.EntityFrameworkCore.Relational stops being supplied and the shipping
     project loses DbContext. Measured, as is the narrower variant — cutting the package's flow to
     consumers with PrivateAssets, so a test project sees only its own image references — which fails
-    the compile instead: CS1705, because Cove.Data 1.1.1.0 binds EF Core 10.0.10 while this repo pins
-    10.0.9, and the NuGet path is what was reconciling the two.
+    the compile instead with CS1705: the image's Cove.Data binds a different EF Core patch than this
+    repo pins, and the NuGet path is what was reconciling the two.
   -->
   <ItemGroup Condition="'$(CoveSourceMode)' != 'source' AND !$(MSBuildProjectName.EndsWith('.Tests'))">
     <PackageReference Include="Cove.Sdk" />
@@ -71,10 +71,11 @@
     The companion gate to AssertCoveLocation, and the one that catches what no warning does. In
     `assemblies` mode a test project resolves Cove twice — once from the image references it declares,
     once from the NuGet packages that reach it through the extension project's graph — and both are
-    copied to the same output file names. The image copy currently wins, but nothing SAYS so, and when
-    the NuGet copy won instead the measured result was 198 `TypeLoadException: Could not load type
-    'Cove.Core.Entities.Auth.ExternalIdentityLink' from assembly 'Cove.Core, Version=1.1.0.0'` against
-    a build that reported zero errors and zero warnings. Reading the versions back out of the output
+    copied to the same output file names. The image copy currently wins, but nothing SAYS so — copy
+    order decides it, not any declared rule. When the NuGet copy won instead, most of the suite failed
+    at run time with TypeLoadException on entity types the older Cove.Core does not carry, against a
+    build that reported zero errors and zero warnings. Measured, not theorised, which is why this
+    target exists at all. Reading the versions back out of the output
     turns "right by copy order" into "checked", and the failure is then one line naming both versions
     instead of a wall of unrelated-looking test failures.
   -->
@@ -121,10 +122,10 @@
       only symptom would be type-load failures far from the cause. GetAssemblyIdentity is MSBuild's
       own task, so this costs no tooling.
 
-      Assert the ASSEMBLY version (1.1.1.0), never the informational one (1.1.1-dev.NNN): the build
-      number moves on every nightly rebuild while the assembly version does not, so an equality guard
-      on the informational string would go red daily for no reason and would be switched off — which is
-      how a gate dies.
+      Assert the ASSEMBLY version — $(CoveTestAssemblyVersion) — never the informational one, whose
+      `-dev.<build>` suffix moves on every nightly rebuild while the assembly version does not. An
+      equality guard on the informational string would go red daily for no reason and would be
+      switched off, which is how a gate dies.
 
       This guard is EXPECTED to fail when upstream bumps the minor, and that failure is the guard
       working. The remedy is a one-line CoveTestAssemblyVersion bump after checking the change is

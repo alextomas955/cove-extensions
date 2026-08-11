@@ -26,8 +26,8 @@
     <CoveTestImageRepository Condition="'$(CoveTestImageRepository)' == ''">ghcr.io/yourcove/cove-app</CoveTestImageRepository>
     <CoveTestImageTag Condition="'$(CoveTestImageTag)' == ''">nightly</CoveTestImageTag>
     <!-- The ASSEMBLY version stamped into the image's Cove.Data.dll, which is what
-         Directory.Build.targets' version guard asserts. Never the informational version
-         (1.1.1-dev.NNN): that moves on every nightly rebuild, so an equality guard on it would fail
+         Directory.Build.targets' version guard asserts. Never the informational version, whose
+         `-dev.<build>` suffix moves on every nightly rebuild, so an equality guard on it would fail
          daily for no reason and would be switched off — which is how a gate dies. -->
     <CoveTestAssemblyVersion Condition="'$(CoveTestAssemblyVersion)' == ''">1.1.1.0</CoveTestAssemblyVersion>
   </PropertyGroup>
