@@ -99,25 +99,52 @@ public sealed record PreviewSampleResult(
     string[] DroppedFields);
 
 /// <summary>
-/// The JSON shape the <c>/undo</c> endpoint returns. Maps directly from
-/// <c>UndoReplayer.UndoRunResult</c>: the count of restored entries, the failed and skipped
-/// buckets, and the entries that came back minus a companion file. A no-batch / empty-log /
-/// second-undo call returns <c>Undone:0</c> with empty buckets so the panel can render
+/// The JSON shape the <c>/undo</c> endpoint returns. Folded from the per-page
+/// <c>UndoReplayer.UndoRunResult</c>s by <c>Execution.UndoRunAccumulator</c>: the count of restored
+/// entries, and for each of the three problem channels a TOTAL and a bounded SAMPLE. A no-batch /
+/// empty-log / second-undo call returns <c>Undone:0</c> with zero totals so the panel can render
 /// "No renamer to undo".
 /// </summary>
-/// <param name="Undone">How many logged entries were restored (disk + DB) and re-published.</param>
-/// <param name="Failed">Entries whose reverse move succeeded but the DB save threw (disk rolled back to NEW).</param>
-/// <param name="Skipped">Entries skipped because the OLD slot was occupied/locked (never clobbered).</param>
-/// <param name="Warnings">
-/// Entries that WERE restored but left a companion behind — a sidecar or caption whose own reverse
-/// move stopped. They are in no counted bucket, so without this channel the only record of a partial
+/// <remarks>
+/// Every channel is a <c>…Count</c> paired with a <c>…Sample</c>, and the pairing is the point: a batch
+/// reaches library size, so an entry per problem was a payload proportional to the library on a
+/// response that crosses to a browser. The counts are what anyone states; the samples are only how a
+/// reason is named. Reading <c>Sample.Count</c> as a total is then visibly the wrong member rather than
+/// a plausible one — which is the only structural guarantee a flat wire record can offer, so the
+/// behavioural half lives in the panel's own suite.
+/// <para>
+/// There is deliberately no "truncated" flag. A total beside its sample already says whether the sample
+/// is complete, and a fourth number that must agree with the other two is a number that can disagree.
+/// </para>
+/// </remarks>
+/// <param name="Undone">
+/// How many logged entries were restored (disk + DB) and re-published. Never capped — it is what the
+/// undo actually did, and the sample caps below bound only what the response describes.
+/// </param>
+/// <param name="FailedCount">How many entries' reverse move succeeded but whose DB save threw (disk rolled back to NEW).</param>
+/// <param name="FailedSample">
+/// At most <c>UndoRunAccumulator.MaxSampleEntries</c> of those, in the order the run hit them.
+/// </param>
+/// <param name="SkippedCount">How many entries were skipped because the OLD slot was occupied/locked (never clobbered).</param>
+/// <param name="SkippedSample">
+/// At most <c>UndoRunAccumulator.MaxSampleEntries</c> of those, in the order the run hit them.
+/// </param>
+/// <param name="WarningCount">
+/// How many entries WERE restored but left a companion behind — a sidecar or caption whose own reverse
+/// move stopped. They are in no problem bucket, so without this channel the only record of a partial
 /// restore is the host log, which the panel cannot read.
+/// </param>
+/// <param name="WarningSample">
+/// At most <c>UndoRunAccumulator.MaxSampleEntries</c> of those, in the order the run hit them.
 /// </param>
 public sealed record UndoResult(
     int Undone,
-    IReadOnlyList<UndoEntryError> Failed,
-    IReadOnlyList<UndoEntryError> Skipped,
-    IReadOnlyList<UndoEntryWarning> Warnings);
+    int FailedCount,
+    IReadOnlyList<UndoEntryError> FailedSample,
+    int SkippedCount,
+    IReadOnlyList<UndoEntryError> SkippedSample,
+    int WarningCount,
+    IReadOnlyList<UndoEntryWarning> WarningSample);
 
 /// <summary>
 /// One failed/skipped reverse-replay entry surfaced in <see cref="UndoResult"/> (maps from

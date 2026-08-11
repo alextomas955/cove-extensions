@@ -80,7 +80,35 @@ public sealed class RenamerOpenApiDocumentTests : ExtensionOpenApiDocumentTests
             schemas.GetProperty("LastBatchSummary").GetProperty("properties").EnumerateObject(),
             p => Assert.NotEqual("array", p.Value.TryGetProperty("type", out var t) ? t.GetString() : null));
 
-        Assert.Contains("warnings", PropertyNames(schemas, "UndoResult"));
+        // Transcribed by hand from the emitted document rather than derived from the record: a pin
+        // computed from the type it guards agrees with it forever. Each problem channel is a COUNT
+        // beside a bounded SAMPLE, and it is the count whose loss is the silent half — a generated type
+        // missing `failedCount` still compiles at every site, and the panel would then state a sample's
+        // length as the number of problems a user is deciding about.
+        var undo = PropertyNames(schemas, "UndoResult");
+        Assert.Contains("undone", undo);
+        Assert.Contains("failedCount", undo);
+        Assert.Contains("failedSample", undo);
+        Assert.Contains("skippedCount", undo);
+        Assert.Contains("skippedSample", undo);
+        Assert.Contains("warningCount", undo);
+        Assert.Contains("warningSample", undo);
+
+        // The retired per-entry arrays. They were bounded only by the batch, and a batch reaches library
+        // size — the same reason the summary above carries no collection.
+        Assert.DoesNotContain("failed", undo);
+        Assert.DoesNotContain("skipped", undo);
+        Assert.DoesNotContain("warnings", undo);
+
+        // A count emitted as an array is the one shape that would satisfy the names above while
+        // restoring the unbounded payload, so the counts are pinned as scalars.
+        foreach (var name in new[] { "undone", "failedCount", "skippedCount", "warningCount" })
+        {
+            Assert.Equal(
+                "integer",
+                schemas.GetProperty("UndoResult").GetProperty("properties")
+                    .GetProperty(name).GetProperty("type").GetString());
+        }
 
         // The retired file-count ceiling. Its absence is the half a diff would let through quietly:
         // the frontend reads `summary.undoable` as undefined, which is falsy, so a stale consumer

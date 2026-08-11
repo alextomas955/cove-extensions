@@ -9,7 +9,8 @@
   },
   "undoResult": {
     "undone": 2,
-    "failed": [
+    "failedCount": 9,
+    "failedSample": [
       {
         "fileId": 7,
         "oldPath": "/new/a.mkv",
@@ -17,8 +18,10 @@
         "reason": "locked"
       }
     ],
-    "skipped": [],
-    "warnings": [
+    "skippedCount": 0,
+    "skippedSample": [],
+    "warningCount": 1,
+    "warningSample": [
       {
         "fileId": 7,
         "detail": "companion \u0027a.srt\u0027 stayed behind: target occupied"

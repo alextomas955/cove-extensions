@@ -63,6 +63,11 @@ public sealed class UndoEndpointTests
     private static int StatusOf(IResult result) =>
         Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
+    // Fully qualified: `Renamer.Tests.Execution` is imported above, so the production
+    // `Renamer.Execution` namespace is not in scope here. Named once, so the cap the assertions below
+    // compare against is the shipped constant rather than a number copied beside it.
+    private const int SampleCap = global::Renamer.Execution.UndoRunAccumulator.MaxSampleEntries;
+
     private static UndoResult UndoValue(IResult result) =>
         Assert.IsType<UndoResult>(Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value);
 
@@ -104,8 +109,8 @@ public sealed class UndoEndpointTests
             Assert.Equal(200, StatusOf(result));
             var undo = UndoValue(result);
             Assert.Equal(1, undo.Undone);
-            Assert.Empty(undo.Failed);
-            Assert.Empty(undo.Skipped);
+            Assert.Equal(0, undo.FailedCount);
+            Assert.Equal(0, undo.SkippedCount);
 
             // Disk restored.
             Assert.True(File.Exists(oldFull), "file restored to OLD");
@@ -128,8 +133,8 @@ public sealed class UndoEndpointTests
             var second = await ext.UndoAsync(principal, default);
             var secondUndo = UndoValue(second);
             Assert.Equal(0, secondUndo.Undone);
-            Assert.Empty(secondUndo.Failed);
-            Assert.Empty(secondUndo.Skipped);
+            Assert.Equal(0, secondUndo.FailedCount);
+            Assert.Equal(0, secondUndo.SkippedCount);
         }
         finally
         {
@@ -187,6 +192,115 @@ public sealed class UndoEndpointTests
     }
 
     [Fact]
+    public async Task Undo_WithMoreProblemsAndMoreRestoresThanTheSampleCap_StatesTheRealTotals_AndRetiresEveryRow()
+    {
+        // The response describes at most UndoRunAccumulator.MaxSampleEntries entries per channel. This
+        // case is the one that proves the cap bounds the DESCRIPTION and never the work, on both sides
+        // of it: more problems than the cap in one run, then more restores than the cap in one run.
+        //
+        // Driven through the real handler over a real batch rather than by folding an accumulator by
+        // hand — a cap wrongly reached into the retirement loop or the page loop is invisible to a fold
+        // and visible only here, as rows left in the table.
+        int blockedCount = SampleCap + 1;
+        int total = blockedCount + 4;
+
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (folderId, firstId, _) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw 000.mkv", "Title 000");
+            File.WriteAllText(Path.Combine(dir.Root, "raw 000.mkv"), "bytes 000");
+
+            var entityIds = new List<int> { firstId };
+            var originals = new List<string> { Path.Combine(dir.Root, "raw 000.mkv") };
+            for (int i = 1; i < total; i++)
+            {
+                string basename = $"raw {i:000}.mkv";
+                var (videoId, _) = await SeedVideoIntoFolderAsync(db, folderId, basename, $"Title {i:000}");
+                File.WriteAllText(Path.Combine(dir.Root, basename), $"bytes {i:000}");
+                entityIds.Add(videoId);
+                originals.Add(Path.Combine(dir.Root, basename));
+            }
+
+            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
+            // One worker: every scope in this fixture resolves the one seeded context.
+            await new global::Renamer.Options.OptionsStore(store).SaveAsync(new global::Renamer.Options.RenamerOptions
+            {
+                FilenameTemplate = "$title",
+                SameVolumeConcurrency = 1,
+            });
+
+            var write = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
+            var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
+
+            await ext.RunRenamerBatchAsync(
+                RenamerJob.Encode("video", entityIds), new FakeJobProgress(), default);
+            foreach (var original in originals)
+            {
+                Assert.False(File.Exists(original), $"forward rename left {original} in place");
+            }
+
+            // Occupy one more original slot than the sample can describe, so the first undo's skipped
+            // TOTAL exceeds its skipped SAMPLE.
+            foreach (var original in originals.Take(blockedCount))
+            {
+                File.WriteAllText(original, "someone else's file");
+            }
+
+            var partial = UndoValue(await ext.UndoAsync(write, default));
+
+            Assert.Equal(total - blockedCount, partial.Undone);
+            Assert.Equal(blockedCount, partial.SkippedCount);
+            Assert.Equal(0, partial.FailedCount);
+            // The number stated is the real one; the description is capped. A response that reported the
+            // sample's length would say MaxSampleEntries here and be short by exactly one file.
+            Assert.Equal(SampleCap, partial.SkippedSample.Count);
+            Assert.True(
+                partial.SkippedCount > partial.SkippedSample.Count,
+                "the fixture must produce more problems than the sample describes, or it proves nothing");
+
+            // Clear every obstruction and retry: one run now restores more files than the cap.
+            foreach (var original in originals.Take(blockedCount))
+            {
+                File.Delete(original);
+            }
+
+            var retry = UndoValue(await ext.UndoAsync(write, default));
+
+            Assert.Equal(blockedCount, retry.Undone);
+            Assert.True(retry.Undone > SampleCap,
+                "the retry must restore more files than the cap, or the cap-is-not-a-ceiling claim is untested");
+            Assert.Equal(0, retry.SkippedCount);
+            Assert.Equal(0, retry.FailedCount);
+
+            // Every file is back on disk…
+            foreach (var original in originals)
+            {
+                Assert.True(File.Exists(original), $"{original} did not come back");
+            }
+
+            // …every row was retired, and the batch aggregate agrees. This is the assertion a sample cap
+            // that had leaked into the work would fail: rows left behind, or a restored count short of
+            // the batch's original count.
+            using var journal = new global::Renamer.Execution.CoveRevertJournal(db);
+            Assert.Null(await JournalPageReader.ReadWholeUndoTargetAsync(journal));
+
+            var spent = LastBatchValue(await ext.LastBatchAsync(read, default));
+            Assert.Equal(total, spent.Count);
+            Assert.Equal(0, spent.RemainingCount);
+            Assert.Equal(0, spent.UnrestorableCount);
+            Assert.True(spent.Consumed);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task Undo_RestoresNothing_LeavesBatchOpen_SoCorrectedRetrySucceeds()
     {
         // A run that restores NOTHING (every entry skipped) must NOT consume the batch: the undo is
@@ -231,7 +345,7 @@ public sealed class UndoEndpointTests
             });
             var skippedRun = UndoValue(await ext.UndoAsync(write, default));
             Assert.Equal(0, skippedRun.Undone);
-            Assert.Single(skippedRun.Skipped);
+            Assert.Equal(1, skippedRun.SkippedCount);
             Assert.True(File.Exists(newFull), "file still on dest — nothing restored");
 
             // The batch MUST remain open (not consumed) so it can be retried.
@@ -247,7 +361,7 @@ public sealed class UndoEndpointTests
             });
             var retryRun = UndoValue(await ext.UndoAsync(write, default));
             Assert.Equal(1, retryRun.Undone);
-            Assert.Empty(retryRun.Skipped);
+            Assert.Equal(0, retryRun.SkippedCount);
             Assert.True(File.Exists(oldFull), "file restored to original after corrected retry");
             Assert.False(File.Exists(newFull));
             Assert.Equal("video-bytes", File.ReadAllText(oldFull));
@@ -314,8 +428,8 @@ public sealed class UndoEndpointTests
 
             var first = UndoValue(await ext.UndoAsync(write, default));
             Assert.Equal(1, first.Undone);
-            Assert.Single(first.Skipped);
-            Assert.Empty(first.Failed);
+            Assert.Equal(1, first.SkippedCount);
+            Assert.Equal(0, first.FailedCount);
 
             // The table behind that response holds exactly the row that did not come back — a response
             // that read right while the journal disagreed would fail here.
@@ -341,7 +455,7 @@ public sealed class UndoEndpointTests
 
             // ONE, not two: the first call's row is gone, so the second sees only the remaining work.
             Assert.Equal(1, second.Undone);
-            Assert.Empty(second.Skipped);
+            Assert.Equal(0, second.SkippedCount);
             Assert.True(File.Exists(blockedOld), "the blocked file came back on the retry");
             Assert.True(File.Exists(comesOld), "and the first call's file was left alone");
             Assert.NotEqual(comesFileId, blockedFileId);
@@ -357,8 +471,8 @@ public sealed class UndoEndpointTests
             Assert.Equal(200, StatusOf(third));
             var thirdUndo = UndoValue(third);
             Assert.Equal(0, thirdUndo.Undone);
-            Assert.Empty(thirdUndo.Failed);
-            Assert.Empty(thirdUndo.Skipped);
+            Assert.Equal(0, thirdUndo.FailedCount);
+            Assert.Equal(0, thirdUndo.SkippedCount);
         }
         finally
         {
@@ -430,7 +544,7 @@ public sealed class UndoEndpointTests
             File.WriteAllText(blockedOld, "someone else's file");
             var partial = UndoValue(await ext.UndoAsync(write, default));
             Assert.Equal(1, partial.Undone);
-            Assert.Single(partial.Skipped);
+            Assert.Equal(1, partial.SkippedCount);
 
             // ── The newer batch, opened and then fully undone. No failure anywhere in it. ──────────
             await ext.RunRenamerBatchAsync(
@@ -456,7 +570,7 @@ public sealed class UndoEndpointTests
             File.Delete(blockedOld);
             var retry = UndoValue(await ext.UndoAsync(write, default));
             Assert.Equal(1, retry.Undone);
-            Assert.Empty(retry.Skipped);
+            Assert.Equal(0, retry.SkippedCount);
 
             // On disk AND in the database: a summary that named the right batch while the undo acted on
             // another would still fail here.
@@ -539,11 +653,21 @@ public sealed class UndoEndpointTests
         // effect noticed later. Transcribed by hand: a list derived from the type would agree with it
         // forever.
         //
-        // Warnings arrived with the stranded-companion channel: an entry that came back minus its
-        // sidecar is in no counted bucket, so before it the only record of a partial restore was the
+        // The warning channel arrived with the stranded companion: an entry that came back minus its
+        // sidecar is in no problem bucket, so before it the only record of a partial restore was the
         // host log, which the panel cannot read.
+        //
+        // Each channel is a COUNT paired with a SAMPLE because a batch reaches library size and this
+        // response crosses to a browser. The pairing is transcribed here rather than checked as a
+        // convention, so dropping a count — which would leave the panel reporting a sample's length as
+        // the number of problems — is a failure here and not a quieter one in a user's library.
         Assert.Equal(
-            ["Undone", "Failed", "Skipped", "Warnings"],
+            [
+                "Undone",
+                "FailedCount", "FailedSample",
+                "SkippedCount", "SkippedSample",
+                "WarningCount", "WarningSample",
+            ],
             typeof(UndoResult).GetProperties().Select(p => p.Name));
         Assert.Equal(
             ["FileId", "OldPath", "NewPath", "Reason"],
@@ -578,8 +702,8 @@ public sealed class UndoEndpointTests
             Assert.Equal(200, StatusOf(result));
             var undo = UndoValue(result);
             Assert.Equal(0, undo.Undone);
-            Assert.Empty(undo.Failed);
-            Assert.Empty(undo.Skipped);
+            Assert.Equal(0, undo.FailedCount);
+            Assert.Equal(0, undo.SkippedCount);
         }
         finally
         {

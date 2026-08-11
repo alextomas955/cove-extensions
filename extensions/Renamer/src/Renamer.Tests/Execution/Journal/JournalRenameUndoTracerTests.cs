@@ -85,8 +85,8 @@ public sealed class JournalRenameUndoTracerTests
                 FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite), default));
 
             Assert.Equal(1, undo.Undone);
-            Assert.Empty(undo.Failed);
-            Assert.Empty(undo.Skipped);
+            Assert.Equal(0, undo.FailedCount);
+            Assert.Equal(0, undo.SkippedCount);
 
             // Restored on disk AND in the database — either one alone would leave the two disagreeing.
             Assert.True(File.Exists(oldFull), "the file is back at its original path");

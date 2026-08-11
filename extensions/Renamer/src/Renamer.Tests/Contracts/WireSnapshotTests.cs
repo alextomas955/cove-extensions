@@ -163,11 +163,17 @@ public sealed class WireSnapshotTests
             lastBatch = new LastBatchSummary(
                 HasBatch: true, Count: 3, RemainingCount: 1, UnrestorableCount: 1,
                 WrittenAtUtcTicks: 638000000000000000L, Consumed: false),
+            // A run whose failure total EXCEEDS its sample, so the fixture distinguishes a count from a
+            // sample length: 9 saves threw, one of them is described. A shape that dropped the counts
+            // and left only the arrays serializes differently here, whatever the document says.
             undoResult = new UndoResult(
                 Undone: 2,
-                Failed: [new UndoEntryError(7, "/new/a.mkv", "/old/a.mkv", "locked")],
-                Skipped: [],
-                Warnings: [new UndoEntryWarning(7, "companion 'a.srt' stayed behind: target occupied")]),
+                FailedCount: 9,
+                FailedSample: [new UndoEntryError(7, "/new/a.mkv", "/old/a.mkv", "locked")],
+                SkippedCount: 0,
+                SkippedSample: [],
+                WarningCount: 1,
+                WarningSample: [new UndoEntryWarning(7, "companion 'a.srt' stayed behind: target occupied")]),
             previewSample = new PreviewSampleResult(
                 SampleLabel: "Video", OldName: "raw.mkv", NewName: "Title.mkv",
                 Folder: "Studio/2021", Flags: ["sanitized"], DroppedFields: []),

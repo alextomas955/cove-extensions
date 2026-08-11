@@ -348,6 +348,13 @@ public sealed partial class Renamer
     /// path cache and its whole restore spine are deliberately untouched here. That spine is the
     /// destructive path, and a memory fix has no business rewriting it.
     /// </para>
+    /// <para>
+    /// The RESPONSE is bounded the same way, and for the same reason: each page's outcome is folded into
+    /// an <see cref="UndoRunAccumulator"/>, which keeps a total per channel and describes at most
+    /// <see cref="UndoRunAccumulator.MaxSampleEntries"/> entries of each. Neither the cap nor the fold is
+    /// consulted by a restore or a retirement, so an undo of any size still puts back and retires every
+    /// row it reaches.
+    /// </para>
     /// </summary>
     internal async Task<Results<WireJson<UndoResult>, ForbiddenCode>> UndoAsync(
         ICurrentPrincipalAccessor principal, CancellationToken ct)
@@ -376,7 +383,7 @@ public sealed partial class Renamer
         var target = await journal.ReadUndoTargetAsync(ct);
         if (target is null)
         {
-            return new WireJson<UndoResult>(new UndoResult(0, [], [], []));
+            return new WireJson<UndoResult>(new UndoRunAccumulator().ToResult());
         }
 
         // The first page is read BEFORE the per-kind re-gate, exactly where the whole-batch read used to
@@ -386,7 +393,7 @@ public sealed partial class Renamer
             target.Value.RunId, belowSeq: long.MaxValue, CoveRevertJournal.DefaultPageSize, ct);
         if (page.Count == 0)
         {
-            return new WireJson<UndoResult>(new UndoResult(0, [], [], []));
+            return new WireJson<UndoResult>(new UndoRunAccumulator().ToResult());
         }
 
         // Re-gate on the WRITE permission of the kind that was actually renamed (the batch carries it)
@@ -408,10 +415,12 @@ public sealed partial class Renamer
         var replayer = new UndoReplayer(new CoveRenamerDataPort(db), EventBus, new DiskMover(),
             cross: new CrossVolumeMover(), allowedRoots: options.AllowedRoots);
 
-        int undone = 0;
-        var failed = new List<UndoEntryError>();
-        var skipped = new List<UndoEntryError>();
-        var warnings = new List<UndoEntryWarning>();
+        // Folded page by page rather than concatenated: a batch reaches library size, so keeping every
+        // page's entries would rebuild in this handler's memory — and then on the wire — exactly the
+        // library-sized value the paged read above removed. What survives the loop is four totals and
+        // three capped samples. The host log still receives every entry, per page, which is where the
+        // full detail belongs.
+        var accumulated = new UndoRunAccumulator();
 
         while (page.Count > 0)
         {
@@ -420,10 +429,7 @@ public sealed partial class Renamer
 
             LogUndoEntries(target.Value.RunId, pageBatch, run);
 
-            undone += run.Undone;
-            failed.AddRange(run.Failed.Select(f => new UndoEntryError(f.FileId, f.OldPath, f.NewPath, f.Reason)));
-            skipped.AddRange(run.Skipped.Select(s => new UndoEntryError(s.FileId, s.OldPath, s.NewPath, s.Reason)));
-            warnings.AddRange(run.Warnings.Select(w => new UndoEntryWarning(w.FileId, w.Detail)));
+            accumulated.Add(run);
 
             // Retire each row whose file actually came back. A row that stopped for a reason the world
             // can clear STAYS, so it is offered again on the next undo — which is what makes a retry act
@@ -460,9 +466,12 @@ public sealed partial class Renamer
                 target.Value.RunId, page[^1].Seq, CoveRevertJournal.DefaultPageSize, ct);
         }
 
-        LogUndoDone(target.Value.RunId, undone, skipped.Count, failed.Count);
+        // The log line reports the run's TOTALS, which are the accumulator's counts and never a sample's
+        // length: a host log that under-reported a large undo would be worse than no line at all.
+        var result = accumulated.ToResult();
+        LogUndoDone(target.Value.RunId, result.Undone, result.SkippedCount, result.FailedCount);
 
-        return new WireJson<UndoResult>(new UndoResult(undone, [.. failed], [.. skipped], [.. warnings]));
+        return new WireJson<UndoResult>(result);
     }
 
     /// <summary>
