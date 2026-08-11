@@ -783,15 +783,15 @@ public sealed partial class Renamer
         // otherwise it scans the saved options — the original behavior.
         var options = overrideOptions ?? await new OptionsStore(Store).LoadAsync(ct);
 
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<DbContext>();
         // The widest of the elevated bodies, because RunScanCoreAsync takes a PORT rather than a
         // service provider — deliberately, so its boundedness is provable over a fake — and so there is
         // no narrower seam here to wrap. Per-kind authorization still reaches the detached job through
         // readableKinds, captured at enqueue time.
-        await Cove.Extensions.Shared.RunAsSystem.RunAsSystemAsync(
-            scope.ServiceProvider,
-            () => RunScanCoreAsync(new CoveRenamerDataPort(db), readableKinds, options, progress, ct));
+        await Cove.Extensions.Shared.RunAsSystem.RunInSystemScopeAsync(ScopeFactory, services =>
+        {
+            var db = services.GetRequiredService<DbContext>();
+            return RunScanCoreAsync(new CoveRenamerDataPort(db), readableKinds, options, progress, ct);
+        });
     }
 
     /// <summary>
@@ -949,13 +949,13 @@ public sealed partial class Renamer
         {
             ct.ThrowIfCancellationRequested();
 
-            IReadOnlyList<int> ids;
-            await using (var scope = ScopeFactory.CreateAsyncScope())
-            {
-                var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-                ids = await Cove.Extensions.Shared.RunAsSystem.RunAsSystemAsync(
-                    scope.ServiceProvider, () => new CoveRenamerDataPort(db).LoadAllEntityIdsAsync(kind, ct));
-            }
+            var ids = await Cove.Extensions.Shared.RunAsSystem.RunInSystemScopeAsync(
+                ScopeFactory,
+                services =>
+                {
+                    var db = services.GetRequiredService<DbContext>();
+                    return new CoveRenamerDataPort(db).LoadAllEntityIdsAsync(kind, ct);
+                });
 
             if (ids.Count == 0)
             {
