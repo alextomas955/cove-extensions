@@ -1,24 +1,33 @@
 // Verifies a real cross-device move on Linux: /data2 is a tmpfs mount (a genuinely different
 // filesystem from the container's root, unlike two named volumes, which land on the same backing
-// device in Docker Desktop). A move from /data into /data2 raises a real EXDEV at the kernel level.
+// device in Docker Desktop). A move from /data into /data2 crosses a real kernel filesystem boundary,
+// which is what routes the executor onto the verified copy path.
 //
-// STALE CLAIM REMOVED (2026-08-10). This header used to say the classification was
-// Path.GetPathRoot()-based, that a /data -> /data2 move was therefore treated as SAME volume, and that
-// CrossVolumeMover was reachable only on Windows. All three became false on 2026-07-28, when v0.3.0
-// made VolumeClassifier mount-aware; that commit only re-indented this comment. Measured in a Linux
-// container on .NET 10: DriveInfo.GetDrives() enumerates the container's mounts, VolumeKey("/data/x")
-// is "/" and VolumeKey("/data2/x") is "/data2", so the pair classifies CROSS-volume and
-// CrossVolumeMover is reachable here.
+// WHY THIS SPEC TAKES ITS SKIP BRANCH (diagnosed by measurement, not reasoning). A bare `tmpfs:` mount
+// is created root-owned, while the Cove image runs its process as a non-root user — so nothing Cove
+// does may write into the destination at all. CrossVolumeMover's FIRST write is its in-flight temp file
+// beside the final target, so the move dies there with an UnauthorizedAccessException, which the mover
+// classifies PermissionDenied and the batch runner buckets as SkipLocked. The discriminators that
+// established this, each read live rather than inferred: the executor's own per-item log line reported
+// crossVolume=true (so the pair really does classify cross-volume THROUGH the running executor, not
+// only in an isolated call), the preview's plan item carried a /data2 destination and a matched routing
+// rule (so a relocate really was planned), and the recorded reason named a permission denial on the
+// in-flight temp file — never "Invalid cross-device link", which is what a genuine EXDEV reaching
+// DiskMover would have carried. Handing the mount to the Cove user is the whole fix: the same move then
+// completes.
+//
+// So this spec has never once exercised copy→verify→promote→delete. It proves only that a write into a
+// directory the process cannot write to is refused without data loss — worth asserting, but not what
+// the spec is named for, and not what it claims below.
 //
 // Note WHY a false claim survived two weeks in the test meant to guard the behaviour: the assertion
 // below branches on the outcome and passes either way, so nothing could ever contradict the comment. A
-// test that accepts every result cannot correct the prose above it.
+// test that accepts every result cannot correct the prose above it. Two claims this header used to
+// carry were wrong for exactly that reason, and both are gone: a free-space explanation for the skip
+// (the tmpfs's free space is orders of magnitude above the headroom, so the preflight cannot fire), and
+// a cross-volume classification measured in an isolated call rather than through the executor.
 //
-// What this still verifies: the move is non-destructive — the DB path and the disk agree afterwards, so
-// there is no data loss whichever mover ran. What it does NOT yet verify is WHICH mover ran. Making it
-// assert the single correct outcome needs one live run first, because /data2 is a small tmpfs and the
-// free-space preflight now applies to the cross-volume path, so a legitimate refusal and a defect look
-// alike until measured. Deliberately left as the next change rather than guessed at here.
+// The single-outcome assertion is the next change, and the diagnosis above is what it asserts.
 import { test, expect, seedVideo, pollJob } from "../lib/renamer-fixtures.mjs";
 
 const EXTENSION_ID = "com.alextomas955.renamer";
