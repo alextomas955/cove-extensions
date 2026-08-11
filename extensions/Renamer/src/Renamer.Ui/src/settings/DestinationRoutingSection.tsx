@@ -88,7 +88,7 @@ export function DestinationRoutingSection({ options, set }: DestinationRoutingSe
           onChange={(v) => {
             set("EnableDefaultRelocate", v);
           }}
-          helper="Moves every item matching no rule to the default destination — whole-library reach, which is too large to record an undo. Dry-run first. Off by default."
+          helper="Moves every item matching no rule to the default destination — whole-library reach. Dry-run first. Off by default."
         />
       </GroupCard>
 

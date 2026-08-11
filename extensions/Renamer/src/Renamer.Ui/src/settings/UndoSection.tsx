@@ -15,43 +15,13 @@ import { Dialog } from "../common/ui/Dialog";
 import { Button, StatusText, Spinner } from "@cove-extensions/ui-shared";
 import { api } from "../common/lib/extension";
 import type { LastBatchSummary, UndoResult } from "../wire/api";
+import { buildUndoStatus } from "./undoSummaryLogic";
 
 const LAST_BATCH_PATH = api("last-batch");
 const UNDO_PATH = api("undo");
 
 const UNDO_TITLE_ID = "rename-undo-confirm-title";
 const UNDO_DESC_ID = "rename-undo-confirm-message";
-
-/**
- * .NET DateTime ticks → epoch ms (ticks are 100ns since 0001-01-01).
- *
- * The tick offset between 0001-01-01 and 1970-01-01 is 621355968000000000, which exceeds
- * Number.MAX_SAFE_INTEGER (2^53). Writing it as a single literal is exact as a double but trips a
- * "literal loses precision" hint, so build it from two safe-integer factors instead: the offset in
- * milliseconds (62135596800000, well within safe range) times 10000 ticks/ms. The product is the
- * identical double value — the arithmetic below is unchanged.
- */
-const EPOCH_OFFSET_MS = 62135596800000;
-const TICKS_PER_MS = 10000;
-const TICKS_AT_EPOCH = EPOCH_OFFSET_MS * TICKS_PER_MS;
-function ticksToEpochMs(ticks: number): number {
-  return (ticks - TICKS_AT_EPOCH) / TICKS_PER_MS;
-}
-
-/** Plain relative time: "just now" / "N minutes ago" / "yesterday" / absolute beyond ~7 days. */
-function relativeTime(epochMs: number, now: number = Date.now()): string {
-  const diffMs = now - epochMs;
-  const sec = Math.round(diffMs / 1000);
-  if (sec < 45) return "just now";
-  const min = Math.round(sec / 60);
-  if (min < 60) return `${min} minute${min === 1 ? "" : "s"} ago`;
-  const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr} hour${hr === 1 ? "" : "s"} ago`;
-  const day = Math.round(hr / 24);
-  if (day === 1) return "yesterday";
-  if (day <= 7) return `${day} days ago`;
-  return new Date(epochMs).toLocaleDateString();
-}
 
 function errText(err: unknown): string {
   return err instanceof ApiError ? `${err.status} ${err.body}` : String(err);
@@ -61,6 +31,10 @@ type Feedback = { kind: "success"; text: string } | { kind: "error"; text: strin
 
 export function UndoSection({ refreshKey }: { refreshKey: number }) {
   const [summary, setSummary] = useState<LastBatchSummary | null>(null);
+  // The clock is read once, WITH the summary, rather than on every render. The expiry decision is
+  // then a fact about the moment the data was fetched — which is what the data describes — instead of
+  // something that can flip mid-render, and the render stays pure.
+  const [loadedAtMs, setLoadedAtMs] = useState(0);
   const [loading, setLoading] = useState(true);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -73,6 +47,7 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
     try {
       const res = await requestJson<LastBatchSummary>(LAST_BATCH_PATH);
       setSummary(res);
+      setLoadedAtMs(Date.now());
     } catch (err) {
       setSummaryError(errText(err));
     } finally {
@@ -88,10 +63,13 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
     void loadSummary();
   }, [loadSummary, refreshKey]);
 
-  // A batch is undoable only if it exists and has not been consumed.
-  const hasUndoable = !!summary && summary.hasBatch && !summary.consumed;
-  const count = summary?.count ?? 0;
-  const writtenMs = summary ? ticksToEpochMs(summary.writtenAtUtcTicks) : 0;
+  // The button acts on what is LEFT, not on what the batch started as: a partly restored batch is
+  // still offered, and what it offers is the outstanding work. An expired batch keeps its line — the
+  // server has dropped it, so there is nothing to press, but saying nothing would read as "there was
+  // never a rename".
+  const status = buildUndoStatus(summary, loadedAtMs);
+  const remaining = status?.remaining ?? 0;
+  const hasUndoable = !!status && !status.expired;
 
   async function onUndo() {
     setUndoing(true);
@@ -105,15 +83,23 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
       // as one list, which is also what makes the reason below a plain read rather than a guess at
       // which bucket happens to be non-empty.
       const problems = [...res.failed, ...res.skipped];
+      // A file that came back minus a companion is in NEITHER problem bucket — the media file is at
+      // its original path and its row agrees, which is what undo promises. Reported alongside the
+      // outcome rather than folded into it, because the user has to clear the companion's slot
+      // themselves and nothing else will tell them so.
+      const stranded =
+        res.warnings.length > 0
+          ? ` ${res.warnings.length} companion file${res.warnings.length === 1 ? "" : "s"} stayed behind (${res.warnings[0].detail}).`
+          : "";
       if (problems.length === 0) {
         setFeedback({
-          kind: "success",
-          text: `Undone — ${res.undone} file${res.undone === 1 ? "" : "s"} moved back to their original names.`,
+          kind: stranded ? "error" : "success",
+          text: `Undone — ${res.undone} file${res.undone === 1 ? "" : "s"} moved back to their original names.${stranded}`,
         });
       } else if (res.undone > 0) {
         setFeedback({
           kind: "error",
-          text: `Undo finished with problems — ${problems.length} file${problems.length === 1 ? "" : "s"} couldn't be moved back (${problems[0].reason}). The rest were restored.`,
+          text: `Undo finished with problems — ${problems.length} file${problems.length === 1 ? "" : "s"} couldn't be moved back (${problems[0].reason}). The rest were restored.${stranded}`,
         });
       } else {
         setFeedback({
@@ -148,9 +134,9 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
     <div className="rounded-xl border border-border bg-card p-4">
       <h3 className="text-base font-semibold text-foreground">Undo last rename</h3>
       <p className="mb-4 mt-1 text-sm text-secondary">
-        This moves every file in that batch back to its original name. It can&apos;t be undone
-        again. Only the most recent rename is kept, and a rename too large to record isn&apos;t kept
-        at all — the dry run is the check before those.
+        This moves every file in that batch back to its original name, and the undo itself
+        can&apos;t be undone. The button reaches the most recent rename, and a rename stays undoable
+        for 7 days whatever its size — the dry run is the check before that window closes.
       </p>
 
       {loading ? (
@@ -172,9 +158,7 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
       ) : hasUndoable ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-foreground">
-              Last rename: {count} item{count === 1 ? "" : "s"} renamed · {relativeTime(writtenMs)}
-            </span>
+            <span className="text-sm text-foreground">Last rename: {status.line}</span>
             <Button
               variant="ghost"
               onClick={() => {
@@ -190,7 +174,9 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
         </div>
       ) : (
         <div className="space-y-2">
-          <span className="text-sm text-secondary">No rename to undo.</span>
+          <span className="text-sm text-secondary">
+            {status ? `Last rename: ${status.line}` : "No rename to undo."}
+          </span>
           {feedback ? (
             <div>
               <StatusText kind={feedback.kind}>{feedback.text}</StatusText>
@@ -213,8 +199,8 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
             Undo last rename?
           </h2>
           <p id={UNDO_DESC_ID} className="mb-6 text-sm text-secondary">
-            This moves {count} file{count === 1 ? "" : "s"} back to their original names. This
-            can&apos;t be undone again.
+            This moves {remaining} file{remaining === 1 ? "" : "s"} back to their original names.
+            This can&apos;t be undone again.
           </p>
           <div className="flex justify-end gap-3">
             <button
@@ -234,7 +220,7 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
               className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-60"
             >
               {undoing ? <Spinner /> : null}
-              Undo {count} rename{count === 1 ? "" : "s"}
+              Undo {remaining} rename{remaining === 1 ? "" : "s"}
             </button>
           </div>
         </Dialog>
