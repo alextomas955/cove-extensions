@@ -449,6 +449,8 @@
         "required": [
           "hasBatch",
           "count",
+          "remainingCount",
+          "unrestorableCount",
           "writtenAtUtcTicks",
           "consumed"
         ],
@@ -458,6 +460,14 @@
             "type": "boolean"
           },
           "count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "remainingCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unrestorableCount": {
             "type": "integer",
             "format": "int32"
           },
@@ -676,8 +686,7 @@
           "crossVolumeCount",
           "crossVolumeBytes",
           "volumePairs",
-          "confirmLevel",
-          "undoable"
+          "confirmLevel"
         ],
         "type": "object",
         "properties": {
@@ -705,9 +714,6 @@
           },
           "confirmLevel": {
             "$ref": "#/components/schemas/ConfirmLevel"
-          },
-          "undoable": {
-            "type": "boolean"
           }
         }
       },
@@ -1194,11 +1200,28 @@
           }
         }
       },
+      "UndoEntryWarning": {
+        "required": [
+          "fileId",
+          "detail"
+        ],
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
       "UndoResult": {
         "required": [
           "undone",
           "failed",
-          "skipped"
+          "skipped",
+          "warnings"
         ],
         "type": "object",
         "properties": {
@@ -1216,6 +1239,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/UndoEntryError"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UndoEntryWarning"
             }
           }
         }

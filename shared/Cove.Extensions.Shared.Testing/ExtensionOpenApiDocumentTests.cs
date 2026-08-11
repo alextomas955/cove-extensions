@@ -170,7 +170,9 @@ public abstract class ExtensionOpenApiDocumentTests
     // The document path is repo-relative so the same test writes the same file from any working
     // directory and on either platform; the test assembly sits several unstable levels below the root
     // (configuration, framework), so the root is found by the catalog rather than counted out in "..".
-    private string ResolveDocumentPath()
+    // Protected rather than private so a derived suite can assert ON the committed artifact — the one
+    // CI diffs — instead of re-deriving the same walk and drifting from it.
+    protected string ResolveDocumentPath()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
