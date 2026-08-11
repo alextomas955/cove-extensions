@@ -140,9 +140,24 @@ Minimal-API endpoints the frontend calls, mounted under
 - `POST /scan-rows` — one page of that dry run's rows, planned on demand, with an optional path search
   and status-bucket filter.
 
-Every endpoint re-checks the caller's permission **in the handler** (`videos.read` to preview,
-`videos.write` to rename or undo) — Cove's attribute-based permission filter is inert on minimal-API
-routes, so the check is explicit and runs before any work.
+Every endpoint re-checks the caller's permission **in the handler**, and it asks for the permission of
+the _kind_ it is about: that kind's read permission to preview it (`videos.read`, `images.read`,
+`audios.read`) and its write permission to rename or undo it (`videos.write`, `images.write`,
+`audios.write`). A caller holding only some of them is not refused outright — the whole-library
+endpoints narrow to the kinds that caller may read. Cove's attribute-based permission filter is inert on
+minimal-API routes, so the check is explicit and runs before any work.
+
+Three surfaces reach different numbers of kinds, and the difference is deliberate:
+
+| Surface                               | Kinds               | Where               |
+| ------------------------------------- | ------------------- | ------------------- |
+| Endpoints and their permission checks | video, image, audio | `Renamer.Api.cs`    |
+| The "Rename selected" bulk action     | video, image        | `GetUIManifest`     |
+| The opt-in auto-rename hook           | video, image        | `Renamer.Events.cs` |
+
+So audio is renamed from the Rename tab or through the API, and an audio list carries no "Rename
+selected" action. The manifest's description states the endpoint reach and the bulk action's narrower
+one together, because that description is what an operator reads before granting the extension access.
 
 The bulk-action registration, the job definition, and the optional auto-rename event hook live
 alongside in `src/Renamer/Renamer.cs` (shared batch core) and `src/Renamer/Renamer.Events.cs`
@@ -152,7 +167,8 @@ background job runner in `src/Renamer/Jobs/`.
 ### Frontend — `src/Renamer.Ui/src/`
 
 A Vite library build that Cove loads as `index.mjs`. Its home is a dedicated **Settings → Extensions
-→ Rename** tab; it also registers the "Rename selected" bulk action on video and image lists.
+→ Rename** tab; it also registers the "Rename selected" bulk action on video and image lists — the two
+kinds that action covers, per the reach table above.
 
 - `index.ts` — the bundle entry that registers the components and the bulk-action handler.
 - `RenamePage.tsx` / `RenameSettingsPanel.tsx` — the settings tab and its body (the controls + the

@@ -11,6 +11,14 @@ User-facing changes, newest first.
      editing the 0.3.0 row: it describes an immutable artifact that genuinely runs on a 1.0.0 host.
      The full rule is in the repo-wide Releasing guide, under "Raising minCoveVersion". -->
 
+- **Renamer says that it renames audio files, which it has been doing all along.** The manifest and the
+  docs described video and image only, so the Extensions list understated what Renamer touches — and
+  understated the permissions it asks for, which is what you read before granting it access. It now
+  states all three kinds and all three permission pairs: `videos.read`/`videos.write`,
+  `images.read`/`images.write` and `audios.read`/`audios.write`. Nothing about renaming changed. Worth
+  knowing where the reach is genuinely narrower: **Rename selected** is on video and image lists only,
+  and _Auto-rename on update_ covers those two kinds as well, so rename audio from the Rename settings
+  page or a whole-library run.
 - **Requires Cove `1.1.0`.** Renamer now uses the authenticated fetch Cove hands to extension pages.
   Cove serves that for the first time in the 1.1.0 release; a 1.0.0 host does not serve it at all. So
   `minCoveVersion` is `1.1.0`, and on anything older Renamer does not load — there is no Rename tab
