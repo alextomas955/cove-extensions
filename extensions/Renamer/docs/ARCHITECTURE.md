@@ -34,13 +34,17 @@ Rename is a Cove extension in two halves:
 A **preview** runs Options → Engine → Planner and stops — zero mutation. A **rename** runs the whole
 chain through Execution. **Undo** replays the Execution layer's revert log in reverse.
 
-The revert log is bounded by design rather than by circumstance: it holds one batch, of at most 5,000
-files, and a row records only what reversal needs — the entity, the file, and the path it came from.
-The file's current path is not stored, because Cove's database is authoritative for it. A batch over
-the cap is not recorded at all and the preview says so before the rename runs, so a rename is either
-fully reversible or plainly not — never half-restorable. A journal written before this shape is
-discarded once, on the first load that finds a stale schema stamp — a separate few-byte key, so the
-oversized value goes without ever being read.
+The revert log lives in two tables the extension owns in Cove's database — one row per journalled file,
+one aggregate row per batch — created by a schema migration the host applies before the extension
+loads. A row records only what reversal needs: the entity, the file, and the path it came from. The
+file's current path is not stored, because Cove's database is authoritative for it.
+
+It is bounded in **time**, not in row count: a batch older than seven days is dropped whole — every row
+it still holds and its aggregate together — the next time any batch opens. A batch therefore either
+falls wholly inside the window or is wholly gone, so an undo is never silently partial, and a rename of
+any size is journalled. An installation upgrading from the earlier single-value journal has whatever it
+still held moved into the tables once, keeping its original timestamp so it keeps its real age, after
+which the old keys are deleted.
 
 ## Layer by layer
 
@@ -106,10 +110,13 @@ the two never drift.
 - `DiskMover.cs` — the actual filesystem move, including sidecar files (captions/subtitles sharing
   the stem) and collision-safe behavior.
 - `CoveRenamerDataPort.cs` — the concrete `IRenamerDataPort` backed by Cove's DbContext.
-- `RevertLog.cs` — the bounded single-batch log that makes undo possible: one batch, a hard row cap,
-  and a refusal path that journals nothing when a batch exceeds it.
-- `UndoReplayer.cs` — reverse-replays the most recent batch from the revert log, reading each file's
-  current location from the database rather than from the log.
+- `CoveRevertJournal.cs` — the revert journal over the extension's own tables: appends a row per
+  renamed file, retires a row as its file returns, and purges expired batches whole when one opens.
+- `JournalRetention.cs` — the retention window, as a constant rather than a setting.
+- `JournalBlobMigration.cs` / `RevertLog.cs` — the one-way move of an earlier version's stored journal
+  into those tables, and the tolerant parsers that read the format it was written in.
+- `UndoReplayer.cs` — reverse-replays the most recent batch from the revert journal, reading each
+  file's current location from the database rather than from the journal.
 
 ### Api — `src/Renamer/Renamer.Api.cs` (+ `src/Renamer/Api/`)
 
