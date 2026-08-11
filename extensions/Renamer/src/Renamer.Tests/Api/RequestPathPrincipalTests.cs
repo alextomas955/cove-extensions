@@ -8,21 +8,26 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Api;
 
 /// <summary>
-/// The two request paths that must NOT elevate: <c>/undo</c> and <c>/scan-rows</c> run their database
-/// commands under the CALLER's own principal.
+/// The request paths that must NOT elevate — <c>/undo</c>, <c>/scan-rows</c> and <c>/last-batch</c> —
+/// run their database commands under the CALLER's own principal.
 /// </summary>
 /// <remarks>
 /// The invariant is stated in <c>Renamer.cs</c>, beside the conversion that does elevate, and it is
-/// quoted here so nobody later "fixes" these two into elevation: <i>every DETACHED body in this
-/// extension elevates, because none of them carries a principal of its own. The two request-path scopes
-/// (/undo and /scan-rows) deliberately do not: they must stay on the caller's principal, and elevating
-/// them would bypass that caller's authorization.</i>
+/// quoted here so nobody later "fixes" these into elevation: <i>every DETACHED body in this extension
+/// takes its scope from the elevating seam, because none of them carries a principal of its own. The
+/// request-path scopes deliberately do not: they must stay on the caller's principal, and elevating them
+/// would bypass that caller's authorization.</i>
 /// <para>
 /// So these are positive assertions of the opposite property, and they are load-bearing in the same way
 /// their siblings in <c>DetachedElevationTests</c> are. Elevating a request path hands a restricted
 /// caller rows their own read is denied — which has been measured end to end on a live host under auth,
 /// where wrapping the <c>/scan-rows</c> page query in the elevation seam turned a caller's zero-row
 /// answer into the whole library.
+/// </para>
+/// <para>
+/// One case per handler that opens a scope of its own without elevating it. Keying them to handlers, and
+/// covering all of them rather than the two the prose happens to name, is what stops the set going stale
+/// asymmetrically: a handler nobody remembered would otherwise be the one converted by mistake.
 /// </para>
 /// <para>
 /// The caller here is a <see cref="PrincipalKind.User"/> holding exactly the permissions the handler
@@ -94,6 +99,23 @@ public sealed class RequestPathPrincipalTests
 
         // A 403 or a 400 would also record no command, so name the outcome: the page was served.
         Assert.NotNull(page);
+    }
+
+    [Fact]
+    public async Task LastBatch_RunsEveryCommandUnderTheCallersPrincipal_NotSystem()
+    {
+        await using var library = await Library.CreateAsync();
+        var ext = await LoadedExtensionAsync(library);
+
+        library.Principals.Set(Caller(Permissions.VideosRead));
+        library.CommandsExecuted.Clear();
+
+        // The paths-free undo probe the panel polls. It opens its own scope and reads the journal's batch
+        // row, and it is a third handler that does so unelevated — the source's prose names only two.
+        var summary = await ext.LastBatchAsync(library.Principals, default);
+
+        AssertRanEntirelyAsTheCaller(library);
+        Assert.NotNull(summary);
     }
 
     /// <summary>
