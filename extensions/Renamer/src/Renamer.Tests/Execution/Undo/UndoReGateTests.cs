@@ -77,8 +77,8 @@ public sealed class UndoReGateTests
             var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, newFolder, "My Film.mkv", "My Film");
 
-            var entry = new RevertLog.RevertEntry(videoId, fileId, escapeFwd + "/raw.mkv");
-            var batch = new RevertLog.RevertBatch(RenamerFileKind.Video, [entry]);
+            var entry = new RevertRow("RUN-1", Seq: 1, videoId, fileId, escapeFwd + "/raw.mkv", SidecarsJson: "");
+            var batch = new RevertBatch("RUN-1", RenamerFileKind.Video, [entry]);
 
             var port = new CoveRenamerDataPort(db);
             var undoBus = new CapturingEventBus();
@@ -124,8 +124,8 @@ public sealed class UndoReGateTests
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
             File.WriteAllText(newFull, "video-bytes");
 
-            var entry = new RevertLog.RevertEntry(videoId, fileId, oldFull.Replace('\\', '/'));
-            var batch = new RevertLog.RevertBatch(RenamerFileKind.Video, [entry]);
+            var entry = new RevertRow("RUN-1", Seq: 1, videoId, fileId, oldFull.Replace('\\', '/'), SidecarsJson: "");
+            var batch = new RevertBatch("RUN-1", RenamerFileKind.Video, [entry]);
 
             var port = new CoveRenamerDataPort(db);
             var undoBus = new CapturingEventBus();
@@ -182,8 +182,8 @@ public sealed class UndoReGateTests
             string newFull = Path.Combine(library, "My Film.mkv");
             File.WriteAllText(newFull, "video-bytes");
 
-            var entry = new RevertLog.RevertEntry(videoId, fileId, oldFull.Replace('\\', '/'));
-            var batch = new RevertLog.RevertBatch(RenamerFileKind.Video, [entry]);
+            var entry = new RevertRow("RUN-1", Seq: 1, videoId, fileId, oldFull.Replace('\\', '/'), SidecarsJson: "");
+            var batch = new RevertBatch("RUN-1", RenamerFileKind.Video, [entry]);
 
             var port = new CoveRenamerDataPort(db);
             var undoBus = new CapturingEventBus();

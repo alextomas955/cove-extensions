@@ -1,8 +1,5 @@
-using Cove.Core.Events;
 using Renamer.Execution;
-using Renamer.Options;
 using Renamer.Planner;
-using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.Undo;
 
@@ -15,12 +12,8 @@ namespace Renamer.Tests.Execution.Undo;
 /// the final live batch, so a single append writes the live tail — not the whole history.</item>
 /// <item>The stored footprint stays flat (one batch) across a rename/undo cycle
 /// repeated over the install's life, and across renames with no undo between them.</item>
-/// <item>A real forward-rename's batch is still read back and reverse-replayed
-/// by <see cref="UndoReplayer"/> AFTER compaction has dropped earlier, already-consumed batches —
-/// compaction never drops or corrupts the still-replayable last open batch.</item>
 /// </list>
-/// Tests A/B are DB-free over <see cref="FakeStore"/>; Test C is the integration-tier UndoReplayer
-/// round-trip spine over SQLite + a real <see cref="TempDir"/>. The private
+/// Both are DB-free over <see cref="FakeStore"/>. The private
 /// <c>StatusOpen</c>/<c>StatusConsumed</c> constants are not visible, so the stored footprint is
 /// measured by inspecting the raw blob (its length, its line/<c>#batch</c>-header count).
 /// </summary>
@@ -179,84 +172,5 @@ public sealed class RevertLogCompactionTests
         Assert.StartsWith("#batch|OPEN|", blob!);
         Assert.DoesNotContain("CONSUMED", blob, StringComparison.Ordinal);
         Assert.DoesNotContain("m/x.mkv", blob, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task UndoRoundTrip_ReplaysLastOpenBatch_AfterEarlierBatchesCompactedAway()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            string folderPath = dir.Root.Replace('\\', '/');
-            // Offset the Video id sequence so videoId ≠ fileId — the published event must carry the
-            // ENTITY id (the row's), never the file id.
-            db.Set<Cove.Core.Entities.Video>().Add(new Cove.Core.Entities.Video { Title = "decoy", Organized = true });
-            await db.SaveChangesAsync();
-            var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw clip.mkv", "My Film");
-            Assert.NotEqual(videoId, fileId);
-
-            var port = new CoveRenamerDataPort(db);
-            var revertLog = new RevertLog(new FakeStore());
-
-            // Write and consume several EARLIER batches so compaction has already dropped them by the
-            // time the real forward-rename opens its own batch.
-            for (int n = 0; n < 5; n++)
-            {
-                var earlier = $"EARLIER-{n}";
-                await revertLog.BeginBatchAsync(earlier, RenamerFileKind.Video);
-                await revertLog.AppendAsync(entityId: n, fileId: 5000 + n, oldPath: $"m/x-{n}.mkv");
-                await revertLog.MarkLastBatchConsumedAsync(earlier);
-            }
-
-            string oldFull = Path.Combine(dir.Root, "raw clip.mkv");
-            File.WriteAllText(oldFull, "video-bytes");
-
-            var options = new RenamerOptions { FilenameTemplate = "$title" }; // → "My Film.mkv"
-
-            // Forward-rename a real file through the live planner + executor + RevertLog under a NEW open
-            // batch. The Begin here compacts the earlier consumed batches away first.
-            await revertLog.BeginBatchAsync("LIVE", RenamerFileKind.Video);
-            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
-            var fwd = await new RenamerExecutor(port, new CapturingEventBus(), revertLog, new DiskMover())
-                .ExecuteAsync(plan, options, default);
-            Assert.Single(fwd.Renamed);
-
-            string newFull = Path.Combine(dir.Root, "My Film.mkv");
-            Assert.True(File.Exists(newFull));
-            Assert.False(File.Exists(oldFull));
-
-            // Reverse-replay the last open batch — it must survive the earlier compaction intact.
-            var batch = await revertLog.ReadLastOpenBatchAsync();
-            Assert.NotNull(batch);
-            var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch!, default);
-
-            Assert.Equal(1, result.Undone);
-            Assert.Empty(result.Failed);
-            Assert.Empty(result.Skipped);
-
-            // Disk restored byte-for-byte.
-            Assert.True(File.Exists(oldFull), "file restored to old path after compaction");
-            Assert.False(File.Exists(newFull), "new path gone after undo");
-            Assert.Equal("video-bytes", File.ReadAllText(oldFull));
-
-            // DB restored.
-            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
-            Assert.Equal("raw clip.mkv", basename);
-            Assert.Equal(folderPath + "/raw clip.mkv", path);
-
-            // Exactly one event with the ROW's entity id (== videoId, ≠ fileId).
-            var evt = Assert.IsType<EntityEvent>(Assert.Single(undoBus.Published));
-            Assert.Equal(EventType.VideoUpdated, evt.Type);
-            Assert.Equal(videoId, evt.EntityId);
-            Assert.NotEqual(fileId, evt.EntityId);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
     }
 }

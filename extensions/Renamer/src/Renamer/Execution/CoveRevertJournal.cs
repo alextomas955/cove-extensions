@@ -15,11 +15,21 @@ namespace Renamer.Execution;
 /// with no reference to the host's data assembly. Tests inject a SQLite-backed <c>CoveContext</c>
 /// (which IS-A <see cref="DbContext"/>) directly.
 ///
-/// One instance wraps one scope's context, exactly as <see cref="CoveRenamerDataPort"/> does.
+/// One instance wraps one scope's context, exactly as <see cref="CoveRenamerDataPort"/> does — but
+/// unlike that port, ONE instance is shared by every parallel worker of a rename batch, because the
+/// sequence number that half-identifies a row is minted per instance. That sharing is what
+/// <see cref="_writes"/> exists for: a <see cref="DbContext"/> is not thread-safe and Cove disables
+/// EF's thread-safety checks, so concurrent writes through one context corrupt silently rather than
+/// throwing. Serializing them costs nothing measurable next to the disk move each one follows.
 /// </summary>
-public sealed class CoveRevertJournal : IRevertJournal
+public sealed class CoveRevertJournal : IRevertJournal, IDisposable
 {
     private readonly DbContext _db;
+
+    // The single-writer gate over this instance's context. Held across the whole mutation — the Add,
+    // the counter move and the save — so a concurrent worker never observes or saves a half-built
+    // change set. Reads are gated too: they materialize through the same context.
+    private readonly SemaphoreSlim _writes = new(1, 1);
 
     // Minted here rather than by the database: an auto-numbering column would be provider-specific,
     // and the shipped schema has to run unchanged on every provider this extension is tested against.
@@ -30,107 +40,154 @@ public sealed class CoveRevertJournal : IRevertJournal
     public async Task BeginBatchAsync(
         string runId, RenamerFileKind kind, DateTime nowUtc, CancellationToken ct = default)
     {
-        Interlocked.Exchange(ref _lastSeq, 0);
-
-        _db.Set<RevertBatchEntity>().Add(new RevertBatchEntity
+        await _writes.WaitAsync(ct);
+        try
         {
-            RunId = runId,
-            OpenedAtUtcTicks = nowUtc.Ticks,
-            Kind = kind.ToString(),
-        });
+            Interlocked.Exchange(ref _lastSeq, 0);
 
-        await _db.SaveChangesAsync(ct);
+            var batch = new RevertBatchEntity
+            {
+                RunId = runId,
+                OpenedAtUtcTicks = nowUtc.Ticks,
+                Kind = kind.ToString(),
+            };
+            _db.Set<RevertBatchEntity>().Add(batch);
+
+            await _db.SaveChangesAsync(ct);
+        }
+        finally
+        {
+            _writes.Release();
+        }
     }
 
     public async Task AppendAsync(RevertRow row, CancellationToken ct = default)
     {
-        _db.Set<RevertRowEntity>().Add(new RevertRowEntity
+        await _writes.WaitAsync(ct);
+        try
         {
-            RunId = row.RunId,
-            Seq = Interlocked.Increment(ref _lastSeq),
-            EntityId = row.EntityId,
-            FileId = row.FileId,
-            OldPath = row.OldPath,
-            SidecarsJson = row.SidecarsJson,
-        });
+            var entity = new RevertRowEntity
+            {
+                RunId = row.RunId,
+                Seq = Interlocked.Increment(ref _lastSeq),
+                EntityId = row.EntityId,
+                FileId = row.FileId,
+                OldPath = row.OldPath,
+                SidecarsJson = row.SidecarsJson,
+            };
+            _db.Set<RevertRowEntity>().Add(entity);
 
-        var batch = await FindBatchAsync(row.RunId, ct);
-        if (batch is not null)
-        {
-            batch.OriginalCount++;
+            var batch = await FindBatchAsync(row.RunId, ct);
+            if (batch is not null)
+            {
+                batch.OriginalCount++;
+            }
+
+            await _db.SaveChangesAsync(ct);
+
+            // Library size is unbounded input, so a whole-library rename appends unboundedly many rows
+            // through this one long-lived context. Leaving each saved row tracked would make the change
+            // tracker grow with the library; detaching keeps this instance's memory flat.
+            _db.Entry(entity).State = EntityState.Detached;
         }
-
-        await _db.SaveChangesAsync(ct);
+        finally
+        {
+            _writes.Release();
+        }
     }
 
     public async Task<RevertBatchSummary?> ReadLastBatchSummaryAsync(CancellationToken ct = default)
     {
-        var batch = await NewestFirst(_db.Set<RevertBatchEntity>().AsNoTracking())
-            .FirstOrDefaultAsync(ct);
+        await _writes.WaitAsync(ct);
+        try
+        {
+            var batch = await NewestFirst(_db.Set<RevertBatchEntity>().AsNoTracking())
+                .FirstOrDefaultAsync(ct);
 
-        return batch is null
-            ? null
-            : new RevertBatchSummary(
-                batch.RunId,
-                batch.OpenedAtUtcTicks,
-                batch.OriginalCount,
-                batch.RestoredCount,
-                batch.UnrestorableCount);
+            return batch is null
+                ? null
+                : new RevertBatchSummary(
+                    batch.RunId,
+                    batch.OpenedAtUtcTicks,
+                    batch.OriginalCount,
+                    batch.RestoredCount,
+                    batch.UnrestorableCount);
+        }
+        finally
+        {
+            _writes.Release();
+        }
     }
 
     public async Task<RevertBatch?> ReadLastOpenBatchAsync(CancellationToken ct = default)
     {
-        var rows = _db.Set<RevertRowEntity>();
-
-        var batch = await NewestFirst(_db.Set<RevertBatchEntity>().AsNoTracking())
-            .Where(b => rows.Any(r => r.RunId == b.RunId))
-            .FirstOrDefaultAsync(ct);
-
-        if (batch is null)
+        await _writes.WaitAsync(ct);
+        try
         {
-            return null;
+            var rows = _db.Set<RevertRowEntity>();
+
+            var batch = await NewestFirst(_db.Set<RevertBatchEntity>().AsNoTracking())
+                .Where(b => rows.Any(r => r.RunId == b.RunId))
+                .FirstOrDefaultAsync(ct);
+
+            if (batch is null)
+            {
+                return null;
+            }
+
+            var pending = await rows.AsNoTracking()
+                .Where(r => r.RunId == batch.RunId)
+                .OrderByDescending(r => r.Seq)
+                .ToListAsync(ct);
+
+            return new RevertBatch(
+                batch.RunId,
+                ParseKind(batch.Kind),
+                [.. pending.Select(r => new RevertRow(r.RunId, r.Seq, r.EntityId, r.FileId, r.OldPath, r.SidecarsJson))]);
         }
-
-        var pending = await rows.AsNoTracking()
-            .Where(r => r.RunId == batch.RunId)
-            .OrderByDescending(r => r.Seq)
-            .ToListAsync(ct);
-
-        return new RevertBatch(
-            batch.RunId,
-            ParseKind(batch.Kind),
-            [.. pending.Select(r => new RevertRow(r.RunId, r.Seq, r.EntityId, r.FileId, r.OldPath, r.SidecarsJson))]);
+        finally
+        {
+            _writes.Release();
+        }
     }
 
     public async Task DeleteRowAsync(
         string runId, long seq, bool unrestorable, CancellationToken ct = default)
     {
-        var row = await _db.Set<RevertRowEntity>()
-            .FirstOrDefaultAsync(r => r.RunId == runId && r.Seq == seq, ct);
-
-        if (row is null)
+        await _writes.WaitAsync(ct);
+        try
         {
-            return;
+            var row = await _db.Set<RevertRowEntity>()
+                .FirstOrDefaultAsync(r => r.RunId == runId && r.Seq == seq, ct);
+
+            if (row is null)
+            {
+                return;
+            }
+
+            _db.Set<RevertRowEntity>().Remove(row);
+
+            var batch = await FindBatchAsync(runId, ct);
+            if (batch is not null)
+            {
+                if (unrestorable)
+                {
+                    batch.UnrestorableCount++;
+                }
+                else
+                {
+                    batch.RestoredCount++;
+                }
+            }
+
+            // The removal and the counter move commit together, so the aggregate can never describe a
+            // batch that still holds the row it just counted as settled.
+            await _db.SaveChangesAsync(ct);
         }
-
-        _db.Set<RevertRowEntity>().Remove(row);
-
-        var batch = await FindBatchAsync(runId, ct);
-        if (batch is not null)
+        finally
         {
-            if (unrestorable)
-            {
-                batch.UnrestorableCount++;
-            }
-            else
-            {
-                batch.RestoredCount++;
-            }
+            _writes.Release();
         }
-
-        // The removal and the counter move commit together, so the aggregate can never describe a
-        // batch that still holds the row it just counted as settled.
-        await _db.SaveChangesAsync(ct);
     }
 
     public Task PurgeExpiredAsync(DateTime nowUtc, CancellationToken ct = default) =>
@@ -139,6 +196,9 @@ public sealed class CoveRevertJournal : IRevertJournal
                 + "quietly because a purge that reports success while deleting nothing is "
                 + "indistinguishable from one that works, and what it would hide is the journal "
                 + "growing without a bound.");
+
+    /// <summary>Releases the write gate. The context is the scope's to dispose, never this instance's.</summary>
+    public void Dispose() => _writes.Dispose();
 
     private Task<RevertBatchEntity?> FindBatchAsync(string runId, CancellationToken ct) =>
         _db.Set<RevertBatchEntity>().FirstOrDefaultAsync(b => b.RunId == runId, ct);

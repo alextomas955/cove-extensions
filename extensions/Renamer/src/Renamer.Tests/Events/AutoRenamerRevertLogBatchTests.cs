@@ -12,18 +12,15 @@ namespace Renamer.Tests.Events;
 
 /// <summary>
 /// The data-recovery spine for the auto-renamer hook: a rename driven by the <c>video.updated</c> event
-/// must open a proper batch HEADER so its revert-log rows are the 4-field <c>entityId|fileId|old|new</c>
-/// shape and /undo can restore them. The regression this guards: the hook used to run the executor with
-/// a fresh headerless <c>RevertLog</c>, so a headerless blob was misparsed on undo as legacy 3-field
-/// rows (entityId→fileId), and a prior manual header would silently swallow the auto rows. The decoy
-/// video makes <c>videoId ≠ fileId</c>, so the misparsed-legacy shape (EntityId == FileId) is
-/// distinguishable from the correct one.
+/// must open its own journal batch, and the row it writes must carry the PARENT entity id alongside the
+/// file id so /undo republishes the right entity. The decoy video makes <c>videoId ≠ fileId</c>, so a row
+/// that confused the two is distinguishable from a correct one.
 /// </summary>
 [Trait("Tier", "L1")]
 public sealed class AutoRenamerRevertLogBatchTests
 {
     [Fact]
-    public async Task AutoRename_OpensHeaderedBatch_FourFieldRow_UndoRestoresDiskAndDb()
+    public async Task AutoRename_OpensItsOwnBatch_RowCarriesEntityAndFileId_UndoRestoresDiskAndDb()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -45,7 +42,7 @@ public sealed class AutoRenamerRevertLogBatchTests
                 AutoRenamerOnUpdate = true,
                 FilenameTemplate = "$title",
             };
-            var (ext, _, store) = await EventTestHarness.BuildAsync(db, options);
+            var (ext, _, _) = await EventTestHarness.BuildAsync(db, options);
 
             // Drive the hook for the one entity that WILL act: raw.mkv → My Film.mkv.
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
@@ -54,20 +51,15 @@ public sealed class AutoRenamerRevertLogBatchTests
             Assert.True(File.Exists(newFull));
             Assert.False(File.Exists(oldFull));
 
-            // (a) The stored blob carries a header line (no orphan rows) ...
-            var blob = await store.GetAsync(RevertLog.Key);
-            Assert.NotNull(blob);
-            Assert.Contains("#batch", blob!);
-
-            // ... and a fresh reader sees exactly one open batch with the correct kind.
-            var readBack = new RevertLog(store);
+            // (a) A fresh reader over the journal sees exactly one batch with rows, carrying the kind.
+            var readBack = new CoveRevertJournal(db);
             var batch = await readBack.ReadLastOpenBatchAsync();
             Assert.NotNull(batch);
             Assert.Equal(RenamerFileKind.Video, batch!.Kind);
 
-            // (b) The row parsed as the 4-field shape: EntityId is the VIDEO id and FileId is the FILE
-            // id, and they differ — the misparsed legacy shape would have EntityId == FileId.
-            var entry = Assert.Single(batch.Entries);
+            // (b) EntityId is the VIDEO id and FileId is the FILE id, and they differ — a row that
+            // confused the two would have EntityId == FileId.
+            var entry = Assert.Single(batch.Rows);
             Assert.Equal(videoId, entry.EntityId);
             Assert.Equal(fileId, entry.FileId);
             Assert.NotEqual(entry.EntityId, entry.FileId);

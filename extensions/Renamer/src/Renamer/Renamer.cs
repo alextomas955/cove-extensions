@@ -362,9 +362,10 @@ public sealed partial class Renamer : FullExtensionBase
     /// worker opens its OWN scope and resolves its OWN <see cref="DbContext"/> — a <c>DbContext</c> is
     /// not thread-safe and Cove disables EF's thread-safety checks, so a shared context would corrupt
     /// silently; per-worker scopes make isolation structural. The ONE shared object is the
-    /// <see cref="RevertLog"/>, whose appends are serialized (it is a read-modify-write on a single
-    /// blob) so the undo record never tears under parallel workers. Bad/empty/unsupported input is a
-    /// clean no-op that still reports the final <c>1.0</c> — never throws on untrusted job parameters.
+    /// <see cref="CoveRevertJournal"/>, which is shared because it mints each row's sequence number,
+    /// and which therefore owns its own scope and serializes its own writes. Bad/empty/unsupported
+    /// input is a clean no-op that still reports the final <c>1.0</c> — never throws on untrusted job
+    /// parameters.
     /// </summary>
     /// <param name="parameters">The host's string-only job parameter map (entity type + id list).</param>
     /// <param name="progress">The job-progress sink reported during PHASE B and a final <c>1.0</c>.</param>
@@ -420,15 +421,12 @@ public sealed partial class Renamer : FullExtensionBase
 
         // One action click = one selection = one /renamer = one job = one batch, all one kind.
         // Mint a fresh runId AFTER the kind/ids validation passed (so the early no-op return above
-        // opens no batch). The batch HEADER is NOT written yet: a header written before PHASE A knows
-        // whether anything acts would leave an EMPTY open batch that ReadLastOpenBatchAsync returns as
-        // "the last open batch", shadowing a genuinely-replayable earlier batch from /undo.
-        // We defer BeginBatchAsync until PHASE A has produced at least one acting unit AND the batch
-        // cleared the free-space refusal, so an all-skip or refused batch opens no header at all. The
-        // same runId + RevertLog is then passed into EVERY worker's executor so every per-success
-        // AppendAsync row accumulates under this single open batch.
+        // opens no batch). The batch is NOT opened yet: a batch opened before PHASE A knows whether
+        // anything acts would leave an EMPTY batch behind. We defer BeginBatchAsync until PHASE A has
+        // produced at least one acting unit AND the batch cleared the free-space refusal, so an
+        // all-skip or refused batch opens nothing at all. The same runId + journal is then passed into
+        // EVERY worker's executor so every per-success AppendAsync row accumulates under this one batch.
         var runId = Guid.NewGuid().ToString("N");
-        var revertLog = new RevertLog(Store);
 
         LogBatchStarted(runId, kind, ids.Length);
 
@@ -519,7 +517,7 @@ public sealed partial class Renamer : FullExtensionBase
         // UP-FRONT free-space refusal: sum the projected cross-volume bytes per destination volume and
         // refuse the whole batch before touching disk if a volume would not fit. Same-volume moves are
         // excluded from the sum by the guard. This runs BEFORE BeginBatchAsync, so a refused batch
-        // opens no RevertLog header (and can never shadow a prior replayable batch).
+        // opens no batch at all.
         var moves = acting.Select(u => u.Move).ToList();
         var shortfall = FreeSpaceGuard.Shortfall(moves, options.FreeSpaceHeadroomBytes, freeSpaceProbe);
         if (shortfall.Count > 0)
@@ -531,8 +529,7 @@ public sealed partial class Renamer : FullExtensionBase
             return;
         }
 
-        // Nothing acts → open NO batch header (an empty open header would shadow the previous
-        // replayable batch from /undo). Report the final 1.0 and return as a clean no-op.
+        // Nothing acts → open NO batch. Report the final 1.0 and return as a clean no-op.
         if (acting.Count == 0)
         {
             LogBatchDone(runId, 0, 0, 0);
@@ -540,22 +537,25 @@ public sealed partial class Renamer : FullExtensionBase
             return;
         }
 
-        // Now — and only now — open exactly one batch header: PHASE A produced acting work and the
-        // batch fits. A later ReadLastOpenBatchAsync returns the whole run as one batch with its kind,
-        // which /undo replays. The header is written ONCE here, single-threaded, never per worker.
+        // The journal gets its OWN scope, and therefore its own DbContext, for the whole batch: it is
+        // the one object every parallel worker shares (it mints each row's sequence number), and the
+        // per-worker contexts are exactly what must not be shared. It serializes its own writes; the
+        // rename work those writes follow stays parallel.
         //
-        // OVER THE ROW CAP → journal NOTHING. The decision lands here because acting.Count is the FILE
-        // count (one unit per acting file); the id array counts entities. Suppressing takes the whole
-        // batch out rather than recording part of it — half-restorable is worse than clearly not.
-        if (RevertLog.ExceedsCap(acting.Count))
-        {
-            await revertLog.SuppressAsync(ct);
-            LogBatchNotJournalled(runId, acting.Count, RevertLog.MaxJournalledFiles);
-        }
-        else
-        {
-            await revertLog.BeginBatchAsync(runId, kind, ct);
-        }
+        // This scope is NOT elevated, unlike every scope that reads Cove's own entities. The reason it
+        // needs no elevation is that the journal's two tables are extension-owned and carry none of
+        // Cove's per-principal query filters — which is a measured fact, not an assumption: the
+        // journal's own suite appends and reads those rows through a real CoveContext under no
+        // principal at all. There is nothing here for System to unlock.
+        await using var journalScope = ScopeFactory.CreateAsyncScope();
+        using var journal = new CoveRevertJournal(journalScope.ServiceProvider.GetRequiredService<DbContext>());
+
+        // Now — and only now — open exactly one batch: PHASE A produced acting work and the batch fits.
+        // A later ReadLastOpenBatchAsync returns this run's still-pending rows with its kind, which
+        // /undo replays. Opened ONCE here, single-threaded, never per worker. There is no file-count
+        // ceiling: rows are appended one at a time and read back paged by batch, so a rename of any
+        // size is journalled in full.
+        await journal.BeginBatchAsync(runId, kind, DateTime.UtcNow, ct);
 
         // Marks the PHASE A → PHASE B boundary in the log: PHASE B's percentage now advances per
         // completed file, so a later stall is legible as "stuck partway through {Acting}", not silence.
@@ -605,7 +605,7 @@ public sealed partial class Renamer : FullExtensionBase
                 return;
             }
 
-            // OWN scope per worker → OWN DbContext → OWN port + executor. The shared revertLog is
+            // OWN scope per worker → OWN DbContext → OWN port + executor. The shared journal is
             // passed in (its appends are serialized). The executor classifies-not-throws, so a per-item
             // fault is a skip/failure recorded below — only a genuine cancellation propagates. The
             // pre-resolved folderIdByPath is handed in so the executor reads each Move's destination
@@ -621,7 +621,8 @@ public sealed partial class Renamer : FullExtensionBase
 
             await using var scope = ScopeFactory.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-            var exec = new RenamerExecutor(new CoveRenamerDataPort(db), EventBus, revertLog, new DiskMover());
+            var exec = new RenamerExecutor(
+                new CoveRenamerDataPort(db), EventBus, journal, runId, new DiskMover());
 
             var result = await RunAsSystem.RunAsSystemAsync(
                 scope.ServiceProvider, () => exec.ExecuteAsync(unit.Plan, options, folderIdByPath, token));

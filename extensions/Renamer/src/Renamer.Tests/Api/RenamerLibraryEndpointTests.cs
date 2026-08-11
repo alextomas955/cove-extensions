@@ -130,7 +130,7 @@ public sealed class RenamerLibraryEndpointTests
             File.WriteAllText(Path.Combine(dir.Root, "videos", "raw.mkv"), "video-bytes");
             File.WriteAllText(Path.Combine(dir.Root, "images", "raw.jpg"), "image-bytes");
 
-            var (ext, store) = await NewExtensionAsync(conn);
+            var (ext, _) = await NewExtensionAsync(conn);
             var progress = new FakeJobProgress();
 
             await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
@@ -144,21 +144,24 @@ public sealed class RenamerLibraryEndpointTests
             Assert.Equal("Film.mkv", videoBasename);
             Assert.Equal("Pic.jpg", imageBasename);
 
-            // One batch PER KIND, never one combined batch across kinds. The journal retains only the
-            // newest batch, so what survives is the second kind's: one header, its kind alone, and only
-            // that kind's row. A combined batch would instead show one header carrying BOTH files.
-            var blob = await store.GetAsync(RevertLog.Key);
-            Assert.NotNull(blob);
-            var lines = blob!.Split('\n');
-            int headerCount = lines.Count(line => line.StartsWith("#batch", StringComparison.Ordinal));
-            Assert.Equal(1, headerCount);
-            Assert.StartsWith("#batch|", lines[0]);
-            Assert.Equal("Image", lines[0].Split('|')[3]);
+            // One batch PER KIND, never one combined batch across kinds. The newest batch is the second
+            // kind's, carrying its kind alone and only that kind's row; a combined batch would carry BOTH
+            // files. Retiring that row then surfaces the FIRST kind's batch, still intact — opening the
+            // second batch never cost the first its rows.
+            var journal = new CoveRevertJournal(db);
 
-            var batch = await new RevertLog(store).ReadLastOpenBatchAsync();
-            Assert.NotNull(batch);
-            Assert.Equal(RenamerFileKind.Image, batch!.Kind);
-            Assert.Equal(imageFileId, Assert.Single(batch.Entries).FileId);
+            var imageBatch = await journal.ReadLastOpenBatchAsync();
+            Assert.NotNull(imageBatch);
+            Assert.Equal(RenamerFileKind.Image, imageBatch!.Kind);
+            var imageRow = Assert.Single(imageBatch.Rows);
+            Assert.Equal(imageFileId, imageRow.FileId);
+
+            await journal.DeleteRowAsync(imageRow.RunId, imageRow.Seq, unrestorable: false);
+
+            var videoBatch = await journal.ReadLastOpenBatchAsync();
+            Assert.NotNull(videoBatch);
+            Assert.Equal(RenamerFileKind.Video, videoBatch!.Kind);
+            Assert.Equal(videoFileId, Assert.Single(videoBatch.Rows).FileId);
 
             Assert.Equal(1d, progress.LastPercent);
         }
@@ -181,7 +184,7 @@ public sealed class RenamerLibraryEndpointTests
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "video-bytes");
             // No image/audio rows seeded at all.
 
-            var (ext, store) = await NewExtensionAsync(conn);
+            var (ext, _) = await NewExtensionAsync(conn);
             var progress = new FakeJobProgress();
 
             // Caller only holds videos.write + images.write (no audios.write) and there ARE zero
@@ -189,12 +192,12 @@ public sealed class RenamerLibraryEndpointTests
             // land on a kind that opens no batch.
             await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
 
-            var blob = await store.GetAsync(RevertLog.Key);
-            Assert.NotNull(blob);
-            int headerCount = blob!.Split('\n').Count(line => line.StartsWith("#batch", StringComparison.Ordinal));
             // Only Video opened a batch — Image had zero candidates, so RunRenamerBatchAsync was never
-            // called for it and no empty header opened.
-            Assert.Equal(1, headerCount);
+            // called for it and no empty batch opened. An empty Image batch opened after the Video one
+            // would show up here as a newest batch that journalled nothing.
+            var summary = await new CoveRevertJournal(db).ReadLastBatchSummaryAsync();
+            Assert.NotNull(summary);
+            Assert.Equal(1, summary!.Value.OriginalCount);
         }
         finally
         {

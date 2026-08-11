@@ -130,12 +130,16 @@ public sealed class TransportSmokeTests
             builder.Services.AddSingleton(principal);
             builder.Services.AddSingleton<DbContext>(db);
             builder.Services.AddSingleton<IJobService>(new RecordingJobService());
+            builder.Services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
             builder.Services.AddRouting();
 
             var ext = RenamerFixture.Create();
             ((IStatefulExtension)ext).SetStore(new FakeStore());
 
             var app = builder.Build();
+            // Initialized, not just mapped: the batch-summary route reads the journal out of the
+            // database, so it needs the scope factory a real host hands the extension at load.
+            await ext.InitializeAsync(app.Services);
             ext.MapEndpoints(app);
             await app.StartAsync();
 

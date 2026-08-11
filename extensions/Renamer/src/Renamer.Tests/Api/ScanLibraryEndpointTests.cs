@@ -633,17 +633,15 @@ public sealed class ScanLibraryEndpointTests
         await InitializeWithStoreAsync(store);
         Assert.Null(await store.GetAsync(RevertLog.Key));
 
-        var log = new RevertLog(store);
-        await log.BeginBatchAsync("R1", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 7, fileId: 70, oldPath: "/lib/raw.mkv");
-        string journalled = (await store.GetAsync(RevertLog.Key))!;
+        // Written straight to the key rather than through the writer: what a later load must not
+        // destroy is whatever bytes sit under it, and after the storage move the only thing that ever
+        // sits there is a journal an earlier version left behind.
+        const string journalled = "#batch|R1|638000000000000000|Video|open\n7|70|/lib/raw.mkv";
+        await store.SetAsync(RevertLog.Key, journalled);
 
         await InitializeWithStoreAsync(store);
 
         Assert.Equal(journalled, await store.GetAsync(RevertLog.Key));
-        var batch = await log.ReadLastOpenBatchAsync();
-        Assert.NotNull(batch);
-        Assert.Equal(70, Assert.Single(batch!.Entries).FileId);
     }
 
     [Fact]

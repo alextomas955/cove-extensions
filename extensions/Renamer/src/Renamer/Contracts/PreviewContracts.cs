@@ -121,13 +121,13 @@ public sealed record UndoEntryError(int FileId, string OldPath, string NewPath, 
 
 /// <summary>
 /// The JSON shape the <c>/last-batch</c> endpoint returns: a paths-free summary of the most
-/// recent batch for the undo panel (maps from <c>RevertLog.RevertBatchSummary</c>). When there is no
+/// recent batch for the undo panel (maps from <c>RevertBatchSummary</c>). When there is no
 /// batch, <see cref="HasBatch"/> is false and the numeric fields are 0/false.
 /// </summary>
-/// <param name="HasBatch">True iff a batch exists in the log.</param>
-/// <param name="Count">The batch's data-row count.</param>
-/// <param name="WrittenAtUtcTicks">The server-written UTC ticks when the batch opened (0 for none/legacy).</param>
-/// <param name="Consumed">True iff the batch has already been undone.</param>
+/// <param name="HasBatch">True iff a batch has ever been journalled.</param>
+/// <param name="Count">How many files the batch journalled — never decremented as they are restored.</param>
+/// <param name="WrittenAtUtcTicks">The server-written UTC ticks when the batch opened (0 for none).</param>
+/// <param name="Consumed">True iff the batch has nothing left to restore.</param>
 public sealed record LastBatchSummary(bool HasBatch, int Count, long WrittenAtUtcTicks, bool Consumed);
 
 /// <summary>

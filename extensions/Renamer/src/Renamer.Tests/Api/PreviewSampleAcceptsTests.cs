@@ -23,7 +23,7 @@ namespace Renamer.Tests.Api;
 /// could "fix" by binding the body — so these cases pin the property that would break if anyone did: the
 /// same options reach the handler through a PascalCase envelope and through a camelCase one, a malformed
 /// body comes back with the handler's OWN error code rather than a host-produced 400, and <c>/undo</c>
-/// still answers a request that carries no body at all.
+/// still reaches its handler on a request that carries no body at all.
 /// </remarks>
 [Trait("Tier", "L2")]
 public sealed class PreviewSampleAcceptsTests
@@ -62,15 +62,16 @@ public sealed class PreviewSampleAcceptsTests
         public string Route(string suffix) =>
             _routes.Single(route => route.EndsWith(suffix, StringComparison.Ordinal));
 
-        public static async Task<ApiHost> BootAsync()
+        public static async Task<ApiHost> BootAsync(ICurrentPrincipalAccessor? principal = null)
         {
             var builder = WebApplication.CreateSlimBuilder();
             builder.WebHost.UseTestServer();
 
-            // A principal holding every renamer permission: one host serves both endpoints, and the
-            // permission gate is not what these cases are about.
-            builder.Services.AddSingleton<ICurrentPrincipalAccessor>(
-                FakePrincipalAccessor.WithPermissions(
+            // A principal holding every renamer permission by default: one host serves both endpoints,
+            // and the permission gate is not what most of these cases are about. The /undo case supplies
+            // its own, because the handler's permission answer is the one answer it can give without a
+            // database.
+            builder.Services.AddSingleton(principal ?? FakePrincipalAccessor.WithPermissions(
                     Permissions.VideosRead, Permissions.ImagesRead, Permissions.AudiosRead,
                     Permissions.VideosWrite, Permissions.ImagesWrite, Permissions.AudiosWrite));
 
@@ -173,16 +174,19 @@ public sealed class PreviewSampleAcceptsTests
     }
 
     [Fact]
-    public async Task Undo_WithNoBody_ReachesTheHandlerAndAnswers()
+    public async Task Undo_WithNoBody_ReachesTheHandler()
     {
         // The other endpoint the untyped-binding rule covers, and the one where it means only "do not
         // invent a body to type": /undo operates on the last batch and declares no body, so nothing is
-        // there to bind. An empty journal is a clean no-op, which is enough to show the handler ran.
-        await using var host = await ApiHost.BootAsync();
+        // there to bind. The proof it ran is its OWN 403 — the host's [RequiresPermission] filter is
+        // inert on a minimal-API route, so nothing else produces that code, and a body-binding failure
+        // would be a host 400 the handler never saw. The permission answer is also the only answer this
+        // host can obtain: /undo reads the journal out of the database, and keeping this class off a
+        // database is what keeps it on the CI leg that has no cove checkout.
+        await using var host = await ApiHost.BootAsync(FakePrincipalAccessor.None());
 
         var response = await host.Client.PostAsync(host.Route("/undo"), content: null);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("\"undone\":0", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 }

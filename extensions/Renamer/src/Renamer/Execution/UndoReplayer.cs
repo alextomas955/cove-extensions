@@ -6,8 +6,8 @@ using static global::Renamer.Execution.PathOps;
 namespace Renamer.Execution;
 
 /// <summary>
-/// Reverse-replays a logged renamer batch to restore files to their original locations. It is
-/// path-driven from the <see cref="RevertLog.RevertBatch"/> (NOT metadata-driven — it does NOT
+/// Reverse-replays a journalled renamer batch to restore files to their original locations. It is
+/// path-driven from the <see cref="RevertBatch"/> (NOT metadata-driven — it does NOT
 /// synthesize a <see cref="RenamerPlan"/> nor reuse <see cref="RenamerExecutor"/>, because the
 /// original metadata may have changed since the renamer; replaying recorded paths is the only safe
 /// way to undo). It composes the SAME collaborators the forward executor uses:
@@ -36,8 +36,9 @@ namespace Renamer.Execution;
 /// </list>
 /// Each entry is independent (one failure never aborts the rest, matching the forward executor).
 /// Captions are out of undo scope for v1. The kind is the batch's single source — never a parameter,
-/// never a hardcoded default. This class does NOT mark the batch consumed (that is the endpoint's
-/// job), so it stays storage-agnostic.
+/// never a hardcoded default. This class does NOT retire the rows it restored (that is the endpoint's
+/// job), so it stays storage-agnostic; it reports WHICH rows it restored and the endpoint retires
+/// exactly those.
 /// </summary>
 public sealed class UndoReplayer
 {
@@ -75,28 +76,39 @@ public sealed class UndoReplayer
     /// <param name="Reason">A human-readable note for the skip/failure.</param>
     public sealed record UndoFailure(int FileId, string OldPath, string NewPath, string Reason);
 
-    /// <summary>The result of reverse-replaying a batch: counts of restored entries + the failed/skipped buckets.</summary>
+    /// <summary>The result of reverse-replaying a batch: what was restored + the failed/skipped buckets.</summary>
     /// <param name="Undone">How many entries were restored (disk + DB) and published.</param>
     /// <param name="Failed">Entries whose reverse move succeeded but the save threw (disk rolled back to NEW).</param>
     /// <param name="Skipped">Entries skipped because the OLD slot was occupied/locked (never clobbered).</param>
-    public sealed record UndoRunResult(int Undone, IReadOnlyList<UndoFailure> Failed, IReadOnlyList<UndoFailure> Skipped);
+    /// <param name="Restored">
+    /// The rows that terminated as restored, so the caller can retire exactly those in the journal.
+    /// Carried as rows rather than derived by the caller from the difference between the batch and the
+    /// two problem buckets: each row's <c>(RunId, Seq)</c> is its exact identity, and a derived set has
+    /// to reconstruct that identity from paths.
+    /// </param>
+    public sealed record UndoRunResult(
+        int Undone,
+        IReadOnlyList<UndoFailure> Failed,
+        IReadOnlyList<UndoFailure> Skipped,
+        IReadOnlyList<RevertRow> Restored);
 
     /// <summary>
-    /// Reverse-replays <paramref name="batch"/> (already newest-first from <see cref="RevertLog"/>),
-    /// restoring each entry independently. The kind comes from <c>batch.Kind</c>; the entity id of
-    /// each published event comes from the row.
+    /// Reverse-replays <paramref name="batch"/> (already newest-first from the journal), restoring each
+    /// row independently. The kind comes from <c>batch.Kind</c>; the entity id of each published event
+    /// comes from the row.
     /// </summary>
-    public async Task<UndoRunResult> RevertAsync(RevertLog.RevertBatch batch, CancellationToken ct = default)
+    public async Task<UndoRunResult> RevertAsync(RevertBatch batch, CancellationToken ct = default)
     {
         int undone = 0;
         var failed = new List<UndoFailure>();
         var skipped = new List<UndoFailure>();
+        var restored = new List<RevertRow>();
 
         // One load per ENTITY, not per row: a multi-file item costs one query, not one per file.
         var currentPaths = new Dictionary<int, string>();
         var loadedEntities = new HashSet<int>();
 
-        foreach (var entry in batch.Entries)
+        foreach (var entry in batch.Rows)
         {
             ct.ThrowIfCancellationRequested();
             string currentPath = "";
@@ -124,7 +136,7 @@ public sealed class UndoReplayer
                 var outcome = await RevertEntryAsync(batch.Kind, entry, currentPath, ct);
                 switch (outcome)
                 {
-                    case RevertOutcome.Undone: undone++; break;
+                    case RevertOutcome.Undone: undone++; restored.Add(entry); break;
                     case RevertOutcome.Skipped skip: skipped.Add(skip.Failure); break;
                     case RevertOutcome.Failed fail: failed.Add(fail.Failure); break;
                 }
@@ -138,7 +150,7 @@ public sealed class UndoReplayer
             }
         }
 
-        return new UndoRunResult(undone, failed, skipped);
+        return new UndoRunResult(undone, failed, skipped, restored);
     }
 
     /// <summary>Joins a parent folder path and a basename into the forward-slash full path.</summary>
@@ -146,7 +158,7 @@ public sealed class UndoReplayer
         NormalizeSlash(folderPath).TrimEnd('/') + "/" + basename;
 
     private async Task<RevertOutcome> RevertEntryAsync(
-        RenamerFileKind kind, RevertLog.RevertEntry entry, string currentPath, CancellationToken ct)
+        RenamerFileKind kind, RevertRow entry, string currentPath, CancellationToken ct)
     {
         // (1) Resolve the OLD directory + OLD basename, then validate + resolve the restore target
         //     (allowlist re-gate → dir-missing → old-slot collision). A rejected target is a reported
@@ -241,7 +253,7 @@ public sealed class UndoReplayer
     /// entry, or the resolved OLD folder id when the target is clear to write.
     /// </summary>
     private async Task<(RevertOutcome.Skipped? Skip, int OldFolderId)> PrepareRestoreTargetAsync(
-        RevertLog.RevertEntry entry, string currentPath, string oldDir, string oldBasename,
+        RevertRow entry, string currentPath, string oldDir, string oldBasename,
         CancellationToken ct)
     {
         // RESTORE-TARGET RE-GATE — an undo is a WRITE back to the recorded OLD location, so a RELOCATING

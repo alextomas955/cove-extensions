@@ -10,7 +10,7 @@ namespace Renamer.Execution;
 /// The mutating half of the renamer slice. Consumes a <see cref="RenamerPlan"/> and applies each item
 /// INDEPENDENTLY (one failure never aborts the batch) with the safety spine: execution-time
 /// collision re-check (disk + DB) → disk move FIRST → set Basename/ParentFolderId (+ caption.Filename)
-/// and a single save → assert the recomputed Path matches the on-disk path → revert-log + event; on a
+/// and a single save → assert the recomputed Path matches the on-disk path → journal row + event; on a
 /// post-move save failure, roll the disk back.
 ///
 /// It NEVER assigns <c>BaseFileEntity.Path</c> (that is <c>CoveRenamerDataPort</c>'s job, and it
@@ -21,23 +21,30 @@ public sealed class RenamerExecutor
 {
     private readonly IRenamerDataPort _port;
     private readonly IEventBus _eventBus;
-    private readonly RevertLog _revertLog;
+    private readonly IRevertJournal _journal;
+    private readonly string _runId;
     private readonly DiskMover _disk;
     private readonly CrossVolumeMover _cross;
 
     /// <summary>Bound on the execution-time collision suffix loop before giving up with a skip.</summary>
     private const int MaxSuffixAttempts = 1000;
 
+    // The <paramref name="runId"/> names the batch every journalled row belongs to, and is required
+    // rather than defaulted: a row that names no batch is one the journal can store but never read
+    // back, so an undo would silently find nothing. The caller passes the SAME run id it opened the
+    // batch with.
+    //
     // The optional <paramref name="cross"/> mover is used when a move crosses volumes (different path
-    // roots). It defaults to a fresh CrossVolumeMover() when omitted, so every existing 4-arg
-    // construction site (production wiring + the test suite) stays source-compatible; a test may
-    // inject a fault-seam / recording mover via this parameter.
-    public RenamerExecutor(IRenamerDataPort port, IEventBus eventBus, RevertLog revertLog, DiskMover disk,
-        CrossVolumeMover? cross = null)
+    // roots). It defaults to a fresh CrossVolumeMover() when omitted, so every existing construction
+    // site (production wiring + the test suite) stays source-compatible; a test may inject a
+    // fault-seam / recording mover via this parameter.
+    public RenamerExecutor(IRenamerDataPort port, IEventBus eventBus, IRevertJournal journal, string runId,
+        DiskMover disk, CrossVolumeMover? cross = null)
     {
         _port = port;
         _eventBus = eventBus;
-        _revertLog = revertLog;
+        _journal = journal;
+        _runId = runId;
         _disk = disk;
         _cross = cross ?? new CrossVolumeMover();
     }
@@ -52,14 +59,19 @@ public sealed class RenamerExecutor
 
     /// <summary>
     /// The result of executing a plan: the items that renamed/moved, the items skipped (gated /
-    /// collision / locked / no-op), the items that failed (save threw → disk rolled back), and the
-    /// revert-log rows written for the successes.
+    /// collision / locked / no-op), and the items that failed (save threw → disk rolled back).
     /// </summary>
+    /// <remarks>
+    /// It deliberately carries NO copy of the journalled rows. The journal table is the durable record
+    /// of what can be put back, so a second in-memory list of the same facts could only drift from it —
+    /// and it would have to be thread-safe as well, since one result object is built per worker while
+    /// one journal is shared by all of them. A caller that wants to know what was journalled reads the
+    /// journal.
+    /// </remarks>
     public sealed record RenamerRunResult(
         IReadOnlyList<ItemResult> Renamed,
         IReadOnlyList<ItemResult> Skipped,
-        IReadOnlyList<ItemResult> Failed,
-        IReadOnlyList<RevertLog.RevertEntry> RevertLog);
+        IReadOnlyList<ItemResult> Failed);
 
     /// <summary>
     /// Executes every item of <paramref name="plan"/> independently. Items the planner already
@@ -108,7 +120,7 @@ public sealed class RenamerExecutor
             }
         }
 
-        return new RenamerRunResult(renamed, skipped, failed, _revertLog.Rows);
+        return new RenamerRunResult(renamed, skipped, failed);
     }
 
     private async Task ExecuteItemAsync(
@@ -285,7 +297,7 @@ public sealed class RenamerExecutor
                 // through the SAME mover the move used (and the catch below uses), capturing rollback
                 // warnings so an INCOMPLETE rollback is surfaced rather than falsely claiming "rolled
                 // back" — mirroring the save-throw catch and the UndoReplayer's assertion branch. Do NOT
-                // write a revert-log row or publish an event on this path: the move is being undone, so
+                // write a journal row or publish an event on this path: the move is being undone, so
                 // there is nothing to reindex or to offer /undo.
                 //
                 // WHY this remains a reported inconsistency: the DB save already COMMITTED (the row now
@@ -304,10 +316,13 @@ public sealed class RenamerExecutor
                 return;
             }
 
-            // (8) Success: revert-log row + reindex event. The logged row carries plan.EntityId —
-            //     the SAME value published on the next line — so the logged id and the event id are
-            //     identical by construction (undo reconstructs the exact forward event from the row).
-            await _revertLog.AppendAsync(plan.EntityId, item.FileId, item.OldFullPath, ct);
+            // (8) Success: journal row + reindex event. The row carries plan.EntityId — the SAME value
+            //     published on the next line — so the journalled id and the event id are identical by
+            //     construction (undo reconstructs the exact forward event from the row).
+            //     Seq is passed as 0 because the journal mints it on append; the sidecar delta is empty
+            //     until the sidecar moves are journalled with the row.
+            await _journal.AppendAsync(
+                new RevertRow(_runId, Seq: 0, plan.EntityId, item.FileId, item.OldFullPath, SidecarsJson: ""), ct);
             _eventBus.Publish(new EntityEvent(EventTypeFor(plan.Kind), EntityTypeName(plan.Kind), plan.EntityId));
 
             // (9) Opt-in empty-source-folder cleanup, AFTER the save + assertion pass — never before

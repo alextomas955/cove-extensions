@@ -198,7 +198,7 @@ public sealed class CanonicalPathGuardRootTests
             ]);
 
             var executor = new RenamerExecutor(
-                new CoveRenamerDataPort(db), new CapturingEventBus(), new RevertLog(new FakeStore()), new DiskMover());
+                new CoveRenamerDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
             var options = new RenamerOptions { AllowedRoots = [rootFwd] };
 
             var result = await executor.ExecuteAsync(plan, options, default);

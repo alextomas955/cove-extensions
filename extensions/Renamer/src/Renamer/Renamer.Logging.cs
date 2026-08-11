@@ -108,11 +108,6 @@ public sealed partial class Renamer
         Message = "[Renamer] could not discard the pre-upgrade undo journal; the settings page may stay unreadable until the next load retries")]
     private partial void LogRevertLogPurgeFailed(Exception ex);
 
-    [LoggerMessage(
-        EventId = 1055, Level = LogLevel.Information,
-        Message = "[Renamer] batch {RunId}: {Files} file(s) exceeds the {Cap}-file undo cap — this batch is not undoable")]
-    private partial void LogBatchNotJournalled(string runId, int files, int cap);
-
     // The one-time name→id options conversion rewrites the stored settings IN PLACE and keeps no copy
     // of the originals, so these lines are the whole forensic trail: what it resolved against, what it
     // discarded, and why it refused when it did. The converted/dropped pair is written between the
