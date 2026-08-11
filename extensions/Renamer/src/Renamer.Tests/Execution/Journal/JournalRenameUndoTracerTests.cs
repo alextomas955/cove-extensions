@@ -185,6 +185,160 @@ public sealed class JournalRenameUndoTracerTests
         }
     }
 
+    [Fact]
+    public async Task ARenameThatCarriedSidecars_JournalsTheMovesAndTheCaptionsOriginalFilename()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, videoId, fileId) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "My Film");
+
+            var caption = new VideoCaption
+            {
+                FileId = fileId,
+                Filename = "clip.en.vtt",
+                LanguageCode = "en",
+                CaptionType = "vtt",
+            };
+            db.Set<VideoCaption>().Add(caption);
+            await db.SaveChangesAsync();
+
+            File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
+            File.WriteAllText(Path.Combine(dir.Root, "clip.en.vtt"), "caption");
+            File.WriteAllText(Path.Combine(dir.Root, "clip.srt"), "subs");
+
+            var options = new RenamerOptions { FilenameTemplate = "$title", AssociatedExtensions = ["srt"] };
+            var row = await RenameAndReadRowAsync(db, "sidecar-run", videoId, options);
+
+            Assert.True(RevertDelta.TryParse(row.SidecarsJson, out var delta));
+
+            // Both kinds ride in the delta: the database-tracked caption and the configured neighbour,
+            // each in the FORWARD direction the mover actually took.
+            Assert.Collection(
+                delta.Sidecars,
+                s =>
+                {
+                    Assert.Equal(folderPath + "/clip.en.vtt", s.FromPath);
+                    Assert.Equal(folderPath + "/My Film.en.vtt", s.ToPath);
+                },
+                s =>
+                {
+                    Assert.Equal(folderPath + "/clip.srt", s.FromPath);
+                    Assert.Equal(folderPath + "/My Film.srt", s.ToPath);
+                });
+
+            // The ORIGINAL stored filename, which is the value an undo writes back — the renamed one is
+            // already in the database and would tell a reverse replay nothing.
+            var journalled = Assert.Single(delta.Captions);
+            Assert.Equal(caption.Id, journalled.CaptionId);
+            Assert.Equal("clip.en.vtt", journalled.OriginalFilename);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ASidecarThatWasPlannedButDidNotMove_IsAbsentFromTheJournalledDelta()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, videoId, fileId) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "My Film");
+
+            db.Set<VideoCaption>().Add(new VideoCaption
+            {
+                FileId = fileId,
+                Filename = "clip.en.vtt",
+                LanguageCode = "en",
+                CaptionType = "vtt",
+            });
+            await db.SaveChangesAsync();
+
+            File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
+            File.WriteAllText(Path.Combine(dir.Root, "clip.en.vtt"), "caption");
+            File.WriteAllText(Path.Combine(dir.Root, "clip.srt"), "subs");
+            // The neighbour's destination is already taken, so the mover's skip-not-clobber rule leaves
+            // it where it is. It was PLANNED and it did not move — the distinction no string arithmetic
+            // can recover afterwards, and the reason the delta is recorded rather than recomputed.
+            File.WriteAllText(Path.Combine(dir.Root, "My Film.srt"), "someone else's subs");
+
+            var options = new RenamerOptions { FilenameTemplate = "$title", AssociatedExtensions = ["srt"] };
+            var row = await RenameAndReadRowAsync(db, "partial-sidecar-run", videoId, options);
+
+            Assert.True(RevertDelta.TryParse(row.SidecarsJson, out var delta));
+
+            var moved = Assert.Single(delta.Sidecars);
+            Assert.Equal(folderPath + "/clip.en.vtt", moved.FromPath);
+            Assert.DoesNotContain(delta.Sidecars, s => s.FromPath.EndsWith("clip.srt", StringComparison.Ordinal));
+            Assert.Single(delta.Captions);
+
+            // And the file the mover refused to clobber is untouched, which is what made it a non-move.
+            Assert.Equal("someone else's subs", File.ReadAllText(Path.Combine(dir.Root, "My Film.srt")));
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ARenameThatCarriedNothing_JournalsTheEmptyMarkerRatherThanAPlaceholder()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, videoId, _) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "My Film");
+            File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
+
+            var row = await RenameAndReadRowAsync(
+                db, "bare-run", videoId, new RenamerOptions { FilenameTemplate = "$title" });
+
+            // The same bytes a row written before deltas existed carries: one state, not two.
+            Assert.Equal("", row.SidecarsJson);
+            Assert.False(RevertDelta.TryParse(row.SidecarsJson, out var delta));
+            Assert.True(delta.IsEmpty);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Plans and executes a real rename of <paramref name="videoId"/>, then reads the single row it
+    /// journalled back out of the table — never out of an in-memory mirror of it.
+    /// </summary>
+    private static async Task<RevertRow> RenameAndReadRowAsync(
+        CoveContext db, string runId, int videoId, RenamerOptions options)
+    {
+        var port = new CoveRenamerDataPort(db);
+        using var journal = new CoveRevertJournal(db);
+        await journal.BeginBatchAsync(runId, RenamerFileKind.Video, Opened);
+
+        var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
+        var forward = await new RenamerExecutor(port, new CapturingEventBus(), journal, runId, new DiskMover())
+            .ExecuteAsync(plan, options, default);
+        Assert.Single(forward.Renamed);
+
+        var batch = await journal.ReadLastOpenBatchAsync();
+        Assert.NotNull(batch);
+        return Assert.Single(batch!.Rows);
+    }
+
     private static async Task SeedBatchAsync(
         CoveRevertJournal journal, string runId, int rows, DateTime openedAt)
     {
