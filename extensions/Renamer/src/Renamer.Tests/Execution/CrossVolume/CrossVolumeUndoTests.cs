@@ -25,11 +25,15 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// SQLite (not EF-InMemory) so the unique index + Path recompute are faithful. Captions are out of
 /// undo scope: nothing is asserted about sidecars; the reverse passes sidecars: null.
 /// </summary>
+/// <remarks>
+/// Where a case asserts that no in-flight copy was left behind, it takes the path from the mover's
+/// post-copy seam rather than constructing one. The name is minted per call and unguessable, so a
+/// test-built expectation would be asserting on its own input and would pass however wrong the real
+/// name was.
+/// </remarks>
 [Trait("Tier", "L1")]
 public sealed class CrossVolumeUndoTests
 {
-    private const string PartialSuffix = ".renamer-partial";
-
     [SkippableFact]
     public async Task CrossDrive_Undo_RestoresByteForByte()
     {
@@ -50,20 +54,20 @@ public sealed class CrossVolumeUndoTests
 
             var (port, batch, _) = await SeedReverseBatchAsync(db, oldDir.Root, newDrive.Root, oldFull, newFull);
 
+            var minted = new List<string>();
             var undoBus = new CapturingEventBus();
-            var replayer = new UndoReplayer(port, undoBus, new DiskMover(), cross: new CrossVolumeMover());
+            var replayer = new UndoReplayer(port, undoBus, new DiskMover(), cross: new CrossVolumeMover(Recorder(minted)));
             var result = await replayer.RevertAsync(batch, default);
 
             Assert.Equal(1, result.Undone);
             Assert.Empty(result.Failed);
             Assert.Empty(result.Skipped);
 
-            // Disk: file back at OLD byte-for-byte, gone from NEW, no leftover .partial.
+            // Disk: file back at OLD byte-for-byte, gone from NEW, no in-flight copy anywhere.
             Assert.True(File.Exists(oldFull), "file restored to old (cross) path");
             Assert.Equal(original, File.ReadAllText(oldFull));
             Assert.False(File.Exists(newFull), "new path gone after a verified cross undo");
-            Assert.False(File.Exists(newFull + PartialSuffix), "no .partial left behind");
-            Assert.False(File.Exists(oldFull + PartialSuffix), "no .partial left behind");
+            AssertMintedPathsGone(minted);
         }
         finally
         {
@@ -89,14 +93,17 @@ public sealed class CrossVolumeUndoTests
 
             var (port, batch, _) = await SeedReverseBatchAsync(db, oldDir.Root, newDrive.Root, oldFull, newFull);
 
-            // Inject the post-copy fault via the CrossVolumeMover test-only fault-seam ctor: flip one byte
-            // of the copy-back .partial AFTER copy but BEFORE verify. Same length → caught only by the hash.
-            var faultMover = new CrossVolumeMover((partial, _) =>
+            // Inject the post-copy fault via the CrossVolumeMover test-only fault-seam ctor: flip one
+            // byte of the copy-back's in-flight file AFTER copy but BEFORE verify. Same length → caught
+            // only by the hash. The seam also records the minted path for the leftover assertion.
+            var minted = new List<string>();
+            var faultMover = new CrossVolumeMover((path, _) =>
             {
-                var bytes = File.ReadAllBytes(partial);
+                minted.Add(path);
+                var bytes = File.ReadAllBytes(path);
                 Assert.NotEmpty(bytes);
                 bytes[0] ^= 0xFF;
-                File.WriteAllBytes(partial, bytes);
+                File.WriteAllBytes(path, bytes);
                 return Task.CompletedTask;
             });
 
@@ -111,11 +118,11 @@ public sealed class CrossVolumeUndoTests
             Assert.Empty(undoBus.Published);
 
             // CENTERPIECE: the file is NOT lost — the NEW copy survives byte-for-byte, and the OLD slot
-            // is not half-written (no promoted file, no leftover .partial).
+            // is not half-written (no promoted file, no leftover in-flight copy).
             Assert.True(File.Exists(newFull), "the NEW copy MUST survive a failed copy-back verify");
             Assert.Equal(original, File.ReadAllText(newFull));
             Assert.False(File.Exists(oldFull), "the OLD slot must not be half-written");
-            Assert.False(File.Exists(oldFull + PartialSuffix), "no .partial promoted at OLD");
+            AssertMintedPathsGone(minted);
         }
         finally
         {
@@ -144,8 +151,9 @@ public sealed class CrossVolumeUndoTests
             // A port whose reverse save throws AFTER the cross copy-back succeeds → the rollback path runs
             // through CrossVolumeMover.RollbackAsync (cross-drive matching mover).
             var throwingPort = new ThrowOnSaveDataPort(db);
+            var minted = new List<string>();
             var undoBus = new CapturingEventBus();
-            var replayer = new UndoReplayer(throwingPort, undoBus, new DiskMover(), cross: new CrossVolumeMover());
+            var replayer = new UndoReplayer(throwingPort, undoBus, new DiskMover(), cross: new CrossVolumeMover(Recorder(minted)));
             var result = await replayer.RevertAsync(batch, default);
 
             Assert.Equal(0, result.Undone);
@@ -156,7 +164,7 @@ public sealed class CrossVolumeUndoTests
             Assert.True(File.Exists(newFull), "reverse save throw must roll the file back to NEW across the volume");
             Assert.Equal(original, File.ReadAllText(newFull));
             Assert.False(File.Exists(oldFull), "old slot must not hold the file after a cross rollback");
-            Assert.False(File.Exists(newFull + PartialSuffix), "no leftover .partial after rollback");
+            AssertMintedPathsGone(minted);
         }
         finally
         {
@@ -330,6 +338,27 @@ public sealed class CrossVolumeUndoTests
         var batch = new RevertBatch("RUN-1", RenamerFileKind.Video, [entry]);
 
         return (new CoveRenamerDataPort(db), batch, (videoId, fileId));
+    }
+
+    /// <summary>
+    /// A post-copy seam that only records the path production minted, leaving the copy untouched — the
+    /// mover's real behaviour, plus the observation the test needs.
+    /// </summary>
+    private static Func<string, CancellationToken, Task> Recorder(List<string> minted) =>
+        (inFlight, _) =>
+        {
+            minted.Add(inFlight);
+            return Task.CompletedTask;
+        };
+
+    private static void AssertMintedPathsGone(List<string> minted)
+    {
+        // The seam must actually have fired, or the loop below asserts nothing at all.
+        Assert.NotEmpty(minted);
+        foreach (var path in minted)
+        {
+            Assert.False(File.Exists(path), $"no in-flight copy may be left at {path}");
+        }
     }
 
     /// <summary>A port whose reverse save always throws, forcing the UndoReplayer rollback path.</summary>

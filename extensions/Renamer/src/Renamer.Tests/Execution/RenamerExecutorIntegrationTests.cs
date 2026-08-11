@@ -209,8 +209,13 @@ public sealed class RenamerExecutorIntegrationTests
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
             var journal = new FakeRevertJournal();
-            // Inject a real CrossVolumeMover (the production mover) so the cross branch runs end-to-end.
-            var executor = new RenamerExecutor(port, bus, journal, "run-test", new DiskMover(), new CrossVolumeMover());
+            // Inject a real CrossVolumeMover (the production mover) so the cross branch runs end-to-end,
+            // with the post-copy seam recording the in-flight name it mints. That name is unguessable, so
+            // recording it is the only way the leftover assertion below can name the right path instead
+            // of a path this test made up.
+            var minted = new List<string>();
+            var executor = new RenamerExecutor(
+                port, bus, journal, "run-test", new DiskMover(), new CrossVolumeMover(Recorder(minted)));
 
             // Explicit MOVE plan: source on the temp drive, target folder on the subst drive.
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
@@ -221,12 +226,12 @@ public sealed class RenamerExecutorIntegrationTests
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
-            // Disk: dest present with original content, source gone, no .partial left behind.
+            // Disk: dest present with original content, source gone, no in-flight copy left behind.
             string newOnDisk = Path.Combine(dst.Root, "My Film.mkv");
             Assert.True(File.Exists(newOnDisk), "cross-moved file must exist at the dest root");
             Assert.Equal("cross-bytes", File.ReadAllText(newOnDisk));
             Assert.False(File.Exists(oldFull), "source must be deleted (delete-source-last) after a verified cross move");
-            Assert.False(File.Exists(newOnDisk + ".renamer-partial"), "no leftover .partial");
+            AssertMintedPathsGone(minted);
 
             // Result buckets: one moved, none skipped/failed; one journal row written.
             var movedItem = Assert.Single(result.Renamed);
@@ -299,9 +304,10 @@ public sealed class RenamerExecutorIntegrationTests
             ]);
 
             var journal = new FakeRevertJournal();
+            var minted = new List<string>();
             var executor = new RenamerExecutor(
                 new CollisionBlindDataPort(db), new CapturingEventBus(), journal, "run-test",
-                new DiskMover(), new CrossVolumeMover());
+                new DiskMover(), new CrossVolumeMover(Recorder(minted)));
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
@@ -317,7 +323,8 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Equal("A-bytes", File.ReadAllText(oldA));
             // and is NOT left on the dest volume.
             Assert.False(File.Exists(newOnDisk), "rolled-back file must not linger at the dest");
-            Assert.False(File.Exists(newOnDisk + ".renamer-partial"), "no leftover .partial after rollback");
+            // Both directions of the cross move minted their own in-flight name; neither may survive.
+            AssertMintedPathsGone(minted);
 
             // (c) the DB row still carries the OLD basename + source folder — disk and DB consistent.
             var (basenameA, pathA) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
@@ -388,6 +395,27 @@ public sealed class RenamerExecutorIntegrationTests
         {
             await db.DisposeAsync();
             await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// A post-copy seam that only records the in-flight path the cross mover minted, leaving the copy
+    /// untouched — the mover's real behaviour, plus the observation the cross cases need.
+    /// </summary>
+    private static Func<string, CancellationToken, Task> Recorder(List<string> minted) =>
+        (inFlight, _) =>
+        {
+            minted.Add(inFlight);
+            return Task.CompletedTask;
+        };
+
+    private static void AssertMintedPathsGone(List<string> minted)
+    {
+        // The seam must actually have fired, or the loop below asserts nothing at all.
+        Assert.NotEmpty(minted);
+        foreach (var path in minted)
+        {
+            Assert.False(File.Exists(path), $"no in-flight copy may be left at {path}");
         }
     }
 
