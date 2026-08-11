@@ -22,14 +22,23 @@
     matching the single-extension-repo template's original per-project (not root-centralized) wiring.
   -->
 
-  <ItemGroup Condition="'$(UseLocalCoveSource)' == 'true' AND !$(MSBuildProjectName.EndsWith('.Tests'))">
-    <ProjectReference Include="$(MSBuildThisFileDirectory)..\cove\src\Cove.Sdk\Cove.Sdk.csproj" Condition="Exists('$(MSBuildThisFileDirectory)..\cove\src\Cove.Sdk\Cove.Sdk.csproj')">
+  <ItemGroup Condition="'$(CoveSourceMode)' == 'source' AND !$(MSBuildProjectName.EndsWith('.Tests'))">
+    <ProjectReference Include="$(CoveSdkProjectPath)" Condition="Exists('$(CoveSdkProjectPath)')">
       <Private>false</Private>
       <ExcludeAssets>runtime</ExcludeAssets>
     </ProjectReference>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(UseLocalCoveSource)' == 'false' AND !$(MSBuildProjectName.EndsWith('.Tests'))">
+  <!--
+    Both non-source modes take the SAME NuGet Cove.Sdk, and `assemblies` mode deliberately does not
+    swap it for an image reference: a raw assembly reference carries no NuGet dependency graph, so
+    Cove.Plugins' Microsoft.EntityFrameworkCore.Relational stops being supplied and the shipping
+    project loses DbContext. Measured, as is the narrower variant — cutting the package's flow to
+    consumers with PrivateAssets, so a test project sees only its own image references — which fails
+    the compile instead: CS1705, because Cove.Data 1.1.1.0 binds EF Core 10.0.10 while this repo pins
+    10.0.9, and the NuGet path is what was reconciling the two.
+  -->
+  <ItemGroup Condition="'$(CoveSourceMode)' != 'source' AND !$(MSBuildProjectName.EndsWith('.Tests'))">
     <PackageReference Include="Cove.Sdk" />
   </ItemGroup>
 
@@ -42,7 +51,70 @@
     project is never published/deployed, so it must keep its full runtime closure and never import
     the host-provided-assembly strip target at all.
   -->
-  <Import Project="$(MSBuildThisFileDirectory)..\cove\src\Cove.Sdk\buildTransitive\Cove.Sdk.targets"
-          Condition="'$(UseLocalCoveSource)' == 'true' AND !$(MSBuildProjectName.EndsWith('.Tests')) AND Exists('$(MSBuildThisFileDirectory)..\cove\src\Cove.Sdk\buildTransitive\Cove.Sdk.targets')" />
+  <Import Project="$(CoveSdkTargetsPath)"
+          Condition="'$(CoveSourceMode)' == 'source' AND !$(MSBuildProjectName.EndsWith('.Tests')) AND Exists('$(CoveSdkTargetsPath)')" />
+
+  <!--
+    The gate on the Cove location. Directory.Build.props can only COMPUTE the mode; stopping a build
+    needs a target, and this one runs BeforeTargets="PrepareForBuild" so it lands ahead of the
+    compiler and a wrong location reports as one plain error rather than as a wall of CS0234.
+
+    Printing the resolved ABSOLUTE path is a requirement of the design, not a courtesy: it is the only
+    thing that made Git Bash's MSYS rewriting of a POSIX COVE_REPO into a drive-lettered path visible
+    at all, and that class of silent path mangling has already disabled gates in this repo.
+
+    Absence stays a legitimate state — `none` is the clean-clone default and builds happily. What is
+    refused is a mode that cannot deliver what it names: falling back from one of these would compile
+    a smaller test set and still report success, which is the whole defect this seam exists to remove.
+  -->
+  <!--
+    The companion gate to AssertCoveLocation, and the one that catches what no warning does. In
+    `assemblies` mode a test project resolves Cove twice — once from the image references it declares,
+    once from the NuGet packages that reach it through the extension project's graph — and both are
+    copied to the same output file names. The image copy currently wins, but nothing SAYS so, and when
+    the NuGet copy won instead the measured result was 198 `TypeLoadException: Could not load type
+    'Cove.Core.Entities.Auth.ExternalIdentityLink' from assembly 'Cove.Core, Version=1.1.0.0'` against
+    a build that reported zero errors and zero warnings. Reading the versions back out of the output
+    turns "right by copy order" into "checked", and the failure is then one line naming both versions
+    instead of a wall of unrelated-looking test failures.
+  -->
+  <Target Name="AssertCoveOutputClosure"
+          AfterTargets="Build"
+          Condition="'$(CoveSourceMode)' == 'assemblies' AND $(MSBuildProjectName.EndsWith('.Tests'))">
+    <ItemGroup>
+      <_CoveOutputAssembly Include="$(TargetDir)Cove.Core.dll;$(TargetDir)Cove.Data.dll;$(TargetDir)Cove.Plugins.dll;$(TargetDir)Cove.Sdk.dll" />
+    </ItemGroup>
+
+    <Error Condition="!Exists('%(_CoveOutputAssembly.Identity)')"
+           Text="Cove assemblies mode was selected but '%(_CoveOutputAssembly.Identity)' is not in the test output, so the suite would fail to load rather than fail an assertion." />
+
+    <GetAssemblyIdentity AssemblyFiles="@(_CoveOutputAssembly)">
+      <Output TaskParameter="Assemblies" ItemName="_CoveOutputIdentity" />
+    </GetAssemblyIdentity>
+
+    <Error Condition="'%(_CoveOutputIdentity.Version)' != '$(CoveTestAssemblyVersion)'"
+           Text="'%(_CoveOutputIdentity.Identity)' in the test output is version %(_CoveOutputIdentity.Version), but assemblies mode expects the image's $(CoveTestAssemblyVersion). The NuGet copy of a Cove assembly has displaced the image one, which produces type-load failures at run time and no warning at build time. Re-run 'node scripts/fetch-cove-assemblies.mjs', or bump CoveTestAssemblyVersion if the image itself moved — never CoveMinVersion, which means something else." />
+  </Target>
+
+  <Target Name="AssertCoveLocation" BeforeTargets="PrepareForBuild">
+    <Message Importance="high"
+             Text="Cove: mode=$(CoveSourceMode) repoRoot='$(CoveRepoRootResolved)' assembliesDir='$(CoveAssembliesDirResolved)'" />
+
+    <Error Condition="'$(CoveSourceMode)' != 'source' AND '$(CoveSourceMode)' != 'assemblies' AND '$(CoveSourceMode)' != 'none'"
+           Text="CoveSourceMode is '$(CoveSourceMode)', which is not one of source, assemblies or none. Set -p:CoveSourceMode (or COVE_SOURCE_MODE) to one of those three; an unrecognised mode wires up neither references nor exclusions and would fail far from its cause." />
+
+    <Error Condition="'$(CoveSourceMode)' == 'source' AND !Exists('$(CoveDataProjectPath)')"
+           Text="Cove source mode was selected but Cove.Data.csproj is not at '$(CoveDataProjectPath)' (resolved CoveRepoRoot='$(CoveRepoRootResolved)'). Point COVE_REPO or -p:CoveRepoRoot at a Cove checkout, or select another mode. Refusing to fall back — a silent fallback would compile a smaller test set and still report success." />
+
+    <Error Condition="'$(CoveSourceMode)' == 'assemblies' AND !Exists('$(CoveDataAssemblyPath)')"
+           Text="Cove assemblies mode was selected but Cove.Data.dll is not at '$(CoveDataAssemblyPath)' (resolved CoveAssembliesDir='$(CoveAssembliesDirResolved)'). Run 'node scripts/fetch-cove-assemblies.mjs --out &lt;dir&gt;' and point COVE_ASSEMBLIES or -p:CoveAssembliesDir at it. Refusing to fall back — a silent fallback would compile a smaller test set and still report success." />
+
+    <!-- The belt on the precedence above: today no arm can reach `none` while a location was supplied
+         explicitly, so this cannot fire. It is here so that a future edit which reintroduces the
+         fall-through is a build error rather than a quietly smaller run. A caller who pinned the mode
+         (or the older UseLocalCoveSource spelling) said `none` on purpose and is left alone. -->
+    <Error Condition="'$(CoveSourceMode)' == 'none' AND '$(_CoveLocationWasExplicit)' == 'true' AND '$(_CoveModeWasPinned)' != 'true'"
+           Text="A Cove location was supplied explicitly (resolved CoveRepoRoot='$(CoveRepoRootResolved)', CoveAssembliesDir='$(CoveAssembliesDirResolved)') but the resolved mode is 'none'. Refusing to fall back to the cove-absent branch — it would compile a smaller test set and still report success." />
+  </Target>
 
 </Project>
