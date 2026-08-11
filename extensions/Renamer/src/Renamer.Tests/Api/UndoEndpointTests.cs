@@ -260,6 +260,106 @@ public sealed class UndoEndpointTests
     }
 
     [Fact]
+    public async Task Undo_Twice_TheSecondCallActsOnlyOnWhatTheFirstLeft_ThenTheBatchIsSpent()
+    {
+        // The handler's own behaviour, not the journal's arithmetic: that a partially-restored batch is
+        // still offered, that a second call works through what is left of it, and that a third call on a
+        // finished batch answers rather than errors. The counters behind all this are pinned a tier down
+        // by UndoRetryTests; repeating them here would make a failure harder to attribute.
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (folderId, comesId, comesFileId) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw comes.mkv", "Comes Back");
+            var (blockedId, blockedFileId) = await SeedVideoIntoFolderAsync(db, folderId, "raw blocked.mkv", "Blocked");
+
+            string comesOld = Path.Combine(dir.Root, "raw comes.mkv");
+            string blockedOld = Path.Combine(dir.Root, "raw blocked.mkv");
+            string blockedNew = Path.Combine(dir.Root, "Blocked.mkv");
+            File.WriteAllText(comesOld, "comes-bytes");
+            File.WriteAllText(blockedOld, "blocked-bytes");
+
+            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
+            // One worker: every scope in this fixture resolves the one seeded context, and the batch
+            // path's default fan-out would have two workers query it at once.
+            await new global::Renamer.Options.OptionsStore(store).SaveAsync(new global::Renamer.Options.RenamerOptions
+            {
+                FilenameTemplate = "$title",
+                SameVolumeConcurrency = 1,
+            });
+            await ext.RunRenamerBatchAsync(
+                RenamerJob.Encode("video", [comesId, blockedId]), new FakeJobProgress(), default);
+            Assert.True(File.Exists(blockedNew));
+
+            // A cause the world can clear: the blocked file's original slot is taken, so undo refuses to
+            // clobber and that entry stops.
+            File.WriteAllText(blockedOld, "someone else's file");
+
+            var write = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
+            var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
+
+            var first = UndoValue(await ext.UndoAsync(write, default));
+            Assert.Equal(1, first.Undone);
+            Assert.Single(first.Skipped);
+            Assert.Empty(first.Failed);
+
+            // The table behind that response holds exactly the row that did not come back — a response
+            // that read right while the journal disagreed would fail here.
+            using (var journal = new global::Renamer.Execution.CoveRevertJournal(db))
+            {
+                var open = await journal.ReadLastOpenBatchAsync();
+                Assert.NotNull(open);
+                Assert.Equal(blockedFileId, Assert.Single(open!.Rows).FileId);
+            }
+
+            Assert.False(LastBatchValue(await ext.LastBatchAsync(read, default)).Consumed,
+                "a batch with work left is still offered");
+
+            File.Delete(blockedOld);
+            var second = UndoValue(await ext.UndoAsync(write, default));
+
+            // ONE, not two: the first call's row is gone, so the second sees only the remaining work.
+            Assert.Equal(1, second.Undone);
+            Assert.Empty(second.Skipped);
+            Assert.True(File.Exists(blockedOld), "the blocked file came back on the retry");
+            Assert.True(File.Exists(comesOld), "and the first call's file was left alone");
+            Assert.NotEqual(comesFileId, blockedFileId);
+
+            Assert.True(LastBatchValue(await ext.LastBatchAsync(read, default)).Consumed);
+
+            // A call against a finished batch is the existing "nothing to undo" answer, not an error.
+            var third = await ext.UndoAsync(write, default);
+            Assert.Equal(200, StatusOf(third));
+            var thirdUndo = UndoValue(third);
+            Assert.Equal(0, thirdUndo.Undone);
+            Assert.Empty(thirdUndo.Failed);
+            Assert.Empty(thirdUndo.Skipped);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public void UndoResponse_CarriesTheSameFieldsItDidBeforeTheJournalWork()
+    {
+        // The guard that the journal work kept its promise not to move the wire. The undo panel's new
+        // remaining/original figures belong to a later change that regenerates the emitted document;
+        // until then a field appearing here would be an accident, and this case is where it surfaces.
+        // Transcribed by hand — a list derived from the type would agree with it forever.
+        Assert.Equal(
+            ["Undone", "Failed", "Skipped"],
+            typeof(UndoResult).GetProperties().Select(p => p.Name));
+        Assert.Equal(
+            ["FileId", "OldPath", "NewPath", "Reason"],
+            typeof(UndoEntryError).GetProperties().Select(p => p.Name));
+    }
+
+    [Fact]
     public async Task Undo_EmptyLog_IsCleanNoOp()
     {
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -323,6 +423,29 @@ public sealed class UndoEndpointTests
             await db.DisposeAsync();
             await conn.DisposeAsync();
         }
+    }
+
+    /// <summary>
+    /// Seeds a second Video + VideoFile into an EXISTING folder, so two files share one batch and one
+    /// directory. Returns (videoId, fileId).
+    /// </summary>
+    private static async Task<(int videoId, int fileId)> SeedVideoIntoFolderAsync(
+        CoveContext db, int folderId, string basename, string title)
+    {
+        var video = new Video { Title = title, Organized = true };
+        db.Set<Video>().Add(video);
+        await db.SaveChangesAsync();
+
+        var file = new VideoFile
+        {
+            Basename = basename,
+            ParentFolderId = folderId,
+            Format = basename[(basename.LastIndexOf('.') + 1)..],
+            VideoId = video.Id,
+        };
+        db.Set<VideoFile>().Add(file);
+        await db.SaveChangesAsync();
+        return (video.Id, file.Id);
     }
 
     /// <summary>Seeds an Image + one ImageFile in the given (already-seeded or new) folder. Returns (imageId, fileId).</summary>
