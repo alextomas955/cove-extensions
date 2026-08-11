@@ -207,21 +207,41 @@
   <!--
     COVE-ABSENT UNIT-TIER COMPILE SET: in `none` mode — no checkout and no extraction — every source
     file that references a Cove.* type (Cove.Core entities/auth/events OR Cove.Data's CoveContext) is
-    Compile-Removed so the project compiles to ONLY the pure-core unit tier. The condition names the
-    MODE rather than probing for a path, which is what makes the smaller set a stated choice instead of
-    an accident of what happens to be on disk: this group is INACTIVE whenever Cove is available by
-    either route (all files compile, the full suite runs) and ACTIVE only on the bare leg. Folders
-    Execution/ and Events/ are entirely integration, so they are removed wholesale; the rest are named
-    explicitly.
-      - Cove.Core-ONLY (auth/events/entities, no CoveContext): ActionDeclarationTests, Api/SettingsManifestTests,
-        TestSupport/CapturingEventBus.
+    Compile-Removed. The condition names the MODE rather than probing for a path, which is what makes
+    the smaller set a stated choice instead of an accident of what happens to be on disk: this group is
+    INACTIVE whenever Cove is available by either route (all files compile, the full suite runs) and
+    ACTIVE only on the bare leg.
+
+    EVERY removal is decided PER FILE, never per folder — including the four folders below, which were
+    once removed by directory wildcard. Folder membership is not the same fact as cove-dependence: a
+    sizeable share of the files under Execution/, Events/, Concurrency/ and Preview/ name no Cove type
+    at all and are pure disk-and-logic safety guards (the canonical path guard, the cross-volume mover,
+    the free-space preflight, locked files, sidecars, the revert batch, rollback, preview blast radius,
+    load-once, hook registration). A wildcard dropped those off this leg silently along with their
+    integration siblings, and nothing anywhere said it had.
+
+    The list therefore names the cove-DEPENDENT files, and its loudness is ASYMMETRIC. Stated at the
+    strength the mechanism supports and no higher:
+      - A file naming Cove.Data or CoveContext with no Remove line is a COMPILE ERROR on this leg —
+        nothing here supplies those types. That is the half that matters, since CoveContext is what this
+        group exists for, and it is why a negative list beats a positive list of cove-free files whose
+        staleness would be silent in both directions.
+      - A file naming only Cove.Core (or Cove.Plugins) types with no Remove line is NOT an error: both
+        resolve from nuget.org on this leg, so it compiles and simply runs on both legs. Benign, and NOT
+        caught. Files of that shape are removed here by convention, not by necessity.
+    So: stale in the dangerous direction breaks the build; stale in the benign direction double-runs a
+    file. Do not read this list as a guarantee of the second.
+
+    Notes on the entries that are not self-evident:
+      - Cove.Core-ONLY (auth/events/entities, no CoveContext): ActionDeclarationTests,
+        Api/SettingsManifestTests, Concurrency/Parallel*.
       - TestSupport/CoveDataExtensionScope: registers the extension via CoveContext.SetDataExtensions, which is
-        Cove.Data. TestSupport is removed FILE BY FILE here, not as a folder, so a helper touching a Cove SOURCE
-        type needs its own line or the bare leg fails to compile. Its sibling TestSupport/FakeRevertJournal needs
-        none: it implements a port declared in Renamer's own assembly and names no Cove type.
-      - INTEGRATION (real CoveContext via Cove.Data): Execution/*, Events/*,
-        Jobs/RenamerBatchJobTests, Api/PreviewEndpointTests, Api/PreviewSampleEndpointTests, Api/EndpointPermissionTests,
-        Api/RenamerLibraryEndpointTests, Api/ScanLibraryEndpointTests.
+        Cove.Data. Its sibling TestSupport/FakeRevertJournal needs no line: it implements a port declared in
+        Renamer's own assembly and names no Cove type. Nor does the TestSupport event-bus recorder, which
+        names only Cove.Core.Events — NuGet supplies those, and Execution/Undo/RollbackTests needs the
+        recorder on this leg.
+      - INTEGRATION (real CoveContext via Cove.Data): Jobs/RenamerBatchJobTests, the Api/*EndpointTests,
+        and the named files under the four folders below.
     The shared CoveContextFactory is NOT listed here: it lives in the source-only Testing.Cove dir and is
     pulled in by the positive Exists()-guarded Compile Include below (present only when cove is), so its
     consumers above cover the bare leg without a Compile Remove for the fake itself. FakePrincipalAccessor
@@ -247,11 +267,57 @@
     <!-- The options conversion's L1 half drives a real CoveContext + CovePrincipal; its L0 twin
          (Options\OptionsMigrationLogicTests.cs) is pure and stays on the bare leg. -->
     <Compile Remove="Options\OptionsMigrationInitializeTests.cs" />
-    <Compile Remove="Execution\**\*.cs" />
-    <Compile Remove="Events\**\*.cs" />
-    <Compile Remove="Concurrency\**\*.cs" />
-    <Compile Remove="Preview\**\*.cs" />
-    <Compile Remove="TestSupport\CapturingEventBus.cs" />
+
+    <!-- Execution/ — the cove-dependent files only; the canonical-guard prefix/8.3/junction/symlink
+         cases, the cross-volume mover, temp ownership, verify-fail, the volume classifier, free space,
+         locked files, SidecarTests, RevertLogBatchTests and Undo/RollbackTests stay on this leg. -->
+    <Compile Remove="Execution\CanonicalGuard\CanonicalPathGuardRootTests.cs" />
+    <Compile Remove="Execution\CanonicalGuard\ExecutorAllowlistGuardTests.cs" />
+    <Compile Remove="Execution\Collisions\CaseOnlyRenamerTests.cs" />
+    <Compile Remove="Execution\Collisions\CollisionBlindDataPort.cs" />
+    <Compile Remove="Execution\Collisions\CollisionTests.cs" />
+    <Compile Remove="Execution\Collisions\RollbackTests.cs" />
+    <Compile Remove="Execution\CoveDataPortRoutingFieldsTests.cs" />
+    <Compile Remove="Execution\CrossVolume\CrossVolumeUndoTests.cs" />
+    <Compile Remove="Execution\EmptySourceFolderCleanerTests.cs" />
+    <Compile Remove="Execution\ExecutorTestSeed.cs" />
+    <Compile Remove="Execution\Journal\JournalBlobMigrationTests.cs" />
+    <Compile Remove="Execution\Journal\JournalPagingTests.cs" />
+    <Compile Remove="Execution\Journal\JournalRenameUndoTracerTests.cs" />
+    <Compile Remove="Execution\Journal\JournalStartupAssertionTests.cs" />
+    <Compile Remove="Execution\Journal\RevertJournalDdlTests.cs" />
+    <Compile Remove="Execution\Journal\RevertJournalRetentionTests.cs" />
+    <Compile Remove="Execution\Journal\RevertJournalTests.cs" />
+    <Compile Remove="Execution\Journal\UndoRetryTests.cs" />
+    <Compile Remove="Execution\LoadAllEntityIdsAsyncTests.cs" />
+    <Compile Remove="Execution\RenamerExecutorIntegrationTests.cs" />
+    <Compile Remove="Execution\Sidecars\AssociatedExtensionSidecarTests.cs" />
+    <Compile Remove="Execution\StudioDepthLockstepTests.cs" />
+    <Compile Remove="Execution\Undo\UndoReGateTests.cs" />
+    <Compile Remove="Execution\Undo\UndoReplayerTests.cs" />
+    <Compile Remove="Execution\Undo\UndoSidecarRestoreTests.cs" />
+
+    <!-- Events/ — all but AutoRenamerEventRegistrationTests, which drives the hook surface through
+         Cove.Plugins alone and so compiles against the NuGet package on this leg. -->
+    <Compile Remove="Events\AutoRenamerElevationTests.cs" />
+    <Compile Remove="Events\AutoRenamerFailureContainmentTests.cs" />
+    <Compile Remove="Events\AutoRenamerGateTests.cs" />
+    <Compile Remove="Events\AutoRenamerNoDribbleTests.cs" />
+    <Compile Remove="Events\AutoRenamerOnceTests.cs" />
+    <Compile Remove="Events\AutoRenamerRevertLogBatchTests.cs" />
+    <Compile Remove="Events\AutoRenamerRoutingTests.cs" />
+    <Compile Remove="Events\EventTestHarness.cs" />
+    <Compile Remove="Events\ReentrancyGuardTests.cs" />
+
+    <!-- Concurrency/ — PhaseALoadOnceTests is pure and stays. -->
+    <Compile Remove="Concurrency\ParallelBatchTests.cs" />
+    <Compile Remove="Concurrency\ParallelFolderCreationTests.cs" />
+    <Compile Remove="Concurrency\PerWorkerScopeTests.cs" />
+    <Compile Remove="Concurrency\RevertJournalConcurrencyTests.cs" />
+
+    <!-- Preview/ — BlastRadiusTests is pure and stays. -->
+    <Compile Remove="Preview\PreviewWholeBatchTests.cs" />
+
     <Compile Remove="TestSupport\CoveDataExtensionScope.cs" />
     <Compile Remove="TestSupport\JournalOnlyDatabase.cs" />
     <Compile Remove="TestSupport\Library.cs" />
