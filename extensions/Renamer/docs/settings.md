@@ -88,11 +88,11 @@ order of the cards below in the UI is for convenience and does not change this p
 
 ### Default & unorganized destinations
 
-| Setting                                             | What it does                                                                                                                                                                                            | Default   |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| Default destination                                 | The root folder for an item that matched no other rule. Honored **only** when _Relocate unmatched items_ is on.                                                                                         | _(blank)_ |
-| Unorganized destination                             | The route for items whose _Organized_ flag is off (resolved before tag/studio/path). Overrides _Only rename organized items_ for those items.                                                           | _(blank)_ |
-| Relocate unmatched items to the default destination | Hard gate for default-relocate. Ships **off** — it has whole-library reach, which is more files than undo records, so the [dry run](./guide#preview-with-a-dry-run) is the check before you turn it on. | Off       |
+| Setting                                             | What it does                                                                                                                                                     | Default   |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| Default destination                                 | The root folder for an item that matched no other rule. Honored **only** when _Relocate unmatched items_ is on.                                                  | _(blank)_ |
+| Unorganized destination                             | The route for items whose _Organized_ flag is off (resolved before tag/studio/path). Overrides _Only rename organized items_ for those items.                    | _(blank)_ |
+| Relocate unmatched items to the default destination | Hard gate for default-relocate. Ships **off** — it has whole-library reach, so the [dry run](./guide#preview-with-a-dry-run) is the check before you turn it on. | Off       |
 
 ### Per-studio and per-tag destinations
 
@@ -110,10 +110,10 @@ order of the cards below in the UI is for convenience and does not change this p
 
 ### Sidecar files and empty folders
 
-| Setting                                              | What it does                                                                                                  | Default   |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------- |
-| Also move sidecar files with these extensions        | Extensions whose same-name neighbor file moves alongside the primary (e.g. `srt` for subtitles).              | _(empty)_ |
-| Delete the source folder when a move leaves it empty | After a move empties the source folder, delete it (only-if-empty, non-recursive). Undo will not re-create it. | Off       |
+| Setting                                              | What it does                                                                                                                                                       | Default   |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
+| Also move sidecar files with these extensions        | Extensions whose same-name neighbor file moves alongside the primary (e.g. `srt` for subtitles). An [undo](./guide#undo-the-last-rename) brings them back with it. | _(empty)_ |
+| Delete the source folder when a move leaves it empty | After a move empties the source folder, delete it (only-if-empty, non-recursive). Undo will not re-create it.                                                      | Off       |
 
 ## Advanced
 

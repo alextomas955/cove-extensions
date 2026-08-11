@@ -115,8 +115,12 @@ the two never drift.
 - `JournalRetention.cs` — the retention window, as a constant rather than a setting.
 - `JournalBlobMigration.cs` / `RevertLog.cs` — the one-way move of an earlier version's stored journal
   into those tables, and the tolerant parsers that read the format it was written in.
-- `UndoReplayer.cs` — reverse-replays the most recent batch from the revert journal, reading each
-  file's current location from the database rather than from the journal.
+- `UndoReplayer.cs` — reverse-replays the newest batch that still holds rows, reading each file's
+  current location from the database rather than from the journal, and replaying each row's recorded
+  sidecar and caption moves (`RevertDelta.cs`) in the opposite direction. A row it could not restore
+  stays in the journal for the next attempt: `UndoTerminalClassifier.cs` retires a row only for the
+  one stop reason that can never clear — the file has left the library — so a lock, an unmounted
+  drive or a widened allowlist all leave the row retryable.
 
 ### Api — `src/Renamer/Renamer.Api.cs` (+ `src/Renamer/Api/`)
 
