@@ -426,7 +426,7 @@ public sealed class ScanLibraryEndpointTests
         new(kind, Entities: files, Files: files,
             StatusCounts: [.. Enum.GetValues<RenamerStatus>()
                 .Select(s => new global::Renamer.Contracts.ScanStatusCount(s, s == status ? files : 0))],
-            BlastRadius: new PreviewSummary(files, files, 0, 0, [], ConfirmLevel.Light, Undoable: true),
+            BlastRadius: new PreviewSummary(files, files, 0, 0, [], ConfirmLevel.Light),
             VolumePairsTruncated: false);
 
     private static Task StoreSummaryAsync(FakeStore store, params global::Renamer.Contracts.ScanKindSummary[] kinds)

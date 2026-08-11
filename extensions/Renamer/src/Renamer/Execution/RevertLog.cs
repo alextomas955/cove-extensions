@@ -48,20 +48,6 @@ public static class RevertLog
     /// </remarks>
     public const string CurrentSchema = "2";
 
-    /// <summary>The hard cap on how many FILES one batch may journal.</summary>
-    /// <remarks>
-    /// TRANSITIONAL — the write path no longer consults it (plan 26-10 removed both blocks), and its
-    /// last two callers are the preview producers in <c>Planner/BatchPreview.cs</c> and
-    /// <c>Planner/ScanAggregator.cs</c>, which feed the <c>Undoable</c> wire flag. Plan 26-07 retires
-    /// those callers, that flag and this pair together, in the one change that regenerates the wire
-    /// contract. Deleting it here would stop the extension compiling for three waves.
-    /// </remarks>
-    public const int MaxJournalledFiles = 5000;
-
-    /// <summary>True when a batch of <paramref name="fileCount"/> files is over <see cref="MaxJournalledFiles"/>.</summary>
-    /// <remarks>Transitional with the constant above; see its remarks for what retires both.</remarks>
-    public static bool ExceedsCap(int fileCount) => fileCount > MaxJournalledFiles;
-
     // The field separator. Paths are forward-slash and never contain '|' on the platforms Cove runs.
     private const char FieldSep = '|';
 

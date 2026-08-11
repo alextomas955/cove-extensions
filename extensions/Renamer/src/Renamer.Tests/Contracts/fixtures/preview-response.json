@@ -35,7 +35,6 @@
     "crossVolumeCount": 0,
     "crossVolumeBytes": 0,
     "volumePairs": [],
-    "confirmLevel": "light",
-    "undoable": true
+    "confirmLevel": "light"
   }
 }

@@ -49,8 +49,7 @@ public sealed class WireJsonResponseTests
             CrossVolumeCount: 0,
             CrossVolumeBytes: 0,
             VolumePairs: [],
-            ConfirmLevel: ConfirmLevel.Light,
-            Undoable: true));
+            ConfirmLevel: ConfirmLevel.Light));
 
     /// <summary>Executes a result against a real response body and returns what it wrote, as UTF-8 text.</summary>
     /// <param name="result">The result to execute.</param>

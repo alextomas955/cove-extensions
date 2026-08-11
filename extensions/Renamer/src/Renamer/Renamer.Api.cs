@@ -368,7 +368,7 @@ public sealed partial class Renamer
         var batch = await journal.ReadLastOpenBatchAsync(ct);
         if (batch is null || batch.Rows.Count == 0)
         {
-            return new WireJson<UndoResult>(new UndoResult(0, [], []));
+            return new WireJson<UndoResult>(new UndoResult(0, [], [], []));
         }
 
         // Re-gate on the WRITE permission of the kind that was actually renamed (the batch carries it)
@@ -423,7 +423,8 @@ public sealed partial class Renamer
         return new WireJson<UndoResult>(new UndoResult(
             run.Undone,
             [.. run.Failed.Select(f => new UndoEntryError(f.FileId, f.OldPath, f.NewPath, f.Reason))],
-            [.. run.Skipped.Select(s => new UndoEntryError(s.FileId, s.OldPath, s.NewPath, s.Reason))]));
+            [.. run.Skipped.Select(s => new UndoEntryError(s.FileId, s.OldPath, s.NewPath, s.Reason))],
+            [.. run.Warnings.Select(w => new UndoEntryWarning(w.FileId, w.Detail))]));
     }
 
     /// <summary>
@@ -465,15 +466,22 @@ public sealed partial class Renamer
     }
 
     /// <summary>
-    /// Returns the paths-free summary of the most recent batch for the undo panel: its
-    /// file count, open timestamp, and spent flag — no paths. Enforces <c>videos.read</c>
+    /// Returns the paths-free summary of the most recent batch for the undo panel: its original file
+    /// count, how many of those are still outstanding, how many can never come back, its open
+    /// timestamp, and its spent flag — no paths. Enforces <c>videos.read</c>
     /// in-handler (403-first; minimal-API <c>[RequiresPermission]</c> is inert). An empty journal
     /// returns <see cref="LastBatchSummary"/> with <c>HasBatch:false</c>.
     /// </summary>
     /// <remarks>
     /// A batch is spent when it has no rows left to restore, which is derived from the aggregate rather
     /// than stored: a row exists exactly while its file still needs restoring, so "nothing remains" and
-    /// "already undone" are the same fact and cannot disagree.
+    /// "already undone" are the same fact and cannot disagree. The outstanding count is derived from the
+    /// same aggregate for the same reason — a fourth stored number is a fourth number that can go stale,
+    /// and it is the one the panel's button acts on.
+    /// <para>
+    /// Reads the batch row only. It never touches the row table, so the response stays O(1) whatever the
+    /// batch's size — which is also what keeps this endpoint's coarse permission gate defensible.
+    /// </para>
     /// </remarks>
     internal async Task<Results<WireJson<LastBatchSummary>, ForbiddenCode>> LastBatchAsync(
         ICurrentPrincipalAccessor principal, CancellationToken ct)
@@ -500,6 +508,8 @@ public sealed partial class Renamer
         return new WireJson<LastBatchSummary>(new LastBatchSummary(
             HasBatch: summary is not null,
             Count: summary?.OriginalCount ?? 0,
+            RemainingCount: summary?.Remaining ?? 0,
+            UnrestorableCount: summary?.UnrestorableCount ?? 0,
             WrittenAtUtcTicks: summary?.WrittenAtUtcTicks ?? 0,
             Consumed: summary is not null && summary.Value.Remaining == 0));
     }

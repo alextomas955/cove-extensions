@@ -75,7 +75,7 @@ public sealed class WireSnapshotTests
         };
         var summary = new PreviewSummary(
             TotalCount: 1, SameVolumeCount: 1, CrossVolumeCount: 0, CrossVolumeBytes: 0,
-            VolumePairs: [], ConfirmLevel: ConfirmLevel.Light, Undoable: true);
+            VolumePairs: [], ConfirmLevel: ConfirmLevel.Light);
         AssertSnapshot("preview-response",
             JsonSerializer.Serialize(
                 new PreviewResponse([.. items.Select(PreviewItemView.From)], summary), PreviewResponse_));
@@ -117,7 +117,7 @@ public sealed class WireSnapshotTests
             BlastRadius: new PreviewSummary(
                 TotalCount: files, SameVolumeCount: 0, CrossVolumeCount: files, CrossVolumeBytes: 4096,
                 VolumePairs: [new VolumePairDelta("/src", "/dest", files, 4096)],
-                ConfirmLevel: ConfirmLevel.Heavy, Undoable: true),
+                ConfirmLevel: ConfirmLevel.Heavy),
             VolumePairsTruncated: truncated);
 
         var populated = new ScanSummary(
@@ -158,11 +158,16 @@ public sealed class WireSnapshotTests
     {
         var snapshot = new
         {
-            lastBatch = new LastBatchSummary(HasBatch: true, Count: 3, WrittenAtUtcTicks: 638000000000000000L, Consumed: false),
+            // A partially-restored batch, so the three counts in the fixture are distinguishable from
+            // each other: 3 journalled, 1 already back, 1 gone for good, 1 still outstanding.
+            lastBatch = new LastBatchSummary(
+                HasBatch: true, Count: 3, RemainingCount: 1, UnrestorableCount: 1,
+                WrittenAtUtcTicks: 638000000000000000L, Consumed: false),
             undoResult = new UndoResult(
                 Undone: 2,
                 Failed: [new UndoEntryError(7, "/new/a.mkv", "/old/a.mkv", "locked")],
-                Skipped: []),
+                Skipped: [],
+                Warnings: [new UndoEntryWarning(7, "companion 'a.srt' stayed behind: target occupied")]),
             previewSample = new PreviewSampleResult(
                 SampleLabel: "Video", OldName: "raw.mkv", NewName: "Title.mkv",
                 Folder: "Studio/2021", Flags: ["sanitized"], DroppedFields: []),

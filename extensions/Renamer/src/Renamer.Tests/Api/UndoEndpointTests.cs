@@ -300,6 +300,14 @@ public sealed class UndoEndpointTests
             var write = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
             var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
+            // UNTOUCHED: everything the batch journalled is still outstanding. This is the state the
+            // panel's "N items renamed" line has always described, and the one the new remaining figure
+            // has to agree with rather than replace.
+            var untouched = LastBatchValue(await ext.LastBatchAsync(read, default));
+            Assert.Equal(2, untouched.Count);
+            Assert.Equal(2, untouched.RemainingCount);
+            Assert.Equal(0, untouched.UnrestorableCount);
+
             var first = UndoValue(await ext.UndoAsync(write, default));
             Assert.Equal(1, first.Undone);
             Assert.Single(first.Skipped);
@@ -314,8 +322,15 @@ public sealed class UndoEndpointTests
                 Assert.Equal(blockedFileId, Assert.Single(open!.Rows).FileId);
             }
 
-            Assert.False(LastBatchValue(await ext.LastBatchAsync(read, default)).Consumed,
-                "a batch with work left is still offered");
+            // PARTIALLY RESTORED: the figures the panel's one line is built from. The original count is
+            // deliberately unmoved — it is what the user did — while the remaining count is what the
+            // button now acts on, and the two together are what let the panel state "1 of 2 restored"
+            // without the reader doing the subtraction.
+            var partial = LastBatchValue(await ext.LastBatchAsync(read, default));
+            Assert.False(partial.Consumed, "a batch with work left is still offered");
+            Assert.Equal(2, partial.Count);
+            Assert.Equal(1, partial.RemainingCount);
+            Assert.Equal(0, partial.UnrestorableCount);
 
             File.Delete(blockedOld);
             var second = UndoValue(await ext.UndoAsync(write, default));
@@ -327,7 +342,11 @@ public sealed class UndoEndpointTests
             Assert.True(File.Exists(comesOld), "and the first call's file was left alone");
             Assert.NotEqual(comesFileId, blockedFileId);
 
-            Assert.True(LastBatchValue(await ext.LastBatchAsync(read, default)).Consumed);
+            // FULLY RESTORED: nothing outstanding, and the original count still says what was renamed.
+            var spent = LastBatchValue(await ext.LastBatchAsync(read, default));
+            Assert.True(spent.Consumed);
+            Assert.Equal(0, spent.RemainingCount);
+            Assert.Equal(2, spent.Count);
 
             // A call against a finished batch is the existing "nothing to undo" answer, not an error.
             var third = await ext.UndoAsync(write, default);
@@ -345,18 +364,37 @@ public sealed class UndoEndpointTests
     }
 
     [Fact]
-    public void UndoResponse_CarriesTheSameFieldsItDidBeforeTheJournalWork()
+    public void UndoAndSummaryResponses_CarryExactlyTheseFields()
     {
-        // The guard that the journal work kept its promise not to move the wire. The undo panel's new
-        // remaining/original figures belong to a later change that regenerates the emitted document;
-        // until then a field appearing here would be an accident, and this case is where it surfaces.
-        // Transcribed by hand — a list derived from the type would agree with it forever.
+        // A field appearing on either of these types moves the emitted wire document and, through it,
+        // the generated frontend types — so it has to be a deliberate edit here rather than a side
+        // effect noticed later. Transcribed by hand: a list derived from the type would agree with it
+        // forever.
+        //
+        // Warnings arrived with the stranded-companion channel: an entry that came back minus its
+        // sidecar is in no counted bucket, so before it the only record of a partial restore was the
+        // host log, which the panel cannot read.
         Assert.Equal(
-            ["Undone", "Failed", "Skipped"],
+            ["Undone", "Failed", "Skipped", "Warnings"],
             typeof(UndoResult).GetProperties().Select(p => p.Name));
         Assert.Equal(
             ["FileId", "OldPath", "NewPath", "Reason"],
             typeof(UndoEntryError).GetProperties().Select(p => p.Name));
+        Assert.Equal(
+            ["FileId", "Detail"],
+            typeof(UndoEntryWarning).GetProperties().Select(p => p.Name));
+
+        // The summary is counts only — no collection member, and no path. That is what keeps the
+        // response O(1) on a batch of any size and what keeps its coarse any-renamer-read gate honest,
+        // so a collection appearing here is a permission question, not a formatting one.
+        Assert.Equal(
+            ["HasBatch", "Count", "RemainingCount", "UnrestorableCount", "WrittenAtUtcTicks", "Consumed"],
+            typeof(LastBatchSummary).GetProperties().Select(p => p.Name));
+        Assert.All(
+            typeof(LastBatchSummary).GetProperties(),
+            p => Assert.True(
+                p.PropertyType == typeof(bool) || p.PropertyType == typeof(int) || p.PropertyType == typeof(long),
+                $"LastBatchSummary.{p.Name} is {p.PropertyType.Name}: the summary carries scalars only."));
     }
 
     [Fact]

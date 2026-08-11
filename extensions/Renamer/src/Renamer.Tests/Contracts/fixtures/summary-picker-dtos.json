@@ -2,6 +2,8 @@
   "lastBatch": {
     "hasBatch": true,
     "count": 3,
+    "remainingCount": 1,
+    "unrestorableCount": 1,
     "writtenAtUtcTicks": 638000000000000000,
     "consumed": false
   },
@@ -15,7 +17,13 @@
         "reason": "locked"
       }
     ],
-    "skipped": []
+    "skipped": [],
+    "warnings": [
+      {
+        "fileId": 7,
+        "detail": "companion \u0027a.srt\u0027 stayed behind: target occupied"
+      }
+    ]
   },
   "previewSample": {
     "sampleLabel": "Video",
