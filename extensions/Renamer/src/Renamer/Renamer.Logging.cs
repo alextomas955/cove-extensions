@@ -180,6 +180,14 @@ public sealed partial class Renamer
         Message = "[Renamer] undo {RunId} done: {Undone} restored, {Skipped} skipped, {Failed} failed")]
     private partial void LogUndoDone(string runId, int undone, int skipped, int failed);
 
+    // A sidecar that could not go back leaves its entry RESTORED, so nothing in the counted buckets
+    // records it. Without this line a half-restored entry would be silent, and the user would find a
+    // subtitle stranded under the renamed name with nothing anywhere saying why.
+    [LoggerMessage(
+        EventId = 1065, Level = LogLevel.Warning,
+        Message = "[Renamer] undo {RunId}: file id={FileId} restored, but a companion file could not be: {Detail}")]
+    private partial void LogUndoSidecarStranded(string runId, int fileId, string detail);
+
     [LoggerMessage(
         EventId = 1020, Level = LogLevel.Information,
         Message = "[Renamer] auto-renamer: {Kind} id={EntityId} {Status} '{Old}' -> '{New}'")]

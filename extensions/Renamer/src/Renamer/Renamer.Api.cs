@@ -438,6 +438,13 @@ public sealed partial class Renamer
             LogUndoFailed(runId, f.FileId, f.Reason);
         }
 
+        // Entries that were restored anyway, minus a companion file. They are in no counted bucket, so
+        // this loop is the only place a partial restore surfaces in the log.
+        foreach (var w in run.Warnings)
+        {
+            LogUndoSidecarStranded(runId, w.FileId, w.Detail);
+        }
+
         LogUndoDone(runId, run.Undone, run.Skipped.Count, run.Failed.Count);
     }
 
