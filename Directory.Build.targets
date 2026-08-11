@@ -115,6 +115,29 @@
          (or the older UseLocalCoveSource spelling) said `none` on purpose and is left alone. -->
     <Error Condition="'$(CoveSourceMode)' == 'none' AND '$(_CoveLocationWasExplicit)' == 'true' AND '$(_CoveModeWasPinned)' != 'true'"
            Text="A Cove location was supplied explicitly (resolved CoveRepoRoot='$(CoveRepoRootResolved)', CoveAssembliesDir='$(CoveAssembliesDirResolved)') but the resolved mode is 'none'. Refusing to fall back to the cove-absent branch — it would compile a smaller test set and still report success." />
+
+    <!--
+      The stale-extraction half. A path that resolves can still hold last month's assemblies, and the
+      only symptom would be type-load failures far from the cause. GetAssemblyIdentity is MSBuild's
+      own task, so this costs no tooling.
+
+      Assert the ASSEMBLY version (1.1.1.0), never the informational one (1.1.1-dev.NNN): the build
+      number moves on every nightly rebuild while the assembly version does not, so an equality guard
+      on the informational string would go red daily for no reason and would be switched off — which is
+      how a gate dies.
+
+      This guard is EXPECTED to fail when upstream bumps the minor, and that failure is the guard
+      working. The remedy is a one-line CoveTestAssemblyVersion bump after checking the change is
+      wanted. CoveMinVersion is a DIFFERENT property with a different meaning — the floor the extension
+      advertises to users — and editing it to make this pass would silently re-advertise that floor.
+    -->
+    <GetAssemblyIdentity Condition="'$(CoveSourceMode)' == 'assemblies' AND Exists('$(CoveDataAssemblyPath)')"
+                         AssemblyFiles="$(CoveDataAssemblyPath)">
+      <Output TaskParameter="Assemblies" ItemName="_CoveDataIdentity" />
+    </GetAssemblyIdentity>
+
+    <Error Condition="'@(_CoveDataIdentity)' != '' AND '%(_CoveDataIdentity.Version)' != '$(CoveTestAssemblyVersion)'"
+           Text="Cove.Data.dll at '$(CoveDataAssemblyPath)' is version %(_CoveDataIdentity.Version), but this repo tests against $(CoveTestAssemblyVersion). Re-run 'node scripts/fetch-cove-assemblies.mjs' to re-extract, or — if upstream really did move — bump CoveTestAssemblyVersion. Do NOT edit CoveMinVersion to satisfy this: that property is the floor the extension advertises, not the version CI tests against." />
   </Target>
 
 </Project>

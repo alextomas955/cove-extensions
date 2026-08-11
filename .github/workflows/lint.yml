@@ -42,7 +42,7 @@ jobs:
       # Analyzer gate: a Release build with TreatWarningsAsErrors=true (root Directory.Build.props)
       # fails on any CA/IDE warning.
       - name: Build with analyzers (warnings = errors)
-        run: dotnet build CoveExtensions.slnx -c Release -p:UseLocalCoveSource=false
+        run: dotnet build CoveExtensions.slnx -c Release -p:CoveSourceMode=none
 
   # ---- Windows build + unit-test signal (monorepo-wide). The whole-slnx Build step below compiles
   # every solution member; the unit-test step then runs each catalog entry's testProjectPath, read
@@ -65,7 +65,7 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - name: Build
-        run: dotnet build CoveExtensions.slnx -c Release -p:UseLocalCoveSource=false
+        run: dotnet build CoveExtensions.slnx -c Release -p:CoveSourceMode=none
       # The whole-slnx Build above already compiled every test project, so --no-build still holds.
       - name: Test (unit tier)
         shell: bash

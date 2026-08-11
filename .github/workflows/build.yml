@@ -13,13 +13,12 @@
 # extension.json version and its registry manifest's newest versions[] row. No PR trigger path
 # filtering is used anywhere: every catalog entry is built on every PR.
 #
-# Required-check model: the `required-checks` aggregation job is the single
-# status check to mark required in branch protection; it transitively gates on `build` (bare C# unit
-# tier) and `e2e` (Playwright + the optional per-extension node:test correctness tier — the
-# containerized safety backstop for the rollback/undo/ingest/loop-safety tests the bare leg
-# Compile-Removes, since Cove.Data is source-only and unavailable to CI). The cove-present C# tier is
-# a required LOCAL pre-merge gate (see .github/PULL_REQUEST_TEMPLATE.md). A "0 node specs found"
-# hard-fails, never passes silently — but the tier runs only for a catalog entry that declares
+# Required-check model: the `required-checks` aggregation job is the single status check to mark
+# required in branch protection; it transitively gates on `build` (the bare C# unit tier, which states
+# CoveSourceMode=none), `test-cove-present` (the WHOLE C# suite against Cove assemblies extracted from
+# the released cove-app image, which is where the rollback/undo/ingest/loop-safety tests actually run),
+# and `e2e` (Playwright + the optional per-extension node:test correctness tier). A "0 node specs
+# found" hard-fails, never passes silently — but the tier runs only for a catalog entry that declares
 # e2eNodeTestsPath, and no extension declares one today.
 
 name: Build and Release Extensions
@@ -169,25 +168,27 @@ jobs:
 
       - name: Restore
         if: ${{ !matrix.extension.manifestOnly }}
-        run: dotnet restore "$PROJECT_PATH" -p:UseLocalCoveSource=false
+        run: dotnet restore "$PROJECT_PATH" -p:CoveSourceMode=none
         env:
           PROJECT_PATH: ${{ matrix.extension.projectPath }}
 
       - name: Build
         if: ${{ !matrix.extension.manifestOnly }}
-        run: dotnet build "$PROJECT_PATH" -c Release --no-restore -p:UseLocalCoveSource=false "-p:Version=$EXTENSION_VERSION" -p:ContinuousIntegrationBuild=true
+        run: dotnet build "$PROJECT_PATH" -c Release --no-restore -p:CoveSourceMode=none "-p:Version=$EXTENSION_VERSION" -p:ContinuousIntegrationBuild=true
         env:
           PROJECT_PATH: ${{ matrix.extension.projectPath }}
           EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
-      # Unit tier only — this bare runner has no ../cove sibling checkout, so the test project's
-      # cove-referencing sources are Compile-Removed (see Renamer.Tests.csproj's cove-absent
-      # group). Runs before Publish so a test failure blocks packaging, matching
-      # windows-build-test's build-then-test order in lint.yml. Optional: an extension without a
-      # testProjectPath entry in catalog.json skips this step (manifestOnly-style opt-out).
+      # Unit tier only — this leg states CoveSourceMode=none, so the test project's cove-referencing
+      # sources are Compile-Removed (see Renamer.Tests.csproj's cove-absent group) and it compiles to
+      # the pure-core tier. The mode is DECLARED rather than inferred from whether a ../cove sibling
+      # happens to be on disk: that inference is what let a smaller run read as a pass. The whole suite
+      # runs in the test-cove-present job below. Runs before Publish so a test failure blocks packaging,
+      # matching windows-build-test's build-then-test order in lint.yml. Optional: an extension without
+      # a testProjectPath entry in catalog.json skips this step (manifestOnly-style opt-out).
       - name: Test (unit tier)
         if: ${{ !matrix.extension.manifestOnly && matrix.extension.testProjectPath != '' }}
-        run: dotnet test "$TEST_PROJECT_PATH" -c Release -p:UseLocalCoveSource=false
+        run: dotnet test "$TEST_PROJECT_PATH" -c Release -p:CoveSourceMode=none
         env:
           TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
 
@@ -218,7 +219,7 @@ jobs:
       # shipped files can reach a release without being declared.
       - name: Publish
         if: ${{ !matrix.extension.manifestOnly }}
-        run: dotnet publish "$PROJECT_PATH" -c Release -o "artifacts/publish/$EXTENSION_NAME" --no-build -p:UseLocalCoveSource=false "-p:Version=$EXTENSION_VERSION" -p:ContinuousIntegrationBuild=true
+        run: dotnet publish "$PROJECT_PATH" -c Release -o "artifacts/publish/$EXTENSION_NAME" --no-build -p:CoveSourceMode=none "-p:Version=$EXTENSION_VERSION" -p:ContinuousIntegrationBuild=true
         env:
           PROJECT_PATH: ${{ matrix.extension.projectPath }}
           EXTENSION_NAME: ${{ matrix.extension.name }}
@@ -298,6 +299,114 @@ jobs:
           name: ${{ matrix.extension.id }}-${{ steps.check.outputs.version }}
           path: ${{ matrix.extension.id }}-${{ steps.check.outputs.version }}.zip
 
+  # ---- The cove-present C# tier: the whole test suite, compiled and run against Cove taken from the
+  # RELEASED cove-app image rather than from a source checkout. This is what closes the gap where the
+  # bare `build` leg above compiles only the pure-core tests — every rollback / undo / ingest /
+  # loop-safety assertion that needs a real CoveContext runs here, in process, and blocks a merge.
+  #
+  # Catalog-driven like every other leg: a second extension gains this job through its catalog entry,
+  # with no edit here. Nothing about the image is named in this file — the fetcher reads the repository
+  # and tag from Directory.Build.props, so the version CI tests against is declared in one place.
+  test-cove-present:
+    needs: validate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.validate.outputs.matrix) }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      # Fail closed on the floor: an entry that declares a test project but no coveTestMinimumTotal
+      # would run this tier with nothing to compare its total against — which is precisely the
+      # "green while compiling less than the mode implies" shape this job exists to make impossible.
+      # An entry with no test project skips the tier entirely, matching the unit-tier opt-out.
+      - name: Check for a cove-present tier
+        id: check
+        shell: bash
+        run: |
+          if [[ "$MANIFEST_ONLY" == "true" || -z "$TEST_PROJECT_PATH" ]]; then
+            echo "has_tier=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$EXTENSION_NAME declares no testProjectPath — skipping the cove-present tier."
+            exit 0
+          fi
+          if [[ -z "$MINIMUM_TOTAL" ]]; then
+            echo "::error::$EXTENSION_NAME declares a testProjectPath but no coveTestMinimumTotal in extensions/catalog.json. Without a floor this tier cannot tell a full run from a smaller one, so it would report green while proving less."
+            exit 1
+          fi
+          echo "has_tier=true" >> "$GITHUB_OUTPUT"
+        env:
+          EXTENSION_NAME: ${{ matrix.extension.name }}
+          MANIFEST_ONLY: ${{ matrix.extension.manifestOnly }}
+          TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
+          MINIMUM_TOTAL: ${{ matrix.extension.coveTestMinimumTotal }}
+
+      # The fetcher is Node, and it deliberately shells out to nothing — no docker, no curl, no tar —
+      # so this and the .NET SDK are the whole toolchain.
+      - uses: actions/setup-node@v7
+        if: steps.check.outputs.has_tier == 'true'
+        with:
+          node-version: "24.11.0"
+
+      - name: Setup .NET
+        if: steps.check.outputs.has_tier == 'true'
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # The tag Directory.Build.props declares is a moving one, so this repo can go red for a change
+      # upstream rather than one here. That is accepted, on the condition that such a red is
+      # diagnosable in one look: the resolved digest and the extracted Cove version are surfaced as a
+      # notice, so "upstream moved" and "we broke it" are distinguishable without re-running anything.
+      - name: Fetch Cove assemblies from the released image
+        if: steps.check.outputs.has_tier == 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/fetch-cove-assemblies.mjs --out artifacts/cove-assemblies | tee /tmp/fetch.log
+          digest=$(grep -E '^manifest digest: ' /tmp/fetch.log | tail -1)
+          assembly=$(grep -E '^Cove\.Data\.dll assembly version: ' /tmp/fetch.log | tail -1)
+          informational=$(grep -E '^Cove\.Data\.dll informational version: ' /tmp/fetch.log | tail -1)
+          if [[ -z "$digest" || -z "$assembly" ]]; then
+            echo "::error::The fetcher reported no manifest digest or no assembly version, so there is nothing to attribute a later failure to."
+            exit 1
+          fi
+          echo "::notice::Cove under test — $digest; $assembly; $informational"
+
+      # -p:CoveSourceMode=assemblies is stated EXPLICITLY: an infrastructure failure that left the
+      # extraction empty must fail this job, not quietly select the cove-absent branch and report a
+      # smaller green run. The build's own AssertCoveLocation refuses that case, and the floor below is
+      # the second half of the same guard.
+      #
+      # The floor is a FLOOR, not an equality, so adding tests never breaks it. A total BELOW it means
+      # the leg compiled less than the mode implies, which is the defect being closed — the same
+      # invocation with CoveSourceMode=none reports 543 against Renamer's 875, so this can fail. A log
+      # with no Total: line fails too, rather than comparing as zero: an absent figure means the run
+      # did not report, which is not the same as reporting nothing.
+      - name: Test (cove-present tier, assemblies from the released image)
+        if: steps.check.outputs.has_tier == 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet test "$TEST_PROJECT_PATH" -c Release \
+            -p:CoveSourceMode=assemblies \
+            -p:CoveAssembliesDir=artifacts/cove-assemblies | tee /tmp/cove-present.log
+          total=$(grep -oE 'Total: *[0-9]+' /tmp/cove-present.log | tail -1 | grep -oE '[0-9]+')
+          if [[ -z "$total" ]]; then
+            echo "::error::No Total: figure in the test output — the run did not report, which is a failure and not a zero."
+            exit 1
+          fi
+          if (( total < MINIMUM_TOTAL )); then
+            echo "::error::$EXTENSION_NAME ran $total tests against a floor of $MINIMUM_TOTAL. The leg compiled less than CoveSourceMode=assemblies implies — check that the extraction is complete rather than lowering the floor."
+            exit 1
+          fi
+          echo "Cove-present tier ran $total tests (floor $MINIMUM_TOTAL)."
+        env:
+          EXTENSION_NAME: ${{ matrix.extension.name }}
+          TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
+          MINIMUM_TOTAL: ${{ matrix.extension.coveTestMinimumTotal }}
+
   # ---- E2E: rebuilds each extension (a separate job from build/matrix.extension — GitHub Actions
   # jobs don't share a filesystem, so this job publishes its own fresh copy rather than trying to
   # reuse the build job's disk state) and installs the result into a containerized, official Cove
@@ -361,7 +470,7 @@ jobs:
       # the remedy is adding that flag to this step, never weakening the check.
       - name: Build extension (publish output for the harness to install)
         if: (steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true') && !matrix.extension.manifestOnly
-        run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o ${{ matrix.extension.path }}/artifacts/publish -p:UseLocalCoveSource=false
+        run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o ${{ matrix.extension.path }}/artifacts/publish -p:CoveSourceMode=none
 
       - name: Setup Node
         if: steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true'
@@ -456,15 +565,18 @@ jobs:
   # not block a merge — now this gate fails whenever any matrix leg of build or e2e fails or is
   # skipped-by-failure.
   #
-  # WHY the e2e job (not a cove-present C# leg) is the required safety gate: Cove.Data / Cove.Core are
-  # SOURCE-ONLY (not on nuget.org) and this repo's CI has no cove-repo checkout, so the rollback / undo /
-  # ingest / loop-safety / NoMutation tests that are Compile-Removed from the bare leg cannot run as a C#
-  # job in CI. The e2e job exercises those same contracts against real containers, so it is the required
-  # backstop here; the cove-present C# leg (`dotnet test` with the `../cove` sibling) is a REQUIRED LOCAL
-  # pre-merge gate documented in .github/PULL_REQUEST_TEMPLATE.md. If CI later gains cove source access,
-  # add a cove-present `dotnet test -p:UseLocalCoveSource=true` job and fold it into needs:.
+  # The cove-present C# tier is a required leg here, and it used to be impossible. The reasoning that
+  # kept it out was that Cove.Data and Cove.Core are source-only and unavailable to CI — false in both
+  # halves: Cove.Core is published on nuget.org, and Cove.Data reaches CI from the released cove-app
+  # image, which test-cove-present extracts and compiles against. So the rollback / undo / ingest /
+  # loop-safety assertions that the bare leg Compile-Removes now run in process and block a merge,
+  # instead of resting on a local pre-merge checkbox a contributor could skip.
+  #
+  # The e2e job stays exactly as it was. It is the end-to-end gate — it is the only check that would
+  # notice a package the host cannot load — and it is not a substitute for in-process assertions, which
+  # see seams a containerized run cannot.
   required-checks:
-    needs: [validate, build, e2e]
+    needs: [validate, build, test-cove-present, e2e]
     if: always()
     runs-on: ubuntu-latest
     # No token at all: this job only reads the other jobs' results and echoes them. An empty mapping
@@ -474,11 +586,12 @@ jobs:
       - name: Assert the required legs succeeded
         shell: bash
         run: |
-          echo "validate=${{ needs.validate.result }} build=${{ needs.build.result }} e2e=${{ needs.e2e.result }}"
+          echo "validate=${{ needs.validate.result }} build=${{ needs.build.result }} test-cove-present=${{ needs.test-cove-present.result }} e2e=${{ needs.e2e.result }}"
           if [ "${{ needs.validate.result }}" != "success" ] \
             || [ "${{ needs.build.result }}" != "success" ] \
+            || [ "${{ needs.test-cove-present.result }}" != "success" ] \
             || [ "${{ needs.e2e.result }}" != "success" ]; then
-            echo "::error::A required leg failed or was skipped — validate/build/e2e must all be green."
+            echo "::error::A required leg failed or was skipped — validate/build/test-cove-present/e2e must all be green."
             exit 1
           fi
           echo "All required legs green."
