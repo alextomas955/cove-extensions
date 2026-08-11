@@ -66,10 +66,10 @@ public sealed class OptionsMigrationInitializeTests
         var store = await NewLegacyStoreAsync();
         int setsBefore = store.SetCallCount;
 
-        // No DbContext registration at all, so resolving one throws — the failure path.
-        var services = new ServiceCollection();
-        services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
-        await InitializeAsync(store, services.BuildServiceProvider());
+        // A database with the undo journal and no library tables, so the load completes and the
+        // conversion's own read is the thing that throws — the failure path.
+        await using var db = await JournalOnlyDatabase.CreateAsync();
+        await InitializeAsync(store, db.BuildProvider());
 
         Assert.Equal(setsBefore, store.SetCallCount);
         await AssertStillLegacyAsync(store);
@@ -196,28 +196,26 @@ public sealed class OptionsMigrationInitializeTests
         await store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema);
         store.GetKeys.Clear();
 
-        // No DbContext registered: a stamp that failed to short-circuit would reach for one and throw.
-        var services = new ServiceCollection();
-        services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
-        await InitializeAsync(store, services.BuildServiceProvider());
+        // No library tables: a stamp that failed to short-circuit would read one and throw.
+        await using var db = await JournalOnlyDatabase.CreateAsync();
+        await InitializeAsync(store, db.BuildProvider());
 
         Assert.DoesNotContain(ExtensionOptionsStore<RenamerOptions>.Key, store.GetKeys);
     }
 
     [Fact]
-    public async Task AStoreThatIsAlreadyIdKeyed_IsNotTouched_AndNeedsNoDatabase()
+    public async Task AStoreThatIsAlreadyIdKeyed_IsNotTouched_AndNeedsNoLibraryRead()
     {
-        // A fresh install already stores ids. It must not pay for a database read, and — the dangerous
+        // A fresh install already stores ids. It must not pay for a library read, and — the dangerous
         // half — its int-spelled TagDestinations keys must never be re-read as tag NAMES.
         var store = await NewStoreAsync();
         await new OptionsStore(store).SaveAsync(
             new RenamerOptions { TagDestinations = { [9] = "/media/anime" }, ExcludeTagIds = { 15 } });
         int setsBefore = store.SetCallCount;
 
-        // No DbContext registered: reaching for one at all would throw and be logged as a failure.
-        var services = new ServiceCollection();
-        services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
-        await InitializeAsync(store, services.BuildServiceProvider());
+        // No library tables: reading one at all would throw and be logged as a failure.
+        await using var db = await JournalOnlyDatabase.CreateAsync();
+        await InitializeAsync(store, db.BuildProvider());
 
         Assert.Equal(setsBefore, store.SetCallCount);
         var options = await LoadOptionsAsync(store);

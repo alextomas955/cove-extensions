@@ -568,9 +568,10 @@ public sealed class ScanLibraryEndpointTests
     {
         var ext = RenamerFixture.Create();
         ((IStatefulExtension)ext).SetStore(store);
-        var services = new ServiceCollection();
-        services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
-        await ext.InitializeAsync(services.BuildServiceProvider());
+        // A real database, because the load refuses to complete without a readable undo journal.
+        // These cases are about the STORE purges, so the library behind it is left empty.
+        await using var library = await Library.CreateAsync();
+        await ext.InitializeAsync(library.BuildProvider());
         return ext;
     }
 

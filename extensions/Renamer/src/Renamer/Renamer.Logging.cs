@@ -158,6 +158,13 @@ public sealed partial class Renamer
         Message = "[Renamer] options migration rewrote the stored settings but could not stamp them as converted; the next load re-scans an already-converted blob and changes nothing")]
     private partial void LogOptionsMigrationStampFailed(Exception ex);
 
+    // The extension is about to refuse to load. The throw that follows reaches the host as a disable
+    // with an exception; this line is what names the table in the log the operator is already reading.
+    [LoggerMessage(
+        EventId = 1063, Level = LogLevel.Error,
+        Message = "[Renamer] the undo journal table '{Table}' cannot be read; refusing to load rather than rename unjournalled")]
+    private partial void LogJournalUnreachable(Exception ex, string table);
+
     [LoggerMessage(
         EventId = 1010, Level = LogLevel.Information,
         Message = "[Renamer] undo {RunId}: {Kind} id={EntityId} restored to '{Old}'")]

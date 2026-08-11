@@ -66,6 +66,11 @@ public sealed partial class Renamer : FullExtensionBase
         // NullLogger default when the host supplies none.
         _log = services.GetService<ILogger<Renamer>>() ?? _log;
 
+        // The first thing this method does with the database, and it stays first: the host has
+        // already had its chance to apply this extension's schema migration on every load path
+        // (boot, runtime install, enable), so by here the journal either exists or never will.
+        await AssertJournalIsReachableAsync(ct);
+
         // Deleted UNCONDITIONALLY, and never read. A pre-0.2.1 whole-library scan wrote one wire row per
         // file to this key, so on a large library its value reaches hundreds of megabytes; Cove's bulk
         // extension-data read serializes every value an extension owns into one response, so a single
@@ -122,6 +127,49 @@ public sealed partial class Renamer : FullExtensionBase
         }
 
         await base.InitializeAsync(services, ct);
+    }
+
+    /// <summary>The journal table whose absence must stop this extension loading.</summary>
+    private const string JournalBatchTable = "renamer_revert_batches";
+
+    /// <summary>Refuses to load when the undo journal cannot be read.</summary>
+    /// <remarks>
+    /// Why the extension checks this itself rather than leaving it to the host: the host applies an
+    /// extension's migrations, and on a failure it logs, stops applying, and loads the extension
+    /// anyway. So a migration that never landed is one log line, after which every rename would move
+    /// a file with no record of where it came from — a loss of undo that looks exactly like a working
+    /// install. A throw out of this method is the opposite kind of failure: the host catches it per
+    /// extension and disables THIS extension while the rest of it keeps running, which nobody can
+    /// mistake for success.
+    /// <para>
+    /// It deliberately does not create the table. The host owns applying and receipting migrations,
+    /// and a bootstrap here would write no receipt and duplicate the retry semantics the host already
+    /// implements.
+    /// </para>
+    /// </remarks>
+    private async Task AssertJournalIsReachableAsync(CancellationToken ct)
+    {
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<DbContext>();
+
+            // A load-time read has no ambient principal, so it goes through the one elevation seam
+            // like every other background read here — a filtered read that returns nothing is the
+            // failure mode this whole check exists to make impossible to mistake for success.
+            await RunAsSystem.RunAsSystemAsync(
+                scope.ServiceProvider,
+                () => db.Set<RevertBatchEntity>().AsNoTracking().AnyAsync(ct));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogJournalUnreachable(ex, JournalBatchTable);
+            throw new InvalidOperationException(
+                $"The undo journal table '{JournalBatchTable}' could not be read, so a rename would "
+                    + "move files with no record of where they came from and no way to undo it. The "
+                    + "extension refuses to load rather than rename unjournalled.",
+                ex);
+        }
     }
 
     /// <summary>The id/name pairs a stored rule name is resolved against.</summary>
