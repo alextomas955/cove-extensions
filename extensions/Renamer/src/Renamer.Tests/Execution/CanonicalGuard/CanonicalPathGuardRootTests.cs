@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using Renamer.Execution;
+using Renamer.Options;
+using Renamer.Planner;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Execution.CanonicalGuard;
@@ -161,6 +163,63 @@ public sealed class CanonicalPathGuardRootTests
         Assert.False(r.Accepted);
         Assert.NotNull(r.Reason);
         Assert.Contains("canonical resolution failed", r.Reason);
+    }
+
+    [SkippableFact] // The whole pipeline, not the guard alone — the unit cases above cannot see a refusal reintroduced downstream.
+    public async Task ExecutorRun_AllowlistCoveringVolumeRoot_MovesIntoNonExistentFolder()
+    {
+        Skip.IfNot(OperatingSystem.IsWindows(), "needs a Windows drive root (subst)");
+
+        using var dir = new TempDir();
+        using var drive = new SubstDrive();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            // The allowlist is the ONLY variable that used to decide this run: with AllowedRoots empty
+            // the guard is inert (RenamerExecutor gates on Count > 0) and the file landed; with the
+            // volume root allowlisted the same run left the source in place and moved nothing. Both
+            // halves were measured, which is what makes the guard — not the mover, not the OS — the
+            // component this case holds to account.
+            string srcDir = Directory.CreateDirectory(Path.Combine(dir.Root, "source")).FullName;
+            string rootFwd = drive.Root.Replace('\\', '/');
+            string targetFwd = rootFwd + "Films"; // does not exist yet: its deepest existing ancestor IS the volume root
+
+            string srcFolderPath = srcDir.Replace('\\', '/');
+            var (_, videoId, fileId) =
+                await ExecutorTestSeed.SeedVideoAsync(db, srcFolderPath, "clip.mkv", "My Film");
+
+            string oldFull = Path.Combine(srcDir, "clip.mkv");
+            File.WriteAllText(oldFull, "video-bytes");
+
+            var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
+            [
+                new RenamerPlanItem(fileId, srcFolderPath + "/clip.mkv", targetFwd + "/My Film.mkv",
+                    RenamerStatus.Move, "My Film.mkv", targetFwd),
+            ]);
+
+            var executor = new RenamerExecutor(
+                new CoveRenamerDataPort(db), new CapturingEventBus(), new RevertLog(new FakeStore()), new DiskMover());
+            var options = new RenamerOptions { AllowedRoots = [rootFwd] };
+
+            var result = await executor.ExecuteAsync(plan, options, default);
+
+            // The typed outcome, not merely a file somewhere: a blocked run reports SkipBlocked here.
+            var moved = Assert.Single(result.Renamed);
+            Assert.Equal(RenamerStatus.Move, moved.Status);
+            Assert.Equal(targetFwd + "/My Film.mkv", moved.NewPath, ignoreCase: true);
+            Assert.Empty(result.Skipped);
+            Assert.Empty(result.Failed);
+
+            string newFull = Path.Combine(drive.Root, "Films", "My Film.mkv");
+            Assert.True(File.Exists(newFull), "the allowlisted volume-root destination must land on disk");
+            Assert.False(File.Exists(oldFull), "the source must be gone after a successful move");
+            Assert.Equal("video-bytes", File.ReadAllText(newFull));
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
     }
 
     /// <summary>A drive letter with no volume mapped to it, or null when every letter is in use.</summary>
