@@ -179,18 +179,50 @@ jobs:
           PROJECT_PATH: ${{ matrix.extension.projectPath }}
           EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
-      # Unit tier only — this leg states CoveSourceMode=none, so the test project's cove-referencing
-      # sources are Compile-Removed (see Renamer.Tests.csproj's cove-absent group) and it compiles to
-      # the pure-core tier. The mode is DECLARED rather than inferred from whether a ../cove sibling
-      # happens to be on disk: that inference is what let a smaller run read as a pass. The whole suite
-      # runs in the test-cove-present job below. Runs before Publish so a test failure blocks packaging,
-      # matching windows-build-test's build-then-test order in lint.yml. Optional: an extension without
-      # a testProjectPath entry in catalog.json skips this step (manifestOnly-style opt-out).
+      # Cove-absent tier — this leg states CoveSourceMode=none, so the test project's cove-referencing
+      # sources are Compile-Removed (see Renamer.Tests.csproj's cove-absent group). What survives is
+      # every test that needs no Cove source type, across every tier, not a tier of its own. The mode is
+      # DECLARED rather than inferred from whether a ../cove sibling happens to be on disk: that
+      # inference is what let a smaller run read as a pass. The rest of the suite runs in the
+      # test-cove-present job below. Runs before Publish so a test failure blocks packaging, matching
+      # windows-build-test's build-then-test order in lint.yml. Optional: an extension without a
+      # testProjectPath entry in catalog.json skips this step (manifestOnly-style opt-out).
+      #
+      # The floor is what makes this a gate rather than a report. It is a FLOOR, not an equality, so
+      # adding tests never breaks it; a total BELOW it means a file dropped off this leg, which is
+      # exactly the defect a per-file Compile-Remove list exists to prevent and a directory wildcard
+      # used to cause silently. A log with no Total: line fails too rather than comparing as zero — an
+      # absent figure means the run did not report, which is not the same as reporting nothing. Both C#
+      # legs now state what they must contain; before that, any number at all read as correct.
+      #
+      # Catalog-driven for the same reason the cove-present floor is: the value is a per-extension fact,
+      # so a second extension declares its own rather than inheriting Renamer's. Declaring a test
+      # project and no floor is a hard error, not a skip — a leg with nothing to compare against is the
+      # shape this check exists to make impossible.
       - name: Test (unit tier)
         if: ${{ !matrix.extension.manifestOnly && matrix.extension.testProjectPath != '' }}
-        run: dotnet test "$TEST_PROJECT_PATH" -c Release -p:CoveSourceMode=none
+        shell: bash
+        run: |
+          set -o pipefail
+          if [[ -z "$MINIMUM_TOTAL" ]]; then
+            echo "::error::$EXTENSION_NAME declares a testProjectPath but no unitTestMinimumTotal in extensions/catalog.json. Without a floor this leg cannot tell a full run from a smaller one, so it would report green while proving less."
+            exit 1
+          fi
+          dotnet test "$TEST_PROJECT_PATH" -c Release -p:CoveSourceMode=none | tee /tmp/unit-tier.log
+          total=$(grep -oE 'Total: *[0-9]+' /tmp/unit-tier.log | tail -1 | grep -oE '[0-9]+')
+          if [[ -z "$total" ]]; then
+            echo "::error::No Total: figure in the test output — the run did not report, which is a failure and not a zero."
+            exit 1
+          fi
+          if (( total < MINIMUM_TOTAL )); then
+            echo "::error::$EXTENSION_NAME ran $total tests against a floor of $MINIMUM_TOTAL. A file dropped off the cove-absent leg — check the Compile-Remove list rather than lowering the floor."
+            exit 1
+          fi
+          echo "Unit tier ran $total tests (floor $MINIMUM_TOTAL)."
         env:
+          EXTENSION_NAME: ${{ matrix.extension.name }}
           TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
+          MINIMUM_TOTAL: ${{ matrix.extension.unitTestMinimumTotal }}
 
       # AFTER the unit tier, because the emit test inside it is what WROTE this file; running before it
       # would diff whatever the checkout happened to carry. The document is derived from the endpoint
@@ -381,9 +413,9 @@ jobs:
       #
       # The floor is a FLOOR, not an equality, so adding tests never breaks it. A total BELOW it means
       # the leg compiled less than the mode implies, which is the defect being closed — the same
-      # invocation with CoveSourceMode=none reports 543 against Renamer's 875, so this can fail. A log
-      # with no Total: line fails too, rather than comparing as zero: an absent figure means the run
-      # did not report, which is not the same as reporting nothing.
+      # invocation with CoveSourceMode=none reports materially fewer tests, so this comparison can fail
+      # rather than being a formality. A log with no Total: line fails too, rather than comparing as
+      # zero: an absent figure means the run did not report, which is not the same as reporting nothing.
       - name: Test (cove-present tier, assemblies from the released image)
         if: steps.check.outputs.has_tier == 'true'
         shell: bash
