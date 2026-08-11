@@ -98,14 +98,21 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\shared\Cove.Extensions.Shared.Testing\Cove.Extensions.Shared.Testing.csproj" />
     <!--
       TEST-ONLY: CoveContext lives in Cove.Data; entities in Cove.Core. Mirrors Cove.Tests.
-      Neither is on nuget.org, and both sit outside the Cove.Sdk/Cove.Plugins/Cove.Core chain the root
-      Directory.Build.targets wires up, so this project says where Cove is for itself — through the
-      repo-wide $(CoveSourceMode) seam rather than through a relative path literal of its own. With a
-      Cove checkout (the zero-config ..\cove sibling, COVE_REPO, or -p:CoveRepoRoot) the refs resolve
-      and the FULL suite compiles and runs; in `assemblies` mode they are replaced by a reference to the
-      released image's Cove.Data.dll below; in `none` mode they drop out and the cove-referencing
-      sources are Compile-Removed, leaving the pure-core UNIT tier. The EF Sqlite/InMemory
-      PackageReferences above are on NuGet and stay unconditional on every mode.
+
+      The two are named here for different reasons. Cove.Data is on NO feed and the root
+      Directory.Build.targets deliberately does not wire it, so a project wanting CoveContext has to say
+      where Cove is for itself. Cove.Core IS on nuget.org and does reach every project transitively
+      through the Cove.Sdk chain the root targets wires — it is named anyway so that in a mode carrying a
+      Cove of its own, the Cove.Core matching THAT Cove is the one that compiles, rather than whatever
+      version the feed last published. Getting that wrong splits the closure, which the assemblies-mode
+      block below documents at the length it earns.
+
+      Either way the location comes from the repo-wide $(CoveSourceMode) seam rather than a relative path
+      literal of this project's own. With a Cove checkout (the zero-config ..\cove sibling, COVE_REPO, or
+      -p:CoveRepoRoot) the refs resolve and the FULL suite compiles and runs; in `assemblies` mode they
+      are replaced by references to the released image's assemblies below; in `none` mode they drop out
+      and the cove-referencing sources are Compile-Removed. The EF Sqlite/InMemory PackageReferences
+      above are on NuGet and stay unconditional on every mode.
     -->
     <ProjectReference Include="$(CoveDataProjectPath)" Condition="'$(CoveSourceMode)' == 'source'" />
     <ProjectReference Include="$(CoveCoreProjectPath)" Condition="'$(CoveSourceMode)' == 'source'" />

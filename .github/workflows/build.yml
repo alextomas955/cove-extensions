@@ -19,7 +19,7 @@
 # the released cove-app image, which is where the rollback/undo/ingest/loop-safety tests actually run),
 # and `e2e` (Playwright + the optional per-extension node:test correctness tier). A "0 node specs
 # found" hard-fails, never passes silently — but the tier runs only for a catalog entry that declares
-# e2eNodeTestsPath, and no extension declares one today.
+# e2eNodeTestsPath, so an entry declaring none is not covered by it at all.
 
 name: Build and Release Extensions
 
@@ -590,23 +590,22 @@ jobs:
           retention-days: 7
 
   # ---- Required-check aggregation.
-  # A single job to mark REQUIRED in branch protection on `main`. It transitively requires the bare C#
-  # unit tier (build) AND the containerized safety backstop (e2e: the Playwright projects plus the
-  # optional per-extension node:test correctness tier). This is the workflow-level lever that "makes
-  # e2e + the node tier required": before this phase nothing `needs:` the e2e job, so an e2e failure did
-  # not block a merge — now this gate fails whenever any matrix leg of build or e2e fails or is
-  # skipped-by-failure.
+  # A single job to mark REQUIRED in branch protection on `main`, so a leg gates a merge by being in this
+  # job's `needs:` AND by having its result tested in the shell body below. Listing a job in `needs:`
+  # alone would let it fail while this gate still reported success.
   #
-  # The cove-present C# tier is a required leg here, and it used to be impossible. The reasoning that
-  # kept it out was that Cove.Data and Cove.Core are source-only and unavailable to CI — false in both
-  # halves: Cove.Core is published on nuget.org, and Cove.Data reaches CI from the released cove-app
-  # image, which test-cove-present extracts and compiles against. So the rollback / undo / ingest /
-  # loop-safety assertions that the bare leg Compile-Removes now run in process and block a merge,
-  # instead of resting on a local pre-merge checkbox a contributor could skip.
+  # There are two safety legs and neither substitutes for the other:
+  #   - test-cove-present runs the WHOLE C# suite in process, against Cove assemblies extracted from the
+  #     released cove-app image. It sees seams no containerized run can reach — which principal a
+  #     database command executed under, a rollback's intermediate state, an event hook's re-entrancy.
+  #   - e2e installs the assembled package into the released host and drives it. It is the only check
+  #     that would notice a package the host cannot load, which no in-process assertion can see.
+  # A green here therefore means both were observed, not that one stood in for the other.
   #
-  # The e2e job stays exactly as it was. It is the end-to-end gate — it is the only check that would
-  # notice a package the host cannot load — and it is not a substitute for in-process assertions, which
-  # see seams a containerized run cannot.
+  # Cove.Data is on no feed, and that is why the image is the route for it; Cove.Core, Cove.Plugins and
+  # Cove.Sdk are published on nuget.org. Neither fact makes the cove-present leg optional: the leg exists
+  # so the rollback / undo / ingest / loop-safety assertions the bare leg Compile-Removes block a merge
+  # rather than resting on a local run a contributor can skip.
   required-checks:
     needs: [validate, build, test-cove-present, e2e]
     if: always()

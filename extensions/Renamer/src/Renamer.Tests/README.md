@@ -62,4 +62,8 @@ about what tier it is.
   covering behaviours neither C# leg can see.
 
 Each C# leg declares the number of tests it must contain and fails below it, so a file silently
-dropping off a leg is a red merge gate rather than a smaller pass.
+dropping off a leg is a red merge gate rather than a smaller pass. Both floors live on the extension's
+`extensions/catalog.json` entry — `unitTestMinimumTotal` for the bare leg, `coveTestMinimumTotal` for
+the cove-present one — because a floor is a per-extension fact and a second extension must be able to
+declare its own without editing a workflow. Read them there rather than from any prose: a number
+copied into a file no gate reads is a number that goes wrong quietly.

@@ -19,9 +19,11 @@ namespace Renamer.Tests.Api;
 /// (SQLite + a real <see cref="TempDir"/>, mirroring <see cref="RenamerExecutorIntegrationTests"/>).
 /// Each test first performs one or more REAL renamers through <c>RunRenamerBatchAsync</c> (so genuine
 /// batches are journalled) and then exercises the endpoints on the SAME extension
-/// instance — the RevertLog blob lives in the extension's <see cref="FakeStore"/>, the undo event is
-/// captured on the wired <see cref="CapturingEventBus"/>, and the DbContext is resolved from the
-/// wired scope factory exactly as the production handler does. Proves: round-trip restore (disk + DB
+/// instance — the journal is two tables in the same <see cref="CoveContext"/> those renames wrote
+/// through, so a batch and the rows it opened are read back from where production reads them; the
+/// <see cref="FakeStore"/> here carries only the extension's stored options; the undo event is captured
+/// on the wired <see cref="CapturingEventBus"/>; and the DbContext is resolved from the wired scope
+/// factory exactly as the production handler does. Proves: round-trip restore (disk + DB
 /// + correct entity event), header-driven kind (an image batch publishes ImageUpdated — never a Video
 /// default), a batch reaching SPENT as its rows retire rather than being consumed on the first partial
 /// success (a second undo and an empty journal are no-ops), the summary read shape, and that one
@@ -490,10 +492,11 @@ public sealed class UndoEndpointTests
         // metadata edit opens its own batch per edit, so a newer batch settling over an older one that
         // still holds rows is the ORDINARY state.
         //
-        // Before this plan the panel's summary read the newest batch whatever its remaining count while
-        // /undo acted on the newest batch that still had rows. Once the newer batch settled the two named
-        // different batches, the summary reported nothing remaining, and the panel rendered "No rename to
-        // undo." over an older batch whose rows were still live and still restorable.
+        // The defect this pins: a summary that reads the newest batch whatever its remaining count, while
+        // /undo acts on the newest batch that still HAS rows, makes the two name different batches as soon
+        // as the newer one settles — so the summary reports nothing remaining and the panel renders "No
+        // rename to undo." over an older batch whose rows are still live and still restorable. One read,
+        // naming one batch, is what forecloses it.
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
