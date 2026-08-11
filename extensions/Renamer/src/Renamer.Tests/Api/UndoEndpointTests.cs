@@ -17,13 +17,17 @@ namespace Renamer.Tests.Api;
 /// <summary>
 /// The <c>/undo</c> + <c>/last-batch</c> API surface, driven end-to-end on the real spine
 /// (SQLite + a real <see cref="TempDir"/>, mirroring <see cref="RenamerExecutorIntegrationTests"/>).
-/// Each test first performs a REAL renamer through <c>RunRenamerBatchAsync</c> (so a genuine one-batch
-/// log is written to the extension's store) and then exercises the endpoints on the SAME extension
+/// Each test first performs one or more REAL renamers through <c>RunRenamerBatchAsync</c> (so genuine
+/// batches are journalled) and then exercises the endpoints on the SAME extension
 /// instance — the RevertLog blob lives in the extension's <see cref="FakeStore"/>, the undo event is
 /// captured on the wired <see cref="CapturingEventBus"/>, and the DbContext is resolved from the
 /// wired scope factory exactly as the production handler does. Proves: round-trip restore (disk + DB
 /// + correct entity event), header-driven kind (an image batch publishes ImageUpdated — never a Video
-/// default), consume-on-undo (second undo + empty-log are no-ops), and the summary read shape.
+/// default), a batch reaching SPENT as its rows retire rather than being consumed on the first partial
+/// success (a second undo and an empty journal are no-ops), the summary read shape, and that one
+/// journal read names the batch BOTH the summary and the button speak about — including once a newer
+/// batch has settled over an older one that still holds rows, which is the state that used to render
+/// as "No rename to undo." over a live remainder.
 /// </summary>
 [Trait("Tier", "L2")]
 public sealed class UndoEndpointTests
@@ -355,6 +359,170 @@ public sealed class UndoEndpointTests
             Assert.Equal(0, thirdUndo.Undone);
             Assert.Empty(thirdUndo.Failed);
             Assert.Empty(thirdUndo.Skipped);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task LastBatch_OnceANewerBatchSettles_StillNamesTheOlderBatchWithRowsLeft_AndUndoActsOnIt()
+    {
+        // The sequence that stranded a pending retry, reproduced through the endpoints rather than by
+        // seeding two batches by hand: a hand-seeded pair would prove the read and not the situation, and
+        // the point of this case is that the situation needs no failure of its own to arise. A background
+        // metadata edit opens its own batch per edit, so a newer batch settling over an older one that
+        // still holds rows is the ORDINARY state.
+        //
+        // Before this plan the panel's summary read the newest batch whatever its remaining count while
+        // /undo acted on the newest batch that still had rows. Once the newer batch settled the two named
+        // different batches, the summary reported nothing remaining, and the panel rendered "No rename to
+        // undo." over an older batch whose rows were still live and still restorable.
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (folderId, comesId, _) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw comes.mkv", "Comes Back");
+            var (blockedId, blockedFileId) =
+                await SeedVideoIntoFolderAsync(db, folderId, "raw blocked.mkv", "Blocked");
+            var (laterId, _) = await SeedVideoIntoFolderAsync(db, folderId, "raw later.mkv", "Later");
+
+            string comesOld = Path.Combine(dir.Root, "raw comes.mkv");
+            string blockedOld = Path.Combine(dir.Root, "raw blocked.mkv");
+            string blockedNew = Path.Combine(dir.Root, "Blocked.mkv");
+            string laterOld = Path.Combine(dir.Root, "raw later.mkv");
+            File.WriteAllText(comesOld, "comes-bytes");
+            File.WriteAllText(blockedOld, "blocked-bytes");
+            File.WriteAllText(laterOld, "later-bytes");
+
+            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
+            // One worker: every scope in this fixture resolves the one seeded context, and the batch
+            // path's default fan-out would have two workers query it at once.
+            await new global::Renamer.Options.OptionsStore(store).SaveAsync(new global::Renamer.Options.RenamerOptions
+            {
+                FilenameTemplate = "$title",
+                SameVolumeConcurrency = 1,
+            });
+
+            var write = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
+            var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
+            using var journal = new global::Renamer.Execution.CoveRevertJournal(db);
+
+            // ── The deliberate run: two files in one batch. ────────────────────────────────────────
+            await ext.RunRenamerBatchAsync(
+                RenamerJob.Encode("video", [comesId, blockedId]), new FakeJobProgress(), default);
+            string runA = (await journal.ReadUndoTargetAsync())!.Value.RunId;
+
+            // One batch, holding rows, with nothing newer: the case this change must leave exactly as it
+            // was. The run id is read off the journal because the wire summary deliberately carries none.
+            var only = LastBatchValue(await ext.LastBatchAsync(read, default));
+            Assert.True(only.HasBatch);
+            Assert.False(only.Consumed);
+            Assert.Equal(2, only.Count);
+            Assert.Equal(2, only.RemainingCount);
+
+            // A partial undo: one file's original slot is occupied, so the reverse move refuses to
+            // clobber and that row stays in the table — the remainder 26-U3 exists to keep retryable.
+            File.WriteAllText(blockedOld, "someone else's file");
+            var partial = UndoValue(await ext.UndoAsync(write, default));
+            Assert.Equal(1, partial.Undone);
+            Assert.Single(partial.Skipped);
+
+            // ── The newer batch, opened and then fully undone. No failure anywhere in it. ──────────
+            await ext.RunRenamerBatchAsync(
+                RenamerJob.Encode("video", [laterId]), new FakeJobProgress(), default);
+            string runB = (await journal.ReadUndoTargetAsync())!.Value.RunId;
+            Assert.NotEqual(runA, runB);
+
+            Assert.Equal(1, UndoValue(await ext.UndoAsync(write, default)).Undone);
+            Assert.True(File.Exists(laterOld), "the newer batch was fully undone");
+
+            // ── The divergence state. One read names the batch, so both endpoints name the OLDER one. ──
+            // Asserted on the run id, not only on the counts: two batches' counts could agree by
+            // coincidence, and it is the identity that proves the summary and the button agree.
+            Assert.Equal(runA, (await journal.ReadUndoTargetAsync())!.Value.RunId);
+
+            var summary = LastBatchValue(await ext.LastBatchAsync(read, default));
+            Assert.True(summary.HasBatch);
+            Assert.False(summary.Consumed, "the older batch still has a row to restore");
+            Assert.Equal(2, summary.Count);
+            Assert.Equal(1, summary.RemainingCount);
+
+            // ── And the button acts on the batch that was just described. ──────────────────────────
+            File.Delete(blockedOld);
+            var retry = UndoValue(await ext.UndoAsync(write, default));
+            Assert.Equal(1, retry.Undone);
+            Assert.Empty(retry.Skipped);
+
+            // On disk AND in the database: a summary that named the right batch while the undo acted on
+            // another would still fail here.
+            Assert.True(File.Exists(blockedOld), "the older batch's outstanding file is back");
+            Assert.False(File.Exists(blockedNew));
+            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, blockedFileId);
+            Assert.Equal("raw blocked.mkv", basename);
+            Assert.Equal(folderPath + "/raw blocked.mkv", path);
+
+            // The retirement landed on the OLDER batch's counters, which is the other half of "the undo
+            // restored from the run the summary named". Read off that batch's own row by run id, not
+            // through the target read — that read answers "the batch to act on", which is now the newer
+            // settled one again, so asking it here would only confirm itself.
+            var settledA = await db.Set<global::Renamer.Execution.RevertBatchEntity>()
+                .AsNoTracking().SingleAsync(b => b.RunId == runA);
+            Assert.Equal(2, settledA.OriginalCount);
+            Assert.Equal(2, settledA.RestoredCount);
+            Assert.Equal(0, settledA.UnrestorableCount);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task LastBatch_WithEveryBatchSettled_StillDescribesTheNewestOne_AndAFurtherUndoIsANoOp()
+    {
+        // The fallback arm of the one selection read. Nothing is replayable, so there is no batch to
+        // prefer — and the newest aggregate is still the right answer, because a settled rename is
+        // exactly what the panel has to be able to describe ("1 file renamed, 1 restored").
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (folderId, firstId, _) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw first.mkv", "First");
+            var (secondId, _) = await SeedVideoIntoFolderAsync(db, folderId, "raw second.mkv", "Second");
+
+            File.WriteAllText(Path.Combine(dir.Root, "raw first.mkv"), "first-bytes");
+            File.WriteAllText(Path.Combine(dir.Root, "raw second.mkv"), "second-bytes");
+
+            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
+            await SeedTitleOptionsAsync(store);
+
+            var write = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
+            var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
+
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [firstId]), new FakeJobProgress(), default);
+            Assert.Equal(1, UndoValue(await ext.UndoAsync(write, default)).Undone);
+
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [secondId]), new FakeJobProgress(), default);
+            Assert.Equal(1, UndoValue(await ext.UndoAsync(write, default)).Undone);
+
+            var summary = LastBatchValue(await ext.LastBatchAsync(read, default));
+            Assert.True(summary.HasBatch, "a settled rename is still describable");
+            Assert.True(summary.Consumed);
+            Assert.Equal(1, summary.Count);
+            Assert.Equal(0, summary.RemainingCount);
+
+            // A further undo over it answers rather than errors, and restores nothing.
+            var again = await ext.UndoAsync(write, default);
+            Assert.Equal(200, StatusOf(again));
+            Assert.Equal(0, UndoValue(again).Undone);
         }
         finally
         {
