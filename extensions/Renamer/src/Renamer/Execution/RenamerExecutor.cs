@@ -319,10 +319,18 @@ public sealed class RenamerExecutor
             // (8) Success: journal row + reindex event. The row carries plan.EntityId — the SAME value
             //     published on the next line — so the journalled id and the event id are identical by
             //     construction (undo reconstructs the exact forward event from the row).
-            //     Seq is passed as 0 because the journal mints it on append; the sidecar delta is empty
-            //     until the sidecar moves are journalled with the row.
+            //     Seq is passed as 0 because the journal mints it on append.
+            //
+            //     The delta is built from what ACTUALLY moved, never from what was planned, and it is
+            //     RECORDED rather than left to be recomputed at undo time. Two reasons, neither of them
+            //     stylistic: RetargetCaption only rewrites a caption whose name starts with the old
+            //     stem, so the forward transform is not invertible in general; and a caption rename is
+            //     applied only for a sidecar whose file really moved on disk (see the moved-only filter
+            //     above), which is a runtime fact no string arithmetic recovers afterwards. One row and
+            //     one delta at this single append site, so a crash cannot leave the two disagreeing.
+            var delta = BuildRevertDelta(srcFile, movedSidecars, appliedCaptionRenames);
             await _journal.AppendAsync(
-                new RevertRow(_runId, Seq: 0, plan.EntityId, item.FileId, item.OldFullPath, SidecarsJson: ""), ct);
+                new RevertRow(_runId, Seq: 0, plan.EntityId, item.FileId, item.OldFullPath, delta.Serialize()), ct);
             _eventBus.Publish(new EntityEvent(EventTypeFor(plan.Kind), EntityTypeName(plan.Kind), plan.EntityId));
 
             // (9) Opt-in empty-source-folder cleanup, AFTER the save + assertion pass — never before
@@ -459,6 +467,51 @@ public sealed class RenamerExecutor
         }
 
         return (plannedSidecars, captionRenames);
+    }
+
+    /// <summary>
+    /// Builds the reverse-replay payload for one journalled file from what the mover and the save
+    /// actually did: the sidecar moves that happened, and each renamed caption's ORIGINAL stored
+    /// filename.
+    /// </summary>
+    /// <remarks>
+    /// The caption's ORIGINAL filename is what goes in, not the new one: the reverse direction needs
+    /// the value it restores TO, and deriving it later would reintroduce the non-invertible transform
+    /// this whole payload exists to avoid. A rename that carried nothing yields
+    /// <see cref="RevertDelta.Empty"/>, which serializes to the journal column's existing empty marker.
+    /// </remarks>
+    private static RevertDelta BuildRevertDelta(
+        RenamerFile? srcFile,
+        IReadOnlyList<(string From, string To)> movedSidecars,
+        List<(int CaptionId, string NewFilename)> appliedCaptionRenames)
+    {
+        if (movedSidecars.Count == 0 && appliedCaptionRenames.Count == 0)
+        {
+            return RevertDelta.Empty;
+        }
+
+        // The names as they stood BEFORE the save rewrote them — the loaded entity is the only place
+        // they still exist by the time this runs.
+        var originalCaptionNames = new Dictionary<int, string>();
+        foreach (var cap in srcFile?.Captions ?? [])
+        {
+            originalCaptionNames[cap.CaptionId] = cap.Filename;
+        }
+
+        var captions = new List<RevertCaptionDelta>(appliedCaptionRenames.Count);
+        foreach (var (captionId, _) in appliedCaptionRenames)
+        {
+            if (originalCaptionNames.TryGetValue(captionId, out var originalFilename))
+            {
+                captions.Add(new RevertCaptionDelta(captionId, originalFilename));
+            }
+        }
+
+        // The movers speak native separators; the journal speaks forward-slash, as every other path it
+        // stores does.
+        return new RevertDelta(
+            [.. movedSidecars.Select(s => new RevertSidecarDelta(NormalizeSlash(s.From), NormalizeSlash(s.To)))],
+            captions);
     }
 
     /// <summary>
