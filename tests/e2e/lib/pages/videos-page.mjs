@@ -82,12 +82,30 @@ export class VideosPage {
   }
 
   /**
+   * Every unselected card's "Select item" button, in DOM order. Exposed so a caller can WAIT for the
+   * grid to hold the number of cards it seeded before selecting — the grid's contents arrive from a
+   * client-side fetch, so a count taken too early is a count of however much had rendered. Shared with
+   * {@link selectFirstCards} so the button's accessible name is written once.
+   */
+  get selectItemButtons() {
+    return this.page.getByRole("button", { name: "Select item" });
+  }
+
+  /**
    * Selects the first {@link count} grid cards by their "Select item" buttons — robust to whether a card's
    * accessible name shows the title or the filename (the batch tests only need SOME selection, not a
    * specific card).
+   *
+   * Deliberately POSITION-based rather than name-based, and that is the hazard it exists to contain: a
+   * name-scoped selection is ordering-dependent (see {@link cardByFilename}), and on a worker-shared
+   * instance the grid also carries sibling specs' leftover videos, so scoping by name there is a
+   * selection that can time out or land on the wrong card. Nothing about position is asserted here
+   * either — the return value is the number of cards ACTUALLY clicked, clamped to what the grid held,
+   * so a caller that does not assert it equals what it asked for can select one card, rename it, and
+   * conclude something about multi-select.
    */
   async selectFirstCards(count = 1) {
-    const selectButtons = this.page.getByRole("button", { name: "Select item" });
+    const selectButtons = this.selectItemButtons;
     await expect(selectButtons.first()).toBeVisible({ timeout: 15_000 });
     const available = await selectButtons.count();
     const n = Math.min(count, available);
