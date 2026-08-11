@@ -204,8 +204,14 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          if [[ -z "$MINIMUM_TOTAL" ]]; then
-            echo "::error::$EXTENSION_NAME declares a testProjectPath but no unitTestMinimumTotal in extensions/catalog.json. Without a floor this leg cannot tell a full run from a smaller one, so it would report green while proving less."
+          # A POSITIVE-INTEGER shape check, not merely a non-empty one. Non-empty passes "0", and a floor
+          # of zero admits any total — a gate that reads as configured while comparing against nothing.
+          # It also passes a typo, which bash arithmetic resolves to 0 for the same effect. The pattern
+          # additionally keeps catalog text out of arithmetic context: `(( x < $VAR ))` EVALUATES $VAR's
+          # content, where an array subscript performs command substitution, so a fork-editable file
+          # would reach the runner as code. Comparison below uses [ -lt ] on validated digits instead.
+          if [[ ! "$MINIMUM_TOTAL" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::$EXTENSION_NAME declares a testProjectPath but unitTestMinimumTotal in extensions/catalog.json is '$MINIMUM_TOTAL', not a positive integer. Without a usable floor this leg cannot tell a full run from a smaller one, so it would report green while proving less."
             exit 1
           fi
           dotnet test "$TEST_PROJECT_PATH" -c Release -p:CoveSourceMode=none | tee /tmp/unit-tier.log
@@ -214,7 +220,7 @@ jobs:
             echo "::error::No Total: figure in the test output — the run did not report, which is a failure and not a zero."
             exit 1
           fi
-          if (( total < MINIMUM_TOTAL )); then
+          if [ "$total" -lt "$MINIMUM_TOTAL" ]; then
             echo "::error::$EXTENSION_NAME ran $total tests against a floor of $MINIMUM_TOTAL. A file dropped off the cove-absent leg — check the Compile-Remove list rather than lowering the floor."
             exit 1
           fi
@@ -363,8 +369,11 @@ jobs:
             echo "::notice::$EXTENSION_NAME declares no testProjectPath — skipping the cove-present tier."
             exit 0
           fi
-          if [[ -z "$MINIMUM_TOTAL" ]]; then
-            echo "::error::$EXTENSION_NAME declares a testProjectPath but no coveTestMinimumTotal in extensions/catalog.json. Without a floor this tier cannot tell a full run from a smaller one, so it would report green while proving less."
+          # Positive integer, not merely non-empty — see the unit tier's floor for why "0" and a typo
+          # both disarm the comparison, and why validating the shape here keeps catalog text out of the
+          # arithmetic context the comparison would otherwise evaluate.
+          if [[ ! "$MINIMUM_TOTAL" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::$EXTENSION_NAME declares a testProjectPath but coveTestMinimumTotal in extensions/catalog.json is '$MINIMUM_TOTAL', not a positive integer. Without a usable floor this tier cannot tell a full run from a smaller one, so it would report green while proving less."
             exit 1
           fi
           echo "has_tier=true" >> "$GITHUB_OUTPUT"
@@ -429,7 +438,9 @@ jobs:
             echo "::error::No Total: figure in the test output — the run did not report, which is a failure and not a zero."
             exit 1
           fi
-          if (( total < MINIMUM_TOTAL )); then
+          # [ -lt ] on digits the check step already validated, never (( )) — arithmetic context
+          # re-evaluates the variable's CONTENT, so catalog text would reach the runner as code.
+          if [ "$total" -lt "$MINIMUM_TOTAL" ]; then
             echo "::error::$EXTENSION_NAME ran $total tests against a floor of $MINIMUM_TOTAL. The leg compiled less than CoveSourceMode=assemblies implies — check that the extraction is complete rather than lowering the floor."
             exit 1
           fi
@@ -456,29 +467,50 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Every catalog-derived value in this job's shell bodies arrives through the step's own
+      # environment and is read as a quoted variable, for the reason the build job states above:
+      # extensions/catalog.json is editable by a pull request from a fork, and a value in the
+      # environment is data the shell reads, where the same value in the body is code the shell runs.
+      # The worst outcome here is not exfiltration — an injected body can `exit 0`, so this job would
+      # report success having run no specs, and required-check aggregation would go green over it.
+      # `if:`, `with:` and `working-directory:` are evaluated by Actions rather than by a shell, so a
+      # value reaching only those is not part of this hazard.
       - name: Check for an e2e suite
         id: check
         shell: bash
         run: |
-          if [[ -n "${{ matrix.extension.e2ePath }}" && -d "${{ matrix.extension.e2ePath }}" && -n "${{ matrix.extension.e2eProject }}" ]]; then
+          if [[ -n "$E2E_PATH" && -d "$E2E_PATH" && -n "$E2E_PROJECT" ]]; then
             echo "has_suite=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_suite=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::${{ matrix.extension.name }} has no e2ePath/e2eProject in catalog.json (or the directory is missing) — skipping E2E for this extension."
+            echo "::notice::$EXTENSION_NAME has no e2ePath/e2eProject in catalog.json (or the directory is missing) — skipping E2E for this extension."
           fi
           # Fail closed on the node:test tier: a catalog entry DECLARING an e2eNodeTestsPath makes the
           # tier required, so a declared-but-missing directory (a typo or a moved/deleted path) is a hard
           # error here — never a silent has_node_tests=false that would skip the required correctness run.
-          if [[ -n "${{ matrix.extension.e2eNodeTestsPath }}" ]]; then
-            if [[ -d "${{ matrix.extension.e2eNodeTestsPath }}" ]]; then
+          #
+          # When NO entry declares the path the tier gates nothing, and that says so out loud rather than
+          # skipping quietly. The distinction matters because the steps below describe this tier as a
+          # required backstop: a reader of required-checks would otherwise take contracts to be covered
+          # that no job ran. Its one historical subscriber was the WhisparrSync entry, removed in e6b2263;
+          # the mechanism is kept because it is catalog-driven and a second extension can subscribe
+          # without a workflow edit, but an unsubscribed gate must not read as a passing one.
+          if [[ -n "$E2E_NODE_TESTS_PATH" ]]; then
+            if [[ -d "$E2E_NODE_TESTS_PATH" ]]; then
               echo "has_node_tests=true" >> "$GITHUB_OUTPUT"
             else
-              echo "::error::e2eNodeTestsPath '${{ matrix.extension.e2eNodeTestsPath }}' is declared in catalog.json but that directory does not exist — the required node:test correctness tier cannot run."
+              echo "::error::e2eNodeTestsPath '$E2E_NODE_TESTS_PATH' is declared in catalog.json but that directory does not exist — the required node:test correctness tier cannot run."
               exit 1
             fi
           else
             echo "has_node_tests=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$EXTENSION_NAME declares no e2eNodeTestsPath in catalog.json, so the node:test correctness tier ran NOTHING for it and gated nothing. Declare the path to subscribe."
           fi
+        env:
+          EXTENSION_NAME: ${{ matrix.extension.name }}
+          E2E_PATH: ${{ matrix.extension.e2ePath }}
+          E2E_PROJECT: ${{ matrix.extension.e2eProject }}
+          E2E_NODE_TESTS_PATH: ${{ matrix.extension.e2eNodeTestsPath }}
 
       - name: Setup .NET
         if: (steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true') && !matrix.extension.manifestOnly
@@ -502,7 +534,11 @@ jobs:
       # the remedy is adding that flag to this step, never weakening the check.
       - name: Build extension (publish output for the harness to install)
         if: (steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true') && !matrix.extension.manifestOnly
-        run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o ${{ matrix.extension.path }}/artifacts/publish -p:CoveSourceMode=none
+        shell: bash
+        run: dotnet publish "$PROJECT_PATH" -c Release -o "$EXTENSION_PATH/artifacts/publish" -p:CoveSourceMode=none
+        env:
+          PROJECT_PATH: ${{ matrix.extension.projectPath }}
+          EXTENSION_PATH: ${{ matrix.extension.path }}
 
       - name: Setup Node
         if: steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true'
@@ -535,24 +571,34 @@ jobs:
         id: e2e
         if: steps.check.outputs.has_suite == 'true'
         working-directory: tests/e2e
-        run: npx playwright test --project=${{ matrix.extension.e2eProject }}
+        shell: bash
+        run: npx playwright test --project="$E2E_PROJECT"
+        env:
+          E2E_PROJECT: ${{ matrix.extension.e2eProject }}
 
-      # Did-it-run guard: the node:test correctness tier is a REQUIRED safety backstop (it exercises the
-      # loop-safety / ingest / rollback contracts that are Compile-Removed from the bare C# leg), so a
-      # silent "0 specs found" must FAIL rather than pass green. This closes the empty-glob case (the
-      # directory exists but holds no *.test.mjs); the declared-but-missing/mis-pointed path is already a
-      # hard error in the check step above. Runs only when the catalog declares the path.
+      # Did-it-run guard for a SUBSCRIBING entry: where the catalog declares the path, the node:test
+      # correctness tier is a required backstop (it exercises loop-safety / ingest / rollback contracts
+      # that are Compile-Removed from the bare C# leg), so a silent "0 specs found" must FAIL rather than
+      # pass green. This closes the empty-glob case (the directory exists but holds no *.test.mjs); the
+      # declared-but-missing path is already a hard error in the check step above, and the no-subscriber
+      # case is reported there as a notice rather than passing unremarked.
+      #
+      # Required is conditional on subscription, and the wording above is deliberate: no entry declares
+      # the path today, so this tier currently covers none of those contracts. Read it as what gates a
+      # subscriber, never as a statement that the contracts are gated.
       - name: Guard the node:test tier actually has specs
         if: steps.check.outputs.has_node_tests == 'true'
         shell: bash
         run: |
           shopt -s nullglob
-          specs=(${{ matrix.extension.e2eNodeTestsPath }}/*.test.mjs)
+          specs=("$E2E_NODE_TESTS_PATH"/*.test.mjs)
           if [ ${#specs[@]} -eq 0 ]; then
-            echo "::error::has_node_tests=true but no *.test.mjs under ${{ matrix.extension.e2eNodeTestsPath }} — the required node correctness tier would silently pass."
+            echo "::error::has_node_tests=true but no *.test.mjs under $E2E_NODE_TESTS_PATH — the required node correctness tier would silently pass."
             exit 1
           fi
           echo "node:test tier: found ${#specs[@]} spec file(s)."
+        env:
+          E2E_NODE_TESTS_PATH: ${{ matrix.extension.e2eNodeTestsPath }}
 
       # The container-correctness tier: an extension's non-browser API/webhook/sync specs run against
       # real containers whose external metadata source is a committed offline replay stub. It reads no
@@ -564,7 +610,10 @@ jobs:
       - name: Run node:test correctness tier (offline, no secret)
         id: node_tests
         if: steps.check.outputs.has_node_tests == 'true'
-        run: node --test --test-concurrency=1 ${{ matrix.extension.e2eNodeTestsPath }}/*.test.mjs
+        shell: bash
+        run: node --test --test-concurrency=1 "$E2E_NODE_TESTS_PATH"/*.test.mjs
+        env:
+          E2E_NODE_TESTS_PATH: ${{ matrix.extension.e2eNodeTestsPath }}
 
       # The `list` reporter's stdout only ever shows pass/fail + duration, never the actual
       # assertion/stack-trace detail, which otherwise only reaches the Upload Playwright report
