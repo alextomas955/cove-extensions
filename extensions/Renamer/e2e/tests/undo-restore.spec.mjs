@@ -23,6 +23,10 @@
 // undo that brings all three home, and a partial undo that can be retried and acts only on what is
 // left.
 //
+// A second test in this file covers the one-way migration of an older release's stored journal blob
+// into that table. It belongs beside the above for the same reason the table assertion does: the
+// migration runs at initialize and nowhere else, so a host is the only thing that can drive it.
+//
 // Its own instance per test (isolatedTest), not the worker-shared harness: this file renames, undoes,
 // uninstalls and reinstalls, all of which are instance-global. On a shared instance the accumulated
 // media also makes ordering flaky, which is the recorded reason the isolated fixture exists.
@@ -41,6 +45,20 @@ const EXTENSION_ID = "com.alextomas955.renamer";
 const ROUTE = `/api/extensions/${EXTENSION_ID}`;
 const MIGRATION_NAME = "001_create_revert_journal";
 const MEDIA_DIR = "/data";
+
+// The two legacy store keys the blob-to-table migration reads and then deletes, and the stamp it
+// requires before it will parse the blob at all. Spelled out here rather than imported because these
+// are an on-disk contract an older release wrote: the C# constants may be renamed, but what an
+// installed instance carries cannot be, so a test that followed a rename would stop describing the
+// data it exists to migrate.
+const LEGACY_JOURNAL_KEY = "revertlog";
+const LEGACY_SCHEMA_KEY = "journal-schema";
+const LEGACY_SCHEMA = "2";
+
+// .NET ticks count 100 ns units from 0001-01-01 and a batch header carries a server-written UTC-ticks
+// stamp, so a tick value has to be built from the Unix epoch's own tick offset. BigInt because the
+// result is far outside the range a JS number holds exactly.
+const UNIX_EPOCH_TICKS = 621355968000000000n;
 
 /**
  * Runs one SQL statement in the database container and returns its single unaligned value.
@@ -65,6 +83,14 @@ function countJournalTables(harness) {
     "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' " +
       "AND table_name IN ('renamer_revert_batches', 'renamer_revert_rows')",
   );
+}
+
+/** How many batches, and how many rows, the journal currently holds. */
+async function journalCounts(harness) {
+  return {
+    batches: await queryDb(harness, "SELECT count(*) FROM renamer_revert_batches"),
+    rows: await queryDb(harness, "SELECT count(*) FROM renamer_revert_rows"),
+  };
 }
 
 /** Whether the host recorded a receipt for the journal migration (0 or 1). */
@@ -427,4 +453,190 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
     journalledRows,
     "the reinstalled extension renamed a file but recorded nothing — a rename it cannot undo",
   ).toBe("1");
+});
+
+// The blob-to-table migration, driven the only way it can be driven end to end: a real containerized
+// Cove STARTED ON TOP of a stored legacy journal, with the migrated rows read off the running instance.
+//
+// The migration is otherwise covered only by tiers that hand a blob to `JournalBlobMigration.RunAsync`
+// directly. None of those starts a host, so none can answer whether the host runs the migration at all
+// — and a failed extension initialize is a host log line and nothing more, so "the extension is
+// enabled" is not evidence here any more than it is for the table above.
+//
+// The expectation throughout is the blob this test WROTE. Nothing below is read back from the journal
+// to decide what to expect, and the migration is never called to compute it: an expectation obtained
+// from the code under test agrees with that code forever.
+test("a legacy journal blob the host starts on top of migrates into the table, survives a second start unduplicated, and undoes to the path it named", async ({
+  isolatedHarness,
+}) => {
+  // A container boot plus TWO full restarts plus an undo. The default per-test budget covers a single
+  // rename, not a sequence that boots and restarts twice.
+  test.setTimeout(900_000);
+
+  const container = isolatedHarness.container;
+  const stamp = Date.now();
+  const seedApi = createApiClient(() => isolatedHarness.baseUrl, isolatedHarness.token);
+
+  // The extension has already initialized once, with neither legacy key present, so the migration has
+  // run and moved nothing. That is what makes the seed below a genuine PRE-migration state rather than
+  // a second pass over one already taken — and an empty journal is how that is known rather than
+  // assumed, since a row already here would make every count further down unattributable.
+  expect(
+    (await journalCounts(isolatedHarness)).rows,
+    "the journal already holds rows before anything was seeded, so no count below could be attributed to the migration",
+  ).toBe("0");
+
+  const video = await seedVideo({
+    container,
+    baseUrl: isolatedHarness.baseUrl,
+    destName: `undo-legacy-${stamp}.mp4`,
+  });
+  const fileId = video.files[0].id;
+  const seededPath = video.files[0].path;
+  expect(await fileExists(container, seededPath), `seeded media missing: ${seededPath}`).toBe(true);
+
+  // The path the blob CLAIMS the file was renamed away from, and therefore the path the undo has to put
+  // it back at. In the media folder, so the reverse move is an in-folder rename against a folder Cove
+  // already holds a row for. The direction is inverted relative to history — a real installation's blob
+  // names a path its file genuinely came from — and that inversion is deliberate: it leaves the MIGRATED
+  // batch the only batch in the journal, so nothing here can pass on a batch a forward rename opened.
+  const claimedOldPath = `${MEDIA_DIR}/undo-legacy-restored-${stamp}.mp4`;
+  expect(
+    await fileExists(container, claimedOldPath),
+    "the restore target already holds a file, so a restore that was skipped to avoid clobbering it would be indistinguishable from one that succeeded",
+  ).toBe(false);
+
+  // Two days back: unmistakably not the moment the migration runs, and well inside the retention window
+  // so opening the batch does not purge it. The migration stamps a migrated batch with the HEADER's own
+  // time on purpose — restamping would silently extend a batch that should already be ageing — and that
+  // is a claim its own documentation makes with nothing asserting it.
+  const writtenAtTicks = UNIX_EPOCH_TICKS + BigInt(stamp - 2 * 24 * 60 * 60 * 1000) * 10000n;
+  const runId = `legacy-run-${stamp}`;
+
+  // The shape is `JournalBlobMigration`'s own reader's, taken from it: a `#batch|runId|ticks|kind|status`
+  // header whose status must be the open marker for the batch to be replayable at all, then
+  // `entityId|fileId|oldPath` rows. The entity id is the PARENT entity, the file id the physical row.
+  const legacyBlob =
+    `#batch|${runId}|${writtenAtTicks}|Video|open\n` + `${video.id}|${fileId}|${claimedOldPath}\n`;
+
+  // The raw value, NOT a pre-stringified one. The host's data route binds `[FromBody] string` and so
+  // wants exactly one JSON string literal on the wire — and the client already applies that one
+  // encoding. Passing a value that has been through JSON.stringify here stores its QUOTED form, whose
+  // first character is not the header marker, so the migration reads the whole thing as a headerless
+  // blob and silently moves a row of nonsense. That is what the read-back below is for.
+  const seededBlob = await seedApi.put(`${ROUTE}/data/${LEGACY_JOURNAL_KEY}`, legacyBlob);
+  expect(
+    seededBlob.ok,
+    `seeding the legacy journal blob answered ${seededBlob.status}: ${seededBlob.text}`,
+  ).toBe(true);
+  const seededSchema = await seedApi.put(`${ROUTE}/data/${LEGACY_SCHEMA_KEY}`, LEGACY_SCHEMA);
+  expect(
+    seededSchema.ok,
+    `seeding the legacy schema stamp answered ${seededSchema.status}: ${seededSchema.text}`,
+  ).toBe(true);
+
+  // Read the store back BEFORE restarting. The migration reads these two keys and nothing else, so a
+  // seed the host did not keep — a rejected write, a key spelled differently, a value re-encoded on the
+  // way in — would leave every assertion after the restart passing over no input at all.
+  const beforeRestart = await seedApi.get(`${ROUTE}/data`);
+  expect(
+    beforeRestart.ok,
+    `reading the extension store back answered ${beforeRestart.status}: ${beforeRestart.text}`,
+  ).toBe(true);
+  expect(
+    beforeRestart.json[LEGACY_JOURNAL_KEY],
+    "the host did not keep the legacy journal blob byte-for-byte, so the migration would read something this test did not write",
+  ).toBe(legacyBlob);
+  expect(
+    beforeRestart.json[LEGACY_SCHEMA_KEY],
+    "the host did not keep the legacy schema stamp, and without it the migration discards the blob unparsed and reports moving nothing",
+  ).toBe(LEGACY_SCHEMA);
+
+  // ── Start the host over on top of it ────────────────────────────────────────────────────────────
+  //
+  // The migration runs at InitializeAsync and nowhere else, so there is no way to reach it while the
+  // host stays up. Everything after this reads the RESTARTED instance: its published host port can be
+  // reassigned, and every token minted before the restart is invalid, so the client is rebuilt from the
+  // token `restart()` re-minted.
+  await isolatedHarness.restart();
+  const api = createApiClient(() => isolatedHarness.baseUrl, isolatedHarness.token);
+
+  // A longer budget than the helper's default: this waits for a container restart AND the extension's
+  // whole initialize, on a Docker host that may be running a sibling suite. The endpoint answers with
+  // no batch until the migration lands, so a short budget would report a defect where the only fault
+  // was load.
+  const migrated = await pollUntil(
+    () => api.get(`${ROUTE}/last-batch`).then((r) => r.json),
+    (summary) => summary?.hasBatch === true,
+    {
+      timeoutMs: 120_000,
+      label: "the restarted host to migrate the seeded legacy journal into the journal table",
+    },
+  );
+  expect(
+    migrated.count,
+    "the migrated batch does not hold exactly the one row the seeded blob described",
+  ).toBe(1);
+  expect(migrated.remainingCount).toBe(1);
+  expect(
+    migrated.unrestorableCount,
+    "the migrated row arrived already written off, so the undo below would have nothing to do",
+  ).toBe(0);
+  expect(migrated.consumed, "a migrated batch whose row is still pending is not spent").toBe(false);
+  // Compared with a millisecond of slack rather than exactly: the wire carries the stamp as a JSON
+  // number, and a tick value is past the range a double holds exactly. A restamp would be seconds out,
+  // so the slack cannot hide the failure this checks for.
+  expect(
+    Math.abs(migrated.writtenAtUtcTicks - Number(writtenAtTicks)),
+    "the migrated batch was restamped with the migration's own clock instead of keeping the age the blob gave it",
+  ).toBeLessThan(10_000);
+
+  // ── The legacy keys are gone ────────────────────────────────────────────────────────────────────
+  //
+  // Their deletion IS the migration's idempotency marker — there is deliberately no second flag — so
+  // this read is the whole of what stops a re-migration.
+  const afterMigration = await api.get(`${ROUTE}/data`);
+  expect(afterMigration.ok, `reading the store back answered ${afterMigration.status}`).toBe(true);
+  expect(
+    Object.keys(afterMigration.json),
+    "the legacy journal key survived the migration, so every later start would move its rows again",
+  ).not.toContain(LEGACY_JOURNAL_KEY);
+  expect(
+    Object.keys(afterMigration.json),
+    "the legacy schema stamp survived the migration",
+  ).not.toContain(LEGACY_SCHEMA_KEY);
+
+  // ── A second start moves nothing ────────────────────────────────────────────────────────────────
+  //
+  // The cleared keys above are the mechanism; this is the behaviour. Asserted before the undo, because
+  // an undo deletes the rows it restores and a duplicate would then have nothing left to show up in.
+  await isolatedHarness.restart();
+  const afterSecondStart = createApiClient(() => isolatedHarness.baseUrl, isolatedHarness.token);
+  await pollUntil(
+    () => afterSecondStart.get(`${ROUTE}/last-batch`).then((r) => r.json),
+    (summary) => summary?.hasBatch === true,
+    { timeoutMs: 120_000, label: "the twice-restarted host to serve the migrated batch again" },
+  );
+  expect(
+    await journalCounts(isolatedHarness),
+    "a second start moved the legacy blob again — the migration is not once-only",
+  ).toEqual({ batches: "1", rows: "1" });
+
+  // ── The undo puts the file where the blob said it came from ─────────────────────────────────────
+  const undo = await afterSecondStart.post(`${ROUTE}/undo`);
+  expect(undo.status, `undo over the migrated batch failed: ${undo.text}`).toBe(200);
+  expect(undo.json.undone, "the migrated row did not restore").toBe(1);
+  expect(undo.json.failedCount).toBe(0);
+  expect(undo.json.skippedCount).toBe(0);
+
+  await assertRestoredTo({
+    api: afterSecondStart,
+    container,
+    videoId: video.id,
+    originalPath: claimedOldPath,
+  });
+  expect(
+    await fileExists(container, seededPath),
+    "the file is at the path the blob named AND still at the one it came from, so the undo copied rather than moved",
+  ).toBe(false);
 });

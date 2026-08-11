@@ -2,12 +2,14 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi;
 using Xunit;
+using Xunit.Sdk;
 
 namespace Cove.Extensions.Shared.Testing;
 
@@ -148,16 +150,7 @@ public abstract class ExtensionOpenApiDocumentTests
 
         var writer = new StringWriter();
         document.SerializeAsV31(new OpenApiJsonWriter(writer));
-
-        // Two kinds of carriage return can reach this string and only one of them is a line ending the
-        // CLR recognizes. .NET 10 folds C# /// comments into schema descriptions, and the compiler
-        // writes its XML doc file with the platform's newline — so a description built on Windows
-        // carries a CRLF that the JSON writer emits as the two-character ESCAPE \r\n, which
-        // ReplaceLineEndings does not see. Both are normalized, and the assertion then refuses to write
-        // a file that still holds a carriage return in either form: without it the Windows and Linux
-        // runs disagree about this file forever, each rewriting what the other committed.
-        var json = writer.ToString().ReplaceLineEndings("\n").Replace("\\r\\n", "\\n", StringComparison.Ordinal);
-        Assert.DoesNotContain("\\r", json, StringComparison.Ordinal);
+        var json = NormalizeForCommit(writer.ToString());
 
         var path = ResolveDocumentPath();
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -165,6 +158,97 @@ public abstract class ExtensionOpenApiDocumentTests
         // One call, so an interrupted or concurrent run leaves either the previous complete document or
         // the new one, never a half-written file that the CI diff would report as a wire change.
         File.WriteAllText(path, json);
+    }
+
+    /// <summary>
+    /// Measures — rather than asserting from the current document's contents — that a C# doc comment
+    /// reaches a schema description, which is the input the carriage-return rewrite exists for.
+    /// </summary>
+    /// <remarks>
+    /// The comment cache the OpenAPI integration's source generator builds is scoped to the compilation
+    /// that calls <c>AddOpenApi</c>, and that call is in this assembly, so the fixture shape has to be
+    /// declared beside it for the description path to be reachable at all: an extension's own wire types
+    /// are in a project this one cannot reference and are therefore invisible to the generator. That is
+    /// why an extension's emitted document carries no schema description, and why concluding from its
+    /// absence that the escape form cannot occur would be wrong — the mechanism is live at this call
+    /// site, and one shape declared here is enough to put a platform-dependent newline in the output.
+    /// </remarks>
+    [Fact]
+    public async Task ADocCommentSpanningMoreThanOneLineReachesASchemaDescription()
+    {
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.WebHost.UseTestServer();
+        builder.Services.AddRouting();
+        builder.Services.AddOpenApi(DocumentName, _ => { });
+
+        var app = builder.Build();
+        app.MapGet("/doc-comment-fixture", () => TypedResults.Ok(new MultiLineSummaryFixture(1)));
+        await app.StartAsync();
+
+        var provider = app.Services.GetRequiredKeyedService<IOpenApiDocumentProvider>(DocumentName);
+        var document = await provider.GetOpenApiDocumentAsync(CancellationToken.None);
+        var writer = new StringWriter();
+        document.SerializeAsV31(new OpenApiJsonWriter(writer));
+        var raw = writer.ToString();
+
+        // The description is in the document at all — the half of this that had never been checked.
+        Assert.Contains("A fixture shape whose summary spans", raw, StringComparison.Ordinal);
+
+        // And it spans lines, so the string value carries whichever newline the generated source did.
+        // Matching the ESCAPE with the carriage return OPTIONAL is what keeps this platform-blind: the
+        // writer escapes a line ending inside a string value either way, and which one arrives is the
+        // platform's choice rather than this repository's.
+        Assert.Matches(@"A fixture shape whose summary spans(\\r)?\\n", raw);
+
+        Assert.DoesNotContain("\\r", NormalizeForCommit(raw), StringComparison.Ordinal);
+    }
+
+    /// <summary>Refuses a serialization with nothing in it, so the rewrite cannot pass over no input.</summary>
+    [Fact]
+    public void NormalizingRefusesADocumentWithNothingInIt() =>
+        Assert.ThrowsAny<XunitException>(() => NormalizeForCommit(string.Empty));
+
+    /// <summary>The escape-form rewrite, on the shape a multi-line description produces on Windows.</summary>
+    [Fact]
+    public void NormalizingRewritesACarriageReturnEscapedInsideAStringValue() =>
+        Assert.Equal(
+            "{\"description\":\"first\\nsecond\"}",
+            NormalizeForCommit("{\"description\":\"first\\r\\nsecond\"}"));
+
+    /// <summary>
+    /// A lone escaped carriage return is not a line-ending pair, so the rewrite leaves it and the
+    /// assertion is the only thing standing between it and the committed file.
+    /// </summary>
+    [Fact]
+    public void NormalizingRefusesACarriageReturnItCannotRewrite() =>
+        Assert.ThrowsAny<XunitException>(
+            () => NormalizeForCommit("{\"description\":\"first\\rsecond\"}"));
+
+    // The document is committed and CI diffs it, so its bytes must not depend on which platform emitted
+    // them. Two forms of carriage return reach the serialized string and only one is a line ending the
+    // CLR recognizes:
+    //
+    //   * the writer's own line breaks, which a StringWriter takes from Environment.NewLine, and which
+    //     ReplaceLineEndings sees;
+    //   * a carriage return INSIDE a string value, which the JSON writer emits as the two-character
+    //     escape that ReplaceLineEndings therefore cannot see. Schema descriptions are where these come
+    //     from: the OpenAPI integration's source generator folds a C# /// comment into a description by
+    //     embedding it in a generated source file, and Roslyn writes that file with the platform's
+    //     newline — so a summary spanning more than one line arrives as CRLF on Windows and LF on Linux
+    //     even in a repository whose hand-written sources are LF everywhere.
+    //
+    // Both are normalized and the assertion then refuses to hand back a document still holding a
+    // carriage return in the escape form, which the rewrite above deliberately does not cover for a lone
+    // CR. Without all of this the Windows and Linux runs disagree about the committed file forever, each
+    // rewriting what the other committed. The non-empty precondition comes first because an assertion
+    // about what a string does not contain is satisfied by a string containing nothing.
+    private static string NormalizeForCommit(string serialized)
+    {
+        Assert.NotEmpty(serialized);
+
+        var json = serialized.ReplaceLineEndings("\n").Replace("\\r\\n", "\\n", StringComparison.Ordinal);
+        Assert.DoesNotContain("\\r", json, StringComparison.Ordinal);
+        return json;
     }
 
     // The document path is repo-relative so the same test writes the same file from any working
@@ -187,3 +271,17 @@ public abstract class ExtensionOpenApiDocumentTests
                 + $"document path '{DocumentPath}' cannot be resolved.");
     }
 }
+
+/// <summary>
+/// A fixture shape whose summary spans
+/// more than one source line on purpose, so the description folded into the emitted document carries a
+/// newline and the escape form the normalization rewrites is produced rather than described.
+/// </summary>
+/// <remarks>
+/// Declared in THIS assembly because the generator's comment cache is scoped to the compilation holding
+/// the <c>AddOpenApi</c> call, so a shape declared anywhere else reaches no description. It is a fixture
+/// and nothing ships it: it is never part of any extension's document, which is emitted from that
+/// extension's own registration.
+/// </remarks>
+/// <param name="Value">Present only so the shape has a member and becomes a component schema.</param>
+public sealed record MultiLineSummaryFixture(int Value);
