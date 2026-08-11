@@ -92,12 +92,17 @@ Know what undo covers:
 
 - Undo is kept for **7 days**. Several renames can be waiting at once, so starting another rename no
   longer discards the one before it.
+- The panel and the button both reach the most recent rename that **still has files to put back**.
+  When two renames are waiting, the newer one is offered first. The older one is not lost — it keeps
+  its own 7 days, and the panel offers it again as soon as the newer one has nothing left to restore.
+  What you cannot do is reach past the newer rename to get to it.
 - A rename expires as a whole. When its 7 days are up, everything it holds goes, including any part
   you had not restored yet.
 - Any rename can be undone, whatever its size.
-- **Rename all files** renames each media kind as its own batch, so undo restores only the **last kind**
-  the run reached. If your library holds videos and images, undoing after a whole-library rename brings
-  back one of them, not both. The success message says so when the run finishes.
+- **Rename all files** renames each media kind as its own batch, so one undo restores one kind — the
+  **last kind** the run reached. If your library holds videos and images, undoing once after a
+  whole-library rename brings back one of them, not both. The success message says so when the run
+  finishes.
 - A pending undo survives an update or a reinstall of Renamer, because the record lives in Cove's
   database rather than in the extension's own folder.
 - Undo does **not** re-create a source folder that ["Delete the source folder when a move leaves it
@@ -114,9 +119,10 @@ Last rename: 1 of 2 restored · 1 remaining · undo available until August 18, 2
 ```
 
 Clear the cause and undo again — the second run acts only on what is left, for as long as the rename
-is still inside its 7 days. One case is final rather than worth retrying: a file that is no longer in
-your library cannot be restored, because Renamer reads its current location from Cove. The panel
-counts those apart.
+is still inside its 7 days. If you started another rename in between, the panel offers that newer one
+first; once it has nothing left to put back, yours is offered again. One case is final rather than
+worth retrying: a file that is no longer in your library cannot be restored, because Renamer reads its
+current location from Cove. The panel counts those apart.
 
 A file can also come back without a companion, when the neighbour's original slot is taken. The media
 file is restored and its Cove record is correct, and the message names the companion that stayed

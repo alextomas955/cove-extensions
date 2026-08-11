@@ -49,6 +49,13 @@ User-facing changes, newest first.
   _12 of 500 restored · 488 remaining · undo available until August 18, 2026_. One case is genuinely
   final rather than worth retrying: a file that is no longer in your library cannot be restored, and
   those are counted apart.
+- **A rename you only partly undid no longer vanishes from the panel.** Anything that started a newer
+  rename — including a single background _Auto-rename on update_ edit — took the panel over, and once
+  that newer one had been put back the panel read _No rename to undo._ while your own files were still
+  waiting. They were never lost, but there was no way to reach them before their seven days ran out.
+  The panel and the button now reach the most recent rename that still has files to put back, so your
+  remainder comes back to the panel and **Undo last rename** acts on it. When two renames are waiting,
+  the newer one is offered first.
 - **An undo left pending from before this upgrade is carried over — once.** Whatever your previous
   version still had waiting is moved into the new record the first time this version loads, keeping
   its original date so it keeps its real age, and the old record is then cleared. It is a one-time
