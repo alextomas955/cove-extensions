@@ -11,15 +11,21 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
+  collectRegistryTags,
+  compareSemver,
   flattenCoveMemberPath,
   orderLayerCandidates,
   parseMsBuildProperties,
+  parseSemver,
   parseTarHeader,
   readCoveImageReference,
+  readExtensionFloors,
   readTarMembers,
   readVersionStrings,
+  resolveCoveLegs,
   selectLayerByContent,
   splitImageReference,
+  splitReleaseChannels,
 } from "./fetch-cove-assemblies.mjs";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
@@ -279,4 +285,141 @@ test("the version-resource reader finds a key's UTF-16 value across its alignmen
     undefined,
     "an absent key yields no entry rather than a guess",
   );
+});
+
+// ---- tag parsing, ranking and leg resolution ------------------------------------------------------
+
+test("the strict-semver regex is the whole filter: every non-semver tag spelling parses to null", () => {
+  // No denylist names `latest`, `nightly`, `sha-*` or the truncated `X.Y` aliases anywhere — the
+  // regex rejects all of them, so an upstream tag convention nobody anticipated cannot leak in
+  // through a list nobody updated.
+  for (const spelling of ["latest", "nightly", "sha-deadbeef", "1.1"]) {
+    assert.equal(parseSemver(spelling), null, spelling);
+  }
+
+  assert.deepEqual(parseSemver("1.1.0"), {
+    tag: "1.1.0",
+    major: 1,
+    minor: 1,
+    patch: 0,
+    prerelease: [],
+  });
+  assert.deepEqual(parseSemver("1.3.0-rc.2").prerelease, ["rc", "2"]);
+});
+
+test("ranking follows semver precedence, including the three pre-release rules", () => {
+  const ranked = [
+    "1.1.0",
+    "1.0.0-alpha.1",
+    "1.2.0-rc.2",
+    "1.0.0",
+    "1.1.1-dev.179",
+    "1.0.0-1",
+    "1.3.0-rc.2",
+    "1.1.0-rc.1",
+    "1.1.1-dev.175",
+    "1.0.0-alpha",
+  ]
+    .map(parseSemver)
+    .sort(compareSemver)
+    .map((parsed) => parsed.tag);
+
+  assert.deepEqual(ranked, [
+    "1.0.0-1", // a numeric identifier ranks BELOW an alphanumeric one
+    "1.0.0-alpha",
+    "1.0.0-alpha.1", // a longer pre-release outranks a shorter prefix of itself
+    "1.0.0", // a release outranks every pre-release of the same version
+    "1.1.0-rc.1",
+    "1.1.0",
+    "1.1.1-dev.175",
+    "1.1.1-dev.179",
+    "1.2.0-rc.2",
+    "1.3.0-rc.2",
+  ]);
+});
+
+test("the GA/pre-release split puts every tag carrying a pre-release component in the pre-release bucket and nothing else", () => {
+  const { ga, prerelease } = splitReleaseChannels(
+    ["1.0.0", "1.1.0", "1.3.0-rc.2", "1.1.1-dev.175", "0.9.0"].map(parseSemver),
+  );
+
+  assert.deepEqual(
+    ga.map((parsed) => parsed.tag),
+    ["0.9.0", "1.0.0", "1.1.0"],
+    "GA ascending, so the newest is last",
+  );
+  assert.deepEqual(
+    prerelease.map((parsed) => parsed.tag),
+    ["1.1.1-dev.175", "1.3.0-rc.2"],
+  );
+});
+
+test("the floor leg resolves to the exact floor tag the registry lists", () => {
+  const resolved = resolveCoveLegs({
+    floor: "1.1.0",
+    tags: ["latest", "nightly", "1.0.0", "1.1.0", "1.3.0-rc.2"],
+  });
+
+  const floorLeg = resolved.legs.find((leg) => leg.role.split("+").includes("floor"));
+  assert.equal(floorLeg.tag, "1.1.0");
+  assert.equal(floorLeg.advisory, false);
+  assert.equal(resolved.examined.tags, 5);
+  assert.equal(resolved.examined.parsed, 3);
+});
+
+test("a floor tag absent from the registry's tag list is refused, never defaulted to something near it", () => {
+  // A floor leg pointing at a tag that is not there would otherwise surface as an HTTP 404 deep
+  // inside the extraction, long after the value that caused it was chosen.
+  assert.throws(
+    () => resolveCoveLegs({ floor: "1.2.0", tags: ["1.1.0", "1.2.0-rc.1", "1.2.0-rc.2"] }),
+    (error) => {
+      assert.match(error.message, /1\.2\.0/);
+      assert.match(error.message, /not/);
+      return true;
+    },
+  );
+});
+
+test("a floor that is not strict semver is refused before it can reach a registry URL", () => {
+  assert.throws(() => resolveCoveLegs({ floor: "1.2", tags: ["1.1.0"] }), /1\.2/);
+});
+
+// ---- the seam with the real catalog ---------------------------------------------------------------
+
+test("every real catalog entry reaches a minCoveVersion floor through its own manifestPath", () => {
+  // minCoveVersion is NOT a catalog field; it lives in each entry's manifest, reached through
+  // manifestPath. Reading the repo's real files here means a catalog entry that loses its manifest
+  // path, or a manifest that loses its floor, fails the validate job's own node --test rather than
+  // failing later as a leg with no version to resolve.
+  const floors = readExtensionFloors();
+
+  assert.ok(floors.length > 0, "extensions/catalog.json must declare at least one extension");
+  for (const { floor, manifestPath } of floors) {
+    assert.ok(
+      parseSemver(floor) !== null,
+      `${manifestPath} declares minCoveVersion '${floor}', which is not strict semver`,
+    );
+  }
+});
+
+// ---- paginated tag reading ------------------------------------------------------------------------
+
+test("the tag reader follows Link: rel=next across pages and reports how many it read", async () => {
+  const pages = {
+    "/v2/x/tags/list": {
+      tags: ["1.0.0", "1.1.0"],
+      link: '</v2/x/tags/list?last=1.1.0&n=2>; rel="next"',
+    },
+    "/v2/x/tags/list?last=1.1.0&n=2": { tags: ["1.2.0"], link: "" },
+  };
+
+  const read = [];
+  const result = await collectRegistryTags(async (pathAndQuery) => {
+    read.push(pathAndQuery);
+    return pages[pathAndQuery];
+  }, "/v2/x/tags/list");
+
+  assert.deepEqual(result.tags, ["1.0.0", "1.1.0", "1.2.0"]);
+  assert.equal(result.pages, 2);
+  assert.deepEqual(read, Object.keys(pages));
 });
