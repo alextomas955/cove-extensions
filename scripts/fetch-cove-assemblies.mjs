@@ -3,9 +3,13 @@
 // host loads — rather than against a source build nobody runs, or against a NuGet closure that does
 // not exist (Cove.Data is on no feed).
 //
-// The image reference is READ from Directory.Build.props, never passed in from workflow YAML and
-// never written here as a literal: one place declares which Cove CI tests against, and a rename of
-// either property fails this script's own node --test rather than drifting silently.
+// The image REPOSITORY is read from Directory.Build.props and is never written here as a literal, so
+// a rename of either image property fails this script's own node --test rather than drifting
+// silently. The TAG may arrive as --tag, because a CI leg testing a resolved version has to say which
+// one — but no workflow YAML names a Cove version literally either: a leg's tag is either the props
+// default or a value --resolve-tags read off the registry against the floor an extension declares in
+// its own manifest. The single declaration is therefore the resolver plus that declared floor, which
+// is a stronger claim than a tag typed in one file, not a weaker one.
 //
 // No `docker`, no `curl`, no `tar`: the registry is spoken to over Node's own fetch and the layer is
 // gunzipped and untarred in-process, so the script needs no binary on PATH and behaves identically
@@ -27,6 +31,7 @@ const repoRoot = path.resolve(import.meta.dirname, "..");
 
 const DEFAULT_PROPS_PATH = path.join(repoRoot, "Directory.Build.props");
 const DEFAULT_OUT_DIR = path.join(repoRoot, "artifacts", "cove-assemblies");
+const DEFAULT_CATALOG_PATH = path.join(repoRoot, "extensions", "catalog.json");
 
 // The one member whose presence defines the layer. It is also what every consumer of the extraction
 // needs, so an extraction that does not carry it is a failure rather than a smaller success.
@@ -234,7 +239,7 @@ export async function selectLayerByContent(candidates, probe) {
     searched.push(`${candidate.digest} (${candidate.size ?? "?"} bytes)`);
     // Sequential on purpose: the descending-size order exists so the first probe normally wins, and
     // probing in parallel would download every layer to learn what one answer already settles.
-     
+
     if (await probe(candidate)) return candidate;
   }
   throw new Error(
@@ -279,6 +284,194 @@ export function readVersionStrings(
 }
 
 // ---------------------------------------------------------------------------------------------
+// Tag resolution. The ranking is pure and the paginated read takes its page reader as an argument,
+// so the whole of it is driven offline by fixtures rather than by a registry round trip.
+// ---------------------------------------------------------------------------------------------
+
+// Strict X.Y.Z[-pre][+build]. This regex IS the filter: it rejects `latest`, `nightly`, the
+// `sha-<hex>` digest tags and the truncated `X.Y` aliases without naming any of them, so an upstream
+// tag convention nobody anticipated cannot leak in through a denylist nobody updated.
+const SEMVER =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+(?:[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
+
+/** Parses a strict semver tag, or returns null for anything that is not one. */
+export function parseSemver(tag) {
+  const match = SEMVER.exec(String(tag ?? ""));
+  if (match === null) return null;
+  return {
+    tag,
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+    prerelease: match[4] === undefined ? [] : match[4].split("."),
+  };
+}
+
+/**
+ * Orders two parsed versions by semver precedence, ascending.
+ * <remarks>
+ * Build metadata is ignored, a release outranks any pre-release of the same version, a numeric
+ * identifier ranks BELOW an alphanumeric one, and a longer pre-release outranks a shorter prefix of
+ * itself. Those three rules are what a naive string sort gets wrong, and getting them wrong resolves
+ * a "newest" that is not the newest — a plausible answer with no error anywhere.
+ * </remarks>
+ */
+export function compareSemver(a, b) {
+  if (a.major !== b.major) return a.major - b.major;
+  if (a.minor !== b.minor) return a.minor - b.minor;
+  if (a.patch !== b.patch) return a.patch - b.patch;
+  if (a.prerelease.length === 0 && b.prerelease.length === 0) return 0;
+  if (a.prerelease.length === 0) return 1;
+  if (b.prerelease.length === 0) return -1;
+
+  for (let i = 0; i < Math.max(a.prerelease.length, b.prerelease.length); i += 1) {
+    const left = a.prerelease[i];
+    const right = b.prerelease[i];
+    if (left === undefined) return -1;
+    if (right === undefined) return 1;
+    const leftNumeric = /^\d+$/.test(left);
+    const rightNumeric = /^\d+$/.test(right);
+    if (leftNumeric && rightNumeric) {
+      if (Number(left) !== Number(right)) return Number(left) - Number(right);
+    } else if (leftNumeric !== rightNumeric) {
+      return leftNumeric ? -1 : 1;
+    } else if (left !== right) {
+      return left < right ? -1 : 1;
+    }
+  }
+  return 0;
+}
+
+/** Splits parsed versions into GA and pre-release, each ascending so the newest is last. */
+export function splitReleaseChannels(parsed) {
+  const sorted = [...parsed].sort(compareSemver);
+  return {
+    ga: sorted.filter((version) => version.prerelease.length === 0),
+    prerelease: sorted.filter((version) => version.prerelease.length > 0),
+  };
+}
+
+/**
+ * Resolves one extension's version legs from a registry tag list and the floor it declares.
+ * <remarks>
+ * Every way this can be wrong is a throw naming the value read, never a fallback: an unresolvable
+ * floor that defaulted to something near it would test an image nobody chose and report green.
+ * </remarks>
+ */
+export function resolveCoveLegs({ floor, tags, source = "the registry tag list" }) {
+  const parsedFloor = parseSemver(floor);
+  if (parsedFloor === null) {
+    throw new Error(
+      `The declared floor '${floor}' is not a strict X.Y.Z semver version, so it cannot name an image tag.`,
+    );
+  }
+
+  const list = Array.isArray(tags) ? tags : [];
+  if (list.length === 0) {
+    throw new Error(`${source} listed no tags at all, so no version leg can be resolved.`);
+  }
+
+  const parsed = list.map(parseSemver).filter((version) => version !== null);
+  if (parsed.length === 0) {
+    throw new Error(
+      `None of the ${list.length} tag(s) on ${source} parse as strict X.Y.Z semver, so no version leg can be resolved.`,
+    );
+  }
+
+  if (!parsed.some((version) => version.tag === floor)) {
+    throw new Error(
+      `The declared floor '${floor}' is not published on ${source} as an exact tag (${parsed.length} semver tag(s) read). A floor leg pointing at a tag that is not there would surface as an HTTP 404 deep inside the extraction rather than here.`,
+    );
+  }
+
+  const { ga, prerelease } = splitReleaseChannels(parsed);
+
+  return {
+    legs: [{ tag: floor, role: "floor", advisory: false }],
+    examined: {
+      tags: list.length,
+      parsed: parsed.length,
+      ga: ga.length,
+      prerelease: prerelease.length,
+    },
+  };
+}
+
+/**
+ * Reads every catalog entry's declared floor, reaching it through that entry's own manifest.
+ * <remarks>
+ * `minCoveVersion` is NOT a catalog field — it lives in the manifest the catalog's `manifestPath`
+ * points at. Nothing here names an extension: a second one needs a catalog entry and no edit.
+ * </remarks>
+ */
+export function readExtensionFloors(catalogPath = DEFAULT_CATALOG_PATH) {
+  if (!fs.existsSync(catalogPath)) {
+    throw new Error(`${catalogPath} does not exist, so no extension floor can be read.`);
+  }
+  const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+  const entries = Array.isArray(catalog.extensions) ? catalog.extensions : [];
+  if (entries.length === 0) {
+    throw new Error(`${catalogPath} declares no extensions, so there is no floor to resolve.`);
+  }
+
+  const catalogDir = path.dirname(catalogPath);
+  return entries.map((entry) => {
+    const manifestPath = entry.manifestPath ?? path.posix.join(entry.path ?? "", "extension.json");
+    const absolute = path.resolve(catalogDir, "..", manifestPath);
+    if (!fs.existsSync(absolute)) {
+      throw new Error(
+        `${catalogPath} entry '${entry.id ?? entry.name}' points at manifest '${manifestPath}', which does not exist at ${absolute}.`,
+      );
+    }
+    const manifest = JSON.parse(fs.readFileSync(absolute, "utf8"));
+    const floor = manifest.minCoveVersion ?? "";
+    if (floor === "") {
+      throw new Error(
+        `${manifestPath} declares no minCoveVersion, so the floor leg for '${entry.id ?? entry.name}' has no version to resolve against.`,
+      );
+    }
+    return { entry, floor, manifestPath };
+  });
+}
+
+/**
+ * Collects a repository's whole tag list, following the registry's `Link: rel="next"` pages.
+ * <remarks>
+ * GHCR emits no `Link` header at today's tag count but does implement pagination, so reading one
+ * page is correct today and silently truncating later — and a truncated list yields an older
+ * "newest", which is a wrong answer with no error. The page cap makes a runaway an error rather than
+ * a hang, and a `next` target that is not a `/v2/` path on the same host is refused rather than
+ * followed: the header is registry-supplied and is not trusted to say where to go next.
+ * </remarks>
+ */
+export async function collectRegistryTags(readPage, firstPath, pageCap = 50) {
+  const collected = [];
+  let pathAndQuery = firstPath;
+  let pages = 0;
+
+  while (pathAndQuery !== null) {
+    const { tags, link } = await readPage(pathAndQuery);
+    for (const tag of tags ?? []) collected.push(tag);
+    pages += 1;
+
+    const next = /<([^>]+)>\s*;\s*rel="next"/.exec(link ?? "");
+    pathAndQuery = next === null ? null : next[1];
+    if (pathAndQuery !== null && !pathAndQuery.startsWith("/v2/")) {
+      throw new Error(
+        `The registry's Link: rel="next" points at '${pathAndQuery}', which is not a /v2/ path on this registry; refusing to follow it.`,
+      );
+    }
+    if (pathAndQuery !== null && pages >= pageCap) {
+      throw new Error(
+        `tags/list still advertised rel="next" after ${pages} page(s), at the cap of ${pageCap}; refusing to loop.`,
+      );
+    }
+  }
+
+  return { tags: collected, pages };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Registry and extraction. Everything below reaches the network or the disk.
 // ---------------------------------------------------------------------------------------------
 
@@ -314,8 +507,8 @@ async function fetchPullToken(registry, repository) {
   return token;
 }
 
-async function registryGet(registry, repositoryPath, token, accept) {
-  const url = `https://${registry}/v2/${repositoryPath}`;
+async function registryGetPath(registry, pathAndQuery, token, accept) {
+  const url = `https://${registry}${pathAndQuery}`;
   const response = await fetch(url, {
     headers: { authorization: `Bearer ${token}`, ...(accept ? { accept } : {}) },
     // The registry answers a blob with a redirect to its CDN. `follow` is fetch's default; what
@@ -325,6 +518,19 @@ async function registryGet(registry, repositoryPath, token, accept) {
     throw new Error(`GET ${url} failed with ${response.status} ${response.statusText}.`);
   }
   return response;
+}
+
+async function registryGet(registry, repositoryPath, token, accept) {
+  return registryGetPath(registry, `/v2/${repositoryPath}`, token, accept);
+}
+
+/** Reads the repository's whole tag list off the live registry. */
+async function readRegistryTags(registry, repository, token) {
+  return collectRegistryTags(async (pathAndQuery) => {
+    const response = await registryGetPath(registry, pathAndQuery, token);
+    const body = await response.json();
+    return { tags: body.tags ?? [], link: response.headers.get("link") ?? "" };
+  }, `/v2/${repository}/tags/list`);
 }
 
 /** Resolves the tag to the linux/amd64 manifest, returning its digest and layer descriptors. */
@@ -398,34 +604,103 @@ function emptyDirectory(directory) {
   }
 }
 
+const USAGE =
+  "Usage: fetch-cove-assemblies.mjs [--out <dir>] [--tag <semver>] | --resolve-tags [--report]";
+
 function parseArguments(argv) {
   let out = DEFAULT_OUT_DIR;
+  let tag = null;
+  let mode = "extract";
+  let report = false;
+
   for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === "--out") {
+    const argument = argv[i];
+    if (argument === "--out" || argument === "--tag") {
       const value = argv[i + 1];
-      if (value === undefined) throw new Error("--out needs a directory argument.");
-      out = path.resolve(value);
+      if (value === undefined) throw new Error(`${argument} needs an argument.`);
+      if (argument === "--out") {
+        out = path.resolve(value);
+      } else {
+        // A tag reaches a registry URL, and --tag is how a CI leg's resolved version arrives. The
+        // resolver emits strict semver only, so anything else is refused here rather than encoded
+        // and sent — the floor an extension declares is validated the same way.
+        if (parseSemver(value) === null) {
+          throw new Error(
+            `--tag '${value}' is not a strict X.Y.Z semver version. Only a resolved version tag is accepted here; the props-file default covers a moving tag.`,
+          );
+        }
+        tag = value;
+      }
       i += 1;
+    } else if (argument === "--resolve-tags") {
+      mode = "resolve-tags";
+    } else if (argument === "--report") {
+      report = true;
     } else {
-      throw new Error(
-        `Unrecognised argument '${argv[i]}'. Usage: fetch-cove-assemblies.mjs [--out <dir>]`,
-      );
+      throw new Error(`Unrecognised argument '${argument}'. ${USAGE}`);
     }
   }
-  return { out };
+
+  if (mode === "resolve-tags" && tag !== null) {
+    throw new Error("--tag names an image to extract and has no meaning for --resolve-tags.");
+  }
+  return { mode, out, tag, report };
+}
+
+/**
+ * Resolves each catalog entry's version legs and writes them as one flat matrix on stdout.
+ * <remarks>
+ * stdout carries only the JSON, so a report line can never corrupt what a workflow parses; the
+ * report goes to stderr, where the runner's log still shows it beside the answer it explains.
+ * </remarks>
+ */
+async function resolveTags({ report }) {
+  const image = readCoveImageReference();
+  const floors = readExtensionFloors();
+  const source = `${image.registry}/${image.repository}`;
+
+  const token = await fetchPullToken(image.registry, image.repository);
+  const { tags, pages } = await readRegistryTags(image.registry, image.repository, token);
+
+  const lines = [`tags/list on ${source} returned ${tags.length} tag(s) over ${pages} page(s)`];
+  const include = [];
+
+  for (const { entry, floor, manifestPath } of floors) {
+    const resolved = resolveCoveLegs({ floor, tags, source });
+    lines.push(
+      `${entry.name}: floor ${floor} (from ${manifestPath}); of ${resolved.examined.tags} tag(s) ${resolved.examined.parsed} parse as strict semver (${resolved.examined.ga} GA, ${resolved.examined.prerelease} pre-release)`,
+    );
+    for (const leg of resolved.legs) {
+      lines.push(`  leg ${leg.role}: ${leg.tag}${leg.advisory ? " (advisory)" : ""}`);
+      include.push({ extension: entry, cove: leg });
+    }
+    lines.push(`  ${resolved.legs.length} distinct image(s) for ${entry.name}`);
+  }
+
+  process.stdout.write(`${JSON.stringify({ include })}\n`);
+  if (report) {
+    for (const line of lines) console.error(line);
+  }
+  return 0;
 }
 
 export async function main(argv) {
-  const { out } = parseArguments(argv);
-  const image = readCoveImageReference();
+  const options = parseArguments(argv);
+  if (options.mode === "resolve-tags") return resolveTags(options);
+  return extract(options);
+}
 
-  console.log(`Cove test image: ${image.registry}/${image.repository}:${image.tag}`);
+async function extract({ out, tag }) {
+  const image = readCoveImageReference();
+  const requestedTag = tag ?? image.tag;
+
+  console.log(`Cove test image: ${image.registry}/${image.repository}:${requestedTag}`);
 
   const token = await fetchPullToken(image.registry, image.repository);
   const { digest, manifest } = await resolvePlatformManifest(
     image.registry,
     image.repository,
-    image.tag,
+    requestedTag,
     token,
   );
   console.log(`manifest digest: ${digest}`);
