@@ -464,6 +464,32 @@ test("an entry with a UI and a test project but no wireDocumentPath fails, namin
   }
 });
 
+test("a manifestOnly entry that declares a uiPath fails, naming both fields", () => {
+  // The two fields contradict each other and nothing else in the catalog can say so: each is
+  // individually well-formed, and uiPath's own existence check passes here because the directory is
+  // real. What makes the pairing a defect is what CI does with it — several build steps read uiPath
+  // and would generate, verify and bundle a frontend for an entry that ships no assembly to load it.
+  // The refusal is read from the entry alone, so it must also speak for an entry whose directory or
+  // manifest is broken; the case below plants both so this one has exactly one malformation.
+  const entry = validEntry("com.example.foo", "Foo", { uiPath: "extensions/Foo/ui" });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo"),
+      // Planted so the matrixPathFields existence check is silent — without it this case passes on
+      // "uiPath does not exist", which proves nothing about the pairing.
+      "extensions/Foo/ui/package.json": { name: "foo-ui" },
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(stderr, /com\.example\.foo: declares both manifestOnly and uiPath/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("an entry declaring no optional catalog path says so, rather than reporting nothing", () => {
   // Zero checked paths is the case that must not be invisible: an entry set that declares none is
   // legitimate, but it is NOT the same as one whose paths were all confirmed, and a report line that
