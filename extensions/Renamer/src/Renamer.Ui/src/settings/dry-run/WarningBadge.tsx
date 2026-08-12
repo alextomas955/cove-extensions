@@ -28,8 +28,12 @@ export interface Badgeable {
   status: RenamerStatus;
   suffixed: boolean;
   sanitized: boolean;
-  /** Optional while only `/preview` carries it; the paged `/scan-rows` shape gains it separately. */
-  inFlightPathOverflow?: boolean;
+  /**
+   * Required, because both wire shapes that reach a badge now carry it — `/preview`'s item view and the
+   * paged `/scan-rows` row. Required rather than optional so a caller that forgets to pass it fails to
+   * compile, instead of silently rendering a row whose warning was never asked for.
+   */
+  inFlightPathOverflow: boolean;
 }
 
 /**
