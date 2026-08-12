@@ -1,6 +1,7 @@
 /**
- * Per-row status pill. Badges derive from the PreviewItemView `status`
- * STRING enum PLUS the `suffixed` / `sanitized` bools — there is NO `flags[]` array on /preview.
+ * Per-row status pill. Badges derive from the PreviewItemView `status` STRING enum PLUS the row's
+ * advisory bools (`suffixed`, `sanitized`, `inFlightPathOverflow`) — there is NO `flags[]` array on
+ * /preview.
  *
  * Color is NEVER the only signal: amber/red badges lead with a lucide `AlertTriangle` glyph and
  * always carry text (accessibility). Every label string is a React text node (auto-escaped).
@@ -9,6 +10,7 @@ import { AlertTriangle } from "lucide-react";
 import { StatusPill } from "@cove-extensions/ui-shared";
 
 import type { RenamerStatus } from "../../wire/api";
+import { inFlightOverflowLabel } from "./dryRunLogic";
 
 type Variant = "amber" | "gray" | "red";
 
@@ -26,12 +28,15 @@ export interface Badgeable {
   status: RenamerStatus;
   suffixed: boolean;
   sanitized: boolean;
+  /** Optional while only `/preview` carries it; the paged `/scan-rows` shape gains it separately. */
+  inFlightPathOverflow?: boolean;
 }
 
 /**
  * Map an item to its badges (one per warning kind, with user-facing labels).
  * Rename/Move with no extra signal returns [] (the positive default, no badge). suffixed/sanitized
- * add amber advisory badges even on a will-rename row.
+ * add amber advisory badges even on a will-rename row; an in-flight path overflow adds a red one,
+ * because that row's move cannot complete rather than merely completing differently.
  */
 function badgesFor(item: Badgeable): Badge[] {
   const badges: Badge[] = [];
@@ -60,6 +65,12 @@ function badgesFor(item: Badgeable): Badge[] {
       if (item.sanitized) badges.push({ label: "Cleaned for the filesystem", variant: "amber" });
       break;
   }
+  // No status guard: the server sets this flag only on an acting cross-volume item, and re-testing the
+  // status here would let a flag the server DID set go unrendered whenever the two vocabularies drifted.
+  // Red rather than amber — the other two on a will-rename row are advisory, this one means the move
+  // cannot complete.
+  const overflow = inFlightOverflowLabel(item);
+  if (overflow !== null) badges.push({ label: overflow, variant: "red" });
   return badges;
 }
 

@@ -65,8 +65,8 @@ function confirmCallToAction(level: ConfirmLevel): string {
  * Build the exact text for the in-flow window.confirm gate shown before a bulk rename runs.
  *
  * - N = items that will actually change (status Rename | Move); M = total selected.
- * - One `⚠` line per non-zero warning kind: skips (split into gated / collision sub-counts),
- *   numbered (suffixed), cleaned (sanitized).
+ * - One `⚠` line per non-zero warning kind: cross-drive copies whose temporary path would not fit,
+ *   skips (split into gated / collision sub-counts), numbered (suffixed), cleaned (sanitized).
  * - Up to 5 `old → new` basename examples drawn from will-rename items; "… and R more." when N > 5.
  * - When N == 0 the body states nothing will be renamed (the handler then cancels even on OK).
  *
@@ -96,6 +96,22 @@ export function buildConfirmSummary(
   const cleaned = willRename.filter((it) => it.sanitized).length;
 
   const warningLines: string[] = [];
+  // First, and phrased as a failure rather than an advisory: every other line here describes a rename
+  // that will happen differently, while this one describes files the executor will not be able to move at
+  // all. It reads the aggregate COUNT, never a list of paths — the selection reaches library size, and
+  // this text goes into a native confirm box that cannot scroll usefully.
+  //
+  // The cause is not stated in characters on purpose. A cross-drive move copies to a temporary name
+  // longer than the final one, and the exact number belongs to the server that mints it; repeating it
+  // here would be a second copy of a value that has already been narrowed once. What the user can act on
+  // is the remedy, so that is what the line carries.
+  const inFlightOverflow = summary?.inFlightPathOverflowCount ?? 0;
+  if (inFlightOverflow > 0) {
+    warningLines.push(
+      `⚠ ${inFlightOverflow} cannot be copied across drives — the temporary copy's path would be too ` +
+        `long. Shorten the destination folder or the filename template for ${inFlightOverflow === 1 ? "it" : "them"}.`,
+    );
+  }
   if (skipped > 0) {
     const clauses: string[] = [];
     if (gated > 0) clauses.push(`${gated} need a required field`);

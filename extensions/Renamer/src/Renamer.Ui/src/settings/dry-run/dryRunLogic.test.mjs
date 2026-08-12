@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import {
   classifyItem,
   bucketWireValue,
+  inFlightOverflowLabel,
+  IN_FLIGHT_OVERFLOW_LABEL,
   summaryCounts,
   assetHref,
   clampProgress,
@@ -60,6 +62,34 @@ test("bucketWireValue emits the camelCase ScanBucketKind names the server parses
   assert.equal(bucketWireValue("no-change"), "noChange");
   assert.equal(bucketWireValue("attention"), "attention");
   assert.equal(bucketWireValue("all"), "all");
+});
+
+/**
+ * The wire field name the server spells for the in-flight overflow flag, TRANSCRIBED BY HAND from
+ * `extensions/Renamer/src/Renamer/Contracts/PreviewContracts.cs` (`PreviewItemView.InFlightPathOverflow`,
+ * camel-cased by the response serializer). Written out here rather than read from the generated wire types,
+ * because a key spelled wrong reads `undefined` — falsy — so the badge would simply never render and
+ * nothing would fail: not the type-check, not the request, not this suite if it asked the module for the
+ * name it already uses.
+ */
+const OVERFLOW_WIRE_FIELD = "inFlightPathOverflow";
+
+test("a row the server flagged earns the overflow label, and an unflagged row earns none", () => {
+  assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: true }), IN_FLIGHT_OVERFLOW_LABEL);
+  assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: false }), null);
+});
+
+test("the overflow label carries words, so the badge is never colour alone", () => {
+  // The badge leads with a lucide glyph, and the glyph is not the message: a red pill with no text tells a
+  // colour-blind or screen-reader user nothing about what is wrong with the row.
+  assert.match(IN_FLIGHT_OVERFLOW_LABEL, /[A-Za-z]{3}/);
+});
+
+test("a row from a wire shape that has no overflow field reads as unflagged, not as flagged", () => {
+  // `/scan-rows` does not carry the field yet, and a missing field is `undefined`. Reading that as a
+  // warning would put a red pill on every row of the dry-run table.
+  assert.equal(inFlightOverflowLabel({}), null);
+  assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: undefined }), null);
 });
 
 test("summaryCounts partitions the aggregate's status counts into three buckets summing to the total", () => {

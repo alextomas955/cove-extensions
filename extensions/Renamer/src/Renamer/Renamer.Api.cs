@@ -262,8 +262,11 @@ public sealed partial class Renamer
             }
         }
 
-        // The whole-batch blast radius: a pure aggregate over the acting items + their sizes.
-        var summary = BatchPreview.Summarize(items, sizeByFileId);
+        // The whole-batch blast radius: a pure aggregate over the acting items + their sizes. The path
+        // budget is read from the loaded options ONCE and handed to both halves of the response below, so
+        // the aggregate's in-flight overflow COUNT and the per-row FLAGS cannot be measured against
+        // different limits and disagree.
+        var summary = BatchPreview.Summarize(items, sizeByFileId, options.FullPathMax);
 
         // WireJson<T> writes the response with the extension's own options rather than the host's: the
         // property names are camelCase AND the RenamerStatus/ConfirmLevel enums are STRINGS, spelled
@@ -280,7 +283,10 @@ public sealed partial class Renamer
         // options instance, so the per-item array keeps its exact shape. The domain plan items are
         // projected onto PreviewItemView (the wire type) at this boundary.
         return new WireJson<PreviewResponse>(
-            new PreviewResponse([.. items.Select(PreviewItemView.From)], summary));
+            new PreviewResponse(
+                [.. items.Select(i => PreviewItemView.From(
+                    i, BatchPreview.InFlightPathOverflows(i, options.FullPathMax)))],
+                summary));
     }
 
     /// <summary>

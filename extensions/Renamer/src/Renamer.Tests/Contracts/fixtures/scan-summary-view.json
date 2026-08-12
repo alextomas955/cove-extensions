@@ -64,7 +64,8 @@
           "bytes": 4096
         }
       ],
-      "confirmLevel": "standard"
+      "confirmLevel": "standard",
+      "inFlightPathOverflowCount": 0
     },
     "volumePairsTruncated": false,
     "completedAtUtcTicks": 638000000000000000,
@@ -137,7 +138,8 @@
           "bytes": 4096
         }
       ],
-      "confirmLevel": "standard"
+      "confirmLevel": "standard",
+      "inFlightPathOverflowCount": 0
     },
     "volumePairsTruncated": true,
     "completedAtUtcTicks": 638000000000000000,
@@ -203,7 +205,8 @@
       "crossVolumeCount": 0,
       "crossVolumeBytes": 0,
       "volumePairs": [],
-      "confirmLevel": "light"
+      "confirmLevel": "light",
+      "inFlightPathOverflowCount": 0
     },
     "volumePairsTruncated": false,
     "completedAtUtcTicks": 638000000000000000,

@@ -160,7 +160,10 @@ public sealed record ScanSummaryView(
             CrossVolumeCount: crossCount,
             CrossVolumeBytes: crossBytes,
             VolumePairs: merged,
-            ConfirmLevel: BatchPreview.ClassifyConfirm(crossCount, crossBytes, merged));
+            ConfirmLevel: BatchPreview.ClassifyConfirm(crossCount, crossBytes, merged),
+            // Zero for the same reason the per-kind aggregate leaves it zero: there is nothing to sum yet.
+            // Plan 29-06 adds the per-kind counter and sums it across the readable kinds here.
+            InFlightPathOverflowCount: 0);
 
         int Bucket(ScanBucketKind bucket) => statusCounts
             .Where(c => ScanBucket.Of(c.Status) == bucket)

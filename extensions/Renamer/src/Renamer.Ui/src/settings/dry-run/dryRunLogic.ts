@@ -51,6 +51,26 @@ export function bucketWireValue(filter: DryRunFilter): string {
   }
 }
 
+/**
+ * The badge copy for a row whose cross-volume copy would not fit. Stated in the user's terms — what will
+ * happen and where — because the mechanism (a temporary name minted beside the destination) is the
+ * server's business, and a path-length number the user cannot act on is not advice.
+ */
+export const IN_FLIGHT_OVERFLOW_LABEL = "Too long to copy across drives";
+
+/**
+ * The label a row earns from the server's `inFlightPathOverflow` flag, or `null` for a row without one.
+ *
+ * The flag is OPTIONAL on the way in, and that is not laxity: `/preview` carries it today while the paged
+ * `/scan-rows` shape does not yet, so a row that never had the field must read as "no warning" rather than
+ * as a warning suppressed by accident. It is read with `=== true` for the same reason — an absent field is
+ * `undefined`, which is falsy, and a truthiness test would also swallow a wire value that arrived as the
+ * string `"false"`.
+ */
+export function inFlightOverflowLabel(item: { inFlightPathOverflow?: boolean }): string | null {
+  return item.inFlightPathOverflow === true ? IN_FLIGHT_OVERFLOW_LABEL : null;
+}
+
 /** Per-bucket file counts of a whole scan: the header line, the segment labels and the rename banner. */
 export interface DryRunCounts {
   willChange: number;

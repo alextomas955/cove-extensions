@@ -20,6 +20,10 @@ namespace Renamer.Contracts;
 /// <param name="Reason">Human-readable reason for a skip/no-op (null for a plain renamer/move).</param>
 /// <param name="Suffixed">UI badge signal: true iff the collision suffix loop ran.</param>
 /// <param name="Sanitized">UI badge signal: true iff the engine cleaned the rendered name.</param>
+/// <param name="InFlightPathOverflow">
+/// UI badge signal: true iff this item crosses volumes and its in-flight copy would overrun the path
+/// budget, so the move the user is approving cannot complete even though the planned path fits.
+/// </param>
 /// <param name="ResolvedDestinationRoot">The routed destination-root template, or null for a source-confine/in-place item.</param>
 /// <param name="MatchedRule">
 /// The resolver's matched-rule label for preview/log (<c>"Studio:42(direct)"</c>, <c>"InPlace"</c>, …),
@@ -39,12 +43,20 @@ public sealed record PreviewItemView(
     string? Reason,
     bool Suffixed,
     bool Sanitized,
+    bool InFlightPathOverflow,
     string? ResolvedDestinationRoot,
     string MatchedRule,
     string TargetVolume)
 {
     /// <summary>Projects a planned <paramref name="item"/> onto its wire shape.</summary>
-    public static PreviewItemView From(RenamerPlanItem item) => new(
+    /// <param name="item">The planned item to project.</param>
+    /// <param name="inFlightPathOverflow">
+    /// Passed in rather than derived here, because the answer needs the volume classification and the
+    /// configured path budget, and this projection is a pure field mapping with access to neither. The
+    /// caller computes it from <c>BatchPreview.InFlightPathOverflows</c>, which is the same comparison the
+    /// aggregate's count reads, so the count and the flags cannot disagree.
+    /// </param>
+    public static PreviewItemView From(RenamerPlanItem item, bool inFlightPathOverflow) => new(
         item.FileId,
         item.OldFullPath,
         item.NewFullPath,
@@ -54,6 +66,7 @@ public sealed record PreviewItemView(
         item.Reason,
         item.Suffixed,
         item.Sanitized,
+        inFlightPathOverflow,
         item.ResolvedDestinationRoot,
         item.MatchedRule,
         item.TargetVolume);
