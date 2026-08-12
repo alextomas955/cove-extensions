@@ -75,10 +75,15 @@ public sealed class WireSnapshotTests
         };
         var summary = new PreviewSummary(
             TotalCount: 1, SameVolumeCount: 1, CrossVolumeCount: 0, CrossVolumeBytes: 0,
-            VolumePairs: [], ConfirmLevel: ConfirmLevel.Light);
+            VolumePairs: [], ConfirmLevel: ConfirmLevel.Light, InFlightPathOverflowCount: 0);
+        // Both items are same-volume, so the in-flight overflow flag is false for each — this fixture pins
+        // that the field is ON the wire and spelled camelCase, and the true arm is a behavioural question
+        // answered in BlastRadiusTests rather than by planting a value the classification contradicts.
         AssertSnapshot("preview-response",
             JsonSerializer.Serialize(
-                new PreviewResponse([.. items.Select(PreviewItemView.From)], summary), PreviewResponse_));
+                new PreviewResponse(
+                    [.. items.Select(i => PreviewItemView.From(i, inFlightPathOverflow: false))], summary),
+                PreviewResponse_));
     }
 
     [Fact]
@@ -117,7 +122,7 @@ public sealed class WireSnapshotTests
             BlastRadius: new PreviewSummary(
                 TotalCount: files, SameVolumeCount: 0, CrossVolumeCount: files, CrossVolumeBytes: 4096,
                 VolumePairs: [new VolumePairDelta("/src", "/dest", files, 4096)],
-                ConfirmLevel: ConfirmLevel.Heavy),
+                ConfirmLevel: ConfirmLevel.Heavy, InFlightPathOverflowCount: 0),
             VolumePairsTruncated: truncated);
 
         var populated = new ScanSummary(

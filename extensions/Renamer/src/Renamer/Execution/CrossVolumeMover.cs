@@ -73,6 +73,19 @@ public sealed class CrossVolumeMover
     /// <summary>The number of random hexadecimal characters the minted segment carries.</summary>
     private const int InFlightRandomChars = 8;
 
+    /// <summary>How many characters <see cref="MintInFlightPath"/> appends to the final path.</summary>
+    /// <remarks>
+    /// <c>internal</c> rather than <c>private</c> so the planner's in-flight overflow warning derives the
+    /// length from THIS declaration instead of restating it. The minted segment has already been narrowed
+    /// once (from a 16-character fixed suffix), and against a hand-mirrored 12 a further narrowing would
+    /// leave the preview warning on a band that no longer overruns — a false warning on a correct plan.
+    /// <para>
+    /// <c>static readonly</c> and not <c>const</c>: <c>string.Length</c> is not a compile-time constant
+    /// expression in C#, and writing the sum out as a literal is the mirroring this member removes.
+    /// </para>
+    /// </remarks>
+    internal static readonly int InFlightSuffixLength = InFlightMarker.Length + InFlightRandomChars;
+
     /// <summary>
     /// TEST-ONLY fault-injection seam. When non-null, it is invoked on the closed in-flight copy
     /// AFTER the copy but BEFORE the verify, with that copy's absolute path — letting a test corrupt
@@ -333,8 +346,12 @@ public sealed class CrossVolumeMover
     ///
     /// The alphabet is hexadecimal, so the minted segment can carry no separator, no parent-directory
     /// segment and no drive qualifier — it cannot move the copy out of the destination directory.
+    ///
+    /// <c>internal</c> rather than <c>private</c> for one reader only: the test that pins
+    /// <see cref="InFlightSuffixLength"/> measures the segment this method actually appends, because a pin
+    /// that recomposed the marker and the random count would agree with a rewritten minter forever.
     /// </remarks>
-    private static string MintInFlightPath(string finalFull) =>
+    internal static string MintInFlightPath(string finalFull) =>
         finalFull
         + InFlightMarker
         + System.Security.Cryptography.RandomNumberGenerator.GetHexString(InFlightRandomChars, lowercase: true);

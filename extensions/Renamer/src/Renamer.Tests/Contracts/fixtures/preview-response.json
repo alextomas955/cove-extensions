@@ -10,6 +10,7 @@
       "reason": null,
       "suffixed": false,
       "sanitized": true,
+      "inFlightPathOverflow": false,
       "resolvedDestinationRoot": null,
       "matchedRule": "InPlace",
       "targetVolume": "/"
@@ -24,6 +25,7 @@
       "reason": "already matches",
       "suffixed": false,
       "sanitized": false,
+      "inFlightPathOverflow": false,
       "resolvedDestinationRoot": null,
       "matchedRule": "",
       "targetVolume": ""
@@ -35,6 +37,7 @@
     "crossVolumeCount": 0,
     "crossVolumeBytes": 0,
     "volumePairs": [],
-    "confirmLevel": "light"
+    "confirmLevel": "light",
+    "inFlightPathOverflowCount": 0
   }
 }

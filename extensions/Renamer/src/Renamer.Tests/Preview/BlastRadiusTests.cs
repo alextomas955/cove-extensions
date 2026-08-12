@@ -1,4 +1,5 @@
 using Renamer.Execution;
+using Renamer.Options;
 using Renamer.Planner;
 
 namespace Renamer.Tests.Preview;
@@ -24,6 +25,18 @@ public sealed class BlastRadiusTests
 
     private static string RootOf(string vol) => VolumeClassifier.VolumeKey(OnVol(vol, "x"), Mounts);
 
+    // The shipped path budget, read from the options rather than written as 259: every case below passes it
+    // to Summarize, and the in-flight overflow cases are positioned relative to it.
+    private static readonly int Budget = new RenamerOptions().FullPathMax;
+
+    // OnVol yields "C:\dir\{name}" on Windows and "/c/dir/{name}" on Unix — SEVEN characters either way,
+    // which is what lets one arithmetic land on the same absolute length on both platforms.
+    private const int OnVolPrefixLength = 7;
+
+    // A basename that makes OnVol(vol, name) exactly `total` characters long.
+    private static string NameForPathLength(int total) =>
+        new string('n', total - OnVolPrefixLength - ".mkv".Length) + ".mkv";
+
     // A minimal acting item: only the fields the aggregate reads (FileId, paths, status, target volume).
     private static RenamerPlanItem Item(
         int fileId, string oldPath, string newPath, RenamerStatus status, string targetVolume) =>
@@ -33,7 +46,7 @@ public sealed class BlastRadiusTests
     [Fact]
     public void Empty_YieldsZeroCount_AndLightConfirm()
     {
-        var summary = BatchPreview.Summarize([], new Dictionary<int, long>(), Mounts);
+        var summary = BatchPreview.Summarize([], new Dictionary<int, long>(), Budget, Mounts);
 
         Assert.Equal(0, summary.TotalCount);
         Assert.Equal(0, summary.SameVolumeCount);
@@ -53,7 +66,7 @@ public sealed class BlastRadiusTests
             Item(3, OnVol("C", "c.mkv"), OnVol("D", "c.mkv"), RenamerStatus.SkipCollision, RootOf("D")),
         };
 
-        var summary = BatchPreview.Summarize(items, new Dictionary<int, long>(), Mounts);
+        var summary = BatchPreview.Summarize(items, new Dictionary<int, long>(), Budget, Mounts);
 
         Assert.Equal(0, summary.TotalCount);
         Assert.Empty(summary.VolumePairs);
@@ -71,7 +84,7 @@ public sealed class BlastRadiusTests
         };
         var sizes = new Dictionary<int, long> { [1] = 5L << 30, [2] = 5L << 30, [3] = 5L << 30 };
 
-        var summary = BatchPreview.Summarize(items, sizes, Mounts);
+        var summary = BatchPreview.Summarize(items, sizes, Budget, Mounts);
 
         Assert.Equal(3, summary.TotalCount);
         Assert.Equal(3, summary.SameVolumeCount);
@@ -93,7 +106,7 @@ public sealed class BlastRadiusTests
         };
         var sizes = new Dictionary<int, long> { [1] = 1L << 30, [2] = 2L << 30, [3] = 4L << 30 };
 
-        var summary = BatchPreview.Summarize(items, sizes, Mounts);
+        var summary = BatchPreview.Summarize(items, sizes, Budget, Mounts);
 
         Assert.Equal(3, summary.TotalCount);
         Assert.Equal(0, summary.SameVolumeCount);
@@ -119,7 +132,7 @@ public sealed class BlastRadiusTests
         };
         var sizes = new Dictionary<int, long> { [1] = 9L << 30, [2] = 1L << 30 };
 
-        var summary = BatchPreview.Summarize(items, sizes, Mounts);
+        var summary = BatchPreview.Summarize(items, sizes, Budget, Mounts);
 
         Assert.Equal(2, summary.TotalCount);
         Assert.Equal(1, summary.SameVolumeCount);
@@ -141,7 +154,7 @@ public sealed class BlastRadiusTests
         };
         var sizes = new Dictionary<int, long> { [1] = 1L << 30, [2] = 1L << 30 };
 
-        var summary = BatchPreview.Summarize(items, sizes, Mounts);
+        var summary = BatchPreview.Summarize(items, sizes, Budget, Mounts);
 
         Assert.Equal(ConfirmLevel.Standard, summary.ConfirmLevel);
     }
@@ -155,7 +168,7 @@ public sealed class BlastRadiusTests
             .ToArray();
         var sizes = items.ToDictionary(i => i.FileId, _ => 1L);
 
-        var summary = BatchPreview.Summarize(items, sizes, Mounts);
+        var summary = BatchPreview.Summarize(items, sizes, Budget, Mounts);
 
         Assert.Equal(ConfirmLevel.Heavy, summary.ConfirmLevel);
     }
@@ -170,7 +183,7 @@ public sealed class BlastRadiusTests
         };
         var sizes = new Dictionary<int, long> { [1] = 10L << 30 };
 
-        var summary = BatchPreview.Summarize(items, sizes, Mounts);
+        var summary = BatchPreview.Summarize(items, sizes, Budget, Mounts);
 
         Assert.Equal(ConfirmLevel.Heavy, summary.ConfirmLevel);
     }
@@ -186,8 +199,38 @@ public sealed class BlastRadiusTests
         };
         var sizes = new Dictionary<int, long> { [1] = 1L, [2] = 1L };
 
-        var summary = BatchPreview.Summarize(items, sizes, Mounts);
+        var summary = BatchPreview.Summarize(items, sizes, Budget, Mounts);
 
         Assert.Equal(ConfirmLevel.Heavy, summary.ConfirmLevel);
+    }
+
+    [Fact]
+    public void CrossVolumeMove_IsFlagged_OneCharacterPastTheBudgetLessTheMintedSegment()
+    {
+        // A cross-volume move copies to a name CrossVolumeMover.InFlightSuffixLength characters longer
+        // beside the destination and promotes it, so the longest final path whose copy still fits is
+        // Budget - InFlightSuffixLength. One character past that the copy overruns a REAL platform limit —
+        // no "\\?\" extended-length prefix is ever applied — while the planner, which budgets only the
+        // final path, accepted the plan the user is about to approve.
+        int longestThatFits = Budget - CrossVolumeMover.InFlightSuffixLength;
+
+        var fits = Item(
+            1, OnVol("C", "a.mkv"), OnVol("D", NameForPathLength(longestThatFits)),
+            RenamerStatus.Move, RootOf("D"));
+        var overflows = Item(
+            2, OnVol("C", "b.mkv"), OnVol("D", NameForPathLength(longestThatFits + 1)),
+            RenamerStatus.Move, RootOf("D"));
+
+        // The lengths the two cases claim to have, so a slip in the path arithmetic fails here rather than
+        // silently moving both items to the same side of the boundary.
+        Assert.Equal(longestThatFits, fits.NewFullPath.Length);
+        Assert.Equal(longestThatFits + 1, overflows.NewFullPath.Length);
+
+        Assert.False(BatchPreview.InFlightPathOverflows(fits, Budget, Mounts));
+        Assert.True(BatchPreview.InFlightPathOverflows(overflows, Budget, Mounts));
+
+        var summary = BatchPreview.Summarize([fits, overflows], new Dictionary<int, long>(), Budget, Mounts);
+
+        Assert.Equal(1, summary.InFlightPathOverflowCount);
     }
 }

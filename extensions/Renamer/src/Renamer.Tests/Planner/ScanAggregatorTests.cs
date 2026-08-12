@@ -1,4 +1,5 @@
 using Renamer.Contracts;
+using Renamer.Options;
 using Renamer.Planner;
 
 namespace Renamer.Tests.Planner;
@@ -59,7 +60,10 @@ public sealed class ScanAggregatorTests
         };
         var sizes = new Dictionary<int, long> { [1] = 100, [2] = 250, [3] = 999 };
 
-        var expected = BatchPreview.Summarize(items, sizes, Mounts);
+        // The shipped budget, and the field this comparison deliberately leaves out: the aggregator folds
+        // one file at a time and keeps no overflow counter yet, so its InFlightPathOverflowCount is a
+        // placeholder zero that plan 29-06 populates. Every other member is compared below.
+        var expected = BatchPreview.Summarize(items, sizes, new RenamerOptions().FullPathMax, Mounts);
 
         var aggregator = new ScanAggregator(Mounts);
         foreach (var item in items)
