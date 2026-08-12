@@ -22,6 +22,7 @@ import {
   readExtensionFloors,
   readTarMembers,
   readVersionStrings,
+  renderExtractionProps,
   resolveCoveLegs,
   selectLayerByContent,
   splitImageReference,
@@ -455,6 +456,60 @@ test("a newest GA above the floor yields three legs and three distinct images", 
     { tag: "1.3.0-rc.2", role: "newest-prerelease", advisory: true },
   ]);
   assert.equal(resolved.examined.roles, 3);
+});
+
+// ---- the generated build expectation ---------------------------------------------------------------
+
+test("the rendered expectation carries the tag, the digest and one Sha256 per assembly, in the form the build reads back", () => {
+  const rendered = renderExtractionProps({
+    tag: "1.1.0",
+    digest: "sha256:abc123",
+    assemblies: [
+      { name: "Cove.Data.dll", sha256: "a".repeat(64) },
+      { name: "Cove.Core.dll", sha256: "b".repeat(64) },
+    ],
+  });
+
+  // Read back with the same property reader the fetcher uses on Directory.Build.props, so the
+  // attributed form is pinned rather than assumed.
+  const props = parseMsBuildProperties(rendered);
+  assert.equal(props.CoveExtractionImageTag, "1.1.0");
+  assert.equal(props.CoveExtractionManifestDigest, "sha256:abc123");
+  assert.match(
+    rendered,
+    /<CoveExtractedAssembly Include="Cove\.Data\.dll" Sha256="a{64}" \/>/,
+    "the expected hash rides as metadata on the item the build hashes",
+  );
+});
+
+test("a value that could inject markup into a file the build imports is refused", () => {
+  const assemblies = [{ name: "Cove.Data.dll", sha256: "a".repeat(64) }];
+  assert.throws(
+    () =>
+      renderExtractionProps({
+        tag: '1.1.0"/><Exec Command="whoami',
+        digest: "sha256:ab",
+        assemblies,
+      }),
+    /not a plain tag name/,
+  );
+  assert.throws(
+    () => renderExtractionProps({ tag: "1.1.0", digest: "not-a-digest", assemblies }),
+    /algorithm:hex digest/,
+  );
+  assert.throws(
+    () => renderExtractionProps({ tag: "1.1.0", digest: "sha256:ab", assemblies: [] }),
+    /recorded no assemblies/,
+  );
+  assert.throws(
+    () =>
+      renderExtractionProps({
+        tag: "1.1.0",
+        digest: "sha256:ab",
+        assemblies: [{ name: "Cove.Data.dll", sha256: "A".repeat(64) }],
+      }),
+    /64 lowercase hex digits/,
+  );
 });
 
 // ---- the seam with the real catalog ---------------------------------------------------------------
