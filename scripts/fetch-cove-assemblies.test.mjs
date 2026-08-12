@@ -11,15 +11,22 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
+  collectRegistryTags,
+  compareSemver,
   flattenCoveMemberPath,
   orderLayerCandidates,
   parseMsBuildProperties,
+  parseSemver,
   parseTarHeader,
   readCoveImageReference,
+  readExtensionFloors,
   readTarMembers,
   readVersionStrings,
+  renderExtractionProps,
+  resolveCoveLegs,
   selectLayerByContent,
   splitImageReference,
+  splitReleaseChannels,
 } from "./fetch-cove-assemblies.mjs";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
@@ -279,4 +286,268 @@ test("the version-resource reader finds a key's UTF-16 value across its alignmen
     undefined,
     "an absent key yields no entry rather than a guess",
   );
+});
+
+// ---- tag parsing, ranking and leg resolution ------------------------------------------------------
+
+test("the strict-semver regex is the whole filter: every non-semver tag spelling parses to null", () => {
+  // No denylist names `latest`, `nightly`, `sha-*` or the truncated `X.Y` aliases anywhere — the
+  // regex rejects all of them, so an upstream tag convention nobody anticipated cannot leak in
+  // through a list nobody updated.
+  for (const spelling of ["latest", "nightly", "sha-deadbeef", "1.1"]) {
+    assert.equal(parseSemver(spelling), null, spelling);
+  }
+
+  assert.deepEqual(parseSemver("1.1.0"), {
+    tag: "1.1.0",
+    major: 1,
+    minor: 1,
+    patch: 0,
+    prerelease: [],
+  });
+  assert.deepEqual(parseSemver("1.3.0-rc.2").prerelease, ["rc", "2"]);
+});
+
+test("ranking follows semver precedence, including the three pre-release rules", () => {
+  const ranked = [
+    "1.1.0",
+    "1.0.0-alpha.1",
+    "1.2.0-rc.2",
+    "1.0.0",
+    "1.1.1-dev.179",
+    "1.0.0-1",
+    "1.3.0-rc.2",
+    "1.1.0-rc.1",
+    "1.1.1-dev.175",
+    "1.0.0-alpha",
+  ]
+    .map(parseSemver)
+    .sort(compareSemver)
+    .map((parsed) => parsed.tag);
+
+  assert.deepEqual(ranked, [
+    "1.0.0-1", // a numeric identifier ranks BELOW an alphanumeric one
+    "1.0.0-alpha",
+    "1.0.0-alpha.1", // a longer pre-release outranks a shorter prefix of itself
+    "1.0.0", // a release outranks every pre-release of the same version
+    "1.1.0-rc.1",
+    "1.1.0",
+    "1.1.1-dev.175",
+    "1.1.1-dev.179",
+    "1.2.0-rc.2",
+    "1.3.0-rc.2",
+  ]);
+});
+
+test("the GA/pre-release split puts every tag carrying a pre-release component in the pre-release bucket and nothing else", () => {
+  const { ga, prerelease } = splitReleaseChannels(
+    ["1.0.0", "1.1.0", "1.3.0-rc.2", "1.1.1-dev.175", "0.9.0"].map(parseSemver),
+  );
+
+  assert.deepEqual(
+    ga.map((parsed) => parsed.tag),
+    ["0.9.0", "1.0.0", "1.1.0"],
+    "GA ascending, so the newest is last",
+  );
+  assert.deepEqual(
+    prerelease.map((parsed) => parsed.tag),
+    ["1.1.1-dev.175", "1.3.0-rc.2"],
+  );
+});
+
+test("the floor leg resolves to the exact floor tag the registry lists", () => {
+  const resolved = resolveCoveLegs({
+    floor: "1.1.0",
+    tags: ["latest", "nightly", "1.0.0", "1.1.0", "1.3.0-rc.2"],
+  });
+
+  const floorLeg = resolved.legs.find((leg) => leg.role.split("+").includes("floor"));
+  assert.equal(floorLeg.tag, "1.1.0");
+  assert.equal(floorLeg.advisory, false);
+  assert.equal(resolved.examined.tags, 5);
+  assert.equal(resolved.examined.parsed, 3);
+});
+
+test("a floor tag absent from the registry's tag list is refused, never defaulted to something near it", () => {
+  // A floor leg pointing at a tag that is not there would otherwise surface as an HTTP 404 deep
+  // inside the extraction, long after the value that caused it was chosen.
+  assert.throws(
+    () => resolveCoveLegs({ floor: "1.2.0", tags: ["1.1.0", "1.2.0-rc.1", "1.2.0-rc.2"] }),
+    (error) => {
+      assert.match(error.message, /1\.2\.0/);
+      assert.match(error.message, /not/);
+      return true;
+    },
+  );
+});
+
+test("a floor that is not strict semver is refused before it can reach a registry URL", () => {
+  assert.throws(() => resolveCoveLegs({ floor: "1.2", tags: ["1.1.0"] }), /1\.2/);
+});
+
+test("a tag list from which nothing parses as strict semver is refused, naming how many were read", () => {
+  // Not an empty leg set: a registry that only ever answered with noise has told us nothing, and a
+  // resolver that returned no legs from it would read as "this extension needs no version leg".
+  assert.throws(
+    () =>
+      resolveCoveLegs({
+        floor: "1.1.0",
+        tags: ["latest", "nightly", "sha-abc123", "1.1"],
+        source: "ghcr.io/o/r",
+      }),
+    (error) => {
+      assert.match(error.message, /None of the 4 tag\(s\)/);
+      assert.match(error.message, /ghcr\.io\/o\/r/);
+      return true;
+    },
+  );
+});
+
+test("an empty tag list is refused, naming the registry and repository that was read", () => {
+  assert.throws(() => resolveCoveLegs({ floor: "1.1.0", tags: [], source: "ghcr.io/o/r" }), {
+    message: /ghcr\.io\/o\/r listed no tags at all/,
+  });
+});
+
+test("a tag list that never stops advertising rel=next is refused at the page cap rather than looping", async () => {
+  let served = 0;
+  await assert.rejects(
+    () =>
+      collectRegistryTags(
+        async () => {
+          served += 1;
+          return { tags: ["1.0.0"], link: '</v2/x/tags/list?last=1.0.0>; rel="next"' };
+        },
+        "/v2/x/tags/list",
+        4,
+      ),
+    (error) => {
+      assert.match(error.message, /after 4 page\(s\)/);
+      assert.match(error.message, /cap of 4/);
+      return true;
+    },
+  );
+  assert.equal(served, 4, "the cap stops the loop rather than the loop stopping itself");
+});
+
+test("when the newest GA equals the floor, the two legs collapse onto one image and the roles merge", () => {
+  const resolved = resolveCoveLegs({
+    floor: "1.1.0",
+    tags: ["1.0.0", "1.1.0", "1.2.0-rc.1", "1.3.0-rc.2", "latest"],
+  });
+
+  assert.deepEqual(resolved.legs, [
+    { tag: "1.1.0", role: "floor+newest-ga", advisory: false },
+    { tag: "1.3.0-rc.2", role: "newest-prerelease", advisory: true },
+  ]);
+  assert.equal(resolved.examined.roles, 3, "three roles resolved");
+  assert.equal(resolved.legs.length, 2, "two distinct images");
+});
+
+test("a newest GA above the floor yields three legs and three distinct images", () => {
+  const resolved = resolveCoveLegs({
+    floor: "1.1.0",
+    tags: ["1.1.0", "1.2.0", "1.3.0-rc.2"],
+  });
+
+  assert.deepEqual(resolved.legs, [
+    { tag: "1.1.0", role: "floor", advisory: false },
+    { tag: "1.2.0", role: "newest-ga", advisory: false },
+    { tag: "1.3.0-rc.2", role: "newest-prerelease", advisory: true },
+  ]);
+  assert.equal(resolved.examined.roles, 3);
+});
+
+// ---- the generated build expectation ---------------------------------------------------------------
+
+test("the rendered expectation carries the tag, the digest and one Sha256 per assembly, in the form the build reads back", () => {
+  const rendered = renderExtractionProps({
+    tag: "1.1.0",
+    digest: "sha256:abc123",
+    assemblies: [
+      { name: "Cove.Data.dll", sha256: "a".repeat(64) },
+      { name: "Cove.Core.dll", sha256: "b".repeat(64) },
+    ],
+  });
+
+  // Read back with the same property reader the fetcher uses on Directory.Build.props, so the
+  // attributed form is pinned rather than assumed.
+  const props = parseMsBuildProperties(rendered);
+  assert.equal(props.CoveExtractionImageTag, "1.1.0");
+  assert.equal(props.CoveExtractionManifestDigest, "sha256:abc123");
+  assert.match(
+    rendered,
+    /<CoveExtractedAssembly Include="Cove\.Data\.dll" Sha256="a{64}" \/>/,
+    "the expected hash rides as metadata on the item the build hashes",
+  );
+});
+
+test("a value that could inject markup into a file the build imports is refused", () => {
+  const assemblies = [{ name: "Cove.Data.dll", sha256: "a".repeat(64) }];
+  assert.throws(
+    () =>
+      renderExtractionProps({
+        tag: '1.1.0"/><Exec Command="whoami',
+        digest: "sha256:ab",
+        assemblies,
+      }),
+    /not a plain tag name/,
+  );
+  assert.throws(
+    () => renderExtractionProps({ tag: "1.1.0", digest: "not-a-digest", assemblies }),
+    /algorithm:hex digest/,
+  );
+  assert.throws(
+    () => renderExtractionProps({ tag: "1.1.0", digest: "sha256:ab", assemblies: [] }),
+    /recorded no assemblies/,
+  );
+  assert.throws(
+    () =>
+      renderExtractionProps({
+        tag: "1.1.0",
+        digest: "sha256:ab",
+        assemblies: [{ name: "Cove.Data.dll", sha256: "A".repeat(64) }],
+      }),
+    /64 lowercase hex digits/,
+  );
+});
+
+// ---- the seam with the real catalog ---------------------------------------------------------------
+
+test("every real catalog entry reaches a minCoveVersion floor through its own manifestPath", () => {
+  // minCoveVersion is NOT a catalog field; it lives in each entry's manifest, reached through
+  // manifestPath. Reading the repo's real files here means a catalog entry that loses its manifest
+  // path, or a manifest that loses its floor, fails the validate job's own node --test rather than
+  // failing later as a leg with no version to resolve.
+  const floors = readExtensionFloors();
+
+  assert.ok(floors.length > 0, "extensions/catalog.json must declare at least one extension");
+  for (const { floor, manifestPath } of floors) {
+    assert.ok(
+      parseSemver(floor) !== null,
+      `${manifestPath} declares minCoveVersion '${floor}', which is not strict semver`,
+    );
+  }
+});
+
+// ---- paginated tag reading ------------------------------------------------------------------------
+
+test("the tag reader follows Link: rel=next across pages and reports how many it read", async () => {
+  const pages = {
+    "/v2/x/tags/list": {
+      tags: ["1.0.0", "1.1.0"],
+      link: '</v2/x/tags/list?last=1.1.0&n=2>; rel="next"',
+    },
+    "/v2/x/tags/list?last=1.1.0&n=2": { tags: ["1.2.0"], link: "" },
+  };
+
+  const read = [];
+  const result = await collectRegistryTags(async (pathAndQuery) => {
+    read.push(pathAndQuery);
+    return pages[pathAndQuery];
+  }, "/v2/x/tags/list");
+
+  assert.deepEqual(result.tags, ["1.0.0", "1.1.0", "1.2.0"]);
+  assert.equal(result.pages, 2);
+  assert.deepEqual(read, Object.keys(pages));
 });

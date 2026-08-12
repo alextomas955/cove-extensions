@@ -43,6 +43,10 @@ jobs:
       contents: read
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
+      # A SECOND output, deliberately: `build`, `test-cove-present` and `e2e` all read `matrix`, so
+      # widening that one would multiply `build` — which compiles against CoveSourceMode=none and has
+      # nothing to do with a host version.
+      coveMatrix: ${{ steps.coveMatrix.outputs.coveMatrix }}
     steps:
       - uses: actions/checkout@v7
 
@@ -128,6 +132,41 @@ jobs:
           '
         env:
           GITHUB_REF: ${{ github.ref }}
+
+      # The version axis, resolved ONCE here and fanned out, rather than once per leg per extension:
+      # every leg then tests a tag something reported, and there is a single place where "what was
+      # examined, and what did that resolve to" is printed. The resolver reaches each entry's floor
+      # through that entry's own manifest, so a second extension needs a catalog entry and no edit.
+      #
+      # The join reuses the matrix step's ref filtering rather than repeating it — two copies of that
+      # filter would agree until the day they did not. An empty join is a hard failure: a version axis
+      # that resolved nothing must not read as an axis with nothing to test.
+      - name: Resolve the Cove version axis
+        id: coveMatrix
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/fetch-cove-assemblies.mjs --resolve-tags --report > /tmp/cove-legs.json
+          node -e '
+            const fs = require("fs");
+            const resolved = JSON.parse(fs.readFileSync("/tmp/cove-legs.json", "utf8"));
+            const selected = new Set(JSON.parse(process.env.BUILD_MATRIX).extension.map((e) => e.id));
+            // Only the floor leg is wired through for now; the newest-GA and advisory pre-release legs
+            // land with the advisory handling they need, which is not this change.
+            const include = resolved.include.filter(
+              (combo) => selected.has(combo.extension.id) && combo.cove.role.split("+").includes("floor"),
+            );
+            if (include.length === 0) {
+              console.error("::error::The Cove version axis resolved no floor leg for any selected extension, so the cove-present tier would run against nothing.");
+              process.exit(1);
+            }
+            for (const combo of include) {
+              console.log("cove leg: " + combo.extension.name + " " + combo.cove.role + " " + combo.cove.tag);
+            }
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, "coveMatrix=" + JSON.stringify({ include }) + "\n");
+          '
+        env:
+          BUILD_MATRIX: ${{ steps.matrix.outputs.matrix }}
 
   build:
     needs: validate
@@ -343,14 +382,19 @@ jobs:
   # loop-safety assertion that needs a real CoveContext runs here, in process, and blocks a merge.
   #
   # Catalog-driven like every other leg: a second extension gains this job through its catalog entry,
-  # with no edit here. Nothing about the image is named in this file — the fetcher reads the repository
-  # and tag from Directory.Build.props, so the version CI tests against is declared in one place.
+  # with no edit here. No Cove version is named in this file either — each leg's tag arrives resolved
+  # from validate's version axis, which reads it off the registry against the floor the extension
+  # declares in its own manifest, and the repository half still comes from Directory.Build.props.
+  #
+  # This job's matrix is the version axis (coveMatrix), so its combos are flat: `matrix.extension` is
+  # still the catalog entry and `matrix.cove` is the leg. A cross product would have paired one
+  # extension with another's floor, which is correct with one extension and silently wrong with two.
   test-cove-present:
     needs: validate
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.validate.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.validate.outputs.coveMatrix) }}
     permissions:
       contents: read
     steps:
@@ -396,16 +440,20 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      # The tag Directory.Build.props declares is a moving one, so this repo can go red for a change
-      # upstream rather than one here. That is accepted, on the condition that such a red is
-      # diagnosable in one look: the resolved digest and the extracted Cove version are surfaced as a
-      # notice, so "upstream moved" and "we broke it" are distinguishable without re-running anything.
+      # A leg's tag reaches BOTH consumers from the one env entry below: --tag here, because the
+      # fetcher text-parses Directory.Build.props and cannot see an MSBuild global property, and
+      # -p:CoveTestImageTag on the test step, because the build's staleness guard compares what the
+      # extraction recorded against what this leg was told to test. They are two consumers of one
+      # value, and the guard's whole job is to fail when they disagree.
+      #
+      # A resolved registry tag is third-party input, so it arrives through the step's own environment
+      # and is read as a quoted variable — data the shell reads, never text the shell runs.
       - name: Fetch Cove assemblies from the released image
         if: steps.check.outputs.has_tier == 'true'
         shell: bash
         run: |
           set -o pipefail
-          node scripts/fetch-cove-assemblies.mjs --out artifacts/cove-assemblies | tee /tmp/fetch.log
+          node scripts/fetch-cove-assemblies.mjs --tag "$COVE_TAG" --out artifacts/cove-assemblies | tee /tmp/fetch.log
           digest=$(grep -E '^manifest digest: ' /tmp/fetch.log | tail -1)
           assembly=$(grep -E '^Cove\.Data\.dll assembly version: ' /tmp/fetch.log | tail -1)
           informational=$(grep -E '^Cove\.Data\.dll informational version: ' /tmp/fetch.log | tail -1)
@@ -413,7 +461,10 @@ jobs:
             echo "::error::The fetcher reported no manifest digest or no assembly version, so there is nothing to attribute a later failure to."
             exit 1
           fi
-          echo "::notice::Cove under test — $digest; $assembly; $informational"
+          echo "::notice::Cove under test ($COVE_ROLE $COVE_TAG) — $digest; $assembly; $informational"
+        env:
+          COVE_TAG: ${{ matrix.cove.tag }}
+          COVE_ROLE: ${{ matrix.cove.role }}
 
       # -p:CoveSourceMode=assemblies is stated EXPLICITLY: an infrastructure failure that left the
       # extraction empty must fail this job, not quietly select the cove-absent branch and report a
@@ -432,6 +483,7 @@ jobs:
           set -o pipefail
           dotnet test "$TEST_PROJECT_PATH" -c Release \
             -p:CoveSourceMode=assemblies \
+            -p:CoveTestImageTag="$COVE_TAG" \
             -p:CoveAssembliesDir=artifacts/cove-assemblies | tee /tmp/cove-present.log
           total=$(grep -oE 'Total: *[0-9]+' /tmp/cove-present.log | tail -1 | grep -oE '[0-9]+')
           if [[ -z "$total" ]]; then
@@ -444,11 +496,12 @@ jobs:
             echo "::error::$EXTENSION_NAME ran $total tests against a floor of $MINIMUM_TOTAL. The leg compiled less than CoveSourceMode=assemblies implies — check that the extraction is complete rather than lowering the floor."
             exit 1
           fi
-          echo "Cove-present tier ran $total tests (floor $MINIMUM_TOTAL)."
+          echo "Cove-present tier ran $total tests against Cove $COVE_TAG (floor $MINIMUM_TOTAL)."
         env:
           EXTENSION_NAME: ${{ matrix.extension.name }}
           TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
           MINIMUM_TOTAL: ${{ matrix.extension.coveTestMinimumTotal }}
+          COVE_TAG: ${{ matrix.cove.tag }}
 
   # ---- E2E: rebuilds each extension (a separate job from build/matrix.extension — GitHub Actions
   # jobs don't share a filesystem, so this job publishes its own fresh copy rather than trying to
