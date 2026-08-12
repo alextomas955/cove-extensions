@@ -386,9 +386,14 @@ test("a declared catalog path that does not exist fails, naming the field", () =
 test("declared catalog paths that all exist pass, and the report line names how many were checked", () => {
   // The "prove it ran" half, for this check. Two fields are declared and both resolve, so the run is
   // clean — and the count is what distinguishes that from a check that silently examined nothing.
+  //
+  // Which two fields is immaterial: the counter walks matrixPathFields and does not read their names.
+  // uiPath is deliberately not one of them, because it cannot coexist with the manifestOnly baseline —
+  // that pairing is its own refusal, and borrowing uiPath here would make this case fail for a reason
+  // it says nothing about.
   const entry = validEntry("com.example.foo", "Foo", {
-    uiPath: "extensions/Foo/ui",
     e2ePath: "extensions/Foo/e2e",
+    e2eNodeTestsPath: "extensions/Foo/e2e/node",
   });
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },
@@ -396,8 +401,8 @@ test("declared catalog paths that all exist pass, and the report line names how 
       "extensions/Foo/extension.json": validManifest("com.example.foo"),
       // Each planted file is only a way to make its parent directory exist on disk; the validator
       // checks the declared directory, never these.
-      "extensions/Foo/ui/package.json": { name: "foo-ui" },
       "extensions/Foo/e2e/package.json": { name: "foo-e2e" },
+      "extensions/Foo/e2e/node/package.json": { name: "foo-e2e-node" },
     },
   });
   try {
@@ -459,6 +464,81 @@ test("an entry with a UI and a test project but no wireDocumentPath fails, namin
       stderr,
       /com\.example\.foo: declares uiPath and testProjectPath but no wireDocumentPath/,
     );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a manifestOnly entry that declares a uiPath fails, naming both fields", () => {
+  // The two fields contradict each other and nothing else in the catalog can say so: each is
+  // individually well-formed, and uiPath's own existence check passes here because the directory is
+  // real. What makes the pairing a defect is what CI does with it — several build steps read uiPath
+  // and would generate, verify and bundle a frontend for an entry that ships no assembly to load it.
+  // The refusal is read from the entry alone, so it must also speak for an entry whose directory or
+  // manifest is broken; the case below plants both so this one has exactly one malformation.
+  const entry = validEntry("com.example.foo", "Foo", { uiPath: "extensions/Foo/ui" });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo"),
+      // Planted so the matrixPathFields existence check is silent — without it this case passes on
+      // "uiPath does not exist", which proves nothing about the pairing.
+      "extensions/Foo/ui/package.json": { name: "foo-ui" },
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(stderr, /com\.example\.foo: declares both manifestOnly and uiPath/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a manifestOnly entry declaring no uiPath is untouched by the pairing refusal", () => {
+  // The arm that proves the refusal reads both operands rather than firing on manifestOnly alone.
+  // Every entry in this suite is manifestOnly by baseline, so a one-operand condition would redden
+  // most of the file — but it would redden it for reasons each of those cases is silent about, and
+  // this case is the one that names the operand. The fixture is deliberately the happy path's: what
+  // differs is the claim, which is that adding the refusal changed nothing here.
+  const entry = validEntry("com.example.foo", "Foo");
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo"),
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a uiPath on an entry that is not manifestOnly is untouched by the pairing refusal", () => {
+  // The opposite arm, and the shape the repository's own catalog has: a UI on an assembly-bearing
+  // entry is ordinary, so manifestOnly:false must disarm the refusal. Dropping manifestOnly puts the
+  // entry back on the C# path, which is why the convention-derived .csproj, its solution membership
+  // and an entryDll are all supplied — each answers a check the entry only now reaches, so exit 0
+  // means the refusal stayed silent rather than that some earlier error short-circuited past it.
+  const entry = validEntry("com.example.foo", "Foo", {
+    name: "Foo",
+    manifestOnly: false,
+    uiPath: "extensions/Foo/ui",
+  });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    solution: ["extensions/Foo/Foo.csproj"],
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", { entryDll: "Foo.dll" }),
+      "extensions/Foo/ui/package.json": { name: "foo-ui" },
+    },
+    filesByPath: { "extensions/Foo/Foo.csproj": "<Project />\n" },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
