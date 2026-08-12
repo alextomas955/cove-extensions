@@ -7,11 +7,13 @@
 # `rename` repo's packaging, csharp-format and markdown-lint hardening as matrix steps
 # (per-extension) or root-level jobs (repo-wide) so future extensions inherit them automatically.
 #
-# The validate job computes the build matrix from catalog.json (all entries for a PR build; only
-# the tagged extension for a tag push) and — on a tag push — confirms the tag matches exactly one
-# catalog entry's tagPrefix, carries a valid semver suffix, and agrees with both that entry's
-# extension.json version and its registry manifest's newest versions[] row. No PR trigger path
-# filtering is used anywhere: every catalog entry is built on every PR.
+# The validate job computes the build matrix from catalog.json (all entries for a pull request or a
+# scheduled run; only the tagged extension for a tag push) and — on a tag push — confirms the tag
+# matches exactly one catalog entry's tagPrefix, carries a valid semver suffix, and agrees with both
+# that entry's extension.json version and its registry manifest's newest versions[] row. No PR trigger
+# path filtering is used anywhere: every catalog entry is built on every PR. It also resolves the Cove
+# version axis the two safety legs fan out over, which is why the same commit can go red on a scheduled
+# run having been green on its pull request: the hosts under test are resolved, not pinned.
 #
 # Required-check model: the `required-checks` aggregation job is the single status check to mark
 # required in branch protection; it transitively gates on `build` (the bare C# unit tier, which states
@@ -29,6 +31,20 @@ on:
   push:
     tags:
       - "*/v*"
+  # A daily signal on a moving target, which the two triggers above cannot give: the newest published
+  # Cove versions are resolved off the registry at run time, so the same commit tests different hosts on
+  # different days, and an upstream change that breaks this extension would otherwise surface only on
+  # whichever pull request happened to come next. What it costs is stated rather than absorbed: EVERY job
+  # in this file runs daily, including both safety legs and the aggregate, so this is recurring runner
+  # spend for a repository with a single maintainer.
+  #
+  # 06:00 UTC is chosen to be well outside that maintainer's working hours, so a red arrives before a
+  # session rather than during one. One caveat that costs a day of debugging if not known: the upstream
+  # images move too, and a scheduled run landing inside an upstream rebuild window can read a
+  # partially-updated tag. A red that recurs at this hour and passes on re-run is the schedule, not the
+  # workflow.
+  schedule:
+    - cron: "0 6 * * *"
 
 env:
   DOTNET_VERSION: "10.0.x"
