@@ -495,6 +495,55 @@ test("a manifestOnly entry that declares a uiPath fails, naming both fields", ()
   }
 });
 
+test("a manifestOnly entry declaring no uiPath is untouched by the pairing refusal", () => {
+  // The arm that proves the refusal reads both operands rather than firing on manifestOnly alone.
+  // Every entry in this suite is manifestOnly by baseline, so a one-operand condition would redden
+  // most of the file — but it would redden it for reasons each of those cases is silent about, and
+  // this case is the one that names the operand. The fixture is deliberately the happy path's: what
+  // differs is the claim, which is that adding the refusal changed nothing here.
+  const entry = validEntry("com.example.foo", "Foo");
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo"),
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a uiPath on an entry that is not manifestOnly is untouched by the pairing refusal", () => {
+  // The opposite arm, and the shape the repository's own catalog has: a UI on an assembly-bearing
+  // entry is ordinary, so manifestOnly:false must disarm the refusal. Dropping manifestOnly puts the
+  // entry back on the C# path, which is why the convention-derived .csproj, its solution membership
+  // and an entryDll are all supplied — each answers a check the entry only now reaches, so exit 0
+  // means the refusal stayed silent rather than that some earlier error short-circuited past it.
+  const entry = validEntry("com.example.foo", "Foo", {
+    name: "Foo",
+    manifestOnly: false,
+    uiPath: "extensions/Foo/ui",
+  });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    solution: ["extensions/Foo/Foo.csproj"],
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", { entryDll: "Foo.dll" }),
+      "extensions/Foo/ui/package.json": { name: "foo-ui" },
+    },
+    filesByPath: { "extensions/Foo/Foo.csproj": "<Project />\n" },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("an entry declaring no optional catalog path says so, rather than reporting nothing", () => {
   // Zero checked paths is the case that must not be invisible: an entry set that declares none is
   // legitimate, but it is NOT the same as one whose paths were all confirmed, and a report line that
