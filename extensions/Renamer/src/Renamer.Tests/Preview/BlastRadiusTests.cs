@@ -233,4 +233,49 @@ public sealed class BlastRadiusTests
 
         Assert.Equal(1, summary.InFlightPathOverflowCount);
     }
+
+    [Fact]
+    public void SameVolumeMove_OfTheIdenticalOverBoundaryLength_IsNotFlagged()
+    {
+        // The arm that decides whether the warning is trustworthy. DiskMover mints no temporary name at
+        // all — a same-volume move is one atomic rename — so an identical path length that overruns when
+        // copied across drives is perfectly fine in place. A warning here would fire on a correct plan,
+        // and most plans are same-volume.
+        string overLength = NameForPathLength(Budget - CrossVolumeMover.InFlightSuffixLength + 1);
+
+        var sameVolume = Item(
+            1, OnVol("C", "a.mkv"), OnVol("C", overLength), RenamerStatus.Renamer, RootOf("C"));
+        var crossVolume = Item(
+            2, OnVol("C", "b.mkv"), OnVol("D", overLength), RenamerStatus.Move, RootOf("D"));
+
+        // The two destinations are the same length, so the only difference between them is the volume.
+        Assert.Equal(crossVolume.NewFullPath.Length, sameVolume.NewFullPath.Length);
+
+        Assert.False(BatchPreview.InFlightPathOverflows(sameVolume, Budget, Mounts));
+        Assert.True(BatchPreview.InFlightPathOverflows(crossVolume, Budget, Mounts));
+
+        var summary = BatchPreview.Summarize(
+            [sameVolume, crossVolume], new Dictionary<int, long>(), Budget, Mounts);
+
+        Assert.Equal(1, summary.InFlightPathOverflowCount);
+    }
+
+    [Fact]
+    public void ANonActingItemPastTheBoundary_IsNotFlagged()
+    {
+        // A skip copies nothing, so it has no in-flight path to overrun, and it already carries its own
+        // reason. Two warnings on one row, one of which describes work that will not happen, is noise.
+        var skipped = Item(
+            1,
+            OnVol("C", "a.mkv"),
+            OnVol("D", NameForPathLength(Budget - CrossVolumeMover.InFlightSuffixLength + 1)),
+            RenamerStatus.SkipCollision,
+            RootOf("D"));
+
+        Assert.False(BatchPreview.InFlightPathOverflows(skipped, Budget, Mounts));
+
+        var summary = BatchPreview.Summarize([skipped], new Dictionary<int, long>(), Budget, Mounts);
+
+        Assert.Equal(0, summary.InFlightPathOverflowCount);
+    }
 }
