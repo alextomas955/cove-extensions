@@ -151,13 +151,9 @@ jobs:
             const fs = require("fs");
             const resolved = JSON.parse(fs.readFileSync("/tmp/cove-legs.json", "utf8"));
             const selected = new Set(JSON.parse(process.env.BUILD_MATRIX).extension.map((e) => e.id));
-            // Only the floor leg is wired through for now; the newest-GA and advisory pre-release legs
-            // land with the advisory handling they need, which is not this change.
-            const include = resolved.include.filter(
-              (combo) => selected.has(combo.extension.id) && combo.cove.role.split("+").includes("floor"),
-            );
+            const include = resolved.include.filter((combo) => selected.has(combo.extension.id));
             if (include.length === 0) {
-              console.error("::error::The Cove version axis resolved no floor leg for any selected extension, so the cove-present tier would run against nothing.");
+              console.error("::error::The Cove version axis resolved no leg for any selected extension, so the safety tiers would run against nothing.");
               process.exit(1);
             }
             for (const combo of include) {
@@ -395,6 +391,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.validate.outputs.coveMatrix) }}
+    # An upstream release-candidate regression is not this pull request's defect, and a gate that can
+    # freeze merges for someone else's breakage is a gate that gets switched off — so the leg testing an
+    # unreleased Cove reports rather than blocks. The value is the LEG'S OWN flag, so which roles are
+    # advisory is a fact the resolver states once and no consumer re-derives from a role name.
+    #
+    # Two things about how this reads on a run, both easy to mistake for defects. A job that fails under
+    # this setting still renders a red cross on the run; branch protection keys on the aggregate status
+    # further down, which reports success for such a job, so the red is a cosmetic residue of the
+    # mechanism rather than a merge block. And the local workflow runner (act, through 0.2.89) does not
+    # implement job-level continue-on-error at all — neither a literal nor a matrix expression — so it
+    # leaves the downstream result at `failure` and exits non-zero whenever this leg fails. A local run
+    # reporting failure for an advisory leg is therefore a runner artefact, not something to fix here.
+    continue-on-error: ${{ matrix.cove.advisory }}
     permissions:
       contents: read
     steps:
