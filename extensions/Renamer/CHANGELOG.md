@@ -11,6 +11,14 @@ User-facing changes, newest first.
      editing the 0.3.0 row: it describes an immutable artifact that genuinely runs on a 1.0.0 host.
      The full rule is in the repo-wide Releasing guide, under "Raising minCoveVersion". -->
 
+- **A rename whose copy will not fit across drives is now flagged before you approve it.** A move to
+  another drive copies the file to a temporary name beside its destination and then promotes it, and that
+  temporary name is longer than the final one. A destination path close to the length limit therefore
+  passes the plan and still fails part-way through the move. Renamer now counts those files in the rename
+  confirmation and marks each one in the dry run, a dry run over your whole library included, so you see
+  them before anything runs. **Your filenames are unchanged.** Shortening them to fit would change the
+  result for every file near the limit, including the ones that were never at risk. Where you see the
+  warning, shorten the destination folder or the name yourself, or keep the move on one drive.
 - **Renamer says that it renames audio files, which it has been doing all along.** The manifest and the
   docs described video and image only, so the Extensions list understated what Renamer touches — and
   understated the permissions it asks for, which is what you read before granting it access. It now

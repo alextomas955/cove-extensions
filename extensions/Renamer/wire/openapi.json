@@ -979,7 +979,8 @@
           "status",
           "reason",
           "suffixed",
-          "sanitized"
+          "sanitized",
+          "inFlightPathOverflow"
         ],
         "type": "object",
         "properties": {
@@ -1013,6 +1014,9 @@
             "type": "boolean"
           },
           "sanitized": {
+            "type": "boolean"
+          },
+          "inFlightPathOverflow": {
             "type": "boolean"
           }
         }

@@ -7,5 +7,6 @@
   "status": "move",
   "reason": null,
   "suffixed": false,
-  "sanitized": false
+  "sanitized": false,
+  "inFlightPathOverflow": false
 }

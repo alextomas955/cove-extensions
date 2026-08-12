@@ -93,8 +93,13 @@ public sealed class WireSnapshotTests
             FileId: 42, OldFullPath: "/lib/a.mp3", NewFullPath: "/music/Artist - Song.mp3",
             Status: RenamerStatus.Move, NewBasename: "Artist - Song.mp3", TargetFolderPath: "/music",
             ResolvedDestinationRoot: "/music", MatchedRule: "Studio:7(direct)", TargetVolume: "/");
+        // Same-volume by construction (one root), so the overflow flag is false — this fixture pins that
+        // the field is ON the wire and spelled camelCase, and the true arm is a behavioural question
+        // answered in ScanAggregatorTests / ScanRowOverflowFlagTests rather than by planting a value the
+        // classification contradicts.
         string json = JsonSerializer.Serialize(
-            ScanRow.From(RenamerFileKind.Audio, entityId: 5, item), PreviewResponse_);
+            ScanRow.From(RenamerFileKind.Audio, entityId: 5, item, inFlightPathOverflow: false),
+            PreviewResponse_);
 
         // The three consumer-less fields and the two the client derives from newFullPath must be ABSENT:
         // this row multiplies by library size, so a field nobody reads is weight on every page.
@@ -144,10 +149,13 @@ public sealed class WireSnapshotTests
     [Fact]
     public void ScanRowsPage_CamelCase_WithAndWithoutACursor()
     {
-        var row = ScanRow.From(RenamerFileKind.Video, entityId: 9, new RenamerPlanItem(
-            FileId: 90, OldFullPath: "/lib/raw.mkv", NewFullPath: "/lib/Title.mkv",
-            Status: RenamerStatus.Renamer, NewBasename: "Title.mkv", TargetFolderPath: "/lib",
-            Suffixed: true, Sanitized: true));
+        var row = ScanRow.From(
+            RenamerFileKind.Video, entityId: 9,
+            new RenamerPlanItem(
+                FileId: 90, OldFullPath: "/lib/raw.mkv", NewFullPath: "/lib/Title.mkv",
+                Status: RenamerStatus.Renamer, NewBasename: "Title.mkv", TargetFolderPath: "/lib",
+                Suffixed: true, Sanitized: true),
+            inFlightPathOverflow: false);
 
         var snapshot = new
         {

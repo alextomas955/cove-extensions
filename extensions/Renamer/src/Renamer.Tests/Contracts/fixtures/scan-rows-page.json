@@ -10,7 +10,8 @@
         "status": "renamer",
         "reason": null,
         "suffixed": true,
-        "sanitized": true
+        "sanitized": true,
+        "inFlightPathOverflow": false
       }
     ],
     "next": {
@@ -40,7 +41,8 @@
         "status": "renamer",
         "reason": null,
         "suffixed": true,
-        "sanitized": true
+        "sanitized": true,
+        "inFlightPathOverflow": false
       }
     ],
     "next": null,

@@ -61,11 +61,11 @@ export const IN_FLIGHT_OVERFLOW_LABEL = "Too long to copy across drives";
 /**
  * The label a row earns from the server's `inFlightPathOverflow` flag, or `null` for a row without one.
  *
- * The flag is OPTIONAL on the way in, and that is not laxity: `/preview` carries it today while the paged
- * `/scan-rows` shape does not yet, so a row that never had the field must read as "no warning" rather than
- * as a warning suppressed by accident. It is read with `=== true` for the same reason — an absent field is
- * `undefined`, which is falsy, and a truthiness test would also swallow a wire value that arrived as the
- * string `"false"`.
+ * Both wire shapes that reach a badge declare the flag now, so the compile-time requirement lives at the
+ * `Badgeable` boundary rather than here. What stays optional on the way IN is a runtime guard: a response
+ * decoded from a build that predates the field has no field, and that must read as "no warning" rather than
+ * throw. It is read with `=== true` for the neighbouring reason — an absent field is `undefined`, and a
+ * truthiness test would also swallow a wire value that arrived as the string `"false"`.
  */
 export function inFlightOverflowLabel(item: { inFlightPathOverflow?: boolean }): string | null {
   return item.inFlightPathOverflow === true ? IN_FLIGHT_OVERFLOW_LABEL : null;
