@@ -136,10 +136,11 @@ public sealed class ScanAggregator
                     CrossVolumeBytes: crossBytes,
                     VolumePairs: pairs,
                     ConfirmLevel: BatchPreview.ClassifyConfirm(crossCount, crossBytes, untruncated),
-                    // Zero, not a tally: the scan folds one file at a time and this aggregate keeps no
-                    // per-file collection, so counting the overflows needs a counter on the per-kind tally
-                    // that does not exist yet. Plan 29-06 adds it and populates this from it.
-                    InFlightPathOverflowCount: 0);
+                    // A count, and never the offending paths: this aggregate is stored and served for a
+                    // library of unbounded size, and a per-file collection under one key is the shape that
+                    // has already broken an extension's settings page here. The rows carry their own flag
+                    // on the page that serves them, which is where a user needs to see WHICH file.
+                    InFlightPathOverflowCount: tally.InFlightPathOverflowFiles);
 
                 return new ScanKindSummary(
                     kv.Key,
