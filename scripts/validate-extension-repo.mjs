@@ -285,6 +285,20 @@ for (const entry of entries) {
     }
   }
 
+  // A manifestOnly entry declares that it ships no built assembly, while uiPath tells the CI build
+  // several times over to install, generate, type-check and bundle a frontend — for an entry with
+  // nothing to load it. The pairing is incoherent in one direction only: a UI on an assembly-bearing
+  // entry is ordinary. Refusing it here, where it is a pure catalog fact, is what keeps those build
+  // conditions from each needing their own copy of this guard. Placed with the entry-level checks
+  // rather than beside the manifest-reading manifestOnly refusals below, because the short-circuits
+  // at the end of this block `continue` past those for an entry whose directory or manifest is
+  // missing — which is exactly the malformed entry most likely to carry this defect.
+  if (isManifestOnly && entry.uiPath) {
+    errors.push(
+      `${entry.id}: declares both manifestOnly and uiPath, so CI would build and bundle a frontend for an entry that ships no assembly to load it`,
+    );
+  }
+
   // Same reasoning as the loop above: an entry that short-circuits below still declares projects the
   // C# gates would have to compile, and a solution gap is worth reporting alongside whatever else is
   // wrong with the entry.

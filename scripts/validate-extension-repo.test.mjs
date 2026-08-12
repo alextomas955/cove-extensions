@@ -386,9 +386,14 @@ test("a declared catalog path that does not exist fails, naming the field", () =
 test("declared catalog paths that all exist pass, and the report line names how many were checked", () => {
   // The "prove it ran" half, for this check. Two fields are declared and both resolve, so the run is
   // clean — and the count is what distinguishes that from a check that silently examined nothing.
+  //
+  // Which two fields is immaterial: the counter walks matrixPathFields and does not read their names.
+  // uiPath is deliberately not one of them, because it cannot coexist with the manifestOnly baseline —
+  // that pairing is its own refusal, and borrowing uiPath here would make this case fail for a reason
+  // it says nothing about.
   const entry = validEntry("com.example.foo", "Foo", {
-    uiPath: "extensions/Foo/ui",
     e2ePath: "extensions/Foo/e2e",
+    e2eNodeTestsPath: "extensions/Foo/e2e/node",
   });
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },
@@ -396,8 +401,8 @@ test("declared catalog paths that all exist pass, and the report line names how 
       "extensions/Foo/extension.json": validManifest("com.example.foo"),
       // Each planted file is only a way to make its parent directory exist on disk; the validator
       // checks the declared directory, never these.
-      "extensions/Foo/ui/package.json": { name: "foo-ui" },
       "extensions/Foo/e2e/package.json": { name: "foo-e2e" },
+      "extensions/Foo/e2e/node/package.json": { name: "foo-e2e-node" },
     },
   });
   try {
