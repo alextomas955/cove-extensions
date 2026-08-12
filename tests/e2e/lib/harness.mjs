@@ -7,18 +7,79 @@
 // even if the test process is killed (not just on a graceful exit) — a hand-rolled wrapper only
 // cleans up in the success path, leaking containers on a killed run. It also owns port resolution
 // and health-check waiting, removing two hand-written polling loops this file used to have.
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
 import { installViaContainerCopy, installViaUrl } from "./install-extension.mjs";
+// The repository the image lives in and the floor each extension declares both already have exactly
+// one reader, and a second parse of either here would be free to disagree with the one CI resolves
+// against.
+import {
+  compareSemver,
+  parseSemver,
+  readCoveImageReference,
+  readExtensionFloors,
+} from "../../../scripts/fetch-cove-assemblies.mjs";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const COMPOSE_DIR = join(__dirname, "..", "docker");
+// import.meta.dirname, never a filesystem path read off a module URL's path component: on Windows
+// that yields a leading-slash form which resolves to a doubled drive prefix.
+const COMPOSE_DIR = join(import.meta.dirname, "..", "docker");
 const COMPOSE_FILE = "docker-compose.yml";
 
 // Shared-runner container cold-start is measurably slower than a dedicated dev machine's Docker
 // Desktop — widen the default startup budget in CI rather than tuning it tight against local timing.
 const DEFAULT_STARTUP_TIMEOUT_MS = process.env.CI ? 240_000 : 180_000;
+
+/**
+ * The Cove image an instance boots, resolved from the most specific input available.
+ *
+ * <remarks>
+ * In order: a reference the caller states outright (a locally built host, say); a complete reference in
+ * `COVE_E2E_IMAGE`; a version in `COVE_E2E_TAG`, placed on the repository the build properties declare;
+ * and failing all three the highest floor the catalog's extensions declare in their own manifests. The
+ * compose file holds no default of its own, so this is the only thing that decides.
+ *
+ * The tag-only form is what a CI leg has to give: a version leg resolves a VERSION, and the repository
+ * is declared once in the build properties — which is why the fetcher and the build's version guard
+ * take a tag too, rather than each being handed a whole reference to get wrong.
+ *
+ * Every path is derived, never written down. A version literal here would be a second declaration of a
+ * number that already lives in a manifest, free to fall behind it — and a host BELOW an extension's
+ * floor does not error: its version gate silently refuses to LOAD the extension, so the routes 404 and
+ * every browser spec fails against a Settings page that never gains the extension's tab. The floor
+ * taken is the HIGHEST declared, because one instance serves whichever extensions a run installs into
+ * it and the lowest would boot a host beneath somebody's floor. Nothing here names an extension: a
+ * second one arrives through the catalog and needs no edit in this file.
+ *
+ * Throws rather than falling back when a floor cannot be read or is not strict semver. An image nobody
+ * chose is how a suite passes against the wrong host.
+ * </remarks>
+ * @param {string} [image] - an explicit complete reference, which wins over both environment forms.
+ * @returns {string} a complete image reference, e.g. `ghcr.io/yourcove/cove-app:1.1.0`.
+ */
+export function resolveCoveImage(image) {
+  if (image) return image;
+  if (process.env.COVE_E2E_IMAGE) return process.env.COVE_E2E_IMAGE;
+  // registry AND repository, never the `repository` field alone: that one is the host-less path, and a
+  // reference missing its registry host resolves to Docker Hub — a real image, from a registry nobody
+  // named.
+  const { registry, repository } = readCoveImageReference();
+  return `${registry}/${repository}:${process.env.COVE_E2E_TAG || highestDeclaredFloor()}`;
+}
+
+/** The highest `minCoveVersion` any catalog entry declares, reached through that entry's own manifest. */
+function highestDeclaredFloor() {
+  let highest = null;
+  for (const { entry, floor, manifestPath } of readExtensionFloors()) {
+    const parsed = parseSemver(floor);
+    if (parsed === null) {
+      throw new Error(
+        `${manifestPath} declares minCoveVersion '${floor}' for '${entry.id ?? entry.name}', which is not a strict X.Y.Z semver version, so no Cove image can be resolved from it.`,
+      );
+    }
+    if (highest === null || compareSemver(parsed, highest) > 0) highest = parsed;
+  }
+  return highest.tag;
+}
 
 /**
  * Brings up an isolated Cove instance and returns a handle with baseUrl + install/teardown methods.
@@ -28,6 +89,9 @@ const DEFAULT_STARTUP_TIMEOUT_MS = process.env.CI ? 240_000 : 180_000;
  * `env` is passed to the compose invocation, so it reaches any `${VAR:-default}` substitution in
  * docker-compose.yml — e.g. `{ COVE_E2E_AUTH_ENABLED: 'true' }` for an instance that must enforce
  * real authentication.
+ *
+ * `image` is a complete reference and overrides every other source; see `resolveCoveImage` for what
+ * decides when it is absent.
  */
 export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIMEOUT_MS } = {}) {
   let environment = new DockerComposeEnvironment(COMPOSE_DIR, COMPOSE_FILE)
@@ -40,10 +104,8 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     .withWaitStrategy("cove-1", Wait.forHealthCheck())
     .withWaitStrategy("db-1", Wait.forHealthCheck());
 
-  const composeEnv = { ...(image ? { COVE_E2E_IMAGE: image } : {}), ...env };
-  if (Object.keys(composeEnv).length > 0) {
-    environment = environment.withEnvironment(composeEnv);
-  }
+  const composeEnv = { COVE_E2E_IMAGE: resolveCoveImage(image), ...env };
+  environment = environment.withEnvironment(composeEnv);
 
   const started = await environment.up();
   let coveContainer = started.getContainer("cove-1");

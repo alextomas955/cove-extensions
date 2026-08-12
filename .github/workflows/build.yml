@@ -7,11 +7,13 @@
 # `rename` repo's packaging, csharp-format and markdown-lint hardening as matrix steps
 # (per-extension) or root-level jobs (repo-wide) so future extensions inherit them automatically.
 #
-# The validate job computes the build matrix from catalog.json (all entries for a PR build; only
-# the tagged extension for a tag push) and — on a tag push — confirms the tag matches exactly one
-# catalog entry's tagPrefix, carries a valid semver suffix, and agrees with both that entry's
-# extension.json version and its registry manifest's newest versions[] row. No PR trigger path
-# filtering is used anywhere: every catalog entry is built on every PR.
+# The validate job computes the build matrix from catalog.json (all entries for a pull request or a
+# scheduled run; only the tagged extension for a tag push) and — on a tag push — confirms the tag
+# matches exactly one catalog entry's tagPrefix, carries a valid semver suffix, and agrees with both
+# that entry's extension.json version and its registry manifest's newest versions[] row. No PR trigger
+# path filtering is used anywhere: every catalog entry is built on every PR. It also resolves the Cove
+# version axis the two safety legs fan out over, which is why the same commit can go red on a scheduled
+# run having been green on its pull request: the hosts under test are resolved, not pinned.
 #
 # Required-check model: the `required-checks` aggregation job is the single status check to mark
 # required in branch protection; it transitively gates on `build` (the bare C# unit tier, which states
@@ -29,6 +31,20 @@ on:
   push:
     tags:
       - "*/v*"
+  # A daily signal on a moving target, which the two triggers above cannot give: the newest published
+  # Cove versions are resolved off the registry at run time, so the same commit tests different hosts on
+  # different days, and an upstream change that breaks this extension would otherwise surface only on
+  # whichever pull request happened to come next. What it costs is stated rather than absorbed: EVERY job
+  # in this file runs daily, including both safety legs and the aggregate, so this is recurring runner
+  # spend for a repository with a single maintainer.
+  #
+  # 06:00 UTC is chosen to be well outside that maintainer's working hours, so a red arrives before a
+  # session rather than during one. One caveat that costs a day of debugging if not known: the upstream
+  # images move too, and a scheduled run landing inside an upstream rebuild window can read a
+  # partially-updated tag. A red that recurs at this hour and passes on re-run is the schedule, not the
+  # workflow.
+  schedule:
+    - cron: "0 6 * * *"
 
 env:
   DOTNET_VERSION: "10.0.x"
@@ -151,13 +167,9 @@ jobs:
             const fs = require("fs");
             const resolved = JSON.parse(fs.readFileSync("/tmp/cove-legs.json", "utf8"));
             const selected = new Set(JSON.parse(process.env.BUILD_MATRIX).extension.map((e) => e.id));
-            // Only the floor leg is wired through for now; the newest-GA and advisory pre-release legs
-            // land with the advisory handling they need, which is not this change.
-            const include = resolved.include.filter(
-              (combo) => selected.has(combo.extension.id) && combo.cove.role.split("+").includes("floor"),
-            );
+            const include = resolved.include.filter((combo) => selected.has(combo.extension.id));
             if (include.length === 0) {
-              console.error("::error::The Cove version axis resolved no floor leg for any selected extension, so the cove-present tier would run against nothing.");
+              console.error("::error::The Cove version axis resolved no leg for any selected extension, so the safety tiers would run against nothing.");
               process.exit(1);
             }
             for (const combo of include) {
@@ -395,6 +407,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.validate.outputs.coveMatrix) }}
+    # An upstream release-candidate regression is not this pull request's defect, and a gate that can
+    # freeze merges for someone else's breakage is a gate that gets switched off — so the leg testing an
+    # unreleased Cove reports rather than blocks. The value is the LEG'S OWN flag, so which roles are
+    # advisory is a fact the resolver states once and no consumer re-derives from a role name.
+    #
+    # Two things about how this reads on a run, both easy to mistake for defects. A job that fails under
+    # this setting still renders a red cross on the run; branch protection keys on the aggregate status
+    # further down, which reports success for such a job, so the red is a cosmetic residue of the
+    # mechanism rather than a merge block. And the local workflow runner (act, through 0.2.89) does not
+    # implement job-level continue-on-error at all — neither a literal nor a matrix expression — so it
+    # leaves the downstream result at `failure` and exits non-zero whenever this leg fails. A local run
+    # reporting failure for an advisory leg is therefore a runner artefact, not something to fix here.
+    continue-on-error: ${{ matrix.cove.advisory }}
     permissions:
       contents: read
     steps:
@@ -509,12 +534,22 @@ jobs:
   # instance via tests/e2e's shared harness, then runs its Playwright suite against it.
   # Extensions without their own e2e suite are skipped via the catalog's optional
   # `e2ePath`/`e2eProject` fields (absent = no suite yet, not a failure).
+  #
+  # This job's matrix is the version axis (coveMatrix), the same one test-cove-present takes, so its
+  # combos are flat: `matrix.extension` is the catalog entry and `matrix.cove` is the leg. The two safety
+  # legs see different things — one runs the suite in process against the image's assemblies, this one
+  # installs the assembled package into the running host and drives it — so a host version that only the
+  # second would notice (a load refusal, a changed route) is worth the second axis rather than tested on
+  # the floor alone.
   e2e:
     needs: [validate, build]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.validate.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.validate.outputs.coveMatrix) }}
+    # Advisory on the forward-looking leg, for the reason and with the caveats stated once on
+    # test-cove-present above.
+    continue-on-error: ${{ matrix.cove.advisory }}
     permissions:
       contents: read
     steps:
@@ -620,6 +655,10 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
 
+      # The leg's VERSION reaches the harness, not a whole image reference: the repository is declared
+      # once in Directory.Build.props and the harness reads it from there, exactly as the fetcher and the
+      # build's staleness guard do with their own tag arguments. Composing the reference here would put a
+      # second copy of that repository in this file, free to disagree with the declaration.
       - name: Run E2E suite
         id: e2e
         if: steps.check.outputs.has_suite == 'true'
@@ -628,6 +667,7 @@ jobs:
         run: npx playwright test --project="$E2E_PROJECT"
         env:
           E2E_PROJECT: ${{ matrix.extension.e2eProject }}
+          COVE_E2E_TAG: ${{ matrix.cove.tag }}
 
       # Did-it-run guard for a SUBSCRIBING entry: where the catalog declares the path, the node:test
       # correctness tier is a required backstop (it exercises loop-safety / ingest / rollback contracts
@@ -667,6 +707,10 @@ jobs:
         run: node --test --test-concurrency=1 "$E2E_NODE_TESTS_PATH"/*.test.mjs
         env:
           E2E_NODE_TESTS_PATH: ${{ matrix.extension.e2eNodeTestsPath }}
+          # Carried here as well as on the browser tier: a subscriber's specs that boot the shared harness
+          # would otherwise run this version leg against the floor image, which reads as a leg testing a
+          # version it never booted.
+          COVE_E2E_TAG: ${{ matrix.cove.tag }}
 
       # The `list` reporter's stdout only ever shows pass/fail + duration, never the actual
       # assertion/stack-trace detail, which otherwise only reaches the Upload Playwright report
