@@ -827,7 +827,7 @@ public sealed partial class Renamer
     {
         var lookups = BuildLookups(options);
         var planner = new RenamerPlanner(port);
-        var aggregator = new ScanAggregator();
+        var aggregator = new ScanAggregator(options.FullPathMax);
 
         // Load every kind's ids up front so the TOTAL is known before planning — the scan previously
         // reported only a single Report(1.0) at the end, so the job jumped 0%→100% with no intermediate

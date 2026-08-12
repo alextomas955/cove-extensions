@@ -202,6 +202,12 @@ public sealed record ScanSummaryView(
 /// <param name="Reason">Human-readable reason for a skip/no-op; null for a plain rename or move.</param>
 /// <param name="Suffixed">True iff the collision suffix loop ran.</param>
 /// <param name="Sanitized">True iff the engine cleaned the rendered name.</param>
+/// <param name="InFlightPathOverflow">
+/// True iff this row's cross-volume copy would overrun the path budget while it is in flight (see
+/// <see cref="BatchPreview.InFlightPathOverflows"/>). It IS read — it drives the same red warning badge
+/// the preview's per-item flag drives, which is the table a user reads before approving a bulk rename —
+/// so it earns its place on a row that multiplies by library size.
+/// </param>
 public sealed record ScanRow(
     RenamerFileKind Kind,
     int EntityId,
@@ -211,10 +217,17 @@ public sealed record ScanRow(
     RenamerStatus Status,
     string? Reason,
     bool Suffixed,
-    bool Sanitized)
+    bool Sanitized,
+    bool InFlightPathOverflow)
 {
     /// <summary>Projects a planned <paramref name="item"/> of entity <paramref name="entityId"/> onto its wire shape.</summary>
-    public static ScanRow From(RenamerFileKind kind, int entityId, RenamerPlanItem item)
+    /// <remarks>
+    /// <paramref name="inFlightPathOverflow"/> is handed in rather than classified here: the caller holds
+    /// the options, so the budget this row is measured against is the same one the planner used, and this
+    /// projection stays a pure mapping.
+    /// </remarks>
+    public static ScanRow From(
+        RenamerFileKind kind, int entityId, RenamerPlanItem item, bool inFlightPathOverflow)
     {
         ArgumentNullException.ThrowIfNull(item);
         return new ScanRow(
@@ -226,7 +239,8 @@ public sealed record ScanRow(
             item.Status,
             item.Reason,
             item.Suffixed,
-            item.Sanitized);
+            item.Sanitized,
+            inFlightPathOverflow);
     }
 }
 
