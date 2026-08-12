@@ -21,7 +21,11 @@
 //
 // Beyond those, the phase's own subject: a rename that carries a caption and a neighbour file, an
 // undo that brings all three home, and a partial undo that can be retried and acts only on what is
-// left.
+// left. That partial undo is also read back through the settings panel in a browser, in the same
+// test body — the aggregate a real undo leaves and the sentence composed from it were each already
+// covered, but by two different tiers in two different runs, and a seam covered by two green runs is
+// exactly where a wiring defect survives both. This is the only tier that can hold both halves at
+// once, which is why a DOM read appears in a container spec.
 //
 // A second test in this file covers the one-way migration of an older release's stored journal blob
 // into that table. It belongs beside the above for the same reason the table assertion does: the
@@ -39,6 +43,7 @@ import {
   createApiClient,
   RENAMER_EXTENSION,
 } from "../lib/renamer-fixtures.mjs";
+import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 import { assertRenamedTo, assertRestoredTo } from "../lib/rename-assertions.mjs";
 
 const EXTENSION_ID = "com.alextomas955.renamer";
@@ -120,6 +125,7 @@ function stemOf(path) {
 }
 
 test("the host creates the journal on Postgres, undo brings sidecars home, a partial undo retries, and a reinstall still loads", async ({
+  page,
   isolatedHarness,
 }) => {
   // Four phases against one instance, and two of them restart the container (the install the fixture
@@ -353,6 +359,33 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
     "an occupied slot can be cleared, so nothing is unrestorable",
   ).toBe(0);
   expect(afterPartial.consumed, "a batch with work left is not spent").toBe(false);
+
+  // ── The same partial undo, read the way the user reads it ───────────────────────────────────────
+  //
+  // Everything above is the aggregate the server computed; this is the sentence the panel composes
+  // from it, in the same test body and off the same real undo. The panel refetches /last-batch on
+  // mount, so a fresh goto() needs no cache-busting.
+  const settingsPage = new RenamerSettingsPage(page, isolatedHarness.baseUrl);
+  await settingsPage.goto();
+  const renderedStatus = await settingsPage.undoStatusText();
+  // The counts clause, TRANSCRIBED BY HAND from what the panel renders — `UndoSection.tsx`'s
+  // `Last rename: {status.line}`, and the " · " (U+00B7) separator the pure module it composes that
+  // line with joins its parts by — for a batch of two with one of them restored. Deliberately NOT
+  // obtained by calling that composer: an expectation computed from the module under test agrees with
+  // it however far the two sides drift, which is the one thing this assertion exists to catch.
+  // Re-transcribe if either the wording or the separator moves; nothing here derives it.
+  expect(
+    renderedStatus,
+    "the panel's line does not state the counts the undo above actually left behind",
+  ).toContain("Last rename: 1 of 2 restored · 1 remaining ·");
+  // The retention clause is pinned by its prefix and never by the date it carries: `formatDate` calls
+  // toLocaleDateString with an undefined locale, so the rendered date is the BROWSER's, and the en-US
+  // that Playwright's Desktop Chrome device yields is a default rather than a contract a differently
+  // configured runner has to honour. A verbatim date would flake there and prove nothing more here.
+  expect(
+    renderedStatus,
+    "the panel dropped the retention clause, so the user is never told when the undo stops being offered",
+  ).toContain("undo available until");
 
   // Clear the obstruction and retry. The second attempt must act on the remainder only.
   await container.exec(["rm", blocked.originalPath], { user: "root" });
