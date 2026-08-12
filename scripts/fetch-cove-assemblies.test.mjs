@@ -384,6 +384,79 @@ test("a floor that is not strict semver is refused before it can reach a registr
   assert.throws(() => resolveCoveLegs({ floor: "1.2", tags: ["1.1.0"] }), /1\.2/);
 });
 
+test("a tag list from which nothing parses as strict semver is refused, naming how many were read", () => {
+  // Not an empty leg set: a registry that only ever answered with noise has told us nothing, and a
+  // resolver that returned no legs from it would read as "this extension needs no version leg".
+  assert.throws(
+    () =>
+      resolveCoveLegs({
+        floor: "1.1.0",
+        tags: ["latest", "nightly", "sha-abc123", "1.1"],
+        source: "ghcr.io/o/r",
+      }),
+    (error) => {
+      assert.match(error.message, /None of the 4 tag\(s\)/);
+      assert.match(error.message, /ghcr\.io\/o\/r/);
+      return true;
+    },
+  );
+});
+
+test("an empty tag list is refused, naming the registry and repository that was read", () => {
+  assert.throws(() => resolveCoveLegs({ floor: "1.1.0", tags: [], source: "ghcr.io/o/r" }), {
+    message: /ghcr\.io\/o\/r listed no tags at all/,
+  });
+});
+
+test("a tag list that never stops advertising rel=next is refused at the page cap rather than looping", async () => {
+  let served = 0;
+  await assert.rejects(
+    () =>
+      collectRegistryTags(
+        async () => {
+          served += 1;
+          return { tags: ["1.0.0"], link: '</v2/x/tags/list?last=1.0.0>; rel="next"' };
+        },
+        "/v2/x/tags/list",
+        4,
+      ),
+    (error) => {
+      assert.match(error.message, /after 4 page\(s\)/);
+      assert.match(error.message, /cap of 4/);
+      return true;
+    },
+  );
+  assert.equal(served, 4, "the cap stops the loop rather than the loop stopping itself");
+});
+
+test("when the newest GA equals the floor, the two legs collapse onto one image and the roles merge", () => {
+  const resolved = resolveCoveLegs({
+    floor: "1.1.0",
+    tags: ["1.0.0", "1.1.0", "1.2.0-rc.1", "1.3.0-rc.2", "latest"],
+  });
+
+  assert.deepEqual(resolved.legs, [
+    { tag: "1.1.0", role: "floor+newest-ga", advisory: false },
+    { tag: "1.3.0-rc.2", role: "newest-prerelease", advisory: true },
+  ]);
+  assert.equal(resolved.examined.roles, 3, "three roles resolved");
+  assert.equal(resolved.legs.length, 2, "two distinct images");
+});
+
+test("a newest GA above the floor yields three legs and three distinct images", () => {
+  const resolved = resolveCoveLegs({
+    floor: "1.1.0",
+    tags: ["1.1.0", "1.2.0", "1.3.0-rc.2"],
+  });
+
+  assert.deepEqual(resolved.legs, [
+    { tag: "1.1.0", role: "floor", advisory: false },
+    { tag: "1.2.0", role: "newest-ga", advisory: false },
+    { tag: "1.3.0-rc.2", role: "newest-prerelease", advisory: true },
+  ]);
+  assert.equal(resolved.examined.roles, 3);
+});
+
 // ---- the seam with the real catalog ---------------------------------------------------------------
 
 test("every real catalog entry reaches a minCoveVersion floor through its own manifestPath", () => {

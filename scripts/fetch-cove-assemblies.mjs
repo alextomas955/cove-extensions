@@ -385,14 +385,44 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
   }
 
   const { ga, prerelease } = splitReleaseChannels(parsed);
+  const newestGa = ga.at(-1);
+  const newestPrerelease = prerelease.at(-1);
+
+  const roles = [{ tag: floor, role: "floor", advisory: false }];
+  if (newestGa !== undefined) {
+    roles.push({ tag: newestGa.tag, role: "newest-ga", advisory: false });
+  }
+  // The pre-release role is advisory: an upstream release-candidate regression is not this
+  // repository's defect, and a gate that can freeze merges for someone else's breakage is a gate that
+  // gets switched off.
+  if (newestPrerelease !== undefined) {
+    roles.push({ tag: newestPrerelease.tag, role: "newest-prerelease", advisory: true });
+  }
+
+  // Dedupe by resolved tag and merge the role labels. Two roles resolving to the same tag are ONE
+  // image, and a leg silently duplicating another reads as coverage while providing none — so the leg
+  // count equals the distinct-image count and the merged label says what collapsed. A merged leg is
+  // advisory only when every role on it is: a required role landing on a tag does not become
+  // advisory because an advisory one landed there too.
+  const legs = [];
+  for (const candidate of roles) {
+    const existing = legs.find((leg) => leg.tag === candidate.tag);
+    if (existing === undefined) {
+      legs.push({ ...candidate });
+      continue;
+    }
+    existing.role = `${existing.role}+${candidate.role}`;
+    existing.advisory = existing.advisory && candidate.advisory;
+  }
 
   return {
-    legs: [{ tag: floor, role: "floor", advisory: false }],
+    legs,
     examined: {
       tags: list.length,
       parsed: parsed.length,
       ga: ga.length,
       prerelease: prerelease.length,
+      roles: roles.length,
     },
   };
 }
@@ -671,10 +701,19 @@ async function resolveTags({ report }) {
       `${entry.name}: floor ${floor} (from ${manifestPath}); of ${resolved.examined.tags} tag(s) ${resolved.examined.parsed} parse as strict semver (${resolved.examined.ga} GA, ${resolved.examined.prerelease} pre-release)`,
     );
     for (const leg of resolved.legs) {
-      lines.push(`  leg ${leg.role}: ${leg.tag}${leg.advisory ? " (advisory)" : ""}`);
+      const merged = leg.role.split("+");
+      lines.push(
+        `  leg ${leg.role}: ${leg.tag}${leg.advisory ? " (advisory)" : ""}${
+          merged.length > 1 ? ` — ${merged.length} roles resolved to this one image` : ""
+        }`,
+      );
       include.push({ extension: entry, cove: leg });
     }
-    lines.push(`  ${resolved.legs.length} distinct image(s) for ${entry.name}`);
+    // The load-bearing figure. A resolver whose log prints tags but not a distinct count is exactly
+    // the shape that reads as N version legs while testing fewer images than that.
+    lines.push(
+      `  ${resolved.legs.length} distinct image(s) from ${resolved.examined.roles} role(s) for ${entry.name}`,
+    );
   }
 
   process.stdout.write(`${JSON.stringify({ include })}\n`);
