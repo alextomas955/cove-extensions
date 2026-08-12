@@ -18,6 +18,7 @@ import {
   seedVideo,
   createApiClient,
 } from "../lib/renamer-fixtures.mjs";
+import { resolveCoveImage } from "@cove-extensions/e2e/harness";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 import { VideoDetailPage } from "../lib/pages/video-detail-page.mjs";
 import { assertRenamedTo } from "../lib/rename-assertions.mjs";
@@ -101,7 +102,11 @@ test("with Auto-rename on update left OFF (the default), editing a title does no
 // This therefore asserts a HOST CAPABILITY the feature depends on, and is skipped — loudly, never
 // silently — on a host known to lack it. When the repo's pinned image moves to a release carrying
 // ca14830 the skip stops firing and the assertion starts running, with no edit here. (Issue #108.)
-const HOST_IMAGE = process.env.COVE_E2E_IMAGE ?? "ghcr.io/yourcove/cove-app:1.1.0";
+// Asked of the harness, which is what actually decides — so this reads the host the run really booted,
+// including the tag-only form a CI version leg supplies. A literal here (or a partial re-derivation of
+// that precedence) would key the skip below on a tag the run did not use, reporting "host limitation"
+// for a host that has none, or running the assertion against one that cannot satisfy it.
+const HOST_IMAGE = resolveCoveImage();
 const HOST_PUBLISHES_BULK_EVENTS = !/:(0\.|1\.0|1\.1\.0)/.test(HOST_IMAGE);
 const EXTENSION_ID = "com.alextomas955.renamer";
 const BULK_COUNT = 6;

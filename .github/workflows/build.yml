@@ -518,12 +518,22 @@ jobs:
   # instance via tests/e2e's shared harness, then runs its Playwright suite against it.
   # Extensions without their own e2e suite are skipped via the catalog's optional
   # `e2ePath`/`e2eProject` fields (absent = no suite yet, not a failure).
+  #
+  # This job's matrix is the version axis (coveMatrix), the same one test-cove-present takes, so its
+  # combos are flat: `matrix.extension` is the catalog entry and `matrix.cove` is the leg. The two safety
+  # legs see different things — one runs the suite in process against the image's assemblies, this one
+  # installs the assembled package into the running host and drives it — so a host version that only the
+  # second would notice (a load refusal, a changed route) is worth the second axis rather than tested on
+  # the floor alone.
   e2e:
     needs: [validate, build]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.validate.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.validate.outputs.coveMatrix) }}
+    # Advisory on the forward-looking leg, for the reason and with the caveats stated once on
+    # test-cove-present above.
+    continue-on-error: ${{ matrix.cove.advisory }}
     permissions:
       contents: read
     steps:
@@ -629,6 +639,10 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
 
+      # The leg's VERSION reaches the harness, not a whole image reference: the repository is declared
+      # once in Directory.Build.props and the harness reads it from there, exactly as the fetcher and the
+      # build's staleness guard do with their own tag arguments. Composing the reference here would put a
+      # second copy of that repository in this file, free to disagree with the declaration.
       - name: Run E2E suite
         id: e2e
         if: steps.check.outputs.has_suite == 'true'
@@ -637,6 +651,7 @@ jobs:
         run: npx playwright test --project="$E2E_PROJECT"
         env:
           E2E_PROJECT: ${{ matrix.extension.e2eProject }}
+          COVE_E2E_TAG: ${{ matrix.cove.tag }}
 
       # Did-it-run guard for a SUBSCRIBING entry: where the catalog declares the path, the node:test
       # correctness tier is a required backstop (it exercises loop-safety / ingest / rollback contracts
@@ -676,6 +691,10 @@ jobs:
         run: node --test --test-concurrency=1 "$E2E_NODE_TESTS_PATH"/*.test.mjs
         env:
           E2E_NODE_TESTS_PATH: ${{ matrix.extension.e2eNodeTestsPath }}
+          # Carried here as well as on the browser tier: a subscriber's specs that boot the shared harness
+          # would otherwise run this version leg against the floor image, which reads as a leg testing a
+          # version it never booted.
+          COVE_E2E_TAG: ${{ matrix.cove.tag }}
 
       # The `list` reporter's stdout only ever shows pass/fail + duration, never the actual
       # assertion/stack-trace detail, which otherwise only reaches the Upload Playwright report
