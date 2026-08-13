@@ -759,6 +759,40 @@ test("non-semver extension.json minCoveVersion produces a non-zero exit and the 
   }
 });
 
+test("a registry versions[] row whose floor disagrees with extension.json fails, naming both floors", () => {
+  // The drift that has already shipped here once and was corrected by hand. Both files declare a
+  // minCoveVersion, nothing compares them, and the disagreement is invisible until a user on the
+  // version between the two floors is either locked out or offered a zip their host cannot run.
+  const entry = validEntry("com.example.foo", "Foo", {
+    registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
+  });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    buildProps: buildPropsWithFloor("1.1.0"),
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", {
+        version: "0.3.0",
+        minCoveVersion: "1.1.0",
+      }),
+    },
+    filesByPath: {
+      "extensions/Foo/extensions/com.example.foo.json": JSON.stringify({
+        versions: [{ version: "0.3.0", minCoveVersion: "1.0.0" }],
+      }),
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(
+      stderr,
+      /com\.example\.foo: registry manifest extensions\/Foo\/extensions\/com\.example\.foo\.json versions\[\] row 0\.3\.0 declares minCoveVersion 1\.0\.0, but extension\.json declares 1\.1\.0/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 // ── The fixtures themselves, checked against reality ─────────────────────────────────────────────
 //
 // Every case above is written against `validEntry`/`validManifest` — hand-written mirrors of the real

@@ -2,7 +2,7 @@
 // Forked on: 2026-07-01
 // Upstream diff base: https://github.com/yourcove/multi-extension-repo-template/blob/main/scripts/validate-extension-repo.mjs
 //
-// Six behavioral differences from upstream.
+// Seven behavioral differences from upstream.
 //
 // 1. This fork reads the additive projectPath/manifestPath catalog fields (when present on a
 // catalog entry) instead of unconditionally deriving {path}/{name}.csproj and {path}/extension.json
@@ -48,6 +48,15 @@
 // extension that acquires a UI without acquiring the derived document loses the only check that would
 // have caught it — and loses it silently, because the CI step reads this very field to decide whether
 // to run. Requiring the declaration is what makes the omission speak.
+//
+// 7. This fork compares the registry manifest's minCoveVersion against extension.json's. Upstream has
+// no registry mechanism to check. The comparison is deliberately narrow: only the versions[] row whose
+// version equals the one extension.json currently declares is read, because a registry row describes an
+// immutable published zip and its floor is the floor THAT zip needs, not a copy of the source tree's
+// current one. Comparing every row would demand editing a published row, which is exactly what
+// website/docs/contributing/releasing.md forbids — a raised floor reaches the registry by prepending a
+// row. The narrow comparison is worth having because the drift it catches has already shipped here once
+// and was corrected by hand: two files each declaring a floor, and nothing anywhere reading both.
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -207,20 +216,30 @@ if (entries.length === 0) errors.push("extensions/catalog.json has no extensions
 // stated in the report line rather than left to look like a pass.
 let floorComparisons = 0;
 
-// The catalog's optional path fields, as consumed by .github/workflows/build.yml — every
-// `matrix.extension.*` value there that names a location on disk and is not already covered by a
-// check above (path, manifestPath and projectPath are). e2eProject is excluded deliberately: it is
-// a Playwright project name, not a path. Each of these is optional to DECLARE, so an entry declaring
-// none is valid and only a declared one is required to exist — with one exception, checked separately
-// below: wireDocumentPath stops being optional once an entry has both halves the wire mechanism needs.
+// The catalog's optional path fields, as consumed by .github/workflows/build.yml or by this validator
+// — every `matrix.extension.*` value there that names a location on disk and is not already covered by
+// a check above (path, manifestPath and projectPath are), plus registryManifestPath, which this file
+// reads for the floor comparison below. e2eProject is excluded deliberately: it is a Playwright project
+// name, not a path. Each of these is optional to DECLARE, so an entry declaring none is valid and only a
+// declared one is required to exist — with one exception, checked separately below: wireDocumentPath
+// stops being optional once an entry has both halves the wire mechanism needs.
 const matrixPathFields = [
   "testProjectPath",
   "uiPath",
   "e2ePath",
   "e2eNodeTestsPath",
   "wireDocumentPath",
+  "registryManifestPath",
 ];
 let declaredPathChecks = 0;
+
+// Counts every entry that DECLARED a registry manifest, incremented before the file is read, and every
+// row actually compared. The pair is what separates "no entry declares one" from "one was declared and
+// carries no row for the current version" — states a single counter would render identical, and the
+// second of which is legitimate: releasing.md requires the release asset before the registry pull
+// request, so a version bumped ahead of its row is an ordinary mid-release state, not a defect.
+let registrySubjects = 0;
+let registryFloorComparisons = 0;
 
 // Counts the entries the wire-document requirement actually had a subject on. Without it a catalog
 // where no entry qualifies is indistinguishable from one where every entry was checked, which is the
@@ -342,6 +361,56 @@ for (const entry of entries) {
     );
     floorComparisons++;
   }
+
+  // Fork deviation #7. Reads the `manifest` object bound above rather than parsing it a second time,
+  // and compares only the row describing the version that object currently declares.
+  if (entry.registryManifestPath) {
+    registrySubjects++;
+    const registryPath = path.join(root, entry.registryManifestPath);
+    // A declared path that is absent is already reported by the matrixPathFields loop above. Reading
+    // it here would throw, where every other failure in this file is a pushed error.
+    if (fs.existsSync(registryPath)) {
+      const registry = readJson(registryPath);
+      if (!Array.isArray(registry.versions)) {
+        errors.push(
+          `${entry.id}: registry manifest ${entry.registryManifestPath} has no versions[] array`,
+        );
+      } else {
+        // Without this, "the row matching the current version" is not well defined, so the guard below
+        // would silently pick whichever duplicate came first.
+        const seenVersions = new Set();
+        for (const row of registry.versions) {
+          if (row?.version == null) continue;
+          if (seenVersions.has(row.version)) {
+            errors.push(
+              `${entry.id}: registry manifest ${entry.registryManifestPath} declares versions[] row ${row.version} more than once, so the row describing the current version is ambiguous`,
+            );
+          }
+          seenVersions.add(row.version);
+        }
+
+        const currentRow = registry.versions.find(
+          (row) => row?.version != null && row.version === manifest.version,
+        );
+        // No matching row is NOT a defect: releasing.md requires the release asset before the registry
+        // pull request, so a version bumped ahead of its row is an ordinary mid-release state. The
+        // report line below is what keeps it from passing silently.
+        if (currentRow != null) {
+          if (!currentRow.minCoveVersion) {
+            errors.push(
+              `${entry.id}: registry manifest ${entry.registryManifestPath} versions[] row ${currentRow.version} declares no minCoveVersion, so its floor cannot be compared`,
+            );
+          } else if (currentRow.minCoveVersion !== manifest.minCoveVersion) {
+            errors.push(
+              `${entry.id}: registry manifest ${entry.registryManifestPath} versions[] row ${currentRow.version} declares minCoveVersion ${currentRow.minCoveVersion}, but extension.json declares ${manifest.minCoveVersion} — a raised floor reaches the registry by prepending a row for the release being cut. Do not edit an existing row — each one describes an immutable published artifact.`,
+            );
+          } else {
+            registryFloorComparisons++;
+          }
+        }
+      }
+    }
+  }
   if (!isManifestOnly && !manifest.entryDll)
     errors.push(`${entry.id}: extension.json missing entryDll`);
   if (isManifestOnly && manifest.entryDll)
@@ -407,6 +476,11 @@ const solutionReport = impliedProjects.length
 const wireDocumentReport = wireDocumentSubjects
   ? `required a wireDocumentPath on ${wireDocumentSubjects} entr(y|ies) declaring both a UI and a test project`
   : "no entry declared both a UI and a test project, so no wire document was required";
+const registryReport = registryFloorComparisons
+  ? `compared ${registryFloorComparisons} registry versions[] row(s) against the extension.json floor, out of ${registrySubjects} declared registry manifest(s)`
+  : registrySubjects
+    ? `${registrySubjects} declared registry manifest(s) carry no versions[] row for the version currently declared, so no floor was compared`
+    : "no entry declared a registryManifestPath, so no registry floor was compared";
 console.log(
-  `Validated ${entries.length} extension catalog entries (${floorReport}; ${pathReport}; ${solutionReport}; ${wireDocumentReport}).`,
+  `Validated ${entries.length} extension catalog entries (${floorReport}; ${pathReport}; ${solutionReport}; ${wireDocumentReport}; ${registryReport}).`,
 );
