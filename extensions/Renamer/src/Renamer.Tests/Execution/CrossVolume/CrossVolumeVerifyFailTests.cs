@@ -6,7 +6,7 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// <summary>
 /// The cross-volume data-loss proof. When the destination copy is corrupted (a flipped
 /// byte) or torn (truncated) before verify, the verify FAILS, the result is
-/// <see cref="CrossVolumeMover.MoveOutcome.VerifyFailed"/>, the SOURCE survives with its original
+/// <see cref="MoveOutcome.VerifyFailed"/>, the SOURCE survives with its original
 /// bytes, and the suspect destination and in-flight copy are gone — an interrupted/corrupted transfer
 /// never loses the original. The bit-flip case proves the content-hash half of verify; the truncation
 /// case proves the size half. Both run entirely in a <see cref="TempDir"/> — no second physical drive
@@ -46,7 +46,7 @@ public sealed class CrossVolumeVerifyFailTests
         var result = await mover.MoveAsync(src, dest, sidecars: null, CancellationToken.None);
 
         Assert.False(result.Moved);
-        Assert.Equal(CrossVolumeMover.MoveOutcome.VerifyFailed, result.Outcome);
+        Assert.Equal(MoveOutcome.VerifyFailed, result.Outcome);
         Assert.True(File.Exists(src), "source MUST survive a failed verify");
         Assert.Equal(original, File.ReadAllText(src));
         Assert.False(File.Exists(dest), "the suspect destination must be deleted");
@@ -77,7 +77,7 @@ public sealed class CrossVolumeVerifyFailTests
         var result = await mover.MoveAsync(src, dest, sidecars: null, CancellationToken.None);
 
         Assert.False(result.Moved);
-        Assert.Equal(CrossVolumeMover.MoveOutcome.VerifyFailed, result.Outcome);
+        Assert.Equal(MoveOutcome.VerifyFailed, result.Outcome);
         Assert.True(File.Exists(src), "source MUST survive a truncated-dest verify failure");
         Assert.Equal(original, File.ReadAllText(src));
         Assert.False(File.Exists(dest), "the suspect (short) destination must be deleted");

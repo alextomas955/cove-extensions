@@ -82,7 +82,7 @@ public sealed class CrossVolumeTempOwnershipTests
         var result = await mover.MoveAsync(src, dest, sidecars: null, CancellationToken.None);
 
         Assert.False(result.Moved);
-        Assert.Equal(CrossVolumeMover.MoveOutcome.VerifyFailed, result.Outcome);
+        Assert.Equal(MoveOutcome.VerifyFailed, result.Outcome);
         Assert.True(File.Exists(src), "the source must survive a failed verify");
         Assert.Equal(original, File.ReadAllText(src));
         Assert.False(File.Exists(dest), "the suspect destination must not be promoted");
