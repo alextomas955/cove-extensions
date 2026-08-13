@@ -1,0 +1,77 @@
+/**
+ * Behavior contract for the pure per-row badge derivation.
+ *
+ * The claim under test is what a user reads off one row of the dry-run table: a row the server refused
+ * says WHY it was refused, and a row that will be renamed says only what is unusual about it. Every
+ * expectation below is written out literally rather than read back from the module — an expectation
+ * derived from the map under test agrees with it however wrong the map is, which is how a status with
+ * no badge case at all survived here unnoticed.
+ */
+import { test } from "vitest";
+import assert from "node:assert/strict";
+
+import { badgesFor } from "./warningBadgeLogic";
+
+/** A row with every advisory flag clear, so each case below sets only the signal it is about. */
+function row(overrides) {
+  return {
+    status: "renamer",
+    suffixed: false,
+    sanitized: false,
+    inFlightPathOverflow: false,
+    ...overrides,
+  };
+}
+
+test("a row an exclude rule matched says so, rather than reading as an unexplained problem", () => {
+  // The live defect this case exists for: `skipExcluded` reaches /preview and /scan-rows, and rendered
+  // attention-styled with NO badge — the row looked wrong and named nothing the user could act on.
+  const badges = badgesFor(row({ status: "skipExcluded" }));
+
+  assert.equal(badges.length, 1, `expected exactly one badge, got ${JSON.stringify(badges)}`);
+  assert.match(badges[0].label, /exclude/i);
+  assert.equal(badges[0].variant, "amber");
+});
+
+test("each refused status carries its own labelled badge", () => {
+  // Transcribed by hand from the shipped copy, so a reworded label fails here rather than shipping.
+  const expected = [
+    ["noOp", "No change needed", "gray"],
+    ["skipGated", "Skipped — needs a required field", "amber"],
+    ["skipCollision", "Skipped — name conflict", "amber"],
+    ["skipLocked", "Skipped — file in use", "amber"],
+    ["skipMissingSource", "Skipped — file missing on disk", "amber"],
+    ["failed", "Failed — rolled back", "red"],
+  ];
+  for (const [status, label, variant] of expected) {
+    assert.deepEqual(badgesFor(row({ status })), [{ label, variant }], `status ${status}`);
+  }
+});
+
+test("an acting row earns the advisory badges its own flags set, and none when they are clear", () => {
+  for (const status of ["renamer", "move"]) {
+    assert.deepEqual(badgesFor(row({ status })), [], `status ${status} with no signal`);
+    assert.deepEqual(badgesFor(row({ status, suffixed: true, sanitized: true })), [
+      { label: "Numbered to avoid a clash", variant: "amber" },
+      { label: "Cleaned for the filesystem", variant: "amber" },
+    ]);
+  }
+});
+
+test("a skipped row ignores the advisory flags entirely — nothing was cleaned, because nothing ran", () => {
+  // The planner sets `sanitized` on the name it COMPUTED, not on a name it wrote. Telling a user their
+  // skipped file was cleaned up would describe work that never happened.
+  assert.deepEqual(badgesFor(row({ status: "skipGated", suffixed: true, sanitized: true })), [
+    { label: "Skipped — needs a required field", variant: "amber" },
+  ]);
+});
+
+test("the overflow badge is appended whatever the status, because the server sets it deliberately", () => {
+  // Re-testing the status here would let a flag the server DID set go unrendered if the two
+  // vocabularies ever drifted, so the flag alone decides.
+  for (const status of ["renamer", "skipExcluded"]) {
+    const badges = badgesFor(row({ status, inFlightPathOverflow: true }));
+    assert.equal(badges[badges.length - 1].variant, "red", `status ${status}`);
+    assert.match(badges[badges.length - 1].label, /across drives/);
+  }
+});

@@ -1,7 +1,7 @@
 /**
- * Per-row status pill. Badges derive from the PreviewItemView `status` STRING enum PLUS the row's
- * advisory bools (`suffixed`, `sanitized`, `inFlightPathOverflow`) — there is NO `flags[]` array on
- * /preview.
+ * Per-row status pill. Which badges a row earns is decided in `warningBadgeLogic.ts` — from the
+ * PreviewItemView `status` STRING enum PLUS the row's advisory bools (`suffixed`, `sanitized`,
+ * `inFlightPathOverflow`), since there is NO `flags[]` array on /preview. This file only renders them.
  *
  * Color is NEVER the only signal: amber/red badges lead with a lucide `AlertTriangle` glyph and
  * always carry text (accessibility). Every label string is a React text node (auto-escaped).
@@ -9,74 +9,8 @@
 import { AlertTriangle } from "lucide-react";
 import { StatusPill } from "@cove-extensions/ui-shared";
 
-import type { RenamerStatus } from "../../wire/api";
-import { inFlightOverflowLabel } from "./dryRunLogic";
-
-type Variant = "amber" | "gray" | "red";
-
-interface Badge {
-  label: string;
-  variant: Variant;
-}
-
-/**
- * The three fields a badge is derived from. Declared structurally rather than as `PreviewItemView` so
- * a `/preview` item and a leaner `/scan-rows` row both qualify without either wire shape gaining a
- * field only the badges would read.
- */
-export interface Badgeable {
-  status: RenamerStatus;
-  suffixed: boolean;
-  sanitized: boolean;
-  /**
-   * Required, because both wire shapes that reach a badge now carry it — `/preview`'s item view and the
-   * paged `/scan-rows` row. Required rather than optional so a caller that forgets to pass it fails to
-   * compile, instead of silently rendering a row whose warning was never asked for.
-   */
-  inFlightPathOverflow: boolean;
-}
-
-/**
- * Map an item to its badges (one per warning kind, with user-facing labels).
- * Rename/Move with no extra signal returns [] (the positive default, no badge). suffixed/sanitized
- * add amber advisory badges even on a will-rename row; an in-flight path overflow adds a red one,
- * because that row's move cannot complete rather than merely completing differently.
- */
-function badgesFor(item: Badgeable): Badge[] {
-  const badges: Badge[] = [];
-  switch (item.status) {
-    case "noOp":
-      badges.push({ label: "No change needed", variant: "gray" });
-      break;
-    case "skipGated":
-      badges.push({ label: "Skipped — needs a required field", variant: "amber" });
-      break;
-    case "skipCollision":
-      badges.push({ label: "Skipped — name conflict", variant: "amber" });
-      break;
-    case "skipLocked":
-      badges.push({ label: "Skipped — file in use", variant: "amber" });
-      break;
-    case "skipMissingSource":
-      badges.push({ label: "Skipped — file missing on disk", variant: "amber" });
-      break;
-    case "failed":
-      badges.push({ label: "Failed — rolled back", variant: "red" });
-      break;
-    case "renamer":
-    case "move":
-      if (item.suffixed) badges.push({ label: "Numbered to avoid a clash", variant: "amber" });
-      if (item.sanitized) badges.push({ label: "Cleaned for the filesystem", variant: "amber" });
-      break;
-  }
-  // No status guard: the server sets this flag only on an acting cross-volume item, and re-testing the
-  // status here would let a flag the server DID set go unrendered whenever the two vocabularies drifted.
-  // Red rather than amber — the other two on a will-rename row are advisory, this one means the move
-  // cannot complete.
-  const overflow = inFlightOverflowLabel(item);
-  if (overflow !== null) badges.push({ label: overflow, variant: "red" });
-  return badges;
-}
+import type { Badge, Badgeable } from "./warningBadgeLogic";
+import { badgesFor } from "./warningBadgeLogic";
 
 function Pill({ badge }: { badge: Badge }) {
   const showGlyph = badge.variant === "amber" || badge.variant === "red";
