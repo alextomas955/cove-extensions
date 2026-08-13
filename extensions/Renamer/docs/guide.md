@@ -133,8 +133,9 @@ Know what undo covers:
 - Any rename can be undone, whatever its size.
 - **Rename all files** renames each media kind as its own batch, so one undo restores one kind — the
   **last kind** the run reached. If your library holds videos and images, undoing once after a
-  whole-library rename brings back one of them, not both. The success message says so when the run
-  finishes.
+  whole-library rename brings back one of them, not both. Click **Undo last rename** again and the
+  kind before it comes back — one click per kind, and each kind keeps its own 7 days. The success
+  message says so when the run finishes.
 - A pending undo survives an update or a reinstall of Renamer, because the record lives in Cove's
   database rather than in the extension's own folder.
 - Undo does **not** re-create a source folder that ["Delete the source folder when a move leaves it
