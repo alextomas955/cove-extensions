@@ -33,6 +33,33 @@ test("a row an exclude rule matched says so, rather than reading as an unexplain
   assert.equal(badges[0].variant, "amber");
 });
 
+test("a status this bundle was never built for is surfaced, not thrown and not hidden", () => {
+  // Version skew: the running server reports a status the generated union does not contain. The type
+  // cannot see this case, so it is the one the lookup guard exists for. Throwing here is worse than a
+  // missing badge — this renders inside a virtualised list row, and an uncaught throw in render takes
+  // down the whole extension surface the host mounted, not just the pill.
+  const badges = badgesFor(row({ status: "skipSomethingNewerServersDo" }));
+
+  assert.equal(badges.length, 1, `expected exactly one badge, got ${JSON.stringify(badges)}`);
+  assert.match(badges[0].label, /unrecognised/i);
+  assert.equal(badges[0].variant, "amber");
+});
+
+test("the statuses that reach no row carry no badge, so none of them invents copy", () => {
+  // Transcribed by hand: these five are unreachable in a preview or scan row (three executor-only, one
+  // log-only, one write-boundary), so a label for any of them would be dead text a user never sees.
+  // Pinned because "no badge" and "no case at all" look identical at a glance and are not the same thing.
+  for (const status of [
+    "skipPermissionDenied",
+    "skipVerifyFailed",
+    "skipCancelled",
+    "skipNoSpace",
+    "skipBlocked",
+  ]) {
+    assert.deepEqual(badgesFor(row({ status })), [], `status ${status} should carry no badge`);
+  }
+});
+
 test("each refused status carries its own labelled badge", () => {
   // Transcribed by hand from the shipped copy, so a reworded label fails here rather than shipping.
   const expected = [

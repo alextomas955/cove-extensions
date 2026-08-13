@@ -61,8 +61,18 @@ export interface StatusBadging {
  * trade worth making here, because the silent-default failure has already happened in this very
  * function: `skipExcluded` reached both wire shapes with no case at all and rendered nothing.
  *
- * So: no index signature, no optional keys, no default entry and no runtime fallback. Any of them
- * would restore the exact silence the type exists to remove.
+ * So: no index signature and no optional keys — either would restore the exact silence the type exists
+ * to remove, because either lets a new status compile with no decision made about it.
+ *
+ * A runtime fallback is a different question, and the distinction matters: the type protects against a
+ * status this bundle was never built for, while the fallback protects against one the RUNNING server
+ * grew after this bundle shipped. Only CI's regeneration can enforce the first; nothing at build time
+ * can see the second, which is reachable whenever a locally rebuilt DLL meets a stale bundle. So the
+ * fallback below is deliberately NOT a default entry in the map (that would hide a missing decision at
+ * compile time) but a lookup guard, and it surfaces rather than hides — matching `ScanBucket.Of`'s rule
+ * that an unrecognised status must be visible for review, never hidden AND never thrown. Dereferencing
+ * the lookup unguarded would throw inside a virtualised list row, and an uncaught throw in render tears
+ * down the whole extension surface the host mounted, not just this pill.
  */
 const STATUS_BADGING: Record<RenamerStatus, StatusBadging> = {
   // The two acting statuses: no badge of their own, and the only readers of the advisory flags.
@@ -106,6 +116,34 @@ const STATUS_BADGING: Record<RenamerStatus, StatusBadging> = {
 };
 
 /**
+ * Used only when the running server reports a status this bundle's generated union does not contain —
+ * version skew, not a missing decision. Deliberately not an entry in the map above, so it cannot absorb
+ * a status someone forgot to classify: TS2741 still fires for that. It carries a label because a row the
+ * user is about to approve must not be silently uncounted, and no badge at all is what let `skipExcluded`
+ * ship unnoticed.
+ */
+const UNKNOWN_STATUS_BADGING: StatusBadging = {
+  badge: { label: "Skipped — unrecognised status", variant: "amber" },
+  readsAdvisoryFlags: false,
+};
+
+/**
+ * The one place the wire's word is taken over the type's.
+ *
+ * `RenamerStatus` is a claim about what the server sends, checked by the compiler against itself and
+ * never against the server. So the map is exhaustive by TYPE while the lookup can still miss at RUNTIME,
+ * and the widening here is what lets that fact be expressed: typed as declared, `no-unnecessary-condition`
+ * correctly reports the guard as dead, because to the compiler it is. Narrow and commented rather than
+ * loosening `Badgeable.status`, which would cost every call site its compile-time check to describe a
+ * case only this lookup meets.
+ */
+function badgingFor(status: string): StatusBadging {
+  return (
+    (STATUS_BADGING as Record<string, StatusBadging | undefined>)[status] ?? UNKNOWN_STATUS_BADGING
+  );
+}
+
+/**
  * Map an item to its badges (one per warning kind, with user-facing labels).
  * Rename/Move with no extra signal returns [] (the positive default, no badge). suffixed/sanitized
  * add amber advisory badges even on a will-rename row; an in-flight path overflow adds a red one,
@@ -113,7 +151,7 @@ const STATUS_BADGING: Record<RenamerStatus, StatusBadging> = {
  */
 export function badgesFor(item: Badgeable): Badge[] {
   const badges: Badge[] = [];
-  const badging = STATUS_BADGING[item.status];
+  const badging = badgingFor(item.status);
   if (badging.badge !== null) badges.push(badging.badge);
   if (badging.readsAdvisoryFlags) {
     if (item.suffixed) badges.push({ label: "Numbered to avoid a clash", variant: "amber" });

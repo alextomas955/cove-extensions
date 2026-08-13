@@ -134,8 +134,20 @@ export function buildConfirmSummary(
   const m = items.length;
 
   const tally = new Map<string, number>();
+  // Membership, not `!== null`: an undeclared status also satisfies `!== null`, so the looser test
+  // counted it here and then lost it again below, where the clause list reads only declared keys. That
+  // is the same disappearance `skipExcluded` suffered, re-created for a status the running server grew
+  // after this bundle shipped. Counted separately instead, because a number the user approves a rename
+  // on must not omit rows it could not classify.
+  let unclassified = 0;
   for (const it of items) {
-    if (SKIP_CLAUSES[it.status] !== null) tally.set(it.status, (tally.get(it.status) ?? 0) + 1);
+    // Widened deliberately: `RenamerStatus` is a claim about what the server sends, checked by the
+    // compiler against itself and never against the server, so this map is exhaustive by TYPE while the
+    // lookup can still miss at RUNTIME. Typed as declared, `no-unnecessary-condition` correctly calls the
+    // undefined branch dead — because to the compiler it is.
+    const clause = (SKIP_CLAUSES as Record<string, SkipClause | null | undefined>)[it.status];
+    if (clause === undefined) unclassified++;
+    else if (clause !== null) tally.set(it.status, (tally.get(it.status) ?? 0) + 1);
   }
   // Read in the MAP's declaration order, never the tally's — that one follows whatever order the items
   // happened to arrive in, which would let the same selection word its sentence differently twice.
@@ -143,7 +155,9 @@ export function buildConfirmSummary(
     const count = tally.get(status) ?? 0;
     return clause !== null && count > 0 ? [{ ...clause, count }] : [];
   });
-  const skipped = skipKinds.reduce((sum, kind) => sum + kind.count, 0);
+  // Includes the unclassified remainder: the headline number is what the user weighs the rename
+  // against, so a row that reached no clause still has to be inside it.
+  const skipped = skipKinds.reduce((sum, kind) => sum + kind.count, 0) + unclassified;
   const numbered = willRename.filter((it) => it.suffixed).length;
   const cleaned = willRename.filter((it) => it.sanitized).length;
 
@@ -166,10 +180,11 @@ export function buildConfirmSummary(
   }
   if (skipped > 0) {
     // If only one reason kind, collapse to the compact "(reason)" form.
-    if (skipKinds.length === 1) {
+    if (skipKinds.length === 1 && unclassified === 0) {
       warningLines.push(`⚠ ${skipped} skipped (${skipKinds[0].reason}).`);
     } else {
       const clauses = skipKinds.map((kind) => `${kind.count} ${kind.clause}`);
+      if (unclassified > 0) clauses.push(`${unclassified} for an unrecognised reason`);
       warningLines.push(`⚠ ${skipped} skipped — ${clauses.join(", ")}.`);
     }
   }

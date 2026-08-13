@@ -113,6 +113,34 @@ test("an item an exclude rule matched is counted among the skipped, and the coun
   );
 });
 
+test("a status this bundle cannot classify is still inside the number the user approves", () => {
+  // Version skew, and the mirror of the excluded-item defect above: an undeclared status satisfied the
+  // old `!== null` guard, so it was tallied and then dropped again by the clause pass that reads only
+  // declared keys — absent from the total AND from every clause. Silently under-reporting how many files
+  // will not move is the failure this whole line exists to prevent.
+  const { text, willRenameCount } = buildConfirmSummary([
+    RENAME_ITEM,
+    skipped("skipSomethingNewerServersDo"),
+    skipped("skipGated"),
+  ]);
+
+  assert.equal(willRenameCount, 1);
+  assert.ok(text.includes("⚠ 2 skipped"), `both skips must be inside the total, got:\n${text}`);
+  assert.ok(
+    text.includes("1 for an unrecognised reason"),
+    `the unclassified row must be named, not folded into a known clause, got:\n${text}`,
+  );
+});
+
+test("an unclassifiable status alone still produces the line, rather than no line at all", () => {
+  const { text } = buildConfirmSummary([RENAME_ITEM, skipped("skipSomethingNewerServersDo")]);
+
+  assert.ok(
+    text.includes("⚠ 1 skipped") && text.includes("unrecognised"),
+    `expected a skipped line naming the unrecognised reason, got:\n${text}`,
+  );
+});
+
 /**
  * Each skip kind with the compact single-reason wording it collapses to, TRANSCRIBED BY HAND from the
  * shipped copy rather than read back from the module, so a reworded reason fails here instead of
