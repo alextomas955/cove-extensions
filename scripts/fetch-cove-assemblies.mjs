@@ -659,6 +659,38 @@ async function resolvePlatformManifest(registry, repository, tag, token) {
 }
 
 /**
+ * Throws unless `blob` hashes to the `algorithm:hex` digest the registry declared for it.
+ *
+ * @remarks
+ * The digest used to be printed for attribution only, which left the integrity guarantee at TLS plus
+ * trusting the CDN. Bytes that were not what the registry attested would have been extracted, compiled
+ * against, and recorded into `CoveExtraction.props` as if correct — and nothing downstream could notice,
+ * because that recorded hash is computed FROM these same bytes. The build-time output-closure guard
+ * compares the build output against that recording, so it catches a local assembly displacing an
+ * extracted one and cannot, even in principle, catch the upstream bytes being wrong.
+ *
+ * Pure and separated from the download precisely so this is provable without a network: the callable
+ * unit is (bytes, digest), and both the match and the mismatch are unit-tested.
+ */
+export function assertBlobMatchesDigest(blob, digest) {
+  const [algorithm, expected] = String(digest).split(":");
+  if (!expected || !crypto.getHashes().includes(algorithm)) {
+    throw new Error(
+      `The layer digest '${digest}' does not name a hash this Node supports, so it cannot be verified.`,
+    );
+  }
+  const actual = crypto.createHash(algorithm).update(blob).digest("hex");
+  if (actual.toLowerCase() !== expected.toLowerCase()) {
+    throw new Error(
+      `Layer blob does not match the digest the manifest declared.\n` +
+        `  expected ${algorithm}:${expected}\n` +
+        `  actual   ${algorithm}:${actual}\n` +
+        `Refusing to extract: the bytes received are not the bytes the registry attested to.`,
+    );
+  }
+}
+
+/**
  * Streams one layer blob, gunzips it, and hands every `opt/cove/…` member to `onMember`.
  * Returns the set of member paths it saw, so the caller can decide whether this was the right layer.
  */
@@ -666,8 +698,13 @@ async function readLayerMembers(registry, repository, token, digest, onMember) {
   const response = await registryGet(registry, `${repository}/blobs/${digest}`, token);
   const seen = new Set();
 
+  // Verified BEFORE decompressing and before any member is emitted — see assertBlobMatchesDigest.
+  // Ordering is the point: a check after onMember would be reporting on files already written.
+  const compressed = Buffer.from(await response.arrayBuffer());
+  assertBlobMatchesDigest(compressed, digest);
+
   const gunzip = zlib.createGunzip();
-  const source = Readable.fromWeb(response.body);
+  const source = Readable.from(compressed);
 
   // The whole layer is read before any member is emitted, rather than stopping once the marker
   // appears: a tar gives no guarantee that the opt/cove members are contiguous, and an early exit

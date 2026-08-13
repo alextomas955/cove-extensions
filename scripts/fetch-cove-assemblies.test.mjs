@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
+  assertBlobMatchesDigest,
   collectRegistryTags,
   compareSemver,
   flattenCoveMemberPath,
@@ -550,4 +551,58 @@ test("the tag reader follows Link: rel=next across pages and reports how many it
   assert.deepEqual(result.tags, ["1.0.0", "1.1.0", "1.2.0"]);
   assert.equal(result.pages, 2);
   assert.deepEqual(read, Object.keys(pages));
+});
+
+// ---- layer blob digest verification ------------------------------------------------------------
+
+// This is the ONLY upstream-integrity check in the fetch→build chain, which is what makes the mismatch
+// case load-bearing rather than decorative. The build-time output-closure guard in
+// Directory.Build.targets compares the build output against a hash recorded FROM these same bytes, so it
+// catches a local assembly displacing an extracted one and cannot, even in principle, notice the upstream
+// bytes being wrong. If this check does not fire, nothing downstream ever will.
+//
+// Both digests below were produced by `sha256sum` outside this file and transcribed by hand. That is the
+// point: a case that hashed its own input with node:crypto would be comparing the function under test
+// against the primitive it calls, and would agree with it forever — including while both were wrong.
+
+test("a blob whose bytes hash to the declared digest is accepted", () => {
+  // printf 'cove' | sha256sum
+  const digest = "sha256:6a259d3299684d8a1f5693be49dde21e5e22195158487a86c3d73d07c36a5cfc";
+  assert.doesNotThrow(() => assertBlobMatchesDigest(Buffer.from("cove", "utf8"), digest));
+});
+
+test("one flipped byte is refused, and the refusal names both digests and says it refuses", () => {
+  // The accepted fixture above, with a single character changed — the smallest difference that must fail.
+  const digest = "sha256:6a259d3299684d8a1f5693be49dde21e5e22195158487a86c3d73d07c36a5cfc";
+  assert.throws(
+    () => assertBlobMatchesDigest(Buffer.from("cave", "utf8"), digest),
+    (error) =>
+      /does not match the digest the manifest declared/.test(error.message) &&
+      error.message.includes("6a259d3299684d8a1f5693be49dde21e5e22195158487a86c3d73d07c36a5cfc") &&
+      /Refusing to extract/.test(error.message),
+    "a reader must be told the expected digest, the actual one, and that nothing was extracted",
+  );
+});
+
+test("a second independent vector matches, so the accepted case is not a one-off", () => {
+  // printf 'the bytes the registry attested' | sha256sum
+  const digest = "sha256:842867a8cbd04d49a49fdeef1b23390a481f8ab93bbc8b7586d8e012e0f82801";
+  const blob = Buffer.from("the bytes the registry attested", "utf8");
+  assert.doesNotThrow(() => assertBlobMatchesDigest(blob, digest));
+  // Upper-case hex is the same digest — a registry casing difference must not read as tampering.
+  assert.doesNotThrow(() =>
+    assertBlobMatchesDigest(blob, digest.toUpperCase().replace("SHA256", "sha256")),
+  );
+});
+
+test("a digest that cannot be verified fails closed rather than being skipped", () => {
+  const blob = Buffer.from("cove", "utf8");
+  // An algorithm this runtime does not have.
+  assert.throws(
+    () => assertBlobMatchesDigest(blob, "notahash:abcdef"),
+    /does not name a hash this Node supports/,
+  );
+  // Bare hex with no algorithm must NOT default to sha256: guessing would extract unverified bytes.
+  assert.throws(() => assertBlobMatchesDigest(blob, "abcdef"), /cannot be verified/);
+  assert.throws(() => assertBlobMatchesDigest(blob, ""), /cannot be verified/);
 });

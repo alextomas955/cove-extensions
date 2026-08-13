@@ -381,11 +381,16 @@ jobs:
           EXTENSION_ID: ${{ matrix.extension.id }}
           EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
+      # The `package-` prefix is what makes this artifact release material, and it is load-bearing rather
+      # than cosmetic: the release job downloads by `pattern: package-*` instead of taking everything in
+      # the run. So an artifact reaches a published release only by opting IN to that name. Renaming this
+      # without renaming the pattern silently publishes nothing; adding a new upload without the prefix
+      # silently stays out, which is the safe direction.
       - name: Upload artifact
         if: ${{ startsWith(github.ref, 'refs/tags/') && !matrix.extension.manifestOnly }}
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.extension.id }}-${{ steps.check.outputs.version }}
+          name: package-${{ matrix.extension.id }}-${{ steps.check.outputs.version }}
           path: ${{ matrix.extension.id }}-${{ steps.check.outputs.version }}.zip
 
   # ---- The cove-present C# tier: the whole test suite, compiled and run against Cove taken from the
@@ -791,8 +796,19 @@ jobs:
     permissions:
       contents: write
     steps:
+      # `pattern` is an allowlist over artifact NAMES, and it is a security boundary rather than tidiness.
+      # Without it this step downloads EVERY artifact in the run and `merge-multiple` flattens them into
+      # one directory, so any job's upload becomes a candidate for `files: "*.zip"` below. That matters
+      # because the pre-release e2e leg is advisory: it boots an UNRELEASED upstream image, and on failure
+      # it still uploads its Playwright report while reporting success to the aggregate. Publishing from a
+      # directory that leg can write into makes an upstream compromise a release-integrity problem.
+      #
+      # Today nothing of its report lands at the root as a `.zip` (Playwright puts traces under `data/`),
+      # so the exposure was latent — but that is a third-party layout detail, not an invariant this repo
+      # owns, and resting on it is the kind of accident this allowlist removes at the source.
       - uses: actions/download-artifact@v8
         with:
+          pattern: package-*
           merge-multiple: true
 
       - name: Create GitHub Release
