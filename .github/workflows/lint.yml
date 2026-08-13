@@ -20,10 +20,13 @@ permissions:
   contents: read
 
 jobs:
-  # ---- C# style + analyzer gate (monorepo-wide, run once against the shared .slnx). This job
-  # assumes every extension's projects are added to the root CoveExtensions.slnx as a process convention
-  # (RESEARCH.md's Open Decision #3) — a future extension not added to the .slnx would silently
-  # skip this gate. ----
+  # ---- C# style + analyzer gate (monorepo-wide, run once against the shared .slnx). The solution is
+  # this gate's whole subject list, and adding an extension's projects to it stays a manual step
+  # because MSBuild has no catalog and a .slnx is an explicit project list by design. An omission
+  # fails rather than passes: scripts/validate-extension-repo.mjs asserts every catalog-implied
+  # projectPath and testProjectPath is declared in CoveExtensions.slnx, exiting 1 with the entry, the
+  # field, the path and the solution named, and build.yml's validate job runs it on every pull
+  # request to main with build, test, e2e and release all gated behind that job. ----
   csharp-format:
     runs-on: ubuntu-latest
     steps:
