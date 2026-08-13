@@ -793,6 +793,172 @@ test("a registry versions[] row whose floor disagrees with extension.json fails,
   }
 });
 
+test("a registry versions[] row agreeing with extension.json passes, and the report names the count", () => {
+  // The "prove it ran" half for this guard. Exit 0 alone cannot distinguish a floor that matched from
+  // a manifest that was never opened — and the second is what every version of this check looked like
+  // before it existed.
+  const entry = validEntry("com.example.foo", "Foo", {
+    registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
+  });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    buildProps: buildPropsWithFloor("1.1.0"),
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", {
+        version: "0.3.0",
+        minCoveVersion: "1.1.0",
+      }),
+    },
+    filesByPath: {
+      "extensions/Foo/extensions/com.example.foo.json": JSON.stringify({
+        versions: [{ version: "0.3.0", minCoveVersion: "1.1.0" }],
+      }),
+    },
+  });
+  try {
+    const { status, stdout, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(
+      stdout,
+      /compared 1 registry versions\[\] row\(s\) against the extension\.json floor/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a registry row carrying no minCoveVersion fails, rather than comparing against nothing", () => {
+  // The floor is asserted present BEFORE it is compared. Without that order an absent floor compares
+  // undefined against a real version string, which is unequal, so the run would fail with a message
+  // describing a mismatch that is really an omission — and a deleted field is exactly half of the
+  // injection this guard exists to catch.
+  const entry = validEntry("com.example.foo", "Foo", {
+    registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
+  });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    buildProps: buildPropsWithFloor("1.1.0"),
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", {
+        version: "0.3.0",
+        minCoveVersion: "1.1.0",
+      }),
+    },
+    filesByPath: {
+      "extensions/Foo/extensions/com.example.foo.json": JSON.stringify({
+        versions: [{ version: "0.3.0" }],
+      }),
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(
+      stderr,
+      /versions\[\] row 0\.3\.0 declares no minCoveVersion, so its floor cannot be compared/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("older versions[] rows with lower floors are not compared, so history stays immutable", () => {
+  // The case a naive implementation fails, and the only one that can speak for it. An implementation
+  // comparing EVERY row passes every other case in this file while demanding the historical-row edit
+  // releasing.md forbids: each row describes an immutable published zip whose floor is the floor that
+  // zip needs, so the two older rows here are correct precisely by disagreeing with the current one.
+  // The three rows mirror the real manifest's shape (1.1.0 / 1.0.0 / 0.7.1, newest first).
+  const entry = validEntry("com.example.foo", "Foo", {
+    registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
+  });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    buildProps: buildPropsWithFloor("1.1.0"),
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", {
+        version: "0.3.0",
+        minCoveVersion: "1.1.0",
+      }),
+    },
+    filesByPath: {
+      "extensions/Foo/extensions/com.example.foo.json": JSON.stringify({
+        versions: [
+          { version: "0.3.0", minCoveVersion: "1.1.0" },
+          { version: "0.2.0", minCoveVersion: "1.0.0" },
+          { version: "0.1.0", minCoveVersion: "0.7.1" },
+        ],
+      }),
+    },
+  });
+  try {
+    const { status, stdout, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(
+      stdout,
+      /compared 1 registry versions\[\] row\(s\) against the extension\.json floor/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("an entry declaring no registryManifestPath says so, rather than reporting nothing", () => {
+  // The "prove it ran" half for the absent-declaration state. An entry set declaring none is
+  // legitimate — an extension not yet published to the store has no registry manifest — but it is NOT
+  // the same as one whose rows were all compared, and a clause dropped on absence reads as both.
+  const entry = validEntry("com.example.foo", "Foo");
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo"),
+    },
+  });
+  try {
+    const { status, stdout, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(
+      stdout,
+      /no entry declared a registryManifestPath, so no registry floor was compared/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("two versions[] rows carrying the same version fail, naming the duplicated version", () => {
+  // A precondition of the guard above rather than a separate feature: with two rows claiming one
+  // version, "the row describing the current version" is not well defined, and the comparison would
+  // silently take whichever came first — passing or failing on row order alone.
+  const entry = validEntry("com.example.foo", "Foo", {
+    registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
+  });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    buildProps: buildPropsWithFloor("1.1.0"),
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", {
+        version: "0.3.0",
+        minCoveVersion: "1.1.0",
+      }),
+    },
+    filesByPath: {
+      "extensions/Foo/extensions/com.example.foo.json": JSON.stringify({
+        versions: [
+          { version: "0.3.0", minCoveVersion: "1.1.0" },
+          { version: "0.3.0", minCoveVersion: "1.1.0" },
+        ],
+      }),
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(stderr, /declares versions\[\] row 0\.3\.0 more than once/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 // ── The fixtures themselves, checked against reality ─────────────────────────────────────────────
 //
 // Every case above is written against `validEntry`/`validManifest` — hand-written mirrors of the real

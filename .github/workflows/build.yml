@@ -83,8 +83,11 @@ jobs:
       # it, so this is where the two are reconciled — in validate, before anything builds, rather than
       # after a full matrix has run. It also confirms the registry manifest already carries a
       # versions[] row for the release being cut, which is otherwise only discovered when the registry
-      # pull request fails days later. The registry file is checked only when it exists: an extension
-      # not yet published to the store has none, and its absence is not a defect.
+      # pull request fails days later. The registry file is located by the catalog's
+      # registryManifestPath — the same declaration scripts/validate-extension-repo.mjs reads for its
+      # floor comparison, so both cannot end up reading different files — falling back to the
+      # {path}/extensions/{id}.json convention for an entry declaring none. It is checked only when it
+      # exists: an extension not yet published to the store has none, and its absence is not a defect.
       - name: Validate release tag
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
@@ -113,7 +116,7 @@ jobs:
               console.error("Tag " + tag + " releases " + version + ", but " + manifestPath + " declares version " + manifest.version + " — set that version to " + version + ", or retag.");
               process.exit(1);
             }
-            const registryPath = path.posix.join(entry.path, "extensions", entry.id + ".json");
+            const registryPath = entry.registryManifestPath || path.posix.join(entry.path, "extensions", entry.id + ".json");
             let registryChecked = "no registry manifest at " + registryPath + ", so no versions[] row was checked";
             if (fs.existsSync(registryPath)) {
               const registry = JSON.parse(fs.readFileSync(registryPath, "utf8"));
