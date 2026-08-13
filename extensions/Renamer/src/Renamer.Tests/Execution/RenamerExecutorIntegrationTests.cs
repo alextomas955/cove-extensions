@@ -258,6 +258,152 @@ public sealed class RenamerExecutorIntegrationTests
     }
 
     /// <summary>
+    /// A cross-volume move the mover classified <see cref="MoveOutcome.PermissionDenied"/> reaches the
+    /// run result as <see cref="RenamerStatus.SkipPermissionDenied"/> — NOT as
+    /// <see cref="RenamerStatus.SkipLocked"/>, which every non-moved outcome once collapsed into. A
+    /// denial and a lock ask for opposite responses, so an operator can only act on the difference if
+    /// the status carries it.
+    /// </summary>
+    [SkippableFact]
+    public async Task CrossVolumeMove_PermissionDenied_ClassifiedSkipPermissionDenied_NotSkipLocked()
+    {
+        Skip.IfNot(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
+
+        using var src = new TempDir();
+        using var dst = new SecondVolume();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string srcFolder = src.Root.Replace('\\', '/');
+            string dstFolder = dst.Root.Replace('\\', '/').TrimEnd('/');
+            var (_, videoId, fileId) =
+                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
+
+            string oldFull = Path.Combine(src.Root, "clip.mkv");
+            File.WriteAllText(oldFull, "cross-bytes");
+
+            // Sanity: the source and the subst destination are on DIFFERENT path roots → cross-volume.
+            string newFull = dstFolder + "/My Film.mkv";
+            Assert.False(VolumeClassifier.SameVolume(srcFolder + "/clip.mkv", newFull),
+                "precondition: subst destination must be a different path root than the temp source");
+
+            var port = new CoveRenamerDataPort(db);
+            var bus = new CapturingEventBus();
+            var journal = new FakeRevertJournal();
+            // The seam fires INSIDE CopyVerifyPromoteDeleteAsync's try, so the throw meets that method's
+            // own classifying catches. UnauthorizedAccessException does not derive from IOException, so it
+            // passes the locked-or-exists catch and lands in the permission one — the outcome asserted
+            // below is the mover's real classification of a real throw, not a value this test handed it.
+            var executor = new RenamerExecutor(
+                port, bus, journal, "run-test", new DiskMover(),
+                new CrossVolumeMover((_, _) => throw new UnauthorizedAccessException("denied at the post-copy seam")));
+
+            var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
+            [
+                new RenamerPlanItem(fileId, srcFolder + "/clip.mkv", newFull,
+                    RenamerStatus.Move, "My Film.mkv", dstFolder),
+            ]);
+
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+
+            var skippedItem = Assert.Single(result.Skipped);
+            Assert.Equal(RenamerStatus.SkipPermissionDenied, skippedItem.Status);
+            Assert.StartsWith("permission denied:", skippedItem.Reason);
+            Assert.Empty(result.Renamed);
+            Assert.Empty(result.Failed);
+
+            // Disk: the source survives at its original path and nothing was left at the destination.
+            Assert.True(File.Exists(oldFull), "a denied move must leave the source where it was");
+            Assert.Equal("cross-bytes", File.ReadAllText(oldFull));
+            Assert.False(File.Exists(Path.Combine(dst.Root, "My Film.mkv")));
+
+            // DB: disk-first means no save ran, so the row still names the original basename and folder.
+            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            Assert.Equal("clip.mkv", basename);
+            Assert.Equal(srcFolder + "/clip.mkv", path);
+            Assert.Empty(journal.Rows);
+            Assert.Empty(bus.Published);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// A cross-volume move the mover classified <see cref="MoveOutcome.Cancelled"/> reaches the run
+    /// result as <see cref="RenamerStatus.SkipCancelled"/>, and no exception leaves
+    /// <c>ExecuteAsync</c>. The mover classifies a cancel rather than throwing it, and the executor
+    /// must not convert that back into a failure: on shutdown, work is cancelled, never defective.
+    /// </summary>
+    [SkippableFact]
+    public async Task CrossVolumeMove_Cancelled_ClassifiedSkipCancelled_NotSkipLocked()
+    {
+        Skip.IfNot(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
+
+        using var src = new TempDir();
+        using var dst = new SecondVolume();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string srcFolder = src.Root.Replace('\\', '/');
+            string dstFolder = dst.Root.Replace('\\', '/').TrimEnd('/');
+            var (_, videoId, fileId) =
+                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
+
+            string oldFull = Path.Combine(src.Root, "clip.mkv");
+            File.WriteAllText(oldFull, "cross-bytes");
+
+            // Sanity: the source and the subst destination are on DIFFERENT path roots → cross-volume.
+            string newFull = dstFolder + "/My Film.mkv";
+            Assert.False(VolumeClassifier.SameVolume(srcFolder + "/clip.mkv", newFull),
+                "precondition: subst destination must be a different path root than the temp source");
+
+            var port = new CoveRenamerDataPort(db);
+            var bus = new CapturingEventBus();
+            var journal = new FakeRevertJournal();
+            // Same seam, and OperationCanceledException lands in the FIRST of the three catches — the one
+            // that removes the in-flight copy and returns a classified Cancelled rather than rethrowing.
+            // That catch is what makes this a real outcome instead of a cancellation this test forced past
+            // the mover, and it is why nothing below has to tolerate a throw escaping ExecuteAsync.
+            var executor = new RenamerExecutor(
+                port, bus, journal, "run-test", new DiskMover(),
+                new CrossVolumeMover((_, _) => throw new OperationCanceledException("host shutting down mid-copy")));
+
+            var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
+            [
+                new RenamerPlanItem(fileId, srcFolder + "/clip.mkv", newFull,
+                    RenamerStatus.Move, "My Film.mkv", dstFolder),
+            ]);
+
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+
+            var skippedItem = Assert.Single(result.Skipped);
+            Assert.Equal(RenamerStatus.SkipCancelled, skippedItem.Status);
+            Assert.Empty(result.Renamed);
+            Assert.Empty(result.Failed);
+
+            // Disk: nothing renamed, and the source is exactly where and what it was.
+            Assert.True(File.Exists(oldFull), "a cancelled move must leave the source where it was");
+            Assert.Equal("cross-bytes", File.ReadAllText(oldFull));
+            Assert.False(File.Exists(Path.Combine(dst.Root, "My Film.mkv")));
+
+            // DB untouched, and nothing journalled — there is no move to put back.
+            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            Assert.Equal("clip.mkv", basename);
+            Assert.Equal(srcFolder + "/clip.mkv", path);
+            Assert.Empty(journal.Rows);
+            Assert.Empty(bus.Published);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
     /// MOVE-05 cross-path rollback: a VERIFIED cross-volume move whose subsequent DB save throws
     /// (a forced <c>(ParentFolderId, Basename)</c> unique-index clash, pre-check bypassed via
     /// <see cref="CollisionBlindDataPort"/>) must roll back through <see cref="CrossVolumeMover.RollbackAsync"/>

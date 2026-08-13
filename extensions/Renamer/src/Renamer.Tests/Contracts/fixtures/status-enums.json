@@ -10,7 +10,10 @@
     "SkipMissingSource": "\u0022skipMissingSource\u0022",
     "SkipNoSpace": "\u0022skipNoSpace\u0022",
     "SkipBlocked": "\u0022skipBlocked\u0022",
-    "Failed": "\u0022failed\u0022"
+    "Failed": "\u0022failed\u0022",
+    "SkipPermissionDenied": "\u0022skipPermissionDenied\u0022",
+    "SkipVerifyFailed": "\u0022skipVerifyFailed\u0022",
+    "SkipCancelled": "\u0022skipCancelled\u0022"
   },
   "renamerFileKind": {
     "Video": "\u0022video\u0022",

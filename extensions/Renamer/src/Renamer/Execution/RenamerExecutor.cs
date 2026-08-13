@@ -53,7 +53,7 @@ public sealed class RenamerExecutor
     /// <param name="FileId">The file row.</param>
     /// <param name="OldPath">The path before execution.</param>
     /// <param name="NewPath">The path after execution (or the intended/attempted path on skip/fail).</param>
-    /// <param name="Status">The terminal status (Renamer/Move/NoOp/SkipGated/SkipCollision/SkipLocked/SkipMissingSource/SkipBlocked/Failed).</param>
+    /// <param name="Status">The terminal status.</param>
     /// <param name="Reason">A human-readable note for a skip/fail; null on success.</param>
     public sealed record ItemResult(int FileId, string OldPath, string NewPath, RenamerStatus Status, string? Reason);
 
@@ -257,15 +257,14 @@ public sealed class RenamerExecutor
         string nativeNew = ToNative(newFull);
         bool sameVolume = VolumeClassifier.SameVolume(item.OldFullPath, newFull);
 
-        var (moved, moveReason, movedSidecars) = await MoveOnDisk(sameVolume, nativeOld, nativeNew, plannedSidecars, ct);
+        var (moved, moveReason, moveOutcome, movedSidecars) =
+            await MoveOnDisk(sameVolume, nativeOld, nativeNew, plannedSidecars, ct);
 
         if (!moved)
         {
-            // Locked source / existing destination / failed verify at move time → skip+report.
-            // The cross MoveResult shape matches DiskMover's, so VerifyFailed/LockedOrExists/
-            // PermissionDenied all flow into the SkipLocked bucket exactly as today —
-            // one item's failure never aborts the batch. Never force the lock.
-            skipped.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.SkipLocked, moveReason));
+            // One item's failure never aborts the batch, and the lock is never forced.
+            skipped.Add(new ItemResult(item.FileId, item.OldFullPath, newFull,
+                MoveOutcomeClassifier.StatusFor(moveOutcome), moveReason));
             return;
         }
 
@@ -552,7 +551,12 @@ public sealed class RenamerExecutor
     /// copy→verify→promote→delete-source-last <see cref="CrossVolumeMover.MoveAsync"/>. Both tiers return
     /// the identical shape.
     /// </summary>
-    private async Task<(bool moved, string? reason, IReadOnlyList<(string From, string To)> movedSidecars)> MoveOnDisk(
+    /// <returns>
+    /// Whether the PRIMARY moved, the skip reason when it did not — both as prose for the run output and
+    /// as the classification the reported status is derived from — and the sidecars that ACTUALLY moved.
+    /// </returns>
+    private async Task<(bool moved, string? reason, MoveOutcome outcome,
+        IReadOnlyList<(string From, string To)> movedSidecars)> MoveOnDisk(
         bool sameVolume, string nativeOld, string nativeNew,
         IReadOnlyList<DiskMover.SidecarMove> plannedSidecars, CancellationToken ct)
     {
@@ -560,12 +564,12 @@ public sealed class RenamerExecutor
         {
             var move = _disk.Move(nativeOld, nativeNew,
                 [.. plannedSidecars.Select(s => new DiskMover.SidecarMove(ToNative(s.From), ToNative(s.To)))]);
-            return (move.Moved, move.Reason, [.. move.MovedSidecars.Select(s => (s.From, s.To))]);
+            return (move.Moved, move.Reason, move.Outcome, [.. move.MovedSidecars.Select(s => (s.From, s.To))]);
         }
 
         var cross = await _cross.MoveAsync(nativeOld, nativeNew,
             [.. plannedSidecars.Select(s => new CrossVolumeMover.SidecarMove(ToNative(s.From), ToNative(s.To)))], ct);
-        return (cross.Moved, cross.Reason, [.. cross.MovedSidecars.Select(s => (s.From, s.To))]);
+        return (cross.Moved, cross.Reason, cross.Outcome, [.. cross.MovedSidecars.Select(s => (s.From, s.To))]);
     }
 
     /// <summary>

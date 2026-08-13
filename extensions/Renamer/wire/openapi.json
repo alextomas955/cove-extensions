@@ -936,7 +936,10 @@
           "skipMissingSource",
           "skipNoSpace",
           "skipBlocked",
-          "failed"
+          "failed",
+          "skipPermissionDenied",
+          "skipVerifyFailed",
+          "skipCancelled"
         ]
       },
       "ScanCursor": {

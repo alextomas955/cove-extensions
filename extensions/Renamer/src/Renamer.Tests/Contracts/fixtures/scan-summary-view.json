@@ -49,6 +49,18 @@
       {
         "status": "failed",
         "count": 0
+      },
+      {
+        "status": "skipPermissionDenied",
+        "count": 0
+      },
+      {
+        "status": "skipVerifyFailed",
+        "count": 0
+      },
+      {
+        "status": "skipCancelled",
+        "count": 0
       }
     ],
     "blastRadius": {
@@ -123,6 +135,18 @@
       {
         "status": "failed",
         "count": 0
+      },
+      {
+        "status": "skipPermissionDenied",
+        "count": 0
+      },
+      {
+        "status": "skipVerifyFailed",
+        "count": 0
+      },
+      {
+        "status": "skipCancelled",
+        "count": 0
       }
     ],
     "blastRadius": {
@@ -196,6 +220,18 @@
       },
       {
         "status": "failed",
+        "count": 0
+      },
+      {
+        "status": "skipPermissionDenied",
+        "count": 0
+      },
+      {
+        "status": "skipVerifyFailed",
+        "count": 0
+      },
+      {
+        "status": "skipCancelled",
         "count": 0
       }
     ],
