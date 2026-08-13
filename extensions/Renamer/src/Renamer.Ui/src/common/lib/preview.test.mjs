@@ -95,3 +95,58 @@ test("a confirm built without a summary still reads as undoable", () => {
   assert.equal(willRenameCount, 1);
   assert.match(text, /You can undo this afterwards\./);
 });
+
+/** A selected item the server refused, differing from a will-rename item only in its status. */
+function skipped(status) {
+  return { ...RENAME_ITEM, status };
+}
+
+test("an item an exclude rule matched is counted among the skipped, and the count says why", () => {
+  // The live defect: an excluded item was in no skip filter, so the total under-reported it and the
+  // whole line vanished when it was the only skip. This is the number the user approves a rename on.
+  const { text, willRenameCount } = buildConfirmSummary([RENAME_ITEM, skipped("skipExcluded")]);
+
+  assert.equal(willRenameCount, 1);
+  assert.ok(
+    text.includes("⚠ 1 skipped (excluded by a rule)."),
+    `expected the skipped line to name the exclusion, got:\n${text}`,
+  );
+});
+
+/**
+ * Each skip kind with the compact single-reason wording it collapses to, TRANSCRIBED BY HAND from the
+ * shipped copy rather than read back from the module, so a reworded reason fails here instead of
+ * silently changing what a user reads before files move.
+ */
+const COMPACT_REASONS = [
+  ["skipGated", "needs a required field"],
+  ["skipCollision", "name conflict"],
+  ["skipExcluded", "excluded by a rule"],
+  ["skipLocked", "in use"],
+  ["skipMissingSource", "missing on disk"],
+];
+
+test("one skip kind alone collapses to the compact form, whichever kind it is", () => {
+  for (const [status, reason] of COMPACT_REASONS) {
+    const { text } = buildConfirmSummary([RENAME_ITEM, skipped(status), skipped(status)]);
+    assert.ok(
+      text.includes(`⚠ 2 skipped (${reason}).`),
+      `status ${status} — expected the compact form, got:\n${text}`,
+    );
+  }
+});
+
+test("two skip kinds read as one multi-reason line, in the order the clauses are declared", () => {
+  // The gated clause precedes the excluded one, and inserting a kind must not reorder a sentence a
+  // user has already been reading.
+  const { text } = buildConfirmSummary([
+    RENAME_ITEM,
+    skipped("skipExcluded"),
+    skipped("skipGated"),
+  ]);
+
+  assert.ok(
+    text.includes("⚠ 2 skipped — 1 need a required field, 1 are excluded by a rule."),
+    `expected the multi-reason line with the gated clause first, got:\n${text}`,
+  );
+});
