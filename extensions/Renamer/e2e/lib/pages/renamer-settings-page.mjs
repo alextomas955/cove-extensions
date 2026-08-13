@@ -85,6 +85,22 @@ export class RenamerSettingsPage {
     await this.dryRunDialog.waitFor({ state: "visible", timeout: 10_000 });
   }
 
+  /**
+   * One row of the Dry run table, scoped by the CURRENT name its first column shows.
+   *
+   * Anchored on that column's link, whose accessible name ("Open <name> in Cove (new tab)") is the only
+   * per-row handle a user can also see — a class would silently follow a restyle onto the wrong element
+   * instead of failing. `.last()` picks the innermost `div` wrapping the link, i.e. the row itself
+   * rather than the scroll container above it; same reasoning as the shared VideosPage.cardByFilename.
+   */
+  dryRunRowFor(currentBasename) {
+    return this.dryRunDialog
+      .locator("div", {
+        has: this.page.getByRole("link", { name: `Open ${currentBasename} in Cove (new tab)` }),
+      })
+      .last();
+  }
+
   /** The "Sample: Video" live-preview card's full text, used to assert the debounced preview updated. */
   liveVideoSampleCard() {
     return this.page.getByText("SAMPLE: VIDEO", { exact: false }).locator("..");
