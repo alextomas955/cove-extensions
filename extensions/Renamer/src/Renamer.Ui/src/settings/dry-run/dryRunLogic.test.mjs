@@ -86,8 +86,9 @@ test("the overflow label carries words, so the badge is never colour alone", () 
 });
 
 test("a row from a wire shape that has no overflow field reads as unflagged, not as flagged", () => {
-  // `/scan-rows` does not carry the field yet, and a missing field is `undefined`. Reading that as a
-  // warning would put a red pill on every row of the dry-run table.
+  // `/scan-rows` carries this field as of 29-06, so this is no longer about a field the wire lacks —
+  // it is about how a row that arrives without one must read. A missing field is `undefined`, and
+  // treating that as truthy would put a red pill on every row of the dry-run table.
   assert.equal(inFlightOverflowLabel({}), null);
   assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: undefined }), null);
 });
