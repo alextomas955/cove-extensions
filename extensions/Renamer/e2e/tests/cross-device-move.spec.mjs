@@ -8,7 +8,7 @@
 // so nothing Cove does may write into the destination at all. CrossVolumeMover's FIRST write is its
 // in-flight temp file beside the final target, so the move died there with an
 // UnauthorizedAccessException, which the mover classifies PermissionDenied and the batch runner
-// buckets as SkipLocked. The discriminators that established this, each read live rather than
+// reports as SkipPermissionDenied. The discriminators that established this, each read live rather than
 // inferred: the executor's own per-item log line reported crossVolume=true (so the pair really does
 // classify cross-volume THROUGH the running executor, not only in an isolated call), the preview's
 // plan item carried a /data2 destination and a matched routing rule (so a relocate really was

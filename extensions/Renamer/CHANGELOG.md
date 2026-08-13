@@ -11,6 +11,12 @@ User-facing changes, newest first.
      editing the 0.3.0 row: it describes an immutable artifact that genuinely runs on a 1.0.0 host.
      The full rule is in the repo-wide Releasing guide, under "Raising minCoveVersion". -->
 
+- **A file your exclude rules skip now says so in the dry run, and is counted with the other skips.**
+  Such a file used to appear flagged in the dry-run table with nothing naming the reason, so the row read
+  as a problem you could not act on; and it was left out of the skipped total the rename confirmation
+  shows, so that total read lower than the number of files Renamer would actually leave alone. Both now
+  cover it. **No renaming behaviour changed** — the same files are excluded as before, and no template
+  and no setting moved.
 - **A rename whose copy will not fit across drives is now flagged before you approve it.** A move to
   another drive copies the file to a temporary name beside its destination and then promotes it, and that
   temporary name is longer than the final one. A destination path close to the length limit therefore

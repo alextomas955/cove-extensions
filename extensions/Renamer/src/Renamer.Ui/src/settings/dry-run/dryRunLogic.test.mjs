@@ -1,6 +1,8 @@
 /** Behavior contract for the pure dry-run logic. */
 import { test } from "vitest";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 import {
   classifyItem,
@@ -25,6 +27,9 @@ import {
  * from `classifyItem`: an expectation computed from the code under test would pass no matter how far
  * the two sides drifted, and a drift means a row appearing in a segment it was never counted in.
  * Re-check this table against that C# file if either side changes.
+ *
+ * Whether it is COMPLETE is not checked here at all — that expectation comes from the wire document
+ * below, which the server emits.
  */
 const SERVER_BUCKETS = [
   ["renamer", "will-change"],
@@ -38,10 +43,34 @@ const SERVER_BUCKETS = [
   ["skipNoSpace", "attention"],
   ["skipBlocked", "attention"],
   ["failed", "attention"],
+  ["skipPermissionDenied", "attention"],
+  ["skipVerifyFailed", "attention"],
+  ["skipCancelled", "attention"],
 ];
 
+/**
+ * The committed OpenAPI document, which the server generates from its own types. Resolved from this
+ * file's own directory and NEVER from the module URL's pathname property — on Windows that yields a
+ * leading-slash form resolving to a doubled drive prefix, which has silently disabled gates here before.
+ */
+const WIRE_DOCUMENT = path.join(import.meta.dirname, "../../../../../wire/openapi.json");
+
 test("classifyItem agrees with ScanBucket.Of on every status the server can emit", () => {
-  assert.equal(SERVER_BUCKETS.length, 11, "RenamerStatus has 11 members — pin them all");
+  const emitted = new Set(
+    JSON.parse(readFileSync(WIRE_DOCUMENT, "utf8")).components.schemas.RenamerStatus.enum,
+  );
+  const tabled = new Set(SERVER_BUCKETS.map(([status]) => status));
+  const untabled = [...emitted].filter((s) => !tabled.has(s));
+  const retired = [...tabled].filter((s) => !emitted.has(s));
+  assert.deepEqual(
+    { untabled, retired },
+    { untabled: [], retired: [] },
+    `The table above is transcribed by hand and this expectation comes from the document the SERVER ` +
+      `emits, so the two cannot agree with each other by construction the way a hand-written member ` +
+      `count could — that one was checked against the very table it was counting. Emitted but not ` +
+      `tabled: ${JSON.stringify(untabled)}. Tabled but no longer emitted: ${JSON.stringify(retired)}. ` +
+      `Re-check the table against ScanBucket.Of, then regenerate the wire types.`,
+  );
   for (const [status, bucket] of SERVER_BUCKETS) {
     assert.equal(classifyItem({ status }), bucket, `status ${status}`);
   }
