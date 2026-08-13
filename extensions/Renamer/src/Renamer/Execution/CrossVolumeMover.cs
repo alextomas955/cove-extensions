@@ -6,10 +6,13 @@ namespace Renamer.Execution;
 /// atomic same-volume <see cref="System.IO.File.Move(string,string)"/> that <see cref="DiskMover"/>
 /// uses is not available — a cross-volume <c>File.Move</c> is an opaque, unverified, non-atomic
 /// copy-then-delete that leaves a silent duplicate on a locked source). It mirrors
-/// <see cref="DiskMover"/>'s shape verbatim — the same <see cref="SidecarMove"/>,
-/// <see cref="MoveResult"/> record and (extended) <see cref="MoveOutcome"/> enum, the same
+/// <see cref="DiskMover"/>'s shape verbatim — the same <see cref="SidecarMove"/> and
+/// <see cref="MoveResult"/> record, the same shared <see cref="MoveOutcome"/>, the same
 /// classify-not-throw discipline, skip-not-clobber sidecars, and best-effort rollback — so the
-/// <c>RenamerExecutor</c> consumes its result identically.
+/// <c>RenamerExecutor</c> consumes its result identically. This is the tier that produces every
+/// member of that outcome: the two the same-volume tier cannot reach,
+/// <see cref="MoveOutcome.VerifyFailed"/> and <see cref="MoveOutcome.Cancelled"/>, exist because a
+/// copy can be read back and a copy can be cancelled.
 ///
 /// SAFETY CONTRACT (the strict, NEVER-REORDERED sequence per file):
 /// <list type="number">
@@ -137,29 +140,6 @@ public sealed class CrossVolumeMover
         IReadOnlyList<SidecarMove> MovedSidecars,
         IReadOnlyList<string> Warnings,
         string? Reason);
-
-    /// <summary>How a primary cross-volume move attempt was classified. The first three members mirror
-    /// <see cref="DiskMover.MoveOutcome"/>; the last two are the cross-volume additions.</summary>
-    public enum MoveOutcome
-    {
-        /// <summary>The file was copied, verified, atomically promoted, and the source deleted.</summary>
-        Moved,
-
-        /// <summary>The source was locked/in-use OR the final destination already existed.</summary>
-        LockedOrExists,
-
-        /// <summary>The OS denied permission for the copy/promote/delete.</summary>
-        PermissionDenied,
-
-        /// <summary>The destination read-back did not match the source by size or content hash — the copy
-        /// was rejected, the suspect destination deleted, and the source left intact.</summary>
-        VerifyFailed,
-
-        /// <summary>The caller cancelled the <see cref="CancellationToken"/> mid-move. The in-flight
-        /// copy this call created is removed and the source is left untouched — a cancel never loses
-        /// or duplicates a file and never throws out (classify-not-throw).</summary>
-        Cancelled,
-    }
 
     /// <summary>
     /// Copies <paramref name="oldFull"/> → <paramref name="newFull"/> across volumes via the strict
