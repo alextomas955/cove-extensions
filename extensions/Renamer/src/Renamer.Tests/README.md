@@ -61,9 +61,13 @@ about what tier it is.
 - **Containerized e2e job** — stands up the Cove app image and drives the real rename/relocate flow,
   covering behaviours neither C# leg can see.
 
-Each C# leg declares the number of tests it must contain and fails below it, so a file silently
-dropping off a leg is a red merge gate rather than a smaller pass. Both floors live on the extension's
-`extensions/catalog.json` entry — `unitTestMinimumTotal` for the bare leg, `coveTestMinimumTotal` for
-the cove-present one — because a floor is a per-extension fact and a second extension must be able to
-declare its own without editing a workflow. Read them there rather than from any prose: a number
-copied into a file no gate reads is a number that goes wrong quietly.
+A run that executes no test fails instead of passing green, through `TreatNoTestsAsError` in the
+repo-root `.runsettings`. That is the whole of "prove the suite ran", and it needs no maintained
+number, so it cannot fall behind the suite.
+
+Each leg used to compare its total against a hand-declared minimum on the `extensions/catalog.json`
+entry. Those were removed: the number had to be raised by hand whenever tests were added, so it
+silently fell behind and each gate weakened while still printing green. What they guarded is closed at
+its source instead — a file can only leave a leg through an explicit per-file `Compile Remove` in
+`Renamer.Tests.csproj`, and an incomplete extraction is refused by `AssertCoveLocation` plus the
+extraction staleness guard rather than inferred afterwards from a count.

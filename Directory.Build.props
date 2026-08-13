@@ -30,6 +30,11 @@
          text, and MSBuild refuses to load the whole file when one does.) -->
     <CoveTestImageRepository Condition="'$(CoveTestImageRepository)' == ''">ghcr.io/yourcove/cove-app</CoveTestImageRepository>
     <CoveTestImageTag Condition="'$(CoveTestImageTag)' == ''">nightly</CoveTestImageTag>
+
+    <!-- Repo-wide run settings, so a local `dotnet test` and a CI leg agree on what an empty run means
+         (see .runsettings). Declared here rather than per test project so a second extension inherits
+         it, and read only by VSTest, so it is inert on every non-test project. -->
+    <RunSettingsFilePath Condition="'$(RunSettingsFilePath)' == ''">$(MSBuildThisFileDirectory).runsettings</RunSettingsFilePath>
   </PropertyGroup>
 
   <!--

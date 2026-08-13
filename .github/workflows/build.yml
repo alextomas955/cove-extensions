@@ -242,47 +242,14 @@ jobs:
       # windows-build-test's build-then-test order in lint.yml. Optional: an extension without a
       # testProjectPath entry in catalog.json skips this step (manifestOnly-style opt-out).
       #
-      # The floor is what makes this a gate rather than a report. It is a FLOOR, not an equality, so
-      # adding tests never breaks it; a total BELOW it means a file dropped off this leg, which is
-      # exactly the defect a per-file Compile-Remove list exists to prevent and a directory wildcard
-      # used to cause silently. A log with no Total: line fails too rather than comparing as zero — an
-      # absent figure means the run did not report, which is not the same as reporting nothing. Both C#
-      # legs now state what they must contain; before that, any number at all read as correct.
-      #
-      # Catalog-driven for the same reason the cove-present floor is: the value is a per-extension fact,
-      # so a second extension declares its own rather than inheriting Renamer's. Declaring a test
-      # project and no floor is a hard error, not a skip — a leg with nothing to compare against is the
-      # shape this check exists to make impossible.
+      # A run that executes nothing fails rather than passing: .runsettings sets TreatNoTestsAsError
+      # repo-wide, so this leg cannot report success having asserted nothing. No expected total is
+      # compared — .runsettings records why the two catalog minimum-count floors were removed.
       - name: Test (unit tier)
         if: ${{ !matrix.extension.manifestOnly && matrix.extension.testProjectPath != '' }}
-        shell: bash
-        run: |
-          set -o pipefail
-          # A POSITIVE-INTEGER shape check, not merely a non-empty one. Non-empty passes "0", and a floor
-          # of zero admits any total — a gate that reads as configured while comparing against nothing.
-          # It also passes a typo, which bash arithmetic resolves to 0 for the same effect. The pattern
-          # additionally keeps catalog text out of arithmetic context: `(( x < $VAR ))` EVALUATES $VAR's
-          # content, where an array subscript performs command substitution, so a fork-editable file
-          # would reach the runner as code. Comparison below uses [ -lt ] on validated digits instead.
-          if [[ ! "$MINIMUM_TOTAL" =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error::$EXTENSION_NAME declares a testProjectPath but unitTestMinimumTotal in extensions/catalog.json is '$MINIMUM_TOTAL', not a positive integer. Without a usable floor this leg cannot tell a full run from a smaller one, so it would report green while proving less."
-            exit 1
-          fi
-          dotnet test "$TEST_PROJECT_PATH" -c Release -p:CoveSourceMode=none | tee /tmp/unit-tier.log
-          total=$(grep -oE 'Total: *[0-9]+' /tmp/unit-tier.log | tail -1 | grep -oE '[0-9]+')
-          if [[ -z "$total" ]]; then
-            echo "::error::No Total: figure in the test output — the run did not report, which is a failure and not a zero."
-            exit 1
-          fi
-          if [ "$total" -lt "$MINIMUM_TOTAL" ]; then
-            echo "::error::$EXTENSION_NAME ran $total tests against a floor of $MINIMUM_TOTAL. A file dropped off the cove-absent leg — check the Compile-Remove list rather than lowering the floor."
-            exit 1
-          fi
-          echo "Unit tier ran $total tests (floor $MINIMUM_TOTAL)."
+        run: dotnet test "$TEST_PROJECT_PATH" -c Release -p:CoveSourceMode=none
         env:
-          EXTENSION_NAME: ${{ matrix.extension.name }}
           TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
-          MINIMUM_TOTAL: ${{ matrix.extension.unitTestMinimumTotal }}
 
       # AFTER the unit tier, because the emit test inside it is what WROTE this file; running before it
       # would diff whatever the checkout happened to carry. The document is derived from the endpoint
@@ -433,9 +400,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Fail closed on the floor: an entry that declares a test project but no coveTestMinimumTotal
-      # would run this tier with nothing to compare its total against — which is precisely the
-      # "green while compiling less than the mode implies" shape this job exists to make impossible.
       # An entry with no test project skips the tier entirely, matching the unit-tier opt-out.
       - name: Check for a cove-present tier
         id: check
@@ -446,19 +410,11 @@ jobs:
             echo "::notice::$EXTENSION_NAME declares no testProjectPath — skipping the cove-present tier."
             exit 0
           fi
-          # Positive integer, not merely non-empty — see the unit tier's floor for why "0" and a typo
-          # both disarm the comparison, and why validating the shape here keeps catalog text out of the
-          # arithmetic context the comparison would otherwise evaluate.
-          if [[ ! "$MINIMUM_TOTAL" =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error::$EXTENSION_NAME declares a testProjectPath but coveTestMinimumTotal in extensions/catalog.json is '$MINIMUM_TOTAL', not a positive integer. Without a usable floor this tier cannot tell a full run from a smaller one, so it would report green while proving less."
-            exit 1
-          fi
           echo "has_tier=true" >> "$GITHUB_OUTPUT"
         env:
           EXTENSION_NAME: ${{ matrix.extension.name }}
           MANIFEST_ONLY: ${{ matrix.extension.manifestOnly }}
           TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
-          MINIMUM_TOTAL: ${{ matrix.extension.coveTestMinimumTotal }}
 
       # The fetcher is Node, and it deliberately shells out to nothing — no docker, no curl, no tar —
       # so this and the .NET SDK are the whole toolchain.
@@ -501,39 +457,19 @@ jobs:
 
       # -p:CoveSourceMode=assemblies is stated EXPLICITLY: an infrastructure failure that left the
       # extraction empty must fail this job, not quietly select the cove-absent branch and report a
-      # smaller green run. The build's own AssertCoveLocation refuses that case, and the floor below is
-      # the second half of the same guard.
-      #
-      # The floor is a FLOOR, not an equality, so adding tests never breaks it. A total BELOW it means
-      # the leg compiled less than the mode implies, which is the defect being closed — the same
-      # invocation with CoveSourceMode=none reports materially fewer tests, so this comparison can fail
-      # rather than being a formality. A log with no Total: line fails too, rather than comparing as
-      # zero: an absent figure means the run did not report, which is not the same as reporting nothing.
+      # smaller green run. AssertCoveLocation refuses that case at build time, and the extraction
+      # staleness guard refuses assemblies pulled from a tag other than the one under test — so an
+      # incomplete extraction is caught where it happens, not inferred afterwards from a test count.
+      # An empty run still fails, via TreatNoTestsAsError in .runsettings.
       - name: Test (cove-present tier, assemblies from the released image)
         if: steps.check.outputs.has_tier == 'true'
-        shell: bash
         run: |
-          set -o pipefail
           dotnet test "$TEST_PROJECT_PATH" -c Release \
             -p:CoveSourceMode=assemblies \
             -p:CoveTestImageTag="$COVE_TAG" \
-            -p:CoveAssembliesDir=artifacts/cove-assemblies | tee /tmp/cove-present.log
-          total=$(grep -oE 'Total: *[0-9]+' /tmp/cove-present.log | tail -1 | grep -oE '[0-9]+')
-          if [[ -z "$total" ]]; then
-            echo "::error::No Total: figure in the test output — the run did not report, which is a failure and not a zero."
-            exit 1
-          fi
-          # [ -lt ] on digits the check step already validated, never (( )) — arithmetic context
-          # re-evaluates the variable's CONTENT, so catalog text would reach the runner as code.
-          if [ "$total" -lt "$MINIMUM_TOTAL" ]; then
-            echo "::error::$EXTENSION_NAME ran $total tests against a floor of $MINIMUM_TOTAL. The leg compiled less than CoveSourceMode=assemblies implies — check that the extraction is complete rather than lowering the floor."
-            exit 1
-          fi
-          echo "Cove-present tier ran $total tests against Cove $COVE_TAG (floor $MINIMUM_TOTAL)."
+            -p:CoveAssembliesDir=artifacts/cove-assemblies
         env:
-          EXTENSION_NAME: ${{ matrix.extension.name }}
           TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
-          MINIMUM_TOTAL: ${{ matrix.extension.coveTestMinimumTotal }}
           COVE_TAG: ${{ matrix.cove.tag }}
 
   # ---- E2E: rebuilds each extension (a separate job from build/matrix.extension — GitHub Actions
