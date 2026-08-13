@@ -13,6 +13,7 @@
       "manifestPath": "extensions/Renamer/src/Renamer/extension.json",
       "uiPath": "extensions/Renamer/src/Renamer.Ui",
       "wireDocumentPath": "extensions/Renamer/wire/openapi.json",
+      "registryManifestPath": "extensions/Renamer/extensions/com.alextomas955.renamer.json",
       "artifacts": [
         "extension.json",
         "index.mjs",
