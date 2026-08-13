@@ -61,6 +61,10 @@ destination, and any warnings — without changing anything.
    iterate on the template and re-run until the preview looks right. If something looks wrong,
    adjust the template or the relevant setting and dry-run again.
 
+A row can also be flagged because its move would cross to another drive and the temporary copy's path
+would be too long. Those rows are worth resolving before you rename — see
+[If the confirmation warns about a path being too long](#if-the-confirmation-warns-about-a-path-being-too-long).
+
 ## Rename
 
 1. When the preview looks right, **save** your settings (the sticky Save bar at the bottom).
@@ -78,6 +82,30 @@ removes the original. If the machine loses power in the middle of that, you may 
 in the destination folder, named after the file being moved with `.rnm` and eight characters added.
 Nothing reads it, the next attempt writes a different one, and you can delete it. Renamer will not
 delete it for you, because it never removes a file it did not create.
+
+### If the confirmation warns about a path being too long
+
+That temporary name is longer than the final one, so a file can fit its new name and still not fit
+while the copy is in flight. Renamer checks for this before you approve, and the confirmation says so:
+
+```text
+⚠ 3 cannot be copied across drives — the temporary copy's path would be too long.
+  Shorten the destination folder or the filename template for them.
+```
+
+Two remedies, either of which is enough:
+
+- **Shorten the destination folder.** A destination closer to the drive root leaves more room for the
+  name. This is usually the quicker fix, because it applies to every file heading there.
+- **Shorten the filename template.** Drop a token, or shorten a separator, so the generated name is
+  smaller. See [Templates](./templates.md).
+
+The check only reports — it never renames a file differently to make it fit. Your names are exactly
+what the preview showed, whether or not this warning appears, so you can dry-run again after changing
+a setting and compare the two previews directly.
+
+This applies only to moves that cross drives. A rename within one drive never mints the temporary
+name, so it is never affected.
 
 ## Undo the last rename
 
