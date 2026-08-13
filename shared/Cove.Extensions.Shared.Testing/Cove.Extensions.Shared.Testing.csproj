@@ -12,7 +12,7 @@
       the package on the NuGet path) and would strip Cove.Plugins.dll from THIS project's output. Empty the
       host-provided denylist so nothing is stripped: the value must be NON-EMPTY (Cove.Sdk.targets re-applies
       its full default denylist when the property is empty), so a sentinel matching no real assembly name
-      disables the strip without re-triggering the default — the same guard WhisparrSync.Tests.csproj uses.
+      disables the strip without re-triggering the default.
     -->
     <CoveHostProvidedAssemblies>;__cove_extensions_shared_testing_no_strip__;</CoveHostProvidedAssemblies>
     <!--

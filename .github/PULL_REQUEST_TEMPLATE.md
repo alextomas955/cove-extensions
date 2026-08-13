@@ -11,11 +11,6 @@ If this PR touches **Renamer**:
 - [ ] `dotnet test extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj` passes
 - [ ] `cd extensions/Renamer/src/Renamer.Ui && npm run verify` passes
 
-If this PR touches **WhisparrSync**:
-
-- [ ] `dotnet test extensions/WhisparrSync/src/WhisparrSync.Tests/WhisparrSync.Tests.csproj` passes
-- [ ] `cd extensions/WhisparrSync/src/WhisparrSync.Ui && npm run verify` passes
-
 Always:
 
 - [ ] `dotnet build CoveExtensions.slnx` (the whole monorepo) succeeds
@@ -39,12 +34,6 @@ If this touches **Renamer** — how files move, the database is updated, collisi
 
 - [ ] DB and disk still update together (no orphaned files)
 - [ ] Never overwrites an existing target; never force-unlocks a held file
-
-If this touches **WhisparrSync** — anything that writes to Whisparr or reads its secret:
-
-- [ ] Outbound mutations to Whisparr are origin-tagged and idempotent
-- [ ] Never moves or deletes files inside a Whisparr-owned root
-- [ ] No secret (API key / webhook token) is echoed to the UI or written to logs
 
 ## Notes for reviewers
 

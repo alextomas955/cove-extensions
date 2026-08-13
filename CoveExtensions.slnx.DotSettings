@@ -9,8 +9,8 @@
 	      (System.Text.Json) and IExtensionStore persistence — the reflecting serializer accesses them.
 	    - ClassNeverInstantiated.Global        : minimal-API request records are instantiated by the ASP.NET
 	      model binder, never `new`'d in our code.
-	    - UnusedMemberInSuper.Global           : port/adapter interface methods (IRenamerDataPort,
-	      IWhisparrAdapter) are called via the concrete type; the interface exists for DI + the test fakes.
+	    - UnusedMemberInSuper.Global           : port/adapter interface methods (IRenamerDataPort) are
+	      called via the concrete type; the interface exists for DI + the test fakes.
 	-->
 	<s:String x:Key="/Default/CodeInspection/Highlighting/InspectionSeverities/=NotAccessedPositionalProperty_002EGlobal/@EntryIndexedValue">DO_NOT_SHOW</s:String>
 	<s:String x:Key="/Default/CodeInspection/Highlighting/InspectionSeverities/=ClassNeverInstantiated_002EGlobal/@EntryIndexedValue">DO_NOT_SHOW</s:String>

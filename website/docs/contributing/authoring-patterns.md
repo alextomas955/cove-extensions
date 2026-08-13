@@ -74,10 +74,11 @@ applied, not an omission — at this size a `ui/` and `lib/` split would only re
 already say.
 
 Code shared by several features of a *single* extension is not "shared" — it lives in that extension's
-own `common/` folder, which *is* split into `common/ui/` and `common/lib/`. A Whisparr-branded logo is
-local, so it is `common/ui/WhisparrLogo.tsx`, not part of the repo-level UI package.
+own `common/` folder, which *is* split into `common/ui/` and `common/lib/`. A component carrying one
+extension's branding is local, so it belongs in that extension's `common/ui/`, not in the repo-level UI
+package.
 
-**The deciding test is reach, not a directory name.** Ask whether both extensions could use the module
+**The deciding test is reach, not a directory name.** Ask whether every extension could use the module
 unchanged: if yes it is repo-level, if only one extension can it belongs in that extension's `common/`,
 and if only one feature can it stays inside that feature's slice. Business-agnosticism is what the test
 measures — never whether the code happens to be presentational.
@@ -85,7 +86,7 @@ measures — never whether the code happens to be presentational.
 ## One wire contract, all camelCase
 
 The entire C#↔TypeScript wire is camelCase — property names and enum values alike — because that is the
-convention on both external boundaries (the Cove host and Whisparr's API). Keep the wire types in one
+convention on the external boundary (the Cove host). Keep the wire types in one
 home per tier: a `Contracts/` unit in the C# assembly (cross-cutting enums defined once in a neutral
 vocabulary file) and one `contracts.ts` per UI `src/` root, imported with `import type` so it erases at
 runtime. Every response the UI reads is a projection type, never a live domain object, so the backend
