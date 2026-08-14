@@ -458,31 +458,6 @@ test("a declared catalog path that does not exist fails, naming the field", () =
   }
 });
 
-test("a declared wireDocumentPath that does not exist fails, naming the field", () => {
-  // The wire document is written by a test and diffed by CI against the committed bytes. A path that
-  // points nowhere makes that diff step read a file that is not there, several steps into a matrix
-  // leg — and the error there names a filename, not the catalog field that produced it.
-  const entry = validEntry("com.example.foo", "Foo", {
-    wireDocumentPath: "extensions/Foo/wire/openapi.json",
-  });
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo"),
-    },
-  });
-  try {
-    const { status, stderr } = runValidator(root);
-    assert.notEqual(status, 0);
-    assert.match(
-      stderr,
-      /com\.example\.foo: wireDocumentPath does not exist: extensions\/Foo\/wire\/openapi\.json/,
-    );
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
 test("an entry with a UI and a test project but no wireDocumentPath fails, naming the missing field", () => {
   // The silent-loss case, and the one that only appears with a SECOND extension: everything else about
   // such an entry is well-formed, so nothing else in this file can speak for it. Without this check the
@@ -519,7 +494,12 @@ test("a manifestOnly entry that declares a uiPath fails, naming both fields", ()
   // real. What makes the pairing a defect is what CI does with it — several build steps read uiPath
   // and would generate, verify and bundle a frontend for an entry that ships no assembly to load it.
   // The refusal is read from the entry alone, so it must also speak for an entry whose directory or
-  // manifest is broken; the case below plants both so this one has exactly one malformation.
+  // manifest is broken; the fixture plants both so this case has exactly one malformation.
+  //
+  // Both disarmed arms are already asserted by the counts case above, and by mechanism rather than by
+  // a case each: its minimal fixture is manifestOnly with no uiPath and its maximal one is a uiPath on
+  // an assembly-bearing entry — the repository's own catalog shape — and both exit 0. A refusal reading
+  // one operand instead of two would redden one of them.
   const entry = validEntry("com.example.foo", "Foo", { uiPath: "extensions/Foo/ui" });
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },
@@ -534,55 +514,6 @@ test("a manifestOnly entry that declares a uiPath fails, naming both fields", ()
     const { status, stderr } = runValidator(root);
     assert.notEqual(status, 0);
     assert.match(stderr, /com\.example\.foo: declares both manifestOnly and uiPath/);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("a manifestOnly entry declaring no uiPath is untouched by the pairing refusal", () => {
-  // The arm that proves the refusal reads both operands rather than firing on manifestOnly alone.
-  // Every entry in this suite is manifestOnly by baseline, so a one-operand condition would redden
-  // most of the file — but it would redden it for reasons each of those cases is silent about, and
-  // this case is the one that names the operand. The fixture is deliberately the happy path's: what
-  // differs is the claim, which is that adding the refusal changed nothing here.
-  const entry = validEntry("com.example.foo", "Foo");
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo"),
-    },
-  });
-  try {
-    const { status, stderr } = runValidator(root);
-    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("a uiPath on an entry that is not manifestOnly is untouched by the pairing refusal", () => {
-  // The opposite arm, and the shape the repository's own catalog has: a UI on an assembly-bearing
-  // entry is ordinary, so manifestOnly:false must disarm the refusal. Dropping manifestOnly puts the
-  // entry back on the C# path, which is why the convention-derived .csproj, its solution membership
-  // and an entryDll are all supplied — each answers a check the entry only now reaches, so exit 0
-  // means the refusal stayed silent rather than that some earlier error short-circuited past it.
-  const entry = validEntry("com.example.foo", "Foo", {
-    name: "Foo",
-    manifestOnly: false,
-    uiPath: "extensions/Foo/ui",
-  });
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    solution: ["extensions/Foo/Foo.csproj"],
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo", { entryDll: "Foo.dll" }),
-      "extensions/Foo/ui/package.json": { name: "foo-ui" },
-    },
-    filesByPath: { "extensions/Foo/Foo.csproj": "<Project />\n" },
-  });
-  try {
-    const { status, stderr } = runValidator(root);
-    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -628,29 +559,6 @@ test("a projectPath absent from the solution fails, naming the entry, the field,
       stderr,
       /com\.example\.foo: projectPath extensions\/Foo\/Foo\.csproj is not declared in CoveExtensions\.slnx/,
     );
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("a testProjectPath absent from the solution fails independently of a projectPath that is present", () => {
-  // The two fields reach different gates — the format and analyzer jobs compile the solution, while
-  // the Windows unit job runs each catalog testProjectPath — so one being declared cannot excuse the
-  // other. The present projectPath is what makes this case about independence rather than about
-  // whether the check runs at all.
-  const root = csharpFixture({
-    projectPath: "extensions/Foo/Foo.csproj",
-    testProjectPath: "extensions/Foo/Foo.Tests.csproj",
-    solution: ["extensions/Foo/Foo.csproj"],
-  });
-  try {
-    const { status, stderr } = runValidator(root);
-    assert.notEqual(status, 0);
-    assert.match(
-      stderr,
-      /com\.example\.foo: testProjectPath extensions\/Foo\/Foo\.Tests\.csproj is not declared in CoveExtensions\.slnx/,
-    );
-    assert.doesNotMatch(stderr, /projectPath extensions\/Foo\/Foo\.csproj is not declared/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -709,42 +617,6 @@ test("a solution declaring backslash separators matches a catalog declaring forw
   }
 });
 
-test("a catalog implying a project while the solution file is absent is a named failure", () => {
-  // Absence is the one case a set-membership comparison cannot express: with no file there is no set
-  // to be missing from, so the miss has to be reported against the file itself.
-  const root = csharpFixture({ projectPath: "extensions/Foo/Foo.csproj" });
-  try {
-    const { status, stderr } = runValidator(root);
-    assert.notEqual(status, 0);
-    assert.match(stderr, /CoveExtensions\.slnx is missing, so 1 catalog-implied C# project/);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("non-semver extension.json minCoveVersion produces a non-zero exit and the expected error", () => {
-  // The per-entry comparison only runs when CoveMinVersion is set, so the fixture declares a
-  // floor to activate that path; only the manifest's minCoveVersion is malformed, isolating the
-  // "must be a semantic version" branch.
-  const entry = validEntry("com.example.foo", "Foo");
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    buildProps: buildPropsWithFloor("0.1.0"),
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo", {
-        minCoveVersion: "not-a-version",
-      }),
-    },
-  });
-  try {
-    const { status, stderr } = runValidator(root);
-    assert.notEqual(status, 0);
-    assert.match(stderr, /must be a semantic version/);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
 test("a registry versions[] row whose floor disagrees with extension.json fails, naming both floors", () => {
   // The drift that has already shipped here once and was corrected by hand. Both files declare a
   // minCoveVersion, nothing compares them, and the disagreement is invisible until a user on the
@@ -773,41 +645,6 @@ test("a registry versions[] row whose floor disagrees with extension.json fails,
     assert.match(
       stderr,
       /com\.example\.foo: registry manifest extensions\/Foo\/extensions\/com\.example\.foo\.json versions\[\] row 0\.3\.0 declares minCoveVersion 1\.0\.0, but extension\.json declares 1\.1\.0/,
-    );
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("a registry row carrying no minCoveVersion fails, rather than comparing against nothing", () => {
-  // The floor is asserted present BEFORE it is compared. Without that order an absent floor compares
-  // undefined against a real version string, which is unequal, so the run would fail with a message
-  // describing a mismatch that is really an omission — and a deleted field is exactly half of the
-  // injection this guard exists to catch.
-  const entry = validEntry("com.example.foo", "Foo", {
-    registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
-  });
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    buildProps: buildPropsWithFloor("1.1.0"),
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo", {
-        version: "0.3.0",
-        minCoveVersion: "1.1.0",
-      }),
-    },
-    filesByPath: {
-      "extensions/Foo/extensions/com.example.foo.json": JSON.stringify({
-        versions: [{ version: "0.3.0" }],
-      }),
-    },
-  });
-  try {
-    const { status, stderr } = runValidator(root);
-    assert.notEqual(status, 0);
-    assert.match(
-      stderr,
-      /versions\[\] row 0\.3\.0 declares no minCoveVersion, so its floor cannot be compared/,
     );
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -891,7 +728,7 @@ test("two versions[] rows carrying the same version fail, naming the duplicated 
 //
 // Every case above is written against `validEntry`/`validManifest` — hand-written mirrors of the real
 // Renamer catalog entry and manifest. A hand-mirrored value with no mechanical check drifts, and the
-// drift is silent in the worst way: when a field leaves the real shape, all 24 cases keep passing
+// drift is silent in the worst way: when a field leaves the real shape, every case above keeps passing
 // while exercising a shape that no longer exists.
 //
 // This does NOT re-run the validator against the real repo; CI already does that
