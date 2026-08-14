@@ -75,12 +75,6 @@ export class VideosPage {
     return messages;
   }
 
-  /** Reads every currently-visible video card's displayed filename, in DOM order. */
-  async visibleFilenames() {
-    const texts = await this.page.locator("main p").allTextContents();
-    return texts.filter((t) => /\.(mp4|jpg|png|flac)$/i.test(t.trim()));
-  }
-
   /**
    * Every unselected card's "Select item" button, in DOM order. Exposed so a caller can WAIT for the
    * grid to hold the number of cards it seeded before selecting — the grid's contents arrive from a

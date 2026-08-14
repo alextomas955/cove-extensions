@@ -1,8 +1,9 @@
 /**
  * The "Undo last rename" settings-panel section + its destructive confirm.
  *
- * Reads GET /last-batch on mount (and whenever `refreshKey` bumps — the Review dialog's success
- * callback bumps it). Gates POST /undo behind a red destructive confirm. Feedback is honest:
+ * Reads GET /last-batch on mount, and again whenever `refreshKey` bumps — which `useRenameLibrary`
+ * does once a whole-library rename succeeds. Gates POST /undo behind a red destructive confirm.
+ * Feedback is honest:
  * success / partial ("k couldn't be moved back") / total failure.
  *
  * SECURITY: reasons are rendered as React text nodes (auto-escaped).

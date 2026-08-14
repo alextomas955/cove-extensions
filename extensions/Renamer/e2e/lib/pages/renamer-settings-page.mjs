@@ -106,10 +106,6 @@ export class RenamerSettingsPage {
     return this.page.getByText("SAMPLE: VIDEO", { exact: false }).locator("..");
   }
 
-  hasUndoAvailable() {
-    return this.undoLastRenameButton.isVisible();
-  }
-
   /**
    * The status line's rendered text, once the section's /last-batch fetch has landed.
    *

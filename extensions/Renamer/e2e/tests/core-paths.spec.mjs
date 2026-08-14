@@ -106,42 +106,46 @@ test("selecting a video and clicking Rename selected renames it on disk and in t
   await settingsPage.setFilenameTemplate("$title");
   await settingsPage.save();
 
-  const videosPage = new VideosPage(page, baseUrl);
-  await videosPage.goto();
-  // Select the card by its filename BEFORE setting a Title: the grid card's accessible name follows
-  // the item's title once one is set, so selecting first keeps the filename-based lookup valid.
-  await videosPage.selectCard(originalFilename);
+  // Everything past the template mutation runs under try/finally, so the restore below does not
+  // depend on every assertion above it having passed.
+  try {
+    const videosPage = new VideosPage(page, baseUrl);
+    await videosPage.goto();
+    // Select the card by its filename BEFORE setting a Title: the grid card's accessible name follows
+    // the item's title once one is set, so selecting first keeps the filename-based lookup valid.
+    await videosPage.selectCard(originalFilename);
 
-  const setTitle = await api.put(`/api/videos/${video.id}`, { Title: title });
-  expect(setTitle.ok).toBe(true);
+    const setTitle = await api.put(`/api/videos/${video.id}`, { Title: title });
+    expect(setTitle.ok).toBe(true);
 
-  const dialogMessages = await videosPage.renameSelected();
-  // The confirm() dialog shows the real computed preview — assert on it, not just that a dialog
-  // fired, so this test would catch a regression in what the preview text itself says.
-  expect(dialogMessages[0]).toContain(originalFilename);
+    const dialogMessages = await videosPage.renameSelected();
+    // The confirm() dialog shows the real computed preview — assert on it, not just that a dialog
+    // fired, so this test would catch a regression in what the preview text itself says.
+    expect(dialogMessages[0]).toContain(originalFilename);
 
-  await assertRenamedTo({
-    api,
-    container: harness.container,
-    videoId: video.id,
-    expectedBasename,
-    originalPath,
-  });
+    await assertRenamedTo({
+      api,
+      container: harness.container,
+      videoId: video.id,
+      expectedBasename,
+      originalPath,
+    });
 
-  await settingsPage.goto();
-  await settingsPage.undoLastRename();
+    await settingsPage.goto();
+    await settingsPage.undoLastRename();
 
-  await assertRestoredTo({ api, container: harness.container, videoId: video.id, originalPath });
+    await assertRestoredTo({ api, container: harness.container, videoId: video.id, originalPath });
 
-  // Confirm the item still renders in the grid after the undo round-trip — a real user driving the
-  // UI sees the card come back (labeled by its title, which the grid shows once one is set). The
-  // restored filename itself is proven on disk and in the DB by assertRestoredTo above.
-  await videosPage.goto();
-  await expect(page.getByRole("link", { name: `Open video ${title}` })).toBeVisible();
-
-  // Restore the default template so a bare "$title" (a no-op for an untitled item) does not leak
-  // into a sibling test sharing this worker's Cove instance.
-  await settingsPage.goto();
-  await settingsPage.setFilenameTemplate("{$date - }$title{ [$resolution]}");
-  await settingsPage.save();
+    // Confirm the item still renders in the grid after the undo round-trip — a real user driving the
+    // UI sees the card come back (labeled by its title, which the grid shows once one is set). The
+    // restored filename itself is proven on disk and in the DB by assertRestoredTo above.
+    await videosPage.goto();
+    await expect(page.getByRole("link", { name: `Open video ${title}` })).toBeVisible();
+  } finally {
+    // Restore the default template so a bare "$title" (a no-op for an untitled item) does not leak
+    // into a sibling test sharing this worker's Cove instance.
+    await settingsPage.goto();
+    await settingsPage.setFilenameTemplate("{$date - }$title{ [$resolution]}");
+    await settingsPage.save();
+  }
 });

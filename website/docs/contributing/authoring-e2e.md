@@ -3,7 +3,7 @@
 The shared end-to-end harness lives at [`tests/e2e/`](https://github.com/alextomas955/cove-extensions/tree/main/tests/e2e) and is published as the
 npm-workspace package `@cove-extensions/e2e`. Every extension's own E2E suite imports it **by name**
 — there is no `../../../e2e/...` relative-path archaeology and no hand-rolled repo-root math. Adding
-a new extension's suite is three steps.
+a new extension's suite is two steps.
 
 Renamer is the reference implementation — copy its shape from
 [`extensions/Renamer/e2e/`](https://github.com/alextomas955/cove-extensions/tree/main/extensions/Renamer/e2e).
@@ -65,29 +65,22 @@ export { expect };
 `../lib/...` to `@cove-extensions/e2e` when you copy it out of the harness), or import your own
 `../lib/<yourext>-fixtures.mjs` for the pre-wired `test`.
 
-## Step 2 — Register the Playwright project
-
-Add one entry to [`tests/e2e/playwright.config.mjs`](https://github.com/alextomas955/cove-extensions/blob/main/tests/e2e/playwright.config.mjs)'s
-`projects` array, pointing `testDir` at your extension's co-located tests (the config lives at
-`tests/e2e/`, so it hops up two levels then into `extensions/`):
-
-```js
-{
-  name: '<yourext>',
-  testDir: join(__dirname, '..', '..', 'extensions', 'YourExt', 'e2e', 'tests'),
-},
-```
-
-## Step 3 — Register in the catalog + install
+## Step 2 — Register the suite in the catalog
 
 Add `e2ePath` and `e2eProject` to your extension's entry in
-[`extensions/catalog.json`](https://github.com/alextomas955/cove-extensions/blob/main/extensions/catalog.json) (CI reads these to decide whether to run an
-e2e suite and which `--project` to pass):
+[`extensions/catalog.json`](https://github.com/alextomas955/cove-extensions/blob/main/extensions/catalog.json):
 
 ```json
 "e2ePath": "extensions/YourExt/e2e",
 "e2eProject": "<yourext>"
 ```
+
+Those two fields are the whole registration.
+[`tests/e2e/playwright.config.mjs`](https://github.com/alextomas955/cove-extensions/blob/main/tests/e2e/playwright.config.mjs)
+derives its `projects` from the catalog — one project per entry declaring both fields, named
+`e2eProject` with `testDir` at `<e2ePath>/tests` — so there is no Playwright config to edit, and CI
+reads the same two fields to decide which `--project` to run. An entry declaring only one of them
+gets no project at all.
 
 Then run `npm install` **at the repo root** once. The root `package.json`'s `extensions/*/e2e`
 workspace glob picks up the new `e2e` folder automatically — no root-config edit is needed, and the

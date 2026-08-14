@@ -76,9 +76,7 @@ function formatGb(bytes: number): string {
 
 /**
  * The per-cross-volume blast-radius lines: one "↪ N items (X GB) move from A to B." line per pair.
- * Single source shared by the bulk-action window.confirm and the settings-panel Review dialog, so
- * both rename entry points describe a cross-drive batch identically. A same-drive batch has no
- * `volumePairs` and yields an empty array.
+ * A same-drive batch has no `volumePairs` and yields an empty array.
  */
 function buildBlastLines(summary?: PreviewSummary): string[] {
   return (summary?.volumePairs ?? []).map(
@@ -90,7 +88,6 @@ function buildBlastLines(summary?: PreviewSummary): string[] {
 /**
  * The blast-radius call-to-action, scaled by `ConfirmLevel`: Heavy is the strongest cross-drive
  * warning, Standard a plainer cross-drive notice, Light the original reassuring line.
- * Single source shared by both rename confirm surfaces.
  *
  * The promise of an undo is unconditional. It used to be branched on a server flag that went false
  * past a file-count ceiling; no such ceiling exists, so no size makes a rename unrecordable and any
