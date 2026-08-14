@@ -295,7 +295,7 @@ public sealed class EmptySourceFolderCleanerTests
             var options = new RenamerOptions { FilenameTemplate = "$title", RemoveEmptyFolder = true };
 
             var plan = await new RenamerPlanner(new CoveRenamerDataPort(db))
-                .PlanAsync(RenamerFileKind.Video, videoId, options, default);
+                .PlanAsync(RenamerFileKind.Video, videoId, options, RouteLookupsFixtures.RoutingNeutral, default);
             var item = Assert.Single(plan.Items);
             Assert.Equal(RenamerStatus.Rename, item.Status); // an in-place rename, not a move
 

@@ -24,31 +24,6 @@ public sealed class RenamerPlanner
     public RenamerPlanner(IRenamerDataPort port) => _port = port;
 
     /// <summary>
-    /// An empty <see cref="RouteLookups"/> (no destination maps, no regex rules) — the legacy,
-    /// non-routing behavior every entity gets through the parameterless overload. With empty lookups
-    /// the resolver always returns <see cref="RouteCategory.SourceConfine"/>, so the anchor stays the
-    /// file's own parent folder exactly as before this phase.
-    /// </summary>
-    private static readonly RouteLookups EmptyLookups = new(
-        StudioIdToDest: new Dictionary<int, string>(),
-        TagIdToDest: new Dictionary<int, string>(),
-        PathExactToDest: new Dictionary<string, string>(),
-        PathRegexRules: Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
-
-    /// <summary>
-    /// Back-compat overload for callers that do not route (tests, single-entity callers): plans with
-    /// <see cref="EmptyLookups"/>, which yields legacy source-confine behavior for every file.
-    /// </summary>
-    public Task<RenamerPlan> PlanAsync(
-        RenamerFileKind kind, int entityId, RenamerOptions options, CancellationToken ct)
-        => PlanAsync(kind, entityId, options, EmptyLookups, ct);
-
-    /// <summary>Non-routing overload of <see cref="PlanWithEntityAsync(RenamerFileKind,int,RenamerOptions,RouteLookups,CancellationToken)"/> (legacy source-confine).</summary>
-    public Task<PlanResult> PlanWithEntityAsync(
-        RenamerFileKind kind, int entityId, RenamerOptions options, CancellationToken ct)
-        => PlanWithEntityAsync(kind, entityId, options, EmptyLookups, ct);
-
-    /// <summary>
     /// Computes the per-file old→new plan for the given entity, performing zero disk/DB mutation.
     /// Returns an empty plan when the entity does not exist. Routing is resolved ONCE per entity
     /// (mirroring how <see cref="TryGate"/> runs once): the resolved destination root becomes the

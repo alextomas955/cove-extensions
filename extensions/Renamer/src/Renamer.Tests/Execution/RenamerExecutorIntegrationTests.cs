@@ -45,7 +45,7 @@ public sealed class RenamerExecutorIntegrationTests
             var options = new RenamerOptions { FilenameTemplate = "$title" }; // → "My Film.mkv"
 
             // Plan via the live port (read-only), then execute.
-            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
+            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, RouteLookupsFixtures.RoutingNeutral, default);
             var result = await executor.ExecuteAsync(plan, options, default);
 
             // (a) disk: new exists, old gone, content intact.
@@ -108,7 +108,7 @@ public sealed class RenamerExecutorIntegrationTests
 
             var options = new RenamerOptions { FilenameTemplate = "$title" }; // → "My Film.mkv"
             var plan = await new RenamerPlanner(new CoveRenamerDataPort(db))
-                .PlanAsync(RenamerFileKind.Video, videoId, options, default);
+                .PlanAsync(RenamerFileKind.Video, videoId, options, RouteLookupsFixtures.RoutingNeutral, default);
 
             var executor = new RenamerExecutor(
                 new CancelOnSaveDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
@@ -154,7 +154,7 @@ public sealed class RenamerExecutorIntegrationTests
 
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
-            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
+            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, RouteLookupsFixtures.RoutingNeutral, default);
             var result = await executor.ExecuteAsync(plan, options, default);
 
             // Classified as SkipMissingSource — not SkipLocked — with a missing-source reason.
