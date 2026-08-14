@@ -11,6 +11,14 @@ User-facing changes, newest first.
      editing the 0.3.0 row: it describes an immutable artifact that genuinely runs on a 1.0.0 host.
      The full rule is in the repo-wide Releasing guide, under "Raising minCoveVersion". -->
 
+- **The _Duration format_ setting now takes effect.** `$duration` used to render the raw number of
+  seconds whatever you picked, so a template using it produced `My Film [5025]` where the setting's own
+  example column promised `My Film [01-23-45]`. It now renders in the format you chose, so the dry run,
+  the preview samples and the finished filename all agree. **If a template of yours uses `$duration`,
+  your names will change** — check a dry run before your next rename. One example was also wrong and is
+  corrected: `mm-ss` renders the minutes within the hour, so 1h 23m 45s is `23-45`, not `83-45`. A format
+  the .NET duration formatter rejects no longer stops the whole run; that file's `$duration` falls back
+  to the seconds, and every other file renames normally.
 - **A file your exclude rules skip now says so in the dry run, and is counted with the other skips.**
   Such a file used to appear flagged in the dry-run table with nothing naming the reason, so the row read
   as a problem you could not act on; and it was left out of the skipped total the rename confirmation
