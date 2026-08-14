@@ -78,8 +78,8 @@ public sealed class BlastRadiusTests
     {
         var items = new[]
         {
-            Item(1, OnVol("C", "a.mkv"), OnVol("C", "an.mkv"), RenamerStatus.Renamer, RootOf("C")),
-            Item(2, OnVol("C", "b.mkv"), OnVol("C", "bn.mkv"), RenamerStatus.Renamer, RootOf("C")),
+            Item(1, OnVol("C", "a.mkv"), OnVol("C", "an.mkv"), RenamerStatus.Rename, RootOf("C")),
+            Item(2, OnVol("C", "b.mkv"), OnVol("C", "bn.mkv"), RenamerStatus.Rename, RootOf("C")),
             Item(3, OnVol("C", "c.mkv"), OnVol("C", "cn.mkv"), RenamerStatus.Move, RootOf("C")),
         };
         var sizes = new Dictionary<int, long> { [1] = 5L << 30, [2] = 5L << 30, [3] = 5L << 30 };
@@ -127,7 +127,7 @@ public sealed class BlastRadiusTests
     {
         var items = new[]
         {
-            Item(1, OnVol("C", "stay.mkv"), OnVol("C", "stayn.mkv"), RenamerStatus.Renamer, RootOf("C")),
+            Item(1, OnVol("C", "stay.mkv"), OnVol("C", "stayn.mkv"), RenamerStatus.Rename, RootOf("C")),
             Item(2, OnVol("C", "go.mkv"), OnVol("D", "go.mkv"), RenamerStatus.Move, RootOf("D")),
         };
         var sizes = new Dictionary<int, long> { [1] = 9L << 30, [2] = 1L << 30 };
@@ -244,7 +244,7 @@ public sealed class BlastRadiusTests
         string overLength = NameForPathLength(Budget - CrossVolumeMover.InFlightSuffixLength + 1);
 
         var sameVolume = Item(
-            1, OnVol("C", "a.mkv"), OnVol("C", overLength), RenamerStatus.Renamer, RootOf("C"));
+            1, OnVol("C", "a.mkv"), OnVol("C", overLength), RenamerStatus.Rename, RootOf("C"));
         var crossVolume = Item(
             2, OnVol("C", "b.mkv"), OnVol("D", overLength), RenamerStatus.Move, RootOf("D"));
 

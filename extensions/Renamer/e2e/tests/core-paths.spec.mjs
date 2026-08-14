@@ -87,7 +87,7 @@ test("dry-run preview matches the template and touches neither disk nor the DB r
   });
   expect(preview.status).toBe(200);
   expect(preview.json.items).toHaveLength(1);
-  expect(preview.json.items[0].status).toBe("renamer");
+  expect(preview.json.items[0].status).toBe("rename");
   expect(preview.json.items[0].oldFullPath).toBe(originalPath);
 
   const afterPreview = await api.get(`/api/videos/${video.id}`);

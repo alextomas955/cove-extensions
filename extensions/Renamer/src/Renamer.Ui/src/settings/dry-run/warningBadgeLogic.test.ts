@@ -16,7 +16,7 @@ import type { RenamerStatus } from "../../wire/api";
 /** A row with every advisory flag clear, so each case below sets only the signal it is about. */
 function row(overrides: Partial<Badgeable> = {}): Badgeable {
   return {
-    status: "renamer",
+    status: "rename",
     suffixed: false,
     sanitized: false,
     inFlightPathOverflow: false,
@@ -82,7 +82,7 @@ test("each refused status carries its own labelled badge", () => {
 });
 
 test("an acting row earns the advisory badges its own flags set, and none when they are clear", () => {
-  const acting: RenamerStatus[] = ["renamer", "move"];
+  const acting: RenamerStatus[] = ["rename", "move"];
   for (const status of acting) {
     assert.deepEqual(badgesFor(row({ status })), [], `status ${status} with no signal`);
     assert.deepEqual(badgesFor(row({ status, suffixed: true, sanitized: true })), [
@@ -103,7 +103,7 @@ test("a skipped row ignores the advisory flags entirely — nothing was cleaned,
 test("the overflow badge is appended whatever the status, because the server sets it deliberately", () => {
   // Re-testing the status here would let a flag the server DID set go unrendered if the two
   // vocabularies ever drifted, so the flag alone decides.
-  const eitherSide: RenamerStatus[] = ["renamer", "skipExcluded"];
+  const eitherSide: RenamerStatus[] = ["rename", "skipExcluded"];
   for (const status of eitherSide) {
     const badges = badgesFor(row({ status, inFlightPathOverflow: true }));
     assert.equal(badges[badges.length - 1].variant, "red", `status ${status}`);

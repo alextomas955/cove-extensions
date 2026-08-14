@@ -54,7 +54,7 @@ const SKIP_CLAUSES: Record<RenamerStatus, SkipClause | null> = {
   skipLocked: { clause: "are in use", reason: "in use" },
   skipMissingSource: { clause: "are missing on disk", reason: "missing on disk" },
   // Not a skip: these two are the items that WILL change, counted by `willRename` above.
-  renamer: null,
+  rename: null,
   move: null,
   noOp: null,
   // Executor-only, so a forward-run outcome cannot appear in a list assembled before the run: this gate
@@ -126,7 +126,7 @@ export function buildConfirmSummary(
   text: string;
   willRenameCount: number;
 } {
-  const willRename = items.filter((it) => it.status === "renamer" || it.status === "move");
+  const willRename = items.filter((it) => it.status === "rename" || it.status === "move");
   const n = willRename.length;
   const m = items.length;
 

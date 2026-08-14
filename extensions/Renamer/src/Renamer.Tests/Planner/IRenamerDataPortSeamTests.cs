@@ -49,16 +49,4 @@ public sealed class IRenamerDataPortSeamTests
         Assert.NotEqual(a, c);    // different path → different id
     }
 
-    [Fact]
-    public async Task SaveAsync_RecordsMutations_ForAssertion()
-    {
-        var port = new FakeRenamerDataPort();
-        var muts = new List<RenamerFileMutation> { new(FileId: 1, NewBasename: "new.mp4", NewParentFolderId: null) };
-
-        var changed = await port.SaveAsync(muts);
-
-        Assert.Equal(1, changed);
-        Assert.Single(port.SaveCalls);
-        Assert.Equal("new.mp4", port.SaveCalls[0][0].NewBasename);
-    }
 }

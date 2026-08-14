@@ -20,7 +20,7 @@ namespace Renamer.Planner;
 public enum RenamerStatus
 {
     /// <summary>In-place basename change (same parent folder).</summary>
-    Renamer,
+    Rename,
 
     /// <summary>Basename change AND a parent-folder move.</summary>
     Move,
@@ -242,27 +242,6 @@ public static class PathConfinement
         }
 
         return new(true, NormalizeSlash(targetAbs), null);
-    }
-
-    /// <summary>
-    /// The original single-root confinement, preserved verbatim for the empty-allowlist fallback
-    /// and the back-compat overload. Resolves the RELATIVE <paramref name="relativeFolder"/> (may
-    /// be empty = in-place) under <paramref name="allowedRoot"/>, rejecting any <c>..</c> escape or
-    /// an over-<see cref="RenamerOptions.FullPathMax"/> absolute target.
-    /// </summary>
-    public static ConfinementResult Resolve(
-        string allowedRoot,
-        string relativeFolder,
-        string newBasename,
-        RenamerOptions options)
-    {
-        // Absolute/rooted folder templates are rejected outright (they are not a relative move).
-        if (!string.IsNullOrEmpty(relativeFolder) && Path.IsPathRooted(relativeFolder))
-        {
-            return new(false, string.Empty, "folder template is an absolute/rooted path");
-        }
-
-        return ResolveUnderSingleRoot(allowedRoot, relativeFolder, newBasename, options);
     }
 
     /// <summary>

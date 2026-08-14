@@ -25,7 +25,7 @@ public sealed class WireJsonResponseTests
     // never read from the converter or from an enum member at test time: an expectation computed from
     // the thing it checks agrees with it forever, including while both are wrong.
     private const string ConfirmLevelLightOnTheWire = "\"confirmLevel\":\"light\"";
-    private const string StatusRenamerOnTheWire = "\"status\":\"renamer\"";
+    private const string StatusRenameOnTheWire = "\"status\":\"rename\"";
 
     private static readonly PreviewResponse Sample = new(
         [
@@ -33,7 +33,7 @@ public sealed class WireJsonResponseTests
                 FileId: 10,
                 OldFullPath: "/lib/raw one.mkv",
                 NewFullPath: "/lib/First Film.mkv",
-                Status: RenamerStatus.Renamer,
+                Status: RenamerStatus.Rename,
                 NewBasename: "First Film.mkv",
                 TargetFolderPath: "/lib",
                 Reason: null,
@@ -85,7 +85,7 @@ public sealed class WireJsonResponseTests
         var (_, body) = await ExecuteAsync(new WireJson<PreviewResponse>(Sample));
 
         Assert.Contains(ConfirmLevelLightOnTheWire, body, StringComparison.Ordinal);
-        Assert.Contains(StatusRenamerOnTheWire, body, StringComparison.Ordinal);
+        Assert.Contains(StatusRenameOnTheWire, body, StringComparison.Ordinal);
 
         // The failure this class exists to catch: the framework default writes Light as 0 and Renamer
         // as 1, which is still valid JSON against the same schema.

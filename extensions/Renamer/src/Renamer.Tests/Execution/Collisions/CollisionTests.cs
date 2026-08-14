@@ -39,7 +39,7 @@ public sealed class CollisionTests
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/b.mkv",
-                    RenamerStatus.Renamer, "b.mkv", folderPath),
+                    RenamerStatus.Rename, "b.mkv", folderPath),
             ]);
 
             var port = new CollisionBlindDataPort(db);

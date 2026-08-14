@@ -337,8 +337,8 @@ public sealed partial class Renamer : FullExtensionBase
     /// Maps a <see cref="RenamerFileKind"/> to the host read/write permission pair that gates operating
     /// on that entity kind. Cove models entity permissions per-kind (<c>videos.*</c>/<c>images.*</c>/
     /// <c>audios.*</c>), so a renamer of an image must require <c>images.write</c> — not the video
-    /// permission. <c>Gallery</c> is not a renamable kind; it is mapped to the video pair only so the
-    /// switch is total, and it never reaches an endpoint (<see cref="TryParseKind"/> rejects it).
+    /// permission. The fallthrough carries <see cref="RenamerFileKind.Video"/> so the switch is total
+    /// for an out-of-range cast, which is the only value no arm names.
     /// </summary>
     internal static (string Read, string Write) PermissionsFor(RenamerFileKind kind) => kind switch
     {
@@ -490,7 +490,7 @@ public sealed partial class Renamer : FullExtensionBase
                 int actingThisItem = 0;
                 foreach (var item in plan.Items)
                 {
-                    if (item.Status is not (RenamerStatus.Renamer or RenamerStatus.Move))
+                    if (item.Status is not (RenamerStatus.Rename or RenamerStatus.Move))
                     {
                         continue;
                     }

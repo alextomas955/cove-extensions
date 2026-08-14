@@ -293,9 +293,9 @@ public sealed partial class Renamer
         // WireJson<T> writes the response with the extension's own options rather than the host's: the
         // property names are camelCase AND the RenamerStatus/ConfirmLevel enums are STRINGS, spelled
         // lowercase-first because the converter camel-cases an enum name exactly as it does a property
-        // name ("renamer"/"noOp"/"skipGated"…, "light"/"standard"/"heavy"). The host's default
+        // name ("rename"/"noOp"/"skipGated"…, "light"/"standard"/"heavy"). The host's default
         // minimal-API serializer is camelCase but emits NUMERIC enums (status:0), and the frontend's
-        // buildConfirmSummary matches on it.status === "renamer" — so under the default every item
+        // buildConfirmSummary matches on it.status === "rename" — so under the default every item
         // reads as a non-renamer and the rename silently never fires, with a valid 200 and no error
         // anywhere. Extension code cannot touch host startup (ConfigureHttpJsonOptions) to fix that
         // globally, and the framework results that CAN take per-endpoint options describe no response
@@ -612,10 +612,9 @@ public sealed partial class Renamer
         => principal.Current is { } current && Array.Exists(AnyWritePermissions, current.Has);
 
     /// <summary>
-    /// Every renamable kind, in a fixed iteration order. Gallery is excluded — it is not yet a
-    /// renamable kind (<see cref="TryParseKind"/> never produces it, <c>LoadEntityAsync</c> returns
-    /// null for it). Shared by the whole-library scan and renamer-library job loops so both iterate
-    /// the same three kinds in the same order.
+    /// Every renamable kind, in a fixed iteration order — which is every <see cref="RenamerFileKind"/>
+    /// member, since the enum holds nothing else. Shared by the whole-library scan and renamer-library
+    /// job loops so both iterate the same three kinds in the same order.
     /// </summary>
     private static readonly RenamerFileKind[] RenamableKinds =
         [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio];
@@ -1004,9 +1003,8 @@ public sealed partial class Renamer
 
     /// <summary>
     /// The reverse of <see cref="TryParseKind"/>: maps a <see cref="RenamerFileKind"/> back to the
-    /// lowercase-singular Cove entity-type string <see cref="RenamerJob.Encode"/> expects. Only the three
-    /// renamable kinds round-trip (Gallery never reaches this method — <see cref="RenamableKinds"/>
-    /// excludes it).
+    /// lowercase-singular Cove entity-type string <see cref="RenamerJob.Encode"/> expects. All three
+    /// renamable kinds round-trip; the fallthrough exists only for an out-of-range cast.
     /// </summary>
     private static string EntityTypeFor(RenamerFileKind kind) => kind switch
     {

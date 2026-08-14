@@ -55,8 +55,11 @@ public sealed class LoadAllEntityIdsAsyncTests
         }
     }
 
+    // The seeded video proves the query would have found rows for a kind it names, so the empty result
+    // below is the fallthrough arm answering and not an empty database. That arm is reachable only by an
+    // out-of-range cast now that every declared kind is renamable, and it must not throw.
     [Fact]
-    public async Task LoadAllEntityIdsAsync_Gallery_ReturnsEmpty_NeverThrows()
+    public async Task LoadAllEntityIdsAsync_OutOfRangeKind_ReturnsEmpty_NeverThrows()
     {
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
@@ -64,7 +67,7 @@ public sealed class LoadAllEntityIdsAsyncTests
             await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One");
 
             var port = new CoveRenamerDataPort(db);
-            var ids = await port.LoadAllEntityIdsAsync(RenamerFileKind.Gallery, default);
+            var ids = await port.LoadAllEntityIdsAsync((RenamerFileKind)999, default);
 
             Assert.Empty(ids);
         }

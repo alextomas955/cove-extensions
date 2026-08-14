@@ -19,9 +19,6 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
 
     private readonly Dictionary<RenamerFileKind, List<int>> _allIds = new();
 
-    /// <summary>Every <see cref="SaveAsync"/> call's mutations, in order, for assertions.</summary>
-    public List<IReadOnlyList<RenamerFileMutation>> SaveCalls { get; } = new();
-
     /// <summary>Seeds a loadable entity (returned by <see cref="LoadEntityAsync"/>).</summary>
     public void SeedEntity(RenamerEntity entity) => _entities[(entity.Kind, entity.EntityId)] = entity;
 
@@ -104,12 +101,6 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
 
     public Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default)
         => Task.FromResult(!MissingSources.Contains(fullPath));
-
-    public Task<int> SaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
-    {
-        SaveCalls.Add(mutations);
-        return Task.FromResult(mutations.Count);
-    }
 
     /// <summary>When set, <see cref="ApplyAndSaveAsync"/> throws this — the seam that drives the executor's rollback-on-save-failure path with no live DB.</summary>
     public Exception? ApplyAndSaveThrow { get; set; }

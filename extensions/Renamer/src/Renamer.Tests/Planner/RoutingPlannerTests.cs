@@ -78,7 +78,7 @@ public sealed class RoutingPlannerTests
         Assert.Equal(StudioRoot, item.ResolvedDestinationRoot);
         Assert.Equal("Studio:42(direct)", item.MatchedRule);
         Assert.Equal(Path.GetPathRoot(StudioRoot), item.TargetVolume);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public sealed class RoutingPlannerTests
         // The file lands at the ROOT of the routed destination (no subfolder), NOT under its source.
         Assert.Equal(Fwd(StudioRoot) + "/My Film.mkv", item.NewFullPath);
         Assert.DoesNotContain("incoming", item.NewFullPath);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public sealed class RoutingPlannerTests
         Assert.Equal(TagRoot, item.ResolvedDestinationRoot);
         Assert.Equal("Tag:anime", item.MatchedRule);
         Assert.Equal(Path.GetPathRoot(TagRoot), item.TargetVolume);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public sealed class RoutingPlannerTests
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.Equal(PathRoot, item.ResolvedDestinationRoot);
         Assert.Equal("SourcePath:exact", item.MatchedRule);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public sealed class RoutingPlannerTests
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.Equal(UnorgRoot, item.ResolvedDestinationRoot);
         Assert.Equal("Unorganized", item.MatchedRule);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -196,7 +196,7 @@ public sealed class RoutingPlannerTests
         // A source-confine item has no destination volume of interest (in-place move), so
         // TargetVolume is empty — never the fictitious synthetic-anchor root.
         Assert.Equal("", item.TargetVolume);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -223,7 +223,7 @@ public sealed class RoutingPlannerTests
             Assert.NotEqual(RenamerStatus.SkipGated, item.Status);
             Assert.Contains("Exclude:Tag:anime", item.Reason);
         });
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -251,7 +251,7 @@ public sealed class RoutingPlannerTests
         Assert.Equal(RenamerStatus.SkipExcluded, item.Status);
         Assert.NotEqual(RenamerStatus.SkipGated, item.Status);
         Assert.Contains("Exclude:Tag:anime", item.Reason);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -281,6 +281,6 @@ public sealed class RoutingPlannerTests
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.NoOp, item.Status);
         Assert.Equal(item.OldFullPath, item.NewFullPath);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 }

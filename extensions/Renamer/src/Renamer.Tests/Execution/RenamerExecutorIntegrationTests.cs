@@ -61,7 +61,7 @@ public sealed class RenamerExecutorIntegrationTests
 
             // Result buckets: one renamed, none skipped/failed; one journal row written.
             var renamedItem = Assert.Single(result.Renamed);
-            Assert.Equal(RenamerStatus.Renamer, renamedItem.Status);
+            Assert.Equal(RenamerStatus.Rename, renamedItem.Status);
             Assert.Empty(result.Failed);
             Assert.Empty(result.Skipped);
             var revert = Assert.Single(journal.Rows);

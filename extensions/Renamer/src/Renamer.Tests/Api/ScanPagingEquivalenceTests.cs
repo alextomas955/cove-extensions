@@ -225,7 +225,7 @@ public sealed class ScanPagingEquivalenceTests
         var rows = await FullPlanAsync(port);
 
         var statuses = rows.Select(r => r.Status).ToHashSet();
-        Assert.Contains(RenamerStatus.Renamer, statuses);
+        Assert.Contains(RenamerStatus.Rename, statuses);
         Assert.Contains(RenamerStatus.Move, statuses);
         Assert.Contains(RenamerStatus.NoOp, statuses);
         Assert.Contains(RenamerStatus.SkipExcluded, statuses);

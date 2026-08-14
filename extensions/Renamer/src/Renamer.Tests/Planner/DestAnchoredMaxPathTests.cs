@@ -152,7 +152,7 @@ public sealed class DestAnchoredMaxPathTests
         // Re-anchored on the deep routed root → the absolute path overflows → skip-with-reason at preview.
         Assert.Equal(RenamerStatus.SkipCollision, item.Status);
         Assert.Contains("FullPathMax", item.Reason);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -177,6 +177,6 @@ public sealed class DestAnchoredMaxPathTests
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.Null(item.ResolvedDestinationRoot);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 }

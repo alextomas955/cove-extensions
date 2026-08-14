@@ -45,7 +45,7 @@ public sealed class RollbackTests
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/taken.mkv",
-                    RenamerStatus.Renamer, "taken.mkv", folderPath),
+                    RenamerStatus.Rename, "taken.mkv", folderPath),
             ]);
 
             var port = new CollisionBlindDataPort(db);
@@ -106,7 +106,7 @@ public sealed class RollbackTests
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/taken.mkv",
-                    RenamerStatus.Renamer, "taken.mkv", folderPath),
+                    RenamerStatus.Rename, "taken.mkv", folderPath),
             ]);
 
             var executor = new RenamerExecutor(
@@ -157,7 +157,7 @@ public sealed class RollbackTests
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/b.mkv",
-                    RenamerStatus.Renamer, "b.mkv", folderPath),
+                    RenamerStatus.Rename, "b.mkv", folderPath),
             ]);
 
             // Port that COMMITS the real save (new basename persisted) but reports a RecomputedPath that

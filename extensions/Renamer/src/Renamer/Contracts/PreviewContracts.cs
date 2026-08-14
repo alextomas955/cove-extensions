@@ -75,7 +75,7 @@ public sealed record PreviewItemView(
 /// <summary>
 /// The <c>/preview</c> response body: the per-item plan PLUS the whole-batch blast-radius
 /// summary. Carries batch-level aggregates (count, same/cross split, per-volume bytes, the scaled
-/// confirm level) without losing the per-item array contract the UI matches on (<c>status === "renamer"</c>).
+/// confirm level) without losing the per-item array contract the UI matches on (<c>status === "rename"</c>).
 /// Both halves ride the same camelCase + string-enum serializer, so <see cref="Items"/> keeps its exact
 /// wire shape and <see cref="PreviewSummary.ConfirmLevel"/> serializes as "light"/"standard"/"heavy" —
 /// lowercase-first, because the converter camel-cases the enum NAME just as it does a property name.
@@ -222,7 +222,7 @@ public static class PreviewContracts
     /// <summary>
     /// Response-serialization options for the preview/scan/picker endpoints: camelCase to match the
     /// host's wire convention (and the UI's field names) plus a string-enum converter so
-    /// <c>status</c> serializes as the string the UI matches (<c>"renamer"</c>/<c>"noOp"</c>/…, the
+    /// <c>status</c> serializes as the string the UI matches (<c>"rename"</c>/<c>"noOp"</c>/…, the
     /// enum name camel-cased). The host's default minimal-API serializer emits NUMERIC enums, which the
     /// frontend's <c>buildConfirmSummary</c> would read as a non-renamer — so the extension serializes
     /// here.

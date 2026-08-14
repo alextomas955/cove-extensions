@@ -730,8 +730,7 @@
         "enum": [
           "video",
           "image",
-          "audio",
-          "gallery"
+          "audio"
         ]
       },
       "RenamerOptions": {
@@ -920,7 +919,7 @@
       },
       "RenamerStatus": {
         "enum": [
-          "renamer",
+          "rename",
           "move",
           "noOp",
           "skipCollision",

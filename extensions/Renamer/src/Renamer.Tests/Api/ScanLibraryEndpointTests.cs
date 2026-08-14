@@ -444,8 +444,8 @@ public sealed class ScanLibraryEndpointTests
         // video-only caller reading it back must NOT receive the image/audio counts (the cross-kind leak).
         var (ext, store) = await NewExtensionAsync();
         await StoreSummaryAsync(store,
-            MakeKind(RenamerFileKind.Video, 3, RenamerStatus.Renamer),
-            MakeKind(RenamerFileKind.Image, 5, RenamerStatus.Renamer),
+            MakeKind(RenamerFileKind.Video, 3, RenamerStatus.Rename),
+            MakeKind(RenamerFileKind.Image, 5, RenamerStatus.Rename),
             MakeKind(RenamerFileKind.Audio, 7, RenamerStatus.NoOp));
 
         var view = await ReadSummaryAsync(ext, FakePrincipalAccessor.WithPermissions(Permissions.VideosRead));
@@ -461,7 +461,7 @@ public sealed class ScanLibraryEndpointTests
     {
         var (ext, store) = await NewExtensionAsync();
         await StoreSummaryAsync(store,
-            MakeKind(RenamerFileKind.Video, 3, RenamerStatus.Renamer),
+            MakeKind(RenamerFileKind.Video, 3, RenamerStatus.Rename),
             MakeKind(RenamerFileKind.Image, 5, RenamerStatus.SkipGated),
             MakeKind(RenamerFileKind.Audio, 7, RenamerStatus.NoOp));
 
@@ -493,6 +493,61 @@ public sealed class ScanLibraryEndpointTests
                 EnumJson));
         Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
             FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
+    }
+
+    /// <summary>
+    /// A hand-written stored aggregate, so a RETIRED enum spelling can be fed in at all — a fixture
+    /// re-serialized from today's members could only ever carry today's values.
+    /// </summary>
+    private static string StoredSummaryText(string statusJson, string kindJson)
+    {
+        int schema = global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion;
+        return $$"""
+        {"schemaVersion":{{schema}},
+         "completedAtUtcTicks":42,
+         "kinds":[{"kind":{{kindJson}},"entities":1,"files":1,
+                   "statusCounts":[{"status":{{statusJson}},"count":1}],
+                   "blastRadius":{"totalCount":1,"sameVolumeCount":1,"crossVolumeCount":0,
+                                  "crossVolumeBytes":0,"volumePairs":[],"confirmLevel":"light",
+                                  "inFlightPathOverflowCount":0},
+                   "volumePairsTruncated":false}]}
+        """;
+    }
+
+    // A blob written before the status enum's in-place member was respelled carries "renamer" where the
+    // current converter accepts only "rename"; one written before the non-renamable kind was retired
+    // carries "gallery". Both are VALID JSON stamped with the CURRENT schema version, so neither guard
+    // above sees them — the enum converter throws mid-parse instead, and that throw would land on the
+    // whole settings page. It must degrade to "no scan yet" (one lost dry run) instead.
+    [Theory]
+    [InlineData("\"renamer\"", "\"video\"")]   // the retired STATUS spelling
+    [InlineData("\"rename\"", "\"gallery\"")]  // the retired KIND
+    public async Task ScanLibraryResultAsync_BlobWithARetiredEnumValue_Reads404_NotA500(
+        string statusJson, string kindJson)
+    {
+        var (ext, store) = await NewExtensionAsync();
+        await store.SetAsync(
+            global::Renamer.Renamer.LastScanSummaryKey, StoredSummaryText(statusJson, kindJson));
+
+        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
+    }
+
+    // The control the two cases above need: the SAME hand-written text with both values at their current
+    // spelling parses and reads back. Without it, either 404 could be this fixture's own shape being
+    // wrong rather than the retired value — a test that agrees with itself however the reader behaves.
+    [Fact]
+    public async Task ScanLibraryResultAsync_TheSameHandWrittenBlob_WithCurrentEnumValues_ReadsBack()
+    {
+        var (ext, store) = await NewExtensionAsync();
+        await store.SetAsync(
+            global::Renamer.Renamer.LastScanSummaryKey, StoredSummaryText("\"rename\"", "\"video\""));
+
+        var view = await ReadSummaryAsync(ext, FakePrincipalAccessor.WithPermissions(Permissions.VideosRead));
+
+        Assert.Equal(1, view.TotalFiles);
+        Assert.Equal(1, view.WillChange);
+        Assert.Equal(42L, view.CompletedAtUtcTicks);
     }
 
     [Fact]
@@ -660,7 +715,7 @@ public sealed class ScanLibraryEndpointTests
     public async Task InitializeAsync_LeavesAPreExistingScanSummaryUntouched()
     {
         var store = new FakeStore();
-        await StoreSummaryAsync(store, MakeKind(RenamerFileKind.Video, 2, RenamerStatus.Renamer));
+        await StoreSummaryAsync(store, MakeKind(RenamerFileKind.Video, 2, RenamerStatus.Rename));
         await store.SetAsync(global::Renamer.Renamer.LastScanResultKey, "[legacy]");
         string before = (await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey))!;
 

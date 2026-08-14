@@ -67,7 +67,7 @@ public sealed class WireSnapshotTests
         var items = new List<RenamerPlanItem>
         {
             new(FileId: 10, OldFullPath: "/lib/raw one.mkv", NewFullPath: "/lib/First Film.mkv",
-                Status: RenamerStatus.Renamer, NewBasename: "First Film.mkv", TargetFolderPath: "/lib",
+                Status: RenamerStatus.Rename, NewBasename: "First Film.mkv", TargetFolderPath: "/lib",
                 Suffixed: false, Sanitized: true, MatchedRule: "InPlace", TargetVolume: "/"),
             new(FileId: 11, OldFullPath: "/lib/x.mkv", NewFullPath: "/lib/x.mkv",
                 Status: RenamerStatus.NoOp, NewBasename: "x.mkv", TargetFolderPath: "/lib",
@@ -121,7 +121,7 @@ public sealed class WireSnapshotTests
             kind, Entities: files, Files: files,
             StatusCounts:
             [
-                new ScanStatusCount(RenamerStatus.Renamer, files - 1),
+                new ScanStatusCount(RenamerStatus.Rename, files - 1),
                 new ScanStatusCount(RenamerStatus.SkipNoSpace, 1),
             ],
             BlastRadius: new PreviewSummary(
@@ -153,7 +153,7 @@ public sealed class WireSnapshotTests
             RenamerFileKind.Video, entityId: 9,
             new RenamerPlanItem(
                 FileId: 90, OldFullPath: "/lib/raw.mkv", NewFullPath: "/lib/Title.mkv",
-                Status: RenamerStatus.Renamer, NewBasename: "Title.mkv", TargetFolderPath: "/lib",
+                Status: RenamerStatus.Rename, NewBasename: "Title.mkv", TargetFolderPath: "/lib",
                 Suffixed: true, Sanitized: true),
             inFlightPathOverflow: false);
 
