@@ -29,14 +29,8 @@ import { api } from "../../common/lib/extension";
 import type { JobEnqueued, ScanSummaryView } from "../../wire/api";
 import type { RenamerOptions } from "../options";
 import { useScanRows } from "./useScanRows";
-import {
-  JOB_FAILURE_ALLOWANCE,
-  JOB_STALL_BUDGET_MS,
-  advanceStallClock,
-  decidePoll,
-  nextFailureCount,
-  type StallClock,
-} from "../jobPollLogic";
+import { JobUnresponsiveError } from "../jobPollLogic";
+import { pollJob, type JobInfo } from "../pollJob";
 import {
   assetHref,
   classifyItem,
@@ -69,7 +63,6 @@ const LAST_SCAN_PATH = api("last-scan");
 
 const TITLE_ID = "rename-dry-run-title";
 const DESC_ID = "rename-dry-run-summary";
-const POLL_INTERVAL_MS = 1000;
 
 // Each keystroke would otherwise be a server-side plan of a slice of the library, not a filter over an
 // array already in memory. Long enough that typing a word is one request, short enough to feel live.
@@ -81,29 +74,6 @@ const PREFETCH_ROWS = 12;
 
 /** The header labels, in the same order as GRID_TEMPLATE's content tracks. */
 const COLUMNS = ["Type", "Current name", "New name", "Destination"] as const;
-
-/**
- * Mirrors `Cove.Core.Interfaces.JobInfo` — only the fields this modal reads. The host's minimal-API
- * JSON options apply `JsonStringEnumConverter(JsonNamingPolicy.CamelCase)`, which lowercases the
- * leading character of the C# `JobStatus` enum's PascalCase member names (`Completed` → `"completed"`),
- * not just the field names — so the string values here must be camelCase too, not just `status` itself.
- *
- * Declared by hand deliberately: `/jobs/{id}` is the HOST's endpoint, absent from the extension's
- * OpenAPI document, so no generated type for it can exist. The extension's own responses come from
- * `../../wire/api`.
- */
-interface JobInfo {
-  id: string;
-  status: "pending" | "running" | "completed" | "failed" | "cancelled";
-  progress: number;
-  error?: string | null;
-  // The host reports these on every poll; only the bar reads them. `subTask` is the free-text phase
-  // message ("Scanning library… {done}/{total}"); `etaSeconds` is the server's own estimate (null
-  // when it can't compute one); `startedAt` anchors the client-side ETA fallback.
-  subTask?: string | null;
-  etaSeconds?: number | null;
-  startedAt?: string;
-}
 
 function errText(err: unknown): string {
   return err instanceof ApiError ? `${err.status} ${err.body}` : String(err);
@@ -123,15 +93,14 @@ function dirname(p: string): string {
 }
 
 /**
- * Polls `GET /jobs/{jobId}` every second until {@link decidePoll} says to stop, then calls `onDone`
- * once — or `onExpire` when the run ended on a bound rather than on the job's own verdict. No polling
- * hook exists anywhere in `@cove/extension-sdk` — this is new code (first job-polling UI in this
- * codebase). Clears its interval on unmount or job change so no timer leaks and no state updates fire
- * after unmount.
+ * Watches the scan job through the shared {@link pollJob} helper, calling `onDone` once when the job
+ * reaches its own verdict — or `onExpire` when the run ended on a bound instead. The loop, its two
+ * bounds and the hand-declared response shape all live in that module; what this hook adds is the
+ * React lifecycle: start on a job id, stop on unmount or job change, so no timer leaks and no state
+ * updates fire after unmount.
  *
- * Both bounds come from the logic module, and they are what stop this hook polling forever: it used to
- * clear its interval only on a terminal status, so a job stuck running kept a request per second going
- * for as long as the modal stayed open.
+ * A cancelled poll rejects too, and that rejection is this hook's own cleanup — nothing to report to
+ * a component that is already gone — so only an expiry is passed on.
  */
 function usePollJob(
   jobId: string | null,
@@ -141,63 +110,18 @@ function usePollJob(
 ) {
   useEffect(() => {
     if (!jobId) return;
-    let cancelled = false;
-    // `cancelled` covers unmount only. Clearing the interval does not cancel the reads already in
-    // flight, and at this interval a slow endpoint has more than one, so a terminal decision needs its
-    // own latch: without it a read issued before the run ended settles after it and reaches onDone —
-    // reporting a completed scan for a job already declared expired, or reporting completion twice.
-    let settled = false;
-    let failures = 0;
-    // NaN seeds the clock so the first reading counts as movement rather than as silence the job never
-    // had a chance to break.
-    let stall: StallClock = { progress: Number.NaN, sinceMs: Date.now() };
-
-    const bounds = (msSinceProgress: number) => ({
-      msSinceProgress,
-      consecutiveFailures: failures,
-      stallBudgetMs: JOB_STALL_BUDGET_MS,
-      failureAllowance: JOB_FAILURE_ALLOWANCE,
-    });
-
-    const interval = setInterval(() => {
-      requestJson<JobInfo>(`/jobs/${jobId}`)
-        .then((job) => {
-          if (cancelled || settled) return;
-          const now = Date.now();
-          failures = nextFailureCount(failures, true);
-          stall = advanceStallClock(stall, job.progress, now);
-          const decision = decidePoll(
-            { read: "ok", status: job.status, error: job.error },
-            bounds(now - stall.sinceMs),
-          );
-
-          if (decision.action === "continue") {
-            // Still pending/running — surface live progress. Terminal polls never fire onProgress.
-            onProgress?.(job);
-            return;
-          }
-
-          settled = true;
-          clearInterval(interval);
-          // resolve and reject both hand the job back: the caller reads its status to decide between
-          // the summary and an error, which is the split it has always made.
-          if (decision.action === "expire") onExpire?.(decision.message);
-          else onDone(job);
-        })
-        .catch(() => {
-          if (cancelled || settled) return;
-          failures = nextFailureCount(failures, false);
-          const decision = decidePoll({ read: "failed" }, bounds(Date.now() - stall.sinceMs));
-          if (decision.action === "expire") {
-            settled = true;
-            clearInterval(interval);
-            onExpire?.(decision.message);
-          }
-        });
-    }, POLL_INTERVAL_MS);
+    const poll = pollJob(jobId, onProgress);
+    poll.done
+      .then(({ job }) => {
+        // A resolve and a reject verdict both hand the job back: the caller reads its status to
+        // decide between the summary and an error, which is the split it has always made.
+        onDone(job);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof JobUnresponsiveError) onExpire?.(err.message);
+      });
     return () => {
-      cancelled = true;
-      clearInterval(interval);
+      poll.cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- onDone/onProgress/onExpire are stable refs from the caller
   }, [jobId]);
