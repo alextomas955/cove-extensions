@@ -219,55 +219,6 @@ test("the summary line reports counts, and a check with no subject renders 0 rat
   }
 });
 
-test("happy path: a fully-valid single-entry catalog exits 0 and says no floor was declared", () => {
-  // With no CoveMinVersion in Directory.Build.props the per-entry comparison no-ops, exactly as it
-  // does upstream — both guard it on the same `if (coveMinVersion)`. What the fork adds is saying so
-  // outright, or a repo enforcing no floor at all is indistinguishable from one that passed.
-  const entry = validEntry("com.example.foo", "Foo");
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo"),
-    },
-  });
-  try {
-    const { status, stdout, stderr } = runValidator(root);
-    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-    assert.match(
-      stdout,
-      /no CoveMinVersion declared in Directory\.Build\.props, so no floor comparison ran/,
-    );
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("a declared floor is compared, and the report line names the count and the floor value", () => {
-  // The "prove it ran" half of the gate contract: exit 0 alone cannot distinguish a comparison
-  // that passed from one that never happened, which is precisely how the deleted self-comparing
-  // checks stayed invisible. The count and the floor value in stdout are the distinguisher.
-  const entry = validEntry("com.example.foo", "Foo");
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    buildProps: buildPropsWithFloor("1.1.0"),
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo", {
-        minCoveVersion: "1.1.0",
-      }),
-    },
-  });
-  try {
-    const { status, stdout, stderr } = runValidator(root);
-    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-    assert.match(
-      stdout,
-      /compared 1 extension\.json minCoveVersion declaration\(s\) against CoveMinVersion 1\.1\.0/,
-    );
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
 test("a manifest floor below the repo floor fails, naming the entry and the floor it fell below", () => {
   // The surviving floor comparison, driven to failure. It is the only one left with a real
   // subject — a per-entry manifest value against the repo floor — so if this case cannot fail,
@@ -294,10 +245,10 @@ test("a manifest floor below the repo floor fails, naming the entry and the floo
   }
 });
 
-test("an entry whose path does not exist fails, and reports nothing about the floor", () => {
+test("an entry whose path does not exist fails, and reports no counts at all", () => {
   // The short-circuit that skips the floor comparison entirely. It is the reason a zero comparison
   // count cannot be an independent finding — every entry that reaches the comparison increments the
-  // count, so the only way to reach zero is this error, which has already failed the run. The report
+  // count, so the only way to reach zero is this error, which has already failed the run. The counts
   // line must not appear at all on a failed run: a count is a claim of coverage.
   const entry = validEntry("com.example.foo", "Missing");
   const root = makeFixture({
@@ -308,7 +259,7 @@ test("an entry whose path does not exist fails, and reports nothing about the fl
     const { status, stdout, stderr } = runValidator(root);
     assert.notEqual(status, 0);
     assert.match(stderr, /com\.example\.foo: path does not exist/);
-    assert.doesNotMatch(stdout, /compared \d+ extension\.json minCoveVersion/);
+    assert.equal(stdout.trim(), "");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -507,37 +458,6 @@ test("a declared catalog path that does not exist fails, naming the field", () =
   }
 });
 
-test("declared catalog paths that all exist pass, and the report line names how many were checked", () => {
-  // The "prove it ran" half, for this check. Two fields are declared and both resolve, so the run is
-  // clean — and the count is what distinguishes that from a check that silently examined nothing.
-  //
-  // Which two fields is immaterial: the counter walks matrixPathFields and does not read their names.
-  // uiPath is deliberately not one of them, because it cannot coexist with the manifestOnly baseline —
-  // that pairing is its own refusal, and borrowing uiPath here would make this case fail for a reason
-  // it says nothing about.
-  const entry = validEntry("com.example.foo", "Foo", {
-    e2ePath: "extensions/Foo/e2e",
-    e2eNodeTestsPath: "extensions/Foo/e2e/node",
-  });
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo"),
-      // Each planted file is only a way to make its parent directory exist on disk; the validator
-      // checks the declared directory, never these.
-      "extensions/Foo/e2e/package.json": { name: "foo-e2e" },
-      "extensions/Foo/e2e/node/package.json": { name: "foo-e2e-node" },
-    },
-  });
-  try {
-    const { status, stdout, stderr } = runValidator(root);
-    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-    assert.match(stdout, /confirmed 2 declared catalog path\(s\) exist/);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
 test("a declared wireDocumentPath that does not exist fails, naming the field", () => {
   // The wire document is written by a test and diffed by CI against the committed bytes. A path that
   // points nowhere makes that diff step read a file that is not there, several steps into a matrix
@@ -668,26 +588,6 @@ test("a uiPath on an entry that is not manifestOnly is untouched by the pairing 
   }
 });
 
-test("an entry declaring no optional catalog path says so, rather than reporting nothing", () => {
-  // Zero checked paths is the case that must not be invisible: an entry set that declares none is
-  // legitimate, but it is NOT the same as one whose paths were all confirmed, and a report line that
-  // simply omitted the clause would read identically to both.
-  const entry = validEntry("com.example.foo", "Foo");
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo"),
-    },
-  });
-  try {
-    const { status, stdout, stderr } = runValidator(root);
-    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-    assert.match(stdout, /no entry declared an optional catalog path, so none were checked/);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
 // A C#-bearing entry, complete enough that only the membership check can speak: the project files
 // exist, so the existence checks are silent, and the manifest is valid for a non-manifestOnly entry.
 function csharpFixture({ solution, projectPath, testProjectPath, name = "Foo" }) {
@@ -773,46 +673,6 @@ test("a non-manifestOnly entry declaring no projectPath has its convention-deriv
   }
 });
 
-test("every catalog-implied project present exits 0, and the report line names the confirmed count", () => {
-  // The "prove it ran" half for this check. Exit 0 alone cannot distinguish two confirmed
-  // memberships from a parse that read nothing and therefore found nothing to complain about.
-  const root = csharpFixture({
-    projectPath: "extensions/Foo/Foo.csproj",
-    testProjectPath: "extensions/Foo/Foo.Tests.csproj",
-    solution: ["extensions/Foo/Foo.csproj", "extensions/Foo/Foo.Tests.csproj"],
-  });
-  try {
-    const { status, stdout, stderr } = runValidator(root);
-    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-    assert.match(stdout, /confirmed 2 project membership\(s\) in CoveExtensions\.slnx/);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("a catalog implying no C# project says so, rather than omitting the clause", () => {
-  // A catalog of manifestOnly entries implies nothing to compile, which is legitimate — but it is
-  // not the same as a catalog whose projects were all confirmed, and a report line that dropped the
-  // clause would read identically to both.
-  const entry = validEntry("com.example.foo", "Foo");
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo"),
-    },
-  });
-  try {
-    const { status, stdout, stderr } = runValidator(root);
-    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-    assert.match(
-      stdout,
-      /no catalog entry implied a C# project, so no solution membership was checked/,
-    );
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
 test("a solution whose project paths cannot be read is a named failure, not a silent pass", () => {
   // The failure mode that would make this whole check decorative: a match that stops finding path
   // attributes yields an empty set, and an empty set makes every membership look confirmed. The
@@ -841,7 +701,9 @@ test("a solution declaring backslash separators matches a catalog declaring forw
   try {
     const { status, stdout, stderr } = runValidator(root);
     assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-    assert.match(stdout, /confirmed 1 project membership\(s\) in CoveExtensions\.slnx/);
+    // The count, not merely exit 0: a comparison that matched nothing also finds nothing to report,
+    // so only a confirmed membership says the two spellings were reconciled.
+    assert.match(stdout, /1 CoveExtensions\.slnx membership\(s\)/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -917,40 +779,6 @@ test("a registry versions[] row whose floor disagrees with extension.json fails,
   }
 });
 
-test("a registry versions[] row agreeing with extension.json passes, and the report names the count", () => {
-  // The "prove it ran" half for this guard. Exit 0 alone cannot distinguish a floor that matched from
-  // a manifest that was never opened — and the second is what every version of this check looked like
-  // before it existed.
-  const entry = validEntry("com.example.foo", "Foo", {
-    registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
-  });
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    buildProps: buildPropsWithFloor("1.1.0"),
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo", {
-        version: "0.3.0",
-        minCoveVersion: "1.1.0",
-      }),
-    },
-    filesByPath: {
-      "extensions/Foo/extensions/com.example.foo.json": JSON.stringify({
-        versions: [{ version: "0.3.0", minCoveVersion: "1.1.0" }],
-      }),
-    },
-  });
-  try {
-    const { status, stdout, stderr } = runValidator(root);
-    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-    assert.match(
-      stdout,
-      /compared 1 registry versions\[\] row\(s\) against the extension\.json floor/,
-    );
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
 test("a registry row carrying no minCoveVersion fails, rather than comparing against nothing", () => {
   // The floor is asserted present BEFORE it is compared. Without that order an absent floor compares
   // undefined against a real version string, which is unequal, so the run would fail with a message
@@ -1017,33 +845,9 @@ test("older versions[] rows with lower floors are not compared, so history stays
   try {
     const { status, stdout, stderr } = runValidator(root);
     assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-    assert.match(
-      stdout,
-      /compared 1 registry versions\[\] row\(s\) against the extension\.json floor/,
-    );
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("an entry declaring no registryManifestPath says so, rather than reporting nothing", () => {
-  // The "prove it ran" half for the absent-declaration state. An entry set declaring none is
-  // legitimate — an extension not yet published to the store has no registry manifest — but it is NOT
-  // the same as one whose rows were all compared, and a clause dropped on absence reads as both.
-  const entry = validEntry("com.example.foo", "Foo");
-  const root = makeFixture({
-    catalog: { schemaVersion: 1, extensions: [entry] },
-    extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo"),
-    },
-  });
-  try {
-    const { status, stdout, stderr } = runValidator(root);
-    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
-    assert.match(
-      stdout,
-      /no entry declared a registryManifestPath, so no registry floor was compared/,
-    );
+    // ONE of the three rows was compared. The count is what says so: an implementation comparing
+    // every row also exits 0 on this fixture, because the two older rows agree with themselves.
+    assert.match(stdout, /1 registry row\(s\) compared across 1 declared registry manifest\(s\)/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

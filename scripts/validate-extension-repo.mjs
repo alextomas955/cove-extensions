@@ -20,11 +20,10 @@
 // that drift unrepresentable, which is stronger than detecting it after the fact. The per-entry
 // extension.json minCoveVersion comparison, which does have a real subject, survives.
 //
-// 3. Upstream's success line reports only how many catalog entries it walked. This fork reports
-// what it actually examined: how many floor comparisons it ran and how many declared catalog paths
-// it confirmed, or that neither had a subject. Exit 0 alone cannot distinguish a check that passed
-// from one that never ran — which is exactly how the self-comparing checks removed in #2 stayed
-// invisible.
+// 3. Upstream's success line reports only how many catalog entries it walked. This fork reports what
+// it actually examined, as one line of counts — a number per check, zero included. Exit 0 alone
+// cannot distinguish a check that passed from one that never ran, which is exactly how the
+// self-comparing checks removed in #2 stayed invisible.
 //
 // 4. This fork confirms that every optional catalog path field the CI build matrix consumes exists
 // on disk (see matrixPathFields below). Upstream's catalog declares no such fields, so it has
@@ -464,23 +463,17 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-const floorReport = coveMinVersion
-  ? `compared ${floorComparisons} extension.json minCoveVersion declaration(s) against CoveMinVersion ${coveMinVersion}`
-  : "no CoveMinVersion declared in Directory.Build.props, so no floor comparison ran";
-const pathReport = declaredPathChecks
-  ? `confirmed ${declaredPathChecks} declared catalog path(s) exist`
-  : "no entry declared an optional catalog path, so none were checked";
-const solutionReport = impliedProjects.length
-  ? `confirmed ${solutionMemberships} project membership(s) in ${solutionFileName}`
-  : "no catalog entry implied a C# project, so no solution membership was checked";
-const wireDocumentReport = wireDocumentSubjects
-  ? `required a wireDocumentPath on ${wireDocumentSubjects} entr(y|ies) declaring both a UI and a test project`
-  : "no entry declared both a UI and a test project, so no wire document was required";
-const registryReport = registryFloorComparisons
-  ? `compared ${registryFloorComparisons} registry versions[] row(s) against the extension.json floor, out of ${registrySubjects} declared registry manifest(s)`
-  : registrySubjects
-    ? `${registrySubjects} declared registry manifest(s) carry no versions[] row for the version currently declared, so no floor was compared`
-    : "no entry declared a registryManifestPath, so no registry floor was compared";
+// Counts, unconditionally — never a sentence per check. A zero is a number here, which is the whole
+// point: a clause that changes its wording when a check has no subject makes "this ran and found
+// nothing wrong" and "this never ran" two readings of the same line, and that collision is what let
+// the self-comparing checks removed in deviation #2 stay invisible. Every counter above is
+// incremented at the point its check examines a subject, so this line is what the run examined.
 console.log(
-  `Validated ${entries.length} extension catalog entries (${floorReport}; ${pathReport}; ${solutionReport}; ${wireDocumentReport}; ${registryReport}).`,
+  `Validated ${entries.length} extension catalog entries: ` +
+    `${floorComparisons} minCoveVersion floor comparison(s), ` +
+    `${declaredPathChecks} declared catalog path(s), ` +
+    `${solutionMemberships} ${solutionFileName} membership(s), ` +
+    `${wireDocumentSubjects} wire-document requirement(s), ` +
+    `${registryFloorComparisons} registry row(s) compared across ` +
+    `${registrySubjects} declared registry manifest(s).`,
 );
