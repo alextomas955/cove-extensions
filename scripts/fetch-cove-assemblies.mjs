@@ -11,20 +11,25 @@
 // its own manifest. The single declaration is therefore the resolver plus that declared floor, which
 // is a stronger claim than a tag typed in one file, not a weaker one.
 //
-// No `docker`, no `curl`, no `tar`: the registry is spoken to over Node's own fetch and the layer is
-// gunzipped and untarred in-process, so the script needs no binary on PATH and behaves identically
-// on the Windows dev machine and the Linux runner.
+// The extraction is `docker pull` + `docker create` + `docker cp`, which hands the layer selection,
+// the gunzip and the tar read to the daemon. Every consumer of this script already has Docker — the
+// e2e harness drives Testcontainers and the CI leg runs on a Docker-capable runner — so speaking the
+// registry protocol by hand bought no capability it does not already have. It DID carry one property
+// worth naming: the received bytes are checked against the digest the registry attested. That check
+// now lives in the daemon, and it is a documented property of both pull paths rather than an
+// assumption — see the note at the extraction below.
 //
-// The layer carrying /opt/cove is selected BY CONTENT, never by index or size — the amd64 manifest
-// lists that layer twice under different digests, so position and size cannot identify it. Descending
-// size is only the order the candidates are probed in.
+// The consequence, stated because it is a real narrowing: assemblies mode now needs a Docker that can
+// run LINUX containers. A macOS or Windows runner cannot, so those legs are permanently bare
+// (`CoveSourceMode=none`).
+//
+// `--resolve-tags` is the one path that stays registry HTTP, because there is no `docker` verb for
+// listing a remote repository's tags.
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import zlib from "node:zlib";
-import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
+import { execFileSync } from "node:child_process";
 
 // import.meta.dirname, never a filesystem path read off a module URL's path component: on Windows
 // that yields a leading-slash form which resolves to a doubled drive prefix.
@@ -39,6 +44,13 @@ const DEFAULT_CATALOG_PATH = path.join(repoRoot, "extensions", "catalog.json");
 const MARKER_MEMBER = "opt/cove/Cove.Data.dll";
 const MEMBER_PREFIX = "opt/cove/";
 
+// The `docker cp` source, derived from MEMBER_PREFIX rather than written again, so the path copied
+// from and the member that proves the copy worked cannot drift apart. The trailing `/.` is what makes
+// docker copy the directory's CONTENTS into the output directory, which is the layout the guarded
+// assemblies are looked for in. A wrong path here yields an empty extraction rather than a wrong one,
+// and the empty-extraction refusal below turns that into a failure rather than a smaller green run.
+const CONTAINER_SOURCE = `/${MEMBER_PREFIX}.`;
+
 // The assemblies the build's output-closure guard compares, and therefore the ones whose content this
 // extraction has to record. Hashing every extracted file instead would go red whenever upstream
 // legitimately changed an unrelated native asset under runtimes/, which is how a gate gets switched
@@ -50,13 +62,6 @@ const GUARDED_ASSEMBLIES = ["Cove.Core.dll", "Cove.Data.dll", "Cove.Plugins.dll"
 const EXPECTATION_FILE = "CoveExtraction.props";
 
 const TAR_BLOCK = 512;
-
-const MANIFEST_ACCEPT = [
-  "application/vnd.oci.image.index.v1+json",
-  "application/vnd.oci.image.manifest.v1+json",
-  "application/vnd.docker.distribution.manifest.list.v2+json",
-  "application/vnd.docker.distribution.manifest.v2+json",
-].join(", ");
 
 // ---------------------------------------------------------------------------------------------
 // Pure helpers. These carry the logic worth testing, and they touch neither the network nor disk so
@@ -256,6 +261,51 @@ export async function selectLayerByContent(candidates, probe) {
   throw new Error(
     `No layer carries ${MARKER_MEMBER}. Searched ${searched.length} layer(s): ${searched.join(", ")}.`,
   );
+}
+
+/**
+ * Picks the `algorithm:hex` digest `docker image inspect` recorded for one specific repository.
+ * <remarks>
+ * `RepoDigests` carries one entry per repository the image is known under, so taking index 0 can
+ * hand back a digest attributed to a DIFFERENT repository — a provenance value naming an image nobody
+ * asked about. The entry is matched on the repository instead. Two distinct digests for the same
+ * repository are refused rather than resolved by position: which one is current is genuinely
+ * ambiguous, and guessing records a provenance value that cannot be checked.
+ *
+ * An absent entry is a throw. An image built locally and never pulled has no registry digest at all,
+ * and passing an empty one down would fail inside `renderExtractionProps` far from the cause.
+ * </remarks>
+ */
+export function selectRepoDigest(repoDigests, repository) {
+  const entries = (repoDigests ?? []).filter(
+    (entry) => typeof entry === "string" && entry.trim() !== "",
+  );
+  if (entries.length === 0) {
+    throw new Error(
+      `docker recorded no RepoDigests for ${repository}, so this extraction has no registry digest to attribute itself to. An image built locally and never pulled has none.`,
+    );
+  }
+
+  const prefix = `${repository}@`;
+  const matching = [...new Set(entries.filter((entry) => entry.startsWith(prefix)))];
+  if (matching.length === 0) {
+    throw new Error(
+      `None of docker's ${entries.length} RepoDigests entr(y|ies) name ${repository}: ${entries.join(", ")}.`,
+    );
+  }
+  if (matching.length > 1) {
+    throw new Error(
+      `docker recorded ${matching.length} different digests for ${repository}: ${matching.join(", ")}. Which one is current is ambiguous, so refusing to record either.`,
+    );
+  }
+
+  const digest = matching[0].slice(prefix.length);
+  if (!/^[A-Za-z0-9][A-Za-z0-9+._-]*:[A-Fa-f0-9]+$/.test(digest)) {
+    throw new Error(
+      `docker recorded '${digest}' for ${repository}, which is not an algorithm:hex digest.`,
+    );
+  }
+  return digest;
 }
 
 /**
@@ -612,10 +662,6 @@ async function registryGetPath(registry, pathAndQuery, token, accept) {
   return response;
 }
 
-async function registryGet(registry, repositoryPath, token, accept) {
-  return registryGetPath(registry, `/v2/${repositoryPath}`, token, accept);
-}
-
 /** Reads the repository's whole tag list off the live registry. */
 async function readRegistryTags(registry, repository, token) {
   return collectRegistryTags(async (pathAndQuery) => {
@@ -623,39 +669,6 @@ async function readRegistryTags(registry, repository, token) {
     const body = await response.json();
     return { tags: body.tags ?? [], link: response.headers.get("link") ?? "" };
   }, `/v2/${repository}/tags/list`);
-}
-
-/** Resolves the tag to the linux/amd64 manifest, returning its digest and layer descriptors. */
-async function resolvePlatformManifest(registry, repository, tag, token) {
-  const indexResponse = await registryGet(
-    registry,
-    `${repository}/manifests/${encodeURIComponent(tag)}`,
-    token,
-    MANIFEST_ACCEPT,
-  );
-  const indexDigest = indexResponse.headers.get("docker-content-digest") ?? "";
-  const index = await indexResponse.json();
-
-  if (Array.isArray(index.manifests)) {
-    const amd64 = index.manifests.find(
-      (entry) => entry?.platform?.os === "linux" && entry?.platform?.architecture === "amd64",
-    );
-    if (!amd64) {
-      const listed = index.manifests
-        .map((entry) => `${entry?.platform?.os ?? "?"}/${entry?.platform?.architecture ?? "?"}`)
-        .join(", ");
-      throw new Error(`The image index carries no linux/amd64 manifest; it lists: ${listed}.`);
-    }
-    const manifestResponse = await registryGet(
-      registry,
-      `${repository}/manifests/${amd64.digest}`,
-      token,
-      MANIFEST_ACCEPT,
-    );
-    return { digest: amd64.digest, manifest: await manifestResponse.json() };
-  }
-
-  return { digest: indexDigest, manifest: index };
 }
 
 /**
@@ -687,49 +700,6 @@ export function assertBlobMatchesDigest(blob, digest) {
         `  actual   ${algorithm}:${actual}\n` +
         `Refusing to extract: the bytes received are not the bytes the registry attested to.`,
     );
-  }
-}
-
-/**
- * Streams one layer blob, gunzips it, and hands every `opt/cove/…` member to `onMember`.
- * Returns the set of member paths it saw, so the caller can decide whether this was the right layer.
- */
-async function readLayerMembers(registry, repository, token, digest, onMember) {
-  const response = await registryGet(registry, `${repository}/blobs/${digest}`, token);
-  const seen = new Set();
-
-  // Verified BEFORE decompressing and before any member is emitted — see assertBlobMatchesDigest.
-  // Ordering is the point: a check after onMember would be reporting on files already written.
-  const compressed = Buffer.from(await response.arrayBuffer());
-  assertBlobMatchesDigest(compressed, digest);
-
-  const gunzip = zlib.createGunzip();
-  const source = Readable.from(compressed);
-
-  // The whole layer is read before any member is emitted, rather than stopping once the marker
-  // appears: a tar gives no guarantee that the opt/cove members are contiguous, and an early exit
-  // that happened to be right today would fail by writing FEWER files — silently, which is the exact
-  // shape of degrade this extraction exists to make impossible.
-  const consume = async () => {
-    const chunks = [];
-    for await (const chunk of gunzip) chunks.push(chunk);
-
-    for (const { name, body } of readTarMembers(Buffer.concat(chunks))) {
-      const relative = flattenCoveMemberPath(name);
-      if (relative === null) continue;
-      seen.add(relative);
-      onMember(relative, body);
-    }
-  };
-
-  await Promise.all([pipeline(source, gunzip), consume()]);
-  return seen;
-}
-
-function emptyDirectory(directory) {
-  if (!fs.existsSync(directory)) return;
-  for (const entry of fs.readdirSync(directory)) {
-    fs.rmSync(path.join(directory, entry), { recursive: true, force: true });
   }
 }
 
@@ -828,53 +798,79 @@ export async function main(argv) {
   return extract(options);
 }
 
+/**
+ * Runs one `docker` invocation and returns its stdout, or throws naming what failed.
+ * <remarks>
+ * `execFileSync` with no shell, so an argument is an argument: a registry-supplied tag reaches the
+ * command as one argv element and is never text a shell parses. docker's own stderr is folded into
+ * the thrown message, because "docker exited 1" without it says nothing about why.
+ * </remarks>
+ */
+function runDocker(args) {
+  try {
+    return execFileSync("docker", args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+  } catch (error) {
+    const detail = String(error.stderr ?? "").trim() || error.message;
+    throw new Error(`docker ${args.join(" ")} failed: ${detail}`, { cause: error });
+  }
+}
+
+/** Counts the regular files under a directory tree — the extraction's own size, reported for evidence. */
+function countFiles(directory) {
+  let total = 0;
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const full = path.join(directory, entry.name);
+    if (entry.isDirectory()) total += countFiles(full);
+    else total += 1;
+  }
+  return total;
+}
+
 async function extract({ out, tag }) {
   const image = readCoveImageReference();
   const requestedTag = tag ?? image.tag;
+  const repository = `${image.registry}/${image.repository}`;
+  const reference = `${repository}:${requestedTag}`;
 
-  console.log(`Cove test image: ${image.registry}/${image.repository}:${requestedTag}`);
+  console.log(`Cove test image: ${reference}`);
 
-  const token = await fetchPullToken(image.registry, image.repository);
-  const { digest, manifest } = await resolvePlatformManifest(
-    image.registry,
-    image.repository,
-    requestedTag,
-    token,
+  // Pulled explicitly rather than left to `docker create`'s implicit pull. `create` is satisfied by
+  // whatever image already carries the tag locally, so on a machine holding a stale copy it would
+  // extract bytes the registry no longer serves — silently, and the registry-protocol reader this
+  // replaces always read the registry. A no-op "Image is up to date" is the cost of keeping that.
+  runDocker(["pull", reference]);
+
+  // The manifest-list (image index) digest, NOT the platform-manifest digest the registry-protocol
+  // reader used to record: `RepoDigests` is what the daemon stored for the reference it pulled, and
+  // for a multi-platform tag that is the index. Both identify the same pull and neither is
+  // hand-maintained, and Directory.Build.targets compares the TAG rather than this — the digest rides
+  // as provenance. So the value here is self-consistent but is NOT byte-comparable with a digest
+  // captured before this rewrite; a diff of exactly this line between the two is expected.
+  const digest = selectRepoDigest(
+    JSON.parse(runDocker(["image", "inspect", reference, "--format", "{{json .RepoDigests}}"])),
+    repository,
   );
   console.log(`manifest digest: ${digest}`);
 
-  const candidates = orderLayerCandidates(manifest.layers);
-  if (candidates.length === 0) throw new Error("The resolved manifest lists no layers.");
-
+  // Emptied, not merged into: CoveExtraction.props states what sits beside it, so a file left over
+  // from a previous run under a different tag would be described by a props file that never saw it.
+  fs.rmSync(out, { recursive: true, force: true });
   fs.mkdirSync(out, { recursive: true });
-  emptyDirectory(out);
 
-  let written = 0;
-  const probe = async (candidate) => {
-    written = 0;
-    emptyDirectory(out);
-    const seen = await readLayerMembers(
-      image.registry,
-      image.repository,
-      token,
-      candidate.digest,
-      (relative, body) => {
-        const destination = path.join(out, relative);
-        fs.mkdirSync(path.dirname(destination), { recursive: true });
-        fs.writeFileSync(destination, body);
-        written += 1;
-      },
-    );
-    if (seen.has(path.posix.basename(MARKER_MEMBER))) return true;
-    // Not this layer: leave nothing behind for the next probe to mistake for its own output.
-    emptyDirectory(out);
-    written = 0;
-    return false;
-  };
+  // `docker create` starts nothing, so no entrypoint runs and no database is touched — the container
+  // exists only to give `docker cp` a filesystem to read. Removed in a `finally`: an extraction that
+  // throws between here and there would otherwise leak one container per run.
+  const containerId = runDocker(["create", reference]);
+  try {
+    runDocker(["cp", `${containerId}:${CONTAINER_SOURCE}`, `${out}${path.sep}`]);
+  } finally {
+    runDocker(["rm", "--force", containerId]);
+  }
 
-  const layer = await selectLayerByContent(candidates, probe);
-  console.log(`layer: ${layer.digest}`);
-
+  const written = countFiles(out);
   const markerPath = path.join(out, path.posix.basename(MARKER_MEMBER));
   if (written === 0 || !fs.existsSync(markerPath)) {
     throw new Error(
@@ -909,7 +905,45 @@ async function extract({ out, tag }) {
   return 0;
 }
 
-if (import.meta.main) {
+/**
+ * Whether this process was STARTED from this file, rather than importing it for its helpers.
+ * <remarks>
+ * Used only to decide whether the missing-feature refusal below applies, so its worst case is an
+ * unnecessary refusal — loud — and never a silent skip: the quiet branch is taken solely when some
+ * other entry point imported this module, which is exactly when doing nothing is correct.
+ *
+ * `import.meta.filename`, never a path read off a module URL's path component, for the same reason
+ * `import.meta.dirname` is used above. Windows path casing is normalised because a drive letter
+ * arrives in either case and a case-sensitive miss here would read as "not the entry point".
+ * </remarks>
+ */
+function invokedAsScript() {
+  const entry = process.argv[1];
+  if (typeof entry !== "string" || entry === "") return false;
+  const normalise = (value) =>
+    process.platform === "win32" ? path.resolve(value).toLowerCase() : path.resolve(value);
+  return normalise(entry) === normalise(import.meta.filename);
+}
+
+// `import.meta.main` is a boolean from Node 22.18 onward and `undefined` before it, so a bare
+// `if (import.meta.main)` takes the not-main branch on an older runtime: run as a CLI, this script
+// then prints nothing and exits 0. That is measured, not theorised — on v22.6.0, a version volta has
+// installed and `engines.node: ">=22"` admits, it produced zero bytes and exit 0. A script that does
+// nothing and reports success is worse than one that crashes, so the absent feature is refused BY NAME
+// instead of being tolerated. Raising the engines floor is plan 36-02's to make; this refusal is what
+// keeps the gap loud until then, and it stays correct afterwards.
+//
+// Scoped to the CLI on purpose: the pure helpers this module exports work fine on an older Node, and
+// refusing at import time would break the e2e harness and this file's own tests for a feature only the
+// entry guard needs.
+if (typeof import.meta.main !== "boolean") {
+  if (invokedAsScript()) {
+    console.error(
+      `fetch-cove-assemblies: this Node (${process.version}) does not implement import.meta.main, so this script cannot tell it was run rather than imported and would print nothing while exiting 0. Node 22.18 or newer is required to run it.`,
+    );
+    process.exitCode = 1;
+  }
+} else if (import.meta.main) {
   main(process.argv.slice(2)).then(
     (code) => {
       process.exitCode = code;
