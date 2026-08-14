@@ -1,6 +1,10 @@
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
@@ -193,5 +197,75 @@ public sealed class EndpointPermissionTests
         var result = await ext.LastBatchAsync(FakePrincipalAccessor.None(), default);
 
         Assert.Equal(403, StatusOf(result));
+    }
+
+    /// <summary>The any-of read / write permission sets an endpoint's coarse policy is expected to declare.</summary>
+    private static readonly string[] AnyRead =
+        [Permissions.VideosRead, Permissions.ImagesRead, Permissions.AudiosRead];
+
+    private static readonly string[] AnyWrite =
+        [Permissions.VideosWrite, Permissions.ImagesWrite, Permissions.AudiosWrite];
+
+    /// <summary>Each mapped route, and the coarse gate its own handler applies before anything else.</summary>
+    public static TheoryData<string, string[]> RoutePolicies()
+    {
+        const string b = "/api/extensions/com.alextomas955.renamer";
+        var data = new TheoryData<string, string[]>();
+        foreach (var read in new[] { "/preview", "/preview-sample", "/last-batch", "/scan-library", "/last-scan", "/scan-rows" })
+        {
+            data.Add(b + read, AnyRead);
+        }
+
+        foreach (var write in new[] { "/renamer", "/undo", "/renamer-library" })
+        {
+            data.Add(b + write, AnyWrite);
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    /// Every mapped route DECLARES its coarse gate to the host, in the any-of form its handler enforces.
+    /// </summary>
+    /// <remarks>
+    /// The in-handler cases above drive the handlers as plain methods, so they cannot see an endpoint
+    /// declaration at all — which is exactly how nine routes came to be registered with no policy while
+    /// every permission test stayed green. The host reads this metadata: an endpoint carrying none is
+    /// treated as anonymous-for-compatibility and named in a boot warning. Reading it back off the built
+    /// endpoint is what makes a route added later without a policy fail here rather than in a log nobody
+    /// is watching.
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(RoutePolicies))]
+    public void MappedRoute_DeclaresItsCoarsePolicyToTheHost(string route, string[] expected)
+    {
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.Services.AddRouting();
+
+        // Minimal-API metadata inference resolves each handler parameter's SOURCE at endpoint-build
+        // time, and a parameter whose type is not a known service is inferred as a second body — which
+        // it refuses. So the three handler-parameter services have to be REGISTERED for the endpoints to
+        // build at all. Only their presence matters here: no handler runs, which is why the DbContext is
+        // a registration that would throw if anything asked for one.
+        builder.Services.AddSingleton<ICurrentPrincipalAccessor>(FakePrincipalAccessor.None());
+        builder.Services.AddSingleton<IJobService>(new RecordingJobService());
+        builder.Services.AddScoped<DbContext>(
+            _ => throw new NotSupportedException("metadata-only host: no endpoint is invoked"));
+
+        var app = builder.Build();
+        var ext = NewExtension();
+
+        ext.MapEndpoints(app);
+
+        var endpoint = Assert.Single(
+            ((IEndpointRouteBuilder)app).DataSources
+                .SelectMany(source => source.Endpoints)
+                .OfType<RouteEndpoint>(),
+            candidate => candidate.RoutePattern.RawText == route);
+
+        var policy = endpoint.Metadata.GetMetadata<Cove.Plugins.CovePermissionRequirementMetadata>();
+        Assert.NotNull(policy);
+        Assert.Equal(PermissionMode.Any, policy.Mode);
+        Assert.Equal(expected, policy.Permissions);
     }
 }

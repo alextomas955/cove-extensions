@@ -153,16 +153,27 @@ public sealed partial class Renamer
     /// document describing a shape nothing returns. Nothing is chained onto a registration to restate
     /// that; the one chained call below describes a body no parameter binds.
     /// </para>
+    /// <para>
+    /// Every route also DECLARES its coarse gate with <c>RequireCovePermission</c>, in the any-of form
+    /// matching the check its own handler runs first (see <see cref="AnyReadPermissions"/>). Without a
+    /// declaration the host treats an extension endpoint as anonymous-for-compatibility and warns at
+    /// boot naming every such route. The in-handler checks STAY: the declaration is what the host reads
+    /// and audits, while the handler's own check is what keeps behavior identical on a host predating
+    /// policy enforcement — and the precise per-kind re-checks have no endpoint-level equivalent at all,
+    /// since the kind is carried in the request body and the host binds policies to route values only.
+    /// </para>
     /// </summary>
     public override void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost(PreviewRoute,
             (RenamerRequest req, DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => PreviewAsync(req, db, principal, ct));
+                => PreviewAsync(req, db, principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapPost(RenamerRoute,
             (RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs)
-                => RenamerEnqueue(req, principal, jobs));
+                => RenamerEnqueue(req, principal, jobs))
+            .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
 
         // NB: this endpoint binds the RAW HttpContext (not a typed PreviewSampleRequest) so the
         // handler can deserialize the body with RenamerOptions.JsonOptions — the host's default
@@ -178,29 +189,39 @@ public sealed partial class Renamer
         endpoints.MapPost(PreviewSampleRoute,
             (HttpContext http, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => PreviewSampleAsync(http.Request, principal, ct))
-            .Accepts<PreviewSampleRequest>("application/json");
+            .Accepts<PreviewSampleRequest>("application/json")
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         // /undo takes NO request body — it operates on "the last batch", so binding no body avoids
         // the host's enum-converter 400 trap (see the preview-sample note above); /last-batch is a plain read.
         endpoints.MapPost(UndoRoute,
-            (ICurrentPrincipalAccessor principal, CancellationToken ct) => UndoAsync(principal, ct));
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => UndoAsync(principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
 
         endpoints.MapGet(LastBatchRoute,
-            (ICurrentPrincipalAccessor principal, CancellationToken ct) => LastBatchAsync(principal, ct));
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => LastBatchAsync(principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
+        // A scan is a POST because it enqueues a job, but it is a READ: it plans and counts, and
+        // mutates neither disk nor database. So it declares the read gate its handler applies, not a
+        // write gate its verb might suggest.
         endpoints.MapPost(ScanLibraryRoute,
             (ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs) =>
-                ScanLibraryEnqueue(body, principal, jobs));
+                ScanLibraryEnqueue(body, principal, jobs))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapGet(LastScanRoute,
-            (ICurrentPrincipalAccessor principal, CancellationToken ct) => ScanLibraryResultAsync(principal, ct));
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => ScanLibraryResultAsync(principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapPost(ScanRowsRoute,
             (ScanRowsRequest? body, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => ScanRowsAsync(body, principal, ct));
+                => ScanRowsAsync(body, principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapPost(RenamerLibraryRoute,
-            (ICurrentPrincipalAccessor principal, IJobService jobs) => RenamerLibraryEnqueue(principal, jobs));
+            (ICurrentPrincipalAccessor principal, IJobService jobs) => RenamerLibraryEnqueue(principal, jobs))
+            .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
     }
 
     /// <summary>
@@ -567,17 +588,28 @@ public sealed partial class Renamer
             Consumed: summary is not null && summary.Value.Remaining == 0));
     }
 
+    /// <summary>
+    /// The renamable kinds' read (respectively write) permissions — the "any of these" set a coarse
+    /// gate is satisfied by.
+    /// </summary>
+    /// <remarks>
+    /// Read BOTH by the in-handler helpers below and by the endpoint policies in
+    /// <see cref="MapEndpoints"/>, deliberately: the declared policy and the check the handler runs are
+    /// then the same set by construction. A policy that merely agreed with its handler when it was
+    /// written is the divergence worth designing out — the endpoint would advertise one gate to the host
+    /// while enforcing another, and no test that drives the handler directly could see the difference.
+    /// </remarks>
+    private static readonly string[] AnyReadPermissions =
+        [Permissions.VideosRead, Permissions.ImagesRead, Permissions.AudiosRead];
+
+    private static readonly string[] AnyWritePermissions =
+        [Permissions.VideosWrite, Permissions.ImagesWrite, Permissions.AudiosWrite];
+
     private static bool HasAnyReadPermission(ICurrentPrincipalAccessor principal)
-        => principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosRead)
-                || principal.Current.Has(Permissions.ImagesRead)
-                || principal.Current.Has(Permissions.AudiosRead));
+        => principal.Current is { } current && Array.Exists(AnyReadPermissions, current.Has);
 
     private static bool HasAnyWritePermission(ICurrentPrincipalAccessor principal)
-        => principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosWrite)
-                || principal.Current.Has(Permissions.ImagesWrite)
-                || principal.Current.Has(Permissions.AudiosWrite));
+        => principal.Current is { } current && Array.Exists(AnyWritePermissions, current.Has);
 
     /// <summary>
     /// Every renamable kind, in a fixed iteration order. Gallery is excluded — it is not yet a
