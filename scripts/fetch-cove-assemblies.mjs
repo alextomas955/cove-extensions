@@ -14,10 +14,27 @@
 // The extraction is `docker pull` + `docker create` + `docker cp`, which hands the layer selection,
 // the gunzip and the tar read to the daemon. Every consumer of this script already has Docker — the
 // e2e harness drives Testcontainers and the CI leg runs on a Docker-capable runner — so speaking the
-// registry protocol by hand bought no capability it does not already have. It DID carry one property
-// worth naming: the received bytes are checked against the digest the registry attested. That check
-// now lives in the daemon, and it is a documented property of both pull paths rather than an
-// assumption — see the note at the extraction below.
+// registry protocol by hand bought no capability it does not already have.
+//
+// It DID carry one property worth naming, and this is the part of the change that is not a line cut.
+// `assertBlobMatchesDigest` used to be the ONLY check that the bytes received were the bytes the
+// registry attested — the hashes recorded in CoveExtraction.props cannot catch wrong upstream bytes,
+// because they are computed FROM those bytes. That check now lives in the daemon, and it was confirmed
+// against documentation before the guard was deleted rather than assumed from familiarity:
+//
+//   * moby's classic pull path (the one an overlay2 daemon and the CI runners use) streams each layer
+//     through a digest verifier and fails with "filesystem layer verification failed for digest" on a
+//     mismatch, and separately verifies the image config and manifest digests
+//     — moby/moby, daemon/internal/distribution/pull_v2.go.
+//   * containerd's path verifies at content-store commit: remotes.Fetch passes the descriptor's
+//     expected digest to content.Copy, and Commit rejects content that does not hash to it
+//     — containerd, core/remotes/handlers.go; docs/historical/design/data-flow.md states that pulling
+//     verifies the manifest and every layer.
+//
+// Stated honestly, because it bounds the claim: the OCI distribution spec only says a client SHOULD
+// verify a blob against the requested digest, not MUST. So this is an implementation property of both
+// pull paths, not something the protocol forces — strong in practice, and worth re-checking if the
+// extraction is ever moved onto a different puller.
 //
 // The consequence, stated because it is a real narrowing: assemblies mode now needs a Docker that can
 // run LINUX containers. A macOS or Windows runner cannot, so those legs are permanently bare
@@ -61,7 +78,19 @@ const GUARDED_ASSEMBLIES = ["Cove.Core.dll", "Cove.Data.dll", "Cove.Plugins.dll"
 // hand-maintained constant.
 const EXPECTATION_FILE = "CoveExtraction.props";
 
-const TAR_BLOCK = 512;
+// The three stdout lines `.github/workflows/build.yml` reads back with line-start-anchored `grep -E`,
+// declared once so the text has exactly one source rather than a literal per print site.
+//
+// These are a CONTRACT, not diagnostics. A rename, a re-order onto one line, or losing the
+// leading-of-line position silently empties the shell variable that reads it, and the job's own guard
+// only covers two of the three: an empty `informational` value degrades the notice with no failure
+// anywhere. That asymmetry is why this object is pinned against the workflow's own greps in
+// scripts/fetch-cove-assemblies.test.mjs, so drift on EITHER side goes red.
+export const STDOUT_CONTRACT = Object.freeze({
+  digest: "manifest digest: ",
+  assemblyVersion: "Cove.Data.dll assembly version: ",
+  informationalVersion: "Cove.Data.dll informational version: ",
+});
 
 // ---------------------------------------------------------------------------------------------
 // Pure helpers. These carry the logic worth testing, and they touch neither the network nor disk so
@@ -117,150 +146,6 @@ export function splitImageReference(reference) {
   if (repository === "")
     throw new Error(`The Cove test image reference '${value}' names no repository.`);
   return { registry, repository };
-}
-
-/**
- * Orders layer descriptors so the largest is probed first. A speed heuristic only — the caller
- * accepts a layer on the content probe, never on this order.
- */
-export function orderLayerCandidates(layers) {
-  return [...(layers ?? [])]
-    .filter((layer) => typeof layer?.digest === "string" && layer.digest !== "")
-    .sort((a, b) => (Number(b.size) || 0) - (Number(a.size) || 0));
-}
-
-/**
- * Parses one 512-byte tar header block. Returns null for the all-zero block that ends the archive.
- * <remarks>
- * Understands the ustar `prefix` field and the GNU long-name / pax entry types, because a layer
- * built by any of the common writers has to read the same. Sizes are octal; the rare base-256
- * encoding is rejected loudly rather than silently truncated, since a mis-read size desynchronises
- * every member after it.
- * </remarks>
- */
-export function parseTarHeader(block) {
-  if (block.length < TAR_BLOCK) throw new Error("A tar header block is shorter than 512 bytes.");
-  let allZero = true;
-  for (let i = 0; i < TAR_BLOCK; i += 1) {
-    if (block[i] !== 0) {
-      allZero = false;
-      break;
-    }
-  }
-  if (allZero) return null;
-
-  const readString = (start, length) => {
-    const slice = block.subarray(start, start + length);
-    const end = slice.indexOf(0);
-    return slice.subarray(0, end === -1 ? slice.length : end).toString("utf8");
-  };
-
-  const sizeField = block.subarray(124, 136);
-  if ((sizeField[0] & 0x80) !== 0) {
-    throw new Error("A tar member uses base-256 sizes, which this reader does not decode.");
-  }
-  const sizeText = readString(124, 12).trim();
-  const size = sizeText === "" ? 0 : Number.parseInt(sizeText, 8);
-  if (!Number.isFinite(size) || size < 0) {
-    throw new Error(`A tar member declares an unreadable size '${sizeText}'.`);
-  }
-
-  const name = readString(0, 100);
-  const prefix = readString(345, 155);
-  const type = readString(156, 1) || "0";
-
-  return { name: prefix === "" ? name : `${prefix}/${name}`, size, type };
-}
-
-/**
- * Walks a complete tar archive, yielding each regular member as `{ name, body }`.
- * <remarks>
- * Every member's body is padded up to the next 512-byte boundary, and reading that padding as
- * content would desynchronise the archive from the first odd-sized file onward — so the padded
- * length is what advances the cursor and the declared size is what slices the body. GNU long-name
- * entries carry the following member's name and are folded in here rather than surfaced; directory
- * and link entries are skipped, since only file bytes are extracted.
- * </remarks>
- */
-export function* readTarMembers(archive) {
-  let cursor = 0;
-  let longName = null;
-
-  while (cursor + TAR_BLOCK <= archive.length) {
-    const header = parseTarHeader(archive.subarray(cursor, cursor + TAR_BLOCK));
-    cursor += TAR_BLOCK;
-    if (header === null) break;
-
-    const padded = Math.ceil(header.size / TAR_BLOCK) * TAR_BLOCK;
-    if (cursor + padded > archive.length) {
-      throw new Error(`The archive ends mid-member at '${header.name}'.`);
-    }
-    const body = archive.subarray(cursor, cursor + header.size);
-    cursor += padded;
-
-    if (header.type === "L") {
-      const end = body.indexOf(0);
-      longName = body.subarray(0, end === -1 ? body.length : end).toString("utf8");
-      continue;
-    }
-
-    const name = longName ?? header.name;
-    longName = null;
-
-    if (header.type === "0" || header.type === "\0" || header.type === "") {
-      yield { name, body };
-    }
-  }
-}
-
-/**
- * Maps a tar member name to its path inside the output directory, or null when the member is not
- * part of the extraction.
- * <remarks>
- * Returns a path relative to the output root with the `opt/cove/` prefix removed but any deeper
- * structure kept, so `opt/cove/runtimes/…/x.so` lands under `runtimes/`. Overlay whiteout markers
- * and any member that would climb out of the output directory are refused — a layer is third-party
- * content and its member names are not trusted to stay inside where they are written.
- * </remarks>
- */
-export function flattenCoveMemberPath(name) {
-  let value = String(name ?? "").replaceAll("\\", "/");
-  while (value.startsWith("./")) value = value.slice(2);
-  while (value.startsWith("/")) value = value.slice(1);
-  if (!value.startsWith(MEMBER_PREFIX)) return null;
-
-  const relative = value.slice(MEMBER_PREFIX.length);
-  if (relative === "") return null;
-
-  const segments = relative.split("/").filter((segment) => segment !== "");
-  if (segments.length === 0) return null;
-  if (segments.some((segment) => segment === "." || segment === "..")) return null;
-  if (segments.at(-1).startsWith(".wh.")) return null;
-
-  return segments.join("/");
-}
-
-/**
- * Picks the layer that carries the marker member, probing candidates in the given order.
- * <remarks>
- * `probe` is supplied by the caller so the selection logic itself makes no network call: it is
- * handed a descriptor and answers whether that layer carries the marker. The first layer that
- * answers yes wins; an empty answer set is an error naming everything that was searched, never a
- * silent empty extraction.
- * </remarks>
- */
-export async function selectLayerByContent(candidates, probe) {
-  const searched = [];
-  for (const candidate of candidates) {
-    searched.push(`${candidate.digest} (${candidate.size ?? "?"} bytes)`);
-    // Sequential on purpose: the descending-size order exists so the first probe normally wins, and
-    // probing in parallel would download every layer to learn what one answer already settles.
-
-    if (await probe(candidate)) return candidate;
-  }
-  throw new Error(
-    `No layer carries ${MARKER_MEMBER}. Searched ${searched.length} layer(s): ${searched.join(", ")}.`,
-  );
 }
 
 /**
@@ -671,38 +556,6 @@ async function readRegistryTags(registry, repository, token) {
   }, `/v2/${repository}/tags/list`);
 }
 
-/**
- * Throws unless `blob` hashes to the `algorithm:hex` digest the registry declared for it.
- *
- * @remarks
- * The digest used to be printed for attribution only, which left the integrity guarantee at TLS plus
- * trusting the CDN. Bytes that were not what the registry attested would have been extracted, compiled
- * against, and recorded into `CoveExtraction.props` as if correct — and nothing downstream could notice,
- * because that recorded hash is computed FROM these same bytes. The build-time output-closure guard
- * compares the build output against that recording, so it catches a local assembly displacing an
- * extracted one and cannot, even in principle, catch the upstream bytes being wrong.
- *
- * Pure and separated from the download precisely so this is provable without a network: the callable
- * unit is (bytes, digest), and both the match and the mismatch are unit-tested.
- */
-export function assertBlobMatchesDigest(blob, digest) {
-  const [algorithm, expected] = String(digest).split(":");
-  if (!expected || !crypto.getHashes().includes(algorithm)) {
-    throw new Error(
-      `The layer digest '${digest}' does not name a hash this Node supports, so it cannot be verified.`,
-    );
-  }
-  const actual = crypto.createHash(algorithm).update(blob).digest("hex");
-  if (actual.toLowerCase() !== expected.toLowerCase()) {
-    throw new Error(
-      `Layer blob does not match the digest the manifest declared.\n` +
-        `  expected ${algorithm}:${expected}\n` +
-        `  actual   ${algorithm}:${actual}\n` +
-        `Refusing to extract: the bytes received are not the bytes the registry attested to.`,
-    );
-  }
-}
-
 const USAGE =
   "Usage: fetch-cove-assemblies.mjs [--out <dir>] [--tag <semver>] | --resolve-tags [--report]";
 
@@ -799,6 +652,62 @@ export async function main(argv) {
 }
 
 /**
+ * Renders the two `Cove.Data.dll` version lines the workflow greps, in the workflow's own spelling.
+ * <remarks>
+ * An unreadable key prints `unreadable` rather than an empty value, so the line keeps its anchored
+ * prefix and the notice says the version could not be read instead of silently reading as blank.
+ * </remarks>
+ */
+export function renderVersionLines(versions) {
+  return [
+    `${STDOUT_CONTRACT.assemblyVersion}${versions["Assembly Version"] ?? "unreadable"}`,
+    `${STDOUT_CONTRACT.informationalVersion}${versions.ProductVersion ?? "unreadable"}`,
+  ];
+}
+
+/**
+ * Refuses an extraction that wrote nothing or left no marker member, returning the marker's path.
+ * <remarks>
+ * The failure this exists for is a wrong container source path, which produces an EMPTY output
+ * directory rather than a wrong one — and an empty extraction that returned quietly would surface as
+ * a smaller green test run instead of a failure. fs-only and separated from the copy so both arms are
+ * provable without Docker.
+ * </remarks>
+ */
+export function assertExtractionNotEmpty(out, written) {
+  const marker = path.posix.basename(MARKER_MEMBER);
+  const markerPath = path.join(out, marker);
+  if (written === 0 || !fs.existsSync(markerPath)) {
+    throw new Error(
+      `The extraction wrote ${written} file(s) and left no ${marker} in ${out}. An empty extraction fails here rather than later as a quietly smaller test run.`,
+    );
+  }
+  return markerPath;
+}
+
+/**
+ * Hashes each guarded assembly, refusing if any is absent from the extraction.
+ * <remarks>
+ * One missing assembly means the build's output-closure guard would have nothing to compare that
+ * assembly against — a gate that silently covers three of four rather than a gate that fails.
+ * </remarks>
+ */
+export function readGuardedAssemblies(out) {
+  return GUARDED_ASSEMBLIES.map((name) => {
+    const file = path.join(out, name);
+    if (!fs.existsSync(file)) {
+      throw new Error(
+        `The extraction left no ${name} in ${out}, so the build's output-closure guard would have nothing to compare that assembly against.`,
+      );
+    }
+    return {
+      name,
+      sha256: crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex"),
+    };
+  });
+}
+
+/**
  * Runs one `docker` invocation and returns its stdout, or throws naming what failed.
  * <remarks>
  * `execFileSync` with no shell, so an argument is an argument: a registry-supplied tag reaches the
@@ -853,7 +762,7 @@ async function extract({ out, tag }) {
     JSON.parse(runDocker(["image", "inspect", reference, "--format", "{{json .RepoDigests}}"])),
     repository,
   );
-  console.log(`manifest digest: ${digest}`);
+  console.log(`${STDOUT_CONTRACT.digest}${digest}`);
 
   // Emptied, not merged into: CoveExtraction.props states what sits beside it, so a file left over
   // from a previous run under a different tag would be described by a props file that never saw it.
@@ -871,30 +780,14 @@ async function extract({ out, tag }) {
   }
 
   const written = countFiles(out);
-  const markerPath = path.join(out, path.posix.basename(MARKER_MEMBER));
-  if (written === 0 || !fs.existsSync(markerPath)) {
-    throw new Error(
-      `The extraction wrote ${written} file(s) and left no ${path.posix.basename(MARKER_MEMBER)} in ${out}. An empty extraction fails here rather than later as a quietly smaller test run.`,
-    );
-  }
+  const markerPath = assertExtractionNotEmpty(out, written);
 
   console.log(`files written: ${written}`);
-  const versions = readVersionStrings(fs.readFileSync(markerPath));
-  console.log(`Cove.Data.dll assembly version: ${versions["Assembly Version"] ?? "unreadable"}`);
-  console.log(`Cove.Data.dll informational version: ${versions.ProductVersion ?? "unreadable"}`);
+  for (const line of renderVersionLines(readVersionStrings(fs.readFileSync(markerPath)))) {
+    console.log(line);
+  }
 
-  const assemblies = GUARDED_ASSEMBLIES.map((name) => {
-    const file = path.join(out, name);
-    if (!fs.existsSync(file)) {
-      throw new Error(
-        `The extraction left no ${name} in ${out}, so the build's output-closure guard would have nothing to compare that assembly against.`,
-      );
-    }
-    return {
-      name,
-      sha256: crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex"),
-    };
-  });
+  const assemblies = readGuardedAssemblies(out);
   fs.writeFileSync(
     path.join(out, EXPECTATION_FILE),
     renderExtractionProps({ tag: requestedTag, digest, assemblies }),
