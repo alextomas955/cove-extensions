@@ -1,17 +1,19 @@
-// Drives the two halves of the canonical-specifier contract against a real released host: that the
-// host's import map SERVES "@cove/runtime/api" and "@cove/runtime/components", and that the bundle
-// the host actually SERVES imports a named symbol from each of them.
+// Drives the canonical-specifier contract against a real released host: the bundle the host actually
+// SERVES imports a named symbol from each of "@cove/runtime/api" and "@cove/runtime/components".
 //
-// The rest of this suite already goes red if a canonical specifier fails to resolve — an ESM
-// resolution failure kills the whole bundle, the settings tab never appears, and core-paths'
-// pageerror assertion fires. But that is an implicit pass: it names nothing, so it cannot tell a
-// missing specifier apart from any other reason the panel did not render, and it would keep passing
-// if the imports quietly disappeared from the bundle. These two tests state what they examined and
-// name what was missing, which is the bar a check here has to clear.
+// The rest of this suite already goes red when a canonical specifier fails to RESOLVE — an ESM
+// resolution failure kills the whole bundle, the settings tab never appears, and the pageerror
+// assertions in core-paths, options-migration and rename-ui-coverage fire. What none of them can see
+// is the imports quietly disappearing from the bundle, because a bundle importing nothing resolves
+// perfectly well. Closing that gap is this test's whole job, and nothing else in the repo does it:
+// `createExtensionViteConfig.ts` declares the two specifiers as rollup EXTERNALS, which makes them
+// external and says nothing about the built bundle importing them BY NAME. That list is also a
+// hand-mirror of Cove's own — a cross-system contract nothing on the server side checks — so this is
+// the only drift detection it has.
 //
-// Test B deliberately reads the INSTALLED artifact over HTTP rather than the local dist/, so it
-// covers the build → publish → install → serve path rather than re-asserting a fact about a file
-// the build just wrote.
+// It reads the INSTALLED artifact over HTTP rather than the local dist/, so it covers the
+// build → publish → install → serve path rather than re-asserting a fact about a file the build just
+// wrote.
 import { test, expect } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
@@ -20,7 +22,7 @@ const EXTENSION_ID = "com.alextomas955.renamer";
 // A NAMED import binding, never a bare side-effect `import "@cove/runtime/api";` — an external with
 // no live binding degrades to exactly that, which proves the specifier resolves but proves nothing
 // about the named export. `\s*` accepts both the spaced form this build emits and a minified
-// spaceless one. Byte-identical to the assertion the build-time check applies to dist/index.mjs.
+// spaceless one.
 const NAMED_EXTENSION_FETCH_IMPORT =
   /import\s*\{[^}]*\bextensionFetch\b[^}]*\}\s*from\s*"@cove\/runtime\/api"/;
 
@@ -31,38 +33,6 @@ const NAMED_EXTENSION_FETCH_IMPORT =
 // whole bundle dies with it, taking every extension's UI on the page down together.
 const NAMED_MULTI_SELECTOR_IMPORT =
   /import\s*\{[^}]*\bEntityReferenceMultiSelector\b[^}]*\}\s*from\s*"@cove\/runtime\/components"/;
-
-test("the host import map serves both canonical @cove/runtime specifiers", async ({ page }) => {
-  const imports = await page.evaluate(() => {
-    const el = document.querySelector('script[type="importmap"]');
-    if (!el?.textContent) return null;
-    try {
-      return Object.keys(JSON.parse(el.textContent).imports ?? {});
-    } catch {
-      return null;
-    }
-  });
-
-  expect(
-    imports,
-    'no readable <script type="importmap"> in the host document — this check inspected nothing',
-  ).not.toBeNull();
-  expect(
-    imports.length,
-    "the host import map is empty — this check inspected nothing",
-  ).toBeGreaterThan(0);
-
-  // Asserted one key at a time so a failure names the specifier the host did not serve, rather than
-  // printing a whole-set mismatch the reader has to diff by eye.
-  expect(
-    imports,
-    `host import map has no "@cove/runtime/api" key. It serves: ${imports.join(", ")}`,
-  ).toContain("@cove/runtime/api");
-  expect(
-    imports,
-    `host import map has no "@cove/runtime/components" key. It serves: ${imports.join(", ")}`,
-  ).toContain("@cove/runtime/components");
-});
 
 test("the bundle the host serves imports extensionFetch by name, and the settings surface loads clean", async ({
   page,
