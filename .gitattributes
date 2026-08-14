@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+# Explicit so `* text=auto` cannot reclassify them; the .mjs embeds binary fixture bytes.
+*.ico binary
+*.jpg binary
+*.mp4 binary
+*.png binary
+*.tgz binary
+scripts/fetch-cove-assemblies.test.mjs binary
