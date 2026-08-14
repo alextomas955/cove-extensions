@@ -1,15 +1,19 @@
 // Drives the canonical-specifier contract against a real released host: the bundle the host actually
 // SERVES imports a named symbol from each of "@cove/runtime/api" and "@cove/runtime/components".
 //
-// The rest of this suite already goes red when a canonical specifier fails to RESOLVE — an ESM
-// resolution failure kills the whole bundle, the settings tab never appears, and the pageerror
-// assertions in core-paths, options-migration and rename-ui-coverage fire. What none of them can see
-// is the imports quietly disappearing from the bundle, because a bundle importing nothing resolves
-// perfectly well. Closing that gap is this test's whole job, and nothing else in the repo does it:
-// `createExtensionViteConfig.ts` declares the two specifiers as rollup EXTERNALS, which makes them
-// external and says nothing about the built bundle importing them BY NAME. That list is also a
-// hand-mirror of Cove's own — a cross-system contract nothing on the server side checks — so this is
-// the only drift detection it has.
+// The rest of this suite does NOT reliably go red when a canonical specifier stops resolving, and
+// that is the reason this test exists rather than a footnote to it. Measured against a released host:
+// a bundle that fails to LINK — importing a named export the host no longer provides — takes the
+// panel down with ZERO page errors and zero console errors, so a pageerror gate is silent for exactly
+// that failure. What does catch it is every assertion that waits for the settings panel to render,
+// this test's own included. What none of them can do is NAME the specifier that went missing, or
+// notice the imports quietly disappearing from the bundle at all, because a bundle importing nothing
+// links perfectly well.
+//
+// Nothing else in the repo closes that gap either: `createExtensionViteConfig.ts` declares the two
+// specifiers as rollup EXTERNALS, which makes them external and says nothing about the built bundle
+// importing them BY NAME. That list is also a hand-mirror of Cove's own — a cross-system contract
+// nothing on the server side checks — so this is the only drift detection it has.
 //
 // It reads the INSTALLED artifact over HTTP rather than the local dist/, so it covers the
 // build → publish → install → serve path rather than re-asserting a fact about a file the build just
@@ -79,17 +83,19 @@ test("the bundle the host serves imports extensionFetch by name, and the setting
       `${runtimeImports.length ? runtimeImports.join(" | ") : "(none)"}`,
   ).not.toBeNull();
 
-  // Having proven the served artifact carries the import, prove the host resolves it: an
-  // unresolvable specifier kills the whole bundle before the panel can render.
+  // Having proven the served artifact carries the imports, prove the host resolves them. The
+  // VISIBILITY assertion is what does that work: an unresolvable specifier kills the bundle before
+  // the panel can render, and it does so silently. The pageerror check below is a second, weaker net
+  // for anything that does throw — worth keeping, but it is not what would catch a missing specifier.
   const errors = [];
   page.on("pageerror", (err) => errors.push(err.message));
 
   const settings = new RenamerSettingsPage(page, baseUrl);
   await settings.goto();
-  await expect(settings.filenameTemplateInput).toBeVisible({ timeout: 15_000 });
+  await expect(
+    settings.filenameTemplateInput,
+    "the settings panel never rendered, which is what a specifier the host cannot resolve looks like",
+  ).toBeVisible({ timeout: 15_000 });
 
-  expect(
-    errors,
-    `the settings surface raised page errors, so a served specifier did not resolve: ${errors.join("; ")}`,
-  ).toEqual([]);
+  expect(errors, `the settings surface raised page errors: ${errors.join("; ")}`).toEqual([]);
 });

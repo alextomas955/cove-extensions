@@ -26,16 +26,17 @@
 import { test, expect } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
-// The five theme variables the panel's inline colours are built from. Each is defined by the host
-// even though the matching Tailwind utility is not emitted — that gap is the whole reason these
-// styles are inline, and it is also why the variables deserve an assertion of their own: an inline
-// style naming a variable the host stopped defining fails silently, exactly like the classes did.
+// Every theme variable the panel's inline colours are built from — derived by grepping `var(--color-`
+// and the `tint()` helper across this extension's UI and the shared UI package, so each entry has a
+// live consumer rather than a place in the list. Each is defined by the host even though the matching
+// Tailwind utility is not emitted; that gap is the whole reason these styles are inline, and it is
+// also why the variables deserve an assertion of their own: an inline style naming a variable the host
+// stopped defining fails silently, exactly like the classes did.
 const THEME_COLOR_VARS = [
   "--color-amber-400",
   "--color-red-400",
   "--color-red-950",
   "--color-green-500",
-  "--color-border",
 ];
 
 test("the extension declares no cssBundle (ships zero CSS — cannot leak onto host pages)", async ({
