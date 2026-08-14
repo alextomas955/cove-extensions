@@ -2,12 +2,14 @@
   <!--
     Provenance + license metadata. The extension ships as a folder, not a NuGet package, so these are
     informational rather than packaging-critical, but they keep authorship and the AGPL-3.0 license
-    honest in the assembly + any future packaging. RepositoryUrl mirrors the manifest/class Url; if a
-    canonical public repo URL differs later, update all three together.
+    honest in the assembly + any future packaging. RepositoryUrl mirrors extension.json's `url` and
+    moves with it — there are two sites, not three. Do NOT add a matching Url to the extension class:
+    the host reads a class property in preference to the manifest, which is how a dead repository URL
+    once shipped, and ExtensionIdentityTests pins that absence.
   -->
   <PropertyGroup>
     <Authors>alextomas955</Authors>
-    <RepositoryUrl>https://github.com/alextomas955/renamer</RepositoryUrl>
+    <RepositoryUrl>https://github.com/alextomas955/cove-extensions</RepositoryUrl>
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
   </PropertyGroup>
 
