@@ -42,7 +42,7 @@ public sealed class ScanAggregatorTests
     private static string FolderOf(string path) => Path.GetDirectoryName(path)!.Replace('\\', '/');
 
     private static RenamerPlanItem Acting(int fileId, string oldPath, string newPath) =>
-        new(fileId, oldPath, newPath, RenamerStatus.Renamer, Path.GetFileName(newPath), FolderOf(newPath));
+        new(fileId, oldPath, newPath, RenamerStatus.Rename, Path.GetFileName(newPath), FolderOf(newPath));
 
     private static RenamerPlanItem WithStatus(int fileId, RenamerStatus status)
     {

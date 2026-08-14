@@ -49,8 +49,8 @@ public sealed class AutoRenamerEventRegistrationTests
         Assert.Contains(OptionsKey, store.GetKeys);
     }
 
-    // Audio and gallery are renamable through the manual job/API surface but are deliberately NOT
-    // hooked to per-edit events; text is not renamable at all. Adding one here without meaning to
+    // Audio is renamable through the manual job/API surface but is deliberately NOT hooked to per-edit
+    // events; gallery and text are not renamable at all. Adding one here without meaning to
     // would give every metadata edit of that kind an unconfirmed, unpreviewed rename.
     [Theory]
     [InlineData("audio.updated", "audio")]

@@ -15,7 +15,7 @@ const RENAME_ITEM = {
   fileId: 1,
   oldFullPath: "/lib/raw.mkv",
   newFullPath: "/lib/Film.mkv",
-  status: "renamer",
+  status: "rename",
   newBasename: "Film.mkv",
   targetFolderPath: "/lib",
   suffixed: false,

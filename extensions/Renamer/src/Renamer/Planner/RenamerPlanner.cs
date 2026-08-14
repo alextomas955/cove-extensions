@@ -313,7 +313,7 @@ public sealed class RenamerPlanner
 
         return new RenamerPlanItem(
             file.FileId, oldFullPath, newFullPath,
-            isMove ? RenamerStatus.Move : RenamerStatus.Renamer,
+            isMove ? RenamerStatus.Move : RenamerStatus.Rename,
             candidate, relTargetFolder, null, suffixed, sanitized,
             resolvedRoot, route.MatchedRule, targetVolume);
     }

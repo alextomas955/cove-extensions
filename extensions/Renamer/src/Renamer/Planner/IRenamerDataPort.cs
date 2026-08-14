@@ -1,16 +1,20 @@
 namespace Renamer.Planner;
 
 /// <summary>
-/// The media-file kinds this extension can renamer. Drives entity-type-aware token degradation in
+/// The media-file kinds this extension can rename. Drives entity-type-aware token degradation in
 /// the <c>MetadataProjector</c>: only the media tokens a kind actually carries are projected.
-/// Gallery is not yet renamed but is listed for completeness.
 /// </summary>
+/// <remarks>
+/// Every member here is renamable, so the enum doubles as the definition of "a kind this extension
+/// acts on" — a Cove entity type outside it (gallery, text) is rejected at the boundary by
+/// <c>Renamer.TryParseKind</c> and never reaches a port method. The per-kind switches still carry a
+/// defensive fallthrough for an out-of-range cast, since a C# enum accepts any underlying value.
+/// </remarks>
 public enum RenamerFileKind
 {
     Video,
     Image,
     Audio,
-    Gallery,
 }
 
 /// <summary>
@@ -215,7 +219,7 @@ public interface IRenamerDataPort
     /// Contract a caller cannot infer from the signature: the result holds one entry per id that
     /// EXISTS — a missing id is omitted, never a null slot and never a throw. Ordering within the
     /// result is NOT guaranteed by the DB, so an order-sensitive caller (the scan) re-orders by its
-    /// own id list. Gallery (non-renamable) and an empty <paramref name="ids"/> return an empty list.
+    /// own id list. An empty <paramref name="ids"/> returns an empty list.
     /// </remarks>
     Task<IReadOnlyList<RenamerEntity>> LoadEntitiesAsync(RenamerFileKind kind, IReadOnlyList<int> ids, CancellationToken ct = default);
 

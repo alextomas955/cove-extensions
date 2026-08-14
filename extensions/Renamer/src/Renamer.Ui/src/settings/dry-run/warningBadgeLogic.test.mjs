@@ -15,7 +15,7 @@ import { badgesFor } from "./warningBadgeLogic";
 /** A row with every advisory flag clear, so each case below sets only the signal it is about. */
 function row(overrides) {
   return {
-    status: "renamer",
+    status: "rename",
     suffixed: false,
     sanitized: false,
     inFlightPathOverflow: false,
@@ -76,7 +76,7 @@ test("each refused status carries its own labelled badge", () => {
 });
 
 test("an acting row earns the advisory badges its own flags set, and none when they are clear", () => {
-  for (const status of ["renamer", "move"]) {
+  for (const status of ["rename", "move"]) {
     assert.deepEqual(badgesFor(row({ status })), [], `status ${status} with no signal`);
     assert.deepEqual(badgesFor(row({ status, suffixed: true, sanitized: true })), [
       { label: "Numbered to avoid a clash", variant: "amber" },
@@ -96,7 +96,7 @@ test("a skipped row ignores the advisory flags entirely — nothing was cleaned,
 test("the overflow badge is appended whatever the status, because the server sets it deliberately", () => {
   // Re-testing the status here would let a flag the server DID set go unrendered if the two
   // vocabularies ever drifted, so the flag alone decides.
-  for (const status of ["renamer", "skipExcluded"]) {
+  for (const status of ["rename", "skipExcluded"]) {
     const badges = badgesFor(row({ status, inFlightPathOverflow: true }));
     assert.equal(badges[badges.length - 1].variant, "red", `status ${status}`);
     assert.match(badges[badges.length - 1].label, /across drives/);

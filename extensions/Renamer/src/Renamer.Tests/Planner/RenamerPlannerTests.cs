@@ -34,7 +34,7 @@ public sealed class RenamerPlannerTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions { FilenameTemplate = "$title" }, default);
 
         var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.Renamer, item.Status);
+        Assert.Equal(RenamerStatus.Rename, item.Status);
         Assert.Equal("My Film.mkv", item.NewBasename);
         Assert.EndsWith("My Film.mkv", item.NewFullPath);
         Assert.EndsWith("media/videos/raw.mkv", item.OldFullPath);

@@ -23,7 +23,7 @@ public sealed class AssociatedExtensionSidecarTests
         => new(videoId, RenamerFileKind.Video,
         [
             new RenamerPlanItem(fileId, folderPath + "/" + oldBasename, folderPath + "/" + newBasename,
-                RenamerStatus.Renamer, newBasename, folderPath),
+                RenamerStatus.Rename, newBasename, folderPath),
         ]);
 
     private static RenamerExecutor RealExecutor(Cove.Data.CoveContext db)

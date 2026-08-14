@@ -11,6 +11,14 @@ User-facing changes, newest first.
      editing the 0.3.0 row: it describes an immutable artifact that genuinely runs on a 1.0.0 host.
      The full rule is in the repo-wide Releasing guide, under "Raising minCoveVersion". -->
 
+- **Your last whole-library dry run is discarded once, on the first load of this version.** Renamer
+  labels each planned file with a status, and the label for "renamed where it sits" was misspelled
+  `renamer`; it is now `rename`, and the never-used `gallery` file kind is gone with it. A dry-run
+  summary stored by an earlier version spells the old label, so Renamer reads it as "no scan yet"
+  rather than showing you figures it cannot interpret. **Nothing else is affected** — no setting, no
+  template and no filename changes, and your undo history is untouched. Run the dry run again to get
+  the summary back. If you call Renamer's HTTP API yourself, this is a breaking change to the `status`
+  field: match `rename` instead of `renamer`.
 - **_Default destination_ and _Relocate unmatched items to the default destination_ are gone.** The
   relocate switch shipped off and was never going to be turned on — it moved every item that matched no
   rule, with whole-library reach and no way to undo a move across drives — and the default destination it

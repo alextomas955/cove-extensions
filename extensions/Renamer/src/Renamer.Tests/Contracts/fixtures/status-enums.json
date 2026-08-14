@@ -1,6 +1,6 @@
 {
   "renamerStatus": {
-    "Renamer": "\u0022renamer\u0022",
+    "Rename": "\u0022rename\u0022",
     "Move": "\u0022move\u0022",
     "NoOp": "\u0022noOp\u0022",
     "SkipCollision": "\u0022skipCollision\u0022",
@@ -18,7 +18,6 @@
   "renamerFileKind": {
     "Video": "\u0022video\u0022",
     "Image": "\u0022image\u0022",
-    "Audio": "\u0022audio\u0022",
-    "Gallery": "\u0022gallery\u0022"
+    "Audio": "\u0022audio\u0022"
   }
 }

@@ -131,7 +131,7 @@ public sealed class RenamerExecutor
         CancellationToken ct)
     {
         // (1) Carry planner skips/no-ops straight into the skipped bucket (act only on Renamer/Move).
-        if (item.Status is not (RenamerStatus.Renamer or RenamerStatus.Move))
+        if (item.Status is not (RenamerStatus.Rename or RenamerStatus.Move))
         {
             skipped.Add(new ItemResult(item.FileId, item.OldFullPath, item.NewFullPath, item.Status, item.Reason));
             return;

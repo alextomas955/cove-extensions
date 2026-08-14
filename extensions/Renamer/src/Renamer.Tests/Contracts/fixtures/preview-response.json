@@ -4,7 +4,7 @@
       "fileId": 10,
       "oldFullPath": "/lib/raw one.mkv",
       "newFullPath": "/lib/First Film.mkv",
-      "status": "renamer",
+      "status": "rename",
       "newBasename": "First Film.mkv",
       "targetFolderPath": "/lib",
       "reason": null,

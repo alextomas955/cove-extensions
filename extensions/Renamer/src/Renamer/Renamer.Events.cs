@@ -85,7 +85,7 @@ public sealed partial class Renamer
                 // items land here as SkipGated (only-organized / require-fields respected) and are
                 // likewise skipped.
                 int actingFiles = plan.Items.Count(i =>
-                    i.Status is RenamerStatus.Renamer or RenamerStatus.Move);
+                    i.Status is RenamerStatus.Rename or RenamerStatus.Move);
                 if (actingFiles == 0)
                 {
                     return;

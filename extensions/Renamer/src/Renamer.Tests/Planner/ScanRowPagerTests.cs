@@ -226,7 +226,7 @@ public sealed class ScanRowPagerTests
     }
 
     [Fact]
-    public async Task LoadEntityIdPageAsync_IsStrictlyAscendingAfterTheCursor_AndEmptyForANonRenamableKind()
+    public async Task LoadEntityIdPageAsync_IsStrictlyAscendingAfterTheCursor_AndEmptyForAKindWithNoIds()
     {
         var port = new FakeRenamerDataPort();
         port.SeedAllIds(RenamerFileKind.Video, 5, 1, 9, 7);
@@ -234,7 +234,9 @@ public sealed class ScanRowPagerTests
         Assert.Equal([1, 5, 7], await port.LoadEntityIdPageAsync(RenamerFileKind.Video, 0, 3));
         Assert.Equal([7, 9], await port.LoadEntityIdPageAsync(RenamerFileKind.Video, 5, 3));
         Assert.Empty(await port.LoadEntityIdPageAsync(RenamerFileKind.Video, 0, 0));
-        Assert.Empty(await port.LoadEntityIdPageAsync(RenamerFileKind.Gallery, 0, 10));
-        Assert.Empty(await port.LoadAllEntityIdsAsync(RenamerFileKind.Gallery));
+        // Audio is seeded with nothing: a kind the scan walks but this library has none of pages empty
+        // rather than falling back to another kind's ids.
+        Assert.Empty(await port.LoadEntityIdPageAsync(RenamerFileKind.Audio, 0, 10));
+        Assert.Empty(await port.LoadAllEntityIdsAsync(RenamerFileKind.Audio));
     }
 }

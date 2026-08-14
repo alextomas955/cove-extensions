@@ -33,7 +33,7 @@ public sealed class CollisionTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
 
         var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.Renamer, item.Status);
+        Assert.Equal(RenamerStatus.Rename, item.Status);
         Assert.Equal("My Film (1).mkv", item.NewBasename);
         Assert.EndsWith("My Film (1).mkv", item.NewFullPath);
         Assert.Empty(port.SaveCalls);

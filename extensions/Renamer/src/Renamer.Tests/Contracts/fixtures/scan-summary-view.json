@@ -7,7 +7,7 @@
     "noChange": 0,
     "statusCounts": [
       {
-        "status": "renamer",
+        "status": "rename",
         "count": 2
       },
       {
@@ -93,7 +93,7 @@
     "noChange": 0,
     "statusCounts": [
       {
-        "status": "renamer",
+        "status": "rename",
         "count": 1
       },
       {
@@ -179,7 +179,7 @@
     "noChange": 0,
     "statusCounts": [
       {
-        "status": "renamer",
+        "status": "rename",
         "count": 0
       },
       {

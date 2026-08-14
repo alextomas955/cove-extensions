@@ -74,16 +74,16 @@ public sealed class PreviewEndpointTests
             Assert.Equal(fileId, item.FileId);
             Assert.EndsWith("raw one.mkv", item.OldFullPath);
             Assert.Equal("First Film.mkv", item.NewBasename);
-            Assert.Equal(RenamerStatus.Renamer, item.Status);
+            Assert.Equal(RenamerStatus.Rename, item.Status);
 
             // WIRE-SHAPE regression (the bug live-browser verification caught): the response MUST
-            // serialize as camelCase with `status` the camelCase STRING "renamer" — NOT PascalCase,
-            // NOT the numeric 0. The UI's confirm summary reads it.status === "renamer" and it.fileId; a
+            // serialize as camelCase with `status` the camelCase STRING "rename" — NOT PascalCase,
+            // NOT the numeric 0. The UI's confirm summary reads it.status === "rename" and it.fileId; a
             // numeric enum or PascalCase key reads as a non-renamer and the renamer silently never
             // fires. Read the bytes the result actually WRITES, not a re-serialization: the options are
             // the result's own and a test that names its own instance would agree with itself forever.
             var json = await BodyOfAsync(Unwrap(result));
-            Assert.Contains("\"status\":\"renamer\"", json);
+            Assert.Contains("\"status\":\"rename\"", json);
             Assert.Contains("\"fileId\":", json);
             Assert.DoesNotContain("\"status\":0", json);
             Assert.DoesNotContain("\"Status\":", json);

@@ -65,7 +65,8 @@ public class CoveRenamerDataPort : IRenamerDataPort
                     return a is null ? null : MapAudioEntity(a);
                 }
             default:
-                // Gallery is not yet a renamable kind.
+                // Defensive: every declared kind is renamable, so this arm is reached only by an
+                // out-of-range cast, which a C# enum permits. Absent rather than a throw.
                 return null;
         }
     }
@@ -120,7 +121,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
                 }
                 break;
             default:
-                // Gallery is not yet a renamable kind.
+                // Defensive: see LoadEntityAsync — only an out-of-range cast lands here.
                 return [];
         }
 
@@ -211,9 +212,9 @@ public class CoveRenamerDataPort : IRenamerDataPort
         [.. tags.Where(t => t is not null && !string.IsNullOrEmpty(t.Name)).Select(t => (t!.Id, t.Name))];
 
     /// <summary>
-    /// An <c>AsNoTracking</c> id-only bulk query over the kind's table — Gallery (and any other
-    /// non-renamable kind) returns empty rather than throwing, mirroring <see cref="LoadEntityAsync"/>'s
-    /// own treatment of Gallery as "not yet a renamable kind."
+    /// An <c>AsNoTracking</c> id-only bulk query over the kind's table. An out-of-range cast — the only
+    /// value <see cref="RenamerFileKind"/> holds that no arm names — returns empty rather than throwing,
+    /// mirroring <see cref="LoadEntityAsync"/>'s own fallthrough.
     /// </summary>
     public async Task<IReadOnlyList<int>> LoadAllEntityIdsAsync(RenamerFileKind kind, CancellationToken ct = default)
     {
