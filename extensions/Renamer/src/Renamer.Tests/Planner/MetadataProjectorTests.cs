@@ -142,10 +142,14 @@ public sealed class MetadataProjectorTests
     public void Duration_HonorsConfiguredFormat(string format, string expected)
     {
         var file = DurationFileRow(ReferenceDurationSeconds);
-        var (tokens, _, _, _) = MetadataProjector.Project(
-            VideoEntity(file), file, new RenamerOptions { DurationFormat = format });
+        var options = new RenamerOptions { DurationFormat = format, FilenameTemplate = "$title [$duration]" };
+        var (tokens, multi, _, _) = MetadataProjector.Project(VideoEntity(file), file, options);
 
         Assert.Equal(expected, tokens[Tokens.Duration]);
+
+        // End-to-end through the engine, because the token is not what a user sees: a rendering the
+        // sanitizer altered on its way into the filename would still be the defect this pins.
+        Assert.Equal($"My Film [{expected}]", TemplateEngine.Render(tokens, multi, options).Filename);
     }
 
     [Fact]
