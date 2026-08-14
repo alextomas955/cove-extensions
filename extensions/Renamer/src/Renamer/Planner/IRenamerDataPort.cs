@@ -255,15 +255,10 @@ public interface IRenamerDataPort
     Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default);
 
     /// <summary>
-    /// Persists a planned set of file mutations (new basename / parent folder / caption renames)
-    /// to the DB. The executor sets <c>Basename</c>/<c>ParentFolderId</c> only — never <c>.Path</c>,
-    /// which Cove recomputes on save. Returns the number of file rows changed.
-    /// </summary>
-    Task<int> SaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default);
-
-    /// <summary>
-    /// The mutating write-seam: applies each mutation (Basename / ParentFolderId / caption filenames)
-    /// and persists them in one save, returning each saved file's recomputed <c>Path</c>.
+    /// The one mutating write-seam: applies each mutation (Basename / ParentFolderId / caption
+    /// filenames) and persists them in one save, returning each saved file's recomputed <c>Path</c>.
+    /// The executor sets <c>Basename</c>/<c>ParentFolderId</c> only — never <c>.Path</c>, which Cove
+    /// recomputes on save.
     /// </summary>
     /// <remarks>
     /// Contract the executor's rollback spine depends on: an implementation throws on a save failure
@@ -280,7 +275,7 @@ public readonly record struct SavedFile(int FileId, string RecomputedPath);
 
 /// <summary>
 /// One file's intended DB mutation, produced by the executor and handed to
-/// <see cref="IRenamerDataPort.SaveAsync"/>. Caption renames travel with their file.
+/// <see cref="IRenamerDataPort.ApplyAndSaveAsync"/>. Caption renames travel with their file.
 /// </summary>
 /// <param name="FileId">The file row to mutate.</param>
 /// <param name="NewBasename">The new basename to set.</param>

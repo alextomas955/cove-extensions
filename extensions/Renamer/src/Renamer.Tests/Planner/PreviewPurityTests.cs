@@ -12,6 +12,11 @@ namespace Renamer.Tests.Planner;
 /// the candidate name is collision-free and the item still plans as a Move. Folder creation is the
 /// executor's job, exercised only on a real renamer.
 /// </summary>
+/// <remarks>
+/// The "saved nothing" half asserts on <c>ApplyAndSaveCalls</c> because that is the port's ONLY write
+/// seam, and therefore the only one a planner could reach: an assertion on a seam the interface no
+/// longer declares would hold no matter what the planner did.
+/// </remarks>
 [Trait("Tier", "L0")]
 public sealed class PreviewPurityTests
 {
@@ -43,7 +48,7 @@ public sealed class PreviewPurityTests
         Assert.EndsWith("Archive/My Film.mkv", item.NewFullPath);
         // ...but planning created NO folder and saved NOTHING — the preview-mutation bug is gone.
         Assert.Empty(port.CreatedFolderPaths);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -64,7 +69,7 @@ public sealed class PreviewPurityTests
         Assert.Contains("missing", item.Reason);
         // ...detected through the read-only port seam, so preview still mutates nothing.
         Assert.Empty(port.CreatedFolderPaths);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -84,6 +89,6 @@ public sealed class PreviewPurityTests
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.EndsWith("Archive/My Film (1).mkv", item.NewFullPath);
         Assert.Empty(port.CreatedFolderPaths);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 }

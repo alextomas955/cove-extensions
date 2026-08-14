@@ -290,14 +290,6 @@ public class CoveRenamerDataPort : IRenamerDataPort
         return Task.FromResult(System.IO.File.Exists(native));
     }
 
-    /// <summary>
-    /// Persists a planned set of mutations via <see cref="ApplyAndSaveAsync"/>. Provided so the
-    /// planner-facing seam is complete; the executor uses the richer <see cref="ApplyAndSaveAsync"/>
-    /// directly so it can read back the recomputed paths.
-    /// </summary>
-    public async Task<int> SaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
-        => (await ApplyAndSaveAsync(mutations, ct)).Count;
-
     // ── Executor-facing primitives ───────────────────────────────────────────
 
     /// <summary>Resolves an existing <see cref="Folder"/> by path or creates+saves one for its Id. Returns the tracked entity.</summary>

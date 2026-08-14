@@ -38,7 +38,7 @@ public sealed class RenamerPlannerTests
         Assert.Equal("My Film.mkv", item.NewBasename);
         Assert.EndsWith("My Film.mkv", item.NewFullPath);
         Assert.EndsWith("media/videos/raw.mkv", item.OldFullPath);
-        Assert.Empty(port.SaveCalls);               // dry-run guarantee: no mutation
+        Assert.Empty(port.ApplyAndSaveCalls);               // dry-run guarantee: no mutation
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class RenamerPlannerTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions { FilenameTemplate = "$title" }, default);
 
         Assert.Equal(RenamerStatus.NoOp, Assert.Single(plan.Items).Status);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class RenamerPlannerTests
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.EndsWith("media/videos/escape/My Film.mkv", item.NewFullPath);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public sealed class RenamerPlannerTests
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipCollision, item.Status);
         Assert.Contains("FullPathMax", item.Reason);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public sealed class RenamerPlannerTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 999, new RenamerOptions(), default);
 
         Assert.Empty(plan.Items);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     private static readonly RouteLookups EmptyLookups = new(
@@ -151,7 +151,7 @@ public sealed class RenamerPlannerTests
         Assert.Equal(viaLoad.EntityId, loaded.EntityId);
         Assert.Equal(viaLoad.Kind, loaded.Kind);
         Assert.Equal(viaLoad.Items, loaded.Items);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]

@@ -245,27 +245,6 @@ public static class PathConfinement
     }
 
     /// <summary>
-    /// The original single-root confinement, preserved verbatim for the empty-allowlist fallback
-    /// and the back-compat overload. Resolves the RELATIVE <paramref name="relativeFolder"/> (may
-    /// be empty = in-place) under <paramref name="allowedRoot"/>, rejecting any <c>..</c> escape or
-    /// an over-<see cref="RenamerOptions.FullPathMax"/> absolute target.
-    /// </summary>
-    public static ConfinementResult Resolve(
-        string allowedRoot,
-        string relativeFolder,
-        string newBasename,
-        RenamerOptions options)
-    {
-        // Absolute/rooted folder templates are rejected outright (they are not a relative move).
-        if (!string.IsNullOrEmpty(relativeFolder) && Path.IsPathRooted(relativeFolder))
-        {
-            return new(false, string.Empty, "folder template is an absolute/rooted path");
-        }
-
-        return ResolveUnderSingleRoot(allowedRoot, relativeFolder, newBasename, options);
-    }
-
-    /// <summary>
     /// Resolves <paramref name="relativeFolder"/> under <paramref name="allowedRoot"/> and applies
     /// the escape + length checks. The caller is responsible for the rooted-template rejection; this
     /// helper assumes <paramref name="relativeFolder"/> is relative (or empty = in-place).
