@@ -15,12 +15,17 @@
                     assert it exists. `npm install` runs only when node_modules is absent (keeps the
                     dev loop fast). No CSS bundle is shipped (host-Tailwind path).
 
-      2b. ASSEMBLE  Copy the file set extensions/catalog.json declares for this extension into
-                    artifacts/package, with the manifest version stamped, via the shared
-                    scripts/assemble-package.mjs. That declaration is the one statement of what
-                    ships: this script and CI copy the same list, so a dev deploy installs what a
-                    release ships. A declared file the build did not produce fails here, before the
-                    deploy target is touched.
+      2b. ASSEMBLE  Remove and recreate artifacts/package, then copy the file set
+                    extensions/catalog.json declares for this extension into it, with the manifest
+                    version stamped, via the shared scripts/assemble-package.mjs. That declaration
+                    is the one statement of what ships: this script and CI copy the same list, so a
+                    dev deploy installs what a release ships. A declared file the build did not
+                    produce fails here, before the deploy target is touched.
+
+                    The packer never deletes and refuses a package directory that is not empty, so
+                    clearing that directory belongs to whichever caller re-uses one. CI and the E2E
+                    harness both hand over a path that is fresh by construction; this script is the
+                    only caller with a stable one, and therefore the only one that owns the delete.
 
       3. DEPLOY  Resolve the Cove data root: COVE_HOME when set, otherwise the per-user
                     local-application-data 'cove' folder, which is a WINDOWS-only default. On any
@@ -163,6 +168,17 @@ $SourceManifest = Join-Path $ExtensionRoot 'src/Renamer/extension.json'
 $Version = (Get-Content -Raw -Path $SourceManifest | ConvertFrom-Json).version
 
 Write-Host "`n==> Assembling the declared package (extensions/catalog.json)…" -ForegroundColor Cyan
+
+# The packer refuses a package directory that is not empty, so this run-to-run directory is cleared
+# here. Not best-effort like the publish pre-clean above: a leftover handle that defeats this leaves
+# the assemble refusing, so a failure must stop the deploy rather than be worked around. $PackageDir is
+# derived from $PSScriptRoot at the top of this script and is never caller-supplied, which is what
+# makes a recursive remove of it safe to state.
+if (Test-Path $PackageDir) {
+    Remove-Item -Recurse -Force $PackageDir
+}
+New-Item -ItemType Directory -Force -Path $PackageDir | Out-Null
+
 node (Join-Path $MonorepoRoot 'scripts/assemble-package.mjs') --publish-dir $PublishDir --package-dir $PackageDir --extension $ExtensionId --version $Version
 if ($LASTEXITCODE -ne 0) {
     throw "Package assemble failed with exit code $LASTEXITCODE — deploy aborted."

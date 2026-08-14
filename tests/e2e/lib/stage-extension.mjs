@@ -7,7 +7,7 @@
 // missing from it.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { assemblePackage } from "../../../scripts/assemble-package-core.mjs";
+import { assemblePackage } from "../../../scripts/assemble-package.mjs";
 
 export function stageExtension({ repoRoot, publishDir, manifestPath, stagingRoot }) {
   if (!existsSync(publishDir)) {
