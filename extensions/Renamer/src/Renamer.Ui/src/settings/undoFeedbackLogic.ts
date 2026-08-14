@@ -39,7 +39,7 @@ export function buildUndoFeedback(result: UndoResult): UndoFeedback {
 
   const stranded =
     result.warningCount > 0
-      ? ` ${result.warningCount} companion ${plural(result.warningCount, "file", "files")} stayed behind (${result.warningSample[0].detail}).`
+      ? ` ${result.warningCount} companion ${plural(result.warningCount, "file", "files")} stayed behind (${result.warningSample[0]?.detail ?? "no detail was reported"}).`
       : "";
 
   if (problemCount === 0) {
@@ -50,10 +50,12 @@ export function buildUndoFeedback(result: UndoResult): UndoFeedback {
   }
 
   // The one read of a sample: which reason to name. The failed channel is preferred so the order
-  // matches the panel's long-standing merge, and a sample is non-empty whenever its count is, because
-  // the server's cap is at least one.
+  // matches the panel's long-standing merge. A sample is expected to be non-empty whenever its count
+  // is, because the server's cap is at least one — but that is the server's promise, not something
+  // this module can prove, so the empty case names itself rather than interpolating `undefined` into
+  // a sentence the user reads.
   const firstReason =
-    result.failedSample.length > 0 ? result.failedSample[0].reason : result.skippedSample[0].reason;
+    result.failedSample[0]?.reason ?? result.skippedSample[0]?.reason ?? "no reason was reported";
 
   if (result.undone > 0) {
     return {

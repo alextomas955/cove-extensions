@@ -66,6 +66,8 @@ test("the undo-reach clause is in EVERY success sentence, unconditionally", () =
   // The case that fails if the clause is ever made conditional — on a single media kind, on a small
   // run, on anything. The UI cannot know which kinds actually acted, so a conditional clause would be
   // a quieter and less honest banner rather than a smarter one.
+  // `as const` makes each row a pair rather than a list of numbers, so destructuring it yields two
+  // numbers instead of two `number | undefined`s the case would then have to re-check.
   for (const [willChange, attention] of [
     [0, 0],
     [0, 5],
@@ -74,7 +76,7 @@ test("the undo-reach clause is in EVERY success sentence, unconditionally", () =
     [2, 0],
     [900, 0],
     [900, 40],
-  ]) {
+  ] as const) {
     const text = buildRenameLibrarySuccess(counts(willChange, attention));
     assert.ok(
       text.includes(UNDO_REACH_CLAUSE),

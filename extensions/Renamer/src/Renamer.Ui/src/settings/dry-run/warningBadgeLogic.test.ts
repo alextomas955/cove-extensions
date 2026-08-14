@@ -29,9 +29,10 @@ test("a row an exclude rule matched says so, rather than reading as an unexplain
   // attention-styled with NO badge — the row looked wrong and named nothing the user could act on.
   const badges = badgesFor(row({ status: "skipExcluded" }));
 
-  assert.equal(badges.length, 1, `expected exactly one badge, got ${JSON.stringify(badges)}`);
-  assert.match(badges[0].label, /exclude/i);
-  assert.equal(badges[0].variant, "amber");
+  const [only, ...rest] = badges;
+  assert.ok(only && rest.length === 0, `expected exactly one badge, got ${JSON.stringify(badges)}`);
+  assert.match(only.label, /exclude/i);
+  assert.equal(only.variant, "amber");
 });
 
 test("a status this bundle was never built for is surfaced, not thrown and not hidden", () => {
@@ -45,9 +46,10 @@ test("a status this bundle was never built for is surfaced, not thrown and not h
     row({ status: "skipSomethingNewerServersDo" as unknown as RenamerStatus }),
   );
 
-  assert.equal(badges.length, 1, `expected exactly one badge, got ${JSON.stringify(badges)}`);
-  assert.match(badges[0].label, /unrecognised/i);
-  assert.equal(badges[0].variant, "amber");
+  const [only, ...rest] = badges;
+  assert.ok(only && rest.length === 0, `expected exactly one badge, got ${JSON.stringify(badges)}`);
+  assert.match(only.label, /unrecognised/i);
+  assert.equal(only.variant, "amber");
 });
 
 test("the statuses that reach no row carry no badge, so none of them invents copy", () => {
@@ -106,7 +108,9 @@ test("the overflow badge is appended whatever the status, because the server set
   const eitherSide: RenamerStatus[] = ["rename", "skipExcluded"];
   for (const status of eitherSide) {
     const badges = badgesFor(row({ status, inFlightPathOverflow: true }));
-    assert.equal(badges[badges.length - 1].variant, "red", `status ${status}`);
-    assert.match(badges[badges.length - 1].label, /across drives/);
+    const last = badges[badges.length - 1];
+    assert.ok(last, `expected at least one badge, status ${status}`);
+    assert.equal(last.variant, "red", `status ${status}`);
+    assert.match(last.label, /across drives/);
   }
 });
