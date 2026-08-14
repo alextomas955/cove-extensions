@@ -119,6 +119,14 @@ jobs:
           node-version: "24.11.0"
       - name: Install root lint tooling
         run: npm ci --no-workspaces
+      # Repo-wide Prettier gate. build.yml's format:check is the Renamer.Ui bundle's own, so without
+      # this step nothing blocking checked the root subject set — every .md, .json, .mjs and workflow
+      # file outside a UI. lefthook formats staged files locally, but a local hook is advice a
+      # contributor can skip, and only a check a workflow runs can block a merge. Placed before the UI
+      # installs because prettier needs nothing but the root tooling, so a formatting miss fails in
+      # seconds rather than after every UI's npm ci.
+      - name: Prettier (whole monorepo)
+        run: npm run format:check
       - name: Install each extension's UI deps (type-aware program inputs)
         shell: bash
         run: |
