@@ -21,7 +21,7 @@ import {
   createApiClient,
   pollUntil,
 } from "../lib/renamer-fixtures.mjs";
-import { VideosPage } from "@cove-extensions/e2e/pages/videos-page";
+import { RenamerVideosPage } from "../lib/pages/renamer-videos-page.mjs";
 
 const RENAMER_ID = "com.alextomas955.renamer";
 
@@ -60,7 +60,7 @@ test("a rename driven from the grid with several cards selected renames every on
   }
   const originalPathById = new Map(videos.map((v) => [v.id, v.files[0].path]));
 
-  const videosPage = new VideosPage(page, baseUrl);
+  const videosPage = new RenamerVideosPage(page, baseUrl);
   await videosPage.goto();
 
   // Wait for the grid to hold every seeded card BEFORE selecting. selectFirstCards clamps to what is

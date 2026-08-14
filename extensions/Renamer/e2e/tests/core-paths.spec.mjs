@@ -3,7 +3,7 @@
 // preview text, then a native alert() confirming the job was queued; "Undo last rename" opens an
 // in-app (React) confirm modal, not a native dialog. See lib/pages/ for the Page Object Model.
 import { test, expect, seedVideo } from "../lib/renamer-fixtures.mjs";
-import { VideosPage } from "@cove-extensions/e2e/pages/videos-page";
+import { RenamerVideosPage } from "../lib/pages/renamer-videos-page.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 import { assertRenamedTo, assertRestoredTo } from "../lib/rename-assertions.mjs";
 
@@ -57,8 +57,17 @@ test("clicking Save changes persists a settings edit across a page reload", asyn
   await settingsPage.setFilenameTemplate("$title-e2e-save-marker");
   await settingsPage.save();
 
-  await page.reload();
-  await expect(settingsPage.filenameTemplateInput).toHaveValue("$title-e2e-save-marker");
+  // Everything past the template mutation runs under try/finally, for the same reason as the two
+  // restores below and in rename-ui-coverage — with one difference worth naming: this test SAVES its
+  // marker, so without the restore it leaves a template on the worker-shared instance that a sibling
+  // renaming without setting its own would compute names from.
+  try {
+    await page.reload();
+    await expect(settingsPage.filenameTemplateInput).toHaveValue("$title-e2e-save-marker");
+  } finally {
+    await settingsPage.setFilenameTemplate("{$date - }$title{ [$resolution]}");
+    await settingsPage.save();
+  }
 });
 
 test("dry-run preview matches the template and touches neither disk nor the DB record", async ({
@@ -109,7 +118,7 @@ test("selecting a video and clicking Rename selected renames it on disk and in t
   // Everything past the template mutation runs under try/finally, so the restore below does not
   // depend on every assertion above it having passed.
   try {
-    const videosPage = new VideosPage(page, baseUrl);
+    const videosPage = new RenamerVideosPage(page, baseUrl);
     await videosPage.goto();
     // Select the card by its filename BEFORE setting a Title: the grid card's accessible name follows
     // the item's title once one is set, so selecting first keeps the filename-based lookup valid.

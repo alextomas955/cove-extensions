@@ -118,16 +118,16 @@ export class RenamerSettingsPage {
     return this.undoStatusLine.textContent();
   }
 
-  /** Clicks "Undo last rename" and confirms the in-app modal. Throws if the button isn't present. */
+  /**
+   * Clicks "Undo last rename" and confirms the in-app modal. Throws if the button isn't present.
+   *
+   * Returns once the modal is accepted; the undo itself lands server-side after that, so a caller
+   * must poll for the restored state rather than read it once (see `assertRestoredTo`).
+   */
   async undoLastRename() {
     await this.undoLastRenameButton.waitFor({ state: "visible", timeout: 10_000 });
     await this.undoLastRenameButton.click();
     await this.undoConfirmButton.waitFor({ state: "visible", timeout: 5_000 });
     await this.undoConfirmButton.click();
-    // The undo mutation completes asynchronously after this click resolves (the same
-    // read-after-write gap poll.mjs's pollUntil exists for elsewhere) — give it a moment to land
-    // server-side before a caller starts polling for the restored filename, or the first few polls
-    // just burn their interval against a not-yet-mutated backend.
-    await this.page.waitForTimeout(1000);
   }
 }

@@ -16,7 +16,7 @@
 //     rename the label and an importing test follows it silently. These literals go red.
 //   * NOTHING here renames a file. The whole point of the warning is that seeing it costs no mutation:
 //     the dry run is a plan, and the confirm gate is CANCELLED rather than accepted. That is also why
-//     the confirm gate is raised by hand below instead of through VideosPage.renameSelected(), which
+//     the confirm gate is raised by hand below instead of through RenamerVideosPage.renameSelected(), which
 //     ACCEPTS the dialog and would run the rename this spec must not run.
 //
 // HOW THE OVERFLOW IS REACHED. Not with a near-MAX_PATH fixture: the budget is a SETTING, so it is set
@@ -40,7 +40,7 @@ import {
   seedVideo,
   createApiClient,
 } from "../lib/renamer-fixtures.mjs";
-import { VideosPage } from "@cove-extensions/e2e/pages/videos-page";
+import { RenamerVideosPage } from "../lib/pages/renamer-videos-page.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
 const RENAMER_ID = "com.alextomas955.renamer";
@@ -214,7 +214,7 @@ test("the in-flight path-overflow warning renders on the flagged dry-run row and
   // that fits. The second round is what makes the first mean something; a gate whose text was read from
   // an empty selection would carry no warning line either.
   // ---------------------------------------------------------------------------------------------
-  const videosPage = new VideosPage(page, baseUrl);
+  const videosPage = new RenamerVideosPage(page, baseUrl);
 
   const overflowGate = await raiseConfirmGate(page, videosPage, OVERFLOW_TITLE);
   expect(
@@ -246,7 +246,7 @@ test("the in-flight path-overflow warning renders on the flagged dry-run row and
 /**
  * Selects exactly one grid card and reads the confirm gate it raises, then CANCELS it.
  *
- * Deliberately not `VideosPage.renameSelected()`: that helper accepts the dialog, which runs the
+ * Deliberately not `RenamerVideosPage.renameSelected()`: that helper accepts the dialog, which runs the
  * rename. Cancelling is the whole subject here — the warning is readable before anything is touched —
  * and `renameSelected` returning the message it accepted cannot show that.
  *
