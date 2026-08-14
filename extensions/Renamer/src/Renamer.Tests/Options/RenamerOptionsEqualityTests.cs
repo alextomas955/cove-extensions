@@ -97,6 +97,6 @@ public sealed class RenamerOptionsEqualityTests
         Assert.NotEqual(new RenamerOptions(), new RenamerOptions { FilenameTemplate = "$title" });
         Assert.NotEqual(new RenamerOptions(), new RenamerOptions { FilenameMax = 100 });
         Assert.NotEqual(new RenamerOptions(), new RenamerOptions { Case = CaseTransform.Lower });
-        Assert.NotEqual(new RenamerOptions(), new RenamerOptions { EnableDefaultRelocate = true });
+        Assert.NotEqual(new RenamerOptions(), new RenamerOptions { RemoveEmptyFolder = true });
     }
 }

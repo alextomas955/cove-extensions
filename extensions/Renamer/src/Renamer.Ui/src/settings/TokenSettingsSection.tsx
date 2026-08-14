@@ -73,7 +73,10 @@ const DATE_FORMAT_OPTIONS: readonly ExampleOption[] = [
 const DURATION_FORMAT_OPTIONS: readonly ExampleOption[] = [
   { value: "hh\\-mm\\-ss", example: "01-23-45" },
   { value: "hh\\.mm\\.ss", example: "01.23.45" },
-  { value: "mm\\-ss", example: "83-45" },
+  // "23-45", not "83-45": mm is the minutes COMPONENT of the duration, and .NET has no total-minutes
+  // specifier. MetadataProjectorTests pins all three of these renderings server-side, where the
+  // formatting actually happens — an example computed here could only agree with itself.
+  { value: "mm\\-ss", example: "23-45" },
 ];
 
 // Common separators; each label makes the literal whitespace visible.

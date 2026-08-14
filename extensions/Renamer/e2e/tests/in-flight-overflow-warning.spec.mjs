@@ -97,8 +97,8 @@ test("the in-flight path-overflow warning renders on the flagged dry-run row and
     JSON.stringify({
       FilenameTemplate: "$title",
       FolderTemplate: "",
-      DefaultDestination: DEST_DIR,
-      EnableDefaultRelocate: true,
+      // An explicit source-path rule routes SOURCE_DIR → DEST_DIR; there is no catch-all destination.
+      PathDestinations: [{ Pattern: SOURCE_DIR, Dest: DEST_DIR, IsRegex: false }],
       AllowedRoots: [SOURCE_DIR, DEST_DIR],
       FullPathMax: FULL_PATH_MAX,
     }),

@@ -882,14 +882,8 @@
               "$ref": "#/components/schemas/ExcludeRule"
             }
           },
-          "defaultDestination": {
-            "type": "string"
-          },
           "unorganizedDestination": {
             "type": "string"
-          },
-          "enableDefaultRelocate": {
-            "type": "boolean"
           },
           "freeSpaceHeadroomBytes": {
             "type": "integer",
