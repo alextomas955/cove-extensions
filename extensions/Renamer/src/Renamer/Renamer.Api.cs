@@ -903,7 +903,7 @@ public sealed partial class Renamer
                     // yielded an empty plan.
                     if (byId.TryGetValue(id, out var entity))
                     {
-                        var plan = await planner.PlanLoadedEntity(entity, options, lookups, ct);
+                        var plan = await planner.PlanLoadedEntityAsync(entity, options, lookups, ct);
                         aggregator.Fold(kind, plan, sizeByFileId);
                     }
 

@@ -320,7 +320,7 @@ public sealed class ScanLibraryEndpointTests
         {
             if (byId.TryGetValue(id, out var e))
             {
-                await planner.PlanLoadedEntity(e, options, lookups, default);
+                await planner.PlanLoadedEntityAsync(e, options, lookups, default);
             }
         }
 
