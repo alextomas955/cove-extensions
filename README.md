@@ -19,9 +19,6 @@ truth CI reads to compute its build matrix. The catalog currently ships:
 - **Renamer** ([`extensions/Renamer/`](extensions/Renamer/)) — bulk metadata-driven rename and
   relocate for a self-hosted Cove media library.
   [Docs](https://alextomas955.github.io/cove-extensions/extensions/renamer).
-- **WhisparrSync** ([`extensions/WhisparrSync/`](extensions/WhisparrSync/)) — connects a Cove
-  library to a [Whisparr](https://whisparr.com) acquisition pipeline.
-  [Docs](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync).
 
 This list grows as more entries are added to `extensions/catalog.json`.
 

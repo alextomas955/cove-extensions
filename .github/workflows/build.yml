@@ -15,10 +15,12 @@
 #
 # Required-check model: the `required-checks` aggregation job is the single
 # status check to mark required in branch protection; it transitively gates on `build` (bare C# unit
-# tier) and `e2e` (Playwright + the WhisparrSync node:test correctness tier — the containerized safety
-# backstop for the rollback/undo/ingest/loop-safety tests the bare leg Compile-Removes, since Cove.Data
-# is source-only and unavailable to CI). The cove-present C# tier is a required LOCAL pre-merge gate
-# (see .github/PULL_REQUEST_TEMPLATE.md). A "0 node specs found" now hard-fails, never passes silently.
+# tier) and `e2e` (Playwright + the optional per-extension node:test correctness tier — the
+# containerized safety backstop for the rollback/undo/ingest/loop-safety tests the bare leg
+# Compile-Removes, since Cove.Data is source-only and unavailable to CI). The cove-present C# tier is
+# a required LOCAL pre-merge gate (see .github/PULL_REQUEST_TEMPLATE.md). A "0 node specs found"
+# hard-fails, never passes silently — but the tier runs only for a catalog entry that declares
+# e2eNodeTestsPath, and no extension declares one today.
 
 name: Build and Release Extensions
 
@@ -346,13 +348,13 @@ jobs:
           fi
           echo "node:test tier: found ${#specs[@]} spec file(s)."
 
-      # The container-correctness tier: the extension's non-browser API/webhook/sync specs run against
-      # a real Whisparr container whose metadata source is a committed offline replay stub. It reads no
-      # repository secret — identities resolve through the stub and the Whisparr images are public — so
-      # it runs on fork pull requests, where secrets are never provided. The glob is required: `node
+      # The container-correctness tier: an extension's non-browser API/webhook/sync specs run against
+      # real containers whose external metadata source is a committed offline replay stub. It reads no
+      # repository secret — identities resolve through the stub and the images are public — so it runs
+      # on fork pull requests, where secrets are never provided. The glob is required: `node
       # --test <dir>` treats a bare directory as a module entry point on current Node and fails, so the
       # run must enumerate the spec files. Files run serially (--test-concurrency=1): each spec boots its
-      # own Cove + Whisparr + stub stack, and running them in parallel starves the runner's Docker host.
+      # own container stack, and running them in parallel starves the runner's Docker host.
       - name: Run node:test correctness tier (offline, no secret)
         id: node_tests
         if: steps.check.outputs.has_node_tests == 'true'
@@ -383,18 +385,19 @@ jobs:
 
   # ---- Required-check aggregation.
   # A single job to mark REQUIRED in branch protection on `main`. It transitively requires the bare C#
-  # unit tier (build) AND the containerized safety backstop (e2e: both Playwright projects + the
-  # WhisparrSync node:test correctness tier). This is the workflow-level lever that "makes e2e + the
-  # node tier required": before this phase nothing `needs:` the e2e job, so an e2e failure did not block
-  # a merge — now this gate fails whenever any matrix leg of build or e2e fails or is skipped-by-failure.
+  # unit tier (build) AND the containerized safety backstop (e2e: the Playwright projects plus the
+  # optional per-extension node:test correctness tier). This is the workflow-level lever that "makes
+  # e2e + the node tier required": before this phase nothing `needs:` the e2e job, so an e2e failure did
+  # not block a merge — now this gate fails whenever any matrix leg of build or e2e fails or is
+  # skipped-by-failure.
   #
   # WHY the e2e job (not a cove-present C# leg) is the required safety gate: Cove.Data / Cove.Core are
   # SOURCE-ONLY (not on nuget.org) and this repo's CI has no cove-repo checkout, so the rollback / undo /
   # ingest / loop-safety / NoMutation tests that are Compile-Removed from the bare leg cannot run as a C#
-  # job in CI. The e2e job exercises those same contracts against real Cove + Whisparr containers, so it
-  # is the required backstop here; the cove-present C# leg (`dotnet test` with the `../cove` sibling) is a
-  # REQUIRED LOCAL pre-merge gate documented in .github/PULL_REQUEST_TEMPLATE.md. If CI later gains cove
-  # source access, add a cove-present `dotnet test -p:UseLocalCoveSource=true` job and fold it into needs:.
+  # job in CI. The e2e job exercises those same contracts against real containers, so it is the required
+  # backstop here; the cove-present C# leg (`dotnet test` with the `../cove` sibling) is a REQUIRED LOCAL
+  # pre-merge gate documented in .github/PULL_REQUEST_TEMPLATE.md. If CI later gains cove source access,
+  # add a cove-present `dotnet test -p:UseLocalCoveSource=true` job and fold it into needs:.
   required-checks:
     needs: [validate, build, e2e]
     if: always()

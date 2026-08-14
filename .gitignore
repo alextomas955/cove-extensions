@@ -33,6 +33,5 @@ website/build/
 tests/e2e/docker/shared-media/
 
 # Local scratch/audit directories — never part of a release.
-.whisparr-audit/
 .bg-shell/
 .gsd/
