@@ -11,7 +11,12 @@
 import { useState } from "react";
 import { EntityReferenceValue } from "@cove/runtime/components";
 
-import { type RenamerOptions, type PathDestinationRule } from "./options";
+import {
+  toStringKeyed,
+  fromStringKeyed,
+  type RenamerOptions,
+  type PathDestinationRule,
+} from "./options";
 import {
   Field,
   TextInput,
@@ -29,7 +34,6 @@ import {
 } from "@cove-extensions/ui-shared";
 import { EntitySelectField } from "./EntitySelectField";
 import { StudioDestinationsEditor } from "./StudioMap";
-import { toStringKeyed, fromStringKeyed } from "./studioMapLogic";
 
 /** Strip one leading dot if present, then lowercase — the add-time transform for a sidecar extension. */
 function normalizeSidecarExtension(raw: string): string {

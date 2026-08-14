@@ -247,6 +247,40 @@ function numKeyStringMap(v: unknown): Record<number, string> {
   }
   return out;
 }
+// The key codec between a persisted destination map and the string-keyed map the reusable
+// `KeyValueMapEditor` works in. It lives beside `numKeyStringMap` because `fromStringKeyed` has to
+// agree with it entry for entry: a destination rule keys on the entity's stable id, and that id must
+// stay a NUMBER end to end so the persisted map is value-equal with the backend
+// `Record<number, string>`. Two files was one file too many for a rule that has to hold in both.
+
+/**
+ * Adapt a number-keyed destination map to the string-keyed shape `KeyValueMapEditor` consumes. JS
+ * object keys are strings regardless, so this is the explicit, typed crossing of that boundary rather
+ * than a silent cast.
+ */
+export function toStringKeyed(map: Record<number, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(map)) out[k] = v;
+  return out;
+}
+
+/**
+ * Adapt the editor's string-keyed map back to the backend `Record<number, string>`.
+ *
+ * Mirrors {@link numKeyStringMap} above: keep only entries whose key is an integer and whose value is
+ * a string, rebuilding a fresh plain object. A hand-edited/legacy blob can carry a non-integer key
+ * ("x", "1.5") — dropping it here yields a safe shape value-equal with that coercion rather than
+ * propagating a NaN key downstream.
+ */
+export function fromStringKeyed(map: Record<string, string>): Record<number, string> {
+  const out: Record<number, string> = {};
+  for (const [k, v] of Object.entries(map)) {
+    const n = Number(k);
+    if (Number.isInteger(n) && typeof v === "string") out[n] = v;
+  }
+  return out;
+}
+
 function pathDestinations(v: unknown): PathDestinationRule[] {
   return Array.isArray(v)
     ? v
