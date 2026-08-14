@@ -808,23 +808,42 @@ async function extract({ out, tag }) {
  * `import.meta.filename`, never a path read off a module URL's path component, for the same reason
  * `import.meta.dirname` is used above. Windows path casing is normalised because a drive letter
  * arrives in either case and a case-sensitive miss here would read as "not the entry point".
+ *
+ * Both sides are realpathed, and that is the whole reason this is not a plain compare of two resolved
+ * strings: Node realpaths the module URL and leaves process.argv[1] as the caller spelled it, so an
+ * invocation through a junction or a symlink — the shape this repository's documented worktree
+ * workflow uses — compared unequal, and the refusal below then did not fire on exactly the runtime and
+ * exactly the invocation that need it. Measured on v22.6.0 through a junction before the fix: zero
+ * output, exit 0.
  * </remarks>
  */
 function invokedAsScript() {
   const entry = process.argv[1];
   if (typeof entry !== "string" || entry === "") return false;
-  const normalise = (value) =>
-    process.platform === "win32" ? path.resolve(value).toLowerCase() : path.resolve(value);
-  return normalise(entry) === normalise(import.meta.filename);
+  const canonical = (value) => {
+    let resolved = path.resolve(value);
+    try {
+      resolved = fs.realpathSync.native(resolved);
+    } catch {
+      // Left as resolved: a path that cannot be realpathed is one that does not exist, and comparing
+      // the resolved form is no weaker than not comparing at all.
+    }
+    return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+  };
+  return canonical(entry) === canonical(import.meta.filename);
 }
 
 // `import.meta.main` is a boolean from Node 22.18 onward and `undefined` before it, so a bare
 // `if (import.meta.main)` takes the not-main branch on an older runtime: run as a CLI, this script
 // then prints nothing and exits 0. That is measured, not theorised — on v22.6.0, a version volta has
-// installed and `engines.node: ">=22"` admits, it produced zero bytes and exit 0. A script that does
-// nothing and reports success is worse than one that crashes, so the absent feature is refused BY NAME
-// instead of being tolerated. Raising the engines floor is plan 36-02's to make; this refusal is what
-// keeps the gap loud until then, and it stays correct afterwards.
+// installed, it produced zero bytes and exit 0. A script that does nothing and reports success is
+// worse than one that crashes, so the absent feature is refused BY NAME instead of being tolerated.
+//
+// The root package.json declares `engines.node: ">=22.18"`, which is the version this property became
+// a boolean, but that declaration is advice and not a gate: without engine-strict, npm prints
+// EBADENGINE and installs anyway, and a script run directly never consults it at all. The refusal is
+// therefore the enforcement, and deleting it as redundant would restore the silent no-op on a runtime
+// the declaration only asks contributors to avoid.
 //
 // Scoped to the CLI on purpose: the pure helpers this module exports work fine on an older Node, and
 // refusing at import time would break the e2e harness and this file's own tests for a feature only the
