@@ -2,7 +2,6 @@ import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
-import reactRefresh from "eslint-plugin-react-refresh";
 import prettier from "eslint-config-prettier";
 import importX from "eslint-plugin-import-x";
 import boundaries from "eslint-plugin-boundaries";
@@ -94,11 +93,9 @@ export default tseslint.config(
     },
     plugins: {
       "react-hooks": reactHooks,
-      "react-refresh": reactRefresh,
     },
     rules: {
       ...reactHooks.configs["recommended-latest"].rules,
-      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": noUnusedVars,
       // The UIs deliberately build strings from template tokens like `$title`; allow numbers/booleans
       // in template expressions rather than forcing String(...) everywhere.
@@ -130,11 +127,9 @@ export default tseslint.config(
     },
     plugins: {
       "react-hooks": reactHooks,
-      "react-refresh": reactRefresh,
     },
     rules: {
       ...reactHooks.configs["recommended-latest"].rules,
-      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": noUnusedVars,
       // overlay.ts uses the intentional "latest ref" pattern (writing optsRef.current during render
       // to keep the newest options without forcing a re-render); react-hooks/refs flags it. Whether
