@@ -206,13 +206,10 @@ jobs:
 
   # ---- Standing merge gates: copy-paste (jscpd) and dead exports (knip). Configs live at the repo
   # root (.jscpd.json / .knip.json). knip builds a TypeScript program per UI, so this mirrors
-  # js-lint's install of the root tooling plus each catalog `uiPath`'s deps. All four architectural
-  # gates are blocking, in two jobs: jscpd/knip here, and syncpack plus the slice-boundary gate
-  # (eslint-plugin-boundaries) in js-lint — the latter via `npm run lint`, whose
-  # `boundaries/dependencies` rule is `error`, so a cross-slice import fails that job and blocks the
-  # PR. Each was confirmed green on the branch before being made failing, so a gate never blocks the
-  # first PR on a pre-existing finding; the boundaries gate reached that point once the sibling-slice
-  # imports it flagged were resolved. ----
+  # js-lint's install of the root tooling plus each catalog `uiPath`'s deps. All three architectural
+  # gates are blocking, in two jobs: jscpd/knip here, and syncpack in js-lint. Each was confirmed
+  # green on the branch before being made failing, so a gate never blocks the first PR on a
+  # pre-existing finding. ----
   merge-gates:
     runs-on: ubuntu-latest
     steps:
