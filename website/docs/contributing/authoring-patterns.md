@@ -65,7 +65,7 @@ section its own folder only when it holds more than one file.
 ## Two levels of shared code
 
 "Shared" is reserved for **repo-level, cross-extension** code — the frontend package
-`shared/cove-extensions-ui` and the backend package `shared/Cove.Extensions.Shared`. A module earns a
+`shared/ui-shared` and the backend package `shared/Cove.Extensions.Shared`. A module earns a
 place there only by being business-agnostic and reusable by _every_ extension unchanged.
 
 The frontend package's `src/` is **flat**: `index.ts` sits beside `primitives.tsx`, `primitivesLogic.ts`,

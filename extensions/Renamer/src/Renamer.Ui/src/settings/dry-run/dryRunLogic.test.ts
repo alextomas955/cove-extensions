@@ -56,9 +56,13 @@ const SERVER_BUCKETS = [
 const WIRE_DOCUMENT = path.join(import.meta.dirname, "../../../../../wire/openapi.json");
 
 test("classifyItem agrees with ScanBucket.Of on every status the server can emit", () => {
-  const emitted = new Set(
-    JSON.parse(readFileSync(WIRE_DOCUMENT, "utf8")).components.schemas.RenamerStatus.enum,
-  );
+  // The enum path is spelled out as a type so the read is checked rather than riding on `any`. It
+  // describes only the one branch this test needs; a document that stopped carrying it yields
+  // undefined here and fails loudly on the next line instead of comparing an empty set.
+  const document = JSON.parse(readFileSync(WIRE_DOCUMENT, "utf8")) as {
+    components: { schemas: { RenamerStatus: { enum: string[] } } };
+  };
+  const emitted = new Set(document.components.schemas.RenamerStatus.enum);
   const tabled = new Set(SERVER_BUCKETS.map(([status]) => status));
   const untabled = [...emitted].filter((s) => !tabled.has(s));
   const retired = [...tabled].filter((s) => !emitted.has(s));
@@ -228,7 +232,7 @@ test("etaFromSamples is an EWMA of the rate; a warmed steady rate gives the plai
         { timeMs: 0, progress: 0.4 },
         { timeMs: 1000, progress: 0.5 },
         { timeMs: 2000, progress: 0.6 },
-      ]) - 4,
+      ])! - 4,
     ) < 1e-6,
   );
 

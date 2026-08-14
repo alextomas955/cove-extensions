@@ -1,4 +1,4 @@
-// Accessibility regression for the hand-rolled DIALOG-mode overlay (shared/cove-extensions-ui `useOverlayKeys`,
+// Accessibility regression for the hand-rolled DIALOG-mode overlay (shared/ui-shared `useOverlayKeys`,
 // `nav:"dialog"`) AS WIRED into Renamer's `common/ui/Dialog` (the DryRunModal shell) — recreating the a11y
 // proof that 53-03 ran but never committed. It drives the real primitive; it does NOT rebuild the trap.
 //

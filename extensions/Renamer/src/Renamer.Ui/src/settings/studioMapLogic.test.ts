@@ -28,6 +28,10 @@ test("a non-integer key is dropped rather than producing a NaN key", () => {
 });
 
 test("a non-string value is dropped on back-conversion", () => {
-  const back = fromStringKeyed({ 4: 12, 5: "/ok" });
+  // The number value is off-contract on purpose and the cast is what says so: the guard under test
+  // exists for a stored blob that a previous version or a hand edit left holding a non-string, which
+  // the declared parameter type cannot describe. Casting the input keeps the guard exercised; widening
+  // the signature would retire it.
+  const back = fromStringKeyed({ 4: 12, 5: "/ok" } as unknown as Record<string, string>);
   assert.deepEqual(back, { 5: "/ok" });
 });

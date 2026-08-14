@@ -19,8 +19,9 @@ import {
   buildRenameLibraryError,
   buildRenameLibrarySuccess,
 } from "./renameLibraryBannerLogic";
+import type { DryRunCounts } from "./dry-run/dryRunLogic";
 
-function counts(willChange, attention) {
+function counts(willChange: number, attention: number): DryRunCounts {
   return { willChange, attention, noChange: 0, scanned: willChange + attention };
 }
 

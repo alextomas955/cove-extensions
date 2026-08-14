@@ -19,10 +19,11 @@ import {
   advanceStallClock,
   decidePoll,
   nextFailureCount,
+  type PollContext,
 } from "./jobPollLogic";
 
 /** A context with room on both bounds, so each case below varies only what it is about. */
-function ctx(overrides) {
+function ctx(overrides: Partial<PollContext> = {}): PollContext {
   return {
     msSinceProgress: 0,
     consecutiveFailures: 0,
@@ -164,6 +165,11 @@ test("the shipped bounds are far enough out that a healthy run is never abandone
     `stall budget ${JOB_STALL_BUDGET_MS}ms would abandon a healthy run`,
   );
   assert.ok(
+    // The floor holds today, so the comparison is statically provable and the rule objects — but what
+    // it guards is a LATER edit that lowers the constant under the floor, which is precisely when the
+    // comparison stops being provable and this case earns its place. The sibling assertion above
+    // escapes the rule only because its constant is written as arithmetic rather than a literal.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     JOB_FAILURE_ALLOWANCE >= 5,
     `failure allowance ${JOB_FAILURE_ALLOWANCE} would end a run on a transient blip`,
   );

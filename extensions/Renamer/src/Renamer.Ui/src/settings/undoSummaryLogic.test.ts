@@ -10,6 +10,7 @@ import { test } from "vitest";
 import assert from "node:assert/strict";
 
 import { buildUndoStatus, RETENTION_WINDOW_MS, ticksToEpochMs } from "./undoSummaryLogic";
+import type { LastBatchSummary } from "../wire/api";
 
 // 2026-08-01T00:00:00Z as .NET ticks, transcribed rather than computed from the module: ticks are
 // 100ns since 0001-01-01, and 719162 days separate that date from the Unix epoch in the proleptic
@@ -21,7 +22,7 @@ const OPENED_MS = Date.UTC(2026, 7, 1);
 // change what this file expects.
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
-function summary(overrides) {
+function summary(overrides: Partial<LastBatchSummary> = {}): LastBatchSummary {
   return {
     hasBatch: true,
     count: 500,
@@ -43,6 +44,9 @@ test("the transcribed tick value is the moment this file says it is", () => {
 test("an untouched batch names how many items were renamed and when the undo expires", () => {
   const status = buildUndoStatus(summary(), OPENED_MS + 60_000);
 
+  // `null` is a real return here — its own case is below — so each dereferencing case says up front
+  // that it expects a line, and fails naming that rather than on a property of null.
+  assert.ok(status);
   assert.match(status.line, /500 items renamed/);
   assert.equal(status.remaining, 500);
   assert.equal(status.expired, false);
@@ -58,6 +62,7 @@ test("a partly restored batch states both figures so the reader subtracts nothin
     OPENED_MS + 60_000,
   );
 
+  assert.ok(status);
   assert.match(status.line, /497 of 500 restored/);
   assert.match(status.line, /3 remaining/);
   assert.equal(status.remaining, 3);
@@ -70,6 +75,7 @@ test("a batch holding files that can never come back says so", () => {
   );
 
   // 500 journalled, 2 gone for good, 3 outstanding — so 495 are actually back.
+  assert.ok(status);
   assert.match(status.line, /495 of 500 restored/);
   assert.match(status.line, /3 remaining/);
   assert.match(status.line, /2 could not be restored/);
@@ -86,6 +92,7 @@ test("a batch with nothing left produces no line at all", () => {
 test("a batch past its window is described as expired, never given a date in the past", () => {
   const status = buildUndoStatus(summary(), OPENED_MS + SEVEN_DAYS_MS + 1);
 
+  assert.ok(status);
   assert.equal(status.expired, true);
   assert.match(status.line, /undo expired/);
   assert.doesNotMatch(status.line, /undo available until/);
@@ -95,16 +102,18 @@ test("a batch past its window is described as expired, never given a date in the
 
 test("the last instant inside the window is still inside it", () => {
   // The boundary is where an off-by-one shows: a batch is dropped AT the window, not before it.
-  assert.equal(buildUndoStatus(summary(), OPENED_MS + SEVEN_DAYS_MS - 1).expired, false);
-  assert.equal(buildUndoStatus(summary(), OPENED_MS + SEVEN_DAYS_MS).expired, true);
+  assert.equal(buildUndoStatus(summary(), OPENED_MS + SEVEN_DAYS_MS - 1)!.expired, false);
+  assert.equal(buildUndoStatus(summary(), OPENED_MS + SEVEN_DAYS_MS)!.expired, true);
 });
 
 test("one item and one remaining read as singular", () => {
   const single = buildUndoStatus(summary({ count: 1, remainingCount: 1 }), OPENED_MS + 60_000);
+  assert.ok(single);
   assert.match(single.line, /1 item renamed/);
   assert.doesNotMatch(single.line, /1 items/);
 
   const oneLeft = buildUndoStatus(summary({ count: 4, remainingCount: 1 }), OPENED_MS + 60_000);
+  assert.ok(oneLeft);
   assert.match(oneLeft.line, /3 of 4 restored/);
   assert.match(oneLeft.line, /1 remaining/);
 });
