@@ -42,9 +42,11 @@ test("a move across a real filesystem boundary is refused safely while the desti
   const video = await seedVideo({ container: harness.container, baseUrl });
   const originalPath = video.files[0].path;
 
+  // An explicit source-path rule is what routes /data → /data2 here. Routing by rule rather than by a
+  // catch-all also means this spec drives the mechanism a real deployment uses; a catch-all destination
+  // no longer exists.
   const optionsBody = JSON.stringify({
-    DefaultDestination: "/data2",
-    EnableDefaultRelocate: true,
+    PathDestinations: [{ Pattern: "/data", Dest: "/data2", IsRegex: false }],
     AllowedRoots: ["/data", "/data2"],
   });
   const put = await api.put(`/api/extensions/${EXTENSION_ID}/data/options`, optionsBody);
@@ -134,16 +136,16 @@ test("a move across a real filesystem boundary is refused safely while the desti
       "the batch read back is not the one this move opened",
     ).toBeGreaterThan(batchAfterRefusal.json.writtenAtUtcTicks);
   } finally {
-    // This test PUTs GLOBAL Renamer options (EnableDefaultRelocate + DefaultDestination + AllowedRoots)
-    // into the Cove instance, which is SHARED across every sibling spec on the same Playwright worker.
-    // Restore the defaults so a later spec that relies on the un-routed source-confine path — notably
-    // rename-ui-coverage's folder-template relocate, which needs empty AllowedRoots + default-relocate
-    // OFF to stay within /data — is not silently routed cross-device (/data2), skipped as an EXDEV move,
-    // and left un-renamed. Mirrors core-paths.spec.mjs restoring its template. In `finally` so a failed
-    // assertion above still cannot leak routing state into the next test.
+    // This test PUTs GLOBAL Renamer options (PathDestinations + AllowedRoots) into the Cove instance,
+    // which is SHARED across every sibling spec on the same Playwright worker. Restore the defaults so a
+    // later spec that relies on the un-routed source-confine path — notably rename-ui-coverage's
+    // folder-template relocate, which needs empty AllowedRoots and no /data rule to stay within /data —
+    // is not silently routed cross-device (/data2), skipped as an EXDEV move, and left un-renamed.
+    // Mirrors core-paths.spec.mjs restoring its template. In `finally` so a failed assertion above still
+    // cannot leak routing state into the next test.
     await api.put(
       `/api/extensions/${EXTENSION_ID}/data/options`,
-      JSON.stringify({ AllowedRoots: [], EnableDefaultRelocate: false, DefaultDestination: "" }),
+      JSON.stringify({ AllowedRoots: [], PathDestinations: [] }),
     );
   }
 });

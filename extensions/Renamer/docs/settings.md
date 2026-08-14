@@ -81,18 +81,19 @@ Both are multi-value lists shaped by the same options (a few apply to performers
 
 Renamer decides where each item goes by checking rules in a fixed **precedence order**:
 
-> **Excludes → Unorganized → Tag → Studio (including parent studios) → Source path → Default**
+> **Excludes → Unorganized → Tag → Studio (including parent studios) → Source path**
 
 Within a category the first matching rule (in your order) wins; excludes always run first. The
 order of the cards below in the UI is for convenience and does not change this precedence.
 
-### Default & unorganized destinations
+An item that matches no rule at all is renamed where it already sits — Renamer never moves it
+somewhere else. To move a group of items, give them a rule.
 
-| Setting                                             | What it does                                                                                                                                                     | Default   |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| Default destination                                 | The root folder for an item that matched no other rule. Honored **only** when _Relocate unmatched items_ is on.                                                  | _(blank)_ |
-| Unorganized destination                             | The route for items whose _Organized_ flag is off (resolved before tag/studio/path). Overrides _Only rename organized items_ for those items.                    | _(blank)_ |
-| Relocate unmatched items to the default destination | Hard gate for default-relocate. Ships **off** — it has whole-library reach, so the [dry run](./guide#preview-with-a-dry-run) is the check before you turn it on. | Off       |
+### Unorganized destination
+
+| Setting                 | What it does                                                                                                                                  | Default   |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| Unorganized destination | The route for items whose _Organized_ flag is off (resolved before tag/studio/path). Overrides _Only rename organized items_ for those items. | _(blank)_ |
 
 ### Per-studio and per-tag destinations
 

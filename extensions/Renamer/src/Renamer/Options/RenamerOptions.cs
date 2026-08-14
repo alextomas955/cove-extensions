@@ -434,13 +434,6 @@ public sealed record RenamerOptions
     public List<ExcludeRule> ExcludePaths { get; init; } = [];
 
     /// <summary>
-    /// Default destination: the absolute root for an item that matched NO rule. Honored ONLY when
-    /// <see cref="EnableDefaultRelocate"/> is <c>true</c> (a hard gate). Default <c>""</c> = no
-    /// default route.
-    /// </summary>
-    public string DefaultDestination { get; init; } = "";
-
-    /// <summary>
     /// Unorganized destination: the route for an item whose <c>Organized</c> flag is false. Resolved
     /// at the unorganized precedence slot (before the tag/studio/path cascade), so an unorganized item
     /// routes here rather than being skipped. Default <c>""</c> = no unorganized route.
@@ -451,15 +444,6 @@ public sealed record RenamerOptions
     /// </para>
     /// </summary>
     public string UnorganizedDestination { get; init; } = "";
-
-    /// <summary>
-    /// Hard-gate flag: default-relocate of an UNMATCHED item to <see cref="DefaultDestination"/> is
-    /// enabled ONLY when this is <c>true</c>. It ships <c>false</c> and STAYS disabled until
-    /// volume-aware undo is delivered — because a runaway default-relocate has whole-library blast
-    /// radius and undo is the only recovery. The resolver enforces this as a code path (the off branch
-    /// returns SourceConfine), not merely a config default.
-    /// </summary>
-    public bool EnableDefaultRelocate { get; init; }
 
     /// <summary>
     /// Free-space safety margin: the number of bytes left FREE on each destination volume
@@ -539,9 +523,7 @@ public sealed record RenamerOptions
         yield return StructuralEquality.Sequence(ExcludeTagIds);
         yield return StructuralEquality.Sequence(ExcludeStudioIds);
         yield return StructuralEquality.Sequence(ExcludePaths);
-        yield return DefaultDestination;
         yield return UnorganizedDestination;
-        yield return EnableDefaultRelocate;
         yield return FreeSpaceHeadroomBytes;
         yield return CrossVolumeConcurrency;
         yield return SameVolumeConcurrency;
