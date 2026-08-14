@@ -1,7 +1,13 @@
+using System.Data.Common;
 using System.Text;
 using Cove.Core.Auth;
+using Cove.Data;
 using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.Execution;
@@ -139,23 +145,7 @@ public sealed class PreviewEndpointTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            string folderPath = dir.Root.Replace('\\', '/');
-
-            // One folder for all four: folders.Path is unique, so a second SeedVideoAsync against the
-            // same path violates it. Same shape ParallelBatchTests uses to build a multi-entity batch.
-            var (folderId, firstId, _) = await ExecutorTestSeed.SeedVideoAsync(
-                db, folderPath, "raw 0.mkv", "Film 0");
-            File.WriteAllText(Path.Combine(dir.Root, "raw 0.mkv"), "bytes-0");
-            List<int> ids = [firstId];
-            for (int i = 1; i < 4; i++)
-            {
-                var video = new Cove.Core.Entities.Video { Title = $"Film {i}", Organized = true };
-                db.Set<Cove.Core.Entities.Video>().Add(video);
-                await db.SaveChangesAsync();
-                await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, video.Id, $"raw {i}.mkv");
-                File.WriteAllText(Path.Combine(dir.Root, $"raw {i}.mkv"), $"bytes-{i}");
-                ids.Add(video.Id);
-            }
+            var ids = await SeedVideosAsync(db, dir, count: 4);
 
             var ext = await BuildExtensionAsync();
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
@@ -180,6 +170,115 @@ public sealed class PreviewEndpointTests
         {
             await db.DisposeAsync();
             await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Seeds <paramref name="count"/> single-file videos ("Film {i}" / "raw {i}.mkv") and returns their
+    /// entity ids in seeded order.
+    /// </summary>
+    /// <remarks>
+    /// One folder for all of them: <c>folders.Path</c> is unique, so a second <c>SeedVideoAsync</c>
+    /// against the same path violates it. Same shape ParallelBatchTests uses to build a multi-entity
+    /// batch. Each file is also written to disk because preview probes the source, and a gone source
+    /// classifies as SkipMissingSource instead of a real rename.
+    /// </remarks>
+    private static async Task<List<int>> SeedVideosAsync(CoveContext db, TempDir dir, int count)
+    {
+        string folderPath = dir.Root.Replace('\\', '/');
+        var (folderId, firstId, _) = await ExecutorTestSeed.SeedVideoAsync(
+            db, folderPath, "raw 0.mkv", "Film 0");
+        File.WriteAllText(Path.Combine(dir.Root, "raw 0.mkv"), "bytes-0");
+
+        List<int> ids = [firstId];
+        for (int i = 1; i < count; i++)
+        {
+            var video = new Cove.Core.Entities.Video { Title = $"Film {i}", Organized = true };
+            db.Set<Cove.Core.Entities.Video>().Add(video);
+            await db.SaveChangesAsync();
+            await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, video.Id, $"raw {i}.mkv");
+            File.WriteAllText(Path.Combine(dir.Root, $"raw {i}.mkv"), $"bytes-{i}");
+            ids.Add(video.Id);
+        }
+
+        return ids;
+    }
+
+    /// <summary>Records the SQL of every executed reader command, so a test can recognise one query by its own text.</summary>
+    private sealed class ReaderTextRecorder : DbCommandInterceptor
+    {
+        public List<string> Texts { get; } = [];
+
+        public override ValueTask<DbDataReader> ReaderExecutedAsync(
+            DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken ct = default)
+        {
+            Texts.Add(command.CommandText);
+            return ValueTask.FromResult(result);
+        }
+
+        public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result)
+        {
+            Texts.Add(command.CommandText);
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// A preview of N entities loads each of them ONCE — the blast-radius file sizes come off the entity
+    /// the planner already loaded, never off a second identical multi-<c>Include</c> read per id.
+    /// </summary>
+    /// <remarks>
+    /// The handler builds its own <c>CoveRenamerDataPort</c> from the <c>DbContext</c> it is handed, so
+    /// there is no port seam to count calls on (unlike the batch path's <c>PhaseALoadOnceTests</c>). The
+    /// count is taken at the database instead, and the per-load command count is CALIBRATED from a real
+    /// <c>LoadEntityAsync</c> in this same test rather than assumed to be one: how many reader commands
+    /// EF renders an Include chain into is EF's decision, and hard-coding today's answer would make this
+    /// pin fail on a provider change that is not the regression it exists to catch.
+    /// </remarks>
+    [Fact]
+    public async Task PreviewAsync_LoadsEachSelectedEntityExactlyOnce()
+    {
+        using var dir = new TempDir();
+        var recorder = new ReaderTextRecorder();
+        var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        try
+        {
+            var options = new DbContextOptionsBuilder<CoveContext>()
+                .UseSqlite(connection)
+                .AddInterceptors(recorder)
+                .Options;
+            await using var db = new CoveContext(options, principalAccessor: null);
+            await db.Database.EnsureCreatedAsync();
+
+            var ids = await SeedVideosAsync(db, dir, count: 3);
+
+            // Calibrate against the real load: whatever SQL texts ONE LoadEntityAsync issues are the
+            // texts an entity load is recognised by below, and how many it issues is the per-load cost.
+            var port = new CoveRenamerDataPort(db);
+            recorder.Texts.Clear();
+            await port.LoadEntityAsync(RenamerFileKind.Video, ids[0]);
+            var loadTexts = recorder.Texts.ToHashSet(StringComparer.Ordinal);
+            int perLoad = recorder.Texts.Count;
+            Assert.True(perLoad > 0, "calibration issued no reader command — the count below would be vacuous");
+
+            var ext = await BuildExtensionAsync();
+            var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
+
+            recorder.Texts.Clear();
+            var result = await ext.PreviewAsync(
+                new global::Renamer.Api.RenamerRequest("video", [.. ids]), db, principal, default);
+
+            // Name the outcome: a 403 or a 400 would issue no load at all and satisfy a bare count.
+            var ok = Assert.IsType<WireJson<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
+            Assert.Equal(ids.Count, ok.Value!.Items.Count);
+
+            int loadCommands = recorder.Texts.Count(text => loadTexts.Contains(text));
+            Assert.Equal(perLoad * ids.Count, loadCommands);
+        }
+        finally
+        {
+            await connection.DisposeAsync();
         }
     }
 }
