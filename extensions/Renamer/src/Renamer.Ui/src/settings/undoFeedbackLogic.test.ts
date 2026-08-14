@@ -15,8 +15,9 @@ import { test } from "vitest";
 import assert from "node:assert/strict";
 
 import { buildUndoFeedback } from "./undoFeedbackLogic";
+import type { UndoEntryError, UndoResult } from "../wire/api";
 
-function undo(overrides) {
+function undo(overrides: Partial<UndoResult> = {}): UndoResult {
   return {
     undone: 0,
     failedCount: 0,
@@ -29,7 +30,7 @@ function undo(overrides) {
   };
 }
 
-function stop(fileId, reason) {
+function stop(fileId: number, reason: string): UndoEntryError {
   return {
     fileId,
     oldPath: `/lib/raw ${fileId}.mkv`,

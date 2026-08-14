@@ -29,8 +29,14 @@
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
       "lucide-react": ["./node_modules/lucide-react"],
       "vite": ["./node_modules/vite/dist/node/index.d.ts"],
+      "vitest": ["./node_modules/vitest"],
       "@vitejs/plugin-react": ["./node_modules/@vitejs/plugin-react/dist/index.d.ts"]
     }
   },
-  "include": ["src", "vite.config.ts"]
+  // The shared package's own suite is type-checked from here for the same reason it RUNS from here
+  // (see vite.config.ts): that package is consumed as raw source through an alias, so it has no
+  // node_modules and no react/vitest/node types of its own to check against. Its src/ arrives in this
+  // program anyway, pulled in transitively by the barrel alias above — but its test files are
+  // imported by nothing, so without this entry they are the only UI tests tsc never sees.
+  "include": ["src", "vite.config.ts", "../../../../shared/ui-shared/src/**/*.test.ts"]
 }

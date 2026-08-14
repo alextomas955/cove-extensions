@@ -20,7 +20,7 @@ export default defineConfig({
         test: {
           name: "renamer-ui",
           root: __dirname,
-          include: ["src/**/*.test.mjs"],
+          include: ["src/**/*.test.ts"],
           environment: "node",
         },
       },
@@ -29,7 +29,7 @@ export default defineConfig({
         test: {
           name: "ui-shared",
           root: sharedUiRoot,
-          include: ["src/**/*.test.mjs"],
+          include: ["src/**/*.test.ts"],
           environment: "node",
         },
       },
