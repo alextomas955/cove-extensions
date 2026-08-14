@@ -28,7 +28,7 @@ import {
   seedVideo,
   createApiClient,
 } from "../lib/renamer-fixtures.mjs";
-import { VideosPage } from "@cove-extensions/e2e/pages/videos-page";
+import { RenamerVideosPage } from "../lib/pages/renamer-videos-page.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 import { assertRenamedTo } from "../lib/rename-assertions.mjs";
 
@@ -84,7 +84,7 @@ test("setting a folder template through the UI relocates a renamed file to the e
   // Everything past the template mutation runs under try/finally, so the reset below does not
   // depend on every assertion above it having passed.
   try {
-    const videosPage = new VideosPage(page, baseUrl);
+    const videosPage = new RenamerVideosPage(page, baseUrl);
     await videosPage.goto();
     // Select by filename BEFORE setting a Title: the card's accessible name follows the title once set.
     await videosPage.selectCard(originalFilename);
