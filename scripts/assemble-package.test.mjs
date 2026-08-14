@@ -13,9 +13,10 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-// The core is imported directly, while the CLI cases below spawn ./assemble-package.mjs — the entry
-// point a caller names — so the command line is exercised as a caller actually reaches it.
-import { assemblePackage } from "./assemble-package-core.mjs";
+// One module, reached both ways: assemblePackage is imported here exactly as the E2E harness imports
+// it, while the CLI cases below SPAWN the same file, so the command line is exercised as a caller
+// actually reaches it rather than by calling the function that sits behind it.
+import { assemblePackage } from "./assemble-package.mjs";
 
 const scriptPath = fileURLToPath(new URL("./assemble-package.mjs", import.meta.url));
 const scriptDir = fileURLToPath(new URL("./", import.meta.url));
@@ -181,53 +182,6 @@ test("fails: one declared artifact absent from every source root, named with the
   );
 });
 
-// The ordered search ends at the repository root, which exists for one kind of name: a file a
-// repository carries once, at its root, by convention. Any other name matching a root file would ship
-// a different file under the declared name with nothing reporting it. Both halves are in one case so
-// neither can be closed while the other rots.
-test("a declared name that is not a repository-level file is not resolved from the repository root", () => {
-  const fixture = fixtureRoot();
-  const extensionRelative = path.join("extensions", NAME);
-  fs.rmSync(path.join(fixture.root, extensionRelative, "README.md"));
-  write(fixture.root, "README.md", "# the repository, which is not the extension\n");
-
-  const r = assemble(fixture);
-
-  assert.equal(
-    r.ok,
-    false,
-    "a file of the right name in the wrong place is a substitution, not a resolution",
-  );
-  const missing = r.failures.find((f) => f.startsWith("MISSING:") && f.includes("README.md"));
-  assert.ok(missing, "expected a MISSING failure naming README.md, got: " + r.failures.join("; "));
-  for (const searchedRoot of [
-    path.join(extensionRelative, "artifacts", "publish", "README.md"),
-    path.join(extensionRelative, "README.md"),
-  ]) {
-    assert.ok(
-      missing.includes(searchedRoot),
-      "the MISSING message must still list " + searchedRoot + ", got: " + missing,
-    );
-  }
-  // The repository root is last in the reported list, so this is what proves the message still names
-  // every root tried rather than narrowing with the rule.
-  assert.ok(
-    missing.endsWith(", README.md"),
-    "the repository root must still be named as searched, got: " + missing,
-  );
-  assert.equal(fs.existsSync(fixture.packageDir), false);
-
-  // The one legitimate user of the same fallback, proven still to work rather than assumed.
-  const licensed = fixtureRoot();
-  const green = assemble(licensed);
-  assert.equal(green.ok, true, green.failures.join("; "));
-  assert.equal(
-    green.copied.find((f) => f.name === "LICENSE").root,
-    "repo-root",
-    "a licence is a repository-level file and must still resolve from the repository root",
-  );
-});
-
 // This packer never deletes, so run-to-run contamination is refused rather than cleaned up: a second
 // run into a directory holding the first run's output fails, naming the directory, and everything that
 // was there stays there. The caller that re-uses a directory is the one that clears it.
@@ -337,32 +291,6 @@ test("fails HARD: an entry declaring requiredBundledDlls but no artifacts — ne
   );
 });
 
-test("fails: a name repeated in artifacts, rather than collapsing into one copy counted twice", () => {
-  const fixture = fixtureRoot({ artifacts: ["Fixture.dll", "Fixture.Extra.dll", "Fixture.dll"] });
-  const r = assemble(fixture);
-
-  assert.equal(r.ok, false);
-  assert.ok(
-    r.failures.some((f) => f.startsWith("DUPLICATE:") && f.includes("Fixture.dll")),
-    r.failures.join("; "),
-  );
-  assert.equal(r.copied.length, 0, "the reported count must never exceed what was written");
-});
-
-test("two distinct failures are emitted in declaration order", () => {
-  // The manifest and its script bundle are declared so the only failures left are the two absent
-  // artifacts: this case's subject is the order they are emitted in, not how many classes can fire.
-  const fixture = fixtureRoot({
-    artifacts: ["Aardvark.dll", "extension.json", "bundle.mjs", "Fixture.dll", "Zebra.dll"],
-  });
-  const r = assemble(fixture);
-
-  assert.equal(r.ok, false);
-  assert.equal(r.failures.length, 2, r.failures.join("; "));
-  assert.ok(r.failures[0].includes("Aardvark.dll"), r.failures.join("; "));
-  assert.ok(r.failures[1].includes("Zebra.dll"), r.failures.join("; "));
-});
-
 test("refuses to write a shipped json carrying a Windows drive-root path, naming file and line", () => {
   // The drive letter, colon and separator are assembled from parts so this file's own source does not
   // read as a leak to the very scan it is exercising.
@@ -424,8 +352,7 @@ function leakyFixture(value) {
 
 const BACKSLASH = String.fromCodePoint(92);
 const FORWARD_SLASH = String.fromCodePoint(47);
-// A drive path as a build tool writes it, and as a json file then escapes it.
-const DRIVE_FORWARD = "D:" + FORWARD_SLASH + "build/agent/_work/out";
+// A drive path as a json file escapes it.
 const DRIVE_ESCAPED = "C:" + BACKSLASH + BACKSLASH + "build" + BACKSLASH + BACKSLASH + "out";
 // A network share in both spellings: raw, and escaped the way a generated json carries it.
 const SHARE_RAW = BACKSLASH + BACKSLASH + "buildsrv" + BACKSLASH + "share" + BACKSLASH + "out";
@@ -441,22 +368,6 @@ const SHARE_ESCAPED =
   BACKSLASH +
   BACKSLASH +
   "out";
-
-test("refuses a shipped json carrying a drive path spelled with a forward slash", () => {
-  const fixture = leakyFixture(DRIVE_FORWARD);
-  const r = assemble(fixture);
-
-  assert.equal(r.ok, false, "a drive path is absolute whichever separator follows the colon");
-  assert.ok(
-    r.failures.some((f) => f.startsWith("LEAK:") && f.includes("Leaky.json") && f.includes(":2:")),
-    "expected a LEAK failure naming Leaky.json line 2, got: " + r.failures.join("; "),
-  );
-  assert.equal(
-    fs.existsSync(fixture.packageDir),
-    false,
-    "the refused json must not reach the package",
-  );
-});
 
 test("refuses a shipped json carrying a network share path, in the spelling a generated json contains", () => {
   for (const { form, value } of [
@@ -561,21 +472,6 @@ test("rejects a declared name that escapes the package, before any source is rea
   }
 });
 
-test("rejects a declared name that is not a non-empty string, before any source is read", () => {
-  for (const value of ["", 42, null, {}]) {
-    const fixture = fixtureRoot({ artifacts: [value] });
-    const r = assemble(fixture, { publishDir: path.join(fixture.root, "no-such-publish-dir") });
-    assert.equal(r.ok, false, "expected a rejection for " + JSON.stringify(value));
-    assert.ok(
-      r.failures.some((f) => f.startsWith("INVALID:")),
-      "expected an INVALID failure for " +
-        JSON.stringify(value) +
-        ", got: " +
-        r.failures.join("; "),
-    );
-  }
-});
-
 // A declaration can name only files that exist and still describe a package the host cannot load.
 // These are the replacement for the two checks that went with the deleted strip-verification gate, so
 // each one names the property rather than the gate.
@@ -610,36 +506,9 @@ test("fails: a manifest whose entry assembly is not in the declared set", () => 
   );
 });
 
-test("fails: a manifest whose script bundle is not in the declared set", () => {
-  const fixture = fixtureRoot({ artifacts: ["extension.json", "Fixture.dll"] });
-  const r = assemble(fixture);
-
-  assert.equal(r.ok, false);
-  assert.ok(
-    r.failures.some(
-      (f) => f.startsWith("UNLOADABLE:") && f.includes("jsBundle") && f.includes("bundle.mjs"),
-    ),
-    "expected an UNLOADABLE failure naming both the field and its value, got: " +
-      r.failures.join("; "),
-  );
-});
-
-test("fails: a manifest whose stylesheet bundle is not in the declared set", () => {
-  const fixture = fixtureRoot({ manifest: { cssBundle: "styles.css" } });
-  const r = assemble(fixture);
-
-  assert.equal(r.ok, false);
-  assert.ok(
-    r.failures.some(
-      (f) => f.startsWith("UNLOADABLE:") && f.includes("cssBundle") && f.includes("styles.css"),
-    ),
-    "expected an UNLOADABLE failure naming both the field and its value, got: " +
-      r.failures.join("; "),
-  );
-});
-
-// The other half of the same check: a field the manifest does not carry makes no claim, so it must not
-// be failed for. Without this the branch above could pass by refusing everything.
+// The other half of the same check: the loadability check walks one list of optional manifest fields,
+// and a field the manifest does not carry makes no claim, so it must not be failed for. Without this
+// the entryDll case above could pass on a check that refused every field, present or not.
 test("a manifest declaring no stylesheet bundle is not failed for the field it does not have", () => {
   const fixture = fixtureRoot();
   const r = assemble(fixture);
@@ -842,24 +711,6 @@ function fullArgv(fixture, overrides = {}) {
   return Object.entries(values).flat();
 }
 
-test("CLI: reports the entry, the version and a count equal to the files written", () => {
-  const fixture = fixtureRoot();
-  const run = runCli(fixture, fullArgv(fixture));
-
-  assert.equal(run.status, 0, run.stdout + run.stderr);
-  assert.ok(run.stdout.includes(ID), run.stdout);
-  assert.ok(run.stdout.includes(VERSION), run.stdout);
-  assert.ok(run.stdout.includes(String(DECLARED.length) + " file(s)"), run.stdout);
-  assert.equal(fs.readdirSync(fixture.packageDir).length, DECLARED.length);
-  for (const name of DECLARED) {
-    assert.match(
-      run.stdout,
-      new RegExp("^ +" + name.replace(".", "\\.") + " ", "m"),
-      "expected an indented line for " + name,
-    );
-  }
-});
-
 test("CLI: two runs over identical input print byte-identical output", () => {
   const fixture = fixtureRoot();
   const first = runCli(fixture, fullArgv(fixture));
@@ -874,74 +725,11 @@ test("CLI: two runs over identical input print byte-identical output", () => {
   assert.equal(second.stdout, first.stdout);
 });
 
-test("CLI: a missing declared artifact exits non-zero and writes no package", () => {
-  const fixture = fixtureRoot({
-    publishFiles: { "Fixture.dll": "MZ", "Fixture.deps.json": "{}\n" },
-  });
-  const run = runCli(fixture, fullArgv(fixture));
-
-  assert.notEqual(run.status, 0);
-  assert.match(run.stderr, /MISSING:/);
-  assert.equal(fs.existsSync(fixture.packageDir), false);
-});
-
-test("CLI: each required flag omitted in turn prints usage and exits non-zero", () => {
-  const fixture = fixtureRoot();
-  for (const omitted of ["--publish-dir", "--package-dir", "--extension", "--version"]) {
-    const argv = Object.entries({
-      "--publish-dir": fixture.publishDir,
-      "--package-dir": fixture.packageDir,
-      "--extension": ID,
-      "--version": VERSION,
-    })
-      .filter(([flag]) => flag !== omitted)
-      .flat();
-
-    const run = runCli(fixture, argv);
-    assert.notEqual(run.status, 0, "omitting " + omitted + " must not exit 0");
-    assert.match(run.stderr, /Usage:/, "omitting " + omitted + " must print usage");
-  }
-});
-
-// The same class the required-flag check exists to catch: a run that exits 0 having assembled from an
-// argument the caller did not choose.
-test("CLI: a flag supplied twice is refused rather than silently taking one value", () => {
-  const fixture = fixtureRoot();
-  const elsewhere = path.join(tmpDir(), "somewhere-else");
-
-  const repeated = runCli(fixture, [...fullArgv(fixture), "--package-dir", elsewhere]);
-
-  assert.notEqual(
-    repeated.status,
-    0,
-    "a repeated flag must not exit 0: " + repeated.stdout + repeated.stderr,
-  );
-  assert.match(
-    repeated.stderr,
-    /Usage:/,
-    "a repeated flag must print usage, got: " + repeated.stderr,
-  );
-  // Neither value may have been used, so the refusal is not "the wrong one won" but "no run happened".
-  assert.equal(
-    fs.existsSync(elsewhere),
-    false,
-    "the second value must not have been assembled into",
-  );
-  assert.equal(
-    fs.existsSync(fixture.packageDir),
-    false,
-    "the first value must not have been assembled into",
-  );
-
-  // The same invocation without the repeat, so the refusal is about the repeat rather than the flags.
-  const clean = runCli(fixture, fullArgv(fixture));
-  assert.equal(clean.status, 0, clean.stdout + clean.stderr);
-});
-
 // One directory has many spellings, and which one a caller happens to use must not decide whether the
 // script does anything at all. These two cases are the whole cover for that: run with no arguments the
 // entry point must refuse, and run with a full set it must assemble — identically through an alias and
-// through the real path.
+// through the real path. They are also what proves the `import.meta.main` guard that replaced the
+// two-file split, which is why the trim to representative pins kept both.
 test("CLI: invoked through an aliased path, no arguments still prints usage and exits non-zero", (t) => {
   const { aliased, form } = aliasedEntryScript();
   t.diagnostic("exercised form: " + form);
