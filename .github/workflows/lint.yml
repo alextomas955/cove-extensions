@@ -195,55 +195,12 @@ jobs:
       - name: ESLint (whole monorepo)
         run: npm run lint
 
-      # Dependency-version drift (.syncpackrc.json). It lives here rather than in merge-gates because
-      # it needs only the root install this job already did, and because a local hook would not be a
-      # gate — lefthook is silently absent whenever npm withholds its install script, and only a check
-      # a workflow runs can block a merge. Its `source` globs, not npm workspace discovery, decide the
+      # Dependency-version drift (.syncpackrc.json), and the one standing architectural gate this repo
+      # still runs. It lives in this job because it needs only the root install already done above, and
+      # it lives in a workflow rather than in lefthook because a local hook would not be a gate —
+      # lefthook is silently absent whenever npm withholds its install script, and only a check a
+      # workflow runs can block a merge. Its `source` globs, not npm workspace discovery, decide the
       # subject set: discovery reads the root plus the two e2e workspaces and would silently skip every
       # UI bundle and the docs site.
       - name: syncpack (dependency-version drift)
         run: npm run syncpack
-
-  # ---- Standing merge gates: copy-paste (jscpd) and dead exports (knip). Configs live at the repo
-  # root (.jscpd.json / .knip.json). knip builds a TypeScript program per UI, so this mirrors
-  # js-lint's install of the root tooling plus each catalog `uiPath`'s deps. All three architectural
-  # gates are blocking, in two jobs: jscpd/knip here, and syncpack in js-lint. Each was confirmed
-  # green on the branch before being made failing, so a gate never blocks the first PR on a
-  # pre-existing finding. ----
-  merge-gates:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "24.11.0"
-      # Full install (root + the e2e workspaces) so knip can resolve the Playwright/testcontainers/
-      # @cove-extensions/e2e imports in the e2e specs; --no-workspaces would leave them unresolved.
-      - name: Install root gate tooling + workspaces
-        run: npm ci
-      - name: Install each extension's UI deps (knip TypeScript program inputs)
-        shell: bash
-        run: |
-          mapfile -t uiPaths < <(node -e '
-            const fs = require("fs");
-            const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
-            for (const entry of catalog.extensions) {
-              if (entry.uiPath) console.log(entry.uiPath);
-            }
-          ')
-          for ui in "${uiPaths[@]}"; do
-            echo "::group::npm ci $ui"
-            (cd "$ui" && npm ci)
-            echo "::endgroup::"
-          done
-      # Same reason as js-lint's copy: knip builds a TypeScript program per UI, and .knip.json names
-      # each UI's generated wire module as an entry — which on a fresh checkout points at a file that
-      # does not exist. The run treats that as an error rather than a hint, so skipping this step turns
-      # the gate red instead of leaving it green over a program it could not fully resolve.
-      - name: Generate wire types
-        run: node scripts/generate-wire-types.mjs
-
-      - name: knip (dead files / exports / dependencies)
-        run: npm run knip
-      - name: jscpd (copy-paste)
-        run: npm run jscpd
