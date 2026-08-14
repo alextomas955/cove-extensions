@@ -77,36 +77,40 @@ test("setting a folder template through the UI relocates a renamed file to the e
   await settingsPage.setFolderTemplate(folder);
   await settingsPage.save();
 
-  const videosPage = new VideosPage(page, baseUrl);
-  await videosPage.goto();
-  // Select by filename BEFORE setting a Title: the card's accessible name follows the title once set.
-  await videosPage.selectCard(originalFilename);
+  // Everything past the template mutation runs under try/finally, so the reset below does not
+  // depend on every assertion above it having passed.
+  try {
+    const videosPage = new VideosPage(page, baseUrl);
+    await videosPage.goto();
+    // Select by filename BEFORE setting a Title: the card's accessible name follows the title once set.
+    await videosPage.selectCard(originalFilename);
 
-  const setTitle = await api.put(`/api/videos/${video.id}`, { Title: title });
-  expect(setTitle.ok).toBe(true);
+    const setTitle = await api.put(`/api/videos/${video.id}`, { Title: title });
+    expect(setTitle.ok).toBe(true);
 
-  await videosPage.renameSelected();
+    await videosPage.renameSelected();
 
-  const newPath = await assertRenamedTo({
-    api,
-    container: harness.container,
-    videoId: video.id,
-    expectedBasename,
-    originalPath,
-  });
-  // assertRenamedTo proves the basename + that the DB path exists on disk and the old path is gone;
-  // the folder-relocation claim needs the FULL path pinned, or a move to the wrong (but existing)
-  // folder would slip through.
-  expect(newPath, "renamed file must land in the exact folder the template computed").toBe(
-    expectedFullPath,
-  );
-
-  // Reset templates so the folder move + "$title" naming do not leak into a sibling test sharing this
-  // worker's Cove instance (mirrors core-paths.spec.mjs's cleanup).
-  await settingsPage.goto();
-  await settingsPage.setFilenameTemplate("{$date - }$title{ [$resolution]}");
-  await settingsPage.setFolderTemplate("");
-  await settingsPage.save();
+    const newPath = await assertRenamedTo({
+      api,
+      container: harness.container,
+      videoId: video.id,
+      expectedBasename,
+      originalPath,
+    });
+    // assertRenamedTo proves the basename + that the DB path exists on disk and the old path is gone;
+    // the folder-relocation claim needs the FULL path pinned, or a move to the wrong (but existing)
+    // folder would slip through.
+    expect(newPath, "renamed file must land in the exact folder the template computed").toBe(
+      expectedFullPath,
+    );
+  } finally {
+    // Reset templates so the folder move + "$title" naming do not leak into a sibling test sharing this
+    // worker's Cove instance (mirrors core-paths.spec.mjs's cleanup).
+    await settingsPage.goto();
+    await settingsPage.setFilenameTemplate("{$date - }$title{ [$resolution]}");
+    await settingsPage.setFolderTemplate("");
+    await settingsPage.save();
+  }
 });
 
 test('clicking "Rename all files" in the panel renames every library item to its exact name on disk and in the DB', async ({
