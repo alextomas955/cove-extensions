@@ -130,10 +130,6 @@ public sealed class RenamerPlannerTests
         Assert.Empty(port.ApplyAndSaveCalls);
     }
 
-    private static readonly RouteLookups EmptyLookups = new(
-        new Dictionary<int, string>(), new Dictionary<int, string>(),
-        new Dictionary<string, string>(), Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
-
     [Fact]
     public async Task PlanLoadedEntity_MatchesLoadingPath_ItemForItem()
     {
@@ -145,7 +141,7 @@ public sealed class RenamerPlannerTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { FilenameTemplate = "$title" };
 
-        var loaded = await planner.PlanLoadedEntity(entity, opts, EmptyLookups, default);
+        var loaded = await planner.PlanLoadedEntity(entity, opts, RouteLookupsFixtures.RoutingNeutral, default);
         var viaLoad = (await planner.PlanWithEntityAsync(RenamerFileKind.Video, 10, opts, default)).Plan;
 
         Assert.Equal(viaLoad.EntityId, loaded.EntityId);
@@ -161,7 +157,7 @@ public sealed class RenamerPlannerTests
         var port = new FakeRenamerDataPort();  // NOT seeded — proves no load is attempted
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanLoadedEntity(entity, new RenamerOptions { FilenameTemplate = "$title" }, EmptyLookups, default);
+        var plan = await planner.PlanLoadedEntity(entity, new RenamerOptions { FilenameTemplate = "$title" }, RouteLookupsFixtures.RoutingNeutral, default);
 
         Assert.Single(plan.Items);
         Assert.Equal(0, port.LoadEntityCallCount);
@@ -179,7 +175,7 @@ public sealed class RenamerPlannerTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { FilenameTemplate = "$title", OnlyOrganized = true };
 
-        var loaded = await planner.PlanLoadedEntity(entity, opts, EmptyLookups, default);
+        var loaded = await planner.PlanLoadedEntity(entity, opts, RouteLookupsFixtures.RoutingNeutral, default);
         var viaLoad = (await planner.PlanWithEntityAsync(RenamerFileKind.Video, 10, opts, default)).Plan;
 
         Assert.Equal(RenamerStatus.SkipGated, Assert.Single(loaded.Items).Status);

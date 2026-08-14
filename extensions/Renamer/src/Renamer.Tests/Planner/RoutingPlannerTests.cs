@@ -56,10 +56,10 @@ public sealed class RoutingPlannerTests
         IReadOnlySet<string>? excludePathsExact = null,
         IReadOnlyList<Regex>? excludePathRegex = null) =>
         new(
-            studio ?? new Dictionary<int, string>(),
-            tag ?? new Dictionary<int, string>(),
-            exact ?? new Dictionary<string, string>(StringComparer.Ordinal),
-            regex ?? Array.Empty<(Regex, string)>(),
+            studio ?? RouteLookupsFixtures.RoutingNeutral.StudioIdToDest,
+            tag ?? RouteLookupsFixtures.RoutingNeutral.TagIdToDest,
+            exact ?? RouteLookupsFixtures.RoutingNeutral.PathExactToDest,
+            regex ?? RouteLookupsFixtures.RoutingNeutral.PathRegexRules,
             excludeTags, excludeStudios, excludePathsExact, excludePathRegex);
 
     [Fact]
@@ -166,7 +166,7 @@ public sealed class RoutingPlannerTests
             UnorganizedDestination = UnorgRoot,
         };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
@@ -185,7 +185,7 @@ public sealed class RoutingPlannerTests
         // own folder, ResolvedDestinationRoot null.
         var opts = new RenamerOptions { FilenameTemplate = "$title", FolderTemplate = "Sorted" };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
