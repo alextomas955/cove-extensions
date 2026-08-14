@@ -16,8 +16,7 @@ import { Dialog } from "../common/ui/Dialog";
 import { Button, StatusText, Spinner } from "@cove-extensions/ui-shared";
 import { api } from "../common/lib/extension";
 import type { LastBatchSummary, UndoResult } from "../wire/api";
-import { buildUndoStatus } from "./undoSummaryLogic";
-import { buildUndoFeedback, type UndoFeedback } from "./undoFeedbackLogic";
+import { buildUndoStatus, buildUndoFeedback, type UndoFeedback } from "./undoLogic";
 
 const LAST_BATCH_PATH = api("last-batch");
 const UNDO_PATH = api("undo");

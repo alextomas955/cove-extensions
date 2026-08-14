@@ -44,14 +44,3 @@ export function decideSettledPreview(
   if (settled.outcome === "resolved") return "commit";
   return settled.aborted ? "discard" : "report-failure";
 }
-
-/**
- * The next generation after `current`.
- *
- * Strictly increasing and never reused, which is the property the comparison above rests on: a reset
- * or recycled value would make a superseded response compare equal to the generation in force and be
- * committed — the same defect, arriving through the numbering rather than through the check.
- */
-export function nextPreviewGeneration(current: number): number {
-  return current + 1;
-}

@@ -12,7 +12,7 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
 
-import { decideSettledPreview, nextPreviewGeneration } from "./previewRequestLogic";
+import { decideSettledPreview } from "./previewRequestLogic";
 
 test("a response from the generation still in force is committed", () => {
   assert.equal(decideSettledPreview({ generation: 4, outcome: "resolved" }, 4), "commit");
@@ -61,10 +61,12 @@ test("generations are strictly increasing and never reused, loading transitions 
   // The hook advances the counter once per effect run, and `loading` flipping is such a run. A
   // counter that reset or reused a value would make a superseded response compare equal to the one
   // in force and be committed — the defect, reintroduced through the numbering instead of the check.
+  // The increment is written out because that is how the hook writes it; a shared helper would make
+  // this walk agree with the hook by construction rather than check it.
   let g = 0;
   const seen = [];
   for (let i = 0; i < 5; i += 1) {
-    g = nextPreviewGeneration(g);
+    g = g + 1;
     seen.push(g);
   }
 

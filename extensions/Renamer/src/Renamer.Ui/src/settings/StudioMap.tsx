@@ -2,13 +2,13 @@
  * Bridges the number-keyed `StudioDestinations` field onto the string-keyed `KeyValueMapEditor`: the
  * key cell is a single-select entity field over the picked studio's stable id, the value cell is the
  * destination-path text input. Reuses both primitives verbatim — the only new logic is the numeric-key
- * coercion (studioMapLogic.ts), kept out here so it is tested in isolation.
+ * coercion, which lives in options.ts beside the load-path coercion it has to agree with.
  */
 import { EntityReferenceValue } from "@cove/runtime/components";
 
 import { KeyValueMapEditor, TextInput, PathShapeHint } from "@cove-extensions/ui-shared";
 import { EntitySelectField } from "./EntitySelectField";
-import { toStringKeyed, fromStringKeyed } from "./studioMapLogic";
+import { toStringKeyed, fromStringKeyed } from "./options";
 
 /**
  * The studio destination-rule editor. Accepts/emits the backend `Record<number, string>`; internally

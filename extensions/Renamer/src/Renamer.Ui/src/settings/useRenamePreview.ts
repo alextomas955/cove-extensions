@@ -19,7 +19,7 @@ import { useEffect, useRef, useState } from "react";
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
 import { type RenamerOptions } from "./options";
-import { decideSettledPreview, nextPreviewGeneration } from "./previewRequestLogic";
+import { decideSettledPreview } from "./previewRequestLogic";
 import type { PreviewSampleResult } from "../wire/api";
 import { api } from "../common/lib/extension";
 
@@ -42,7 +42,10 @@ export function useRenamePreview(options: RenamerOptions, loading: boolean): Use
 
   useEffect(() => {
     if (loading) return;
-    generation.current = nextPreviewGeneration(generation.current);
+    // Strictly increasing and never reused — the property the comparison at settle time rests on: a
+    // reset or recycled value would make a superseded response compare equal to the generation in
+    // force and be committed.
+    generation.current = generation.current + 1;
     const issued = generation.current;
     const controller = new AbortController();
     const handle = setTimeout(() => {
