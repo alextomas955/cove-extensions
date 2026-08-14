@@ -138,6 +138,87 @@ function runValidator(fixtureRoot) {
   return { status: result.status, stderr: result.stderr, stdout: result.stdout };
 }
 
+// A catalog entry with a subject for every counter the report line carries: a floor to compare, five
+// declared optional paths, two projects to find in the solution, both halves the wire-document
+// requirement reads, and a registry row matching the version its manifest declares.
+function maximalFixture() {
+  const entry = validEntry("com.example.foo", "Foo", {
+    name: "Foo",
+    manifestOnly: false,
+    projectPath: "extensions/Foo/Foo.csproj",
+    testProjectPath: "extensions/Foo/Foo.Tests.csproj",
+    uiPath: "extensions/Foo/ui",
+    e2ePath: "extensions/Foo/e2e",
+    wireDocumentPath: "extensions/Foo/wire/openapi.json",
+    registryManifestPath: "extensions/Foo/registry.json",
+  });
+  return makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    buildProps: buildPropsWithFloor("1.1.0"),
+    solution: ["extensions/Foo/Foo.csproj", "extensions/Foo/Foo.Tests.csproj"],
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", {
+        entryDll: "Foo.dll",
+        minCoveVersion: "1.1.0",
+      }),
+      "extensions/Foo/ui/package.json": { name: "foo-ui" },
+      "extensions/Foo/e2e/package.json": { name: "foo-e2e" },
+      "extensions/Foo/wire/openapi.json": { openapi: "3.1.1" },
+      "extensions/Foo/registry.json": { versions: [{ version: "0.1.0", minCoveVersion: "1.1.0" }] },
+    },
+    filesByPath: {
+      "extensions/Foo/Foo.csproj": "<Project />\n",
+      "extensions/Foo/Foo.Tests.csproj": "<Project />\n",
+    },
+  });
+}
+
+test("the summary line reports counts, and a check with no subject renders 0 rather than a sentence", () => {
+  // The gate's proof-of-work, and the only claim this file makes about the report line. Exit 0 alone
+  // cannot distinguish a check that passed from one that never ran, which is how the self-comparing
+  // checks this fork deleted stayed invisible — so the numbers are what has to be asserted. Both
+  // states are driven, because "this check ran" and "this check had no subject" reading identically is
+  // the whole failure mode: a clause reworded or dropped on absence is exactly that collision, and it
+  // is what five conditional sentences and their per-arm wording assertions were spent on.
+  //
+  // Asserted as the whole line rather than as fragments: a fragment matcher cannot see a counter that
+  // stopped being printed at all.
+  const maximal = maximalFixture();
+  try {
+    const { status, stdout, stderr } = runValidator(maximal);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.equal(
+      stdout.trim(),
+      "Validated 1 extension catalog entries: 1 minCoveVersion floor comparison(s), " +
+        "5 declared catalog path(s), 2 CoveExtensions.slnx membership(s), " +
+        "1 wire-document requirement(s), 1 registry row(s) compared across " +
+        "1 declared registry manifest(s).",
+    );
+  } finally {
+    rmSync(maximal, { recursive: true, force: true });
+  }
+
+  const minimal = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [validEntry("com.example.foo", "Foo")] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo"),
+    },
+  });
+  try {
+    const { status, stdout, stderr } = runValidator(minimal);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.equal(
+      stdout.trim(),
+      "Validated 1 extension catalog entries: 0 minCoveVersion floor comparison(s), " +
+        "0 declared catalog path(s), 0 CoveExtensions.slnx membership(s), " +
+        "0 wire-document requirement(s), 0 registry row(s) compared across " +
+        "0 declared registry manifest(s).",
+    );
+  } finally {
+    rmSync(minimal, { recursive: true, force: true });
+  }
+});
+
 test("happy path: a fully-valid single-entry catalog exits 0 and says no floor was declared", () => {
   // With no CoveMinVersion in Directory.Build.props the per-entry comparison no-ops, exactly as it
   // does upstream — both guard it on the same `if (coveMinVersion)`. What the fork adds is saying so
@@ -354,6 +435,49 @@ test("duplicate tagPrefix produces a non-zero exit and the expected error", () =
     const { status, stderr } = runValidator(root);
     assert.notEqual(status, 0);
     assert.match(stderr, /duplicate tagPrefix/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a tagPrefix without a trailing slash fails", () => {
+  // The tag a release is cut from is `<tagPrefix>v<semver>`, so a prefix missing its separator
+  // produces a tag that matches no release trigger — or worse, matches another extension's. The
+  // catalog is the only place that can say so.
+  const entry = validEntry("com.example.foo", "Foo", { tagPrefix: "foo" });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo"),
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(stderr, /com\.example\.foo: tagPrefix must end with \//);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a manifest id disagreeing with its catalog entry fails, naming both ids", () => {
+  // The catalog id is what CI's matrix, the release tag and the registry all key on, while the
+  // manifest id is what the host loads the extension as. Nothing else compares them, and a
+  // disagreement ships an extension the store and the host each know by a different name.
+  const entry = validEntry("com.example.foo", "Foo");
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.other"),
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(
+      stderr,
+      /com\.example\.foo: catalog id does not match extension\.json id com\.example\.other/,
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
