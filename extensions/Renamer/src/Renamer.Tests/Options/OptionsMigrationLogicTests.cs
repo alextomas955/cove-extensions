@@ -143,22 +143,35 @@ public sealed class OptionsMigrationLogicTests
     }
 
     [Fact]
-    public void ARuleThatCoveredTwoCaseVariantRows_ReportsWhatItNoLongerCovers()
+    public void ARuleThatCoveredCaseVariantRows_ReportsWhatItNoLongerCovers_OnceAndByData()
     {
-        // The failure this reports: the blacklist entry suppressed BOTH rows before the migration, and
-        // suppresses only 70 after — so every file tagged 4k starts rendering that tag into its
-        // filename. The name resolved, so the dropped-name trail says nothing; without this the change
-        // is invisible.
-        (int, string)[] both = [(70, "4K"), (71, "4k")];
+        // The failure this reports: the blacklist entry suppressed ALL THREE 4K rows before the
+        // migration and suppresses only 70 after — so every file tagged 4k, or tagged by the second
+        // spelling, starts rendering that tag into its filename. The name resolved, so the dropped-name
+        // trail says nothing; without this the change is invisible.
+        //
+        // "Dupe"/"dupe" is a case-variant pair NO stored rule names. Reporting every such pair in a
+        // library would bury the ones a rule actually narrows, so it must stay out of the report.
+        (int, string)[] rows = [(70, "4K"), (71, "4k"), (72, "4K"), (80, "Dupe"), (81, "dupe")];
+        const string blob =
+            """{ "Tags": { "Blacklist": ["4K"] }, "ExcludeTags": ["4k"], "TagDestinations": { "4K": "/x" } }""";
 
-        var converted = OptionsMigration.Convert(
-            """{ "Tags": { "Blacklist": ["4K"] } }""", both, Performers);
+        var converted = OptionsMigration.Convert(blob, rows, Performers);
 
+        // Named across three fields, and reported ONCE — with the third row not lost from the trail.
         var collapse = Assert.Single(converted.CaseCollapses);
         Assert.Equal("4K", collapse.Name);
         Assert.Equal(70, collapse.MatchedId);
-        Assert.Equal([71], collapse.AlsoMatchedIds);
+        Assert.Equal([71, 72], collapse.AlsoMatchedIds);
         Assert.Empty(converted.DroppedNames);
+
+        // Which row the rule now matches is decided by the DATA — the lowest id — and not by the order
+        // the rows came back in, which is not something the user chose.
+        (int, string)[] descending = [(81, "dupe"), (80, "Dupe"), (72, "4K"), (71, "4k"), (70, "4K")];
+
+        var reversed = Assert.Single(OptionsMigration.Convert(blob, descending, Performers).CaseCollapses);
+        Assert.Equal(70, reversed.MatchedId);
+        Assert.Equal([71, 72], reversed.AlsoMatchedIds);
     }
 
     [Fact]
