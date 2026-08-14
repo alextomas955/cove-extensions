@@ -6,7 +6,7 @@ User-facing changes, newest first.
 
 <!-- Release step for whoever cuts `renamer/v0.4.0`, before pushing the tag: set
      `src/Renamer/extension.json` `version` to 0.4.0, then PREPEND a row to
-     `extensions/com.alextomas955.renamer.json` `versions[]` with version 0.4.0 and minCoveVersion
+     `registry/com.alextomas955.renamer.json` `versions[]` with version 0.4.0 and minCoveVersion
      1.1.0. The tag push fails in validate if either is missing. Do NOT satisfy the second by
      editing the 0.3.0 row: it describes an immutable artifact that genuinely runs on a 1.0.0 host.
      The full rule is in the repo-wide Releasing guide, under "Raising minCoveVersion". -->

@@ -16,15 +16,13 @@
     "noEmit": true,
     "types": ["node", "react"],
     "paths": {
-      "@cove-extensions/ui-shared": ["../../../../shared/cove-extensions-ui/src/index.ts"],
-      "@cove-extensions/ui-shared/postAction": [
-        "../../../../shared/cove-extensions-ui/src/postAction.ts"
-      ],
+      "@cove-extensions/ui-shared": ["../../../../shared/ui-shared/src/index.ts"],
+      "@cove-extensions/ui-shared/postAction": ["../../../../shared/ui-shared/src/postAction.ts"],
       "@cove-extensions/ui-shared/extensionRequest": [
-        "../../../../shared/cove-extensions-ui/src/extensionRequest.ts"
+        "../../../../shared/ui-shared/src/extensionRequest.ts"
       ],
       "@cove-extensions/ui-shared/extensionStore": [
-        "../../../../shared/cove-extensions-ui/src/extensionStore.ts"
+        "../../../../shared/ui-shared/src/extensionStore.ts"
       ],
       "@cove/extension-sdk": ["./node_modules/@cove/extension-sdk"],
       "react": ["./node_modules/@types/react"],

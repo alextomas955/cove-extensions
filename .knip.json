@@ -11,7 +11,7 @@
       "project": ["src/**/*.{ts,tsx}"],
       "ignoreDependencies": ["@vitejs/plugin-react", "@cove/runtime"]
     },
-    "shared/cove-extensions-ui": {
+    "shared/ui-shared": {
       "entry": ["vite/createExtensionViteConfig.ts"],
       "project": ["src/**/*.{ts,tsx}", "vite/**/*.ts"],
       "ignoreDependencies": [

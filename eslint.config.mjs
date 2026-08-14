@@ -121,7 +121,7 @@ export default tseslint.config(
   // findings. Syntactic linting (recommended + dead-code + the MF-44 import rules) is the correct
   // scope for code that is type-checked downstream where its types actually resolve.
   {
-    files: ["shared/cove-extensions-ui/**/*.{ts,tsx}"],
+    files: ["shared/ui-shared/**/*.{ts,tsx}"],
     extends: [tseslint.configs.recommended],
     languageOptions: {
       ecmaVersion: 2024,
@@ -149,7 +149,7 @@ export default tseslint.config(
   // eslint-plugin-import-x — the maintained fork; eslint-plugin-import is peer-disqualified at
   // ESLint 10), plus the raw-HTML ban.
   {
-    files: ["extensions/*/src/**/*.{ts,tsx}", "shared/cove-extensions-ui/**/*.{ts,tsx}"],
+    files: ["extensions/*/src/**/*.{ts,tsx}", "shared/ui-shared/**/*.{ts,tsx}"],
     plugins: { "import-x": importX },
     rules: {
       // Named exports only, so every import follows one uniform, greppable pattern. The two extension
@@ -193,7 +193,7 @@ export default tseslint.config(
   // `noInternalBarrels` is restated because this block re-declares `no-restricted-imports` for files
   // the MF-44 block above also matches, and flat config replaces the whole options object.
   {
-    files: ["extensions/*/src/**/*Logic.ts", "shared/cove-extensions-ui/**/*Logic.ts"],
+    files: ["extensions/*/src/**/*Logic.ts", "shared/ui-shared/**/*Logic.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -224,7 +224,7 @@ export default tseslint.config(
   // reference directive only above the first statement, which also leaves no room for an inline
   // disable comment — hence the override here rather than at the call site.
   {
-    files: ["shared/cove-extensions-ui/src/index.ts"],
+    files: ["shared/ui-shared/src/index.ts"],
     rules: { "@typescript-eslint/triple-slash-reference": "off" },
   },
 
@@ -239,7 +239,7 @@ export default tseslint.config(
   // selector syntax (not the deprecated `element-types`/`rules` shape). BLOCKING (error) per U-35:
   // the sibling-slice imports it once flagged are resolved, so a cross-slice import now fails lint.
   {
-    files: ["extensions/*/src/**/*.{ts,tsx}", "shared/cove-extensions-ui/**/*.{ts,tsx}"],
+    files: ["extensions/*/src/**/*.{ts,tsx}", "shared/ui-shared/**/*.{ts,tsx}"],
     plugins: { boundaries },
     settings: {
       "import/resolver": {
@@ -272,7 +272,7 @@ export default tseslint.config(
           pattern: "extensions/*/src/*.Ui/src/*",
           capture: ["extension", "ui", "slice"],
         },
-        { type: "shared", pattern: "shared/cove-extensions-ui/src" },
+        { type: "shared", pattern: "shared/ui-shared/src" },
       ],
     },
     rules: {

@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "description": "RenameSettingsPanel — the Cove Renamer extension's settings + live-preview frontend (Vite library bundle → index.mjs).",
-  "license": "AGPL-3.0",
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit",
