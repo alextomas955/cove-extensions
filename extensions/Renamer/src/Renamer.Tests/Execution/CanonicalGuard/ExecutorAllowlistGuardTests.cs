@@ -123,6 +123,79 @@ public sealed class ExecutorAllowlistGuardTests
         }
     }
 
+    [SkippableFact] // On Windows this always runs — junctions need no privilege; it IS the (4b) re-check proof.
+    public async Task LeafSwappedToJunctionBetweenGuards_IsBlocked_NothingEscapes()
+    {
+        Skip.IfNot(OperatingSystem.IsWindows(), "needs an NTFS junction (cmd /c mklink /J)");
+
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string srcDir = Directory.CreateDirectory(Path.Combine(dir.Root, "source")).FullName;
+            string allowed = Directory.CreateDirectory(Path.Combine(dir.Root, "allowed")).FullName;
+            string outside = Directory.CreateDirectory(Path.Combine(dir.Root, "outside")).FullName;
+
+            // The destination is a REAL, empty directory at check time, so the pre-mutation folder
+            // check at (1b) accepts it. It only becomes an escape AFTER that check has passed.
+            string dest = Directory.CreateDirectory(Path.Combine(allowed, "dest")).FullName;
+
+            string srcFolderPath = srcDir.Replace('\\', '/');
+            var (_, videoId, fileId) =
+                await ExecutorTestSeed.SeedVideoAsync(db, srcFolderPath, "clip.mkv", "My Film");
+
+            string oldFull = Path.Combine(srcDir, "clip.mkv");
+            File.WriteAllText(oldFull, "video-bytes");
+
+            string destFwd = dest.Replace('\\', '/');
+            var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
+            [
+                new RenamerPlanItem(fileId, srcFolderPath + "/clip.mkv", destFwd + "/My Film.mkv",
+                    RenamerStatus.Move, "My Film.mkv", destFwd),
+            ]);
+
+            // The swap runs inside GetOrCreateFolderIdAsync — the FIRST await after (1b) and the only
+            // window that lands between the two guards, so the leaf is real when (1b) reads it and a
+            // junction-to-elsewhere when (4b) re-resolves it. Passing NO pre-resolved folder map is what
+            // routes the executor through that call at all.
+            var port = new SwapLeafToJunctionOnFolderResolve(new CoveRenamerDataPort(db), dest, outside);
+            var bus = new CapturingEventBus();
+            var executor = new RenamerExecutor(port, bus, new FakeRevertJournal(), "run-test", new DiskMover());
+            var options = new RenamerOptions { AllowedRoots = [allowed.Replace('\\', '/')] };
+
+            var result = await executor.ExecuteAsync(plan, options, default);
+
+            // (a) The premise held. A swap that silently failed to happen would make every assert below
+            //     pass for the wrong reason — this test would then prove nothing at all.
+            Assert.True(port.Swapped, "the check/use swap never fired: GetOrCreateFolderIdAsync was not reached");
+            Assert.NotNull(new DirectoryInfo(dest).LinkTarget);
+
+            // (b) The item is BLOCKED by the final-path re-check, with the guard's reason.
+            var skipped = Assert.Single(result.Skipped);
+            Assert.Equal(RenamerStatus.SkipBlocked, skipped.Status);
+            Assert.NotNull(skipped.Reason);
+            Assert.Contains("outside every allowed root", skipped.Reason);
+            Assert.Empty(result.Renamed);
+            Assert.Empty(result.Failed);
+            Assert.Empty(bus.Published);
+
+            // (c) Nothing escaped: the source stayed put and no file landed through the junction.
+            Assert.True(File.Exists(oldFull), "a blocked move must leave the source file in place");
+            Assert.Equal("video-bytes", File.ReadAllText(oldFull));
+            Assert.False(File.Exists(Path.Combine(outside, "My Film.mkv")),
+                "no file may land outside every allowed root through the swapped leaf");
+
+            // Deliberately NOT asserted: Folder-row absence. The delegated call legitimately persists a
+            // row for the destination path, which was still real when (1b) approved it. Row creation is
+            // the other pin's subject; asserting it here would make this test fail for the wrong reason.
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
     [Fact]
     public async Task MoveToRealSubdirUnderAllowedRoot_Succeeds()
     {
@@ -175,5 +248,64 @@ public sealed class ExecutorAllowlistGuardTests
             await db.DisposeAsync();
             await conn.DisposeAsync();
         }
+    }
+
+    /// <summary>
+    /// A real <see cref="CoveRenamerDataPort"/> with ONE behavior added: the first
+    /// <see cref="GetOrCreateFolderIdAsync"/> call replaces an empty destination directory with a
+    /// junction pointing elsewhere, then delegates unchanged.
+    /// </summary>
+    /// <remarks>
+    /// The seam matters more than the mechanism. That call is the first await the executor makes after
+    /// the pre-mutation folder check, so a swap performed here is the check/use race the final-path
+    /// re-check exists to close, reproduced deterministically rather than by timing. Every other member
+    /// forwards verbatim, so the executor is exercised against real data throughout. If the executor is
+    /// ever reordered so this call no longer sits between the two guards, <see cref="Swapped"/> stays
+    /// false and the test fails loudly instead of passing for a reason it no longer proves.
+    /// </remarks>
+    private sealed class SwapLeafToJunctionOnFolderResolve(
+        IRenamerDataPort inner, string leafToSwap, string junctionTarget) : IRenamerDataPort
+    {
+        /// <summary>True once the swap has actually been performed.</summary>
+        public bool Swapped { get; private set; }
+
+        public Task<int> GetOrCreateFolderIdAsync(string folderPath, CancellationToken ct = default)
+        {
+            if (!Swapped)
+            {
+                Directory.Delete(leafToSwap); // empty by construction — no recursive delete
+                MakeJunction(leafToSwap, junctionTarget);
+                Swapped = true;
+            }
+
+            return inner.GetOrCreateFolderIdAsync(folderPath, ct);
+        }
+
+        public Task<RenamerEntity?> LoadEntityAsync(RenamerFileKind kind, int entityId, CancellationToken ct = default)
+            => inner.LoadEntityAsync(kind, entityId, ct);
+
+        public Task<IReadOnlyList<int>> LoadAllEntityIdsAsync(RenamerFileKind kind, CancellationToken ct = default)
+            => inner.LoadAllEntityIdsAsync(kind, ct);
+
+        public Task<IReadOnlyList<int>> LoadEntityIdPageAsync(
+            RenamerFileKind kind, int afterEntityId, int take, CancellationToken ct = default)
+            => inner.LoadEntityIdPageAsync(kind, afterEntityId, take, ct);
+
+        public Task<IReadOnlyList<RenamerEntity>> LoadEntitiesAsync(
+            RenamerFileKind kind, IReadOnlyList<int> ids, CancellationToken ct = default)
+            => inner.LoadEntitiesAsync(kind, ids, ct);
+
+        public Task<bool> CollisionExistsAsync(int folderId, string basename, int selfFileId, CancellationToken ct = default)
+            => inner.CollisionExistsAsync(folderId, basename, selfFileId, ct);
+
+        public Task<int?> TryGetFolderIdAsync(string folderPath, CancellationToken ct = default)
+            => inner.TryGetFolderIdAsync(folderPath, ct);
+
+        public Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default)
+            => inner.SourceExistsAsync(fullPath, ct);
+
+        public Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
+            IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
+            => inner.ApplyAndSaveAsync(mutations, ct);
     }
 }
