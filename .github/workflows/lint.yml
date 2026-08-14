@@ -87,8 +87,14 @@ jobs:
             echo "::endgroup::"
           done
 
-  # ---- Markdown docs (repo-wide). Scoped to README.md only — no CHANGELOG.md/docs/**/*.md exist
-  # yet at the monorepo root; widen this glob when root-level docs land. ----
+  # ---- Markdown docs (repo-wide). The file list lives in .markdownlint-cli2.jsonc and only there.
+  # markdownlint-cli2 APPENDS that config's globs to the command line rather than deferring to it, so
+  # a glob passed here can only widen the set, never narrow it — an argument naming one file still
+  # lints everything the config declares, while reading as a scope the job does not have. The action's
+  # `globs` input is itself not free of that trap: it declares a non-empty default (`*.{md,markdown}`,
+  # root-only and non-recursive), so omitting the input substitutes that default instead of passing
+  # nothing. An explicitly empty value is the one spelling that yields an empty argv and leaves the
+  # config as the single source. Measured against this workflow: 22 tracked files, 0 issues. ----
   markdown-lint:
     runs-on: ubuntu-latest
     steps:
@@ -96,7 +102,7 @@ jobs:
       - name: markdownlint
         uses: DavidAnson/markdownlint-cli2-action@v24
         with:
-          globs: "README.md"
+          globs: ""
 
   # ---- Monorepo-wide ESLint (single root config at eslint.config.mjs): every extension's TS/React
   # UI bundle plus all first-party .mjs/.cjs helper/build/test scripts. The type-aware UI rules need
