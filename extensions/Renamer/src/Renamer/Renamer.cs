@@ -61,6 +61,11 @@ public sealed partial class Renamer : FullExtensionBase
     {
         // Resolve the captured seams with GetRequiredService so a missing host registration fails
         // clearly here, at load, instead of surfacing as a NullReferenceException at first use.
+        //
+        // The SDK says to inject IExtensionServiceScopeFactory rather than the container engine's
+        // IServiceScopeFactory. Verified against the host (Cove.Plugins/ExtensionServiceOverlay.cs:565-568,
+        // 547-555): the provider handed to InitializeAsync answers BOTH service types with the same
+        // TrackedScopeFactory, so this capture is already the retirement-tracked instance.
         _scopeFactory = services.GetRequiredService<IServiceScopeFactory>();
         _eventBus = services.GetRequiredService<IEventBus>();
         // Logging is optional: the host forwards ILogger into the extension scope, but treat its
@@ -400,7 +405,7 @@ public sealed partial class Renamer : FullExtensionBase
 
         if (!TryParseKind(entityType, out var kind) || ids.Length == 0)
         {
-            progress.Report(1d, "Nothing to renamer.");
+            progress.Report(1d, "Nothing to rename.");
             return;
         }
 
@@ -550,7 +555,7 @@ public sealed partial class Renamer : FullExtensionBase
         if (acting.Count == 0)
         {
             LogBatchDone(runId, 0, 0, 0);
-            progress.Report(1d, "Nothing to renamer.");
+            progress.Report(1d, "Nothing to rename.");
             return;
         }
 
