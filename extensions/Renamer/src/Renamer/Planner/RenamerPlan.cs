@@ -309,7 +309,9 @@ public static class PathConfinement
         string c = NormalizeSlash(candidate).TrimEnd('/');
         string r = NormalizeSlash(root).TrimEnd('/');
 
-        var cmp = OperatingSystem.IsWindows()
+        // Case rule and its caveats: see PathOps.PathsEqual. Where the volume folds case, a
+        // differently-cased path IS physically inside the root, so refusing it was the bug.
+        var cmp = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
             ? StringComparison.OrdinalIgnoreCase
             : StringComparison.Ordinal;
 
