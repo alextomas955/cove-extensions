@@ -392,7 +392,7 @@ export function DryRunModal({
   });
 
   const virtualRows = rowVirtualizer.getVirtualItems();
-  const lastVisible = virtualRows.length > 0 ? virtualRows[virtualRows.length - 1].index : -1;
+  const lastVisible = virtualRows[virtualRows.length - 1]?.index ?? -1;
   // Scrolling within a prefetch window of the loaded end continues the walk. Overlapping calls are
   // deduplicated in the store, so firing this on consecutive scroll frames costs one request.
   useEffect(() => {
@@ -559,6 +559,11 @@ export function DryRunModal({
                     >
                       {virtualRows.map((vRow) => {
                         const it = rows[vRow.index];
+                        // The virtualizer is sized from `rows.length`, but it can still hand back an
+                        // index from before the list shrank (a filter change, a reset) for the one
+                        // frame before it re-measures. Skipping that row costs nothing; reading
+                        // through it would throw inside render and blank the whole modal.
+                        if (!it) return null;
                         const bucket = classifyItem(it);
                         const willChange = bucket === "will-change";
                         const oldName = basename(it.oldFullPath);

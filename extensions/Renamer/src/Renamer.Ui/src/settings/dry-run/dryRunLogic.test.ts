@@ -31,7 +31,12 @@ import {
  * Whether it is COMPLETE is not checked here at all — that expectation comes from the wire document
  * below, which the server emits.
  */
-const SERVER_BUCKETS = [
+// Declared as a list of PAIRS, not a list of string lists: the array literal alone widens to
+// string[][], under which destructuring a row hands back `string | undefined` and every use below
+// has to re-establish a shape the table already guarantees. The element type stays `string` rather
+// than the generated status union on purpose — this table is a hand transcription, and typing it
+// against the union the assertion below compares it to would let the two agree by construction.
+const SERVER_BUCKETS: readonly (readonly [string, string])[] = [
   ["renamer", "will-change"],
   ["move", "will-change"],
   ["noOp", "no-change"],

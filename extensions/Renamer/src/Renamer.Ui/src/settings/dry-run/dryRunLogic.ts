@@ -208,6 +208,7 @@ export function etaFromSamples(samples: readonly ProgressSample[]): number | nul
   if (samples.length < 2) return null;
 
   const latest = samples[samples.length - 1];
+  if (!latest) return null;
   if (!Number.isFinite(latest.timeMs) || !Number.isFinite(latest.progress)) return null;
   const p = latest.progress;
   if (p <= 0 || p >= 1) return null;
@@ -223,6 +224,7 @@ export function etaFromSamples(samples: readonly ProgressSample[]): number | nul
   for (let i = 1; i < samples.length; i++) {
     const prev = samples[i - 1];
     const cur = samples[i];
+    if (!prev || !cur) continue;
     if (!Number.isFinite(prev.timeMs) || !Number.isFinite(cur.timeMs)) continue;
     const dt = (cur.timeMs - prev.timeMs) / 1000;
     const dp = cur.progress - prev.progress;

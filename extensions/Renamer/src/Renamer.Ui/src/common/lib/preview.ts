@@ -177,8 +177,9 @@ export function buildConfirmSummary(
   }
   if (skipped > 0) {
     // If only one reason kind, collapse to the compact "(reason)" form.
-    if (skipKinds.length === 1 && unclassified === 0) {
-      warningLines.push(`⚠ ${skipped} skipped (${skipKinds[0].reason}).`);
+    const onlyKind = skipKinds.length === 1 ? skipKinds[0] : undefined;
+    if (onlyKind && unclassified === 0) {
+      warningLines.push(`⚠ ${skipped} skipped (${onlyKind.reason}).`);
     } else {
       const clauses = skipKinds.map((kind) => `${kind.count} ${kind.clause}`);
       if (unclassified > 0) clauses.push(`${unclassified} for an unrecognised reason`);
