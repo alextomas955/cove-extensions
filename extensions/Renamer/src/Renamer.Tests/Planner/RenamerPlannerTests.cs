@@ -131,7 +131,7 @@ public sealed class RenamerPlannerTests
     }
 
     [Fact]
-    public async Task PlanLoadedEntity_MatchesLoadingPath_ItemForItem()
+    public async Task PlanLoadedEntityAsync_MatchesLoadingPath_ItemForItem()
     {
         // Seed the SAME entity behind the loading path; plan it both ways and prove item-for-item
         // equality — the pure method and the load-then-plan method share identical plan logic.
@@ -141,7 +141,7 @@ public sealed class RenamerPlannerTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { FilenameTemplate = "$title" };
 
-        var loaded = await planner.PlanLoadedEntity(entity, opts, RouteLookupsFixtures.RoutingNeutral, default);
+        var loaded = await planner.PlanLoadedEntityAsync(entity, opts, RouteLookupsFixtures.RoutingNeutral, default);
         var viaLoad = (await planner.PlanWithEntityAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default)).Plan;
 
         Assert.Equal(viaLoad.EntityId, loaded.EntityId);
@@ -151,20 +151,20 @@ public sealed class RenamerPlannerTests
     }
 
     [Fact]
-    public async Task PlanLoadedEntity_PerformsZeroLoads()
+    public async Task PlanLoadedEntityAsync_PerformsZeroLoads()
     {
         var entity = VideoEntity("My Film", VideoFile(1, "raw.mkv"));
         var port = new FakeRenamerDataPort();  // NOT seeded — proves no load is attempted
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanLoadedEntity(entity, new RenamerOptions { FilenameTemplate = "$title" }, RouteLookupsFixtures.RoutingNeutral, default);
+        var plan = await planner.PlanLoadedEntityAsync(entity, new RenamerOptions { FilenameTemplate = "$title" }, RouteLookupsFixtures.RoutingNeutral, default);
 
         Assert.Single(plan.Items);
         Assert.Equal(0, port.LoadEntityCallCount);
     }
 
     [Fact]
-    public async Task PlanLoadedEntity_GatedEntity_YieldsSameSkips_AsLoadingPath()
+    public async Task PlanLoadedEntityAsync_GatedEntity_YieldsSameSkips_AsLoadingPath()
     {
         // An unorganized entity under the only-organized gate: SkipGated for every file, both ways.
         var entity = new RenamerEntity(
@@ -175,7 +175,7 @@ public sealed class RenamerPlannerTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { FilenameTemplate = "$title", OnlyOrganized = true };
 
-        var loaded = await planner.PlanLoadedEntity(entity, opts, RouteLookupsFixtures.RoutingNeutral, default);
+        var loaded = await planner.PlanLoadedEntityAsync(entity, opts, RouteLookupsFixtures.RoutingNeutral, default);
         var viaLoad = (await planner.PlanWithEntityAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default)).Plan;
 
         Assert.Equal(RenamerStatus.SkipGated, Assert.Single(loaded.Items).Status);

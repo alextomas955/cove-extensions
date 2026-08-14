@@ -32,14 +32,17 @@ public static class DestinationResolver
 {
     /// <summary>
     /// The OS-aware string comparer for EXACT source-path matching — <see cref="StringComparer.OrdinalIgnoreCase"/>
-    /// on Windows (where paths are case-insensitive, the primary platform) and
-    /// <see cref="StringComparer.Ordinal"/> elsewhere, mirroring <c>VolumeClassifier</c> /
-    /// <c>PathConfinement.IsUnderRoot</c>. The exact-path lookup dictionary is built with this comparer
-    /// so an exact rule for <c>media/incoming</c> matches a stored <c>Media/Incoming</c> on Windows
-    /// instead of silently falling through.
+    /// where the default filesystem folds case (Windows, macOS) and <see cref="StringComparer.Ordinal"/>
+    /// elsewhere, matching <c>PathOps.PathsEqual</c> and <c>PathConfinement.IsUnderRoot</c> (the case
+    /// rule and its caveats are stated once at <c>PathOps.PathsEqual</c>; note <c>VolumeClassifier</c> is
+    /// NOT part of that set — it compares volume keys, not filenames). The exact-path lookup dictionary
+    /// is built with this comparer so an exact rule for <c>media/incoming</c> matches a stored
+    /// <c>Media/Incoming</c> on such a filesystem instead of silently falling through.
     /// </summary>
     public static StringComparer SourcePathComparer =>
-        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
 
     /// <summary>
     /// Normalizes a source path for EXACT-match keying/lookup — trims a single trailing

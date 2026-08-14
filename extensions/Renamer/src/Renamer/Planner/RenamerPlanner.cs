@@ -59,7 +59,7 @@ public sealed class RenamerPlanner
             return new PlanResult(new RenamerPlan(entityId, kind, Array.Empty<RenamerPlanItem>()), null);
         }
 
-        return new PlanResult(await PlanLoadedEntity(entity, options, lookups, ct), entity);
+        return new PlanResult(await PlanLoadedEntityAsync(entity, options, lookups, ct), entity);
     }
 
     /// <summary>
@@ -72,7 +72,7 @@ public sealed class RenamerPlanner
     /// a batch loader uses: load many entities in one round-trip, then plan each here with results
     /// identical to the per-id load-then-plan path.
     /// </remarks>
-    public async Task<RenamerPlan> PlanLoadedEntity(
+    public async Task<RenamerPlan> PlanLoadedEntityAsync(
         RenamerEntity entity, RenamerOptions options, RouteLookups lookups, CancellationToken ct)
     {
         // Route ONCE per entity (mirroring how the metadata projector runs once per file), and do it

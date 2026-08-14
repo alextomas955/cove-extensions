@@ -9,7 +9,7 @@ namespace Renamer.Planner;
 /// </summary>
 /// <remarks>
 /// Pages through <see cref="IRenamerDataPort.LoadEntityIdPageAsync"/>'s ascending keyset and plans each
-/// entity with <see cref="RenamerPlanner.PlanLoadedEntity"/> — the SAME method the scan job calls. A
+/// entity with <see cref="RenamerPlanner.PlanLoadedEntityAsync"/> — the SAME method the scan job calls. A
 /// slice therefore equals the corresponding slice of a full plan because there is one planner, not
 /// because two paths were written to agree; <c>ScanPagingEquivalenceTests</c> is what holds that.
 /// </remarks>
@@ -105,7 +105,7 @@ public sealed class ScanRowPager(
 
                     if (byId.TryGetValue(id, out var entity))
                     {
-                        var plan = await planner.PlanLoadedEntity(entity, options, lookups, ct);
+                        var plan = await planner.PlanLoadedEntityAsync(entity, options, lookups, ct);
                         foreach (var item in plan.Items)
                         {
                             // The budget comes from the SAME options instance the planner just planned

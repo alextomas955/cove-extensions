@@ -6,8 +6,8 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Execution.Collisions;
 
 /// <summary>
-/// Case-only renamer behaviour on a case-insensitive volume (integration, SQLite + a real temp dir).
-/// Proves two things the executor's collision loop must get right:
+/// Case-only renamer behaviour (integration, SQLite + a real temp dir). Proves two things the
+/// executor's collision loop must get right:
 /// <list type="bullet">
 /// <item>A pure case-fix renamer (<c>movie.mkv</c> → <c>Movie.mkv</c>) — where the only thing occupying
 /// the target name is the SOURCE file itself — completes as a clean <see cref="RenamerStatus.Rename"/>
@@ -16,17 +16,23 @@ namespace Renamer.Tests.Execution.Collisions;
 /// renamed onto <c>Movie.mkv</c> is suffixed or skipped, never clobbering the existing file. The
 /// cross-file no-clobber guarantee is preserved.</item>
 /// </list>
+/// <para>
+/// The first outcome is platform-UNIVERSAL, which is why neither test is gated, but it is reached by
+/// two different mechanisms and the distinction is the whole point: where the volume folds case
+/// (Windows, macOS) <c>File.Exists</c> of the case-variant target is TRUE and the fix is that
+/// <c>PathOps.PathsEqual</c> recognizes it as the source's own slot; where the volume is
+/// case-sensitive (Linux ext4) <c>File.Exists</c> is simply false, so no collision path is entered at
+/// all. Gating this on <c>IsWindows()</c> hid the macOS defect it was written to catch.
+/// </para>
 /// Uses the real <see cref="CoveRenamerDataPort"/> (not the collision-blind port) so the disk-side
 /// <c>File.Exists</c> check is the one under test.
 /// </summary>
 [Trait("Tier", "L1")]
 public sealed class CaseOnlyRenamerTests
 {
-    [SkippableFact]
+    [Fact]
     public async Task CaseOnlyRenamer_OfFileOntoItself_IsCleanRenamer_NotSuffixed()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "asserts Windows case-insensitive path semantics");
-
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
@@ -35,8 +41,9 @@ public sealed class CaseOnlyRenamerTests
             var (_, videoId, fileId) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "movie.mkv", "My Film");
 
-            // Disk: only the lower-case source exists. On a case-insensitive volume File.Exists of the
-            // case-variant target is True, but it is the SOURCE occupying its own slot — not a clobber.
+            // Disk: only the lower-case source exists. Where the volume folds case, File.Exists of the
+            // case-variant target is True — but it is the SOURCE occupying its own slot, not a clobber.
+            // Where it does not, File.Exists is false and the collision loop never runs. Same outcome.
             File.WriteAllText(Path.Combine(dir.Root, "movie.mkv"), "movie-bytes");
 
             // Hand-built in-place plan: movie.mkv → Movie.mkv (case-only), so the executor's collision
@@ -86,6 +93,9 @@ public sealed class CaseOnlyRenamerTests
 
             // Seed three distinct files in one folder: the lower-case "movie.mkv", a DIFFERENT
             // "Movie.mkv" already occupying the case-variant name, and the source we will renamer.
+            // This is the guard on widening the case rule (stated at PathOps.PathsEqual, with the
+            // APFS/CIFS caveats): ignoring case for SELF-path equality must not let a different
+            // file's name be treated as free.
             var (folderId, videoId, _) =
                 await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "movie.mkv", "My Film");
             await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "Movie.mkv");
