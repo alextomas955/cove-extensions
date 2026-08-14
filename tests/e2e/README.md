@@ -174,12 +174,12 @@ container) doesn't block every UI test either. You don't need to do anything for
 
 ### Available fixtures
 
-| Fixture   | What it gives you                                                                                                                          |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `baseUrl` | The running instance's URL (e.g. `http://localhost:54321`) — a fresh random port every run                                                 |
-| `api`     | `{ get, post, put, delete }` helpers for calling the instance's REST API directly, no browser                                              |
-| `page`    | A real Playwright `Page`, already navigated to `baseUrl` and already signed in                                                             |
-| `harness` | The raw harness handle, if you need lower-level control (`installExtensionFromUrl`, `container` for direct `exec`/file copy, `stop`, etc.) |
+| Fixture   | What it gives you                                                                                                          |
+| --------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `baseUrl` | The running instance's URL (e.g. `http://localhost:54321`) — a fresh random port every run                                 |
+| `api`     | `{ get, post, put, delete }` helpers for calling the instance's REST API directly, no browser                              |
+| `page`    | A real Playwright `Page`, already navigated to `baseUrl` and already signed in                                             |
+| `harness` | The raw harness handle, if you need lower-level control (`container` for direct `exec`/file copy, `restart`, `stop`, etc.) |
 
 One Cove instance is shared per Playwright **worker** (not per test) to keep the suite fast —
 booting a fresh container per test would make even a small suite slow. This means your tests must
@@ -221,18 +221,17 @@ the cleanup command.
   [Testcontainers-node](https://node.testcontainers.org/)'s `DockerComposeEnvironment` (not a
   hand-rolled `docker compose` child_process wrapper — Testcontainers' Ryuk sidecar guarantees
   cleanup even on a killed process, and it owns port resolution + health-check waiting natively).
-  Returns a handle with `baseUrl`, `container` (the raw Testcontainers container object),
-  `installExtension`, `installExtensionFromUrl`, `bootstrapOwner`, `exec`, and `stop`.
+  Returns a handle with `baseUrl`, `container` (the raw Testcontainers container object), and the
+  install / auth / exec / teardown methods the fixtures drive — read that file for the current set
+  rather than a list here, which is free to fall behind it.
 - [`lib/stage-extension.mjs`](lib/stage-extension.mjs) — assembles the package that extension's
   `catalog.json` entry declares, with the repo's shared packer, into the on-disk shape Cove expects
   (`<id>/extension.json` + DLLs + optional `index.mjs`). It runs the same packer a release and a
   local dev deploy run, so a test installs the file set a release ships, not an approximation.
-- [`lib/install-extension.mjs`](lib/install-extension.mjs) — two install paths:
-  - `installViaContainerCopy` — stages the extension, then copies it into the running container's
-    `/config/extensions/<id>/` via Testcontainers' own container API and restarts (mirrors Cove's
-    documented bind-mount install, without depending on host file-sharing config).
-  - `installViaUrl` — calls the real `POST /api/extensions/install-from-url` REST endpoint against
-    a running instance; hot-installs, no restart.
+- [`lib/install-extension.mjs`](lib/install-extension.mjs) — `installViaContainerCopy`, the one
+  install path: stages the extension, then copies it into the running container's
+  `/config/extensions/<id>/` via Testcontainers' own container API and restarts (mirrors Cove's
+  documented bind-mount install, without depending on host file-sharing config).
 - [`lib/fixtures.mjs`](lib/fixtures.mjs) — wires the harness into Playwright's `test`/`expect`,
   including owner bootstrap and setup-wizard bypass for every `page` use.
 - [`lib/seed-media.mjs`](lib/seed-media.mjs) — Cove has no "create a fake DB row with no file"
