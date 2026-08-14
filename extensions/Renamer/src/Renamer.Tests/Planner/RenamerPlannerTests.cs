@@ -31,7 +31,7 @@ public sealed class RenamerPlannerTests
         var planner = new RenamerPlanner(port);
 
         // Pin the title-only template (this test exercises planner renamer detection, not the default).
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions { FilenameTemplate = "$title" }, default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions { FilenameTemplate = "$title" }, RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Rename, item.Status);
@@ -58,7 +58,7 @@ public sealed class RenamerPlannerTests
             Tags = new MultiValueOptions { Separator = " ", Sort = SortOrder.None, WhitelistIds = [9] },
         };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
 
         // Only tag id 9 survives the whitelist, and it renders as its name, not its number.
         Assert.Equal("My Film fav.mkv", Assert.Single(plan.Items).NewBasename);
@@ -72,7 +72,7 @@ public sealed class RenamerPlannerTests
         port.SeedEntity(VideoEntity("raw", VideoFile(1, "raw.mkv")));
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions { FilenameTemplate = "$title" }, default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions { FilenameTemplate = "$title" }, RouteLookupsFixtures.RoutingNeutral, default);
 
         Assert.Equal(RenamerStatus.NoOp, Assert.Single(plan.Items).Status);
         Assert.Empty(port.ApplyAndSaveCalls);
@@ -91,7 +91,7 @@ public sealed class RenamerPlannerTests
         // Pin the title-only filename template — this test asserts folder-template confinement, not the default name shape.
         var opts = new RenamerOptions { FilenameTemplate = "$title", FolderTemplate = "../../escape" };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
@@ -110,7 +110,7 @@ public sealed class RenamerPlannerTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { FullPathMax = 50 };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipCollision, item.Status);
@@ -124,15 +124,11 @@ public sealed class RenamerPlannerTests
         var port = new FakeRenamerDataPort();
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 999, new RenamerOptions(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 999, new RenamerOptions(), RouteLookupsFixtures.RoutingNeutral, default);
 
         Assert.Empty(plan.Items);
         Assert.Empty(port.ApplyAndSaveCalls);
     }
-
-    private static readonly RouteLookups EmptyLookups = new(
-        new Dictionary<int, string>(), new Dictionary<int, string>(),
-        new Dictionary<string, string>(), Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
 
     [Fact]
     public async Task PlanLoadedEntity_MatchesLoadingPath_ItemForItem()
@@ -145,8 +141,8 @@ public sealed class RenamerPlannerTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { FilenameTemplate = "$title" };
 
-        var loaded = await planner.PlanLoadedEntity(entity, opts, EmptyLookups, default);
-        var viaLoad = (await planner.PlanWithEntityAsync(RenamerFileKind.Video, 10, opts, default)).Plan;
+        var loaded = await planner.PlanLoadedEntity(entity, opts, RouteLookupsFixtures.RoutingNeutral, default);
+        var viaLoad = (await planner.PlanWithEntityAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default)).Plan;
 
         Assert.Equal(viaLoad.EntityId, loaded.EntityId);
         Assert.Equal(viaLoad.Kind, loaded.Kind);
@@ -161,7 +157,7 @@ public sealed class RenamerPlannerTests
         var port = new FakeRenamerDataPort();  // NOT seeded — proves no load is attempted
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanLoadedEntity(entity, new RenamerOptions { FilenameTemplate = "$title" }, EmptyLookups, default);
+        var plan = await planner.PlanLoadedEntity(entity, new RenamerOptions { FilenameTemplate = "$title" }, RouteLookupsFixtures.RoutingNeutral, default);
 
         Assert.Single(plan.Items);
         Assert.Equal(0, port.LoadEntityCallCount);
@@ -179,8 +175,8 @@ public sealed class RenamerPlannerTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { FilenameTemplate = "$title", OnlyOrganized = true };
 
-        var loaded = await planner.PlanLoadedEntity(entity, opts, EmptyLookups, default);
-        var viaLoad = (await planner.PlanWithEntityAsync(RenamerFileKind.Video, 10, opts, default)).Plan;
+        var loaded = await planner.PlanLoadedEntity(entity, opts, RouteLookupsFixtures.RoutingNeutral, default);
+        var viaLoad = (await planner.PlanWithEntityAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default)).Plan;
 
         Assert.Equal(RenamerStatus.SkipGated, Assert.Single(loaded.Items).Status);
         Assert.Equal(viaLoad.Items, loaded.Items);

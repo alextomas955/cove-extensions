@@ -306,7 +306,7 @@ public sealed class UndoRetryTests
             foreach (var s in seeded)
             {
                 var plan = await new RenamerPlanner(port)
-                    .PlanAsync(RenamerFileKind.Video, s.VideoId, options, default);
+                    .PlanAsync(RenamerFileKind.Video, s.VideoId, options, RouteLookupsFixtures.RoutingNeutral, default);
                 var forward = await new RenamerExecutor(
                         port, new CapturingEventBus(), journal, RunId, new DiskMover())
                     .ExecuteAsync(plan, options, default);

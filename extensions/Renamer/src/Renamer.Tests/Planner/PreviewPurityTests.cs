@@ -40,7 +40,7 @@ public sealed class PreviewPurityTests
         port.SeedEntity(Entity(File(1, "raw.mkv")));
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, MoveOptions(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, MoveOptions(), RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         // It still plans as a Move to the (not-yet-existing) destination folder...
@@ -60,7 +60,7 @@ public sealed class PreviewPurityTests
         port.SeedMissingSource("media/videos/raw.mkv");
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, MoveOptions(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, MoveOptions(), RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         // The gone source is classified SkipMissingSource, keeping the file at its current path...
@@ -82,7 +82,7 @@ public sealed class PreviewPurityTests
         port.SeedOccupied(folderId: 42, basename: "My Film.mkv", fileId: 99);
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, MoveOptions(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, MoveOptions(), RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         // Collision against the existing folder's real contents → suffix applied, still no creation.

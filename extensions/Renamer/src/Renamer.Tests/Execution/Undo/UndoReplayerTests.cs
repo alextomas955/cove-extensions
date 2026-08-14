@@ -48,7 +48,7 @@ public sealed class UndoReplayerTests
 
             // Forward: plan + execute through the real spine, opening a batch first (the endpoint's job).
             await journal.BeginBatchAsync("RUN-1", RenamerFileKind.Video, DateTime.UtcNow);
-            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
+            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, RouteLookupsFixtures.RoutingNeutral, default);
             var fwd = await new RenamerExecutor(port, new CapturingEventBus(), journal, "RUN-1", new DiskMover())
                 .ExecuteAsync(plan, options, default);
             Assert.Single(fwd.Renamed);
@@ -120,7 +120,7 @@ public sealed class UndoReplayerTests
             await journal.BeginBatchAsync("RUN-1", RenamerFileKind.Video, DateTime.UtcNow);
             foreach (var vid in new[] { video1, video2 })
             {
-                var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, vid, options, default);
+                var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, vid, options, RouteLookupsFixtures.RoutingNeutral, default);
                 await new RenamerExecutor(port, new CapturingEventBus(), journal, "RUN-1", new DiskMover())
                     .ExecuteAsync(plan, options, default);
             }
@@ -166,7 +166,7 @@ public sealed class UndoReplayerTests
             await journal.BeginBatchAsync("RUN-1", RenamerFileKind.Video, DateTime.UtcNow);
             foreach (var vid in new[] { video1, video2 })
             {
-                var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, vid, options, default);
+                var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, vid, options, RouteLookupsFixtures.RoutingNeutral, default);
                 await new RenamerExecutor(port, new CapturingEventBus(), journal, "RUN-1", new DiskMover())
                     .ExecuteAsync(plan, options, default);
             }
@@ -217,7 +217,7 @@ public sealed class UndoReplayerTests
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
             await journal.BeginBatchAsync("RUN-1", RenamerFileKind.Video, DateTime.UtcNow);
-            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
+            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, RouteLookupsFixtures.RoutingNeutral, default);
             await new RenamerExecutor(port, new CapturingEventBus(), journal, "RUN-1", new DiskMover())
                 .ExecuteAsync(plan, options, default);
 
@@ -270,7 +270,7 @@ public sealed class UndoReplayerTests
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
             await journal.BeginBatchAsync("RUN-1", RenamerFileKind.Video, DateTime.UtcNow);
-            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
+            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, RouteLookupsFixtures.RoutingNeutral, default);
             await new RenamerExecutor(port, new CapturingEventBus(), journal, "RUN-1", new DiskMover())
                 .ExecuteAsync(plan, options, default);
 
@@ -317,7 +317,7 @@ public sealed class UndoReplayerTests
 
             // Forward renamer under ONE root → an in-place same-volume pair.
             await journal.BeginBatchAsync("RUN-1", RenamerFileKind.Video, DateTime.UtcNow);
-            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
+            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, RouteLookupsFixtures.RoutingNeutral, default);
             await new RenamerExecutor(port, new CapturingEventBus(), journal, "RUN-1", new DiskMover())
                 .ExecuteAsync(plan, options, default);
 
