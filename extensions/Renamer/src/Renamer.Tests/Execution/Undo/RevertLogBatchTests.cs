@@ -28,25 +28,29 @@ public sealed class RevertLogBatchTests
     }
 
     [Fact]
-    public void TwoRuns_TheLocatedBatchIsTheSecond_WithItsKindAndItsRowsOnly()
+    public void TwoRuns_TheLocatedBatchIsTheSecond_WithItsRowsOnly_InAppendOrder()
     {
         var (batch, rows) = Read(string.Join("\n",
             "#batch|R1|638000000000000000|Video|open",
             "7|70|media/a.mkv",
             "8|80|media/b.mkv",
             "#batch|R2|638000000000000001|Video|open",
-            "9|90|media/c.mkv"));
+            "9|90|media/c.mkv",
+            "10|100|media/d.mkv"));
 
         Assert.Equal("R2", batch.RunId);
         Assert.Equal(638000000000000001L, batch.WrittenAtUtcTicks);
         Assert.Equal(RenamerFileKind.Video, batch.Kind);
         Assert.False(batch.Headerless);
 
-        var only = Assert.Single(rows);
-        // The entry's EntityId is the PARENT entity (9), never its fileId (90).
-        Assert.Equal(9, only.EntityId);
-        Assert.Equal(90, only.FileId);
-        Assert.NotEqual(only.EntityId, only.FileId);
+        // Append order, not reversed: the reversal undo needs is the journal port's, and it is minted
+        // from the sequence number the table owns rather than from a position in a parsed list.
+        Assert.Equal([9, 10], rows.Select(e => e.EntityId));
+        Assert.Equal([90, 100], rows.Select(e => e.FileId));
+
+        // Each entry's EntityId is the PARENT entity (9), never its fileId (90). The earlier run's rows
+        // are absent entirely, which is what makes this the located batch rather than the whole blob.
+        Assert.All(rows, e => Assert.NotEqual(e.EntityId, e.FileId));
     }
 
     [Fact]
