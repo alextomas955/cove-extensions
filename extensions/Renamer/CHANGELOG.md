@@ -11,6 +11,13 @@ User-facing changes, newest first.
      editing the 0.3.0 row: it describes an immutable artifact that genuinely runs on a 1.0.0 host.
      The full rule is in the repo-wide Releasing guide, under "Raising minCoveVersion". -->
 
+- **_Default destination_ and _Relocate unmatched items to the default destination_ are gone.** The
+  relocate switch shipped off and was never going to be turned on — it moved every item that matched no
+  rule, with whole-library reach and no way to undo a move across drives — and the default destination it
+  fed did nothing on its own. An item matching no rule is renamed where it already sits, exactly as
+  before. **Nothing moves differently:** to move a group of items, give them a per-studio, per-tag or
+  source-path rule, which is what already did the work. Your stored settings still load; the two retired
+  values are ignored.
 - **The _Duration format_ setting now takes effect.** `$duration` used to render the raw number of
   seconds whatever you picked, so a template using it produced `My Film [5025]` where the setting's own
   example column promised `My Film [01-23-45]`. It now renders in the format you chose, so the dry run,
