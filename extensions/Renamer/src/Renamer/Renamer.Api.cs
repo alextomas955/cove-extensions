@@ -246,13 +246,14 @@ public sealed partial class Renamer
         foreach (var id in req.EntityIds)
         {
             ct.ThrowIfCancellationRequested();
-            var plan = await planner.PlanAsync(kind, id, options, lookups, ct);
+            var (plan, entity) = await planner.PlanWithEntityAsync(kind, id, options, lookups, ct);
             items.AddRange(plan.Items);
 
             // File sizes for the blast-radius byte sums live on the loaded entity's files, not on the
-            // plan item. Load the entity once (AsNoTracking — still zero mutation) and record each
-            // file's bytes by id; the aggregate reads them per acting item. Mirrors the batch's PHASE A.
-            var entity = await port.LoadEntityAsync(kind, id, ct);
+            // plan item — so they are read off the entity the PLANNER already loaded (AsNoTracking,
+            // still zero mutation) rather than from a second, identical multi-Include read per id.
+            // That second read doubled this endpoint's database cost for every selection. Same
+            // load-once seam the batch's PHASE A takes.
             if (entity is not null)
             {
                 foreach (var file in entity.Files)
@@ -369,11 +370,7 @@ public sealed partial class Renamer
         // read or disk touch, so an unauthorized caller cannot even learn whether a batch exists. The
         // SPECIFIC kind's write permission is re-checked below once the batch reveals the kind; this
         // coarse gate only preserves the "no read/disk work for the wholly-unauthorized" property.
-        bool canWriteAny = principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosWrite)
-                || principal.Current.Has(Permissions.ImagesWrite)
-                || principal.Current.Has(Permissions.AudiosWrite));
-        if (!canWriteAny)
+        if (!HasAnyWritePermission(principal))
         {
             return new ForbiddenCode();
         }
@@ -546,11 +543,7 @@ public sealed partial class Renamer
         // consumed flag only — no paths). A user who can renamer ANY kind may see it, so gate on holding
         // ANY renamer-read permission rather than videos.read specifically. The summary does not carry
         // the batch kind, so a per-kind gate would require reading the full batch for a metadata probe.
-        bool canReadAny = principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosRead)
-                || principal.Current.Has(Permissions.ImagesRead)
-                || principal.Current.Has(Permissions.AudiosRead));
-        if (!canReadAny)
+        if (!HasAnyReadPermission(principal))
         {
             return new ForbiddenCode();
         }
@@ -1017,11 +1010,7 @@ public sealed partial class Renamer
         // Enforce permission BEFORE touching the body — never read/parse for an unauthorized caller.
         // The sample preview is a pure template render over fixed Video/Image/Audio samples (no DB, no
         // selection), so gate on holding ANY renamer-read permission rather than videos.read specifically.
-        bool canReadAny = principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosRead)
-                || principal.Current.Has(Permissions.ImagesRead)
-                || principal.Current.Has(Permissions.AudiosRead));
-        if (!canReadAny)
+        if (!HasAnyReadPermission(principal))
         {
             return new ForbiddenCode();
         }
