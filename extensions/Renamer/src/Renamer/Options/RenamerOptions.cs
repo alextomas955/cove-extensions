@@ -534,6 +534,16 @@ public sealed record RenamerOptions
     /// case-insensitive property names (forward-compat for hand-edited blobs) and
     /// enums as stable strings. <c>OptionsStore</c> reuses this exact instance.
     /// </summary>
+    /// <remarks>
+    /// These options are also the one home for every body this extension parses ITSELF, and the reason
+    /// it parses them at all: the host's default minimal-API <see cref="JsonSerializerOptions"/> carry
+    /// no <see cref="JsonStringEnumConverter"/>, so a body holding a string enum value
+    /// (<c>"case":"Lower"</c>) fails typed binding with a 400 BEFORE the handler runs, and extension
+    /// code cannot reach host startup (<c>ConfigureHttpJsonOptions</c>) to fix that globally. An
+    /// endpoint that must accept such a body therefore binds the raw request and deserializes here.
+    /// The blob's PascalCase spelling is never the obstacle — property binding is case-insensitive on
+    /// both paths — so retyping such a parameter is not the simplification it looks like.
+    /// </remarks>
     public static JsonSerializerOptions JsonOptions { get; } = new()
     {
         PropertyNameCaseInsensitive = true,

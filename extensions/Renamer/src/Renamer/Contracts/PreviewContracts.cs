@@ -76,9 +76,8 @@ public sealed record PreviewItemView(
 /// The <c>/preview</c> response body: the per-item plan PLUS the whole-batch blast-radius
 /// summary. Carries batch-level aggregates (count, same/cross split, per-volume bytes, the scaled
 /// confirm level) without losing the per-item array contract the UI matches on (<c>status === "rename"</c>).
-/// Both halves ride the same camelCase + string-enum serializer, so <see cref="Items"/> keeps its exact
-/// wire shape and <see cref="PreviewSummary.ConfirmLevel"/> serializes as "light"/"standard"/"heavy" —
-/// lowercase-first, because the converter camel-cases the enum NAME just as it does a property name.
+/// Both halves ride the SAME serializer options, so <see cref="Items"/> keeps its exact wire shape and
+/// the two cannot disagree about an enum's spelling.
 /// </summary>
 /// <param name="Items">One <see cref="PreviewItemView"/> per physical file of the selection, in plan order.</param>
 /// <param name="Summary">The whole-batch blast radius computed over the acting items.</param>
@@ -220,12 +219,9 @@ public sealed record JobEnqueued(string JobId);
 public static class PreviewContracts
 {
     /// <summary>
-    /// Response-serialization options for the preview/scan/picker endpoints: camelCase to match the
-    /// host's wire convention (and the UI's field names) plus a string-enum converter so
-    /// <c>status</c> serializes as the string the UI matches (<c>"rename"</c>/<c>"noOp"</c>/…, the
-    /// enum name camel-cased). The host's default minimal-API serializer emits NUMERIC enums, which the
-    /// frontend's <c>buildConfirmSummary</c> would read as a non-renamer — so the extension serializes
-    /// here.
+    /// Response-serialization options for the preview/scan/picker endpoints — the shared
+    /// camelCase + string-enum policy (see <see cref="CoveJsonOptions.WebWithEnumStrings"/>), so
+    /// <c>status</c> serializes as the string the UI matches (<c>"rename"</c>/<c>"noOp"</c>/…).
     /// <para>
     /// This instance has a second job: the wire-document emit copies its members into the emitting
     /// host's JSON options, so the schema's property casing and enum spelling are a consequence of the
