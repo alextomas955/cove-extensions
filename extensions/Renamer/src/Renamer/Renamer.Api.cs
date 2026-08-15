@@ -780,9 +780,9 @@ public sealed partial class Renamer
     /// </summary>
     /// <param name="readableKinds">
     /// The kinds the enqueuing principal held read permission for, captured at enqueue time — the job
-    /// runs detached from the original request, so this is the only way the per-kind skip (Pitfall 2:
-    /// a partial-permission caller's scan must omit a kind they cannot read, never 403 the whole job)
-    /// reaches the job body.
+    /// runs detached from the original request, so this is the only way the per-kind skip reaches the
+    /// job body: a partial-permission caller's scan must omit a kind they cannot read, never 403 the
+    /// whole job.
     /// </param>
     /// <param name="overrideOptions">
     /// The caller's current options for a dry run on unsaved edits, or null to scan the saved options.

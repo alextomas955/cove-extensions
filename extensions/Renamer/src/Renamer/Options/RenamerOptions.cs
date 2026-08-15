@@ -476,8 +476,8 @@ public sealed record RenamerOptions
 
     // Record value equality would compare the List/Dictionary members by REFERENCE, so a JSON round-trip
     // (fresh instances) would never be Equal. Both Equals and GetHashCode run off the SAME
-    // EqualityComponents list — the single source of truth that replaces the old twin member lists, so a
-    // new member added to one can never be forgotten in the other (the twin-list footgun, 45-R4). Each
+    // EqualityComponents list — one source of truth rather than twin member lists, so a new member
+    // added to one can never be forgotten in the other (the twin-list footgun). Each
     // collection member is wrapped to compare by VALUE: order-SENSITIVE for lists, order-INDEPENDENT for
     // the destination maps (a Dictionary has no guaranteed order and a round-trip may reorder keys), with
     // the map's original key comparer preserved.
