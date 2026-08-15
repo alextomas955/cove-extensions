@@ -11,9 +11,12 @@
 # scheduled run; only the tagged extension for a tag push) and — on a tag push — confirms the tag
 # matches exactly one catalog entry's tagPrefix, carries a valid semver suffix, and agrees with both
 # that entry's extension.json version and its registry manifest's newest versions[] row. No PR trigger
-# path filtering is used anywhere: every catalog entry is built on every PR. It also resolves the Cove
-# version axis the two safety legs fan out over, which is why the same commit can go red on a scheduled
-# run having been green on its pull request: the hosts under test are resolved, not pinned.
+# path filtering is used anywhere: every catalog entry is built on every PR. It also builds the Cove
+# version axis the two safety legs fan out over, and that axis has two shapes. On a pull request it is
+# ONE leg at the floor each extension declares in its own manifest, read from those files alone. On
+# every other event it is RESOLVED from the registry's tag list and keeps all three roles — which is
+# why the same commit can go red on a scheduled run having been green on its pull request: those hosts
+# move, and this repository does not choose them.
 #
 # Required-check model: the `required-checks` aggregation job is the single status check to mark
 # required in branch protection; it transitively gates on `build` (the bare C# unit tier, which states
@@ -39,6 +42,14 @@ on:
   # whichever pull request happened to come next. What it costs is stated rather than absorbed: EVERY job
   # in this file runs daily, including both safety legs and the aggregate, so this is recurring runner
   # spend for a repository with a single maintainer.
+  #
+  # It is now the ONLY place two things happen at all, which is what this trigger is worth rather than a
+  # side effect of it. Upstream breakage above the declared floor — a newest GA or a release candidate —
+  # is seen here and nowhere else, so a pull request is no longer where it surfaces and 24 hours is the
+  # budget for noticing it. And the axis carries more than one leg here, so this is the only environment
+  # in which a per-leg `continue-on-error` can be read at all: with one leg on a pull request there is no
+  # leg-to-leg contrast to read it from. Deleting this trigger does not merely lose a daily signal — it
+  # would leave both facts unobservable everywhere.
   #
   # 06:00 UTC is chosen to be well outside that maintainer's working hours, so a red arrives before a
   # session rather than during one. One caveat that costs a day of debugging if not known: the upstream
@@ -154,20 +165,44 @@ jobs:
         env:
           GITHUB_REF: ${{ github.ref }}
 
-      # The version axis, resolved ONCE here and fanned out, rather than once per leg per extension:
-      # every leg then tests a tag something reported, and there is a single place where "what was
-      # examined, and what did that resolve to" is printed. The resolver reaches each entry's floor
-      # through that entry's own manifest, so a second extension needs a catalog entry and no edit.
+      # The version axis, built ONCE here and fanned out, rather than once per leg per extension: every
+      # leg then tests a tag something reported, and there is a single place where "what was examined,
+      # and what did that build" is printed. Both producers reach each entry's floor through that
+      # entry's own manifest, so a second extension needs a catalog entry and no edit.
       #
-      # The join reuses the matrix step's ref filtering rather than repeating it — two copies of that
-      # filter would agree until the day they did not. An empty join is a hard failure: a version axis
-      # that resolved nothing must not read as an axis with nothing to test.
+      # TWO producers, ONE consumer. A pull request builds the axis from the declared floors alone — a
+      # file read, reaching nothing — so which hosts a pull request examines is a property of the tree
+      # under review rather than of what upstream published that morning, and a re-run of the same
+      # commit examines the same hosts. That is the whole of the offline-determinism half: this step is
+      # the only reach out of `validate`, and a pull request no longer takes it. Every other event
+      # RESOLVES the axis from the registry tag list and keeps all three roles.
+      #
+      # What the two producers do NOT get is a copy of what happens next. The ref filtering, the
+      # empty-axis refusal and the output below are one body shared by both: the filter reuses the
+      # matrix step's ref filtering rather than repeating it, and an empty join is a hard failure on
+      # either path — an axis that produced nothing must not read as an axis with nothing to test.
+      #
+      # No floor is written down here. readExtensionFloors is the same reader the e2e harness's own
+      # image fallback uses, so the number reaches this file from the manifest that declares it and
+      # there is no second copy free to fall behind that declaration.
       - name: Resolve the Cove version axis
         id: coveMatrix
         shell: bash
         run: |
           set -o pipefail
-          node scripts/fetch-cove-assemblies.mjs --resolve-tags --report > /tmp/cove-legs.json
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            node --input-type=module -e '
+              import { readExtensionFloors } from "./scripts/fetch-cove-assemblies.mjs";
+              const include = [];
+              for (const { entry, floor, manifestPath } of readExtensionFloors()) {
+                console.error("offline floor leg: " + entry.name + " " + floor + " (from " + manifestPath + ")");
+                include.push({ extension: entry, cove: { tag: floor, role: "floor", advisory: false } });
+              }
+              process.stdout.write(JSON.stringify({ include }) + "\n");
+            ' > /tmp/cove-legs.json
+          else
+            node scripts/fetch-cove-assemblies.mjs --resolve-tags --report > /tmp/cove-legs.json
+          fi
           node -e '
             const fs = require("fs");
             const resolved = JSON.parse(fs.readFileSync("/tmp/cove-legs.json", "utf8"));
@@ -396,6 +431,14 @@ jobs:
     # implement job-level continue-on-error at all — neither a literal nor a matrix expression — so it
     # leaves the downstream result at `failure` and exits non-zero whenever this leg fails. A local run
     # reporting failure for an advisory leg is therefore a runner artefact, not something to fix here.
+    #
+    # Where the expression can be READ is a scheduled run and nowhere else, which is worth knowing before
+    # anyone trusts it. A pull request builds ONE required leg, so it offers no leg-to-leg contrast, and
+    # act cannot stand in for the reason just given. Only half is established today: an aggregate green
+    # over a failing advisory leg rules out this resolving `false` job-wide, but a green leg leaves no
+    # trace of its own value, so it is equally consistent with a job-wide `true` — under which the
+    # REQUIRED leg would silently stop being able to block. The discriminator is a red REQUIRED leg, and
+    # only the full axis a scheduled run carries can produce one.
     continue-on-error: ${{ matrix.cove.advisory }}
     permissions:
       contents: read
@@ -583,15 +626,35 @@ jobs:
       # once in Directory.Build.props and the harness reads it from there, exactly as the fetcher and the
       # build's staleness guard do with their own tag arguments. Composing the reference here would put a
       # second copy of that repository in this file, free to disagree with the declaration.
+      # A leg whose role is newest-GA and nothing else runs the `@smoke` selection instead of the whole
+      # suite. The floor leg has already run every spec against a host this tree names, and what a newer
+      # GA adds is one question — does the extension still install, enable, rename and undo on it —
+      # which is what that selection is. Such a leg exists only where the two roles resolve to DIFFERENT
+      # images: when they collapse onto one (they do today, upstream having published no GA above the
+      # floor) the merged leg's role reads `floor+newest-ga`, this match fails, and the whole suite runs.
+      # Every way of being wrong about a role name therefore lands on MORE coverage, never less, which is
+      # the only direction a selection keyed on a label may fail in — and it is why `advisory` is read
+      # off the leg's own flag instead, where the safe direction would be the opposite one.
+      #
+      # The pre-release leg is deliberately not on this list: it is the forward-compatibility canary, and
+      # cutting it to six tests would hide the breakage it exists to report. Nor can the selection
+      # silently run nothing — Playwright exits non-zero when a --grep matches no test, so a tag deleted
+      # out of the specs fails this leg by name rather than passing it over an empty set.
       - name: Run E2E suite
         id: e2e
         if: steps.check.outputs.has_suite == 'true'
         working-directory: tests/e2e
         shell: bash
-        run: npx playwright test --project="$E2E_PROJECT"
+        run: |
+          if [[ "$COVE_ROLE" == "newest-ga" ]]; then
+            npx playwright test --project="$E2E_PROJECT" --grep @smoke
+          else
+            npx playwright test --project="$E2E_PROJECT"
+          fi
         env:
           E2E_PROJECT: ${{ matrix.extension.e2eProject }}
           COVE_E2E_TAG: ${{ matrix.cove.tag }}
+          COVE_ROLE: ${{ matrix.cove.role }}
 
       # The `list` reporter's stdout only ever shows pass/fail + duration, never the actual
       # assertion/stack-trace detail, which otherwise only reaches the Upload Playwright report
