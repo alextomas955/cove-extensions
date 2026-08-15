@@ -109,22 +109,11 @@ docker network ls --filter "name=testcontainers" --format "{{.Name}}" | xargs -r
 
 ## Writing your first test
 
-See [Authoring E2E tests](https://alextomas955.github.io/cove-extensions/contributing/authoring-e2e)
-for the full add-a-suite guide.
-In short:
-
-1. Build your extension the normal way (whatever produces its publish output + `extension.json` +
-   optional UI bundle — e.g. Renamer's own `scripts/deploy-dev.ps1` build step, minus the deploy).
-2. Copy [`tests/template.spec.mjs`](tests/template.spec.mjs) into your own extension's directory
-   (e.g. `extensions/<YourExtension>/e2e/tests/`) and add a thin
-   `extensions/<YourExtension>/e2e/lib/<yourextension>-fixtures.mjs` that imports the harness by name
-   and uses `resolveExtensionPaths` — see Renamer's `extensions/Renamer/e2e/lib/renamer-fixtures.mjs`
-   for the exact shape. Give the new `extensions/<YourExtension>/e2e/package.json` a
-   `{ "dependencies": { "@cove-extensions/e2e": "*" } }` entry (never its own `@playwright/test`).
-3. Add `e2ePath` and `e2eProject` to that extension's `catalog.json` entry — that is the whole
-   registration, since this directory's `playwright.config.mjs` derives its `projects` from the
-   catalog and CI reads the same two fields. Then run `npm install` at the repo root once (the
-   workspace glob registers your suite automatically).
+[Authoring E2E tests](https://alextomas955.github.io/cove-extensions/contributing/authoring-e2e) is
+the add-a-suite guide, and the only one — it carries the folder to create and the two catalog fields
+that register it. Start from [`tests/template.spec.mjs`](tests/template.spec.mjs);
+`extensions/Renamer/e2e/` is the reference implementation. What follows here is harness reference:
+what the fixtures give a test once the suite exists.
 
 The `extension` fixture option is filled by `resolveExtensionPaths(import.meta.url, …)`, which
 derives `repoRoot`/`publishDir`/`manifestPath` from the fixture file's own location — no
@@ -196,11 +185,14 @@ Locally: `npm test` (runs every project, 4 parallel workers) or `npx playwright 
 --project=<name>` for one extension — see Quick start and "One Playwright install, many
 extensions" above.
 
-CI: the `.github/workflows/build.yml` `e2e` job runs `npx playwright test --project=<name>` for
-each catalog entry that declares an `e2ePath`/`e2eProject`, against that entry's own just-built
-publish output (not a downloaded zip), which the harness assembles as above — see that workflow
-for the exact steps. There is no CI-only fork of the harness itself; the same `docker-compose.yml`,
-install helpers, and fixtures run in both places.
+CI: the `.github/workflows/build.yml` `e2e` job runs `npx playwright test --project=<name>` for each
+catalog entry that declares an `e2ePath`/`e2eProject`, against that entry's own just-built publish
+output (not a downloaded zip), which the harness assembles as above. It runs that command once per
+Cove version the workflow's axis resolves, passing the image tag in `COVE_E2E_TAG` — so which Cove a
+run boots is CI's choice, and locally it is the declared floor. One axis leg runs a `@smoke`
+selection rather than the whole suite; `build.yml` states which and why, and that file is the place
+to read it rather than here. There is no CI-only fork of the harness itself; the same
+`docker-compose.yml`, install helpers, and fixtures run in both places.
 
 ## When a test fails
 
@@ -249,7 +241,11 @@ the cleanup command.
 
 ## Scope
 
-This harness verifies extension install/lifecycle + behavior against a real Cove instance.
+This harness verifies extension install/lifecycle + behavior against a real Cove instance. It is also
+the **L3 gate** for the C# tier taxonomy: that taxonomy reserves L3 for containerized end-to-end, no
+xUnit class in this repo carries the trait, and this suite is what fills the role instead. See
+[`Renamer.Tests/README.md`](../../extensions/Renamer/src/Renamer.Tests/README.md) for the taxonomy
+itself.
 
 **Authentication is off by default, and a spec that needs it on provisions its own instance.** The
 worker-shared instances run `COVE__Auth__Enabled=false`, where every request resolves to a bypass
@@ -263,5 +259,7 @@ to, which the owner's own token bypasses. Renamer's `authenticated-fetch.spec.mj
 It does not (yet):
 
 - Support the GitHub-registry-backed install flow (container-copy is the only install path).
-- Run true Windows containers (Cove ships no Windows container image, so the containerized suite is
-  Linux-only; the Windows CI job builds and unit-tests instead of running the full E2E suite).
+- Run anywhere but on Linux containers. Cove ships no Windows container image, so the containerized
+  suite is Linux-only, and the Windows and macOS CI jobs build and run the unit tiers instead. On a
+  GitHub-hosted macOS runner that is permanent rather than pending — those runners ship no Docker
+  daemon at all.
