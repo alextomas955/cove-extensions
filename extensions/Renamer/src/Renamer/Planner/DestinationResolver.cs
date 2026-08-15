@@ -109,9 +109,9 @@ public static class DestinationResolver
         {
             var sourcePath = e.Files[0].ParentFolderPath;
 
-            // Normalize the source path the SAME way the exact map keys were normalized (OS-aware case
-            // via SourcePathComparer baked into the dict + trailing-slash trim here) so a stored
-            // "media/incoming/" matches a rule for "media/incoming" on Windows.
+            // Normalize the source path the SAME way the exact map keys were normalized (case via
+            // SourcePathComparer baked into the dict + trailing-slash trim here) so a stored
+            // "media/incoming/" matches a rule for "media/incoming".
             if (lk.PathExactToDest.TryGetValue(NormalizeSourcePath(sourcePath), out var exactDest))
             {
                 return new RouteResult(RouteCategory.SourcePath, "SourcePath:exact", exactDest);

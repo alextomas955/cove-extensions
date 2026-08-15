@@ -838,10 +838,9 @@ public sealed partial class Renamer
         var planner = new RenamerPlanner(port);
         var aggregator = new ScanAggregator(options.FullPathMax);
 
-        // Load every kind's ids up front so the TOTAL is known before planning — the scan previously
-        // reported only a single Report(1.0) at the end, so the job jumped 0%→100% with no intermediate
-        // feedback. A denominator lets each planned entity advance the bar. The id-only queries are cheap
-        // (they were already run one-per-kind below; this just hoists them so the total is available).
+        // Load every kind's ids up front so the TOTAL is known before planning: without a denominator
+        // the job can only report a single 1.0 at the end and jumps 0%→100% with no feedback. The
+        // id-only queries are cheap, and each kind needs its list below regardless.
         var idsByKind = new List<(RenamerFileKind Kind, IReadOnlyList<int> Ids)>(readableKinds.Count);
         foreach (var kind in readableKinds)
         {
@@ -865,10 +864,10 @@ public sealed partial class Renamer
         int done = 0;
         foreach (var (kind, ids) in idsByKind)
         {
-            // The scan previously issued one heavy multi-Include query per entity (100K entities = 100K
-            // sequential round-trips — the scan bottleneck). Batch-load instead, one chunk at a time:
-            // the loaded entities AND their file-size map are released with each chunk, so neither the
-            // graphs nor the sizes are ever held for the whole library. The chunk size is the port's own
+            // Batch-load one chunk at a time rather than a heavy multi-Include query per entity, which
+            // costs one sequential round-trip per entity across the whole library. The loaded entities
+            // AND their file-size map are released with each chunk, so neither the graphs nor the
+            // sizes are ever held for the whole library. The chunk size is the port's own
             // single decision. Each chunk's entities are re-ordered by the (ascending) id list because
             // the batch load returns DB order, preserving the per-id order and the progress cadence.
             foreach (var chunk in ids.Chunk(CoveRenamerDataPort.LoadChunkSize))

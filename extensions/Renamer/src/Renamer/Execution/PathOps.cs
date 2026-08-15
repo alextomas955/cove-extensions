@@ -56,10 +56,7 @@ internal static class PathOps
     /// </summary>
     /// <remarks>
     /// Normalization happens HERE rather than at a call site, so the result is canonical whichever
-    /// separator either part arrived with and the operation cannot be called wrongly. The three
-    /// private copies this replaced each relied on a different part of that contract — one normalized
-    /// its folder argument, one trimmed only the forward slash, one guarded neither empty part — and
-    /// every former caller now gets the superset of all three.
+    /// separator either part arrived with and the operation cannot be called wrongly.
     /// </remarks>
     internal static string JoinPath(string a, string b)
     {
