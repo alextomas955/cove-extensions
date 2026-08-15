@@ -119,13 +119,15 @@ the two never drift.
 - `CoveRenamerDataPort.cs` — the concrete `IRenamerDataPort` backed by Cove's DbContext.
 - `CoveRevertJournal.cs` — the revert journal over the extension's own tables: appends a row per
   renamed file, retires a row as its file returns, and purges expired batches whole when one opens.
-- `JournalRetention.cs` — the retention window, as a constant rather than a setting.
+  Carries the retention window it purges against, as a constant rather than a setting.
+- `RevertJournalStorage.cs` — the EF shapes behind those tables and the frozen migration that creates
+  them.
 - `JournalBlobMigration.cs` / `RevertLog.cs` — the one-way move of an earlier version's stored journal
   into those tables, and the tolerant parsers that read the format it was written in.
 - `UndoReplayer.cs` — reverse-replays the newest batch that still holds rows, reading each file's
   current location from the database rather than from the journal, and replaying each row's recorded
   sidecar and caption moves (`RevertDelta.cs`) in the opposite direction. A row it could not restore
-  stays in the journal for the next attempt: `UndoTerminalClassifier.cs` retires a row only for the
+  stays in the journal for the next attempt: `UndoStopReason.cs` retires a row only for the
   one stop reason that can never clear — the file has left the library — so a lock, an unmounted
   drive or a widened allowlist all leave the row retryable.
 
