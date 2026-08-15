@@ -18,14 +18,16 @@
  * SECURITY: every filename/path is a React text node (auto-escaped); no dangerouslySetInnerHTML.
  */
 import { useEffect, useRef, useState } from "react";
-import { requestJson, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
+import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Search } from "lucide-react";
 
-import { Dialog, ErrorBox } from "../../common/ui/Dialog";
+import { Dialog, ErrorBox } from "../../common/Dialog";
 import { Button, ProgressBar, Spinner } from "@cove-extensions/ui-shared";
 import { WarningBadges } from "./WarningBadge";
-import { api } from "../../common/lib/extension";
+import { api } from "../../common/extension";
+import { errText } from "../../common/format";
+import { basename, dirname } from "../../common/pathLogic";
 import type { JobEnqueued, ScanSummaryView } from "../../wire/api";
 import type { RenamerOptions } from "../options";
 import { useScanRows } from "./useScanRows";
@@ -74,23 +76,6 @@ const PREFETCH_ROWS = 12;
 
 /** The header labels, in the same order as GRID_TEMPLATE's content tracks. */
 const COLUMNS = ["Type", "Current name", "New name", "Destination"] as const;
-
-function errText(err: unknown): string {
-  return err instanceof ApiError ? `${err.status} ${err.body}` : String(err);
-}
-
-function basename(p: string): string {
-  if (!p) return p;
-  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-  return i >= 0 ? p.slice(i + 1) : p;
-}
-
-/** The folder portion of a path (everything before the last separator); "" if there is none. */
-function dirname(p: string): string {
-  if (!p) return p;
-  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-  return i >= 0 ? p.slice(0, i) : "";
-}
 
 /**
  * Watches the scan job through the shared {@link pollJob} helper, calling `onDone` once when the job

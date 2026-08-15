@@ -74,9 +74,9 @@ applied, not an omission — at this size a `ui/` and `lib/` split would only re
 already say.
 
 Code shared by several features of a _single_ extension is not "shared" — it lives in that extension's
-own `common/` folder, which _is_ split into `common/ui/` and `common/lib/`. A component carrying one
-extension's branding is local, so it belongs in that extension's `common/ui/`, not in the repo-level UI
-package.
+own `common/` folder, flat for the same reason: at this size a `ui/` and `lib/` split restates the
+filenames. A component carrying one extension's branding is local, so it belongs in that extension's
+`common/`, not in the repo-level UI package.
 
 **The deciding test is reach, not a directory name.** Ask whether every extension could use the module
 unchanged: if yes it is repo-level, if only one extension can it belongs in that extension's `common/`,

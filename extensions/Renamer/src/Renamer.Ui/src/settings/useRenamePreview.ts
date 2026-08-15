@@ -21,7 +21,7 @@ import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 import { type RenamerOptions } from "./options";
 import { decideSettledPreview } from "./previewRequestLogic";
 import type { PreviewSampleResult } from "../wire/api";
-import { api } from "../common/lib/extension";
+import { api } from "../common/extension";
 
 const PREVIEW_PATH = api("preview-sample");
 const PREVIEW_DEBOUNCE_MS = 250;

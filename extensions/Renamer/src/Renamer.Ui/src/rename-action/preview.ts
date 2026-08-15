@@ -11,14 +11,8 @@
  * The wire shapes it consumes are generated from the extension's own OpenAPI document.
  */
 
-import type { ConfirmLevel, PreviewItemView, PreviewSummary, RenamerStatus } from "../../wire/api";
-
-/** Last path segment, tolerant of both `/` and `\` separators (Windows paths). */
-function basename(p: string): string {
-  if (!p) return p;
-  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-  return i >= 0 ? p.slice(i + 1) : p;
-}
+import type { ConfirmLevel, PreviewItemView, PreviewSummary, RenamerStatus } from "../wire/api";
+import { basename } from "../common/pathLogic";
 
 const SAMPLE_LIMIT = 5;
 

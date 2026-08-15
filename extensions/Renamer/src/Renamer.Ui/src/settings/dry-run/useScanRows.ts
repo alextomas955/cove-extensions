@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { ScanRow, ScanRowsPage } from "../../wire/api";
-import { api } from "../../common/lib/extension";
+import { api } from "../../common/extension";
 import { bucketWireValue, type DryRunFilter } from "./dryRunLogic";
 import {
   createScanRowsStore,

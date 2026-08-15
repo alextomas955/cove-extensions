@@ -19,7 +19,7 @@ import {
   buildRenameLibrarySuccess,
   type RenameFailure,
 } from "./renameLibraryBannerLogic";
-import { api } from "../common/lib/extension";
+import { api } from "../common/extension";
 
 const RENAME_LIBRARY_PATH = api("renamer-library");
 
