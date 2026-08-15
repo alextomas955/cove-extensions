@@ -1,7 +1,10 @@
+using System.Collections.Concurrent;
+
 using Cove.Core.Events;
 using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Renamer.Execution;
 using Renamer.Jobs;
 using Renamer.Options;
@@ -24,14 +27,45 @@ namespace Renamer.Tests.Concurrency;
 [Trait("Tier", "L1")]
 public sealed class ParallelBatchTests
 {
+    /// <summary>Creates an NTFS junction <paramref name="link"/> → <paramref name="target"/> via <c>cmd /c mklink /J</c> (no privilege required).</summary>
+    private static void MakeJunction(string link, string target)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c mklink /J \"{link}\" \"{target}\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        using var p = System.Diagnostics.Process.Start(psi)!;
+        p.WaitForExit(5000);
+        if (p.ExitCode != 0)
+        {
+            throw new InvalidOperationException("mklink /J failed: " + p.StandardError.ReadToEnd());
+        }
+    }
+
     /// <summary>Wires the extension over a SCOPED DbContext factory so each worker gets its OWN context over the shared DB.</summary>
+    /// <param name="shared">The shared-cache SQLite database every scope opens a context over.</param>
+    /// <param name="options">The renamer options saved into the extension's store before initialization.</param>
+    /// <param name="logSink">
+    /// When supplied, the extension resolves a logger that appends every formatted message here. The
+    /// batch's per-item classification (status + reason) reaches no return value and no DB row — the
+    /// log line IS the artifact — so a test that asserts WHY an item was skipped has to read it.
+    /// Null leaves the extension on its NullLogger default, exactly as the other cases here run.
+    /// </param>
     private static async Task<(global::Renamer.Renamer ext, ConcurrentFakeStore store, CapturingEventBus bus)>
-        BuildAsync(SharedCacheSqlite shared, RenamerOptions options)
+        BuildAsync(SharedCacheSqlite shared, RenamerOptions options, ConcurrentQueue<string>? logSink = null)
     {
         var services = new ServiceCollection();
         services.AddScoped<DbContext>(_ => shared.NewContext());
         var bus = new CapturingEventBus();
         services.AddSingleton<IEventBus>(bus);
+        if (logSink is not null)
+        {
+            services.AddSingleton<ILogger<global::Renamer.Renamer>>(new CapturingLogger<global::Renamer.Renamer>(logSink));
+        }
+
         var provider = services.BuildServiceProvider();
 
         var ext = RenamerFixture.Create();
@@ -355,5 +389,101 @@ public sealed class ParallelBatchTests
         {
             await shared.DisposeAsync();
         }
+    }
+
+    [SkippableFact]
+    public async Task BatchDestinationEscapingAllowedRoot_IsSkipBlocked_NoFolderRowLeaked()
+    {
+        Skip.IfNot(OperatingSystem.IsWindows(), "needs an NTFS junction (cmd /c mklink /J)");
+
+        using var dir = new TempDir();
+        var shared = await SharedCacheSqlite.CreateAsync();
+        try
+        {
+            string srcFolder = Path.Combine(dir.Root, "incoming");
+            Directory.CreateDirectory(srcFolder);
+            string library = Directory.CreateDirectory(Path.Combine(dir.Root, "library")).FullName;
+            string outside = Directory.CreateDirectory(Path.Combine(dir.Root, "outside")).FullName;
+
+            string srcPathFwd = srcFolder.Replace('\\', '/');
+            string libraryFwd = library.Replace('\\', '/');
+
+            // The routed destination is a junction physically INSIDE the allowed root that resolves
+            // OUTSIDE it. The pure string gate cannot see that; only the canonical (disk-reading) guard
+            // can — and the batch's destination pre-create is the first thing that touches it.
+            string escape = Path.Combine(library, "Films");
+            MakeJunction(escape, outside);
+            string escapeFwd = escape.Replace('\\', '/');
+
+            await using var seedDb = shared.NewContext();
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(seedDb, srcPathFwd, "raw.mkv", "My Film");
+            File.WriteAllText(Path.Combine(srcFolder, "raw.mkv"), "bytes");
+
+            var options = new RenamerOptions
+            {
+                FilenameTemplate = "$title",
+                FolderTemplate = "Films",
+                AllowedRoots = [srcPathFwd, libraryFwd],
+                PathDestinations =
+                    [new PathDestinationRule { Pattern = srcPathFwd, Dest = libraryFwd, IsRegex = false }],
+            };
+
+            // Source and destination share a path root, so the free-space guard excludes this move and
+            // the real DriveInfo probe cannot refuse the batch — the ONLY refusal on this run is the
+            // allowlist one under test.
+            var log = new ConcurrentQueue<string>();
+            var (ext, _, _) = await BuildAsync(shared, options, log);
+
+            var progress = new FakeJobProgress();
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), progress, default);
+
+            // (a) The item is classified SkipBlocked and carries the GUARD's own reason, not a generic
+            //     one — a skip nobody can attribute is a skip nobody can act on. The batch itself
+            //     completes: a rejected destination is classified, never thrown, at this boundary.
+            Assert.Contains(log, m =>
+                m.Contains("skipped (SkipBlocked)", StringComparison.Ordinal)
+                && m.Contains("outside every allowed root", StringComparison.Ordinal));
+            Assert.Equal(1d, progress.LastPercent);
+
+            // (b) Nothing escaped: the source stayed put and no file landed through the junction.
+            Assert.True(File.Exists(Path.Combine(srcFolder, "raw.mkv")),
+                "a blocked destination must leave the source file in place");
+            Assert.False(File.Exists(Path.Combine(outside, "My Film.mkv")),
+                "no file may land outside every allowed root through the junctioned destination");
+
+            // (c) The assert that EARNS this test, and the only one that was red before the batch's
+            //     destination pre-create was guarded. The worker already blocked the disk move before
+            //     that change — so every assert above passed while the pre-create had ALREADY persisted
+            //     a Folder row pointing outside the allowlist. A durable escape artifact with no file
+            //     behind it is still an escape artifact, and the executor-path pin
+            //     (MoveToJunctionEscapingAllowedRoot_IsBlocked_NoFolderRowLeaked) cannot see it: that
+            //     one drives the executor's own resolve, this one drives the batch pre-create.
+            await using var readDb = shared.NewContext();
+            Assert.False(
+                await readDb.Set<Cove.Core.Entities.Folder>().AsNoTracking().AnyAsync(f => f.Path == escapeFwd),
+                "no Folder row may be persisted for the out-of-allowlist escape destination");
+        }
+        finally
+        {
+            await shared.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// An <see cref="ILogger{TCategoryName}"/> that appends every formatted message to a shared queue.
+    /// </summary>
+    /// <remarks>
+    /// The queue is concurrent because PHASE B logs from many workers at once, so a plain list would be
+    /// a race inside the test harness itself — the one confounder a concurrency suite must not add.
+    /// </remarks>
+    private sealed class CapturingLogger<T>(ConcurrentQueue<string> sink) : ILogger<T>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => sink.Enqueue(formatter(state, exception));
     }
 }
