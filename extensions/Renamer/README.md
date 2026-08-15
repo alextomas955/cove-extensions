@@ -60,8 +60,14 @@ need to build or commit the bundle for a normal source change.
 ## Local dev deploy
 
 `scripts/deploy-dev.ps1` runs the full build → frontend-build → assemble → deploy → restart loop
-against a local Cove dev instance (Windows). It builds against a local sibling `../cove` checkout
-(or `$COVE_REPO`) so the extension is ABI-identical to the running host.
+against a local Cove dev instance. It builds against a local sibling `../cove` checkout (or
+`$COVE_REPO`) so the extension is ABI-identical to the running host.
+
+Invoke it as `pwsh` on any OS — Windows PowerShell 5.1 does not define the `$IsWindows` variable the
+script reads. Only the _default_ data root is Windows-specific: with no `COVE_HOME` set the script
+falls back to the per-user local-application-data `cove` folder, which exists on Windows only, so on
+macOS and Linux you must set `COVE_HOME`. It throws there rather than guessing, because a guessed
+data root deploys into a directory Cove never reads and then reports success.
 
 The assemble step installs the file set `extensions/catalog.json` declares for Renamer — the same set
 a release ships — so a bug you hit in dev is a bug in the shipped shape.

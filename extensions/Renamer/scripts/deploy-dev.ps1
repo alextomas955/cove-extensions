@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     Build -> frontend-build -> assemble -> deploy -> restart pipeline for the Renamer Cove
-    extension (Windows dev loop).
+    extension (local dev loop).
 
 .DESCRIPTION
     Contract (one atomic dev step):
