@@ -283,6 +283,7 @@
     <Compile Remove="Execution\CanonicalGuard\CanonicalPathGuardRootTests.cs" />
     <Compile Remove="Execution\CanonicalGuard\ExecutorAllowlistGuardTests.cs" />
     <Compile Remove="Execution\Collisions\CaseOnlyRenamerTests.cs" />
+    <Compile Remove="Execution\Collisions\CollisionAndRollbackTests.cs" />
     <Compile Remove="Execution\Collisions\CollisionBlindDataPort.cs" />
     <Compile Remove="Execution\Collisions\CollisionTests.cs" />
     <Compile Remove="Execution\Collisions\RollbackTests.cs" />
