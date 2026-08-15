@@ -339,7 +339,7 @@ public sealed class CoveDataPortRoutingFieldsTests
         }
     }
 
-    // ── studio-depth lockstep (was StudioDepthLockstepTests) ──────────────────
+    // ── studio-depth lockstep ─────────────────────────────────────────────────
     //
     // Every assertion below is keyed on CoveRenamerDataPort.MaxParentDepth and driven through the REAL
     // per-kind EF Include chain, so it fails if anyone (a) adds or removes a .ThenInclude(s => s!.Parent)
@@ -491,7 +491,7 @@ public sealed class CoveDataPortRoutingFieldsTests
         }
     }
 
-    // ── id-only bulk enumeration (was LoadAllEntityIdsAsyncTests) ─────────────
+    // ── id-only bulk enumeration ──────────────────────────────────────────────
     //
     // CoveRenamerDataPort.LoadAllEntityIdsAsync is an AsNoTracking id-only bulk query per
     // RenamerFileKind — the enumeration step a whole-library scan needs before running the per-id

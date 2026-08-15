@@ -547,7 +547,7 @@ public sealed class RenamerExecutorIntegrationTests
         }
     }
 
-    // ── destination-allowlist guard, WIRED INTO the executor (was ExecutorAllowlistGuardTests) ────────
+    // ── destination-allowlist guard, WIRED INTO the executor ─────────────────────────────────────────
     //
     // Every canonical-guard case elsewhere calls CanonicalPathGuard.Check directly with a hand-built
     // folder string; these drive the real executor write path with the guard wired in, which is the seam
@@ -800,7 +800,7 @@ public sealed class RenamerExecutorIntegrationTests
         }
     }
 
-    // ── batch core, driven through the extension (was Jobs/RenamerBatchJobTests) ──────────────────────
+    // ── batch core, driven through the extension ──────────────────────────────────────────────────────
     //
     // The shared RunRenamerBatchAsync opens a scope via the captured IServiceScopeFactory, builds the
     // port+executor over the real CoveContext, renames every id on disk + in the DB, and reports

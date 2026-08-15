@@ -20,7 +20,7 @@ namespace Renamer.Tests.Api;
 /// enqueues, and <c>RunRenamerLibraryJobAsync</c> calls the EXISTING <c>RunRenamerBatchAsync</c> once per
 /// kind that has at least one candidate id — never a synthetic combined kind. Exercised as plain
 /// methods (no HTTP host) with a real SQLite <c>CoveContext</c> and real on-disk files, mirroring
-/// <c>RenamerBatchJobTests</c>/<c>EntityIdsCapTests</c>.
+/// <c>RenamerExecutorIntegrationTests</c>' batch cases and <c>EntityIdsCapTests</c>.
 /// </summary>
 [Trait("Tier", "L1")]
 public sealed class RenamerLibraryEndpointTests

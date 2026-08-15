@@ -27,7 +27,7 @@ namespace Renamer.Tests.Execution.Collisions;
 [Trait("Tier", "L1")]
 public sealed class CollisionAndRollbackTests
 {
-    // ── case-only renames (was CaseOnlyRenamerTests) ──────────────────────────
+    // ── case-only renames ─────────────────────────────────────────────────────
     //
     // Neither case is platform-gated, and that is deliberate. The clean-rename outcome is
     // platform-UNIVERSAL but reached by two different mechanisms: where the volume folds case (Windows,
@@ -159,7 +159,7 @@ public sealed class CollisionAndRollbackTests
         }
     }
 
-    // ── the unique-index backstop (was CollisionTests) ────────────────────────
+    // ── the unique-index backstop ─────────────────────────────────────────────
 
     /// <summary>
     /// The <c>(ParentFolderId, Basename)</c> UNIQUE index is the final safety net behind the proactive
@@ -227,7 +227,7 @@ public sealed class CollisionAndRollbackTests
         }
     }
 
-    // ── save-fails-after-move rollback (was Collisions/RollbackTests) ─────────
+    // ── save-fails-after-move rollback ────────────────────────────────────────
 
     /// <summary>
     /// The disk move SUCCEEDS but the subsequent <c>SaveChangesAsync</c> THROWS: the file is back at its
