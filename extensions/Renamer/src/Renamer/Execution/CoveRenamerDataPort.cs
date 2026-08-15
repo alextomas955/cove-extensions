@@ -82,7 +82,8 @@ public class CoveRenamerDataPort : IRenamerDataPort
     // The single source of truth for studio-hierarchy depth. Two things MUST stay bound to it: the
     // WalkParentStudios ancestor-hop bound, and — because EF's Studio→Studio .ThenInclude cannot be
     // parameterized by a runtime count — the literal number of ".ThenInclude(s => s!.Parent)" hops each
-    // per-kind query below carries after ".Include(x => x.Studio)". StudioDepthLockstepTests seeds
+    // per-kind query below carries after ".Include(x => x.Studio)". The studio-depth lockstep cases in
+    // CoveDataPortRoutingFieldsTests seed
     // MaxParentDepth+1 ancestors and asserts exactly MaxParentDepth load through the real chain, so
     // changing this constant OR a query's hop count without the other fails that test — the coupling is
     // enforced mechanically, not by memory.
@@ -131,8 +132,8 @@ public class CoveRenamerDataPort : IRenamerDataPort
     // ── Per-kind query + mapper: single-load and batch-load share BOTH so their DTOs cannot drift. ──
 
     // Each query's ancestor Include hop count is bound to MaxParentDepth (== 3) and guarded by
-    // StudioDepthLockstepTests — add or drop a ".ThenInclude(s => s!.Parent)" here without matching the
-    // constant and that test fails.
+    // CoveDataPortRoutingFieldsTests' MaxDepthChain_* cases — add or drop a ".ThenInclude(s => s!.Parent)"
+    // here without matching the constant and those tests fail.
     private IQueryable<Video> VideoQuery() => _db.Set<Video>()
         .AsNoTracking()
         .Include(x => x.Studio).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent)

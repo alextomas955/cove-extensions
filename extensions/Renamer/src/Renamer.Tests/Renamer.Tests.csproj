@@ -250,8 +250,8 @@
         Renamer's own assembly and names no Cove type. Nor does the TestSupport event-bus recorder, which
         names only Cove.Core.Events — NuGet supplies those, and Execution/Undo/RollbackTests needs the
         recorder on this leg.
-      - INTEGRATION (real CoveContext via Cove.Data): Jobs/RenamerBatchJobTests, the Api/*EndpointTests,
-        and the named files under the four folders below.
+      - INTEGRATION (real CoveContext via Cove.Data): the Api/*EndpointTests and the named files under
+        the four folders below.
     The shared CoveContextFactory is NOT listed here: it lives in the source-only Testing.Cove dir and is
     pulled in by the positive Exists()-guarded Compile Include below (present only when cove is), so its
     consumers above cover the bare leg without a Compile Remove for the fake itself. FakePrincipalAccessor
@@ -272,20 +272,16 @@
     <Compile Remove="Api\RequestPathPrincipalTests.cs" />
     <Compile Remove="Api\ScanLibraryEndpointTests.cs" />
     <Compile Remove="Api\UndoEndpointTests.cs" />
-    <Compile Remove="Jobs\RenamerBatchJobTests.cs" />
     <!-- The options conversion's L1 half drives a real CoveContext + CovePrincipal; its L0 twin
          (Options\OptionsMigrationLogicTests.cs) is pure and stays on the bare leg. -->
     <Compile Remove="Options\OptionsMigrationInitializeTests.cs" />
 
-    <!-- Execution/ — the cove-dependent files only; the canonical-guard prefix/8.3/junction/symlink
-         cases, the cross-volume mover, temp ownership, verify-fail, the volume classifier, free space,
+    <!-- Execution/ — the cove-dependent files only; CanonicalPathGuardTests (which now holds the
+         prefix/8.3/junction/symlink cases), the cross-volume mover, the volume classifier, free space,
          locked files, SidecarTests, RevertLogBatchTests and Undo/RollbackTests stay on this leg. -->
     <Compile Remove="Execution\CanonicalGuard\CanonicalPathGuardRootTests.cs" />
-    <Compile Remove="Execution\CanonicalGuard\ExecutorAllowlistGuardTests.cs" />
-    <Compile Remove="Execution\Collisions\CaseOnlyRenamerTests.cs" />
+    <Compile Remove="Execution\Collisions\CollisionAndRollbackTests.cs" />
     <Compile Remove="Execution\Collisions\CollisionBlindDataPort.cs" />
-    <Compile Remove="Execution\Collisions\CollisionTests.cs" />
-    <Compile Remove="Execution\Collisions\RollbackTests.cs" />
     <Compile Remove="Execution\CoveDataPortRoutingFieldsTests.cs" />
     <Compile Remove="Execution\CrossVolume\CrossVolumeUndoTests.cs" />
     <Compile Remove="Execution\EmptySourceFolderCleanerTests.cs" />
@@ -298,10 +294,8 @@
     <Compile Remove="Execution\Journal\RevertJournalRetentionTests.cs" />
     <Compile Remove="Execution\Journal\RevertJournalTests.cs" />
     <Compile Remove="Execution\Journal\UndoRetryTests.cs" />
-    <Compile Remove="Execution\LoadAllEntityIdsAsyncTests.cs" />
     <Compile Remove="Execution\RenamerExecutorIntegrationTests.cs" />
     <Compile Remove="Execution\Sidecars\AssociatedExtensionSidecarTests.cs" />
-    <Compile Remove="Execution\StudioDepthLockstepTests.cs" />
     <Compile Remove="Execution\Undo\UndoReGateTests.cs" />
     <Compile Remove="Execution\Undo\UndoReplayerTests.cs" />
     <Compile Remove="Execution\Undo\UndoSidecarRestoreTests.cs" />
@@ -311,7 +305,6 @@
     <Compile Remove="Events\AutoRenamerElevationTests.cs" />
     <Compile Remove="Events\AutoRenamerFailureContainmentTests.cs" />
     <Compile Remove="Events\AutoRenamerGateTests.cs" />
-    <Compile Remove="Events\AutoRenamerNoDribbleTests.cs" />
     <Compile Remove="Events\AutoRenamerOnceTests.cs" />
     <Compile Remove="Events\AutoRenamerRevertLogBatchTests.cs" />
     <Compile Remove="Events\AutoRenamerRoutingTests.cs" />
@@ -319,7 +312,7 @@
     <Compile Remove="Events\EventTestHarness.cs" />
     <Compile Remove="Events\ReentrancyGuardTests.cs" />
 
-    <!-- Concurrency/ — PhaseALoadOnceTests is pure and stays. -->
+    <!-- Concurrency/ — every file here is cove-dependent. -->
     <Compile Remove="Concurrency\ParallelBatchTests.cs" />
     <Compile Remove="Concurrency\ParallelFolderCreationTests.cs" />
     <Compile Remove="Concurrency\PerWorkerScopeTests.cs" />

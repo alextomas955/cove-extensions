@@ -26,7 +26,7 @@ namespace Renamer.Tests.Api;
 /// persisted aggregate back per readable kind, <c>ScanRowsAsync</c> serves the rows a page at a time, and
 /// <c>InitializeAsync</c> purges the pre-0.2.1 per-file scan value. Exercised as plain methods (no HTTP
 /// host) with a real SQLite <c>CoveContext</c>, mirroring
-/// <c>PreviewEndpointTests</c>/<c>EntityIdsCapTests</c>/<c>RenamerBatchJobTests</c>.
+/// <c>PreviewEndpointTests</c>/<c>EntityIdsCapTests</c> and <c>RenamerExecutorIntegrationTests</c>' batch cases.
 /// </summary>
 [Trait("Tier", "L1")]
 public sealed class ScanLibraryEndpointTests
@@ -64,7 +64,7 @@ public sealed class ScanLibraryEndpointTests
     /// Wires the extension's captured seams (<c>_scopeFactory</c>, <c>_eventBus</c>) from a DI
     /// provider whose <c>DbContext</c> registration is SCOPED over <paramref name="conn"/>, so the job
     /// body's own <c>CreateAsyncScope()</c> resolves a context over the SAME database the test seeded —
-    /// mirrors <c>RenamerBatchJobTests.BuildExtensionAsync</c>. The scan job never touches <c>IEventBus</c>,
+    /// the same shape <c>ExtensionHarness.CreateWithScopedContextAsync</c> builds. The scan job never touches <c>IEventBus</c>,
     /// but <c>InitializeAsync</c> requires both seams to be resolvable.
     /// </summary>
     private static async Task InitializeOverSharedConnectionAsync(global::Renamer.Renamer ext, SqliteConnection conn)

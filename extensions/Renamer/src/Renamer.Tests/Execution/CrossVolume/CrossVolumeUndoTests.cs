@@ -6,8 +6,8 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Execution.CrossVolume;
 
 /// <summary>
-/// The cross-drive reverse-replay proofs — the mirror of
-/// <see cref="CrossVolumeVerifyFailTests"/>, driven through <see cref="UndoReplayer"/> (NOT
+/// The cross-drive reverse-replay proofs — the mirror of the forward verify-failure cases in
+/// <see cref="CrossVolumeMoverTests"/>, driven through <see cref="UndoReplayer"/> (NOT
 /// <see cref="RenamerExecutor"/>) so the NEW→OLD direction is exercised. Each test sets up a
 /// cross-volume pair via the <see cref="SubstDrive"/> helper (a distinct path root on the same
 /// physical disk — no second drive; a live two-drive run is a manual cross-platform check), seeds a file at
