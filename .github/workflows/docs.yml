@@ -1,41 +1,66 @@
-# Build and deploy the standalone Docusaurus docs site (website/) to GitHub Pages.
+# Build the standalone Docusaurus docs site (website/), and publish it to GitHub Pages once the
+# commit that built it lands on main.
 #
-# Deliberately SEPARATE from build.yml (the catalog-driven extension build/release matrix) — the docs
-# site is its own concern with its own trigger and toolchain. Uses the modern first-party Pages flow
-# (actions/configure-pages -> actions/upload-pages-artifact -> actions/deploy-pages), not the legacy
-# branch-push publishing flow. Mirrors build.yml's toolchain pins (actions/checkout@v7, actions/setup-node@v6,
+# ONE workflow, two paths. A pull request BUILDS: a docs dependency bump — a Dependabot
+# @docusaurus/* PR, say — is proven to still build BEFORE merge, instead of only failing after it
+# reaches main. A push to main builds AND publishes. Deliberately separate from build.yml (the
+# catalog-driven extension build/release matrix): the docs site is its own concern with its own
+# toolchain. Uses the modern first-party Pages flow (actions/configure-pages ->
+# actions/upload-pages-artifact -> actions/deploy-pages), not the legacy branch-push publishing
+# flow. Mirrors build.yml's toolchain pins (actions/checkout@v7, actions/setup-node@v7,
 # node 24.11.0). The site is a standalone npm package built with `npm --prefix website ...`.
+#
+# A pull request cannot publish, and the property is structural rather than conventional: the
+# workflow-level grant is contents:read, the Pages-write and OIDC-token grants are scoped to the
+# deploy job alone, and that job is unreachable on the pull-request path. A proposal from a fork is
+# covered by the same three facts, which is why they are worth stating rather than assuming.
 
-name: Deploy docs site to GitHub Pages
+name: Docs site
 
-# Paths mirror docs-build.yml: the site sources each extension's own `docs/` folder and a page there
-# may import a file from the extension root, so `website/**` alone would leave an extension's docs
-# edit undeployed as well as unchecked. Keep the two lists in step.
+# The site does NOT build from `website/` alone: docusaurus.config.ts sources each extension's own
+# `docs/` folder (U-36, so there is one doc source and no site copy to drift from), and a page there
+# may import a file from the extension root — Renamer's changelog page imports its `CHANGELOG.md`.
+# A filter of `website/**` therefore cannot see the files that break the build, which is not
+# hypothetical: a changelog edit broke `npm run build` and stayed broken because nothing gated it.
+# The globs are per-extension-shaped rather than naming one extension, so a new extension is covered
+# by adding its folder, with no workflow edit.
+#
+# The filter sits on the pull-request path ONLY, and the asymmetry is deliberate. Actions offers no
+# way to share one `paths:` list across two triggers, so filtering both would put a second copy of
+# this list inside this file — the same unenforceable duplication that merging the old build-only
+# docs workflow into this one was meant to remove. Filtering the cheap, frequent path is where the
+# saving is; the publish path runs only when a commit reaches main, and is left unfiltered so that
+# an under-matching glob can never leave the published site stale.
 on:
-  push:
-    branches: [main]
+  pull_request:
     paths:
       - "website/**"
       - "extensions/*/docs/**"
       - "extensions/*/CHANGELOG.md"
       - ".github/workflows/docs.yml"
+  push:
+    branches: [main]
   workflow_dispatch:
 
-# Least-privilege floor: read the repo. The Pages and OIDC grants are declared per-job below, so the
-# job that installs and runs the site's dependencies holds neither.
+# Least-privilege floor: read the repo. The publish grants are declared per-job below, so the job
+# that installs and runs the site's dependencies holds neither of them, on either path.
 permissions:
   contents: read
 
-# Serialize Pages deploys; never cancel an in-flight one.
+# Both behaviours, keyed on the event, because the two paths want opposite things and one setting
+# applied to both would be wrong for one of them. A superseded PR build is waste, so it is
+# cancelled and grouped per ref. A cancelled deploy can leave the site half-published, so the
+# publish path serializes on the shared `pages` group and never cancels.
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('docs-pr-{0}', github.ref) || 'pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
     # Configure Pages queries the repository's Pages settings, and a permissions block sets every
-    # unlisted scope to none — hence the explicit pages:read. No write scope: this job cannot deploy.
+    # unlisted scope to none — hence the explicit pages:read. No write scope: this job cannot
+    # deploy, on any event.
     permissions:
       contents: read
       pages: read
@@ -48,22 +73,34 @@ jobs:
           cache: "npm"
           cache-dependency-path: website/package-lock.json
 
+      # Publish preparation, skipped on a pull request: there is no deploy to hand an artifact to.
+      # The built site does not depend on it — docusaurus.config.ts carries `url` and `baseUrl` as
+      # literals and reads no environment — so the pull-request path skips these two steps and
+      # still builds the same site the publish path builds.
       - name: Configure Pages
+        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v6
 
       - name: Build the docs site
         run: npm --prefix website ci && npm --prefix website run build
 
       - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5
         with:
           path: website/build
 
   deploy:
+    # Two independent gates, and the pair is the point. `needs` stops a publish behind a red build;
+    # the `if` makes this job unreachable from a pull request whatever the build did. A manual run
+    # still publishes, which is the behaviour this file had before the merge and is not silently
+    # dropped here.
     needs: build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    # The only job that can publish. deploy-pages authenticates the deployment with an OIDC token, so
-    # id-token:write is inseparable from pages:write here. No contents scope — it checks nothing out.
+    # The only job that can publish. deploy-pages authenticates the deployment with an OIDC token,
+    # so id-token:write is inseparable from pages:write here. No contents scope — it checks nothing
+    # out.
     permissions:
       pages: write
       id-token: write

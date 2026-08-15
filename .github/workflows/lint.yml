@@ -1,7 +1,6 @@
 # Style, analyzer, docs-lint, and Windows build/unit-test signal — independent checks with no
 # `needs:` link to build.yml's validate/build/e2e/release chain, split out so they (a) run on
-# direct pushes to main (build.yml only triggers on pull_request + tag push, matching codeql.yml's
-# push+PR+schedule trigger here instead), (b) get their own minimal permissions rather than
+# direct pushes to main, which build.yml does not, (b) get their own minimal permissions rather than
 # inheriting build.yml's release-scoped `contents: write`, and (c) can be re-run independently of
 # the release pipeline (GitHub's re-run-failed-jobs action is scoped per workflow run).
 
