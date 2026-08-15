@@ -241,7 +241,7 @@
 
     Notes on the entries that are not self-evident:
       - Cove.Core-ONLY (auth/events/entities, no CoveContext): ActionDeclarationTests,
-        Api/SettingsManifestTests, Concurrency/Parallel*.
+        Api/SettingsManifestTests, Api/ExtensionDeclarationTests, Concurrency/Parallel*.
       - TestSupport/CoveDataExtensionScope: registers the extension via CoveContext.SetDataExtensions, which is
         Cove.Data. Its sibling TestSupport/FakeRevertJournal needs no line: it implements a port declared in
         Renamer's own assembly and names no Cove type. Nor does the TestSupport event-bus recorder, which
@@ -262,6 +262,7 @@
     <!-- TransportSmokeTests boots the extension in a TestServer over a real CoveContext (Cove.Data) + CovePrincipal → drops out on a bare CI runner. -->
     <Compile Remove="Api\TransportSmokeTests.cs" />
     <Compile Remove="Api\SettingsManifestTests.cs" />
+    <Compile Remove="Api\ExtensionDeclarationTests.cs" />
     <Compile Remove="Api\PreviewEndpointTests.cs" />
     <Compile Remove="Api\PreviewSampleEndpointTests.cs" />
     <Compile Remove="Api\EndpointPermissionTests.cs" />
