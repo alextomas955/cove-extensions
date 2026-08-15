@@ -164,10 +164,12 @@ async function main(argv) {
 }
 
 // import.meta.main arrived in Node 22.18 and 24.2, and is `undefined` before that — so a bare
-// truthiness guard would make `node scripts/generate-wire-types.mjs` exit 0 having generated nothing,
-// on a runtime this repo's engines floor (>=22) still admits. Every job that builds a UI TypeScript
-// program depends on this run having happened, and the failure would surface later as an unresolved
-// import of a module nobody wrote. So the absent feature is refused by name rather than read as false.
+// truthiness guard would make `node scripts/generate-wire-types.mjs` exit 0 having generated nothing.
+// The root package.json's engines floor asks for 22.18, but npm only warns on a mismatch and a direct
+// `node` run consults nothing, so an older runtime still reaches this line. Every job that builds a UI
+// TypeScript program depends on this run having happened, and the failure would surface later as an
+// unresolved import of a module nobody wrote. So the absent feature is refused by name rather than
+// read as false.
 if (import.meta.main === undefined) {
   throw new Error(
     "scripts/generate-wire-types.mjs requires import.meta.main (Node 22.18+ or 24.2+); " +
