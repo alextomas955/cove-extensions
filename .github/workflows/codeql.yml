@@ -11,10 +11,13 @@
 
 name: CodeQL
 
+# Analysis runs on what lands and on a clock, not on proposals. Every commit that reaches `main`
+# is analysed, so nothing merges unanalysed for longer than the merge itself; the weekly cron then
+# re-analyses unchanged code against updated queries. There is no PR trigger because this repo has a
+# single maintainer and no external contributions today — add one back the moment that stops being
+# true, since a proposal from an untrusted fork is the case this trade gives up.
 on:
   push:
-    branches: [main]
-  pull_request:
     branches: [main]
   schedule:
     # Weekly, so analysis runs even when no new commits land.
