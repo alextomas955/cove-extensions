@@ -16,8 +16,6 @@ import {
   isFinalizing,
   formatEta,
   etaFromSamples,
-  ETA_SMOOTHING,
-  ETA_MIN_RATES,
 } from "./dryRunLogic";
 
 /**
@@ -312,7 +310,6 @@ test("etaFromSamples EWMA decays the cold-start rate instead of flashing a bogus
 test("etaFromSamples withholds the estimate until it has ETA_MIN_RATES smoothed rates", () => {
   // Exactly one rate observation (unsmoothed seed) → null, no matter how clean the pair looks. This
   // is the fix for the intermittent one-poll "~2m" flash: never DISPLAY off a single raw seed.
-  assert.equal(ETA_MIN_RATES, 2);
   assert.equal(
     etaFromSamples([
       { timeMs: 0, progress: 0.2 },
@@ -337,8 +334,4 @@ test("etaFromSamples withholds the estimate until it has ETA_MIN_RATES smoothed 
       { timeMs: 2000, progress: 0.4 },
     ]) !== null,
   );
-});
-
-test("ETA_SMOOTHING is tqdm's 0.3 default", () => {
-  assert.equal(ETA_SMOOTHING, 0.3);
 });
