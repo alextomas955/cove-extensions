@@ -612,9 +612,6 @@ public sealed class RenamerExecutor
         return dot > 0 ? (basename[..dot], basename[dot..]) : (basename, "");
     }
 
-    private static string ApplySuffix(string filename, string ext, string suffixFormat, int counter)
-        => filename + suffixFormat.Replace("{n}", counter.ToString(System.Globalization.CultureInfo.InvariantCulture)) + ext;
-
     /// <summary>The stem (name without its final extension): "video.mkv" → "video"; "video.en.vtt" → "video.en".</summary>
     private static string StemOf(string basename)
     {
@@ -631,24 +628,6 @@ public sealed class RenamerExecutor
         => captionFilename.StartsWith(oldStem, StringComparison.Ordinal)
             ? newStem + captionFilename[oldStem.Length..]
             : captionFilename;
-
-    private static string JoinPath(string a, string b)
-    {
-        if (string.IsNullOrEmpty(a))
-        {
-            return b;
-        }
-
-        if (string.IsNullOrEmpty(b))
-        {
-            return a;
-        }
-
-        return a.TrimEnd('/', '\\') + "/" + b.TrimStart('/', '\\');
-    }
-
-
-
 
 
 
