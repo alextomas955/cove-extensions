@@ -1,8 +1,8 @@
 /**
  * useRenamerOptions — the options load/save data layer for the settings page.
  *
- * Owns the full persistence lifecycle the panel used to inline, over the shared extension data
- * store (which carries the host's route surface and its encoding). What stays here is the options
+ * Owns the full persistence lifecycle, over the shared extension data store (which carries the
+ * host's route surface and its encoding). What stays here is the options
  * semantics the store has no business knowing: recovery from an unreadable stored blob, and
  * preserving stored keys this panel does not model.
  *
