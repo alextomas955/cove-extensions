@@ -328,6 +328,7 @@
     <Compile Remove="Preview\PreviewWholeBatchTests.cs" />
 
     <Compile Remove="TestSupport\CoveDataExtensionScope.cs" />
+    <Compile Remove="TestSupport\ExtensionHarness.cs" />
     <Compile Remove="TestSupport\JournalOnlyDatabase.cs" />
     <Compile Remove="TestSupport\Library.cs" />
     <Compile Remove="TestSupport\SharedCacheSqlite.cs" />

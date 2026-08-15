@@ -7,12 +7,24 @@ namespace Renamer.Tests;
 [Trait("Tier", "L0")]
 public sealed class TierTraitCoverageTests
 {
-    // This project compiles as two different assemblies. With the `../cove` sibling present it carries
-    // ~92 test classes; on the bare leg CI runs, the cove-referencing sources are Compile-Removed
-    // (see Renamer.Tests.csproj) and 44 remain. A single floor therefore has to clear the SMALLER leg,
-    // measured at 44 — so this is deliberately not "~90 minus a bit". It only ever trips on a mass
-    // deletion, which is itself worth a red build, and it cannot go stale upward.
-    private const int MinimumTestClasses = 40;
+    // This project compiles as two different assemblies: with the `../cove` sibling present it carries
+    // 120 test classes, and on the bare leg CI runs the cove-referencing sources are Compile-Removed
+    // (see Renamer.Tests.csproj), leaving 70 — both measured 2026-08-14 by reading this assertion's own
+    // message. A single floor has to clear the SMALLER leg, so it is derived from 70, not from 120.
+    //
+    // What the floor is FOR: proving discovery is not broken. The guard matches xUnit's attributes by
+    // NAME, so a collapse examines ~0 classes and the untagged list below is then empty for the wrong
+    // reason. It is NOT a coverage floor, and reading it as one is the mistake to avoid: an accidental
+    // shrink is caught by the per-batch measured bare-leg class count — a real number compared against
+    // a recorded one — whereas this threshold sits well below the truth by construction.
+    //
+    // 45 = 70 measured, minus the ~17 bare-leg classes Phase 35 removes deliberately, minus 8 more as
+    // headroom, so it still clears even if that estimate is 50% low. Re-derived here, deliberately and
+    // ahead of the batch that crosses the old value, because two batches in one wave each remove
+    // classes without being able to observe the other's result. Phase 35-07 tightens it to the measured
+    // final count. Never raise or lower it reactively when it goes red: a red is either a mass deletion
+    // or broken discovery, and both are worth the build.
+    private const int MinimumTestClasses = 45;
 
     [Fact]
     public void AllTestClassesCarryATierTrait()
