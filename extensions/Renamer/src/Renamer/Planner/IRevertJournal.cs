@@ -48,9 +48,7 @@ public interface IRevertJournal
     /// <remarks>
     /// The ONE read that selects a batch. Both the undo endpoint and the panel's summary endpoint call
     /// it and nothing else picks a batch, so the sentence the panel renders and the batch the button
-    /// acts on are one value rather than two reads that happen to agree. They did once disagree: a
-    /// newest-batch-whatever read described a settled batch as "nothing to undo" while an older batch's
-    /// partly-restored rows were still live and still restorable.
+    /// acts on are one value rather than two reads that happen to agree.
     /// <para>
     /// The fallback arm is load-bearing, not a convenience. A spent batch is still what the panel must
     /// describe ("500 files renamed on 3 Aug, 497 restored, 3 could not be"), and that sentence is
