@@ -12,9 +12,10 @@ import { useCallback, useEffect, useState } from "react";
 import { requestJson, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 import { Undo2 } from "lucide-react";
 
-import { Dialog } from "../common/ui/Dialog";
+import { Dialog } from "../common/Dialog";
 import { Button, StatusText, Spinner } from "@cove-extensions/ui-shared";
-import { api } from "../common/lib/extension";
+import { api } from "../common/extension";
+import { errText } from "../common/format";
 import type { LastBatchSummary, UndoResult } from "../wire/api";
 import { buildUndoStatus, buildUndoFeedback, type UndoFeedback } from "./undoLogic";
 
@@ -23,10 +24,6 @@ const UNDO_PATH = api("undo");
 
 const UNDO_TITLE_ID = "rename-undo-confirm-title";
 const UNDO_DESC_ID = "rename-undo-confirm-message";
-
-function errText(err: unknown): string {
-  return err instanceof ApiError ? `${err.status} ${err.body}` : String(err);
-}
 
 type Feedback = UndoFeedback | null;
 

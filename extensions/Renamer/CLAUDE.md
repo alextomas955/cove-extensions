@@ -43,8 +43,9 @@ root `CLAUDE.md` under **Extension authoring patterns** and apply here. Renamer 
 - **UI slices directly under `src/`, no `features/` wrapper.** `settings/` holds the panel + its
   per-section children; the dry-run modal NESTS as `settings/dry-run/` (it is launched only from the
   settings panel). The bulk-action handler is its own slice (`rename-action/`).
-- **Extension-local shared is `common/`, not "shared".** `common/lib/preview.ts` — evicted from any
-  old `shared/` bucket; nothing Renamer-specific goes in the repo-level `shared/` packages.
+- **Extension-local shared is `common/`, and it is flat.** `common/format.ts` holds what more than one
+  surface formats; nothing Renamer-specific goes in the repo-level `shared/` packages, and a module
+  only one slice consumes belongs in that slice rather than here.
 - **Wire home: a `Contracts/` unit in the assembly** (`PreviewItemView` split out of the plan model so
   the domain can evolve without a wire break). The UI declares no response type of its own — they are
   derived from the extension's own emitted document, so the panel imports its wire types rather than
