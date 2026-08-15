@@ -78,6 +78,9 @@
     <!-- The extension declares no metadata in code, so its identity comes from this file. RenamerFixture
          parses the SHIPPED bytes rather than a stub, which needs them next to the test assembly. -->
     <Content Include="..\Renamer\extension.json" Link="extension.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- TransportSmokeTests derives the route table it exercises from this document rather than holding
+         a second hand-written list, so it needs the committed bytes next to the test assembly. -->
+    <Content Include="..\..\wire\openapi.json" Link="openapi.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

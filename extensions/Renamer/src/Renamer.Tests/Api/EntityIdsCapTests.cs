@@ -13,7 +13,7 @@ namespace Renamer.Tests.Api;
 /// one job. Both reject an over-cap array with a 400 BEFORE any per-id work, so a runaway/oversized
 /// request can't tie up a request thread or enqueue a giant job.
 /// </summary>
-[Trait("Tier", "L2")]
+[Trait("Tier", "L1")]
 public sealed class EntityIdsCapTests
 {
     // Keep in sync with Renamer.Api.cs MaxEntityIdsPerRequest. Over-cap = cap + 1.

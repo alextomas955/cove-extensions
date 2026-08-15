@@ -18,6 +18,13 @@ namespace Renamer.Tests.Api;
 /// that the <c>/renamer</c> deny path does NOT enqueue a job. The authorized path enqueues exactly one
 /// renamer-batch job and returns 202 {jobId}.
 /// </summary>
+/// <remarks>
+/// In-process endpoint tier on the strength of one case: every deny/allow case below drives a handler
+/// as a plain method, but <see cref="MappedRoute_DeclaresItsCoarsePolicyToTheHost"/> builds a real host
+/// and reads its route metadata back, and a class takes the tier of the strongest dependency any of its
+/// cases needs. The two halves stay together because they are the two halves of one property — what a
+/// route enforces, and what it declares.
+/// </remarks>
 [Trait("Tier", "L2")]
 public sealed class EndpointPermissionTests
 {
