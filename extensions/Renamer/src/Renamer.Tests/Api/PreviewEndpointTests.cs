@@ -229,7 +229,8 @@ public sealed class PreviewEndpointTests
     /// </summary>
     /// <remarks>
     /// The handler builds its own <c>CoveRenamerDataPort</c> from the <c>DbContext</c> it is handed, so
-    /// there is no port seam to count calls on (unlike the batch path's <c>PhaseALoadOnceTests</c>). The
+    /// there is no port seam to count calls on (unlike the batch path's load-once cases in
+    /// <c>RenamerPlannerTests</c>). The
     /// count is taken at the database instead, and the per-load command count is CALIBRATED from a real
     /// <c>LoadEntityAsync</c> in this same test rather than assumed to be one: how many reader commands
     /// EF renders an Include chain into is EF's decision, and hard-coding today's answer would make this
