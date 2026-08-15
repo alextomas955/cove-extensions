@@ -624,8 +624,6 @@ public sealed class RenamerExecutor
             ? newStem + captionFilename[oldStem.Length..]
             : captionFilename;
 
-
-
     /// <summary>True iff <paramref name="candidate"/> is the source file's own path — the same
     /// canonical location differing at most by case on a case-insensitive volume. Mirrors the
     /// <see cref="PathsEqual"/>/<c>VolumeClassifier</c> OS-aware policy so the disk-side self-exclusion

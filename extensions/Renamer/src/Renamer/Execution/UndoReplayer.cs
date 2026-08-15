@@ -457,13 +457,4 @@ public sealed class UndoReplayer
         public sealed record Skipped(UndoFailure Failure) : RevertOutcome;
         public sealed record Failed(UndoFailure Failure) : RevertOutcome;
     }
-
-    // ── event mapping — the exact forward-equivalent reconstruction ───────────
-
-    // ── path/name helpers (pure string math — mirror RenamerExecutor) ──────────
-
-
-
-
-
 }
