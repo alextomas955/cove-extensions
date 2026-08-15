@@ -305,6 +305,7 @@
     <Compile Remove="Events\AutoRenamerElevationTests.cs" />
     <Compile Remove="Events\AutoRenamerFailureContainmentTests.cs" />
     <Compile Remove="Events\AutoRenamerGateTests.cs" />
+    <Compile Remove="Events\AutoRenamerHookTests.cs" />
     <Compile Remove="Events\AutoRenamerOnceTests.cs" />
     <Compile Remove="Events\AutoRenamerRevertLogBatchTests.cs" />
     <Compile Remove="Events\AutoRenamerRoutingTests.cs" />

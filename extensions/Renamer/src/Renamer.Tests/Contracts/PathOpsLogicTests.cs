@@ -9,11 +9,11 @@ namespace Renamer.Tests.Contracts;
 /// no running service.
 /// </summary>
 /// <remarks>
-/// PLACEMENT IS LOAD-BEARING, and this file is deliberately NOT under <c>Execution/</c>. The
-/// cove-absent continuous-integration leg removes the <c>Execution</c>, <c>Events</c>,
-/// <c>Concurrency</c> and <c>Preview</c> folders wholesale, so a pure suite placed beside the code it
-/// covers would silently stop running exactly on the leg where this repository's coverage is
-/// thinnest. <c>Contracts/</c> is covered by no <c>Compile Remove</c> entry.
+/// PLACEMENT IS LOAD-BEARING, and this file is deliberately NOT under <c>Execution/</c>. The cove-absent
+/// continuous-integration leg removes cove-dependent sources from those folders FILE BY FILE, so whether
+/// a pure suite placed beside the code it covers keeps running there depends on a <c>Compile Remove</c>
+/// entry nobody adds deliberately for a test that needs none — and this leg is where the repository's
+/// coverage is thinnest. <c>Contracts/</c> is covered by no such entry at all, which is the guarantee.
 /// <para>
 /// WHY THIS CLASS EXISTS. Until it was written the suite contained no test of any path-join helper at
 /// all, so a merge of three differing implementations into one could have changed behavior and still
