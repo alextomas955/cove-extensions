@@ -269,6 +269,51 @@ public class CoveRenamerDataPort : IRenamerDataPort
         => (await GetOrCreateFolderAsync(folderPath, ct)).Id;
 
     /// <summary>
+    /// The GUARDED row-creation seam: canonically checks <paramref name="folderPathFwd"/> against
+    /// <paramref name="allowedRoots"/> and resolves-or-creates its <see cref="Folder"/> row ONLY on
+    /// acceptance. Every FORWARD caller that creates a destination folder row — the batch's
+    /// destination pre-create and the executor's own fallback resolve — goes through here rather than
+    /// through the raw <see cref="GetOrCreateFolderIdAsync"/> above.
+    /// </summary>
+    /// <remarks>
+    /// CANONICAL ALLOWLIST GUARD — PRE-MUTATION. This MUST precede
+    /// <see cref="GetOrCreateFolderIdAsync"/> (which persists a Folder DB row), so a destination the
+    /// allowlist will reject never materializes a DB folder row pointing outside the allowlist. We
+    /// canonically resolve the destination FOLDER's real on-disk target (following any junction/symlink
+    /// and expanding 8.3) and reject when it escapes every configured root.
+    /// <para>
+    /// Only guards when an allowlist is configured — with empty <paramref name="allowedRoots"/> the
+    /// source-confine path is byte-identical and there is no allowlist to canonically re-check, so the
+    /// create runs exactly as it did before. A reject is a classification carrying the guard's own
+    /// reason string, NEVER a throw: both call sites turn it into a SkipBlocked item, and the reason
+    /// they report is this one, so a skipped item is attributable rather than generic.
+    /// </para>
+    /// <para>
+    /// The raw create remains reachable — this seam reduces the bypass risk rather than removing it —
+    /// which is why it sits directly beside the member it guards: a future caller reading the raw
+    /// create meets this one first.
+    /// </para>
+    /// </remarks>
+    /// <returns>
+    /// <c>Accepted</c> with the resolved <c>FolderId</c>, or a rejection carrying the guard's
+    /// <c>Reason</c> and no row created.
+    /// </returns>
+    internal static async Task<(bool Accepted, int FolderId, string? Reason)> GuardedGetOrCreateFolderIdAsync(
+        IRenamerDataPort port, string folderPathFwd, IReadOnlyList<string> allowedRoots, CancellationToken ct = default)
+    {
+        if (allowedRoots.Count > 0)
+        {
+            var guard = CanonicalPathGuard.Check(folderPathFwd, allowedRoots);
+            if (!guard.Accepted)
+            {
+                return (false, 0, guard.Reason);
+            }
+        }
+
+        return (true, await port.GetOrCreateFolderIdAsync(folderPathFwd, ct), null);
+    }
+
+    /// <summary>
     /// Read-only counterpart to <see cref="GetOrCreateFolderIdAsync"/>: returns the existing folder's
     /// id or <c>null</c> when absent. Same path normalization and lookup as
     /// <see cref="GetOrCreateFolderAsync"/>, but it never <c>Add</c>s or
