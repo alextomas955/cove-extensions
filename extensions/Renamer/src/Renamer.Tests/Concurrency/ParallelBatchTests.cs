@@ -283,4 +283,77 @@ public sealed class ParallelBatchTests
             await shared.DisposeAsync();
         }
     }
+
+    [SkippableFact]
+    public async Task StarvedCrossVolumeBatch_IsRefusedUpFront_NoBatchOpens()
+    {
+        Skip.IfNot(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
+
+        using var dir = new TempDir();
+        using var drive = new SecondVolume();
+        var shared = await SharedCacheSqlite.CreateAsync();
+        try
+        {
+            string srcFolder = Path.Combine(dir.Root, "incoming");
+            Directory.CreateDirectory(srcFolder);
+            string srcPathFwd = srcFolder.Replace('\\', '/');
+            string destRootFwd = drive.Root.Replace('\\', '/');
+
+            await using var seedDb = shared.NewContext();
+            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(seedDb, srcPathFwd, "raw.mkv", "My Film");
+            File.WriteAllText(Path.Combine(srcFolder, "raw.mkv"), "bytes");
+
+            // Load-bearing, for the reason spelled out on the in-flight test above: the guard's Needed
+            // comes from the RECORDED size, so a default-zero row makes the shortfall unsatisfiable for
+            // any probe whatsoever and this test would pass while proving nothing.
+            var fileRow = await seedDb.Set<Cove.Core.Entities.VideoFile>().FirstAsync(f => f.Id == fileId);
+            fileRow.Size = 4096;
+            await seedDb.SaveChangesAsync();
+
+            var options = new RenamerOptions
+            {
+                FilenameTemplate = "$title",
+                FolderTemplate = "Films",
+                AllowedRoots = [srcPathFwd, destRootFwd],
+                PathDestinations =
+                    [new PathDestinationRule { Pattern = srcPathFwd, Dest = destRootFwd, IsRegex = false }],
+                // Zero headroom, so the refusal comes from the shortfall itself rather than from
+                // headroom arithmetic that would refuse even an ample volume.
+                FreeSpaceHeadroomBytes = 0,
+            };
+            var (ext, _, _) = await BuildAsync(shared, options);
+
+            var progress = new FakeJobProgress();
+            // CONSTANT starvation, unlike the in-flight test's stateful probe: every reading reports one
+            // byte free, so the destination volume is already too small when the batch is first sized up.
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), progress, default, _ => 1L);
+
+            // (a) The batch was refused, and said so. Nothing else in the suite reads this message, so a
+            //     refusal that stopped reporting would go unnoticed everywhere but here.
+            Assert.Equal(1d, progress.LastPercent);
+            Assert.StartsWith("Refused: insufficient free space", progress.Reports[^1].Message);
+
+            // (b) No batch was opened. This is the assert that carries the test: the refusal runs before
+            //     the journal opens its batch, so a refused run must leave the batches table untouched.
+            //     Read the table directly over a fresh context — the undo-target reader cannot stand in
+            //     for it, because a batch that opened and then had every item skipped holds no rows and
+            //     is not offered as an undo target, which is exactly the state a lost refusal produces.
+            await using var readDb = shared.NewContext();
+            Assert.Equal(0, await readDb.Set<RevertBatchEntity>().AsNoTracking().CountAsync());
+
+            // Supporting only. Both of these stay green when the up-front refusal is removed, because the
+            // in-flight re-check then stops the same item one layer later — so neither one can tell a
+            // refused batch from a batch that opened and skipped everything.
+            Assert.True(File.Exists(Path.Combine(srcFolder, "raw.mkv")));
+            Assert.False(File.Exists(Path.Combine(drive.Root, "Films", "My Film.mkv")));
+
+            // Deliberately NOT asserted: the absence of destination Folder rows. The batch pre-creates
+            // every distinct destination folder before it sizes the run up, so a refused batch leaves
+            // those rows behind by design.
+        }
+        finally
+        {
+            await shared.DisposeAsync();
+        }
+    }
 }
