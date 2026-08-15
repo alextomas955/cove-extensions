@@ -268,7 +268,6 @@
     <Compile Remove="Api\PreviewSampleEndpointTests.cs" />
     <Compile Remove="Api\EndpointPermissionTests.cs" />
     <Compile Remove="Api\EntityIdsCapTests.cs" />
-    <Compile Remove="Api\PreviewRoutingTests.cs" />
     <Compile Remove="Api\RenamerLibraryEndpointTests.cs" />
     <Compile Remove="Api\RequestPathPrincipalTests.cs" />
     <Compile Remove="Api\ScanLibraryEndpointTests.cs" />
@@ -326,8 +325,8 @@
     <Compile Remove="Concurrency\PerWorkerScopeTests.cs" />
     <Compile Remove="Concurrency\RevertJournalConcurrencyTests.cs" />
 
-    <!-- Preview/ — BlastRadiusTests is pure and stays. -->
-    <Compile Remove="Preview\PreviewWholeBatchTests.cs" />
+    <!-- Preview/ names nothing here: its only cove-dependent file folded into Api\PreviewEndpointTests,
+         which is removed above, and BlastRadiusTests is pure. -->
 
     <Compile Remove="TestSupport\CoveDataExtensionScope.cs" />
     <Compile Remove="TestSupport\ExtensionHarness.cs" />
