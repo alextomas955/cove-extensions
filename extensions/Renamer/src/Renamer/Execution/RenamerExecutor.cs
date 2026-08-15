@@ -164,6 +164,12 @@ public sealed class RenamerExecutor
         //      carrying the guard reason (never a throw); the source then stays put as the fallback.
         //      The FINAL full destination path is re-checked again at (4b) once the candidate basename
         //      settles, so the leaf is guarded too — belt-and-suspenders for the security boundary.
+        //
+        //      TRANSIENT: retired in this plan's Task 3. The row-creation half of this check now lives
+        //      at CoveRenamerDataPort.GuardedGetOrCreateFolderIdAsync, which (2) below resolves
+        //      through. It stays here only until the batch's destination pre-create routes through
+        //      that seam too — until then it is what guards a BATCH item, whose worker reads its
+        //      folder id from the pre-resolved map and so never reaches the seam.
         if (isMove && options.AllowedRoots.Count > 0)
         {
             var folderGuard = CanonicalPathGuard.Check(item.TargetFolderPath, options.AllowedRoots);
@@ -180,16 +186,31 @@ public sealed class RenamerExecutor
         //     phase (keyed by TargetFolderPath) so no parallel worker does a check-then-act create on a
         //     shared Folder row. Fall back to resolving here only when no pre-resolved map is supplied
         //     (single-threaded callers / tests) — never on the parallel batch path, which always passes
-        //     the map.
+        //     the map. That fallback goes through the GUARDED seam, never the raw create: it is the
+        //     point at which this call path can persist a destination Folder row, so it is where the
+        //     canonical allowlist check has to run.
         var srcFile = filesById.GetValueOrDefault(item.FileId);
         int targetFolderId;
         if (isMove)
         {
-            targetFolderId =
-                preResolvedFolderIds is not null
-                && preResolvedFolderIds.TryGetValue(item.TargetFolderPath, out var preId)
-                    ? preId
-                    : await _port.GetOrCreateFolderIdAsync(item.TargetFolderPath, ct);
+            if (preResolvedFolderIds is not null
+                && preResolvedFolderIds.TryGetValue(item.TargetFolderPath, out var preId))
+            {
+                targetFolderId = preId;
+            }
+            else
+            {
+                var resolved = await CoveRenamerDataPort.GuardedGetOrCreateFolderIdAsync(
+                    _port, item.TargetFolderPath, options.AllowedRoots, ct);
+                if (!resolved.Accepted)
+                {
+                    skipped.Add(new ItemResult(item.FileId, item.OldFullPath, item.NewFullPath,
+                        RenamerStatus.SkipBlocked, resolved.Reason));
+                    return;
+                }
+
+                targetFolderId = resolved.FolderId;
+            }
         }
         else
         {
