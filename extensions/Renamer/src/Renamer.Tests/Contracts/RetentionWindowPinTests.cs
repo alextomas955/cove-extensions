@@ -15,7 +15,7 @@ namespace Renamer.Tests.Contracts;
 /// A duplicated number with nothing watching it drifts silently, and the symptom would be a date the
 /// user trusts and the server does not honour. So the duplication is pinned here rather than
 /// commented: the expectation below is transcribed by hand, never read from
-/// <see cref="JournalRetention.Window"/> through arithmetic that would agree with it forever, and the
+/// <see cref="CoveRevertJournal.RetentionWindow"/> through arithmetic that would agree with it forever, and the
 /// failure message names the file that has to move with it.
 /// </para>
 /// </remarks>
@@ -27,12 +27,12 @@ public sealed class RetentionWindowPinTests
     {
         Assert.Equal(
             TimeSpan.FromDays(7),
-            JournalRetention.Window);
+            CoveRevertJournal.RetentionWindow);
 
         // Stated in the unit the panel's own constant is written in, so a reader comparing the two
         // files is comparing like with like rather than re-deriving one from the other.
         Assert.True(
-            JournalRetention.Window.TotalMilliseconds == 604800000,
+            CoveRevertJournal.RetentionWindow.TotalMilliseconds == 604800000,
             "The undo retention window moved. extensions/Renamer/src/Renamer.Ui/src/settings/"
                 + "undoLogic.ts holds its own copy of this number (RETENTION_WINDOW_MS) so the "
                 + "panel can state a batch's expiry date without a wire field for it — update that "
