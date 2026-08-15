@@ -135,7 +135,7 @@ jobs:
   # `globs` input is itself not free of that trap: it declares a non-empty default (`*.{md,markdown}`,
   # root-only and non-recursive), so omitting the input substitutes that default instead of passing
   # nothing. An explicitly empty value is the one spelling that yields an empty argv and leaves the
-  # config as the single source. Measured against this workflow: 22 tracked files, 0 issues. ----
+  # config as the single source. ----
   markdown-lint:
     runs-on: ubuntu-latest
     steps:
