@@ -492,9 +492,8 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
 // Cove STARTED ON TOP of a stored legacy journal, with the migrated rows read off the running instance.
 //
 // The migration is otherwise covered only by tiers that hand a blob to `JournalBlobMigration.RunAsync`
-// directly. None of those starts a host, so none can answer whether the host runs the migration at all
-// — and a failed extension initialize is a host log line and nothing more, so "the extension is
-// enabled" is not evidence here any more than it is for the table above.
+// directly. None of those starts a host, so none can answer whether the host runs the migration at all,
+// and "the extension is enabled" is no more evidence here than it is for the table above.
 //
 // The expectation throughout is the blob this test WROTE. Nothing below is read back from the journal
 // to decide what to expect, and the migration is never called to compute it: an expectation obtained
