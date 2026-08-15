@@ -1,11 +1,8 @@
 using Cove.Core.Auth;
 using Cove.Core.Entities;
-using Cove.Core.Events;
 using Cove.Data;
-using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Renamer.Contracts;
 using Renamer.Execution;
 using Renamer.Options;
@@ -62,7 +59,10 @@ public sealed class UndoRetryTests
             Assert.True(File.Exists(comes.OldFull), "the restorable file is back");
             Assert.True(File.Exists(stays.NewFull), "the blocked file never moved");
 
-            // The table is the record of what is left — exactly the row that did not come back.
+            // The table is the record of what is left — exactly the row that did not come back. The
+            // previous defect spent the whole batch on the FIRST partial success, which is what made
+            // the remaining work unreachable; row presence is the state, so the read that feeds the
+            // button must still return this batch.
             using var journal = new CoveRevertJournal(db);
             var open = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(open);
@@ -314,7 +314,7 @@ public sealed class UndoRetryTests
             }
         }
 
-        var ext = await BuildExtensionAsync(db, options);
+        var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options: options);
 
         foreach (var s in seeded)
         {
@@ -323,25 +323,6 @@ public sealed class UndoRetryTests
         }
 
         return (ext, seeded);
-    }
-
-    /// <summary>
-    /// Wires the extension over the seeded context so <c>/undo</c> resolves the same database this test
-    /// journalled into, mirroring <c>JournalRenameUndoTracerTests</c>.
-    /// </summary>
-    private static async Task<global::Renamer.Renamer> BuildExtensionAsync(CoveContext db, RenamerOptions options)
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton<DbContext>(db);
-        services.AddSingleton<IEventBus>(new CapturingEventBus());
-
-        var store = new FakeStore();
-        await new OptionsStore(store).SaveAsync(options);
-
-        var ext = RenamerFixture.Create();
-        ((IStatefulExtension)ext).SetStore(store);
-        await ext.InitializeAsync(services.BuildServiceProvider());
-        return ext;
     }
 
     private static UndoResult UndoValue(IResult result) =>
