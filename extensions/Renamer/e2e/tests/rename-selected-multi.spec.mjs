@@ -29,93 +29,98 @@ const RENAMER_ID = "com.alextomas955.renamer";
 // the last", and one cannot distinguish multi-select from single-select at all.
 const SELECTED = 3;
 
-test("a rename driven from the grid with several cards selected renames every one of them", async ({
-  page,
-  isolatedHarness,
-}) => {
-  const baseUrl = isolatedHarness.baseUrl;
-  const container = isolatedHarness.container;
-  const api = createApiClient(baseUrl, isolatedHarness.token);
+// `@smoke` — the multi-select grid path, which the single-item rename test cannot cover. See
+// core-paths.spec.mjs for what the tag selects and why it is an option rather than part of the title.
+test(
+  "a rename driven from the grid with several cards selected renames every one of them",
+  { tag: "@smoke" },
+  async ({ page, isolatedHarness }) => {
+    const baseUrl = isolatedHarness.baseUrl;
+    const container = isolatedHarness.container;
+    const api = createApiClient(baseUrl, isolatedHarness.token);
 
-  // A literal in the template guarantees every planned name differs from the current one whatever the
-  // fixture's own metadata resolves to, so "did this item's path change" stays a question about the
-  // batch's reach rather than about what the seeded media happens to carry.
-  const options = await api.put(
-    `/api/extensions/${RENAMER_ID}/data/options`,
-    JSON.stringify({ FilenameTemplate: "$title [multi]" }),
-  );
-  expect(options.ok, `seeding the template returned ${options.status}: ${options.text}`).toBe(true);
-
-  const stamp = Date.now();
-  const videos = [];
-  for (let i = 0; i < SELECTED; i++) {
-    videos.push(
-      await seedVideo({
-        container,
-        baseUrl,
-        token: isolatedHarness.token,
-        destName: `multi-${stamp}-${i}.mp4`,
-      }),
+    // A literal in the template guarantees every planned name differs from the current one whatever the
+    // fixture's own metadata resolves to, so "did this item's path change" stays a question about the
+    // batch's reach rather than about what the seeded media happens to carry.
+    const options = await api.put(
+      `/api/extensions/${RENAMER_ID}/data/options`,
+      JSON.stringify({ FilenameTemplate: "$title [multi]" }),
     );
-  }
-  const originalPathById = new Map(videos.map((v) => [v.id, v.files[0].path]));
+    expect(options.ok, `seeding the template returned ${options.status}: ${options.text}`).toBe(
+      true,
+    );
 
-  const videosPage = new RenamerVideosPage(page, baseUrl);
-  await videosPage.goto();
+    const stamp = Date.now();
+    const videos = [];
+    for (let i = 0; i < SELECTED; i++) {
+      videos.push(
+        await seedVideo({
+          container,
+          baseUrl,
+          token: isolatedHarness.token,
+          destName: `multi-${stamp}-${i}.mp4`,
+        }),
+      );
+    }
+    const originalPathById = new Map(videos.map((v) => [v.id, v.files[0].path]));
 
-  // Wait for the grid to hold every seeded card BEFORE selecting. selectFirstCards clamps to what is
-  // present when it counts, so without this the count assertion below would be racing the grid's
-  // client-side fetch instead of testing multi-select.
-  await expect(videosPage.selectItemButtons).toHaveCount(SELECTED, { timeout: 15_000 });
+    const videosPage = new RenamerVideosPage(page, baseUrl);
+    await videosPage.goto();
 
-  const selected = await videosPage.selectFirstCards(SELECTED);
-  // Asserted BEFORE the rename is triggered, and this is the assertion that makes the rest mean
-  // anything: selectFirstCards clamps with Math.min(count, available), so a grid holding one card
-  // would otherwise let this spec pass having proved nothing about multi-select.
-  expect(
-    selected,
-    `asked for ${SELECTED} cards and the grid only had ${selected} to select — nothing below would be about multi-select`,
-  ).toBe(SELECTED);
+    // Wait for the grid to hold every seeded card BEFORE selecting. selectFirstCards clamps to what is
+    // present when it counts, so without this the count assertion below would be racing the grid's
+    // client-side fetch instead of testing multi-select.
+    await expect(videosPage.selectItemButtons).toHaveCount(SELECTED, { timeout: 15_000 });
 
-  const messages = await videosPage.renameSelected();
+    const selected = await videosPage.selectFirstCards(SELECTED);
+    // Asserted BEFORE the rename is triggered, and this is the assertion that makes the rest mean
+    // anything: selectFirstCards clamps with Math.min(count, available), so a grid holding one card
+    // would otherwise let this spec pass having proved nothing about multi-select.
+    expect(
+      selected,
+      `asked for ${SELECTED} cards and the grid only had ${selected} to select — nothing below would be about multi-select`,
+    ).toBe(SELECTED);
 
-  // The count the confirm gate quotes, not the example names it lists beneath it. The header reads
-  // "N selected items" only when every selected item will actually change, so this also rules out a
-  // partially-skipped batch reading as a full one.
-  expect(
-    messages.join("\n"),
-    `the confirm gate did not offer to rename all ${SELECTED} selected items`,
-  ).toContain(`Rename ${SELECTED} selected items?`);
+    const messages = await videosPage.renameSelected();
 
-  // The outcome, per entity id: as many stored paths changed as cards were selected. Polled because a
-  // settled job does not guarantee the next read reflects its write (see poll.mjs).
-  const changedPaths = () =>
-    Promise.all(
-      videos.map(async (v) => {
-        const record = await api.get(`/api/videos/${v.id}`);
-        return record.json.files[0].path;
-      }),
-    ).then((paths) => paths.filter((path, i) => path !== originalPathById.get(videos[i].id)));
+    // The count the confirm gate quotes, not the example names it lists beneath it. The header reads
+    // "N selected items" only when every selected item will actually change, so this also rules out a
+    // partially-skipped batch reading as a full one.
+    expect(
+      messages.join("\n"),
+      `the confirm gate did not offer to rename all ${SELECTED} selected items`,
+    ).toContain(`Rename ${SELECTED} selected items?`);
 
-  const changed = await pollUntil(changedPaths, (paths) => paths.length === selected, {
-    label: `all ${selected} selected videos to report a changed stored path`,
-  });
-  expect(changed.length, "fewer items were renamed than were selected").toBe(selected);
+    // The outcome, per entity id: as many stored paths changed as cards were selected. Polled because a
+    // settled job does not guarantee the next read reflects its write (see poll.mjs).
+    const changedPaths = () =>
+      Promise.all(
+        videos.map(async (v) => {
+          const record = await api.get(`/api/videos/${v.id}`);
+          return record.json.files[0].path;
+        }),
+      ).then((paths) => paths.filter((path, i) => path !== originalPathById.get(videos[i].id)));
 
-  // And the disk agrees, still counted rather than named: every new path is a real file, and no
-  // original path survives. A DB-only rename and a copy that left the source behind both pass the
-  // count above and fail here.
-  const onDisk = await Promise.all(changed.map((path) => container.exec(["test", "-f", path])));
-  expect(
-    onDisk.filter((probe) => probe.exitCode === 0).length,
-    "a stored path has no file behind it",
-  ).toBe(selected);
+    const changed = await pollUntil(changedPaths, (paths) => paths.length === selected, {
+      label: `all ${selected} selected videos to report a changed stored path`,
+    });
+    expect(changed.length, "fewer items were renamed than were selected").toBe(selected);
 
-  const leftBehind = await Promise.all(
-    [...originalPathById.values()].map((path) => container.exec(["test", "-f", path])),
-  );
-  expect(
-    leftBehind.filter((probe) => probe.exitCode === 0).length,
-    "an original file is still on disk after the rename",
-  ).toBe(0);
-});
+    // And the disk agrees, still counted rather than named: every new path is a real file, and no
+    // original path survives. A DB-only rename and a copy that left the source behind both pass the
+    // count above and fail here.
+    const onDisk = await Promise.all(changed.map((path) => container.exec(["test", "-f", path])));
+    expect(
+      onDisk.filter((probe) => probe.exitCode === 0).length,
+      "a stored path has no file behind it",
+    ).toBe(selected);
+
+    const leftBehind = await Promise.all(
+      [...originalPathById.values()].map((path) => container.exec(["test", "-f", path])),
+    );
+    expect(
+      leftBehind.filter((probe) => probe.exitCode === 0).length,
+      "an original file is still on disk after the rename",
+    ).toBe(0);
+  },
+);
