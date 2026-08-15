@@ -140,6 +140,12 @@ seam or vocabulary has to be named exactly to be actionable.
   cove-absent leg proves less by construction and is not the safety gate.
 - **Only a check that a CI workflow runs can block a merge.** An entry in the local hook runner is
   advice a contributor can skip, so wire a check you need enforced into a workflow.
+- **A required context and the workflow that reports it change in opposite orders.** Removing goes
+  protection first, so no window exists where a required context reports nothing; adding goes
+  trigger first, so the check is already reporting before anything waits on it. Getting the second
+  one backwards does not fail loudly — it holds every pull request at "waiting for status to be
+  reported" until someone notices the workflow was never wired. The orders being mirror images is
+  exactly why one of them cannot be reused as a rule for both.
 - **A gate must be able to fail, and must prove it ran.** A gate that inspects zero input and exits 0
   is a bug, not a pass — it reads as coverage while providing none, and can stay that way for weeks.
   Every gate reports what it actually examined and treats empty input as a hard failure. A gate that
@@ -267,12 +273,6 @@ spends a day rediscovering a door that is deliberately closed.
   a long time, and a tier with no subscriber gates nothing while reading as coverage. The validator
   deliberately still accepts the field, so a subscriber restores workflow steps and nothing in the
   scripts tree has to move.
-- **CodeQL on pull requests** — returns the moment this repo stops being single-maintainer with no
-  external contributions. Analysis still runs on what lands and on a cron, so nothing merges
-  unanalysed for longer than the merge itself; what the trade gives up is named rather than hidden,
-  and it is a proposal from an untrusted fork. **Re-adding is two changes in a fixed order: branch
-  protection first, then the trigger.** Doing only half either blocks every merge on a check that
-  never reports, or analyses proposals without gating them.
 - **A newest-GA leg on the pull-request axis** — returns on either condition: upstream publishes a GA
   above the declared floor, so that role stops collapsing onto the floor image and starts examining
   something the floor leg does not; or the daily schedule catches a break a pull request should have

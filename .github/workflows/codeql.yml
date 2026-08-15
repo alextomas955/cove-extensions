@@ -11,12 +11,16 @@
 
 name: CodeQL
 
-# Analysis runs on what lands and on a clock, not on proposals. Every commit that reaches `main`
-# is analysed, so nothing merges unanalysed for longer than the merge itself; the weekly cron then
-# re-analyses unchanged code against updated queries. There is no PR trigger because this repo has a
-# single maintainer and no external contributions today — add one back the moment that stops being
-# true, since a proposal from an untrusted fork is the case this trade gives up.
+# Analysis runs on proposals, on what lands, and on a clock. The pull-request leg is the one that
+# pays: a finding it reports can still be edited out of an unmerged branch, where the same finding
+# on `main` costs a follow-up commit and stays in history either way. It is kept even though this
+# repo is single-maintainer, because analysing a proposal mostly catches the author's own mistakes
+# rather than a hostile fork's — and because the leg is free, runs in parallel and gates nothing
+# else, so there is no saving to weigh against it. The push leg then covers anything reaching `main`
+# by another route, and the weekly cron re-analyses unchanged code against updated queries.
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
   schedule:
