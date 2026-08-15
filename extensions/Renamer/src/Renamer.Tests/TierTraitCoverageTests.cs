@@ -8,23 +8,22 @@ namespace Renamer.Tests;
 public sealed class TierTraitCoverageTests
 {
     // This project compiles as two different assemblies: with the `../cove` sibling present it carries
-    // 120 test classes, and on the bare leg CI runs the cove-referencing sources are Compile-Removed
-    // (see Renamer.Tests.csproj), leaving 70 — both measured 2026-08-14 by reading this assertion's own
-    // message. A single floor has to clear the SMALLER leg, so it is derived from 70, not from 120.
+    // 89 test classes, and on the bare leg CI runs the cove-referencing sources are Compile-Removed
+    // (see Renamer.Tests.csproj), leaving 54 — both measured 2026-08-15 by raising this constant until
+    // the assertion below failed and reading the count out of its own message. A single floor has to
+    // clear the SMALLER leg, so it is derived from 54, not from 89.
     //
     // What the floor is FOR: proving discovery is not broken. The guard matches xUnit's attributes by
-    // NAME, so a collapse examines ~0 classes and the untagged list below is then empty for the wrong
-    // reason. It is NOT a coverage floor, and reading it as one is the mistake to avoid: an accidental
-    // shrink is caught by the per-batch measured bare-leg class count — a real number compared against
-    // a recorded one — whereas this threshold sits well below the truth by construction.
+    // NAME, so a release that renamed or moved FactAttribute would make discovery match zero classes,
+    // leaving the untagged list below empty for the wrong reason and reporting "no violations" while
+    // inspecting nothing. It is NOT a coverage floor, and reading it as one is the mistake to avoid: an
+    // accidental shrink is caught by comparing a measured bare-leg class count against a recorded one,
+    // whereas this threshold sits below the truth by construction.
     //
-    // 45 = 70 measured, minus the ~17 bare-leg classes Phase 35 removes deliberately, minus 8 more as
-    // headroom, so it still clears even if that estimate is 50% low. Re-derived here, deliberately and
-    // ahead of the batch that crosses the old value, because two batches in one wave each remove
-    // classes without being able to observe the other's result. Phase 35-07 tightens it to the measured
-    // final count. Never raise or lower it reactively when it goes red: a red is either a mass deletion
-    // or broken discovery, and both are worth the build.
-    private const int MinimumTestClasses = 45;
+    // 50 = 54 measured, minus 4 so ordinary attrition does not turn a green build red. Never raise or
+    // lower it reactively when it goes red: a red is either a mass deletion or broken discovery, and
+    // both are worth the build.
+    private const int MinimumTestClasses = 50;
 
     [Fact]
     public void AllTestClassesCarryATierTrait()

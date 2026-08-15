@@ -21,9 +21,9 @@ namespace Renamer.Tests.Wire;
 [Trait("Tier", "L0")]
 public sealed class WireJsonResponseTests
 {
-    // Transcribed by hand from the committed wire fixtures (Contracts/fixtures/preview-response.json),
-    // never read from the converter or from an enum member at test time: an expectation computed from
-    // the thing it checks agrees with it forever, including while both are wrong.
+    // Transcribed by hand from real serialized bytes, never read from the converter or from an enum
+    // member at test time: an expectation computed from the thing it checks agrees with it forever,
+    // including while both are wrong.
     private const string ConfirmLevelLightOnTheWire = "\"confirmLevel\":\"light\"";
     private const string StatusRenameOnTheWire = "\"status\":\"rename\"";
 

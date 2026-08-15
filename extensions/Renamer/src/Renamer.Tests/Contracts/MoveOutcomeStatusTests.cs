@@ -9,12 +9,12 @@ namespace Renamer.Tests.Contracts;
 /// running service.
 /// </summary>
 /// <remarks>
-/// PLACEMENT IS LOAD-BEARING, and this file is deliberately NOT under <c>Execution/</c>. The
-/// cove-absent continuous-integration leg removes the <c>Execution</c>, <c>Events</c>,
-/// <c>Concurrency</c> and <c>Preview</c> folders wholesale, so a pure suite placed beside the code it
-/// covers would silently stop running exactly on the leg where this repository's coverage is thinnest.
-/// <c>Contracts/</c> is covered by no <c>Compile Remove</c> entry. Do not "tidy" this file next to
-/// <c>MoveOutcomeClassifier.cs</c>.
+/// PLACEMENT IS LOAD-BEARING, and this file is deliberately NOT under <c>Execution/</c>. The cove-absent
+/// continuous-integration leg removes cove-dependent sources from those folders FILE BY FILE, so whether
+/// a pure suite placed beside the code it covers keeps running there depends on a <c>Compile Remove</c>
+/// entry nobody adds deliberately for a test that needs none — and this leg is where the repository's
+/// coverage is thinnest. <c>Contracts/</c> is covered by no such entry at all, which is the guarantee.
+/// Do not "tidy" this file next to <c>MoveOutcomeClassifier.cs</c>.
 /// <para>
 /// What this suite adds over the build is IDENTITY, and the distinction is the reason it exists at all.
 /// The compiler already refuses a switch that omits a member, so totality is bought outright and needs

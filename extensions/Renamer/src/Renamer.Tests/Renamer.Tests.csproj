@@ -301,16 +301,11 @@
     <Compile Remove="Execution\Undo\UndoSidecarRestoreTests.cs" />
 
     <!-- Events/ — all but AutoRenamerEventRegistrationTests, which drives the hook surface through
-         Cove.Plugins alone and so compiles against the NuGet package on this leg. -->
-    <Compile Remove="Events\AutoRenamerElevationTests.cs" />
-    <Compile Remove="Events\AutoRenamerFailureContainmentTests.cs" />
-    <Compile Remove="Events\AutoRenamerGateTests.cs" />
-    <Compile Remove="Events\AutoRenamerOnceTests.cs" />
-    <Compile Remove="Events\AutoRenamerRevertLogBatchTests.cs" />
-    <Compile Remove="Events\AutoRenamerRoutingTests.cs" />
+         Cove.Plugins alone and so compiles against the NuGet package on this leg. That makes it this
+         leg's only hook coverage, which is why it is not folded into AutoRenamerHookTests. -->
+    <Compile Remove="Events\AutoRenamerHookTests.cs" />
     <Compile Remove="Events\DetachedElevationTests.cs" />
     <Compile Remove="Events\EventTestHarness.cs" />
-    <Compile Remove="Events\ReentrancyGuardTests.cs" />
 
     <!-- Concurrency/ — every file here is cove-dependent. -->
     <Compile Remove="Concurrency\ParallelBatchTests.cs" />
