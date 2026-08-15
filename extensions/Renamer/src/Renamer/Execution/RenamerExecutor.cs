@@ -153,34 +153,6 @@ public sealed class RenamerExecutor
 
         bool isMove = item.Status == RenamerStatus.Move;
 
-        // (1b) CANONICAL ALLOWLIST GUARD — PRE-MUTATION. This MUST precede GetOrCreateFolderIdAsync
-        //      (which persists a Folder DB row) and the collision loop (which calls File.Exists),
-        //      so a destination the allowlist will reject never materializes a DB folder row pointing
-        //      outside the allowlist nor touches disk. We canonically resolve the destination FOLDER's
-        //      real on-disk target (following any junction/symlink and expanding 8.3) and reject when
-        //      it escapes every configured root. Only runs on a destination move with a configured
-        //      allowlist — with empty AllowedRoots the source-confine path is byte-identical and
-        //      there is no allowlist to canonically re-check. A reject is a SkipBlocked skip
-        //      carrying the guard reason (never a throw); the source then stays put as the fallback.
-        //      The FINAL full destination path is re-checked again at (4b) once the candidate basename
-        //      settles, so the leaf is guarded too — belt-and-suspenders for the security boundary.
-        //
-        //      TRANSIENT: retired in this plan's Task 3. The row-creation half of this check now lives
-        //      at CoveRenamerDataPort.GuardedGetOrCreateFolderIdAsync, which (2) below resolves
-        //      through. It stays here only until the batch's destination pre-create routes through
-        //      that seam too — until then it is what guards a BATCH item, whose worker reads its
-        //      folder id from the pre-resolved map and so never reaches the seam.
-        if (isMove && options.AllowedRoots.Count > 0)
-        {
-            var folderGuard = CanonicalPathGuard.Check(item.TargetFolderPath, options.AllowedRoots);
-            if (!folderGuard.Accepted)
-            {
-                skipped.Add(new ItemResult(item.FileId, item.OldFullPath, item.NewFullPath,
-                    RenamerStatus.SkipBlocked, folderGuard.Reason));
-                return;
-            }
-        }
-
         // (2) Resolve the destination folder id. For an in-place renamer it is the source folder.
         //     For a Move, prefer the folder id the caller PRE-RESOLVED once in its sequential
         //     phase (keyed by TargetFolderPath) so no parallel worker does a check-then-act create on a
@@ -247,12 +219,19 @@ public sealed class RenamerExecutor
         // (4) Sidecar moves: DB-tracked captions + configured same-stem neighbors that ride with the primary.
         var (plannedSidecars, captionRenames) = PlanSidecarMoves(srcFile, item.OldFullPath, targetFolder, candidate, options);
 
-        // (4b) CANONICAL ALLOWLIST RE-CHECK on the FINAL FULL DESTINATION PATH — the latest point
-        //      before disk is touched, now that the candidate basename has settled. Unlike the
-        //      pre-mutation folder check at (1b), this resolves the REAL on-disk target of the WHOLE
-        //      path Move() actually writes to (folder + candidate), so a reparse point / 8.3 alias /
-        //      separator introduced at the LEAF level — including a check/use swap of the leaf into a
-        //      junction-to-elsewhere between (1b) and here — is re-resolved and re-contained.
+        // (4b) CANONICAL ALLOWLIST RE-CHECK on the FINAL FULL DESTINATION PATH — the DISK boundary, and
+        //      the latest point before disk is touched, now that the candidate basename has settled.
+        //      It is one of the two surviving canonical seams and the only one on this side of the
+        //      folder resolve. The other is the ROW-CREATION guard at
+        //      CoveRenamerDataPort.GuardedGetOrCreateFolderIdAsync, which every forward caller that can
+        //      persist a destination Folder row goes through — including (2) above.
+        //
+        //      The two do NOT overlap, which is why both exist. The row-creation guard reads the
+        //      destination FOLDER as it stands before the row is written; this one resolves the REAL
+        //      on-disk target of the WHOLE path Move() actually writes to (folder + candidate). So a
+        //      reparse point / 8.3 alias / separator introduced at the LEAF level — including a
+        //      check/use swap of the leaf into a junction-to-elsewhere AFTER the folder was resolved —
+        //      is re-resolved and re-contained here and nowhere else.
         //      ResolveRealTargetFolder stacks the non-existent leaf, so passing the file path is safe.
         //      A reject is a SkipBlocked skip carrying the guard reason (never a throw); the source
         //      then stays put as the durable fallback.
@@ -268,7 +247,7 @@ public sealed class RenamerExecutor
 
         // (5) DISK MOVE FIRST — move on disk before touching the DB, so a failed move leaves the
         //     database untouched (the DB stays authoritative and never points at a missing file).
-        //     VOLUME BRANCH (runs STRICTLY AFTER the allowlist guards at (1b)/(4b)): a
+        //     VOLUME BRANCH (runs STRICTLY AFTER the final-path allowlist guard at (4b)): a
         //     same-volume renamer takes the atomic synchronous DiskMover.Move fast path; a
         //     cross-volume move takes the verified copy→verify→promote→delete-source-last
         //     CrossVolumeMover.MoveAsync. Both return the identical MoveResult shape, so the skip
