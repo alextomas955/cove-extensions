@@ -26,10 +26,7 @@ public sealed partial class Renamer : FullExtensionBase
     // ── Executor wiring ───────────────────────────────────────────────────────
     // The executor needs a SCOPED CoveContext per run (a DbContext is scoped, not singleton) and the
     // host IEventBus for the post-renamer reindex event. Capture the scope factory + event bus
-    // in InitializeAsync. A DETACHED run takes its scope from RunAsSystem.RunInSystemScopeAsync, which
-    // hands one out already elevated, so elevation is not a second step such a body can be written
-    // without; only a request path (which must stay on its caller's principal) and the extension-owned
-    // journal (which carries no per-principal filters to unlock) create a scope directly.
+    // in InitializeAsync.
 
     // Resolved once at load and never null afterwards. The fields are nullable only because they are
     // assigned in InitializeAsync rather than the ctor; every use site is reached only after init, so
@@ -158,9 +155,8 @@ public sealed partial class Renamer : FullExtensionBase
     {
         try
         {
-            // The scope arrives already elevated, like every other detached body here — a filtered read
-            // that returns nothing is the failure mode this whole check exists to make impossible to
-            // mistake for success.
+            // A filtered read that returns nothing is the failure mode this whole check exists to make
+            // impossible to mistake for success, so the scope must be the elevated one.
             await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, services =>
             {
                 var db = services.GetRequiredService<DbContext>();
@@ -179,11 +175,6 @@ public sealed partial class Renamer : FullExtensionBase
     }
 
     /// <summary>Moves the legacy stored journal into the journal table exactly once, then clears it.</summary>
-    /// <remarks>
-    /// Elevated, like every other background database body here: the principal flows by async context
-    /// rather than by DI scope, and this extension's own elevation suite asserts that every command run
-    /// during the load carries the System principal.
-    /// </remarks>
     private async Task MigrateStoredJournalAsync(CancellationToken ct)
     {
         int moved = await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
@@ -211,10 +202,9 @@ public sealed partial class Renamer : FullExtensionBase
     /// </summary>
     /// <remarks>
     /// The at-least-one-row rule is the whole safety argument, and it is stronger than "do not write
-    /// when the read failed". Cove's authorization query filters are bypassed only for a null, System or
-    /// wildcard principal, and the principal flows by async context rather than by DI scope — so an
-    /// unelevated background read returns ZERO ROWS successfully, with no exception, indistinguishable
-    /// from a library that genuinely has no tags. The conversion keeps no copy of the originals, so
+    /// when the read failed": an under-privileged background read returns ZERO ROWS successfully, with
+    /// no exception (see <see cref="RunAsSystem"/>), indistinguishable from a library that genuinely
+    /// has no tags. The conversion keeps no copy of the originals, so
     /// writing after such a read would erase every tag and performer rule the user has. An empty library
     /// has nothing to convert, so refusing to write costs nothing and makes that outcome structurally
     /// impossible. The stamp is not advanced either, so the next load retries.
@@ -369,9 +359,9 @@ public sealed partial class Renamer : FullExtensionBase
 
     /// <summary>
     /// The fraction of the progress bar the PHASE A planning pass owns. Planning every id in a large
-    /// library is slow and reported nothing before, so the bar sat at 0% for the whole pass; splitting
-    /// the bar (planning 0 → this, executing this → 1.0) keeps it moving throughout. 0.5 splits it evenly;
-    /// the exact split is cosmetic — both phases scale linearly, so the bar only ever advances.
+    /// library is slow, so splitting the bar (planning 0 → this, executing this → 1.0) keeps it moving
+    /// throughout instead of sitting at 0% for the whole pass. 0.5 splits it evenly; the exact split is
+    /// cosmetic — both phases scale linearly, so the bar only ever advances.
     /// </summary>
     private const double PlanningProgressShare = 0.5;
 
@@ -475,8 +465,7 @@ public sealed partial class Renamer : FullExtensionBase
 
         // ONE elevated span for the whole of PHASE A, rather than one per planned entity plus one for the
         // folder pre-create. Nothing between the reads touches the database, so this widens no query's
-        // reach — and a single span is what stops a scope running half its work as System and half as
-        // whatever principal happened to arrive, which surfaces only as an empty result much later.
+        // reach, and a single span cannot run half its work elevated and half not.
         await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
         {
             var readDb = services.GetRequiredService<DbContext>();
@@ -752,12 +741,11 @@ public sealed partial class Renamer : FullExtensionBase
     /// </summary>
     private RouteLookups BuildLookups(RenamerOptions o)
     {
-        // Exact source-path match must mirror the rest of the codebase's OS-aware path
-        // semantics (VolumeClassifier / PathConfinement.IsUnderRoot use OrdinalIgnoreCase on Windows),
-        // so a Windows user's exact rule for "media/incoming" matches a stored "Media/Incoming". Build
-        // the map with the OS-aware comparer and NORMALIZE keys (trim a trailing '/') so a rule for
-        // "media/incoming" also matches a stored "media/incoming/"; the resolver normalizes the source
-        // path the same way before lookup.
+        // Exact source-path match uses the one case policy (DestinationResolver.SourcePathComparer,
+        // stated at PathOps.PathsEqual), so on a filesystem that folds case an exact rule for
+        // "media/incoming" matches a stored "Media/Incoming". Keys are also NORMALIZED (trim a
+        // trailing '/') so a rule for "media/incoming" matches a stored "media/incoming/"; the
+        // resolver normalizes the source path the same way before lookup.
         var exact = new Dictionary<string, string>(DestinationResolver.SourcePathComparer);
         var regexRules = new List<(Regex Pattern, string Dest)>();
 

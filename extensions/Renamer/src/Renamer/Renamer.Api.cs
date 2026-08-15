@@ -175,25 +175,19 @@ public sealed partial class Renamer
                 => RenamerEnqueue(req, principal, jobs))
             .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
 
-        // NB: this endpoint binds the RAW HttpContext (not a typed PreviewSampleRequest) so the
-        // handler can deserialize the body with RenamerOptions.JsonOptions — the host's default
-        // minimal-API JsonSerializerOptions has NO JsonStringEnumConverter, so a body carrying
-        // string enum values (e.g. "case":"Lower") would 400 on typed binding before the handler
-        // ran. Extension code cannot touch host startup (ConfigureHttpJsonOptions), so we parse
-        // the body ourselves with the converter-aware options.
+        // Binds the RAW HttpContext rather than a typed PreviewSampleRequest so the handler can parse
+        // the body with RenamerOptions.JsonOptions (see that member for why typed binding 400s here).
         //
         // .Accepts<> is what puts that body in the wire document, since no parameter declares it. It is
-        // documentation ONLY: it binds nothing, validates nothing, and changes no behavior. So it reads
-        // as a contradiction of the paragraph above and is not one — do not "reconcile" it by binding
-        // the body typed, which is exactly the 400-before-the-handler this shape exists to avoid.
+        // documentation ONLY: it binds nothing, validates nothing, and changes no behavior.
         endpoints.MapPost(PreviewSampleRoute,
             (HttpContext http, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => PreviewSampleAsync(http.Request, principal, ct))
             .Accepts<PreviewSampleRequest>("application/json")
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
-        // /undo takes NO request body — it operates on "the last batch", so binding no body avoids
-        // the host's enum-converter 400 trap (see the preview-sample note above); /last-batch is a plain read.
+        // /undo takes NO request body — it operates on "the last batch", so binding no body avoids the
+        // host's enum-converter 400 trap (RenamerOptions.JsonOptions); /last-batch is a plain read.
         endpoints.MapPost(UndoRoute,
             (ICurrentPrincipalAccessor principal, CancellationToken ct) => UndoAsync(principal, ct))
             .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
@@ -290,18 +284,9 @@ public sealed partial class Renamer
         // different limits and disagree.
         var summary = BatchPreview.Summarize(items, sizeByFileId, options.FullPathMax);
 
-        // WireJson<T> writes the response with the extension's own options rather than the host's: the
-        // property names are camelCase AND the RenamerStatus/ConfirmLevel enums are STRINGS, spelled
-        // lowercase-first because the converter camel-cases an enum name exactly as it does a property
-        // name ("rename"/"noOp"/"skipGated"…, "light"/"standard"/"heavy"). The host's default
-        // minimal-API serializer is camelCase but emits NUMERIC enums (status:0), and the frontend's
-        // buildConfirmSummary matches on it.status === "rename" — so under the default every item
-        // reads as a non-renamer and the rename silently never fires, with a valid 200 and no error
-        // anywhere. Extension code cannot touch host startup (ConfigureHttpJsonOptions) to fix that
-        // globally, and the framework results that CAN take per-endpoint options describe no response
-        // schema; WireJson<T> is the type that does both. (RenamerOptions.JsonOptions is a different
-        // instance for a different job — PascalCase + tolerant-read for the options round-trip, wrong
-        // casing for a response.) The response is { items, summary }, and both halves ride the one
+        // WireJson<T> writes the response with the extension's own options (CoveJsonOptions.
+        // WebWithEnumStrings) rather than the host's, so status arrives as "rename"/"noOp"/… and the
+        // UI's match on it holds. The response is { items, summary }, and both halves ride the one
         // options instance, so the per-item array keeps its exact shape. The domain plan items are
         // projected onto PreviewItemView (the wire type) at this boundary.
         return new WireJson<PreviewResponse>(
@@ -795,9 +780,9 @@ public sealed partial class Renamer
     /// </summary>
     /// <param name="readableKinds">
     /// The kinds the enqueuing principal held read permission for, captured at enqueue time — the job
-    /// runs detached from the original request, so this is the only way the per-kind skip (Pitfall 2:
-    /// a partial-permission caller's scan must omit a kind they cannot read, never 403 the whole job)
-    /// reaches the job body.
+    /// runs detached from the original request, so this is the only way the per-kind skip reaches the
+    /// job body: a partial-permission caller's scan must omit a kind they cannot read, never 403 the
+    /// whole job.
     /// </param>
     /// <param name="overrideOptions">
     /// The caller's current options for a dry run on unsaved edits, or null to scan the saved options.
@@ -853,10 +838,9 @@ public sealed partial class Renamer
         var planner = new RenamerPlanner(port);
         var aggregator = new ScanAggregator(options.FullPathMax);
 
-        // Load every kind's ids up front so the TOTAL is known before planning — the scan previously
-        // reported only a single Report(1.0) at the end, so the job jumped 0%→100% with no intermediate
-        // feedback. A denominator lets each planned entity advance the bar. The id-only queries are cheap
-        // (they were already run one-per-kind below; this just hoists them so the total is available).
+        // Load every kind's ids up front so the TOTAL is known before planning: without a denominator
+        // the job can only report a single 1.0 at the end and jumps 0%→100% with no feedback. The
+        // id-only queries are cheap, and each kind needs its list below regardless.
         var idsByKind = new List<(RenamerFileKind Kind, IReadOnlyList<int> Ids)>(readableKinds.Count);
         foreach (var kind in readableKinds)
         {
@@ -880,10 +864,10 @@ public sealed partial class Renamer
         int done = 0;
         foreach (var (kind, ids) in idsByKind)
         {
-            // The scan previously issued one heavy multi-Include query per entity (100K entities = 100K
-            // sequential round-trips — the scan bottleneck). Batch-load instead, one chunk at a time:
-            // the loaded entities AND their file-size map are released with each chunk, so neither the
-            // graphs nor the sizes are ever held for the whole library. The chunk size is the port's own
+            // Batch-load one chunk at a time rather than a heavy multi-Include query per entity, which
+            // costs one sequential round-trip per entity across the whole library. The loaded entities
+            // AND their file-size map are released with each chunk, so neither the graphs nor the
+            // sizes are ever held for the whole library. The chunk size is the port's own
             // single decision. Each chunk's entities are re-ordered by the (ascending) id list because
             // the batch load returns DB order, preserving the per-id order and the progress cadence.
             foreach (var chunk in ids.Chunk(CoveRenamerDataPort.LoadChunkSize))
@@ -1022,11 +1006,9 @@ public sealed partial class Renamer
     /// Enforces <c>videos.read</c> in-handler BEFORE any body read or engine work (minimal-API
     /// <c>[RequiresPermission]</c> is inert — mirrors <see cref="PreviewAsync"/>).
     /// <para>
-    /// The body is deserialized with <see cref="RenamerOptions.JsonOptions"/> (case-insensitive +
-    /// <c>JsonStringEnumConverter</c>) rather than the host's default minimal-API options, which lack
-    /// the enum converter — so a panel body carrying string enum values (<c>"case":"Lower"</c>,
-    /// <c>"onOverflow":"KeepFirst"</c>, <c>"sort":"NameAsc"</c>) deserializes instead of 400ing. Empty
-    /// or <c>null</c>-Options body → safe defaults; MALFORMED JSON → 400.
+    /// The body is deserialized with <see cref="RenamerOptions.JsonOptions"/> (see that member for why
+    /// the host's default options cannot bind it). Empty or <c>null</c>-Options body → safe defaults;
+    /// MALFORMED JSON → 400.
     /// </para>
     /// </summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
@@ -1064,8 +1046,6 @@ public sealed partial class Renamer
             PreviewSampleRequest? req;
             try
             {
-                // Converter-aware parse: case-insensitive props + JsonStringEnumConverter, so a body
-                // carrying string enum values deserializes instead of 400ing on the host's default opts.
                 req = JsonSerializer.Deserialize<PreviewSampleRequest>(body, RenamerOptions.JsonOptions);
             }
             catch (JsonException)
