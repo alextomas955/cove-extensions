@@ -21,7 +21,9 @@ namespace Renamer.Tests.Events;
 /// entry points are the load-time journal assertion, the stored-journal migration, the stored-options
 /// conversion (covered by <c>OptionsMigrationInitializeTests</c>), the shared batch core's three
 /// elevated spans — its planning read, its destination-folder pre-create and its per-worker executor —
-/// the auto-renamer hook (covered by <see cref="AutoRenamerElevationTests"/>), and the two job bodies in
+/// the auto-renamer hook (covered by
+/// <see cref="AutoRenamerHookTests.TheHooksReads_ExecuteUnderSystem_AndLeaveTheCallersPrincipalBehindThem"/>),
+/// and the two job bodies in
 /// <c>Renamer.Api.cs</c>. Adding a further span inside one of those bodies needs no case here: the case
 /// for that body already asserts over EVERY command it ran.
 /// <para>
