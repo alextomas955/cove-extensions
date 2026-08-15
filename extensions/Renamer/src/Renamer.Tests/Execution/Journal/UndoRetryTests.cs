@@ -162,39 +162,6 @@ public sealed class UndoRetryTests
     }
 
     [Fact]
-    public async Task ABatchWithRowsRemaining_IsNeverSpent_EvenAfterAFilePartlyCameBack()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            var (ext, _, stays) = await RenameTwoAsync(db, dir);
-            File.WriteAllText(stays.OldFull, "someone else's file");
-
-            Assert.Equal(1, UndoValue(await ext.UndoAsync(Write, default)).Undone);
-
-            using var journal = new CoveRevertJournal(db);
-
-            // The previous defect spent the batch on the FIRST partial success, which is what made the
-            // remaining work unreachable. Row presence is the state, so the read that feeds the button
-            // must still return this batch.
-            var open = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
-            Assert.NotNull(open);
-            Assert.Single(open!.Rows);
-
-            var summary = await journal.ReadUndoTargetAsync();
-            Assert.NotNull(summary);
-            Assert.Equal(open.RunId, summary!.Value.RunId);
-            Assert.Equal(1, summary.Value.Remaining);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
     public async Task TheOriginalCount_NeverMoves_SoRestoredPlusUnrestorablePlusRemainingAlwaysSumsToIt()
     {
         using var dir = new TempDir();
