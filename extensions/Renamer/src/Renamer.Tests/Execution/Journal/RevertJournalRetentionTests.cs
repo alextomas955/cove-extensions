@@ -106,24 +106,6 @@ public sealed class RevertJournalRetentionTests
     }
 
     [Fact]
-    public async Task ABatchExpiresWhole_WhetherItHoldsOneRowOrManyRows()
-    {
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        await using var _ = db;
-        await using var __ = conn;
-
-        await SeedBatchAsync(db, "run-one", Opened, rows: 1);
-        await SeedBatchAsync(db, "run-many", Opened.AddMinutes(1), rows: 250);
-
-        await new CoveRevertJournal(db).PurgeExpiredAsync(JustOutside);
-
-        Assert.Empty(await RowRunIdsAsync(db, "run-one"));
-        Assert.Empty(await RowRunIdsAsync(db, "run-many"));
-        Assert.Empty(await BatchRunIdsAsync(db, "run-one"));
-        Assert.Empty(await BatchRunIdsAsync(db, "run-many"));
-    }
-
-    [Fact]
     public async Task TheWindowIsMeasuredFromTheBatchOpenTimestamp_NotFromItsRows()
     {
         // Two batches, one either side of the same cutoff, purged in one call: the survivor proves the

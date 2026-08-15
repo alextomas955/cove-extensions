@@ -349,8 +349,10 @@ public sealed class AssociatedExtensionSidecarTests
         }
     }
 
+    // The bare "srt" spelling is not repeated here: SameStemListedExtension_MovesAndTracksNewStem
+    // already drives it, and asserts the moved sidecar's CONTENT and the primary's stored basename on
+    // top of what this case checks. What is left are the two spellings only normalization can match.
     [Theory]
-    [InlineData("srt")]
     [InlineData(".srt")]
     [InlineData("SRT")]
     public async Task ExtensionNormalization_MatchesRegardlessOfDotOrCase(string configured)
