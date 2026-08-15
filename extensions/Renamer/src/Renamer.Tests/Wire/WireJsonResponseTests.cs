@@ -18,7 +18,7 @@ namespace Renamer.Tests.Wire;
 /// assertions read the response text rather than a deserialized object: deserializing launders the very
 /// casing under test.
 /// </remarks>
-[Trait("Tier", "L2")]
+[Trait("Tier", "L0")]
 public sealed class WireJsonResponseTests
 {
     // Transcribed by hand from the committed wire fixtures (Contracts/fixtures/preview-response.json),

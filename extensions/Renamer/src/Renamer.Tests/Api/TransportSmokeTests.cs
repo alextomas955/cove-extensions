@@ -31,22 +31,85 @@ namespace Renamer.Tests.Api;
 public sealed class TransportSmokeTests
 {
     private const string Base = "/api/extensions/com.alextomas955.renamer";
+    private const string DocumentFileName = "openapi.json";
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
+    /// <summary>Every operation the committed wire document declares, as (method, absolute path).</summary>
+    /// <remarks>
+    /// Derived from the document rather than listed here. The hand-written table this replaces sat at
+    /// eight entries while the document declared nine, so <c>/scan-rows</c> shipped with no transport
+    /// coverage and nothing said so. Derivation removes that failure at its source instead of scanning
+    /// for it afterwards: CI already byte-diffs this document against the one registration emits, so a
+    /// route added without regenerating it fails there, and a regenerated document reaches this theory
+    /// with no edit here.
+    /// </remarks>
     public static TheoryData<string, string> Routes()
     {
         var data = new TheoryData<string, string>();
-        foreach (var g in new[] { "/last-batch", "/last-scan" })
+        foreach (var (method, path) in DeclaredOperations())
         {
-            data.Add("GET", g);
-        }
-
-        foreach (var p in new[] { "/preview", "/renamer", "/preview-sample", "/undo", "/scan-library", "/renamer-library" })
-        {
-            data.Add("POST", p);
+            data.Add(method, path);
         }
 
         return data;
+    }
+
+    private static readonly string[] HttpMethods =
+        ["get", "put", "post", "delete", "options", "head", "patch", "trace"];
+
+    private static List<(string Method, string Path)> DeclaredOperations()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(DocumentPath()));
+
+        var operations = new List<(string, string)>();
+        foreach (var path in document.RootElement.GetProperty("paths").EnumerateObject())
+        {
+            foreach (var operation in path.Value.EnumerateObject())
+            {
+                if (HttpMethods.Contains(operation.Name, StringComparer.Ordinal))
+                {
+                    operations.Add((operation.Name.ToUpperInvariant(), path.Name));
+                }
+            }
+        }
+
+        return operations;
+    }
+
+    private static string DocumentPath()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, DocumentFileName);
+        if (!File.Exists(path))
+        {
+            throw new InvalidOperationException(
+                $"{DocumentFileName} is not next to the test assembly ({path}). The Content item in "
+                    + "Renamer.Tests.csproj that copies the committed wire document has been removed or "
+                    + "renamed. Failing here is deliberate: without the document this suite would derive "
+                    + "an empty route table and report a pass having exercised no route at all.");
+        }
+
+        return path;
+    }
+
+    /// <summary>The derivation is non-vacuous, and covers the route the hand-written table missed.</summary>
+    /// <remarks>
+    /// A theory whose data provider yields nothing passes while exercising nothing, which is the failure
+    /// this repository's gate doctrine names outright. The floor is transcribed by hand from the
+    /// document's own spelling — a count read back out of the same parse would agree with itself however
+    /// little it found — and the scan-rows POST is named because it is the operation the hand-maintained
+    /// list never reached.
+    /// </remarks>
+    [Fact]
+    public void TheRouteTheoryDerivesEveryDeclaredOperation_AndIsNeverEmpty()
+    {
+        var operations = DeclaredOperations();
+
+        Assert.True(
+            operations.Count >= 9,
+            $"the wire document yielded {operations.Count} operations, but declared 9 when this floor "
+                + "was written — a smaller number means the parse found less than the document holds.");
+        Assert.Equal(operations.Count, Routes().Count);
+        Assert.Contains(("POST", Base + "/scan-rows"), operations);
     }
 
     [Theory]
@@ -55,7 +118,7 @@ public sealed class TransportSmokeTests
     {
         await using var host = await TransportHost.BootAsync(FakePrincipalAccessor.None());
 
-        using var req = new HttpRequestMessage(new HttpMethod(method), Base + path);
+        using var req = new HttpRequestMessage(new HttpMethod(method), path);
         if (method == "POST")
         {
             req.Content = JsonContent.Create(new { entityType = "video", entityIds = Array.Empty<int>() });
