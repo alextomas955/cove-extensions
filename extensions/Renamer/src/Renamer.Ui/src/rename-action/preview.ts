@@ -30,9 +30,10 @@ interface SkipClause {
  *
  * Total by TYPE, not by convention: keyed on the union generated from the extension's own OpenAPI
  * document, so a status the server grows fails this build (TS2741, naming the missing key) rather than
- * going uncounted. This replaced four independent per-status filter passes, and it is the number a user
- * approves a rename on — `skipExcluded` was missing from all four, so every excluded item was left out
- * of the total and the whole line vanished when an exclude was the only reason anything was skipped.
+ * going uncounted. One map rather than a filter pass per status, because this is the number a user
+ * approves a rename on and four independent passes could each miss the same one: `skipExcluded` was
+ * absent from all of them, so every excluded item was left out of the total and the whole line
+ * vanished when an exclude was the only reason anything was skipped.
  *
  * DECLARATION ORDER IS THE RENDERED CLAUSE ORDER. The five clause-bearing entries lead, in the order
  * their clauses appear in the sentence; the excluded entry was inserted after the collision one so no
@@ -83,9 +84,8 @@ function buildBlastLines(summary?: PreviewSummary): string[] {
  * The blast-radius call-to-action, scaled by `ConfirmLevel`: Heavy is the strongest cross-drive
  * warning, Standard a plainer cross-drive notice, Light the original reassuring line.
  *
- * The promise of an undo is unconditional. It used to be branched on a server flag that went false
- * past a file-count ceiling; no such ceiling exists, so no size makes a rename unrecordable and any
- * branch here could only ever take one arm.
+ * The promise of an undo is unconditional: no file count makes a rename unrecordable, so a branch on
+ * size here could only ever take one arm.
  */
 function confirmCallToAction(level: ConfirmLevel): string {
   const reversibility = `You can undo this afterwards.`;
@@ -132,10 +132,7 @@ export function buildConfirmSummary(
   // on must not omit rows it could not classify.
   let unclassified = 0;
   for (const it of items) {
-    // Widened deliberately: `RenamerStatus` is a claim about what the server sends, checked by the
-    // compiler against itself and never against the server, so this map is exhaustive by TYPE while the
-    // lookup can still miss at RUNTIME. Typed as declared, `no-unnecessary-condition` correctly calls the
-    // undefined branch dead — because to the compiler it is.
+    // Widened deliberately, for the reason `warningBadgeLogic.badgingFor` states in full.
     const clause = (SKIP_CLAUSES as Record<string, SkipClause | null | undefined>)[it.status];
     if (clause === undefined) unclassified++;
     else if (clause !== null) tally.set(it.status, (tally.get(it.status) ?? 0) + 1);

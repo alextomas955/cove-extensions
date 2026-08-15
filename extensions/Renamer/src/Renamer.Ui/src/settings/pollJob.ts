@@ -7,9 +7,8 @@
  * `./jobPollLogic` owns both bounds and every verdict, and is imported rather than reimplemented.
  * The clock reads live here, in the poll handler, so that module stays testable without one.
  *
- * There was a copy of this loop per caller until they were merged. They implemented the same state
- * machine over the same decisions and the same hand-declared response shape, so a fix to one was a
- * fix owed to the other — which is the tax the merge ends.
+ * ONE loop for every caller, deliberately: a second one would be the same state machine over the same
+ * decisions and the same hand-declared response shape, so every fix to either would be owed to both.
  */
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 

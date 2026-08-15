@@ -5,17 +5,11 @@
 // provider branch, so a SQLite-backed test has no filters to observe at all. The suite's containers
 // run auth off by default, so every request there resolves to a bypass principal whatever it carries
 // — hence the auth-on instance below, which is instance-global and therefore per-test rather than
-// worker-shared. And the trap: the filters short-circuit to true for a principal holding the
-// wildcard permission, which Cove's bootstrap grants the owner role. An auth-on spec driven with
-// `bootstrapOwner()`'s token proves nothing about row-level authorization, so this one is driven as a
-// restricted user and its FIRST assertions are that the principal it drives is not the bypass one.
+// worker-shared.
 //
-// WHY THE ROLE HOLDS A WRITE PERMISSION AND STILL SEES NOTHING. Cove's write permissions declare the
-// matching read as implied, so `videos.write` expands to carry `videos.read`: the restricted user
-// reaches every video read endpoint and gets 200. What empties the result is a content rule denying
-// read on the kind — the permission stays, and the per-entity SQL predicate answers false. That is
-// deliberately the interesting shape, because it is the one where a wrong principal is answered 200
-// with zero rows instead of a 403 that names itself.
+// Which principal discriminates, and why this role holds a write permission and still sees nothing,
+// are stated in full on the harness's `createRestrictedUser`. What follows from them here is that
+// this spec's FIRST assertions are that the principal it drives is not the bypass one.
 //
 // `jobs.read` is in the set for one reason only: the host gates its own job-status endpoint on it,
 // so without it the restricted user cannot poll the job it just enqueued (measured — the poll answers

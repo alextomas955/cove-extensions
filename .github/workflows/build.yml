@@ -1,28 +1,16 @@
 # Build, validate, and (on <extension-slug>/v* tags) package + release extensions in this monorepo.
 #
-# Adapted from yourcove/multi-extension-repo-template's build.yml (forked 2026-07-01) to target
-# Renamer's real src/ subtree layout via extensions/catalog.json's additive path fields
-# (projectPath/manifestPath/uiPath — see catalog.json + scripts/validate-extension-repo.mjs)
-# instead of the template's flat {path}/{name}.csproj convention. Folds in the old single-extension
-# `rename` repo's packaging, csharp-format and markdown-lint hardening as matrix steps
-# (per-extension) or root-level jobs (repo-wide) so future extensions inherit them automatically.
+# Adapted from yourcove/multi-extension-repo-template's build.yml (forked 2026-07-01). The one
+# deviation worth recording: this targets Renamer's real src/ subtree layout via
+# extensions/catalog.json's additive path fields (projectPath/manifestPath/uiPath — see catalog.json +
+# scripts/validate-extension-repo.mjs) instead of the template's flat {path}/{name}.csproj convention.
 #
-# The validate job computes the build matrix from catalog.json (all entries for a pull request or a
-# scheduled run; only the tagged extension for a tag push) and — on a tag push — confirms the tag
-# matches exactly one catalog entry's tagPrefix, carries a valid semver suffix, and agrees with both
-# that entry's extension.json version and its registry manifest's newest versions[] row. No PR trigger
-# path filtering is used anywhere: every catalog entry is built on every PR. It also builds the Cove
-# version axis the two safety legs fan out over, and that axis has two shapes. On a pull request it is
-# ONE leg at the floor each extension declares in its own manifest, read from those files alone. On
-# every other event it is RESOLVED from the registry's tag list and keeps all three roles — which is
-# why the same commit can go red on a scheduled run having been green on its pull request: those hosts
-# move, and this repository does not choose them.
+# One property no step below owns, because it is the absence of one: there is no PR trigger path
+# filtering anywhere, so every catalog entry is built on every pull request.
 #
 # Required-check model: the `required-checks` aggregation job is the single status check to mark
-# required in branch protection; it transitively gates on `build` (the bare C# unit tier, which states
-# CoveSourceMode=none), `test-cove-present` (the WHOLE C# suite against Cove assemblies extracted from
-# the released cove-app image, which is where the rollback/undo/ingest/loop-safety tests actually run),
-# and `e2e` (Playwright, against a real Cove container). No job here runs an extension's own node:test
+# required in branch protection; it transitively gates on `build`, `test-cove-present` and `e2e`, each
+# of which states its own subject where it is defined. No job here runs an extension's own node:test
 # specs: that tier was subscribed to through a catalog `e2eNodeTestsPath`, no entry has declared one
 # since e6b2263, and a tier with no subscriber gated nothing while reading as coverage. The field is
 # still accepted by scripts/validate-extension-repo.mjs, so a future subscriber declares it and
@@ -36,20 +24,15 @@ on:
   push:
     tags:
       - "*/v*"
-  # A daily signal on a moving target, which the two triggers above cannot give: the newest published
-  # Cove versions are resolved off the registry at run time, so the same commit tests different hosts on
-  # different days, and an upstream change that breaks this extension would otherwise surface only on
-  # whichever pull request happened to come next. What it costs is stated rather than absorbed: EVERY job
-  # in this file runs daily, including both safety legs and the aggregate, so this is recurring runner
-  # spend for a repository with a single maintainer.
+  # A daily signal on a moving target, which the two triggers above cannot give: only a non-pull-request
+  # event resolves the version axis (see `Resolve the Cove version axis`), so this is the only place
+  # upstream breakage above the declared floor is seen at all, and 24 hours is the budget for noticing
+  # it. It is also the only environment carrying more than one leg, so a per-leg `continue-on-error` can
+  # be read here and nowhere else. Deleting this trigger leaves both facts unobservable everywhere.
   #
-  # It is now the ONLY place two things happen at all, which is what this trigger is worth rather than a
-  # side effect of it. Upstream breakage above the declared floor — a newest GA or a release candidate —
-  # is seen here and nowhere else, so a pull request is no longer where it surfaces and 24 hours is the
-  # budget for noticing it. And the axis carries more than one leg here, so this is the only environment
-  # in which a per-leg `continue-on-error` can be read at all: with one leg on a pull request there is no
-  # leg-to-leg contrast to read it from. Deleting this trigger does not merely lose a daily signal — it
-  # would leave both facts unobservable everywhere.
+  # What it costs is stated rather than absorbed: EVERY job in this file runs daily, including both
+  # safety legs and the aggregate, so this is recurring runner spend for a repository with a single
+  # maintainer.
   #
   # 06:00 UTC is chosen to be well outside that maintainer's working hours, so a red arrives before a
   # session rather than during one. One caveat that costs a day of debugging if not known: the upstream
@@ -480,8 +463,8 @@ jobs:
       # extraction recorded against what this leg was told to test. They are two consumers of one
       # value, and the guard's whole job is to fail when they disagree.
       #
-      # A resolved registry tag is third-party input, so it arrives through the step's own environment
-      # and is read as a quoted variable — data the shell reads, never text the shell runs.
+      # A resolved registry tag is third-party input, so it arrives through the environment for the
+      # reason the build job's first step states.
       - name: Fetch Cove assemblies from the released image
         if: steps.check.outputs.has_tier == 'true'
         shell: bash
@@ -524,12 +507,11 @@ jobs:
   # Extensions without their own e2e suite are skipped via the catalog's optional
   # `e2ePath`/`e2eProject` fields (absent = no suite yet, not a failure).
   #
-  # This job's matrix is the version axis (coveMatrix), the same one test-cove-present takes, so its
-  # combos are flat: `matrix.extension` is the catalog entry and `matrix.cove` is the leg. The two safety
-  # legs see different things — one runs the suite in process against the image's assemblies, this one
-  # installs the assembled package into the running host and drives it — so a host version that only the
-  # second would notice (a load refusal, a changed route) is worth the second axis rather than tested on
-  # the floor alone.
+  # This job's matrix is the version axis (coveMatrix), the same one test-cove-present takes and with
+  # the same flat shape stated there. It takes that axis rather than the floor alone because the two
+  # safety legs see different things — one runs the suite in process against the image's assemblies,
+  # this one installs the assembled package into the running host and drives it — so a host version
+  # that only the second would notice (a load refusal, a changed route) is examined.
   e2e:
     needs: [validate, build]
     runs-on: ubuntu-latest
@@ -545,11 +527,9 @@ jobs:
       - uses: actions/checkout@v7
 
       # Every catalog-derived value in this job's shell bodies arrives through the step's own
-      # environment and is read as a quoted variable, for the reason the build job states above:
-      # extensions/catalog.json is editable by a pull request from a fork, and a value in the
-      # environment is data the shell reads, where the same value in the body is code the shell runs.
-      # The worst outcome here is not exfiltration — an injected body can `exit 0`, so this job would
-      # report success having run no specs, and required-check aggregation would go green over it.
+      # environment, for the reason the build job's first step states. What differs here is the worst
+      # outcome: it is not exfiltration — an injected body can `exit 0`, so this job would report
+      # success having run no specs, and required-check aggregation would go green over it.
       # `if:`, `with:` and `working-directory:` are evaluated by Actions rather than by a shell, so a
       # value reaching only those is not part of this hazard.
       - name: Check for an e2e suite
@@ -684,18 +664,14 @@ jobs:
   # job's `needs:` AND by having its result tested in the shell body below. Listing a job in `needs:`
   # alone would let it fail while this gate still reported success.
   #
-  # There are two safety legs and neither substitutes for the other:
-  #   - test-cove-present runs the WHOLE C# suite in process, against Cove assemblies extracted from the
-  #     released cove-app image. It sees seams no containerized run can reach — which principal a
-  #     database command executed under, a rollback's intermediate state, an event hook's re-entrancy.
-  #   - e2e installs the assembled package into the released host and drives it. It is the only check
-  #     that would notice a package the host cannot load, which no in-process assertion can see.
-  # A green here therefore means both were observed, not that one stood in for the other.
+  # There are two safety legs, each stating its own subject where it is defined, and neither substitutes
+  # for the other: test-cove-present sees seams no containerized run can reach — which principal a
+  # database command executed under, a rollback's intermediate state, an event hook's re-entrancy —
+  # while e2e is the only check that would notice a package the host cannot load. A green here means
+  # both were observed, not that one stood in for the other.
   #
   # Cove.Data is on no feed, and that is why the image is the route for it; Cove.Core, Cove.Plugins and
-  # Cove.Sdk are published on nuget.org. Neither fact makes the cove-present leg optional: the leg exists
-  # so the rollback / undo / ingest / loop-safety assertions the bare leg Compile-Removes block a merge
-  # rather than resting on a local run a contributor can skip.
+  # Cove.Sdk are published on nuget.org. Neither fact makes the cove-present leg optional.
   required-checks:
     needs: [validate, build, test-cove-present, e2e]
     if: always()
@@ -722,12 +698,11 @@ jobs:
   # lists free to drift apart; a leg added to `required-checks` reaches the release path with no edit
   # in this job.
   #
-  # What a green aggregate does NOT establish: the containerized install-and-enable run is the only
-  # check that would notice a package the host cannot load, and it runs for a catalog entry only when
-  # that entry declares e2ePath/e2eProject — both optional. For an entry declaring neither, the e2e
-  # job's first step sets has_suite=false, every later step in it is skipped, and the job still reports
-  # success. So a green aggregate proves the containerized install ran ONLY for an entry that declares
-  # the path; for an entry without one it proves nothing about the package, and the release proceeds.
+  # What a green aggregate does NOT establish: the e2e job runs for a catalog entry only when that entry
+  # declares e2ePath/e2eProject — both optional. For an entry declaring neither, the e2e job's first
+  # step sets has_suite=false, every later step in it is skipped, and the job still reports success. So a
+  # green aggregate proves the containerized install ran ONLY for an entry that declares the path; for
+  # an entry without one it proves nothing about the package, and the release proceeds.
   release:
     needs: required-checks
     if: startsWith(github.ref, 'refs/tags/')

@@ -110,17 +110,14 @@ const STATUS_BADGING: Record<RenamerStatus, StatusBadging> = {
   skipCancelled: { badge: null, readsAdvisoryFlags: false },
   // Log-only: a disk-full skip is reported through the run log and never becomes an item result at all.
   skipNoSpace: { badge: null, readsAdvisoryFlags: false },
-  // Executor-only on the same post-confirm path: the write-boundary guard refuses a destination at move
-  // time, long past any preview.
+  // Also executor-only: the write-boundary guard refuses a destination at move time.
   skipBlocked: { badge: null, readsAdvisoryFlags: false },
 };
 
 /**
- * Used only when the running server reports a status this bundle's generated union does not contain —
- * version skew, not a missing decision. Deliberately not an entry in the map above, so it cannot absorb
- * a status someone forgot to classify: TS2741 still fires for that. It carries a label because a row the
- * user is about to approve must not be silently uncounted, and no badge at all is what let `skipExcluded`
- * ship unnoticed.
+ * The lookup guard {@link STATUS_BADGING} describes: reached only on version skew, never on a missing
+ * decision. It carries a LABEL rather than `null` because a row the user is about to approve must not
+ * be silently uncounted.
  */
 const UNKNOWN_STATUS_BADGING: StatusBadging = {
   badge: { label: "Skipped — unrecognised status", variant: "amber" },

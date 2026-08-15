@@ -6,7 +6,7 @@
 // child_process wrapper. Testcontainers' Ryuk sidecar guarantees container/network/volume cleanup
 // even if the test process is killed (not just on a graceful exit) — a hand-rolled wrapper only
 // cleans up in the success path, leaking containers on a killed run. It also owns port resolution
-// and health-check waiting, removing two hand-written polling loops this file used to have.
+// and health-check waiting, so this file hand-rolls no polling loop of its own.
 import { join } from "node:path";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
 import { installViaContainerCopy } from "./install-extension.mjs";
