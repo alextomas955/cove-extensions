@@ -35,6 +35,21 @@ internal static class PathOps
         return slash >= 0 ? p[(slash + 1)..] : p;
     }
 
+    /// <summary>Splits a basename at its final dot into the name and the extension (dot included).</summary>
+    /// <remarks>A leading dot is not a split point, so a dotfile keeps its whole name and no extension.</remarks>
+    internal static (string filename, string ext) SplitBasename(string basename)
+    {
+        int dot = basename.LastIndexOf('.');
+        return dot > 0 ? (basename[..dot], basename[dot..]) : (basename, "");
+    }
+
+    /// <summary>The stem (name without its final extension): "video.mkv" → "video"; "video.en.vtt" → "video.en".</summary>
+    internal static string StemOf(string basename)
+    {
+        int dot = basename.LastIndexOf('.');
+        return dot > 0 ? basename[..dot] : basename;
+    }
+
     /// <summary>
     /// Joins a folder part and a name part into one forward-slash path, tolerating an empty part on
     /// either side.

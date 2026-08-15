@@ -588,7 +588,14 @@ public sealed class RenamerExecutor
 
     // ── event mapping ────────────────────────────────────────────────────────
 
-    private static EventType EventTypeFor(RenamerFileKind kind) => kind switch
+    /// <summary>The host event a renamed file of this kind publishes.</summary>
+    /// <remarks>
+    /// Internal rather than private because <see cref="UndoReplayer"/> publishes through this same
+    /// method. Undo must announce exactly what the forward rename announced, or an undone rename is
+    /// indistinguishable to the host from one that never happened — so the forward owner holds the one
+    /// map and undo calls it, which makes that equivalence structural instead of a promise in prose.
+    /// </remarks>
+    internal static EventType EventTypeFor(RenamerFileKind kind) => kind switch
     {
         RenamerFileKind.Video => EventType.VideoUpdated,
         RenamerFileKind.Image => EventType.ImageUpdated,
@@ -596,7 +603,8 @@ public sealed class RenamerExecutor
         _ => EventType.VideoUpdated,
     };
 
-    private static string EntityTypeName(RenamerFileKind kind) => kind switch
+    /// <summary>The entity-type name that event carries. Internal for the same reason as <see cref="EventTypeFor"/>.</summary>
+    internal static string EntityTypeName(RenamerFileKind kind) => kind switch
     {
         RenamerFileKind.Video => "Video",
         RenamerFileKind.Image => "Image",
@@ -605,19 +613,6 @@ public sealed class RenamerExecutor
     };
 
     // ── path/name helpers (pure string math) ─────────────────────────────────
-
-    private static (string filename, string ext) SplitBasename(string basename)
-    {
-        int dot = basename.LastIndexOf('.');
-        return dot > 0 ? (basename[..dot], basename[dot..]) : (basename, "");
-    }
-
-    /// <summary>The stem (name without its final extension): "video.mkv" → "video"; "video.en.vtt" → "video.en".</summary>
-    private static string StemOf(string basename)
-    {
-        int dot = basename.LastIndexOf('.');
-        return dot > 0 ? basename[..dot] : basename;
-    }
 
     /// <summary>
     /// Retargets a caption basename from the old stem to the new stem. A caption "video.en.vtt"

@@ -31,8 +31,9 @@ namespace Renamer.Execution;
 /// save throw, <see cref="DiskMover.Rollback"/> puts the file back at NEW and the entry is reported
 /// failed (no half-state where disk and DB disagree);</item>
 /// <item>on success, assert the recomputed Path equals the OLD path and publish
-/// <c>EntityEvent(EventTypeFor(batch.Kind), EntityTypeName(batch.Kind), entry.EntityId)</c> — the
-/// EXACT forward-equivalent reconstruction (kind from the batch HEADER, entityId from THIS row).</item>
+/// <c>EntityEvent(RenamerExecutor.EventTypeFor(batch.Kind), RenamerExecutor.EntityTypeName(batch.Kind),
+/// entry.EntityId)</c> — forward-equivalent because it CALLS the forward path's own map rather than
+/// mirroring it (kind from the batch HEADER, entityId from THIS row).</item>
 /// </list>
 /// Each entry is independent (one failure never aborts the rest, matching the forward executor).
 ///
@@ -294,7 +295,8 @@ public sealed class UndoReplayer
 
             // (6) Success: publish the EXACT forward-equivalent event — kind from the batch header,
             //     entityId from THIS row (matching the forward executor's success path).
-            _eventBus.Publish(new EntityEvent(EventTypeFor(kind), EntityTypeName(kind), entry.EntityId));
+            _eventBus.Publish(new EntityEvent(
+                RenamerExecutor.EventTypeFor(kind), RenamerExecutor.EntityTypeName(kind), entry.EntityId));
             return RevertOutcome.UndoneInstance;
         }
         catch (Exception ex)
@@ -457,22 +459,6 @@ public sealed class UndoReplayer
     }
 
     // ── event mapping — the exact forward-equivalent reconstruction ───────────
-
-    private static EventType EventTypeFor(RenamerFileKind kind) => kind switch
-    {
-        RenamerFileKind.Video => EventType.VideoUpdated,
-        RenamerFileKind.Image => EventType.ImageUpdated,
-        RenamerFileKind.Audio => EventType.AudioUpdated,
-        _ => EventType.VideoUpdated,
-    };
-
-    private static string EntityTypeName(RenamerFileKind kind) => kind switch
-    {
-        RenamerFileKind.Video => "Video",
-        RenamerFileKind.Image => "Image",
-        RenamerFileKind.Audio => "Audio",
-        _ => "Video",
-    };
 
     // ── path/name helpers (pure string math — mirror RenamerExecutor) ──────────
 
