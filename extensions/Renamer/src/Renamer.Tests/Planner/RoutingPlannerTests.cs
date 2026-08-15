@@ -16,7 +16,7 @@ namespace Renamer.Tests.Planner;
 [Trait("Tier", "L0")]
 public sealed class RoutingPlannerTests
 {
-    // OS-aware absolute roots (path-syntax valid on the current OS), mirroring PathConfinementAllowlistTests.
+    // OS-aware absolute roots (path-syntax valid on the current OS), mirroring PathConfinementTests.
     private static string SrcRoot => OperatingSystem.IsWindows() ? @"C:\library\incoming" : "/srv/library/incoming";
     private static string StudioRoot => OperatingSystem.IsWindows() ? @"D:\studios\acme" : "/mnt/studios/acme";
     private static string TagRoot => OperatingSystem.IsWindows() ? @"E:\by-tag\anime" : "/mnt/by-tag/anime";

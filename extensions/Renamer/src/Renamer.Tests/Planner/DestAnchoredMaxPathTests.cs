@@ -10,7 +10,7 @@ namespace Renamer.Tests.Planner;
 /// source folder. The load-bearing assertion is the contrast — the SAME rendered name FITS under a
 /// short source folder but OVERFLOWS under a deep routed root, so the over-long case becomes a
 /// skip-with-reason at PREVIEW (not a move-time crash). Driven through <c>RenamerPlanner.PlanAsync</c>
-/// (the wiring), reusing the OS-aware Root style of <c>PathConfinementAllowlistTests</c>. PURE — no disk.
+/// (the wiring), reusing the OS-aware Root style of <c>PathConfinementTests</c>. PURE — no disk.
 /// </summary>
 [Trait("Tier", "L0")]
 public sealed class DestAnchoredMaxPathTests

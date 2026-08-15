@@ -95,7 +95,7 @@ public sealed class WireSnapshotTests
             ResolvedDestinationRoot: "/music", MatchedRule: "Studio:7(direct)", TargetVolume: "/");
         // Same-volume by construction (one root), so the overflow flag is false — this fixture pins that
         // the field is ON the wire and spelled camelCase, and the true arm is a behavioural question
-        // answered in ScanAggregatorTests / ScanRowOverflowFlagTests rather than by planting a value the
+        // answered in ScanAggregatorTests / ScanRowPagerTests rather than by planting a value the
         // classification contradicts.
         string json = JsonSerializer.Serialize(
             ScanRow.From(RenamerFileKind.Audio, entityId: 5, item, inFlightPathOverflow: false),
