@@ -93,7 +93,19 @@ export function DestinationField({
           mono
           placeholder={templatePlaceholder}
         />
-        <PathShapeHint value={value.Template} />
+        {/* Reworded rather than suppressed when the picker is hidden. The advice is what changes,
+            not whether there is any: a typed path is still about to become literal folder names, and
+            that is most likely to be typed on exactly the one-library-path host where the picker is
+            not drawn. Suppressing would drop the only warning the user gets, on the host that needs
+            it most; naming a control that is not on screen is the half that had to go. */}
+        <PathShapeHint
+          value={value.Template}
+          message={
+            showPicker
+              ? "This is a folder template, not a path — pick the root beside it instead."
+              : "This is a folder template, not a path — the whole thing becomes folder names under this destination's root."
+          }
+        />
       </Field>
     </>
   );

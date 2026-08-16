@@ -21,9 +21,13 @@ export interface Badge {
 }
 
 /**
- * The three fields a badge is derived from. Declared structurally rather than as `PreviewItemView` so
- * a `/preview` item and a leaner `/scan-rows` row both qualify without either wire shape gaining a
- * field only the badges would read.
+ * What a badge is derived from: the row's outcome, plus the advisories that qualify it. Declared
+ * structurally rather than as `PreviewItemView` so a `/preview` item and a leaner `/scan-rows` row
+ * both qualify without either wire shape gaining a field only the badges would read.
+ *
+ * No count here, deliberately — the interface below states how many there are by existing, and a
+ * number restating it is a second place to edit that nobody remembers. This one was already one short
+ * before the field after it was added.
  */
 export interface Badgeable {
   status: RenamerStatus;

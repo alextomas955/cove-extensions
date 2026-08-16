@@ -1029,7 +1029,13 @@ export function KeyValueMapEditor<TValue>({
   addLabel: string;
 }) {
   const [draftKey, setDraftKey] = useState("");
-  const [draftValue, setDraftValue] = useState<TValue>(emptyValue);
+  // The draft holds UNDEFINED until the user edits it, and `emptyValue` is read at the moment it is
+  // needed rather than copied at mount. Seeding the state with `emptyValue` instead would freeze the
+  // caller's FIRST one forever: `useState` reads its argument on the first render only, so a value
+  // derived from data still being fetched — a destination root derived from Cove's library paths, say
+  // — would commit the placeholder the caller had before the fetch landed, on the first row added.
+  const [draftValue, setDraftValue] = useState<TValue | undefined>(undefined);
+  const pendingValue = draftValue ?? emptyValue;
   // Rows render from the entries rather than from the keys, so each row's value arrives paired with
   // its key out of one traversal instead of being looked back up by index.
   const entries = Object.entries(map);
@@ -1047,9 +1053,9 @@ export function KeyValueMapEditor<TValue>({
     const k = draftKey.trim();
     // Refuse a blank or duplicate key — a duplicate add must not clobber the existing mapping.
     if (k.length === 0 || k in map) return;
-    onChange({ ...map, [k]: draftValue });
+    onChange({ ...map, [k]: pendingValue });
     setDraftKey("");
-    setDraftValue(emptyValue);
+    setDraftValue(undefined);
   }
 
   const duplicate = draftKey.trim().length > 0 && draftKey.trim() in map;
@@ -1083,7 +1089,7 @@ export function KeyValueMapEditor<TValue>({
       ))}
       <div className="flex items-start gap-2 rounded-xl border border-border bg-card p-3">
         <span className="min-w-0 flex-1">{renderKey(draftKey, setDraftKey, keys)}</span>
-        <span className="min-w-0 flex-1">{renderValue(draftValue, setDraftValue)}</span>
+        <span className="min-w-0 flex-1">{renderValue(pendingValue, setDraftValue)}</span>
         <Button onClick={add} disabled={draftKey.trim().length === 0 || duplicate}>
           {addLabel}
         </Button>
@@ -1112,18 +1118,19 @@ export function RegexValidity({ pattern, isRegex }: { pattern: string; isRegex: 
  * given something that looks like a typed path. Mirrors {@link RegexValidity}'s presentational shape
  * exactly: pure, stateless, and renders nothing when the value looks fine or is blank.
  *
- * A typed path is not refused — it renders as ordinary folder names under whichever root the
- * destination chose, which is confined and harmless but almost never what the author meant. The root
- * is picked from a list beside this field, so the remedy is always at hand.
+ * A typed path is not refused — it renders as ordinary folder names under whichever root the field's
+ * owner chose, which is confined and harmless but almost never what the author meant.
+ *
+ * `message` is the REMEDY, and it is the caller's because only the caller knows what it is. Wording
+ * it here would put one extension's panel layout inside a business-agnostic package, where no import
+ * records the dependency and so nothing can detect it — and the next extension would inherit advice
+ * describing a control its own screen does not have. What stays shared is
+ * {@link isAbsolutePathShape}, which is a fact about a string and true everywhere.
  */
-export function PathShapeHint({ value }: { value: string }) {
+export function PathShapeHint({ value, message }: { value: string; message: string }) {
   if (value.trim().length === 0) return null;
   if (!isAbsolutePathShape(value)) return null;
-  return (
-    <StatusText kind="warning">
-      This is a folder template, not a path — pick the root beside it instead.
-    </StatusText>
-  );
+  return <StatusText kind="warning">{message}</StatusText>;
 }
 
 /** One of the five field groups. Matches Cove sub-card styling. */
