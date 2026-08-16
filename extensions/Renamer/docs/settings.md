@@ -234,6 +234,27 @@ Two consequences of the order that surprise people, both correct:
 An un-curated item goes to the [unorganized destination](#unorganized-destination) instead, whatever
 studio or tag rule matches it — see [precedence](#destination-routing).
 
+#### A studio rule reaches that studio's children
+
+A per-studio rule applies to the studio you set it on **and to every child studio under it that has
+no rule of its own**. A child's own rule always wins over an inherited one — direct beats ancestor.
+
+Say Cove holds this, and you set a rule only on the parent:
+
+| Studio                    | Parent       | Own rule?              | Destination it uses |
+| ------------------------- | ------------ | ---------------------- | ------------------- |
+| `ExploitedX`              | —            | yes → `I:\Downloads\P` | `I:\Downloads\P`    |
+| `Exploited College Girls` | `ExploitedX` | yes → `I:\Downloads\P` | its own             |
+| `Backroom Casting Couch`  | `ExploitedX` | **no**                 | **inherited**       |
+| `ExCoGigirls`             | `ExploitedX` | **no**                 | **inherited**       |
+
+The rule-less children all follow `ExploitedX`. This is usually what you want — it is how one rule
+covers a whole studio family — but it means **a rule on a parent studio can move files belonging to
+children you were not thinking about**, including across drives.
+
+Before you save a rule on a parent studio, check which children sit under it. Then run a dry run and
+read the destination column. To keep one child where it is, give that child its own rule.
+
 ### Advanced routing & safety
 
 | Setting                  | What it does                                                                                                                                                                                           | Default   |
