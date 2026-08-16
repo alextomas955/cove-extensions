@@ -84,18 +84,31 @@ public sealed class Library : IAsyncDisposable
             services.AddSingleton(log);
         }
 
-        // Registered only when a caller names one: with no CoveConfiguration the extension takes the
-        // same path a host that never registered one takes, which is what most of these suites want.
+        // Registered only when a caller names one — see LibraryConfig for the whole statement.
         if (libraryRoots.Length > 0)
         {
-            services.AddSingleton(new Cove.Core.Interfaces.CoveConfiguration
-            {
-                CovePaths = [.. libraryRoots.Select(r => new Cove.Core.Interfaces.CovePath { Path = r })],
-            });
+            services.AddSingleton(LibraryConfig(libraryRoots));
         }
 
         return services.BuildServiceProvider();
     }
+
+    /// <summary>
+    /// The Cove configuration declaring <paramref name="roots"/> as the host's library paths — the list
+    /// a destination root is chosen from and re-checked against.
+    /// </summary>
+    /// <remarks>
+    /// THE CANONICAL STATEMENT of why a caller registers this only when it is handed a root; the other
+    /// sites that build a provider point here. With no <c>CoveConfiguration</c> registered at all the
+    /// extension takes the same path a host that never registered one takes, which is the state one
+    /// suite asserts — so a caller handed no root must register nothing rather than an empty list. And a
+    /// fixture that names a destination root but forgets to declare it here gets a stated
+    /// <c>SkipRootMissing</c> rather than a plausible destination the harness invented on its behalf.
+    /// </remarks>
+    internal static Cove.Core.Interfaces.CoveConfiguration LibraryConfig(params string[] roots) => new()
+    {
+        CovePaths = [.. roots.Select(r => new Cove.Core.Interfaces.CovePath { Path = r })],
+    };
 
     public ValueTask DisposeAsync() => _conn.DisposeAsync();
 

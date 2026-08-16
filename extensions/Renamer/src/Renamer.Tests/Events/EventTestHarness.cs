@@ -22,7 +22,8 @@ internal static class EventTestHarness
     /// <param name="libraryRoots">
     /// Registered as Cove's configured library paths when any are named — the list a destination root
     /// is chosen from and re-checked against. Omitted, no <c>CoveConfiguration</c> is registered at all,
-    /// which is the host state one of these tests deliberately exercises.
+    /// which is the host state one of these tests deliberately exercises; see
+    /// <see cref="TestSupport.Library.LibraryConfig"/> for the whole statement.
     /// </param>
     public static async Task<(global::Renamer.Renamer ext, CapturingEventBus bus, FakeStore store)> BuildAsync(
         CoveContext db, RenamerOptions options, params string[] libraryRoots)
@@ -33,10 +34,7 @@ internal static class EventTestHarness
         services.AddSingleton<IEventBus>(bus);
         if (libraryRoots.Length > 0)
         {
-            services.AddSingleton(new Cove.Core.Interfaces.CoveConfiguration
-            {
-                CovePaths = [.. libraryRoots.Select(r => new Cove.Core.Interfaces.CovePath { Path = r })],
-            });
+            services.AddSingleton(Library.LibraryConfig(libraryRoots));
         }
 
         var provider = services.BuildServiceProvider();

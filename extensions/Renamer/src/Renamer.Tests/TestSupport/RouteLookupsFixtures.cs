@@ -28,10 +28,11 @@ internal static class Dests
 /// </summary>
 /// <remarks>
 /// With no rules the resolver always returns <see cref="RouteCategory.Unmatched"/>, so each file
-/// anchors on its own parent folder. The planner used to supply this internally through a non-routing
-/// overload, which let a test say nothing about routing while still depending on it; passing this
-/// value makes "this test does not route" something the call site states. Shared as a single instance
-/// exactly as the planner's own field was: every collection is empty and nothing here is written.
+/// anchors on the Cove library path containing it. The planner used to supply this internally through
+/// a non-routing overload, which let a test say nothing about routing while still depending on it;
+/// passing this value makes "this test does not route" something the call site states. Shared as a
+/// single instance exactly as the planner's own field was: every collection is empty and nothing here
+/// is written.
 /// </remarks>
 internal static class RouteLookupsFixtures
 {

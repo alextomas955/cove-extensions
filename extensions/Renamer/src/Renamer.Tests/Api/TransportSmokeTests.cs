@@ -105,8 +105,8 @@ public sealed class TransportSmokeTests
         var operations = DeclaredOperations();
 
         Assert.True(
-            operations.Count >= 9,
-            $"the wire document yielded {operations.Count} operations, but declared 9 when this floor "
+            operations.Count >= 10,
+            $"the wire document yielded {operations.Count} operations, but declared 10 when this floor "
                 + "was written — a smaller number means the parse found less than the document holds.");
         Assert.Equal(operations.Count, Routes().Count);
         Assert.Contains(("POST", Base + "/scan-rows"), operations);

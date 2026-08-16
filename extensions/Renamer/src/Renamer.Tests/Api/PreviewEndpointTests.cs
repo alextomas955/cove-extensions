@@ -37,6 +37,16 @@ public sealed class PreviewEndpointTests
     private static string SrcRoot => OperatingSystem.IsWindows() ? @"C:\library\incoming" : "/srv/library/incoming";
     private static string PathRoot => OperatingSystem.IsWindows() ? @"F:\by-source" : "/mnt/by-source";
 
+    /// <summary>The spelling <see cref="PathRoot"/> must come back in, written down rather than computed.</summary>
+    /// <remarks>
+    /// An expectation produced by re-applying production's own slash normalisation to <see cref="PathRoot"/>
+    /// agrees with the module under test by construction, and on the Linux leg that gates a merge that
+    /// normalisation is a no-op — so it claimed most exactly where it delivered least. Transcribed by
+    /// hand, the two have to be kept in step by hand, which is what makes a change to the normalisation
+    /// fail here on either platform instead of being absorbed into agreement.
+    /// </remarks>
+    private static string PathRootCanonical => OperatingSystem.IsWindows() ? "F:/by-source" : "/mnt/by-source";
+
     private static string Fwd(string p) => p.Replace('\\', '/');
 
     // Most cases here exercise wire shape, fan-out or routing rather than the default template, so they
@@ -230,13 +240,13 @@ public sealed class PreviewEndpointTests
 
             // The preview reflects the routed destination — the SAME route the batch resolves.
             Assert.Equal(RenamerStatus.Move, item.Status);
-            Assert.Equal(PathRoot.Replace('\\', '/'), item.ResolvedDestinationRoot);
+            Assert.Equal(PathRootCanonical, item.ResolvedDestinationRoot);
             Assert.Equal("SourcePath:exact", item.MatchedRule);
 
             // Cross-check: the planner (the batch's own path) resolves the identical destination for
             // the same options + lookups — preview and batch agree. The port is handed the same
             // library paths the extension was, or the two would disagree for that reason alone.
-            var port = new CoveRenamerDataPort(db, LibraryConfig(PathRoot));
+            var port = new CoveRenamerDataPort(db, Library.LibraryConfig(PathRoot));
             var plan = await new RenamerPlanner(port).PlanAsync(
                 RenamerFileKind.Video, videoId, options, BuildLookupsViaBatch(options), default);
             var batchItem = Assert.Single(plan.Items);
@@ -304,7 +314,7 @@ public sealed class PreviewEndpointTests
             var item = Assert.Single(response.Items);
             Assert.Equal(fileId, item.FileId);
             Assert.Equal(RenamerStatus.Move, item.Status);
-            Assert.Equal(PathRoot.Replace('\\', '/'), item.ResolvedDestinationRoot);
+            Assert.Equal(PathRootCanonical, item.ResolvedDestinationRoot);
             Assert.Equal("SourcePath:exact", item.MatchedRule);
 
             // Summary quantifies the (cross-volume) blast radius.
@@ -543,12 +553,6 @@ public sealed class PreviewEndpointTests
             exact,
             System.Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
     }
-
-    /// <summary>Cove configuration declaring <paramref name="roots"/> as its library paths.</summary>
-    private static Cove.Core.Interfaces.CoveConfiguration LibraryConfig(params string[] roots) => new()
-    {
-        CovePaths = [.. roots.Select(r => new Cove.Core.Interfaces.CovePath { Path = r })],
-    };
 
     /// <summary>Records the SQL of every executed reader command, so a test can recognise one query by its own text.</summary>
     private sealed class ReaderTextRecorder : DbCommandInterceptor

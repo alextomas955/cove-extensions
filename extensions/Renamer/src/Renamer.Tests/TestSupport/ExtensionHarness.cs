@@ -135,10 +135,8 @@ internal static class ExtensionHarness
     /// root is chosen from and re-checked against.
     /// </summary>
     /// <remarks>
-    /// Registered only when a caller names one, deliberately: with no <c>CoveConfiguration</c> at all
-    /// the extension takes the same path a host that never registered one takes, which is the state one
-    /// suite asserts. A fixture that names a destination root and forgets to declare it here gets a
-    /// stated <c>SkipRootMissing</c> rather than a plausible destination the harness invented.
+    /// Registered only when a caller names one, deliberately — see <see cref="Library.LibraryConfig"/>
+    /// for the whole statement.
     /// </remarks>
     private static void WithLibraryRoots(IServiceCollection services, string[] roots)
     {
@@ -147,10 +145,7 @@ internal static class ExtensionHarness
             return;
         }
 
-        services.AddSingleton(new Cove.Core.Interfaces.CoveConfiguration
-        {
-            CovePaths = [.. roots.Select(r => new Cove.Core.Interfaces.CovePath { Path = r })],
-        });
+        services.AddSingleton(Library.LibraryConfig(roots));
     }
 
     private static async Task<(global::Renamer.Renamer Extension, FakeStore Store)> BuildAsync(
