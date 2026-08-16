@@ -85,7 +85,16 @@ export function chosenLibraryPath(
   return libraryPaths.find((path) => sameFolderKey(path) === wanted);
 }
 
-const sameFolderKey = (path: string) => path.replace(/\\/g, "/").replace(/\/+$/, "");
+// Trailing separators are trimmed by index rather than by a `/+$` regex. That pattern is anchored at
+// the end but searched from the front, so a path of N separators costs O(N^2) backtracking — a
+// polynomial-ReDoS shape, and the path reaching here is host data rather than anything this panel
+// authored. Walking back from the end is linear and produces the same key.
+const sameFolderKey = (path: string) => {
+  const forward = path.replace(/\\/g, "/");
+  let end = forward.length;
+  while (end > 0 && forward[end - 1] === "/") end -= 1;
+  return forward.slice(0, end);
+};
 
 /**
  * The root a destination stores when Cove has exactly ONE library path: that path itself, never the

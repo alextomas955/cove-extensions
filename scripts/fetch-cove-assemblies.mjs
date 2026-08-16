@@ -723,13 +723,13 @@ export function readGuardedAssemblies(out) {
  * access does not need this script. Revisit if this ever runs somewhere PATH is not trusted.
  * </remarks>
  */
+// Hoisted so the call below fits on one line: the suppression has to sit on the line the issue is
+// reported at, and Prettier relocates a trailing comment that follows an inline object's `{`.
+const DOCKER_STDIO = { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] };
+
 function runDocker(args) {
   try {
-    // NOSONAR javascript:S4036 — see the PATH paragraph above; no portable absolute path exists.
-    return execFileSync("docker", args, {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
+    return execFileSync("docker", args, DOCKER_STDIO).trim(); // NOSONAR javascript:S4036
   } catch (error) {
     const detail = String(error.stderr ?? "").trim() || error.message;
     throw new Error(`docker ${args.join(" ")} failed: ${detail}`, { cause: error });
