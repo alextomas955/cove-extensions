@@ -222,10 +222,9 @@ public sealed class RenamerPlanner
         var rendered = TemplateEngine.Render(tokens, multi, options, performers: performers, tagRecords: tagRefs);
         string newBasename = rendered.Filename + rendered.Ext;
 
-        // (2) Anchor the rendered folder on something the move leaves standing — never the file's own
-        //     parent, which is the previous run's output, so anchoring there appends the rendered folder
-        //     to itself and buries the file one directory deeper every pass. The destination's ROOT is
-        //     that anchor, and it has exactly two forms, both of them library paths Cove owns and no
+        // (2) Anchor the rendered folder on something the move leaves standing, never on the file's own
+        //     parent — see IRenamerDataPort.LibraryRoots for the whole statement. The destination's ROOT
+        //     is that anchor, and it has exactly two forms, both of them library paths Cove owns and no
         //     rename can move: one the user picked from the list, or — for the "(the file's own library
         //     path)" choice — the one containing this file. That is what makes the plan a fixed point.
         //

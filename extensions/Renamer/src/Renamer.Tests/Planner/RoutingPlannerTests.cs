@@ -192,7 +192,7 @@ public sealed class RoutingPlannerTests
         port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
         var planner = new RenamerPlanner(port);
         // Empty lookups + empty maps + no allowed roots → no rule matched, so the DEFAULT template
-        // renders, anchored on the CONTAINING Cove library path, and MatchedPathTemplate stays null.
+        // renders, anchored on the CONTAINING Cove library path.
         var opts = new RenamerOptions { FilenameTemplate = "$title", FolderTemplate = "Sorted" };
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);

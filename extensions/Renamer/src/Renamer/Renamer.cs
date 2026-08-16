@@ -231,7 +231,10 @@ public sealed partial class Renamer : FullExtensionBase
     /// <remarks>
     /// <para>
     /// The stamp records a REWRITE, so a blob that needed neither conversion leaves no stamp and is
-    /// re-examined on the next load — which costs one parse and is what keeps this method honest: it
+    /// re-examined on the next load — which costs two store reads and two parses of the blob (the schema
+    /// key and the blob itself; <see cref="OptionsMigration.Scan"/> and
+    /// <see cref="OptionsMigration.ConvertDestinationsToRoots"/> each parse what they are handed), and is
+    /// what keeps this method honest: it
     /// never has to claim a blob is current on the strength of a stamp somebody could have written for
     /// the other half. Each conversion recognizes its own input rather than trusting the stamp (a legacy
     /// rule is name-keyed; a legacy destination is a JSON string where the current one is an object), so

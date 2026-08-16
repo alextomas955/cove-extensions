@@ -181,7 +181,9 @@ public interface IRenamerDataPort
     /// The absolute library paths Cove is configured to scan, in configuration order.
     /// </summary>
     /// <remarks>
-    /// THE ANCHOR A RENAME CANNOT MOVE, and the reason this member exists. A source-confined item's
+    /// THE CANONICAL STATEMENT of the anchor a rename cannot move, and the reason this member exists;
+    /// the other sites that touch it (<c>RenamerPlanner.PlanFileAsync</c>,
+    /// <see cref="RenamerStatus.SkipUnanchored"/>) point here. A source-confined item's
     /// folder template resolves against the library path CONTAINING the file; anchoring it on the
     /// file's own parent folder — which is the previous run's output — re-appends the rendered folder
     /// every run, so the item descends one directory per pass until the path length refuses it. The
