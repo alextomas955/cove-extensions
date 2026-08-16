@@ -160,7 +160,7 @@ public enum RenamerStatus
     /// suffixed path CAN exceed the budget and still be planned, previewed and written to disk. This
     /// status is evidence that one path was refused for length; it is never evidence that every planned
     /// path fits. Tracked at
-    /// <c>extensions/Renamer/.planning/todos/pending/fullpathmax-not-re-measured-after-the-suffix-loop.md</c>.
+    /// <c>.planning/todos/pending/fullpathmax-not-re-measured-after-the-suffix-loop.md</c>.
     /// </para>
     /// </summary>
     SkipTooLong,

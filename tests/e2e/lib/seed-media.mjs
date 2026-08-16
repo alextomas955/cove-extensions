@@ -1,7 +1,7 @@
 // Seeds a real, disposable test media file into a running harness instance and registers it with
 // Cove via the real API, so Renamer's planner has a genuine file+DB row to act on. Cove requires
 // an on-disk file for video/image import (no "create a fake row with no file" endpoint exists —
-// see extensions/.planning/ or extensions/Renamer/.planning/ research notes) — copying a tiny real
+// see the .planning/research/ notes) — copying a tiny real
 // fixture via the container's own copyFilesToContainer (not a host bind-mount) keeps this
 // environment-independent.
 import { randomUUID } from "node:crypto";
