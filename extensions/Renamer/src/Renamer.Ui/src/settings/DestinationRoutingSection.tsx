@@ -15,6 +15,7 @@ import {
   toStringKeyed,
   fromStringKeyed,
   newDestination,
+  type LibraryPathsState,
   type RenamerOptions,
   type PathDestinationRule,
 } from "./options";
@@ -35,7 +36,6 @@ import {
 import { EntitySelectField } from "./EntitySelectField";
 import { StudioDestinationsEditor } from "./StudioMap";
 import { DestinationField } from "./DestinationField";
-import { useLibraryPaths } from "./useLibraryPaths";
 
 /** Strip one leading dot if present, then lowercase — the add-time transform for a sidecar extension. */
 function normalizeSidecarExtension(raw: string): string {
@@ -47,13 +47,18 @@ function normalizeSidecarExtension(raw: string): string {
 export interface DestinationRoutingSectionProps {
   options: RenamerOptions;
   set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+  /** Cove's configured library paths, fetched once at the panel root. */
+  library: LibraryPathsState;
 }
 
-export function DestinationRoutingSection({ options, set }: DestinationRoutingSectionProps) {
+export function DestinationRoutingSection({
+  options,
+  set,
+  library,
+}: DestinationRoutingSectionProps) {
   // Live (not-yet-committed) AssociatedExtensions input, so the sidecar-extension advisory reflects
   // what the user is currently typing, before Enter commits it.
   const [sidecarLiveInput, setSidecarLiveInput] = useState("");
-  const libraryPaths = useLibraryPaths();
 
   return (
     <SectionCard
@@ -68,7 +73,7 @@ export function DestinationRoutingSection({ options, set }: DestinationRoutingSe
           label="Route un-curated items"
           checked={options.UnorganizedDestination !== null}
           onChange={(on) => {
-            set("UnorganizedDestination", on ? newDestination(libraryPaths) : null);
+            set("UnorganizedDestination", on ? newDestination(library.paths) : null);
           }}
           helper="Off = no unorganized route, and an un-curated item is skipped by Only organized."
         />
@@ -78,7 +83,7 @@ export function DestinationRoutingSection({ options, set }: DestinationRoutingSe
             onChange={(v) => {
               set("UnorganizedDestination", v);
             }}
-            libraryPaths={libraryPaths}
+            library={library}
             label="Folder"
             helper="Rendered under the root above. Blank = the root itself."
           />
@@ -98,7 +103,7 @@ export function DestinationRoutingSection({ options, set }: DestinationRoutingSe
           onChange={(m) => {
             set("StudioDestinations", m);
           }}
-          libraryPaths={libraryPaths}
+          library={library}
         />
       </ToggleHeaderCard>
 
@@ -118,7 +123,7 @@ export function DestinationRoutingSection({ options, set }: DestinationRoutingSe
             by the library. */}
         <KeyValueMapEditor
           map={toStringKeyed(options.TagDestinations)}
-          emptyValue={newDestination(libraryPaths)}
+          emptyValue={newDestination(library.paths)}
           onChange={(m) => {
             set("TagDestinations", fromStringKeyed(m));
           }}
@@ -137,12 +142,7 @@ export function DestinationRoutingSection({ options, set }: DestinationRoutingSe
             />
           )}
           renderValue={(value, setValue) => (
-            <DestinationField
-              value={value}
-              onChange={setValue}
-              libraryPaths={libraryPaths}
-              label="Folder"
-            />
+            <DestinationField value={value} onChange={setValue} library={library} label="Folder" />
           )}
           renderKeyLabel={(key) => <EntityReferenceValue entityType="tag" value={Number(key)} />}
           addLabel="Add tag rule"
@@ -184,7 +184,7 @@ export function DestinationRoutingSection({ options, set }: DestinationRoutingSe
             onChange={(rows) => {
               set("PathDestinations", rows);
             }}
-            makeRow={() => ({ Pattern: "", Dest: newDestination(libraryPaths), IsRegex: false })}
+            makeRow={() => ({ Pattern: "", Dest: newDestination(library.paths), IsRegex: false })}
             renderRow={(row, _i, update) => (
               <>
                 <Field label="Source path">
@@ -210,7 +210,7 @@ export function DestinationRoutingSection({ options, set }: DestinationRoutingSe
                   onChange={(v) => {
                     update({ Dest: v });
                   }}
-                  libraryPaths={libraryPaths}
+                  library={library}
                   label="Folder"
                 />
               </>

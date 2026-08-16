@@ -43,8 +43,21 @@ export type MultiValueOptions = Pascal<Wire.MultiValueOptions>;
 export type PathDestinationRule = Pascal<Wire.PathDestinationRule>;
 export type Destination = Pascal<Wire.Destination>;
 
+/**
+ * The stored root standing for _the file's own library path_ — an empty string, so that a rule
+ * carries no copy of a path Cove owns. Declared here because the helpers below are what reason about
+ * it, and it had grown three spellings across the two editors that read it.
+ */
+export const CONTAINING_ROOT = "";
+
+/**
+ * How {@link CONTAINING_ROOT} is offered in a picker. User-facing copy that the docs name too, so the
+ * two editors showing it must not be able to word it differently.
+ */
+export const CONTAINING_ROOT_LABEL = "(the file's own library path)";
+
 /** A destination naming neither a root nor a folder: the state that moves nothing. */
-export const NO_DESTINATION: Destination = { Root: "", Template: "" };
+export const NO_DESTINATION: Destination = { Root: CONTAINING_ROOT, Template: "" };
 
 /**
  * Cove's library path that `root` names, or `undefined` when it names none — which is the state that
@@ -88,7 +101,7 @@ const sameFolderKey = (path: string) => path.replace(/\\/g, "/").replace(/\/+$/,
  * user names one).
  */
 export function soleLibraryPath(libraryPaths: readonly string[]): string {
-  return libraryPaths.length === 1 ? (libraryPaths[0] ?? "") : "";
+  return libraryPaths.length === 1 ? (libraryPaths[0] ?? CONTAINING_ROOT) : CONTAINING_ROOT;
 }
 
 /**
@@ -120,10 +133,79 @@ export function defaultDestinationRoot(
   libraryPaths: readonly string[],
 ): string {
   const sole = soleLibraryPath(libraryPaths);
-  if (sole === "") return storedRoot;
-  if (storedRoot !== "" && chosenLibraryPath(storedRoot, libraryPaths) !== sole) return storedRoot;
-  return folderTemplate === "" ? "" : sole;
+  if (sole === CONTAINING_ROOT) return storedRoot;
+  if (storedRoot !== CONTAINING_ROOT && chosenLibraryPath(storedRoot, libraryPaths) !== sole) {
+    return storedRoot;
+  }
+  // A BLANK folder template, not the sentinel — the shipped "rename in place, nothing moves" state.
+  return folderTemplate === "" ? CONTAINING_ROOT : sole;
 }
+
+/**
+ * Cove's library paths as the panel currently knows them — which is not always as a list.
+ *
+ * The three states are kept apart because an empty list means three different things and the panel
+ * says something different about each: not read yet, read and failed, read and genuinely none. A hook
+ * returning the list alone collapses all three onto the last one, which is the false alarm the
+ * destination model exists to remove.
+ */
+export interface LibraryPathsState {
+  readonly paths: readonly string[];
+  /** True until the read settles, either way. */
+  readonly loading: boolean;
+  /** True when the read settled by failing, in which case `paths` is empty and means nothing. */
+  readonly failed: boolean;
+}
+
+/**
+ * What a destination editor may say about the library paths themselves.
+ *
+ * `"unreadable"` and `"no-library-paths"` are deliberately not one value: only the second names a
+ * repair, and offering it after a failed read tells a user to do something they have already done.
+ */
+export type DestinationNotice = "none" | "unreadable" | "no-library-paths";
+
+/** What a destination editor draws for one stored root. */
+export interface DestinationPickerState {
+  /** The library path `root` names, or `undefined` when it names none. */
+  readonly chosen: string | undefined;
+  /** The stored root is not one of Cove's library paths, so the rule is skipped. */
+  readonly stale: boolean;
+  readonly showPicker: boolean;
+  readonly notice: DestinationNotice;
+}
+
+/**
+ * The one derivation both destination surfaces draw from — which library path a stored root names,
+ * whether that root has stopped being one, and whether the control for changing it is on screen.
+ *
+ * Written once because the two surfaces must not be able to disagree about the same root; they were
+ * written twice and had already drifted. The picker is hidden when there is nothing to pick — one
+ * library path is the whole library, so asking which to use is a question with one answer, and
+ * {@link newDestination} has already stored it. It comes BACK when the stored root is not among the
+ * current paths, which is the state that stops the rule working: hiding it then would leave the user
+ * reading a skip reason with no way to act on it.
+ *
+ * Nothing is badged until the read has SETTLED successfully. An unsettled read carries an empty list,
+ * and reading that as "the host has no library paths" badges every rule broken on every page mount —
+ * a false alarm which is worse than a real one, because the user re-picks destinations that were
+ * working and re-picking moves real files.
+ */
+export function destinationPicker(
+  root: string,
+  library: LibraryPathsState,
+): DestinationPickerState {
+  const known = !library.loading && !library.failed;
+  const chosen = chosenLibraryPath(root, library.paths);
+  const stale = known && root !== CONTAINING_ROOT && chosen === undefined;
+
+  let notice: DestinationNotice = "none";
+  if (library.failed) notice = "unreadable";
+  else if (known && library.paths.length === 0) notice = "no-library-paths";
+
+  return { chosen, stale, showPicker: library.paths.length > 1 || stale, notice };
+}
+
 export type ExcludeRule = Pascal<Wire.ExcludeRule>;
 export type FieldReplaceRule = Pascal<Wire.FieldReplaceRule>;
 

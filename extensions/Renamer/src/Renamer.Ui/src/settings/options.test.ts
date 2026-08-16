@@ -16,7 +16,9 @@ import {
   newDestination,
   defaultDestinationRoot,
   chosenLibraryPath,
+  destinationPicker,
   DEFAULT_OPTIONS,
+  type LibraryPathsState,
   type RenamerOptions,
 } from "./options";
 
@@ -581,4 +583,65 @@ test("the default recognises its sole library path through the older spelling", 
   // one-path install, so there would be nothing on screen to correct it with.
   assert.equal(defaultDestinationRoot("", "G:\\library", ["G:/library"]), "");
   assert.equal(defaultDestinationRoot("$studio", "G:\\library", ["G:/library"]), "G:/library");
+});
+
+// --- What each destination editor shows, and what it may claim before the read has landed ---
+//
+// The two destination surfaces derived this independently and had already drifted apart, which is why
+// it is one function here rather than two copies there. The lifecycle half is the same decision seen
+// from the other side: an empty list means "nowhere to put files" only once a READ has returned one,
+// and until then every stored root would badge as broken and every rule would read as skipped. That
+// false alarm is worse than the real one it imitates — it sends a user to re-pick destinations that
+// already work, and re-picking moves real files.
+
+/** A settled, successful read of the given library paths. */
+function read(paths: readonly string[]): LibraryPathsState {
+  return { paths, loading: false, failed: false };
+}
+
+test("a stale root brings the picker back even where there is one library path", () => {
+  // One library path normally means there is nothing to pick, so the control is not drawn. A root
+  // that is no longer one of them is the state that stops the rule working, so it comes back —
+  // hiding it here would leave the user reading a skip reason with no way to act on it.
+  const composed = destinationPicker("E:/gone", read(["G:/library"]));
+  assert.equal(composed.stale, true);
+  assert.equal(composed.showPicker, true);
+  assert.equal(composed.chosen, undefined);
+});
+
+test("a matched root on a one-library-path install keeps the picker away", () => {
+  const composed = destinationPicker("G:/library", read(["G:/library"]));
+  assert.equal(composed.stale, false);
+  assert.equal(composed.showPicker, false);
+  assert.equal(composed.chosen, "G:/library");
+  // The sentinel is the other value a one-path install can hold, and it is not stale either.
+  assert.equal(destinationPicker("", read(["G:/library"])).showPicker, false);
+});
+
+test("a root matched only through the older separator spelling is not stale", () => {
+  // The store an older build wrote, in Cove's own platform spelling. Both name one folder and the
+  // planner treats them as one, so badging the rule broken would be the false alarm again.
+  const composed = destinationPicker("G:\\library", read(["G:/library"]));
+  assert.equal(composed.stale, false);
+  assert.equal(composed.showPicker, false);
+  assert.equal(composed.chosen, "G:/library");
+});
+
+test("nothing is badged or warned while the library-path read is still in flight", () => {
+  // The state every settings-page mount passes through. An empty list here is "not known yet", not
+  // "the host has none", and a stored root is un-checked rather than checked and found missing.
+  const composed = destinationPicker("G:/library", { paths: [], loading: true, failed: false });
+  assert.equal(composed.stale, false);
+  assert.equal(composed.showPicker, false);
+  assert.equal(composed.notice, "none");
+});
+
+test("a failed read says so, and suppresses the badge it could not earn", () => {
+  // Distinct from an empty successful read: naming the repair the user has already done is a false
+  // fact, and the stale badge would assert a check that never completed.
+  const composed = destinationPicker("G:/library", { paths: [], loading: false, failed: true });
+  assert.equal(composed.notice, "unreadable");
+  assert.equal(composed.stale, false);
+  // …against the successful read of a host that genuinely has none, which does name the repair.
+  assert.equal(destinationPicker("G:/library", read([])).notice, "no-library-paths");
 });
