@@ -713,10 +713,19 @@ export function readGuardedAssemblies(out) {
  * `execFileSync` with no shell, so an argument is an argument: a registry-supplied tag reaches the
  * command as one argv element and is never text a shell parses. docker's own stderr is folded into
  * the thrown message, because "docker exited 1" without it says nothing about why.
+ *
+ * The binary is named, not resolved to an absolute path, and that is a decision rather than an
+ * oversight. There is no portable absolute path to resolve to: Docker Engine, Docker Desktop,
+ * Colima and Rancher each place the binary somewhere different across the three operating systems
+ * this repo builds on, so hardcoding one would break the script everywhere it does not match. The
+ * exposure that buys is PATH substitution, which requires an attacker who can already write to a
+ * directory on PATH — on a throwaway CI runner or the maintainer's own machine, someone with that
+ * access does not need this script. Revisit if this ever runs somewhere PATH is not trusted.
  * </remarks>
  */
 function runDocker(args) {
   try {
+    // NOSONAR javascript:S4036 — see the PATH paragraph above; no portable absolute path exists.
     return execFileSync("docker", args, {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
