@@ -23,12 +23,27 @@ namespace Renamer.Tests.Planner;
 /// </para>
 /// <para>
 /// The commit between the two plans is modeled rather than executed, which is what keeps the property
-/// observable at L0. The model is faithful because the whole of a successful commit is one
-/// <see cref="RenamerFileMutation"/>, built at the single site in
-/// <c>RenamerExecutor.ExecuteItemAsync</c>: a new basename and a new parent folder from the plan
-/// item's <c>NewBasename</c> and <c>TargetFolderPath</c>, plus the item's <c>DerivedTitle</c> on the
-/// owning entity. Applying those three fields IS the executor's effect on the next plan's input; the
-/// disk move, the journal row and the published event change nothing the planner reads. The tier above
+/// observable at L0. The whole of a successful commit is one <see cref="RenamerFileMutation"/>, built
+/// at the single site in <c>RenamerExecutor.ExecuteItemAsync</c>: a basename, a new parent folder from
+/// the plan item's <c>TargetFolderPath</c>, and the item's <c>DerivedTitle</c> on the owning entity.
+/// Applying those fields IS the executor's effect on the next plan's input; the disk move, the journal
+/// row and the published event change nothing the planner reads.
+/// </para>
+/// <para>
+/// The model is faithful UNDER TWO CONDITIONS, both of which hold in every cell this matrix reaches,
+/// and neither of which the matrix could observe failing. The committed basename is the plan's
+/// <c>NewBasename</c> only when no duplicate suffix was applied: the collision loop reassigns
+/// <c>candidate</c> before the mutation is built, so on the suffixed path the executor commits a
+/// basename this model never produces — and that is precisely the path where the next plan's input
+/// differs by a decoration the loop could re-consume. A collision axis is deliberately NOT added; it
+/// multiplies the matrix, and what is wanted here is that the limit is stated rather than covered. The
+/// smaller asymmetry is the title: the write is conditional TWICE — the executor emits it only when
+/// the plan-time <c>DerivedTitle</c> is non-empty, and <c>CoveRenamerDataPort.ApplyDerivedTitleAsync</c>
+/// writes it only when the TRACKED row's title is still empty at save time, because a person can type
+/// one between the preview and the run. The model reproduces the first condition only.
+/// </para>
+/// <para>
+/// The tier above
 /// proves what this one cannot — that the hook's guard is really wired to plan emptiness, in
 /// <c>AutoRenamerHookTests</c> against a real host, and that the title write reaches the database, in
 /// <c>RenamerExecutorIntegrationTests</c> — and this tier proves what those cannot afford to: the same
@@ -223,6 +238,82 @@ public sealed class PlanFixedPointTests
         return cells;
     }
 
+    /// <summary>
+    /// The closed loop for a SOURCE-PATH rule: the one routing key the replay itself rewrites.
+    /// </summary>
+    /// <remarks>
+    /// The matrix above is quantified only over keys that CANNOT stop matching — a studio id survives
+    /// every pass, so a routed cell routes identically forever and the two arms differ in nothing the
+    /// replay can change. A source-path rule keys on the parent folder, which the replay does rewrite,
+    /// so pass 2 of a routed item is a different routing decision from pass 1. That composition is the
+    /// one the matrix above cannot enter at all, and it is the only shape in which a rule and the
+    /// default each relocate the same item.
+    /// <para>
+    /// Whether that double relocation is WANTED is a product question this file does not answer; what it
+    /// pins is that the loop still terminates, which is what auto-rename-on-update rests on.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(SourceRoutedMatrix))]
+    public async Task ASourcePathRule_ThenTheDefault_StillReachesNoOp(
+        string presetLabel, string filenameTemplate)
+    {
+        var options = new RenamerOptions
+        {
+            FilenameTemplate = filenameTemplate,
+
+            // The default is left at the moves-nothing shape deliberately, so the SECOND relocation
+            // below is the default reclaiming an item whose rule has stopped matching — not a second
+            // rule firing, which would prove nothing about the composition.
+            FolderRoot = string.Empty,
+            FolderTemplate = string.Empty,
+            FilenameAsTitle = true,
+        };
+
+        var lookups = new RouteLookups(
+            StudioIdToDest: new Dictionary<int, Destination>(),
+            TagIdToDest: new Dictionary<int, Destination>(),
+            PathExactToDest: new Dictionary<string, Destination>(StringComparer.Ordinal)
+            {
+                [SourceRoot] = Dests.At(OtherRoot, SubfolderTemplate),
+            },
+            PathRegexRules: []);
+
+        var replay = await ReplayAsync(options, Seed(titleSet: true), lookups);
+
+        string cell = $"{presetLabel} | source-path rule -> {OtherRoot}/{SubfolderTemplate}";
+
+        // The rule really fired on pass 1. Without this the whole arm degrades silently into a second
+        // copy of the unmatched case — every assertion below still passes, and it measures nothing.
+        Assert.NotNull(replay.FirstActing);
+        Assert.Equal("SourcePath:exact", replay.FirstActing!.MatchedRule);
+
+        Assert.True(
+            replay.How == Settled.FixedPoint,
+            $"{cell}: ended {replay.How} after {replay.Renames} renames"
+                + $"\n  last: {(replay.Renames > 0 ? replay.Trace[^1] : "(none)")}");
+
+        // ONE, and the reason it is not two is the whole boundary of what this arm can observe. Pass 1
+        // moves the item under the rule's root, which is what stops the rule matching. Pass 2 therefore
+        // takes the DEFAULT — but the shipped default names neither a root nor a template, so isMove is
+        // false and the item is measured against its own parent and left exactly where the rule put it.
+        // The second relocation needs a NON-EMPTY default, which this cell deliberately does not carry,
+        // so it is out of this arm's reach rather than absent from the product.
+        Assert.Equal(1, replay.Renames);
+    }
+
+    public static TheoryData<string, string> SourceRoutedMatrix()
+    {
+        var cells = new TheoryData<string, string>();
+
+        foreach (var (label, template) in ShippedPresets())
+        {
+            cells.Add(label, template);
+        }
+
+        return cells;
+    }
+
     public static TheoryData<string, string, Shape, bool, bool> Matrix()
     {
         var cells = new TheoryData<string, string, Shape, bool, bool>();
@@ -256,10 +347,17 @@ public sealed class PlanFixedPointTests
     /// <summary>Reads <c>PRESETS</c> out of the panel's <c>presets.ts</c>.</summary>
     /// <remarks>
     /// A parse that quietly matched a SUBSET would shrink the matrix while every remaining cell still
-    /// passed, so the entry count is cross-checked against the field's own occurrences in the same
-    /// slice and any disagreement — including none at all — throws rather than returning what it found.
-    /// The literal pattern accepts no backslash, so a template carrying an escape this parse cannot
-    /// reproduce fails that cross-check instead of arriving subtly wrong.
+    /// passed, so the entry count is cross-checked against the field's own occurrences and any
+    /// disagreement — including none at all — throws rather than returning what it found. The literal
+    /// pattern accepts no backslash, so a template carrying an escape this parse cannot reproduce fails
+    /// that cross-check instead of arriving subtly wrong.
+    /// <para>
+    /// The cross-check counts over the WHOLE file while the entries are parsed out of the array slice,
+    /// and the two domains differ on purpose. Counting over the same slice the entries came from is a
+    /// check that cannot fail in the direction that matters: a stray <c>];</c> inside a label or a
+    /// comment ends the slice early, hiding the entries beyond it from BOTH counts, so they agree and
+    /// the matrix silently shrinks. Counted over the whole file, a truncated slice makes them disagree.
+    /// </para>
     /// </remarks>
     private static IReadOnlyList<(string Label, string Template)> ShippedPresets()
     {
@@ -281,7 +379,9 @@ public sealed class PlanFixedPointTests
             """"
             label:\s*"([^"\\]*)"\s*,\s*filenameTemplate:\s*"([^"\\]*)"
             """");
-        int declared = Regex.Count(body, @"\bfilenameTemplate\b");
+        // The one occurrence outside the array: the field on the `interface Preset` declaration above it.
+        const int InterfaceDeclarations = 1;
+        int declared = Regex.Count(source, @"\bfilenameTemplate\b") - InterfaceDeclarations;
 
         if (entries.Count == 0 || entries.Count != declared)
         {

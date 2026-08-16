@@ -49,9 +49,7 @@ public static class Tokens
 ///
 /// 100% pure: no <c>Path</c>/<c>File</c>/DB calls. Deciding whether a destination is PERMITTED —
 /// traversal, containment, the absolute budget — is deliberately the confinement gate's job, not the
-/// engine's, and the engine never sees the library root. It does read one thing off the folder
-/// template that is not a name: the root prefix a fully-qualified template carries, which it hands
-/// through untouched for that gate to judge (see <see cref="RenderFolder"/>).
+/// engine's, and the engine never sees the library root.
 /// </summary>
 public static class TemplateEngine
 {

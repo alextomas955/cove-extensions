@@ -87,6 +87,16 @@ public class CoveRenamerDataPort : IRenamerDataPort
     /// Normalizing at this boundary — the one place the host's value enters — is what leaves a single
     /// spelling for the panel to store and the planner to re-check, rather than a comparison somewhere
     /// downstream that tolerates a divergence the next writer would widen again.
+    /// <para>
+    /// The guarantee holds AT THIS BOUNDARY only, and one downstream site knowingly departs from it:
+    /// <see cref="Planner.PathConfinement.ContainingRoot"/> re-trims the entry it returns, so a
+    /// root-only library path spelled <c>"/"</c> here comes back from it as <c>""</c> — the sentinel
+    /// this method exists to avoid emitting. The re-trim is not removable: that same return is written
+    /// into the stored destination root by the one-time conversion, which is handed raw host spellings
+    /// by its own callers and needs them normalized. So the divergence is real, and it is stated rather
+    /// than fixed because reaching it needs a Cove library path spelled exactly <c>/</c>, <c>\</c> or
+    /// <c>//</c>, and any longer sibling root wins the longest match first.
+    /// </para>
     /// </remarks>
     private static string Canonical(string path)
     {
