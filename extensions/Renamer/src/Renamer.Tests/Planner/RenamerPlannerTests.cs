@@ -136,11 +136,10 @@ public sealed class RenamerPlannerTests
     [Fact]
     public async Task PermissionRefusalAndLengthRefusal_CarryDifferentStatuses_NotOneSharedName()
     {
-        // The two refusals used to arrive as one status, badged "name conflict" — which is neither of
-        // them, and which asks the user to wait for a clash to clear when what they must actually do is
-        // widen a permission or shorten a template. Asserted as a PAIR, in one case, because the claim
-        // is that they DIFFER: two separate cases each pinning one status would both still pass if the
-        // planner collapsed them onto whichever status they happened to name.
+        // Why the two refusals must not fold into one status: PathConfinement.ConfinementRejection.
+        // Asserted as a PAIR, in one case, because the claim is that they DIFFER: two separate cases
+        // each pinning one status would both still pass if the planner collapsed them onto whichever
+        // status they happened to name.
         var port = new FakeRenamerDataPort();
         port.SeedLibraryRoot("media/videos");
         port.SeedEntity(VideoEntity("My Film", VideoFile(1, "raw.mkv")));
@@ -169,9 +168,8 @@ public sealed class RenamerPlannerTests
     [Fact]
     public async Task AnAllowlistNarrowerThanTheLibraryPath_IsRefusedNamingTheAnchor_NotOnlyTheAllowlist()
     {
-        // The anchor moved in this release: an unrouted folder template is now placed under the Cove
-        // library path holding the file rather than under the file's own folder. So an AllowedRoots entry
-        // drawn at the file's own folder — which permitted this move before — now refuses it, and the
+        // An unrouted folder template is placed under the Cove library path holding the file, not under
+        // the file's own folder. So an AllowedRoots entry drawn at the file's own folder refuses it, and the
         // gate's own message ("not under any allowed root") sends the user to look at a list that already
         // contains the folder they are staring at. The reason has to name the anchor or the user cannot
         // act on it.

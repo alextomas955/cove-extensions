@@ -85,6 +85,52 @@ public sealed class PathConfinementTests
         Assert.False(r.Accepted);
     }
 
+    /// <summary>
+    /// A ROOTED folder template is refused outright, before it is ever combined with the anchor.
+    /// </summary>
+    /// <remarks>
+    /// The engine renders folder templates relative and this branch is therefore unreachable through
+    /// it; what it guards is a direct caller of this <c>public</c> member. Without it the answer is not
+    /// merely permissive, it is undefined and differs by platform: on POSIX the combine trims the
+    /// leading separator, so an absolute-looking template becomes an ordinary subfolder under the
+    /// anchor — contained, escaping nothing — while on Windows a drive-qualified one reaches
+    /// <c>Path.GetFullPath</c> with an embedded colon and the result was never established. Refusing
+    /// makes the Windows question moot, which is cheaper than answering it.
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(RootedFolderTemplates))]
+    public void RootedFolderTemplate_Rejected(string destinationFolder)
+    {
+        var r = ResolveWithNoAllowedRoots(destinationFolder, newBasename: "film.mkv");
+
+        Assert.False(r.Accepted);
+        Assert.Equal(PathConfinement.ConfinementRejection.NotAllowed, r.Rejection);
+        Assert.Contains("not relative", r.Reason);
+    }
+
+    /// <summary>
+    /// Rooted spellings, gated by what is rooted ON THIS PLATFORM rather than by what looks absolute.
+    /// </summary>
+    /// <remarks>
+    /// A leading separator is rooted everywhere, so that case carries the pin on either runner. A
+    /// drive-qualified path is rooted only on Windows — on Linux it is an ordinary relative name that
+    /// happens to contain a colon — so asserting a refusal for it there would pin the opposite of the
+    /// truth. The gate is the platform, never <c>Path.IsPathRooted</c> itself: computing the expectation
+    /// from the predicate under test would make this case agree with the resolver whatever it does.
+    /// </remarks>
+    public static TheoryData<string> RootedFolderTemplates()
+    {
+        var cells = new TheoryData<string> { "/etc" };
+
+        if (OperatingSystem.IsWindows())
+        {
+            cells.Add(@"C:\Windows");
+            cells.Add(@"\\server\share");
+        }
+
+        return cells;
+    }
+
     [Fact]
     public void OverFullPathMax_AbsoluteTarget_Rejected()
     {
@@ -101,8 +147,8 @@ public sealed class PathConfinementTests
     [Fact]
     public void RelativeTarget_ResolvesUnderSource_AcceptedOnlyWhenUnderARoot()
     {
-        // A relative destination is resolved under legacySourceRoot; it is accepted only when that
-        // resolved path lands under a configured root. Here the source IS the root, so it passes.
+        // A relative destination is resolved under the anchor; it is accepted only when that resolved
+        // path lands under a configured root. Here the anchor IS the root, so it passes.
         var r = PathConfinement.Resolve(
             Roots, anchor: AllowedRoot.Replace('\\', '/'), destinationFolder: "Acme/2024",
             newBasename: "film.mkv", options: new RenamerOptions());
@@ -128,7 +174,7 @@ public sealed class PathConfinementTests
     public void OverFullPathMax_UnderAllowedRoot_Rejected()
     {
         // Anchored ON the allowed root, so the narrowing accepts and the length refusal is what is left
-        // to observe — the two refusals stay distinct because they ask the user for different things.
+        // to observe. Why the two stay distinct: PathConfinement.ConfinementRejection.
         var opts = new RenamerOptions { FullPathMax = 40 };
 
         var r = PathConfinement.Resolve(

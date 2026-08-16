@@ -136,9 +136,9 @@ public enum RenamerStatus
 
     /// <summary>
     /// Planner-only: the rendered destination lies outside the area the configuration permits writing
-    /// into — an <c>AllowedRoots</c> list that does not cover it, an absolute folder template resolving
-    /// outside every Cove library path with no allowed roots configured, or a template that traversed
-    /// out of its own anchor. The item keeps its current
+    /// into — a folder template that is not relative, a template that traversed out of its own anchor,
+    /// or an <c>AllowedRoots</c> list that does not cover it. Those are the three refusals
+    /// <c>PathConfinement.Resolve</c> can produce, in the order it takes them. The item keeps its current
     /// name and folder. Kept DISTINCT from <see cref="SkipCollision"/> (a name-taken skip) because the
     /// two ask for different actions, and from <see cref="SkipBlocked"/>, which is the executor's
     /// disk-resolving guard refusing a real on-disk target at move time; this one is a pure string

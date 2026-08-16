@@ -5,9 +5,9 @@ using static global::Renamer.Execution.PathOps;
 namespace Renamer.Planner;
 
 /// <summary>
-/// The path-traversal confinement gate. The engine emits a sanitized folder path — relative, or
-/// fully qualified when the folder template was — and decides nothing about whether that destination
-/// may be written to; this helper is the boundary before any executor sees a target. PURE: only
+/// The path-traversal confinement gate. The engine emits a sanitized folder path — always relative —
+/// and decides nothing about whether that destination may be written to; this helper is the boundary
+/// before any executor sees a target. PURE: only
 /// <see cref="Path"/> string math (the <c>GetFullPath(path, basePath)</c> overload does not touch
 /// disk for these inputs) — no <c>File.</c>/<c>Directory.</c> calls.
 /// </summary>
@@ -93,6 +93,18 @@ public static class PathConfinement
         string newBasename,
         RenamerOptions options)
     {
+        // Refused BEFORE any combination with the anchor, because a rooted template has no defined
+        // answer further down: the combine below trims a leading separator, turning an absolute-looking
+        // template into an ordinary subfolder that is contained and escapes nothing, while a
+        // drive-qualified one reaches GetFullPath with an embedded colon. The engine renders folders
+        // relative, so this is unreachable through it and guards a direct caller of this public member.
+        if (Path.IsPathRooted(destinationFolder))
+        {
+            return new(
+                ConfinementRejection.NotAllowed, string.Empty,
+                "folder template is not relative");
+        }
+
         // The anchor, resolved to a normalized absolute path under the fixed base.
         string rootAbs = ToAbsolute(anchor);
 
@@ -125,8 +137,8 @@ public static class PathConfinement
     /// <summary>
     /// Accepts <paramref name="targetAbs"/> when the ABSOLUTE full path (folder +
     /// <paramref name="newBasename"/>) fits <see cref="RenamerOptions.FullPathMax"/>, which the engine
-    /// could not measure because it never sees the root. The single site of the check, so the three
-    /// permission branches above cannot come to hold three different budgets.
+    /// could not measure because it never sees the root. The single site of the check, so the
+    /// permission branches above cannot come to hold different budgets.
     /// </summary>
     private static ConfinementResult WithinBudget(
         string targetAbs, string newBasename, RenamerOptions options)
@@ -148,6 +160,15 @@ public static class PathConfinement
     /// and its case policy are <see cref="IsUnderRoot"/>'s, so the anchor cannot come to disagree with
     /// the allowlist gate about what "inside" means. Blank entries are ignored rather than treated as a
     /// root matching everything.
+    /// <para>
+    /// The consequence of "longest wins", stated here because this is where the anchor is chosen:
+    /// because the anchor is re-resolved on EVERY plan rather than stored, declaring a new Cove library
+    /// path INSIDE an existing one silently moves every sentinel-anchored item beneath it — the shipped
+    /// default included. That is the one path-lifecycle event which relocates files with no rule
+    /// changing and nothing in this extension edited, so a user who nests a library path sees a bulk
+    /// move they did not ask for. The rule itself is not the defect and is deliberately not reversed;
+    /// the nearer boundary really is the one the user drew.
+    /// </para>
     /// </remarks>
     public static string? ContainingRoot(string path, IReadOnlyList<string> roots)
     {
@@ -159,6 +180,11 @@ public static class PathConfinement
                 continue;
             }
 
+            // The answer is the NORMALIZED entry, not the one supplied, and that is load-bearing rather
+            // than incidental: the one-time options conversion writes this return straight into the
+            // stored destination root, so returning a caller's raw spelling would persist a second
+            // spelling of a folder the panel then re-checks by exact equality. Measured, not assumed —
+            // returning the entry as supplied reddens OptionsMigrationLogicTests.
             string normalized = NormalizeSlash(root).TrimEnd('/');
             if (IsUnderRoot(path, normalized) && (best is null || normalized.Length > best.Length))
             {
