@@ -382,7 +382,13 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
   }
 
   const { ga, prerelease } = splitReleaseChannels(parsed);
-  const newestGa = ga.at(-1);
+  // The newest GA AT OR ABOVE the floor, never the newest published: a required leg below the declared
+  // floor boots a host that declines to load the extension, so every route 404s and every browser spec
+  // fails with nothing anywhere naming a version. While the floor is itself the newest GA the two
+  // collapse onto one image and that failure cannot be seen at all. When no GA reaches the floor the
+  // role is omitted rather than pointed at the nearest thing to it — the same refusal to substitute a
+  // plausible answer as the throws above.
+  const newestGa = ga.filter((version) => compareSemver(version, parsedFloor) >= 0).at(-1);
   const newestPrerelease = prerelease.at(-1);
 
   const roles = [{ tag: floor, role: "floor", advisory: false }];
