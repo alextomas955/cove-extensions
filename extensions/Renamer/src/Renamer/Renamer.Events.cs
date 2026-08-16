@@ -53,7 +53,7 @@ public sealed partial class Renamer
     {
         try
         {
-            var options = await new OptionsStore(Store).LoadAsync(ct);
+            var options = await new OptionsStore(Store, _log).LoadAsync(ct);
             if (!options.AutoRenamerOnUpdate)
             {
                 return; // opt-in, default off — do zero DB work when disabled.
