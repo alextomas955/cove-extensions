@@ -48,7 +48,11 @@ public sealed class WireJson<T>(T value)
     public Task ExecuteAsync(HttpContext httpContext)
     {
         ArgumentNullException.ThrowIfNull(httpContext);
-        return httpContext.Response.WriteAsJsonAsync(value, WireJsonOptions.Instance);
+        return httpContext.Response.WriteAsJsonAsync(
+            value,
+            WireJsonOptions.Instance,
+            httpContext.RequestAborted
+        );
     }
 
     // Static, so the status code cannot come from the instance — which is why each non-200 arm of a
@@ -84,7 +88,11 @@ public sealed class ForbiddenCode
     {
         ArgumentNullException.ThrowIfNull(httpContext);
         httpContext.Response.StatusCode = StatusCodes.Status403Forbidden;
-        return httpContext.Response.WriteAsJsonAsync(Body, WireJsonOptions.Instance);
+        return httpContext.Response.WriteAsJsonAsync(
+            Body,
+            WireJsonOptions.Instance,
+            httpContext.RequestAborted
+        );
     }
 
     static void IEndpointMetadataProvider.PopulateMetadata(MethodInfo method, EndpointBuilder builder)
@@ -126,7 +134,11 @@ public sealed class BadRequestCode(string code, int? max = null)
     {
         ArgumentNullException.ThrowIfNull(httpContext);
         httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-        return httpContext.Response.WriteAsJsonAsync(_body, WireJsonOptions.Instance);
+        return httpContext.Response.WriteAsJsonAsync(
+            _body,
+            WireJsonOptions.Instance,
+            httpContext.RequestAborted
+        );
     }
 
     static void IEndpointMetadataProvider.PopulateMetadata(MethodInfo method, EndpointBuilder builder)
