@@ -7,7 +7,14 @@
  */
 import type { Ref, RefObject } from "react";
 
-import { chosenLibraryPath, defaultDestinationRoot, type RenamerOptions } from "./options";
+import {
+  CONTAINING_ROOT,
+  CONTAINING_ROOT_LABEL,
+  defaultDestinationRoot,
+  destinationPicker,
+  type LibraryPathsState,
+  type RenamerOptions,
+} from "./options";
 import {
   Field,
   TextInput,
@@ -20,7 +27,6 @@ import {
 import { TokenLegend } from "./TokenLegend";
 import { TemplateValidation } from "./templateAdvisories";
 import { PRESETS } from "./presets";
-import { useLibraryPaths } from "./useLibraryPaths";
 
 /**
  * The DEFAULT destination: the same root-plus-relative-template shape every rule has, spelled as the
@@ -36,16 +42,17 @@ function DefaultDestinationFields({
   set,
   activeTemplateRef,
   folderRef,
+  library,
 }: {
   options: RenamerOptions;
   set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
   activeTemplateRef: RefObject<"filename" | "folder">;
   folderRef: Ref<HTMLInputElement>;
+  library: LibraryPathsState;
 }) {
-  const libraryPaths = useLibraryPaths();
-  const chosen = chosenLibraryPath(options.FolderRoot, libraryPaths);
-  const stale = options.FolderRoot !== "" && chosen === undefined;
-  const showPicker = libraryPaths.length > 1 || stale;
+  // The same derivation `DestinationField` draws from — see `destinationPicker`. Only the derivation
+  // is shared: the template input below keeps its own caret handling and its own sentence.
+  const { chosen, stale, showPicker } = destinationPicker(options.FolderRoot, library);
 
   return (
     <>
@@ -58,8 +65,8 @@ function DefaultDestinationFields({
               set("FolderRoot", v);
             }}
             options={[
-              { value: "", label: "(the file's own library path)" },
-              ...libraryPaths.map((path) => ({ value: path, label: path })),
+              { value: CONTAINING_ROOT, label: CONTAINING_ROOT_LABEL },
+              ...library.paths.map((path) => ({ value: path, label: path })),
               ...(stale
                 ? [
                     {
@@ -90,7 +97,7 @@ function DefaultDestinationFields({
             // template rather than remembered: naming a folder names the library path to make it
             // under, and clearing the folder returns the default to "nothing moves". See
             // defaultDestinationRoot, which states why the default cannot simply take the sole path.
-            set("FolderRoot", defaultDestinationRoot(v, options.FolderRoot, libraryPaths));
+            set("FolderRoot", defaultDestinationRoot(v, options.FolderRoot, library.paths));
           }}
           onFocus={() => (activeTemplateRef.current = "folder")}
           inputRef={folderRef}
@@ -145,6 +152,8 @@ export interface FilenameSectionProps {
   emptySamples: string[];
   recoveredFromBadBlob: boolean;
   pendingNameMigration: boolean;
+  /** Cove's configured library paths, fetched once at the panel root. */
+  library: LibraryPathsState;
 }
 
 export function FilenameSection({
@@ -157,6 +166,7 @@ export function FilenameSection({
   emptySamples,
   recoveredFromBadBlob,
   pendingNameMigration,
+  library,
 }: FilenameSectionProps) {
   return (
     <div className="col-span-2 space-y-6">
@@ -212,6 +222,7 @@ export function FilenameSection({
             set={set}
             activeTemplateRef={activeTemplateRef}
             folderRef={folderRef}
+            library={library}
           />
           <TemplateValidation value={options.FolderTemplate} />
         </Subsection>

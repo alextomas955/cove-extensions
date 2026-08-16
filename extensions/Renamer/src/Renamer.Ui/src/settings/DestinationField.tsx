@@ -10,16 +10,19 @@
  */
 import { Field, Select, TextInput, PathShapeHint, StatusText } from "@cove-extensions/ui-shared";
 
-import { chosenLibraryPath, type Destination } from "./options";
-
-/** The dropdown value standing for "the file's own library path" — the stored empty root. */
-const CONTAINING_ROOT = "";
+import {
+  CONTAINING_ROOT,
+  CONTAINING_ROOT_LABEL,
+  destinationPicker,
+  type Destination,
+  type LibraryPathsState,
+} from "./options";
 
 export interface DestinationFieldProps {
   value: Destination;
   onChange: (value: Destination) => void;
-  /** Cove's configured library paths, from `/library-paths`. */
-  libraryPaths: readonly string[];
+  /** Cove's configured library paths, from `/library-paths`, as the panel currently knows them. */
+  library: LibraryPathsState;
   /** Shown above the template input; omit inside a row that already names itself. */
   label?: string;
   helper?: string;
@@ -29,23 +32,18 @@ export interface DestinationFieldProps {
 export function DestinationField({
   value,
   onChange,
-  libraryPaths,
+  library,
   label = "Destination",
   helper,
   templatePlaceholder = "$studio / $year",
 }: DestinationFieldProps) {
-  // The picker is hidden when there is nothing to pick — one library path is the whole library, so
-  // asking which one to use would be a question with one answer, and `newDestination` has already
-  // stored that answer (see options.ts for why the path itself, not the sentinel). It comes BACK when
-  // the stored root is not among the current paths, which is the state that stops the rule working:
-  // hiding the control then would leave the user reading a skip reason with no way to act on it.
-  const chosen = chosenLibraryPath(value.Root, libraryPaths);
-  const stale = value.Root !== CONTAINING_ROOT && chosen === undefined;
-  const showPicker = libraryPaths.length > 1 || stale;
+  // One derivation, shared with the default destination's own editor — see `destinationPicker` for
+  // why the picker comes and goes, and for why nothing is badged until the read has settled.
+  const { chosen, stale, showPicker, notice } = destinationPicker(value.Root, library);
 
   const options = [
-    { value: CONTAINING_ROOT, label: "(the file's own library path)" },
-    ...libraryPaths.map((path) => ({ value: path, label: path })),
+    { value: CONTAINING_ROOT, label: CONTAINING_ROOT_LABEL },
+    ...library.paths.map((path) => ({ value: path, label: path })),
     // The stale root is offered as its own option so the select shows what is actually stored rather
     // than silently reading as "the file's own library path", which is a different destination.
     ...(stale ? [{ value: value.Root, label: `${value.Root} (no longer a library path)` }] : []),
@@ -53,7 +51,13 @@ export function DestinationField({
 
   return (
     <>
-      {libraryPaths.length === 0 ? (
+      {notice === "unreadable" ? (
+        <StatusText kind="warning">
+          Couldn&apos;t read Cove&apos;s library paths, so this rule can&apos;t be checked. Reload
+          the page to try again.
+        </StatusText>
+      ) : null}
+      {notice === "no-library-paths" ? (
         <StatusText kind="warning">
           Cove has no library paths configured, so there is nowhere to move files to. Add one in
           Cove&apos;s settings.
