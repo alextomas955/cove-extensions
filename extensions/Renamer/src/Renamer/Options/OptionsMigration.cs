@@ -186,14 +186,23 @@ public static class OptionsMigration
     /// blob and differ completely in consequence: converting against an empty list would drop every
     /// rule the user has.
     /// </param>
+    /// <param name="RemovedEmptyRoutes">
+    /// How many stored destinations were REMOVED rather than rewritten, because the field spells "there
+    /// is no route" as the absent member and the blob still holds the empty value that used to spell it.
+    /// Counted rather than listed, and deliberately not logged: nothing about the user's routing changes,
+    /// so there is nothing to tell them — but the blob did change, and a caller that reads only
+    /// <see cref="Rewritten"/> and <see cref="Dropped"/> would leave a value the current model cannot
+    /// bind sitting in the store.
+    /// </param>
     public sealed record DestinationConversion(
         string Json,
         IReadOnlyList<RewrittenDestination> Rewritten,
         IReadOnlyList<DroppedDestination> Dropped,
-        bool Deferred)
+        bool Deferred,
+        int RemovedEmptyRoutes = 0)
     {
         /// <summary>True iff the blob was altered, so it is worth writing back.</summary>
-        public bool Changed => Rewritten.Count > 0 || Dropped.Count > 0;
+        public bool Changed => Rewritten.Count > 0 || Dropped.Count > 0 || RemovedEmptyRoutes > 0;
     }
 
     /// <summary>
@@ -250,16 +259,26 @@ public static class OptionsMigration
 
         var rewritten = new List<RewrittenDestination>();
         var dropped = new List<DroppedDestination>();
+        int removedEmptyRoutes = 0;
 
         foreach (var site in sites)
         {
             string stored = site.Stored;
 
-            // A rule storing no root at all named no destination of its own; it rendered the global
-            // folder template under the file's own place. "The file's own library path" is that same
-            // arrangement, so it converts without needing a root and cannot be dropped.
             if (stored.Length == 0)
             {
+                // Two different questions share the empty string, and only the site knows which one it
+                // is answering — see DestinationSite.EmptyIsNoRoute.
+                if (site.EmptyIsNoRoute)
+                {
+                    site.Drop();
+                    removedEmptyRoutes++;
+                    continue;
+                }
+
+                // A rule storing no root at all named no destination of its own; it rendered the global
+                // folder template under the file's own place. "The file's own library path" is that same
+                // arrangement, so it converts without needing a root and cannot be dropped.
                 site.Write(string.Empty, folderTemplate);
                 rewritten.Add(new RewrittenDestination(site.Rule, stored, string.Empty, folderTemplate));
                 continue;
@@ -279,7 +298,8 @@ public static class OptionsMigration
             rewritten.Add(new RewrittenDestination(site.Rule, stored, containing, template));
         }
 
-        return new DestinationConversion(root.ToJsonString(), rewritten, dropped, Deferred: false);
+        return new DestinationConversion(
+            root.ToJsonString(), rewritten, dropped, Deferred: false, removedEmptyRoutes);
     }
 
     /// <summary>
@@ -290,8 +310,22 @@ public static class OptionsMigration
     /// A site rather than four near-identical loops, because the four fields differ only in how a value
     /// is reached (a map entry, an array element's member, a top-level member) while the DECISION about
     /// it is one rule. Splitting them would be four places for that rule to drift.
+    /// <para>
+    /// <c>EmptyIsNoRoute</c> is true for the one field where an empty stored value means "there is no
+    /// route at all" rather than "this rule names no root of its own". The current model spells the first
+    /// as the ABSENT member, so such a site is REMOVED rather than converted: a bare JSON string cannot
+    /// bind to <see cref="Destination"/>, and leaving one in place makes the WHOLE stored blob
+    /// unreadable — the options store answers a failed bind with defaults, so every setting the user
+    /// configured silently reads as unset. Converting it instead would be the mirror failure, turning
+    /// "unorganized items are not routed" into a route.
+    /// </para>
     /// </remarks>
-    private sealed record DestinationSite(string Rule, string Stored, Action<string, string> Write, Action Drop);
+    private sealed record DestinationSite(
+        string Rule,
+        string Stored,
+        Action<string, string> Write,
+        Action Drop,
+        bool EmptyIsNoRoute = false);
 
     /// <summary>Every stored destination in the blob, skipping anything that is not a JSON string.</summary>
     private static List<DestinationSite> CollectDestinationSites(JsonObject root)
@@ -345,18 +379,15 @@ public static class OptionsMigration
         }
 
         if (Find(root, UnorganizedDestination) is { Value: JsonValue unorganizedValue } unorganizedEntry
-            && unorganizedValue.TryGetValue(out string? unorganized)
-            && unorganized.Length > 0)
+            && unorganizedValue.TryGetValue(out string? unorganized))
         {
-            // The one field whose EMPTY value means "no route at all" rather than "no root chosen", so
-            // an empty one is not a site: converting it would turn "unorganized items are not routed"
-            // into a route.
             string member = unorganizedEntry.Key;
             sites.Add(new DestinationSite(
                 UnorganizedDestination,
                 unorganized,
                 (r, t) => root[member] = Pair(r, t),
-                () => root.Remove(member)));
+                () => root.Remove(member),
+                EmptyIsNoRoute: true));
         }
 
         return sites;

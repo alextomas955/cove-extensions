@@ -269,6 +269,15 @@ public sealed class OptionsMigrationLogicTests
         }
         """;
 
+    /// <summary>
+    /// The same fixture but for the ONE member whose empty value means "there is no route" rather than
+    /// "this rule names no root of its own" — derived from it rather than retyped, so the claim that the
+    /// two differ in exactly that member is structural. The panel writes that empty value whenever the
+    /// host has other than exactly one library path, so this is the blob a real install has.
+    /// </summary>
+    private static readonly string EmptyUnorganizedBlob =
+        TypedRootsBlob.Replace(@"G:\\Downloads\\P\\unsorted", string.Empty, StringComparison.Ordinal);
+
     private static readonly string[] LibraryPaths = [@"G:\Downloads\P", @"I:\Downloads\P"];
 
     [Fact]
@@ -313,6 +322,41 @@ public sealed class OptionsMigrationLogicTests
         var kept = Assert.Single(options.PathDestinations);
         Assert.Equal("G:/in", kept.Pattern);
         Assert.Equal(Dests.At("G:/Downloads/P", "videos/$studio"), kept.Dest);
+    }
+
+    [Fact]
+    public void AnEmptyUnorganizedDestination_IsRemoved_SoTheWholeBlobStillBinds()
+    {
+        // The failure here is total and silent, which is why it is pinned at the seam that produces it
+        // rather than at the panel that reads it: a bare JSON string cannot bind to Destination, so a
+        // conversion that leaves the member in place makes the WHOLE blob throw on load, and the store
+        // answers a throw with defaults — every setting the user configured reads as unset, with nothing
+        // anywhere saying why. Removing the member is what makes the ABSENT key mean what an empty value
+        // always meant: there is no unorganized route.
+        var converted = OptionsMigration.ConvertDestinationsToRoots(EmptyUnorganizedBlob, LibraryPaths);
+        var options = Reload(converted.Json);
+
+        Assert.Null(options.UnorganizedDestination);
+        using (var raw = JsonDocument.Parse(converted.Json))
+        {
+            Assert.False(raw.RootElement.TryGetProperty("UnorganizedDestination", out _));
+        }
+
+        // Asserted beside it because a conversion that discarded every destination would satisfy the two
+        // lines above: the rest of the fixture converts exactly as it does with a route configured.
+        Assert.Equal(Dests.At("I:/Downloads/P", "videos/$studio"), options.StudioDestinations[101]);
+        Assert.Equal(
+            Dests.At("G:/Downloads/P", "videos/$studio"), Assert.Single(options.PathDestinations).Dest);
+
+        // And the removal counts as a change on its own. Without that, a blob whose only legacy shape is
+        // this member collects no site, returns before any mutation, and keeps the unbindable value
+        // forever — the conversion runs, reports nothing to do, and the settings stay unreadable.
+        var alone = OptionsMigration.ConvertDestinationsToRoots(
+            """{ "UnorganizedDestination": "" }""", LibraryPaths);
+
+        Assert.True(alone.Changed);
+        Assert.False(alone.Deferred);
+        Assert.Null(Reload(alone.Json).UnorganizedDestination);
     }
 
     [Fact]
