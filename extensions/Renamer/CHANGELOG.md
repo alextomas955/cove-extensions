@@ -118,6 +118,10 @@ User-facing changes, newest first.
   knowing where the reach is genuinely narrower: **Rename selected** is on video and image lists only,
   and _Auto-rename on update_ covers those two kinds as well, so rename audio from the Rename settings
   page or a whole-library run.
+- **Two job-progress messages say "rename" rather than "Renamer".** When a run finishes, the progress
+  line in Cove's job UI now reads _"Rename complete."_, and a whole-library run reads _"Library rename
+  complete."_ Both used to name the extension where they meant the action, left over from a rename
+  that swept the word through too widely. Wording only — nothing about a run changed.
 - **Requires Cove `1.1.0`.** Renamer now uses the authenticated fetch Cove hands to extension pages.
   Cove serves that for the first time in the 1.1.0 release; a 1.0.0 host does not serve it at all. So
   `minCoveVersion` is `1.1.0`, and on anything older Renamer does not load — there is no Rename tab
