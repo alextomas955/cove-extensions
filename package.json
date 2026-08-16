@@ -23,6 +23,8 @@
     "@eslint/js": "10.0.1",
     "eslint": "10.8.0",
     "eslint-config-prettier": "10.1.8",
+    "eslint-import-resolver-typescript": "4.4.5",
+    "eslint-plugin-boundaries": "7.1.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "globals": "17.8.0",
     "lefthook": "2.1.10",

@@ -74,13 +74,16 @@ seam or vocabulary has to be named exactly to be actionable.
   (a data or wire shape) · INFRA (I/O: HTTP, DB, disk, host store, timers) · UIP (a business-agnostic
   UI primitive) · TOOL (commit, CI and build time). Classify a file by what it _is_, then place it.
 - **Depend downward (toward MODEL) and sideways onto shared code and UI primitives, never upward and
-  never across sibling features.** This is the taxonomy's one dependency rule, and it is now held by
-  review rather than by a lint. The import-boundary plugin that appeared to enforce it was removed:
-  what it actually delivered was "these two folders may not import each other", carried in config
-  that had to name one extension's tsconfig by path while claiming to be extension-generic. What
-  survives structurally is the `*Logic.ts` import rule below — the one slice of this rule a lint can
-  state without baking a specific extension into it. Prefer that trade, and reach for a general
-  boundary lint again only when a violation actually ships.
+  never across sibling features.** This is the taxonomy's one dependency rule, and it is enforced at
+  lint time by the `boundaries/dependencies` block in `eslint.config.mjs`: a feature slice may reach
+  `common/`, the shared package and `wire`, and a sibling slice is an error. Each extension's entry
+  is deliberately left unclassified, because the entry is the one module allowed to reach any slice.
+  The rule was briefly deleted on the grounds that its resolver named one extension's tsconfig by
+  path inside config claiming to be extension-generic. That defect was real and the remedy was not:
+  the resolver now derives its project list from `catalog.json`, so a second extension enters with no
+  edit — the rule survives and the extension-specific path does not. Fix a generic rule's config
+  rather than deleting the rule; a structural guarantee is worth keeping even when its wiring is
+  wrong. The `*Logic.ts` import rule below is the narrower purity constraint and is separate.
 - **Before adding to a repo-level shared package, check whether the host already provides it.** Cove
   exposes shared runtime modules and a component library to extensions, and reimplementing those is
   the most common way the two-level-shared rule gets violated.

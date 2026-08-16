@@ -25,6 +25,10 @@ Every module is exactly one of six kinds:
 Classify a file by what it _is_, then place it by its tier's convention. Modules depend downward
 (toward models) and sideways onto shared code — never upward, and never across sibling features.
 
+On the frontend, lint enforces the last part rather than leaving it to review: importing a sibling
+feature slice is an error, and the route between two features is `common/` or the extension entry.
+Nothing needs configuring per extension — the rule finds each UI bundle through `catalog.json`.
+
 ## Structure each tier to its own idiom
 
 The backend and the frontend are separate build artifacts that talk over an HTTP wire. Their honest
