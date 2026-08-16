@@ -122,23 +122,26 @@ public sealed class CoveDataPortRoutingFieldsTests
     }
 
     [Fact]
-    public async Task LoadEntity_ATagWithNoName_IsDropped_SoNoRuleKeysOnAnUnrenderableTag()
+    public async Task LoadEntity_ABlankTagName_ArrivesAsTheCanonicalMarker_AndIsCarried()
     {
-        // A tag row with no name renders nothing, so carrying its id would let a rule route on a tag
-        // the user cannot see named anywhere. The port drops the pair once, at the join.
+        // A blank tag name is not a state the port can meet: the host normalizes it to
+        // TagNameRules.EmptyCanonicalName inside the save and STORES that, so what reaches a read is the
+        // marker, never an empty string. The marker is carried rather than filtered because Cove's own
+        // frontend has no special case for it and renders it as an ordinary tag name — dropping the pair
+        // here would make Renamer route on a tag set the user does not see in the host UI.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
             var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
                 db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip");
 
-            var nameless = new Tag { Name = "" };
+            var blank = new Tag { Name = "" };
             var named = new Tag { Name = "raw" };
-            db.Set<Tag>().AddRange(nameless, named);
+            db.Set<Tag>().AddRange(blank, named);
             await db.SaveChangesAsync();
 
             db.Set<VideoTag>().AddRange(
-                new VideoTag { VideoId = videoId, TagId = nameless.Id },
+                new VideoTag { VideoId = videoId, TagId = blank.Id },
                 new VideoTag { VideoId = videoId, TagId = named.Id });
             await db.SaveChangesAsync();
 
@@ -146,8 +149,10 @@ public sealed class CoveDataPortRoutingFieldsTests
             var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
 
             Assert.NotNull(entity);
-            Assert.Equal([(named.Id, named.Name)], entity!.TagRefs);
-            Assert.Equal(["raw"], entity.Tags);
+            Assert.Equal(
+                [(blank.Id, TagNameRules.EmptyCanonicalName), (named.Id, named.Name)],
+                entity!.TagRefs);
+            Assert.Equal([TagNameRules.EmptyCanonicalName, "raw"], entity.Tags);
         }
         finally
         {
