@@ -324,9 +324,15 @@ jobs:
       # root's own tooling: a plain root install would also pull in the browser-driven end-to-end
       # harness workspace, which this job never uses. Both steps carry the generate step's condition so
       # an entry declaring no wire document pays for neither.
+      #
+      # --ignore-scripts is safe HERE specifically, and the reasoning does not transfer to the other
+      # installs in this file: the generator imports only node builtins plus openapi-typescript, and
+      # neither that package nor the deps it pulls declares an install hook, so nothing this step
+      # needs is built by one. The root tree as a whole does contain four packages with lifecycle
+      # scripts, which is why the harness install below deliberately keeps them.
       - name: Install root tooling (wire-type generator)
         if: ${{ matrix.extension.uiPath != '' && matrix.extension.wireDocumentPath != '' }}
-        run: npm ci --no-workspaces
+        run: npm ci --no-workspaces --ignore-scripts
 
       - name: Generate wire types
         if: ${{ matrix.extension.uiPath != '' && matrix.extension.wireDocumentPath != '' }}
@@ -596,11 +602,16 @@ jobs:
       # lever the pinned npm offers is blanket: --ignore-scripts would disable all of them to
       # contain any one. Containment here is the job's read-only token instead. Revisit on the Node
       # bump whose npm first prints `npm warn allow-scripts` — that warning is per-package approval.
+      #
+      # The browser step goes through the harness's own script rather than `npx playwright`. npx
+      # resolves the local binary when one is present but SILENTLY FETCHES an unpinned copy from the
+      # registry when it is not, so an install failure upstream of this line turns into a download
+      # nobody declared instead of an error. A workspace script can only run what the lockfile placed.
       - name: Install harness dependencies
         if: steps.check.outputs.has_suite == 'true'
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          npm run install:browsers --workspace @cove-extensions/e2e
 
       # The leg's VERSION reaches the harness, not a whole image reference: the repository is declared
       # once in Directory.Build.props and the harness reads it from there, exactly as the fetcher and the
@@ -627,9 +638,9 @@ jobs:
         shell: bash
         run: |
           if [[ "$COVE_ROLE" == "newest-ga" ]]; then
-            npx playwright test --project="$E2E_PROJECT" --grep @smoke
+            npm test -- --project="$E2E_PROJECT" --grep @smoke
           else
-            npx playwright test --project="$E2E_PROJECT"
+            npm test -- --project="$E2E_PROJECT"
           fi
         env:
           E2E_PROJECT: ${{ matrix.extension.e2eProject }}
