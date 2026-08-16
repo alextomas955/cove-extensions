@@ -54,7 +54,9 @@ test("a move across a real filesystem boundary is refused safely while the desti
   // catch-all also means this spec drives the mechanism a real deployment uses; a catch-all destination
   // no longer exists.
   const optionsBody = JSON.stringify({
-    PathDestinations: [{ Pattern: "/data", Dest: "/data2", IsRegex: false }],
+    PathDestinations: [
+      { Pattern: "/data", Dest: { Root: "/data2", Template: "" }, IsRegex: false },
+    ],
     AllowedRoots: ["/data", "/data2"],
   });
   const put = await api.put(`/api/extensions/${EXTENSION_ID}/data/options`, optionsBody);

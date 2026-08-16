@@ -245,10 +245,20 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     tagDestinations.getByText(names.tagRoute, { exact: true }),
     "the destination row shows its opaque id rather than the tag name the host resolves it to",
   ).toBeVisible();
+  // A stored destination is not carried across as the path that was typed: the conversion SPLITS it
+  // into the Cove library path containing it plus the remainder, rendered as a folder template under
+  // that root — so "/data/routed" arrives as root "/data" + folder "routed", naming the same folder.
+  // Both halves are asserted because either one alone reads as a pass while the other is empty, and
+  // both are written as literals rather than sliced off the fixture, so a change to the split rule
+  // fails here instead of being re-derived into agreement with itself.
   await expect(
-    tagDestinations.getByRole("textbox").first(),
+    field(tagDestinations, "Under").getByRole("combobox"),
+    "the converted destination is not anchored on the library path that contained the stored one",
+  ).toHaveValue("/data");
+  await expect(
+    field(tagDestinations, "Folder").getByRole("textbox"),
     "the destination the rule routed to did not survive the re-key",
-  ).toHaveValue("/data/routed");
+  ).toHaveValue("routed");
 
   // ── Fields the conversion does not model are untouched ──────────────────────────────────────────
   await expect(
@@ -264,10 +274,16 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     field(advancedRouting, "Source path").getByRole("textbox"),
     "the stored source-path rule did not survive the conversion",
   ).toHaveValue("/data/legacy");
+  // Same split as the per-tag rule above: "/data/archive" is stored under the "/data" library path,
+  // so it converts to that root with "archive" as the folder rendered beneath it.
   await expect(
-    field(advancedRouting, "Destination root").getByRole("textbox"),
+    field(advancedRouting, "Under").getByRole("combobox"),
+    "the source-path rule's destination is not anchored on the library path that contained it",
+  ).toHaveValue("/data");
+  await expect(
+    field(advancedRouting, "Folder").getByRole("textbox"),
     "the source-path rule survived but its destination did not, so the row is preserved in name only",
-  ).toHaveValue("/data/archive");
+  ).toHaveValue("archive");
 
   expect(errors, `the settings surface raised page errors: ${errors.join("; ")}`).toEqual([]);
 });
