@@ -26,9 +26,9 @@ public sealed class RenamerPlanner
     /// <summary>
     /// Computes the per-file old→new plan for the given entity, performing zero disk/DB mutation.
     /// Returns an empty plan when the entity does not exist. Routing is resolved ONCE per entity
-    /// (mirroring how <see cref="TryGate"/> runs once): the resolved destination root becomes the
-    /// anchor the per-file confinement length-checks and contains against, so an over-long routed
-    /// destination is a preview skip, never a move-time crash.
+    /// (mirroring how <see cref="TryGate"/> runs once) and yields the ONE path template the item's
+    /// destination is rendered from, which the per-file confinement then length-checks and contains,
+    /// so an over-long destination is a preview skip and never a move-time crash.
     /// </summary>
     /// <param name="kind">The entity kind to plan.</param>
     /// <param name="entityId">The entity id to plan.</param>
@@ -103,15 +103,68 @@ public sealed class RenamerPlanner
             return new RenamerPlan(entity.EntityId, entity.Kind, gated);
         }
 
+        // Derived ONCE per entity, like the route above and for the same reason: the title is an
+        // entity-level scalar, and every file of the item must plan against the one value the executor
+        // will record. See MetadataProjector.DerivedTitle.
+        string? derivedTitle = MetadataProjector.DerivedTitle(entity, options);
+
+        // ONE lookup, ONE destination. The route above answered "where does this file go?" and its
+        // answer is a WHOLE destination — a root chosen from Cove's library paths plus a relative
+        // template — so a matched rule's destination REPLACES the default rather than being a root the
+        // default is then rendered underneath. An item no rule matched takes the default (the panel's
+        // *Where files go*), which is a default and not a suffix applied to every result.
+        var destination = route.Destination
+            ?? new Destination { Root = options.FolderRoot, Template = options.FolderTemplate };
+
+        // A chosen root is a REFERENCE into Cove's library paths, so it is re-read here rather than
+        // trusted: a root the user has since removed from Cove no longer names anywhere this extension
+        // may put a file. Skip the item and say which rule broke. Never fall through to the default —
+        // that moves files somewhere the user never chose because a rule broke — and never fail the run.
+        if (destination.Root.Length > 0 && !IsLibraryPath(destination.Root))
+        {
+            var orphaned = entity.Files
+                .Select(f => SkipItem(
+                    f, RenamerStatus.SkipRootMissing,
+                    $"skipped: the destination root '{destination.Root}' chosen for rule "
+                        + $"'{route.MatchedRule}' is no longer one of Cove's library paths — re-pick it, "
+                        + "or add that folder back to Cove's library paths"))
+                .ToList();
+            return new RenamerPlan(entity.EntityId, entity.Kind, orphaned);
+        }
+
+        // The destination's template is substituted into the options rather than threaded past them,
+        // because the folder template is what RenamerOptions means by FolderTemplate and every consumer
+        // downstream — the engine's two folder renders and the length reducer's re-render among them —
+        // must see the SAME one. A second parameter beside the options would be a second place the
+        // effective template could be read from, and the render that forgot it would silently fall back
+        // to the default.
+        var effective = options with { FolderTemplate = destination.Template };
+
         var items = new List<RenamerPlanItem>(entity.Files.Count);
         foreach (var file in entity.Files)         // process every file, never just the first.
         {
             ct.ThrowIfCancellationRequested();
-            items.Add(await PlanFileAsync(entity, file, options, route, ct));
+            items.Add(await PlanFileAsync(entity, file, effective, route, destination, derivedTitle, ct));
         }
 
         return new RenamerPlan(entity.EntityId, entity.Kind, items);
     }
+
+    /// <summary>
+    /// True iff <paramref name="root"/> is one of Cove's configured library paths — MEMBERSHIP, not
+    /// containment, because the value came from a picker offering exactly that list.
+    /// </summary>
+    /// <remarks>
+    /// Compared through <c>PathConfinement.IsUnderRoot</c> in both directions rather than by string
+    /// equality, so a stored <c>G:/media/</c> still matches a configured <c>G:\media</c>: the separator
+    /// style, the trailing slash and the OS case rule are all that helper's, and this must not become a
+    /// second opinion about when two paths name one folder.
+    /// </remarks>
+    private bool IsLibraryPath(string root)
+        => _port.LibraryRoots.Any(configured =>
+            !string.IsNullOrWhiteSpace(configured)
+            && PathConfinement.IsUnderRoot(root, configured)
+            && PathConfinement.IsUnderRoot(configured, root));
 
     /// <summary>
     /// Gating: only-organized (skip when <c>Organized==false</c>) + require-fields (skip when
@@ -124,8 +177,7 @@ public sealed class RenamerPlanner
         // items to their own destination is the whole point of that route, so an unorganized item with
         // an UnorganizedDestination set is NOT gated here — it falls through to the unorganized route.
         // With no UnorganizedDestination configured, the only-organized gate skips the unorganized item.
-        if (options.OnlyOrganized && !entity.Organized
-            && string.IsNullOrEmpty(options.UnorganizedDestination))
+        if (options.OnlyOrganized && !entity.Organized && options.UnorganizedDestination is null)
         {
             reason = "skipped: item is not organized (only-organized gate)";
             return true;
@@ -154,9 +206,10 @@ public sealed class RenamerPlanner
         return false;
     }
 
-    /// <summary>Classifies a single file: render → confine → collision → status.</summary>
+    /// <summary>Classifies a single file: render → anchor → confine → collision → status.</summary>
     private async Task<RenamerPlanItem> PlanFileAsync(
-        RenamerEntity entity, RenamerFile file, RenamerOptions options, RouteResult route, CancellationToken ct)
+        RenamerEntity entity, RenamerFile file, RenamerOptions options, RouteResult route,
+        Destination destination, string? derivedTitle, CancellationToken ct)
     {
         string oldFullPath = JoinPath(file.ParentFolderPath, file.Basename);
 
@@ -169,21 +222,55 @@ public sealed class RenamerPlanner
         var rendered = TemplateEngine.Render(tokens, multi, options, performers: performers, tagRecords: tagRefs);
         string newBasename = rendered.Filename + rendered.Ext;
 
-        // (2) Confine: the configured AllowedRoots are the permitted destinations. When a route
-        //     matched, the ROUTED destination root anchors the relative FolderPath (and the existing
-        //     FullPathMax re-check therefore measures the real routed absolute path — no new length
-        //     code). SourceConfine keeps the legacy file-own-parent anchor. The routed root is just a
-        //     new anchor fed into the SAME gate — no IsPathRooted bypass is added.
-        string anchor = route.Category == RouteCategory.SourceConfine
-            ? file.ParentFolderPath
-            : route.DestinationRootTemplate!;
+        // (2) Anchor the rendered folder on something the move leaves standing — never the file's own
+        //     parent, which is the previous run's output, so anchoring there appends the rendered folder
+        //     to itself and buries the file one directory deeper every pass. The destination's ROOT is
+        //     that anchor, and it has exactly two forms, both of them library paths Cove owns and no
+        //     rename can move: one the user picked from the list, or — for the "(the file's own library
+        //     path)" choice — the one containing this file. That is what makes the plan a fixed point.
+        //
+        //     A CHOSEN root always relocates, whatever the template rendered: the user named a folder
+        //     out of a list, so an empty render lands the file there. The file's OWN library path names
+        //     a library rather than a folder, so with nothing rendered under it the file is already at
+        //     its destination and nothing moves — which is what an unconfigured *Where files go* has
+        //     always done. An item that does not move stays measured against its own parent, so the
+        //     FullPathMax re-check below sees its real depth rather than the shorter library-root path.
+        string renderedFolder = rendered.FolderPath;
+        bool chosenRoot = destination.Root.Length > 0;
+        bool isMove = chosenRoot || renderedFolder.Length > 0;
+        string? libraryRoot = chosenRoot
+            ? destination.Root
+            : isMove ? PathConfinement.ContainingRoot(file.ParentFolderPath, _port.LibraryRoots) : null;
+
+        // Told to measure from the file's own library path, and the file is under none: the destination
+        // is not forbidden, it is uncomputable, and every remaining candidate anchor is one the rename
+        // itself moves. The item keeps its current name AND folder. Reachable in ordinary use rather
+        // than only in theory — a file that a destination rule once put outside the library is left in
+        // exactly this shape — so it is a stated outcome the dry run names, not a fallback.
+        if (isMove && libraryRoot is null)
+        {
+            return new RenamerPlanItem(
+                file.FileId, oldFullPath, oldFullPath, RenamerStatus.SkipUnanchored,
+                file.Basename, file.ParentFolderPath,
+                "skipped: this destination measures from the Cove library path holding the file, and "
+                    + "this file is under none — add its folder to Cove's library paths, or pick a "
+                    + "library path for the destination instead");
+        }
+
+        // (2b) Confine: the optional narrowing, and the single site of the absolute FullPathMax
+        //      re-check. Every destination goes through it, so the measured path is the real one.
+        string anchor = isMove ? libraryRoot! : file.ParentFolderPath;
         var confined = PathConfinement.Resolve(
-            options.AllowedRoots, anchor, rendered.FolderPath, newBasename, options);
+            options.AllowedRoots, anchor, renderedFolder, newBasename, options);
         if (!confined.Accepted)
         {
             return new RenamerPlanItem(
-                file.FileId, oldFullPath, oldFullPath, RenamerStatus.SkipCollision,
-                file.Basename, file.ParentFolderPath, confined.Reason);
+                file.FileId, oldFullPath, oldFullPath,
+                confined.Rejection == PathConfinement.ConfinementRejection.TooLong
+                    ? RenamerStatus.SkipTooLong
+                    : RenamerStatus.SkipNotAllowed,
+                file.Basename, file.ParentFolderPath,
+                ExplainRefusal(confined, isMove, libraryRoot));
         }
 
         // Preview should warn "the source is gone" rather than compute a rename target for a file that
@@ -197,26 +284,11 @@ public sealed class RenamerPlanner
                 file.Basename, file.ParentFolderPath, "skipped: source file is missing on disk");
         }
 
-        // A move happens whenever the file leaves its own source folder. Two independent causes:
-        // the folder template rendered a subfolder, OR a routing rule matched and pointed the file at
-        // a different destination root. A matched route with an EMPTY folder template still relocates
-        // the file to the root of its routed destination — so routing alone makes it a move, even
-        // when no subfolder was rendered. Gating only on the rendered subfolder would silently renamer
-        // a routed file in place under its source folder while the preview reported it as routed.
-        bool routed = route.Category != RouteCategory.SourceConfine;
-        bool isMove = routed || !string.IsNullOrEmpty(rendered.FolderPath);
-
-        // The target folder the executor moves to MUST follow the route. For a ROUTED move the
-        // confinement gate already resolved the routed destination root + the rendered subfolder into
-        // an absolute target (confined.TargetFolderPath, e.g. "D:/studios/acme/Films") — use it, so the
-        // executed move lands on the routed destination instead of silently staying under the source
-        // folder. For a SOURCE-CONFINE item we keep the legacy file-own-parent relative form (the
-        // confined path there is anchored under the synthetic __renamer_root__ and is for MAX_PATH math
-        // only, not the real move target), and an in-place item keeps its own parent folder.
+        // The destination is joined from the library anchor rather than read back from the gate: the
+        // gate resolves under the synthetic __renamer_root__ when the anchor is not itself absolute and
+        // is for MAX_PATH math only. An item that does not move keeps its own parent folder.
         string relTargetFolder = isMove
-            ? (route.Category == RouteCategory.SourceConfine
-                ? JoinPath(file.ParentFolderPath, rendered.FolderPath)
-                : confined.TargetFolderPath)
+            ? JoinPath(libraryRoot!, renderedFolder)
             : file.ParentFolderPath;
 
         // (3) NoOp: the file already sits at its computed destination. Comparing the full target path
@@ -272,26 +344,53 @@ public sealed class RenamerPlanner
             tokens, multi, options, performers: performers, tagRecords: tagRefs);
 
         // Routing facts carried on the final Renamer/Move item (skip/no-op paths keep the defaults).
-        // ResolvedDestinationRoot is null for a source-confine (legacy in-place) item; TargetVolume is
-        // the destination volume's root (VolumeClassifier semantics) for the free-space sum + preview.
-        string? resolvedRoot = route.Category == RouteCategory.SourceConfine ? null : route.DestinationRootTemplate;
-        // A source-confine item moves in place (no cross-volume transfer), so it has no
-        // destination volume of interest. Do NOT derive TargetVolume from confined.TargetFolderPath
-        // for it — with an empty AllowedRoots that path is resolved against the SYNTHETIC confinement
-        // anchor (C:\__renamer_root__), so Path.GetPathRoot would yield a fictitious "C:/" that does not
-        // correspond to the file's real disk and would mis-attribute bytes if a future free-space
-        // pre-check trusted it. Leave it empty for source-confine; derive it from the real resolved
-        // (routed) target only for an actual routed move.
-        string targetVolume = route.Category == RouteCategory.SourceConfine
-            ? ""
-            : Path.GetPathRoot(confined.TargetFolderPath) ?? "";
+        // The resolved root is the library path the destination was actually measured from, which is
+        // the fact a preview reader wants and the one the plan is a fixed point around; null when the
+        // item does not move and so anchored on nothing.
+        string? resolvedRoot = isMove ? NormalizeSlash(libraryRoot!) : null;
+
+        // TargetVolume feeds the free-space sum and the cross-drive preview flag, so it is derived only
+        // where a cross-volume move is possible: a CHOSEN root can be a library path on another drive.
+        // An item measured from its own library path stays on the volume it is already on, so it has no
+        // destination volume of interest and reporting one would put same-volume bytes into a
+        // cross-drive total.
+        string targetVolume = chosenRoot
+            ? Path.GetPathRoot(ToNative(relTargetFolder)) ?? ""
+            : "";
+
+        // Advisory only — see RenamerPlanItem.OffLibraryDestination for what it costs the user and why
+        // it is keyed on the destination rather than on the route. Read from the SAME containing-root
+        // helper the anchor above uses, so the badge and the anchor cannot disagree about what "inside
+        // the library" means.
+        bool offLibraryDestination = _port.LibraryRoots.Count > 0
+            && PathConfinement.ContainingRoot(relTargetFolder, _port.LibraryRoots) is null;
 
         return new RenamerPlanItem(
             file.FileId, oldFullPath, newFullPath,
             isMove ? RenamerStatus.Move : RenamerStatus.Rename,
             candidate, relTargetFolder, null, suffixed, sanitized,
-            resolvedRoot, route.MatchedRule, targetVolume);
+            resolvedRoot, route.MatchedRule, targetVolume, derivedTitle, offLibraryDestination);
     }
+
+    /// <summary>
+    /// The user-facing reason for a confinement refusal, naming the anchor when that is what the user
+    /// is actually missing.
+    /// </summary>
+    /// <remarks>
+    /// The gate's own message describes the allowlist, which is where the decision was made but not
+    /// where the surprise is. A destination is measured from a Cove LIBRARY PATH, so an
+    /// <c>AllowedRoots</c> entry drawn narrower than that library path — the file's own folder, say —
+    /// refuses a move that a per-file anchor would have permitted. The gate cannot say that: it is
+    /// handed an anchor and never learns where it came from, so the sentence is completed here, at the
+    /// one site that knows.
+    /// </remarks>
+    private static string ExplainRefusal(
+        PathConfinement.ConfinementResult confined, bool anchoredOnLibraryRoot, string? libraryRoot)
+        => confined.Rejection == PathConfinement.ConfinementRejection.NotAllowed && anchoredOnLibraryRoot
+            ? $"{confined.Reason}: this destination is measured from the Cove library path "
+                + $"'{libraryRoot}', not from the file's own folder — add that library path under "
+                + "Allowed roots, or clear Allowed roots"
+            : confined.Reason!;
 
     /// <summary>Builds a skip/gated item that keeps the file at its current path (no mutation).</summary>
     private static RenamerPlanItem SkipItem(RenamerFile file, RenamerStatus status, string reason)

@@ -178,6 +178,25 @@ public sealed record RenamerEntity(
 public interface IRenamerDataPort
 {
     /// <summary>
+    /// The absolute library paths Cove is configured to scan, in configuration order.
+    /// </summary>
+    /// <remarks>
+    /// THE ANCHOR A RENAME CANNOT MOVE, and the reason this member exists. A source-confined item's
+    /// folder template resolves against the library path CONTAINING the file; anchoring it on the
+    /// file's own parent folder — which is the previous run's output — re-appends the rendered folder
+    /// every run, so the item descends one directory per pass until the path length refuses it. The
+    /// routed arm already anchors on its configured destination root and is unaffected.
+    /// <para>
+    /// A property rather than a query because this is host configuration held in memory, so an async
+    /// signature would imply a round-trip no implementation makes. Empty means the host declares no
+    /// library path at all, which a library holding files never does — Cove refuses to scan without
+    /// one — and a file under none of the declared paths is planned as
+    /// <see cref="RenamerStatus.SkipUnanchored"/> rather than moved relative to itself.
+    /// </para>
+    /// </remarks>
+    IReadOnlyList<string> LibraryRoots { get; }
+
+    /// <summary>
     /// Loads a media item's full file graph (entity metadata + every file + parent folder paths
     /// + captions) for the given kind + id, mapped into a <see cref="RenamerEntity"/>. Returns
     /// <c>null</c> if the item does not exist.
@@ -281,8 +300,30 @@ public readonly record struct SavedFile(int FileId, string RecomputedPath);
 /// <param name="NewBasename">The new basename to set.</param>
 /// <param name="NewParentFolderId">The new parent folder id, or null for an in-place renamer.</param>
 /// <param name="CaptionRenames">(captionId, newFilename) pairs for moved sidecars.</param>
+/// <param name="EntityTitle">
+/// The one-time title write that rides with this file's save, or <c>null</c> when the item already
+/// carries a title or the filename-as-title fallback is off. It names the OWNING entity rather than
+/// the file because a title belongs to the item; it travels on the file mutation so it lands in the
+/// same <c>SaveChangesAsync</c> as the rename that derived it, which is what makes "renamed but
+/// title not recorded" unreachable rather than merely unlikely.
+/// </param>
 public sealed record RenamerFileMutation(
     int FileId,
     string NewBasename,
     int? NewParentFolderId,
-    IReadOnlyList<(int CaptionId, string NewFilename)>? CaptionRenames = null);
+    IReadOnlyList<(int CaptionId, string NewFilename)>? CaptionRenames = null,
+    RenamerEntityTitleWrite? EntityTitle = null);
+
+/// <summary>
+/// A filename-derived title to record on a media entity that has none.
+/// </summary>
+/// <remarks>
+/// The rename's output stops feeding its own input here. While the title is derived per run it is a
+/// function of the basename the previous run wrote, so any template rendering more than <c>$title</c>
+/// wraps its own decorations again every pass; recording the derivation once turns the fallback into a
+/// first-run-only path. See <c>MetadataProjector.DerivedTitle</c> for the whole statement.
+/// </remarks>
+/// <param name="Kind">Which media table holds the entity.</param>
+/// <param name="EntityId">The entity row to write.</param>
+/// <param name="Title">The derived title (never empty — an empty derivation is carried as no write at all).</param>
+public readonly record struct RenamerEntityTitleWrite(RenamerFileKind Kind, int EntityId, string Title);

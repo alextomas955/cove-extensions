@@ -49,6 +49,10 @@ const SERVER_BUCKETS: readonly (readonly [string, string])[] = [
   ["skipPermissionDenied", "attention"],
   ["skipVerifyFailed", "attention"],
   ["skipCancelled", "attention"],
+  ["skipUnanchored", "attention"],
+  ["skipRootMissing", "attention"],
+  ["skipNotAllowed", "attention"],
+  ["skipTooLong", "attention"],
 ];
 
 /**

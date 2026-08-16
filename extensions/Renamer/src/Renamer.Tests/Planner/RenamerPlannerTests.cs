@@ -100,6 +100,7 @@ public sealed class RenamerPlannerTests
         // then ACCEPTS as a move UNDER the root. The raw "../.." → rejected path is proven directly
         // at the helper level in PathConfinementTests.
         var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot("media/videos");
         port.SeedEntity(VideoEntity("My Film", VideoFile(1, "raw.mkv")));
         var planner = new RenamerPlanner(port);
         // Pin the title-only filename template — this test asserts folder-template confinement, not the default name shape.
@@ -127,8 +128,152 @@ public sealed class RenamerPlannerTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.SkipCollision, item.Status);
+        Assert.Equal(RenamerStatus.SkipTooLong, item.Status);
         Assert.Contains("FullPathMax", item.Reason);
+        Assert.Empty(port.ApplyAndSaveCalls);
+    }
+
+    [Fact]
+    public async Task PermissionRefusalAndLengthRefusal_CarryDifferentStatuses_NotOneSharedName()
+    {
+        // The two refusals used to arrive as one status, badged "name conflict" — which is neither of
+        // them, and which asks the user to wait for a clash to clear when what they must actually do is
+        // widen a permission or shorten a template. Asserted as a PAIR, in one case, because the claim
+        // is that they DIFFER: two separate cases each pinning one status would both still pass if the
+        // planner collapsed them onto whichever status they happened to name.
+        var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot("media/videos");
+        port.SeedEntity(VideoEntity("My Film", VideoFile(1, "raw.mkv")));
+        var planner = new RenamerPlanner(port);
+
+        // Same rendered destination both times. Only the constraint it offends changes.
+        var refusedByPermission = await planner.PlanAsync(
+            RenamerFileKind.Video, 10,
+            new RenamerOptions
+            {
+                FilenameTemplate = "$title",
+                FolderTemplate = "Archive",
+                AllowedRoots = ["media/somewhere-else"],
+            },
+            RouteLookupsFixtures.RoutingNeutral, default);
+        var refusedByLength = await planner.PlanAsync(
+            RenamerFileKind.Video, 10,
+            new RenamerOptions { FilenameTemplate = "$title", FolderTemplate = "Archive", FullPathMax = 10 },
+            RouteLookupsFixtures.RoutingNeutral, default);
+
+        Assert.Equal(RenamerStatus.SkipNotAllowed, Assert.Single(refusedByPermission.Items).Status);
+        Assert.Equal(RenamerStatus.SkipTooLong, Assert.Single(refusedByLength.Items).Status);
+        Assert.Empty(port.ApplyAndSaveCalls);
+    }
+
+    [Fact]
+    public async Task AnAllowlistNarrowerThanTheLibraryPath_IsRefusedNamingTheAnchor_NotOnlyTheAllowlist()
+    {
+        // The anchor moved in this release: an unrouted folder template is now placed under the Cove
+        // library path holding the file rather than under the file's own folder. So an AllowedRoots entry
+        // drawn at the file's own folder — which permitted this move before — now refuses it, and the
+        // gate's own message ("not under any allowed root") sends the user to look at a list that already
+        // contains the folder they are staring at. The reason has to name the anchor or the user cannot
+        // act on it.
+        var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot("media");
+        port.SeedEntity(VideoEntity("My Film", VideoFile(1, "raw.mkv")));
+        var planner = new RenamerPlanner(port);
+        var opts = new RenamerOptions
+        {
+            FilenameTemplate = "$title",
+            FolderTemplate = "Archive",
+            AllowedRoots = ["media/videos"],       // the file's own folder: narrower than the library path
+        };
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
+
+        var item = Assert.Single(plan.Items);
+        Assert.Equal(RenamerStatus.SkipNotAllowed, item.Status);
+        Assert.Contains("Cove library path", item.Reason);
+        Assert.Contains("'media'", item.Reason);   // the anchor itself, not merely the word for it
+        Assert.Empty(port.ApplyAndSaveCalls);
+    }
+
+    // Absolute both here and in production: the library paths Cove hands over are absolute, and the
+    // containment compare is a string prefix rather than a resolve, so a relative fixture would measure
+    // a shape the product never sees.
+    private static string LibraryPath => OperatingSystem.IsWindows() ? "C:/lib" : "/lib";
+    private static string OutsideTheLibrary => OperatingSystem.IsWindows() ? "D:/elsewhere" : "/elsewhere";
+
+    private static RouteLookups StudioRoute(Destination destination) =>
+        new(
+            new Dictionary<int, Destination> { [42] = destination },
+            new Dictionary<int, Destination>(),
+            new Dictionary<string, Destination>(StringComparer.Ordinal),
+            Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
+
+    private static RenamerEntity RoutableEntity(string folderPath) =>
+        VideoEntity("My Film", VideoFile(1, "raw.mkv", folderPath: folderPath)) with { StudioId = 42 };
+
+    [Fact]
+    public async Task ARoutedItemLandsInsideTheLibrary_AndIsNotFlagged()
+    {
+        // The negative half of the off-library flag, and the reason it now needs stating on its own: a
+        // destination chooses its root FROM Cove's library paths, so a routed item cannot land outside
+        // the library at all. This case is what stops the flag being stuck ON — the positive half moved
+        // to the in-place case below, which is the only shape that can still reach it.
+        var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot(LibraryPath);
+        port.SeedEntity(RoutableEntity($"{LibraryPath}/videos"));
+        var planner = new RenamerPlanner(port);
+        var opts = new RenamerOptions { FilenameTemplate = "$title" };
+
+        var inside = Assert.Single((await planner.PlanAsync(
+            RenamerFileKind.Video, 10, opts, StudioRoute(Dests.At(LibraryPath, "archive")), default)).Items);
+
+        // An ACTING item: a skip carries the flag's default and would read as "not flagged".
+        Assert.Equal(RenamerStatus.Move, inside.Status);
+        Assert.Equal($"{LibraryPath}/archive/My Film.mkv", inside.NewFullPath);
+        Assert.False(inside.OffLibraryDestination);
+        Assert.Empty(port.ApplyAndSaveCalls);
+    }
+
+    [Fact]
+    public async Task AFileAlreadyOutsideTheLibrary_RenamedInPlace_IsFlagged()
+    {
+        // The flag is keyed on where the file ENDS UP, not on whether a rule moved it there — and since
+        // every destination now chooses a library path as its root, an item renamed in place OUTSIDE the
+        // library is the only shape that can reach it. It is outside the scanned set for exactly the
+        // reasons a moved file would be, so exempting it would be a line the user cannot predict.
+        var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot(LibraryPath);
+        port.SeedEntity(VideoEntity("My Film", VideoFile(1, "raw.mkv", folderPath: OutsideTheLibrary)));
+        var planner = new RenamerPlanner(port);
+
+        var item = Assert.Single((await planner.PlanAsync(
+            RenamerFileKind.Video, 10, new RenamerOptions { FilenameTemplate = "$title" },
+            RouteLookupsFixtures.RoutingNeutral, default)).Items);
+
+        Assert.Equal(RenamerStatus.Rename, item.Status);
+        Assert.True(item.OffLibraryDestination);
+        Assert.Empty(port.ApplyAndSaveCalls);
+    }
+
+    [Fact]
+    public async Task WithNoLibraryPathDeclaredAtAll_NothingIsFlagged_BecauseTheWarningWouldSayNothing()
+    {
+        // "Outside everything Cove scans" is a claim about a scanned set. With no library path there is
+        // none, so the sentence would be true of every file at once — which is a badge on every row and
+        // information in none of them. The host cannot scan in this state either, so it is a
+        // misconfiguration to report at load (LogNoCoveConfiguration), never per row.
+        var port = new FakeRenamerDataPort();
+        port.SeedEntity(VideoEntity("My Film", VideoFile(1, "raw.mkv", folderPath: OutsideTheLibrary)));
+        var planner = new RenamerPlanner(port);
+        // With no library path there is nowhere to move TO — every destination measures from one — so
+        // the only acting shape left is an in-place rename, and only an acting item can carry the flag.
+        var opts = new RenamerOptions { FilenameTemplate = "$title" };
+
+        var item = Assert.Single((await planner.PlanAsync(
+            RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default)).Items);
+
+        Assert.Equal(RenamerStatus.Rename, item.Status);
+        Assert.False(item.OffLibraryDestination);
         Assert.Empty(port.ApplyAndSaveCalls);
     }
 

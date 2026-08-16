@@ -20,6 +20,7 @@ function row(overrides: Partial<Badgeable> = {}): Badgeable {
     suffixed: false,
     sanitized: false,
     inFlightPathOverflow: false,
+    offLibraryDestination: false,
     ...overrides,
   };
 }
@@ -73,7 +74,12 @@ test("each refused status carries its own labelled badge", () => {
   const expected: [RenamerStatus, string, string][] = [
     ["noOp", "No change needed", "gray"],
     ["skipGated", "Skipped — needs a required field", "amber"],
+    // The three that used to share one label. Listed together and written out, because the whole claim
+    // of the split is that a user can tell them apart — a table that named only one of them would pass
+    // just as happily against the conflation it replaced.
     ["skipCollision", "Skipped — name conflict", "amber"],
+    ["skipNotAllowed", "Skipped — destination not allowed", "amber"],
+    ["skipTooLong", "Skipped — path too long", "amber"],
     ["skipLocked", "Skipped — file in use", "amber"],
     ["skipMissingSource", "Skipped — file missing on disk", "amber"],
     ["failed", "Failed — rolled back", "red"],
@@ -100,6 +106,15 @@ test("a skipped row ignores the advisory flags entirely — nothing was cleaned,
   assert.deepEqual(badgesFor(row({ status: "skipGated", suffixed: true, sanitized: true })), [
     { label: "Skipped — needs a required field", variant: "amber" },
   ]);
+});
+
+test("a row whose destination leaves the Cove library says so, and one inside it says nothing", () => {
+  // Asserted as a contrast: whether a destination is inside a library path is a fact only the server
+  // holds, so a badge stuck ON would read as a correct warning on every row a user ever looks at.
+  assert.deepEqual(badgesFor(row({ status: "move", offLibraryDestination: true })), [
+    { label: "Lands outside your Cove library", variant: "amber" },
+  ]);
+  assert.deepEqual(badgesFor(row({ status: "move", offLibraryDestination: false })), []);
 });
 
 test("the overflow badge is appended whatever the status, because the server sets it deliberately", () => {

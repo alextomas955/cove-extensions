@@ -42,7 +42,8 @@ public sealed class WireJsonResponseTests
                 InFlightPathOverflow: false,
                 ResolvedDestinationRoot: null,
                 MatchedRule: "InPlace",
-                TargetVolume: "/"),
+                TargetVolume: "/",
+                OffLibraryDestination: false),
         ],
         new PreviewSummary(
             TotalCount: 1,

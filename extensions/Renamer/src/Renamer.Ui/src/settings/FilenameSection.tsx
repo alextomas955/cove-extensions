@@ -7,7 +7,7 @@
  */
 import type { Ref, RefObject } from "react";
 
-import { type RenamerOptions } from "./options";
+import { chosenLibraryPath, defaultDestinationRoot, type RenamerOptions } from "./options";
 import {
   Field,
   TextInput,
@@ -15,10 +15,92 @@ import {
   SectionCard,
   Chip,
   StatusText,
+  Select,
 } from "@cove-extensions/ui-shared";
 import { TokenLegend } from "./TokenLegend";
 import { TemplateValidation } from "./templateAdvisories";
 import { PRESETS } from "./presets";
+import { useLibraryPaths } from "./useLibraryPaths";
+
+/**
+ * The DEFAULT destination: the same root-plus-relative-template shape every rule has, spelled as the
+ * two option fields it is stored in.
+ *
+ * It does not reuse `DestinationField`, deliberately. The template input here carries the caret-token
+ * insertion the folder template has always had — a ref and a focus handler the shared editor has no
+ * business knowing about — and the "leave it blank and nothing moves" reading is the default's alone:
+ * a rule exists because someone created it, so an empty rule still names a place.
+ */
+function DefaultDestinationFields({
+  options,
+  set,
+  activeTemplateRef,
+  folderRef,
+}: {
+  options: RenamerOptions;
+  set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+  activeTemplateRef: RefObject<"filename" | "folder">;
+  folderRef: Ref<HTMLInputElement>;
+}) {
+  const libraryPaths = useLibraryPaths();
+  const chosen = chosenLibraryPath(options.FolderRoot, libraryPaths);
+  const stale = options.FolderRoot !== "" && chosen === undefined;
+  const showPicker = libraryPaths.length > 1 || stale;
+
+  return (
+    <>
+      {showPicker ? (
+        <Field label="Under" helper="Which of Cove's library paths unmatched items measure from.">
+          <Select
+            // The matched path rather than the stored string — see DestinationField for why.
+            value={chosen ?? options.FolderRoot}
+            onChange={(v) => {
+              set("FolderRoot", v);
+            }}
+            options={[
+              { value: "", label: "(the file's own library path)" },
+              ...libraryPaths.map((path) => ({ value: path, label: path })),
+              ...(stale
+                ? [
+                    {
+                      value: options.FolderRoot,
+                      label: `${options.FolderRoot} (no longer a library path)`,
+                    },
+                  ]
+                : []),
+            ]}
+          />
+          {stale ? (
+            <StatusText kind="error">
+              This root is no longer one of Cove&apos;s library paths, so unmatched items are
+              skipped. Pick another.
+            </StatusText>
+          ) : null}
+        </Field>
+      ) : null}
+      <Field
+        label="Folder template"
+        helper="Blank = no folder move (unmatched items are renamed where they are). Otherwise a relative template such as $studio / $year, made under the root above."
+      >
+        <TextInput
+          value={options.FolderTemplate}
+          onChange={(v) => {
+            set("FolderTemplate", v);
+            // With one library path the picker is not on screen, so the root is derived from the
+            // template rather than remembered: naming a folder names the library path to make it
+            // under, and clearing the folder returns the default to "nothing moves". See
+            // defaultDestinationRoot, which states why the default cannot simply take the sole path.
+            set("FolderRoot", defaultDestinationRoot(v, options.FolderRoot, libraryPaths));
+          }}
+          onFocus={() => (activeTemplateRef.current = "folder")}
+          inputRef={folderRef}
+          mono
+          placeholder="$studio / $year"
+        />
+      </Field>
+    </>
+  );
+}
 
 /**
  * One-click starter templates. Each chip sets FilenameTemplate via the parent's
@@ -123,23 +205,14 @@ export function FilenameSection({
         </Subsection>
         <Subsection
           title="Where files go"
-          description="Folder path template — moves files on rename."
+          description="The default destination, for an item no rule matched — moves files on rename."
         >
-          <Field
-            label="Folder template"
-            helper="Blank = no folder move (rename in place). Use / for sub-folders, e.g. $studio / $year."
-          >
-            <TextInput
-              value={options.FolderTemplate}
-              onChange={(v) => {
-                set("FolderTemplate", v);
-              }}
-              onFocus={() => (activeTemplateRef.current = "folder")}
-              inputRef={folderRef}
-              mono
-              placeholder="$studio / $year"
-            />
-          </Field>
+          <DefaultDestinationFields
+            options={options}
+            set={set}
+            activeTemplateRef={activeTemplateRef}
+            folderRef={folderRef}
+          />
           <TemplateValidation value={options.FolderTemplate} />
         </Subsection>
       </SectionCard>

@@ -1,7 +1,7 @@
 /**
  * Pure, DOM-free derivation of a row's warning badges. A badge comes from the row's `status` STRING
- * enum PLUS its advisory bools (`suffixed`, `sanitized`, `inFlightPathOverflow`) — there is NO
- * `flags[]` array on /preview.
+ * enum PLUS its advisory bools (`suffixed`, `sanitized`, `inFlightPathOverflow`,
+ * `offLibraryDestination`) — there is NO `flags[]` array on /preview.
  *
  * Deliberately a sibling of dryRunLogic.ts rather than an addition to it: that module's header claims
  * it is import-free, and the derivation here needs the generated wire union.
@@ -35,6 +35,12 @@ export interface Badgeable {
    * compile, instead of silently rendering a row whose warning was never asked for.
    */
   inFlightPathOverflow: boolean;
+  /**
+   * Required for the same reason as the flag above, and it is the ONE warning here the user cannot
+   * derive from anything else on the row: whether a destination sits inside a Cove library path is a
+   * fact about the host's configuration, which no client holds.
+   */
+  offLibraryDestination: boolean;
 }
 
 /**
@@ -87,6 +93,18 @@ const STATUS_BADGING: Record<RenamerStatus, StatusBadging> = {
     badge: { label: "Skipped — name conflict", variant: "amber" },
     readsAdvisoryFlags: false,
   },
+  // Split out of `skipCollision`, which badged all three of these as a name conflict. The labels name
+  // what the user must change, because that is the whole reason they are three rather than one: a
+  // conflict clears when the other file moves, a permission has to be widened, and a length has to be
+  // shortened.
+  skipNotAllowed: {
+    badge: { label: "Skipped — destination not allowed", variant: "amber" },
+    readsAdvisoryFlags: false,
+  },
+  skipTooLong: {
+    badge: { label: "Skipped — path too long", variant: "amber" },
+    readsAdvisoryFlags: false,
+  },
   skipExcluded: {
     badge: { label: "Skipped — an exclude rule matched", variant: "amber" },
     readsAdvisoryFlags: false,
@@ -97,6 +115,16 @@ const STATUS_BADGING: Record<RenamerStatus, StatusBadging> = {
   },
   skipMissingSource: {
     badge: { label: "Skipped — file missing on disk", variant: "amber" },
+    readsAdvisoryFlags: false,
+  },
+  // Planner-produced, so it does reach a row. The label names the file's situation rather than the
+  // template's, because that is the half the user can act on.
+  skipUnanchored: {
+    badge: { label: "Skipped — outside every Cove library path", variant: "amber" },
+    readsAdvisoryFlags: false,
+  },
+  skipRootMissing: {
+    badge: { label: "Skipped — destination root no longer exists", variant: "amber" },
     readsAdvisoryFlags: false,
   },
   failed: { badge: { label: "Failed — rolled back", variant: "red" }, readsAdvisoryFlags: false },
@@ -142,9 +170,10 @@ function badgingFor(status: string): StatusBadging {
 
 /**
  * Map an item to its badges (one per warning kind, with user-facing labels).
- * Rename/Move with no extra signal returns [] (the positive default, no badge). suffixed/sanitized
- * add amber advisory badges even on a will-rename row; an in-flight path overflow adds a red one,
- * because that row's move cannot complete rather than merely completing differently.
+ * Rename/Move with no extra signal returns [] (the positive default, no badge). suffixed/sanitized and
+ * an off-library destination add amber advisory badges even on a will-rename row; an in-flight path
+ * overflow adds a red one, because that row's move cannot complete rather than merely completing
+ * differently.
  */
 export function badgesFor(item: Badgeable): Badge[] {
   const badges: Badge[] = [];
@@ -153,6 +182,12 @@ export function badgesFor(item: Badgeable): Badge[] {
   if (badging.readsAdvisoryFlags) {
     if (item.suffixed) badges.push({ label: "Numbered to avoid a clash", variant: "amber" });
     if (item.sanitized) badges.push({ label: "Cleaned for the filesystem", variant: "amber" });
+  }
+  // Amber, and before the overflow badge: this row's rename WILL happen and will happen exactly as
+  // previewed. What it costs is stated in the docs rather than in the pill, because the pill has room
+  // for the fact and not for its consequence.
+  if (item.offLibraryDestination) {
+    badges.push({ label: "Lands outside your Cove library", variant: "amber" });
   }
   // No status guard: the server sets this flag only on an acting cross-volume item, and re-testing the
   // status here would let a flag the server DID set go unrendered whenever the two vocabularies drifted.

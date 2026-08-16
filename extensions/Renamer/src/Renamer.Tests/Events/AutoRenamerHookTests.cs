@@ -434,12 +434,14 @@ public sealed class AutoRenamerHookTests
             {
                 AutoRenamerOnUpdate = true,
                 FilenameTemplate = "$title",
-                FolderTemplate = "Films",
                 AllowedRoots = [srcPathFwd, destRootFwd],
                 PathDestinations =
-                    [new PathDestinationRule { Pattern = srcPathFwd, Dest = destRootFwd, IsRegex = false }],
+                    [new PathDestinationRule
+                    {
+                        Pattern = srcPathFwd, Dest = Dests.At(destRootFwd, "Films"), IsRegex = false,
+                    }],
             };
-            var (ext, bus, _) = await EventTestHarness.BuildAsync(db, options);
+            var (ext, bus, _) = await EventTestHarness.BuildAsync(db, options, destRootFwd);
 
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 

@@ -204,12 +204,22 @@ public sealed class PreviewEndpointTests
             var options = new RenamerOptions
             {
                 FilenameTemplate = "$title",
-                FolderTemplate = "Sorted",
                 AllowedRoots = [srcFolder, PathRoot],
-                PathDestinations = [new PathDestinationRule { Pattern = srcFolder, Dest = PathRoot, IsRegex = false }],
+                PathDestinations =
+                [
+                    new PathDestinationRule
+                    {
+                        Pattern = srcFolder, Dest = Dests.At(PathRoot, "Sorted"), IsRegex = false,
+                    },
+                ],
             };
 
-            var (ext, _) = await ExtensionHarness.CreateStoreOnlyAsync(options);
+            // The INITIALIZING harness, unlike the rest of this suite: a destination root is chosen
+            // from Cove's library paths and re-checked against them on every plan, and that list
+            // reaches the extension through Initialize. Without it this item would preview as
+            // SkipRootMissing — correctly, but the routed destination is what the case is about.
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(
+                db, options: options, libraryRoots: PathRoot);
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
             var result = await ext.PreviewAsync(
@@ -220,12 +230,13 @@ public sealed class PreviewEndpointTests
 
             // The preview reflects the routed destination — the SAME route the batch resolves.
             Assert.Equal(RenamerStatus.Move, item.Status);
-            Assert.Equal(PathRoot, item.ResolvedDestinationRoot);
+            Assert.Equal(PathRoot.Replace('\\', '/'), item.ResolvedDestinationRoot);
             Assert.Equal("SourcePath:exact", item.MatchedRule);
 
             // Cross-check: the planner (the batch's own path) resolves the identical destination for
-            // the same options + lookups — preview and batch agree.
-            var port = new CoveRenamerDataPort(db);
+            // the same options + lookups — preview and batch agree. The port is handed the same
+            // library paths the extension was, or the two would disagree for that reason alone.
+            var port = new CoveRenamerDataPort(db, LibraryConfig(PathRoot));
             var plan = await new RenamerPlanner(port).PlanAsync(
                 RenamerFileKind.Video, videoId, options, BuildLookupsViaBatch(options), default);
             var batchItem = Assert.Single(plan.Items);
@@ -268,12 +279,19 @@ public sealed class PreviewEndpointTests
             var options = new RenamerOptions
             {
                 FilenameTemplate = "$title",
-                FolderTemplate = "Sorted",
                 AllowedRoots = [srcFolder, PathRoot],
-                PathDestinations = [new PathDestinationRule { Pattern = srcFolder, Dest = PathRoot, IsRegex = false }],
+                PathDestinations =
+                [
+                    new PathDestinationRule
+                    {
+                        Pattern = srcFolder, Dest = Dests.At(PathRoot, "Sorted"), IsRegex = false,
+                    },
+                ],
             };
 
-            var (ext, _) = await ExtensionHarness.CreateStoreOnlyAsync(options);
+            // Initializing harness, for the reason stated on the routed case above.
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(
+                db, options: options, libraryRoots: PathRoot);
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
             var result = await ext.PreviewAsync(
@@ -286,7 +304,7 @@ public sealed class PreviewEndpointTests
             var item = Assert.Single(response.Items);
             Assert.Equal(fileId, item.FileId);
             Assert.Equal(RenamerStatus.Move, item.Status);
-            Assert.Equal(PathRoot, item.ResolvedDestinationRoot);
+            Assert.Equal(PathRoot.Replace('\\', '/'), item.ResolvedDestinationRoot);
             Assert.Equal("SourcePath:exact", item.MatchedRule);
 
             // Summary quantifies the (cross-volume) blast radius.
@@ -510,7 +528,7 @@ public sealed class PreviewEndpointTests
     // Renamer.BuildLookups for the non-regex case without reaching into the private method.
     private static RouteLookups BuildLookupsViaBatch(RenamerOptions o)
     {
-        var exact = new Dictionary<string, string>(StringComparer.Ordinal);
+        var exact = new Dictionary<string, Destination>(StringComparer.Ordinal);
         foreach (var rule in o.PathDestinations)
         {
             if (!rule.IsRegex)
@@ -523,8 +541,14 @@ public sealed class PreviewEndpointTests
             o.StudioDestinations,
             o.TagDestinations,
             exact,
-            System.Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
+            System.Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
     }
+
+    /// <summary>Cove configuration declaring <paramref name="roots"/> as its library paths.</summary>
+    private static Cove.Core.Interfaces.CoveConfiguration LibraryConfig(params string[] roots) => new()
+    {
+        CovePaths = [.. roots.Select(r => new Cove.Core.Interfaces.CovePath { Path = r })],
+    };
 
     /// <summary>Records the SQL of every executed reader command, so a test can recognise one query by its own text.</summary>
     private sealed class ReaderTextRecorder : DbCommandInterceptor

@@ -19,6 +19,19 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
 
     private readonly Dictionary<RenamerFileKind, List<int>> _allIds = new();
 
+    private readonly List<string> _libraryRoots = new();
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Empty until a test seeds one, deliberately: an unrouted folder template needs a library path to
+    /// anchor on, so a fixture that forgets to declare one gets a stated <c>SkipUnanchored</c> rather
+    /// than a plausible-looking destination the fake invented on its behalf.
+    /// </remarks>
+    public IReadOnlyList<string> LibraryRoots => _libraryRoots;
+
+    /// <summary>Declares <paramref name="path"/> one of Cove's configured library paths.</summary>
+    public void SeedLibraryRoot(string path) => _libraryRoots.Add(path);
+
     /// <summary>Seeds a loadable entity (returned by <see cref="LoadEntityAsync"/>).</summary>
     public void SeedEntity(RenamerEntity entity) => _entities[(entity.Kind, entity.EntityId)] = entity;
 

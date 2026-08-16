@@ -93,7 +93,7 @@ public sealed class OptionsMigrationInitializeTests
         library.Principals.Set(CovePrincipal.Anonymous());
         library.CommandsExecuted.Clear();
 
-        await InitializeAsync(store, library.BuildProvider());
+        await InitializeAsync(store, library.BuildProvider(log: null, "/media"));
 
         Assert.NotEmpty(library.CommandsExecuted);
         Assert.All(library.CommandsExecuted, c => Assert.Equal(PrincipalKind.System, c.Principal));
@@ -102,7 +102,7 @@ public sealed class OptionsMigrationInitializeTests
         Assert.Equal(PrincipalKind.Anonymous, library.Principals.Current!.Kind);
 
         var converted = await LoadOptionsAsync(store);
-        Assert.Equal(["/media/anime"], converted.TagDestinations.Values);
+        Assert.Equal([Dests.At("/media", "anime")], converted.TagDestinations.Values);
         Assert.Single(converted.ExcludeTagIds);
         Assert.Equal("$title", converted.FilenameTemplate);
     }
@@ -133,7 +133,7 @@ public sealed class OptionsMigrationInitializeTests
         await using var library = await Library.CreateAsync();
         await library.SeedAsync(tags: ["Anime", "Sample"], performers: []);
 
-        await InitializeAsync(store, library.BuildProvider());
+        await InitializeAsync(store, library.BuildProvider(log: null, "/media"));
         Assert.Equal(OptionsMigration.CurrentSchema, await store.GetAsync(OptionsMigration.SchemaKey));
         string afterFirst = (await new OptionsStore(store).LoadRawAsync())!;
         int setsAfterFirst = store.SetCallCount;
@@ -141,7 +141,7 @@ public sealed class OptionsMigrationInitializeTests
         // A second load is a host restart, redeploy or reboot. Two independent things stop it from
         // repeating — the stamp and the already-converted shape — so this asserts the outcome; the
         // stamp's own contribution is pinned separately below.
-        await InitializeAsync(store, library.BuildProvider());
+        await InitializeAsync(store, library.BuildProvider(log: null, "/media"));
 
         Assert.Equal(setsAfterFirst, store.SetCallCount);
         Assert.Equal(afterFirst, await new OptionsStore(store).LoadRawAsync());
@@ -171,7 +171,11 @@ public sealed class OptionsMigrationInitializeTests
         // half — its int-spelled TagDestinations keys must never be re-read as tag NAMES.
         var store = await NewStoreAsync();
         await new OptionsStore(store).SaveAsync(
-            new RenamerOptions { TagDestinations = { [9] = "/media/anime" }, ExcludeTagIds = { 15 } });
+            new RenamerOptions
+            {
+                TagDestinations = { [9] = Dests.At("/media", "anime") },
+                ExcludeTagIds = { 15 },
+            });
         int setsBefore = store.SetCallCount;
 
         // No library tables: reading one at all would throw and be logged as a failure.
@@ -180,7 +184,9 @@ public sealed class OptionsMigrationInitializeTests
 
         Assert.Equal(setsBefore, store.SetCallCount);
         var options = await LoadOptionsAsync(store);
-        Assert.Equal(new Dictionary<int, string> { [9] = "/media/anime" }, options.TagDestinations);
+        Assert.Equal(
+            new Dictionary<int, Destination> { [9] = Dests.At("/media", "anime") },
+            options.TagDestinations);
         Assert.Equal([15], options.ExcludeTagIds);
     }
 

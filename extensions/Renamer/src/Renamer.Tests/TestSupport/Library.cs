@@ -72,7 +72,8 @@ public sealed class Library : IAsyncDisposable
         await db.SaveChangesAsync();
     }
 
-    public ServiceProvider BuildProvider(ILogger<global::Renamer.Renamer>? log = null)
+    public ServiceProvider BuildProvider(
+        ILogger<global::Renamer.Renamer>? log = null, params string[] libraryRoots)
     {
         var services = new ServiceCollection();
         services.AddSingleton<ICurrentPrincipalAccessor>(Principals);
@@ -81,6 +82,16 @@ public sealed class Library : IAsyncDisposable
         if (log is not null)
         {
             services.AddSingleton(log);
+        }
+
+        // Registered only when a caller names one: with no CoveConfiguration the extension takes the
+        // same path a host that never registered one takes, which is what most of these suites want.
+        if (libraryRoots.Length > 0)
+        {
+            services.AddSingleton(new Cove.Core.Interfaces.CoveConfiguration
+            {
+                CovePaths = [.. libraryRoots.Select(r => new Cove.Core.Interfaces.CovePath { Path = r })],
+            });
         }
 
         return services.BuildServiceProvider();

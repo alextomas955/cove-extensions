@@ -53,8 +53,8 @@ test(
     });
 
     // Both items get the SAME title, so "$title" computes an identical target for both — a deterministic
-    // collision. (FilenameAsTitle defaults to true, so without an explicit Title each item's $title
-    // falls back to its own distinct source basename and no collision occurs; setting Title forces it.)
+    // collision. Setting it is also what makes them renamable at all: Cove leaves a scanned item's Title
+    // null on purpose, and the shipped `title` required field then skips an item that has none.
     const sharedTitle = `Collision Test ${Date.now()}`;
     for (const video of [first, second]) {
       const update = await api.put(`/api/videos/${video.id}`, { Title: sharedTitle });

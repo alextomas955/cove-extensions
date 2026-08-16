@@ -50,6 +50,7 @@ public sealed partial class Renamer
     private string LastScanRoute => RouteBase + "/last-scan";
     private string ScanRowsRoute => RouteBase + "/scan-rows";
     private string RenamerLibraryRoute => RouteBase + "/renamer-library";
+    private string LibraryPathsRoute => RouteBase + "/library-paths";
 
     /// <summary>
     /// The key a pre-0.2.1 scan wrote one wire row PER FILE to. Retained only so
@@ -216,7 +217,28 @@ public sealed partial class Renamer
         endpoints.MapPost(RenamerLibraryRoute,
             (ICurrentPrincipalAccessor principal, IJobService jobs) => RenamerLibraryEnqueue(principal, jobs))
             .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
+
+        endpoints.MapGet(LibraryPathsRoute,
+            (ICurrentPrincipalAccessor principal) => LibraryPaths(principal))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
     }
+
+    /// <summary>
+    /// Cove's configured library paths — the list every destination root is CHOSEN from, so the
+    /// settings panel offers exactly the roots the planner will accept and no typed path exists to
+    /// drift from them.
+    /// </summary>
+    /// <remarks>
+    /// Reads the host configuration this extension already holds; it opens no scope and touches no
+    /// database, because the answer is in-memory host settings rather than library data. An empty list
+    /// means the host supplied no configuration, which the panel says plainly rather than presenting an
+    /// empty picker as a library with no folders in it.
+    /// </remarks>
+    internal Results<WireJson<LibraryPathsView>, ForbiddenCode> LibraryPaths(
+        ICurrentPrincipalAccessor principal)
+        => HasAnyReadPermission(principal)
+            ? new WireJson<LibraryPathsView>(new LibraryPathsView(LibraryRoots))
+            : new ForbiddenCode();
 
     /// <summary>
     /// The synchronous, read-only dry-run: runs the planner over each requested
@@ -248,7 +270,7 @@ public sealed partial class Renamer
         }
 
         var options = await new OptionsStore(Store).LoadAsync(ct);
-        var port = new CoveRenamerDataPort(db);
+        var port = new CoveRenamerDataPort(db, _coveConfig);
         var planner = new RenamerPlanner(port);
 
         // Build the SAME RouteLookups the batch builds and route through the routing overload,
@@ -421,7 +443,7 @@ public sealed partial class Renamer
         // the forward move used — so a restore can never land outside the allowed roots.
         var options = await new OptionsStore(Store).LoadAsync(ct);
 
-        var replayer = new UndoReplayer(new CoveRenamerDataPort(db), EventBus, new DiskMover(),
+        var replayer = new UndoReplayer(new CoveRenamerDataPort(db, _coveConfig), EventBus, new DiskMover(),
             cross: new CrossVolumeMover(), allowedRoots: options.AllowedRoots);
 
         // Folded page by page rather than concatenated: a batch reaches library size, so keeping every
@@ -765,7 +787,7 @@ public sealed partial class Renamer
 
         await using var scope = ScopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-        var port = new CoveRenamerDataPort(db);
+        var port = new CoveRenamerDataPort(db, _coveConfig);
         var pager = new ScanRowPager(new RenamerPlanner(port), port);
 
         var page = await pager.PageAsync(
@@ -805,7 +827,7 @@ public sealed partial class Renamer
         await Cove.Extensions.Shared.RunAsSystem.RunInSystemScopeAsync(ScopeFactory, services =>
         {
             var db = services.GetRequiredService<DbContext>();
-            return RunScanCoreAsync(new CoveRenamerDataPort(db), readableKinds, options, progress, ct);
+            return RunScanCoreAsync(new CoveRenamerDataPort(db, _coveConfig), readableKinds, options, progress, ct);
         });
     }
 
@@ -968,7 +990,7 @@ public sealed partial class Renamer
                 services =>
                 {
                     var db = services.GetRequiredService<DbContext>();
-                    return new CoveRenamerDataPort(db).LoadAllEntityIdsAsync(kind, ct);
+                    return new CoveRenamerDataPort(db, _coveConfig).LoadAllEntityIdsAsync(kind, ct);
                 });
 
             if (ids.Count == 0)

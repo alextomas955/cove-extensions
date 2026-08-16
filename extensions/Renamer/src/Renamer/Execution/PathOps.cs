@@ -1,8 +1,9 @@
 namespace Renamer.Execution;
 
 /// <summary>
-/// The pure path string math the planner and the execution slice share: slash normalization, the
-/// directory/basename split, native-separator conversion, and the OS-aware path-equality rule.
+/// The pure path string math the engine, the planner and the execution slice share: slash
+/// normalization, the directory/basename split, native-separator conversion, and the OS-aware
+/// path-equality rule.
 /// </summary>
 /// <remarks>
 /// One home because every site deciding whether two paths name the same FILE must apply one case

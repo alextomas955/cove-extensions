@@ -17,11 +17,14 @@ import {
   expect,
   seedVideo,
   createApiClient,
+  pollUntil,
 } from "../lib/renamer-fixtures.mjs";
 import { resolveCoveImage } from "@cove-extensions/e2e/harness";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 import { VideoDetailPage } from "../lib/pages/video-detail-page.mjs";
-import { assertRenamedTo } from "../lib/rename-assertions.mjs";
+import { assertRenamedTo, basename } from "../lib/rename-assertions.mjs";
+
+const EXTENSION_ID = "com.alextomas955.renamer";
 
 test("enabling Auto-rename on update and editing a title through the UI renames the file automatically", async ({
   page,
@@ -92,6 +95,121 @@ test("with Auto-rename on update left OFF (the default), editing a title does no
   expect(afterEdit.title).toBe("Should Not Trigger Rename");
 });
 
+// ── A title-less item, and a destination that actually relocates ─────────────────────────────────
+//
+// Every test above sets a title and leaves the folder template blank, which is the one configuration
+// that is a fixed point for free. That fixture choice is not a coincidence here — the same two values
+// were held constant at all three tiers, which is why the reported runaway (each pass adding one more
+// directory and one more copy of the template's decorations, until FullPathMax refused the path) was
+// invisible to the whole suite. So this varies exactly those two.
+//
+// What THIS tier proves that the L0 invariant cannot, stated rather than assumed — the invariant
+// (`PlanFixedPointTests`, 70 cells) quantifies convergence far more widely than one spec ever could,
+// and none of it is repeated here:
+//
+//   * The anchor is Cove's own library path, read from the host's `CoveConfiguration` through the
+//     extension-overlay container. Nothing in the C# suite builds that container — the in-process tier
+//     registers the configuration itself — so "the host really hands this extension its library paths"
+//     is structurally invisible below this line, and every source-confined move rests on it.
+//   * The loop is real. L0 MODELS the commit between two plans (new basename, new parent, recorded
+//     title); here the host raises its own `video.updated` after the executor's save and the hook
+//     re-enters on it, which is the mechanism that turned one edit into eight renames.
+//   * The move lands on a real filesystem, and the derived title lands in Cove's own record through
+//     Cove's own save — the write that makes the title a one-time derivation instead of a per-pass one.
+
+test("an untitled item with a folder template moves once, and a later edit does not move it again", async ({
+  isolatedHarness,
+}) => {
+  const baseUrl = isolatedHarness.baseUrl;
+  const api = createApiClient(baseUrl, isolatedHarness.token);
+
+  // FolderRoot is left at its default — "the file's own library path" — which is the arrangement that
+  // used to measure from the file's CURRENT parent and so nested one level per pass. The literal in
+  // the filename template is what makes the second defect visible: with the title derived from the
+  // basename every pass, "renamed - " was wrapped around its own output each time.
+  const put = await api.put(
+    `/api/extensions/${EXTENSION_ID}/data/options`,
+    JSON.stringify({
+      AutoRenamerOnUpdate: true,
+      FilenameAsTitle: true,
+      FilenameTemplate: "renamed - $title",
+      FolderTemplate: "sorted",
+    }),
+  );
+  expect(put.ok).toBe(true);
+
+  // Read back, for the reason the bulk test states: an unapplied setting and a broken hook produce the
+  // same "nothing moved", and the first would make this prove nothing.
+  const readBack = await api.get(`/api/extensions/${EXTENSION_ID}/data`);
+  const raw = readBack.json?.options;
+  const applied = typeof raw === "string" ? JSON.parse(raw) : (raw ?? {});
+  expect(applied.FilenameAsTitle, "FilenameAsTitle did not persist").toBe(true);
+  expect(applied.FolderTemplate, "FolderTemplate did not persist").toBe("sorted");
+
+  const video = await seedVideo({
+    container: isolatedHarness.container,
+    baseUrl,
+    destName: "e2e-untitled-item.mp4",
+  });
+  const originalPath = video.files[0].path;
+  expect(originalPath).toBe("/data/e2e-untitled-item.mp4");
+
+  // The premise, asserted rather than assumed: a host that titled its own imports would make every
+  // assertion below a test of the titled path wearing this test's name.
+  const seeded = await api.get(`/api/videos/${video.id}`).then((r) => r.json);
+  expect(
+    seeded.title,
+    "the seeded item already carries a title, so nothing here is title-less",
+  ).toBeFalsy();
+
+  // Any edit raises video.updated; this one deliberately does not touch the title.
+  expect((await api.put(`/api/videos/${video.id}`, { details: "first edit" })).ok).toBe(true);
+
+  const afterFirst = await pollUntil(
+    () => api.get(`/api/videos/${video.id}`).then((r) => r.json),
+    (v) => v.files[0].path !== originalPath,
+    { label: `video ${video.id} to be moved by the auto-rename hook` },
+  );
+  const movedPath = afterFirst.files[0].path;
+
+  // The folder is the whole first defect: the destination is the library path plus the template, so it
+  // is "/data/sorted" and stays "/data/sorted" however many times the hook re-enters. Nesting shows up
+  // here as "/data/sorted/sorted".
+  expect(movedPath.slice(0, movedPath.lastIndexOf("/"))).toBe("/data/sorted");
+
+  // …and the name is the second. The template's literal appears exactly once; wrapping it around its
+  // own output is what produced "Ruby Monroe.Ruby Monroe.…" in the report.
+  const movedName = basename(movedPath);
+  expect(
+    movedName.match(/renamed - /g)?.length,
+    `basename "${movedName}" repeats the template`,
+  ).toBe(1);
+
+  expect((await isolatedHarness.container.exec(["test", "-f", movedPath])).exitCode).toBe(0);
+  expect((await isolatedHarness.container.exec(["test", "-f", originalPath])).exitCode).not.toBe(0);
+
+  // The derived title reached Cove's own record, and it is the ORIGINAL stem rather than the name the
+  // template produced — which is what makes the derivation happen once instead of every pass.
+  expect(
+    afterFirst.title,
+    "no title was recorded, so the fallback still re-derives every pass",
+  ).toBeTruthy();
+  expect(afterFirst.title).not.toContain("renamed - ");
+
+  // A second, unrelated edit. The hook re-enters and must find nothing to do.
+  expect((await api.put(`/api/videos/${video.id}`, { details: "second edit" })).ok).toBe(true);
+
+  // A fixed wait, for the reason the OFF-by-default test above states: "nothing happened" has no
+  // success condition to poll for, and an early exit would report a runaway as settled.
+  await new Promise((resolve) => setTimeout(resolve, 8_000));
+
+  const afterSecond = await api.get(`/api/videos/${video.id}`).then((r) => r.json);
+  expect(
+    afterSecond.files[0].path,
+    "a second edit moved the file again — the plan is not a fixed point",
+  ).toBe(movedPath);
+});
+
 // ── Multi-item edits ─────────────────────────────────────────────────────────────────────────────
 //
 // Cove publishes entity events for bulk mutations only since `ca14830` (2026-08-02), which ships in
@@ -108,7 +226,6 @@ test("with Auto-rename on update left OFF (the default), editing a title does no
 // for a host that has none, or running the assertion against one that cannot satisfy it.
 const HOST_IMAGE = resolveCoveImage();
 const HOST_PUBLISHES_BULK_EVENTS = !/:(0\.|1\.0|1\.1\.0)/.test(HOST_IMAGE);
-const EXTENSION_ID = "com.alextomas955.renamer";
 const BULK_COUNT = 6;
 
 test.describe("multi-item edits", () => {

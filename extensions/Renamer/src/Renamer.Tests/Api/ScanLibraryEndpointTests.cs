@@ -311,8 +311,8 @@ public sealed class ScanLibraryEndpointTests
         var planner = new RenamerPlanner(port);
         var options = new RenamerOptions { FilenameTemplate = "$title" };
         var lookups = new RouteLookups(
-            new Dictionary<int, string>(), new Dictionary<int, string>(),
-            new Dictionary<string, string>(), Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
+            new Dictionary<int, Destination>(), new Dictionary<int, Destination>(),
+            new Dictionary<string, Destination>(), Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
 
         var loaded = await port.LoadEntitiesAsync(RenamerFileKind.Video, ids);
         var byId = loaded.ToDictionary(e => e.EntityId);

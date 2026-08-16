@@ -373,6 +373,35 @@
           }
         }
       }
+    },
+    "/api/extensions/com.alextomas955.renamer/library-paths": {
+      "get": {
+        "tags": [
+          "Renamer"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryPathsView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -390,6 +419,17 @@
           "standard",
           "heavy"
         ]
+      },
+      "Destination": {
+        "type": "object",
+        "properties": {
+          "root": {
+            "type": "string"
+          },
+          "template": {
+            "type": "string"
+          }
+        }
       },
       "ErrorCode": {
         "required": [
@@ -480,6 +520,20 @@
           }
         }
       },
+      "LibraryPathsView": {
+        "required": [
+          "paths"
+        ],
+        "type": "object",
+        "properties": {
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "MultiValueOptions": {
         "type": "object",
         "properties": {
@@ -537,7 +591,7 @@
             "type": "string"
           },
           "dest": {
-            "type": "string"
+            "$ref": "#/components/schemas/Destination"
           },
           "isRegex": {
             "type": "boolean"
@@ -558,7 +612,8 @@
           "inFlightPathOverflow",
           "resolvedDestinationRoot",
           "matchedRule",
-          "targetVolume"
+          "targetVolume",
+          "offLibraryDestination"
         ],
         "type": "object",
         "properties": {
@@ -607,6 +662,9 @@
           },
           "targetVolume": {
             "type": "string"
+          },
+          "offLibraryDestination": {
+            "type": "boolean"
           }
         }
       },
@@ -742,6 +800,9 @@
           "folderTemplate": {
             "type": "string"
           },
+          "folderRoot": {
+            "type": "string"
+          },
           "dateFormat": {
             "type": "string"
           },
@@ -846,13 +907,13 @@
           "studioDestinations": {
             "type": "object",
             "additionalProperties": {
-              "type": "string"
+              "$ref": "#/components/schemas/Destination"
             }
           },
           "tagDestinations": {
             "type": "object",
             "additionalProperties": {
-              "type": "string"
+              "$ref": "#/components/schemas/Destination"
             }
           },
           "pathDestinations": {
@@ -882,7 +943,14 @@
             }
           },
           "unorganizedDestination": {
-            "type": "string"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Destination"
+              }
+            ]
           },
           "freeSpaceHeadroomBytes": {
             "type": "integer",
@@ -932,7 +1000,11 @@
           "failed",
           "skipPermissionDenied",
           "skipVerifyFailed",
-          "skipCancelled"
+          "skipCancelled",
+          "skipUnanchored",
+          "skipRootMissing",
+          "skipNotAllowed",
+          "skipTooLong"
         ]
       },
       "ScanCursor": {
@@ -976,7 +1048,8 @@
           "reason",
           "suffixed",
           "sanitized",
-          "inFlightPathOverflow"
+          "inFlightPathOverflow",
+          "offLibraryDestination"
         ],
         "type": "object",
         "properties": {
@@ -1013,6 +1086,9 @@
             "type": "boolean"
           },
           "inFlightPathOverflow": {
+            "type": "boolean"
+          },
+          "offLibraryDestination": {
             "type": "boolean"
           }
         }

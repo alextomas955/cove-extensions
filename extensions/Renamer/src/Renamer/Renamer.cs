@@ -35,6 +35,25 @@ public sealed partial class Renamer : FullExtensionBase
     private IEventBus? _eventBus;
 
     /// <summary>
+    /// Cove's own configuration, the source of the library paths an unrouted folder template anchors on.
+    /// </summary>
+    /// <remarks>
+    /// Captured once because the host registers ONE mutable singleton every consumer shares, so reading
+    /// it per scope would return the same instance and a later edit in Cove's own settings is picked up
+    /// through the reference either way. Nullable, and its absence is survivable rather than fatal: a
+    /// rename that only changes a name still works, and an unrouted folder template plans as
+    /// <c>SkipUnanchored</c> with a reason instead of the extension refusing to load.
+    /// <para>
+    /// Fully qualified rather than imported: <c>Cove.Core.Interfaces</c> also declares an
+    /// <c>IJobProgress</c> that would collide with <c>Cove.Plugins</c>' at the job seams below.
+    /// </para>
+    /// </remarks>
+    private Cove.Core.Interfaces.CoveConfiguration? _coveConfig;
+
+    /// <summary>Cove's configured library paths, read through the port's single projection of them.</summary>
+    private IReadOnlyList<string> LibraryRoots => CoveRenamerDataPort.ReadLibraryRoots(_coveConfig);
+
+    /// <summary>
     /// The host logger, writing to Cove's normal log. Renames and moves change files on disk, so every
     /// batch/undo/auto-renamer records what it did (per-file old → new, skip reasons, a summary) for
     /// audit and troubleshooting. Non-null by construction: defaults to a no-op logger and is replaced
@@ -65,6 +84,12 @@ public sealed partial class Renamer : FullExtensionBase
         // TrackedScopeFactory, so this capture is already the retirement-tracked instance.
         _scopeFactory = services.GetRequiredService<IServiceScopeFactory>();
         _eventBus = services.GetRequiredService<IEventBus>();
+        _coveConfig = services.GetService<Cove.Core.Interfaces.CoveConfiguration>();
+        if (_coveConfig is null)
+        {
+            LogNoCoveConfiguration();
+        }
+
         // Logging is optional: the host forwards ILogger into the extension scope, but treat its
         // absence as non-fatal (GetService, not GetRequiredService) — a renamer must still run. Keep the
         // NullLogger default when the host supplies none.
@@ -113,13 +138,15 @@ public sealed partial class Renamer : FullExtensionBase
             LogJournalBlobMigrationFailed(ex);
         }
 
-        // ONE-TIME name→id options conversion. A blob written before the identity migration keys its
-        // tag and performer rules on NAMES, which the current model cannot bind at all, so until this
-        // runs every settings read falls back to defaults. Like the journal discard above it rides its
-        // own stamp rather than repeating on every deploy, restart and reboot.
+        // ONE-TIME stored-options conversions, both riding one stamp rather than repeating on every
+        // deploy, restart and reboot. A blob written before the identity migration keys its tag and
+        // performer rules on NAMES, which the current model cannot bind at all, so until that half runs
+        // every settings read falls back to defaults; a blob written before the path-template release
+        // holds destination ROOTS, which the planner would now read as whole destinations and so drop
+        // the folder arrangement from every routed item.
         try
         {
-            await MigrateStoredOptionsToIdsAsync(ct);
+            await MigrateStoredOptionsAsync(ct);
         }
         catch (Exception ex)
         {
@@ -196,11 +223,22 @@ public sealed partial class Renamer : FullExtensionBase
         IReadOnlyList<(int Id, string Name)> Performers);
 
     /// <summary>
-    /// Converts the stored options blob from name-keyed rules to id-keyed rules exactly once, writing
-    /// only when the library read it resolves against came back with at least one row of each kind the
-    /// blob actually needs.
+    /// Brings the stored options blob to the current schema exactly once: name-keyed rules become
+    /// id-keyed (writing only when the library read it resolves against came back with at least one row
+    /// of each kind the blob actually needs), and typed destination roots become a Cove library path
+    /// plus a relative template.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// The stamp records a REWRITE, so a blob that needed neither conversion leaves no stamp and is
+    /// re-examined on the next load — which costs one parse and is what keeps this method honest: it
+    /// never has to claim a blob is current on the strength of a stamp somebody could have written for
+    /// the other half. Each conversion recognizes its own input rather than trusting the stamp (a legacy
+    /// rule is name-keyed; a legacy destination is a JSON string where the current one is an object), so
+    /// running twice converts once. The deferral paths below deliberately write no stamp either,
+    /// converting nothing precisely so the next load can retry.
+    /// </para>
+    /// <para>
     /// The at-least-one-row rule is the whole safety argument, and it is stronger than "do not write
     /// when the read failed": an under-privileged background read returns ZERO ROWS successfully, with
     /// no exception (see <see cref="RunAsSystem"/>), indistinguishable from a library that genuinely
@@ -208,6 +246,7 @@ public sealed partial class Renamer : FullExtensionBase
     /// writing after such a read would erase every tag and performer rule the user has. An empty library
     /// has nothing to convert, so refusing to write costs nothing and makes that outcome structurally
     /// impossible. The stamp is not advanced either, so the next load retries.
+    /// </para>
     /// <para>
     /// "Needs" is measured in NAMES awaiting an id, per half, and never in legacy keys present — see
     /// <see cref="OptionsMigration.LegacyNames"/>. A half with nothing to resolve converts as a pure
@@ -216,7 +255,7 @@ public sealed partial class Renamer : FullExtensionBase
     /// performers on the legacy blob permanently.
     /// </para>
     /// </remarks>
-    private async Task MigrateStoredOptionsToIdsAsync(CancellationToken ct)
+    private async Task MigrateStoredOptionsAsync(CancellationToken ct)
     {
         if (await Store.GetAsync(OptionsMigration.SchemaKey, ct) == OptionsMigration.CurrentSchema)
         {
@@ -225,12 +264,94 @@ public sealed partial class Renamer : FullExtensionBase
 
         var optionsStore = new OptionsStore(Store);
         string? stored = await optionsStore.LoadRawAsync(ct);
-        var legacy = OptionsMigration.Scan(stored);
-        if (stored is null || !legacy.Any)
+        if (stored is null)
         {
             return;
         }
 
+        bool rewrote = false;
+        var legacy = OptionsMigration.Scan(stored);
+        if (legacy.Any)
+        {
+            string? resolved = await ResolveStoredNamesToIdsAsync(stored, legacy, ct);
+            if (resolved is null)
+            {
+                // Deferred, and deliberately unstamped — see the remarks. The destination half is
+                // skipped with it rather than run on its own: a blob whose names are still unresolved is
+                // not one this release's shape can be written onto coherently, and the next load retries
+                // both together.
+                return;
+            }
+
+            stored = resolved;
+            rewrote = true;
+        }
+
+        var destinations = OptionsMigration.ConvertDestinationsToRoots(stored, LibraryRoots);
+        if (destinations.Deferred)
+        {
+            // Deferred, and deliberately unstamped, for the same reason the half above defers: a
+            // destination can only be placed under a library path Cove supplies, and an empty list is
+            // indistinguishable from a host that has not supplied one yet. Converting anyway would DROP
+            // every rule the user has.
+            LogOptionsMigrationDeferred(
+                "the stored destination rules must be placed under Cove's library paths and the host "
+                    + "supplied none");
+            return;
+        }
+
+        if (destinations.Changed)
+        {
+            stored = destinations.Json;
+            rewrote = true;
+            if (destinations.Rewritten.Count > 0)
+            {
+                string rewritten = string.Join("; ", destinations.Rewritten.Select(
+                    r => $"{r.Rule}: '{r.From}' -> root '{r.ToRoot}' + '{r.ToTemplate}'"));
+                LogOptionsMigrationDestinationsRewritten(destinations.Rewritten.Count, rewritten);
+            }
+
+            if (destinations.Dropped.Count > 0)
+            {
+                string droppedRules = string.Join("; ", destinations.Dropped.Select(
+                    d => $"{d.Rule}: '{d.Stored}'"));
+                LogOptionsMigrationDestinationsDropped(destinations.Dropped.Count, droppedRules);
+            }
+        }
+
+        if (!rewrote)
+        {
+            // Nothing to make one-time. A blob already in the current shape is left exactly as it is,
+            // including its stamp state, so a fresh install pays for no store write at all.
+            return;
+        }
+
+        // Both halves log BEFORE this, not after: the rewrite keeps no copy of the originals, so those
+        // log lines are the only record of what it discarded or rewrote, and a settings write that
+        // throws must not take that record with it.
+        await optionsStore.SaveRawAsync(stored, ct);
+
+        try
+        {
+            await Store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema, ct);
+        }
+        catch (Exception ex)
+        {
+            // Caught here rather than at the initialize-time seam so the failure can say that the
+            // settings WERE rewritten — the seam's own catch covers everything before the write and
+            // must not make that claim.
+            LogOptionsMigrationStampFailed(ex);
+        }
+    }
+
+    /// <summary>
+    /// Resolves the blob's name-keyed rules against the live tag/performer tables, returning the
+    /// converted JSON — or <c>null</c> when the read came back empty for a half that still has names to
+    /// resolve, which defers the whole conversion to the next load. Writes nothing; the caller persists.
+    /// </summary>
+    private async Task<string?> ResolveStoredNamesToIdsAsync(
+        string stored, OptionsMigration.LegacyNames legacy, CancellationToken ct)
+    {
         // Every DETACHED body in this extension — this conversion, the job bodies and the auto-rename
         // hook — takes its scope from the elevating seam, because none of them carries a principal of its
         // own. The request-path scopes (/undo, /scan-rows and /last-batch) deliberately do not: they must
@@ -251,22 +372,18 @@ public sealed partial class Renamer : FullExtensionBase
         {
             LogOptionsMigrationDeferred(
                 $"{legacy.Tags} stored tag name(s) need resolving and the library read returned no tags");
-            return;
+            return null;
         }
 
         if (legacy.Performers > 0 && names.Performers.Count == 0)
         {
             LogOptionsMigrationDeferred(
                 $"{legacy.Performers} stored performer name(s) need resolving and the library read returned no performers");
-            return;
+            return null;
         }
 
         var converted = OptionsMigration.Convert(stored, names.Tags, names.Performers);
-        await optionsStore.SaveRawAsync(converted.Json, ct);
 
-        // Written between the two store writes, not after both. The rewrite keeps no copy of the
-        // originals, so the dropped-name list is the only record of what it discarded — and a stamp
-        // write that throws must not take that record with it.
         LogOptionsMigrationConverted(names.Tags.Count, names.Performers.Count, converted.DroppedNames.Count);
         if (converted.DroppedNames.Count > 0)
         {
@@ -288,17 +405,7 @@ public sealed partial class Renamer : FullExtensionBase
             LogOptionsMigrationDiscardedDestinations(converted.DiscardedDestinations.Count, discarded);
         }
 
-        try
-        {
-            await Store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema, ct);
-        }
-        catch (Exception ex)
-        {
-            // Caught here rather than at the initialize-time seam so the failure can say that the
-            // settings WERE rewritten — the seam's own catch covers everything before the write and
-            // must not make that claim.
-            LogOptionsMigrationStampFailed(ex);
-        }
+        return converted.Json;
     }
 
     // ── Shared batch core ─────────────────────────────────────────────────────
@@ -469,7 +576,7 @@ public sealed partial class Renamer : FullExtensionBase
         await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
         {
             var readDb = services.GetRequiredService<DbContext>();
-            var port = new CoveRenamerDataPort(readDb);
+            var port = new CoveRenamerDataPort(readDb, _coveConfig);
             var planner = new RenamerPlanner(port);
 
             int planIndex = 0;
@@ -672,7 +779,7 @@ public sealed partial class Renamer : FullExtensionBase
             {
                 var db = services.GetRequiredService<DbContext>();
                 var exec = new RenamerExecutor(
-                    new CoveRenamerDataPort(db), EventBus, journal, runId, new DiskMover());
+                    new CoveRenamerDataPort(db, _coveConfig), EventBus, journal, runId, new DiskMover());
                 return exec.ExecuteAsync(unit.Plan, options, folderIdByPath, token);
             });
             LogBatchItem(runId, kind, unit.EntityId, result);
@@ -746,8 +853,8 @@ public sealed partial class Renamer : FullExtensionBase
         // "media/incoming" matches a stored "Media/Incoming". Keys are also NORMALIZED (trim a
         // trailing '/') so a rule for "media/incoming" matches a stored "media/incoming/"; the
         // resolver normalizes the source path the same way before lookup.
-        var exact = new Dictionary<string, string>(DestinationResolver.SourcePathComparer);
-        var regexRules = new List<(Regex Pattern, string Dest)>();
+        var exact = new Dictionary<string, Destination>(DestinationResolver.SourcePathComparer);
+        var regexRules = new List<(Regex Pattern, Destination Dest)>();
 
         foreach (var rule in o.PathDestinations)
         {

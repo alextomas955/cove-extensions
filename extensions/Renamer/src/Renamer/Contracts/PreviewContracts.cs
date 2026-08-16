@@ -24,14 +24,18 @@ namespace Renamer.Contracts;
 /// UI badge signal: true iff this item crosses volumes and its in-flight copy would overrun the path
 /// budget, so the move the user is approving cannot complete even though the planned path fits.
 /// </param>
-/// <param name="ResolvedDestinationRoot">The routed destination-root template, or null for a source-confine/in-place item.</param>
+/// <param name="ResolvedDestinationRoot">The Cove library path this item was measured from, or null when it does not move. See <see cref="RenamerPlanItem.ResolvedDestinationRoot"/>.</param>
 /// <param name="MatchedRule">
-/// The resolver's matched-rule label for preview/log (<c>"Studio:42(direct)"</c>, <c>"InPlace"</c>, …),
+/// The resolver's matched-rule label for preview/log (<c>"Studio:42(direct)"</c>, <c>"Default"</c>, …),
 /// or <c>""</c> for an item the resolver never routed — a skip or a no-op.
 /// </param>
 /// <param name="TargetVolume">
-/// The destination volume of the resolved absolute target, or <c>""</c> when the item is not a routed
-/// move.
+/// The destination volume of the resolved absolute target, set only where the destination chose its
+/// own library root and so can be on another drive; <c>""</c> otherwise.
+/// </param>
+/// <param name="OffLibraryDestination">
+/// UI badge signal: true iff this item will act and lands outside every Cove library path. See
+/// <see cref="RenamerPlanItem.OffLibraryDestination"/>.
 /// </param>
 public sealed record PreviewItemView(
     int FileId,
@@ -46,7 +50,8 @@ public sealed record PreviewItemView(
     bool InFlightPathOverflow,
     string? ResolvedDestinationRoot,
     string MatchedRule,
-    string TargetVolume)
+    string TargetVolume,
+    bool OffLibraryDestination)
 {
     /// <summary>Projects a planned <paramref name="item"/> onto its wire shape.</summary>
     /// <param name="item">The planned item to project.</param>
@@ -69,7 +74,8 @@ public sealed record PreviewItemView(
         inFlightPathOverflow,
         item.ResolvedDestinationRoot,
         item.MatchedRule,
-        item.TargetVolume);
+        item.TargetVolume,
+        item.OffLibraryDestination);
 }
 
 /// <summary>

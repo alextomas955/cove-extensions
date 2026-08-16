@@ -28,6 +28,14 @@ public sealed class PreviewPurityTests
         new(EntityId: 10, Kind: RenamerFileKind.Video, Title: "My Film", Code: null, StudioName: null,
             Date: null, Organized: true, Performers: [], TagRefs: [], Files: files);
 
+    /// <summary>A port whose library declares the folder these files sit in, so the move has an anchor.</summary>
+    private static FakeRenamerDataPort Port()
+    {
+        var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot("media/videos");
+        return port;
+    }
+
     // A folder-template move: the rendered subfolder makes this a Move whose destination folder
     // ("media/videos/Archive") is NOT seeded in the fake port, so a get-or-create would mint+record it.
     private static RenamerOptions MoveOptions() =>
@@ -36,7 +44,7 @@ public sealed class PreviewPurityTests
     [Fact]
     public async Task Preview_MoveToMissingFolder_CreatesNoFolderRow()
     {
-        var port = new FakeRenamerDataPort();
+        var port = Port();
         port.SeedEntity(Entity(File(1, "raw.mkv")));
         var planner = new RenamerPlanner(port);
 
@@ -54,7 +62,7 @@ public sealed class PreviewPurityTests
     [Fact]
     public async Task Preview_MissingSource_ClassifiedSkipMissingSource_NoMutation()
     {
-        var port = new FakeRenamerDataPort();
+        var port = Port();
         port.SeedEntity(Entity(File(1, "raw.mkv")));
         // Declare the file's current source (ParentFolderPath + Basename) absent on disk.
         port.SeedMissingSource("media/videos/raw.mkv");
@@ -75,7 +83,7 @@ public sealed class PreviewPurityTests
     [Fact]
     public async Task Preview_MoveToExistingFolder_StillDetectsCollision_WithoutCreating()
     {
-        var port = new FakeRenamerDataPort();
+        var port = Port();
         port.SeedEntity(Entity(File(1, "raw.mkv")));
         // The destination folder already exists (id 42) AND already holds "My Film.mkv" (file 99).
         port.SeedFolder("media/videos/Archive", 42);

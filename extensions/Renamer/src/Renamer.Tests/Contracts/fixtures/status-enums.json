@@ -13,7 +13,11 @@
     "Failed": "\u0022failed\u0022",
     "SkipPermissionDenied": "\u0022skipPermissionDenied\u0022",
     "SkipVerifyFailed": "\u0022skipVerifyFailed\u0022",
-    "SkipCancelled": "\u0022skipCancelled\u0022"
+    "SkipCancelled": "\u0022skipCancelled\u0022",
+    "SkipUnanchored": "\u0022skipUnanchored\u0022",
+    "SkipRootMissing": "\u0022skipRootMissing\u0022",
+    "SkipNotAllowed": "\u0022skipNotAllowed\u0022",
+    "SkipTooLong": "\u0022skipTooLong\u0022"
   },
   "renamerFileKind": {
     "Video": "\u0022video\u0022",

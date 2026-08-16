@@ -87,6 +87,7 @@ public sealed class GatingTests
             EntityId: 10, Kind: RenamerFileKind.Video, Title: "My Film", Code: null, StudioName: null,
             Date: null, Organized: false, Performers: [], TagRefs: [],
             Files: [new RenamerFile(1, RenamerFileKind.Video, "raw.mkv", 5, srcFolder, Format: "mkv")]));
+        port.SeedLibraryRoot(unorgRoot);
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
         {
@@ -94,7 +95,7 @@ public sealed class GatingTests
             FilenameTemplate = "$title",
             FolderTemplate = "Sorted",
             AllowedRoots = [srcFolder, unorgRoot],
-            UnorganizedDestination = unorgRoot,
+            UnorganizedDestination = Dests.At(unorgRoot),
         };
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
@@ -102,7 +103,7 @@ public sealed class GatingTests
         var item = Assert.Single(plan.Items);
         Assert.NotEqual(RenamerStatus.SkipGated, item.Status);
         Assert.Equal(RenamerStatus.Move, item.Status);
-        Assert.Equal(unorgRoot, item.ResolvedDestinationRoot);
+        Assert.Equal(unorgRoot.Replace('\\', '/'), item.ResolvedDestinationRoot);
         Assert.Equal("Unorganized", item.MatchedRule);
         Assert.Empty(port.ApplyAndSaveCalls);
     }

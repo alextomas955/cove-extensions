@@ -32,13 +32,14 @@ public sealed class ScanPagingEquivalenceTests
     // Per-platform roots keep the resolved target equal to the path the route asked for.
     private static readonly string LibRoot = OperatingSystem.IsWindows() ? "C:/lib" : "/lib";
     private static readonly string DestRoot = OperatingSystem.IsWindows() ? "C:/dest" : "/dest";
-    private static readonly string RoutedDest = $"{DestRoot}/routed";
+    private static readonly Destination RoutedDest = Dests.At(DestRoot, "routed");
+    private static readonly string RoutedDestPath = $"{DestRoot}/routed";
 
     /// <summary>
     /// A title-only filename template with a studio-driven folder, so one fixture reaches both an
     /// in-place rename and a folder move; the allowed roots admit the source tree and the routed one.
-    /// The only-organized gate is on so an unorganized entity reaches the gate branch — an empty title
-    /// would not, because <see cref="RenamerOptions.FilenameAsTitle"/> falls back to the basename.
+    /// The gate branch is reached through the only-organized gate rather than through a missing title,
+    /// which keeps it independent of what <see cref="RenamerOptions.FilenameAsTitle"/> defaults to.
     /// </summary>
     private static readonly RenamerOptions Options = new()
     {
@@ -52,9 +53,9 @@ public sealed class ScanPagingEquivalenceTests
     private const int SkipTagId = 72;
 
     private static readonly RouteLookups Lookups = new(
-        StudioIdToDest: new Dictionary<int, string>(),
-        TagIdToDest: new Dictionary<int, string> { [RoutedTagId] = RoutedDest },
-        PathExactToDest: new Dictionary<string, string>(),
+        StudioIdToDest: new Dictionary<int, Destination>(),
+        TagIdToDest: new Dictionary<int, Destination> { [RoutedTagId] = RoutedDest },
+        PathExactToDest: new Dictionary<string, Destination>(),
         PathRegexRules: [],
         ExcludeTagIds: new HashSet<int> { SkipTagId });
 
@@ -66,6 +67,8 @@ public sealed class ScanPagingEquivalenceTests
     private static FakeRenamerDataPort BuildFixture()
     {
         var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot(LibRoot);    // the anchor a default-destination folder template resolves against
+        port.SeedLibraryRoot(DestRoot);   // the routed rule chooses this one, so it must still be a library path
 
         foreach (var kind in AllKinds)
         {
@@ -232,7 +235,7 @@ public sealed class ScanPagingEquivalenceTests
         Assert.Contains(RenamerStatus.SkipGated, statuses);
         Assert.Contains(RenamerStatus.SkipMissingSource, statuses);
         Assert.Contains(rows, r => r.Suffixed);
-        Assert.Contains(rows, r => r.NewFullPath.StartsWith(RoutedDest, StringComparison.Ordinal));
+        Assert.Contains(rows, r => r.NewFullPath.StartsWith(RoutedDestPath, StringComparison.Ordinal));
         Assert.Contains(rows, r => r.NewFullPath.Contains("/Acme/", StringComparison.Ordinal));
     }
 

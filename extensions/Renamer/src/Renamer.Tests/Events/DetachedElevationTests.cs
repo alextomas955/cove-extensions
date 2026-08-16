@@ -154,13 +154,15 @@ public sealed class DetachedElevationTests
         // command at all; an in-place rename skips it entirely.
         var options = TitleOnlyOptions() with
         {
-            FolderTemplate = "sorted",
             AllowedRoots = [folderPath],
             PathDestinations =
-                [new PathDestinationRule { Pattern = folderPath, Dest = folderPath, IsRegex = false }],
+                [new PathDestinationRule
+                {
+                    Pattern = folderPath, Dest = Dests.At(folderPath, "sorted"), IsRegex = false,
+                }],
         };
 
-        var (ext, _) = await LoadedExtensionAsync(library, options);
+        var (ext, _) = await LoadedExtensionAsync(library, options, folderPath);
 
         await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
 
@@ -290,13 +292,13 @@ public sealed class DetachedElevationTests
     /// and the recording cleared, so what a case asserts on is its own exercise and not the load.
     /// </summary>
     private static async Task<(global::Renamer.Renamer ext, FakeStore store)> LoadedExtensionAsync(
-        Library library, RenamerOptions options)
+        Library library, RenamerOptions options, params string[] libraryRoots)
     {
         var store = new FakeStore();
         await new OptionsStore(store).SaveAsync(options);
         var ext = RenamerFixture.Create();
         ((IStatefulExtension)ext).SetStore(store);
-        await ext.InitializeAsync(library.BuildProvider());
+        await ext.InitializeAsync(library.BuildProvider(log: null, libraryRoots));
 
         library.Principals.Set(CovePrincipal.Anonymous());
         library.CommandsExecuted.Clear();

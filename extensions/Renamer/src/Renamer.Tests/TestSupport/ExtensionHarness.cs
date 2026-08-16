@@ -64,17 +64,20 @@ internal static class ExtensionHarness
     /// <see cref="CapturingEventBus"/> when the caller does not assert on published events.</param>
     /// <param name="options">Seeded when supplied; when null the store is left empty for the caller to
     /// seed itself.</param>
+    /// <param name="libraryRoots">Registered as Cove's configured library paths — see <see cref="WithLibraryRoots"/>.</param>
     /// <exception cref="ArgumentNullException"><paramref name="db"/> is null.</exception>
     internal static async Task<(global::Renamer.Renamer Extension, FakeStore Store)> CreateWithSharedContextAsync(
         CoveContext db,
         IEventBus? bus = null,
-        RenamerOptions? options = null)
+        RenamerOptions? options = null,
+        params string[] libraryRoots)
     {
         ArgumentNullException.ThrowIfNull(db);
 
         var services = new ServiceCollection();
         services.AddSingleton<DbContext>(db);
         services.AddSingleton(bus ?? new CapturingEventBus());
+        WithLibraryRoots(services, libraryRoots);
 
         return await BuildAsync(services, options);
     }
@@ -97,12 +100,14 @@ internal static class ExtensionHarness
     /// <param name="bus">Captured during initialization. Defaults to a fresh
     /// <see cref="CapturingEventBus"/>.</param>
     /// <param name="options">Seeded when supplied.</param>
+    /// <param name="libraryRoots">Registered as Cove's configured library paths — see <see cref="WithLibraryRoots"/>.</param>
     /// <exception cref="ArgumentNullException"><paramref name="connection"/> is null.</exception>
     /// <exception cref="InvalidOperationException"><paramref name="connection"/> is not open.</exception>
     internal static async Task<(global::Renamer.Renamer Extension, FakeStore Store)> CreateWithScopedContextAsync(
         SqliteConnection connection,
         IEventBus? bus = null,
-        RenamerOptions? options = null)
+        RenamerOptions? options = null,
+        params string[] libraryRoots)
     {
         ArgumentNullException.ThrowIfNull(connection);
         if (connection.State != ConnectionState.Open)
@@ -120,8 +125,32 @@ internal static class ExtensionHarness
             return new CoveContext(contextOptions, principalAccessor: null);
         });
         services.AddSingleton(bus ?? new CapturingEventBus());
+        WithLibraryRoots(services, libraryRoots);
 
         return await BuildAsync(services, options);
+    }
+
+    /// <summary>
+    /// Registers <paramref name="roots"/> as Cove's configured library paths, the list a destination
+    /// root is chosen from and re-checked against.
+    /// </summary>
+    /// <remarks>
+    /// Registered only when a caller names one, deliberately: with no <c>CoveConfiguration</c> at all
+    /// the extension takes the same path a host that never registered one takes, which is the state one
+    /// suite asserts. A fixture that names a destination root and forgets to declare it here gets a
+    /// stated <c>SkipRootMissing</c> rather than a plausible destination the harness invented.
+    /// </remarks>
+    private static void WithLibraryRoots(IServiceCollection services, string[] roots)
+    {
+        if (roots.Length == 0)
+        {
+            return;
+        }
+
+        services.AddSingleton(new Cove.Core.Interfaces.CoveConfiguration
+        {
+            CovePaths = [.. roots.Select(r => new Cove.Core.Interfaces.CovePath { Path = r })],
+        });
     }
 
     private static async Task<(global::Renamer.Renamer Extension, FakeStore Store)> BuildAsync(

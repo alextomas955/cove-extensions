@@ -1,13 +1,14 @@
 using System.Text.RegularExpressions;
 using Renamer.Options;
 using Renamer.Planner;
+using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Planner;
 
 /// <summary>
 /// Pure unit tests for <see cref="DestinationResolver.Resolve"/> — no DB, no disk. Proves the
 /// locked routing precedence (Excludes → Unorganized → Tag → Studio → Source-path →
-/// SourceConfine), within-category list order, direct-outranks-ancestor, route-on-stable-id for
+/// Unmatched), within-category list order, direct-outranks-ancestor, route-on-stable-id for
 /// both studios and tags, source-path exact-beats-regex, and the unorganized slot.
 /// </summary>
 [Trait("Tier", "L0")]
@@ -34,30 +35,30 @@ public sealed class DestinationResolverPrecedenceTests
             StudioId: studioId, ParentStudios: parentStudios);
 
     private static RouteLookups Lookups(
-        IReadOnlyDictionary<int, string>? studios = null,
-        IReadOnlyDictionary<int, string>? tags = null,
-        IReadOnlyDictionary<string, string>? pathExact = null,
-        IReadOnlyList<(Regex, string)>? pathRegex = null,
+        IReadOnlyDictionary<int, Destination>? studios = null,
+        IReadOnlyDictionary<int, Destination>? tags = null,
+        IReadOnlyDictionary<string, Destination>? pathExact = null,
+        IReadOnlyList<(Regex, Destination)>? pathRegex = null,
         IReadOnlySet<int>? excludeTags = null,
         IReadOnlySet<int>? excludeStudios = null,
         IReadOnlySet<string>? excludePathsExact = null,
         IReadOnlyList<Regex>? excludePathRegex = null)
         => new(
-            studios ?? new Dictionary<int, string>(),
-            tags ?? new Dictionary<int, string>(),
-            pathExact ?? new Dictionary<string, string>(StringComparer.Ordinal),
+            studios ?? new Dictionary<int, Destination>(),
+            tags ?? new Dictionary<int, Destination>(),
+            pathExact ?? new Dictionary<string, Destination>(StringComparer.Ordinal),
             pathRegex ?? [],
             excludeTags,
             excludeStudios,
             excludePathsExact,
             excludePathRegex);
 
-    private static Dictionary<int, string> TagMap(params (int id, string dest)[] entries)
+    private static Dictionary<int, Destination> TagMap(params (int id, string dest)[] entries)
     {
-        var d = new Dictionary<int, string>();
+        var d = new Dictionary<int, Destination>();
         foreach (var (id, dest) in entries)
         {
-            d[id] = dest;
+            d[id] = Dests.At(dest);
         }
 
         return d;
@@ -71,14 +72,14 @@ public sealed class DestinationResolverPrecedenceTests
         // Unorganized + tag + studio all "match": Unorganized wins (runs before the cascade).
         var e = Entity(organized: false, studioId: 42, tagRefs: [(11, "anime")]);
         var lk = Lookups(
-            studios: new Dictionary<int, string> { [42] = "S:42" },
+            studios: new Dictionary<int, Destination> { [42] = Dests.At("S:42") },
             tags: TagMap((11, "T:anime")));
-        var o = new RenamerOptions { UnorganizedDestination = "U:dest" };
+        var o = new RenamerOptions { UnorganizedDestination = Dests.At("U:dest") };
 
         var r = DestinationResolver.Resolve(e, o, lk);
 
         Assert.Equal(RouteCategory.Unorganized, r.Category);
-        Assert.Equal("U:dest", r.DestinationRootTemplate);
+        Assert.Equal(Dests.At("U:dest"), r.Destination);
     }
 
     [Fact]
@@ -87,14 +88,14 @@ public sealed class DestinationResolverPrecedenceTests
         // Tag + studio + source-path all match: Tag wins (higher category).
         var e = Entity(studioId: 42, tagRefs: [(11, "anime")], parentFolderPath: "media/raw");
         var lk = Lookups(
-            studios: new Dictionary<int, string> { [42] = "S:42" },
+            studios: new Dictionary<int, Destination> { [42] = Dests.At("S:42") },
             tags: TagMap((11, "T:anime")),
-            pathExact: new Dictionary<string, string>(StringComparer.Ordinal) { ["media/raw"] = "P:raw" });
+            pathExact: new Dictionary<string, Destination>(StringComparer.Ordinal) { ["media/raw"] = Dests.At("P:raw") });
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
         Assert.Equal(RouteCategory.Tag, r.Category);
-        Assert.Equal("T:anime", r.DestinationRootTemplate);
+        Assert.Equal(Dests.At("T:anime"), r.Destination);
     }
 
     [Fact]
@@ -102,13 +103,13 @@ public sealed class DestinationResolverPrecedenceTests
     {
         var e = Entity(studioId: 42, parentFolderPath: "media/raw");
         var lk = Lookups(
-            studios: new Dictionary<int, string> { [42] = "S:42" },
-            pathExact: new Dictionary<string, string>(StringComparer.Ordinal) { ["media/raw"] = "P:raw" });
+            studios: new Dictionary<int, Destination> { [42] = Dests.At("S:42") },
+            pathExact: new Dictionary<string, Destination>(StringComparer.Ordinal) { ["media/raw"] = Dests.At("P:raw") });
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
         Assert.Equal(RouteCategory.Studio, r.Category);
-        Assert.Equal("S:42", r.DestinationRootTemplate);
+        Assert.Equal(Dests.At("S:42"), r.Destination);
     }
 
     [Fact]
@@ -123,7 +124,7 @@ public sealed class DestinationResolverPrecedenceTests
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
         Assert.Equal(RouteCategory.Tag, r.Category);
-        Assert.Equal("T:first", r.DestinationRootTemplate);
+        Assert.Equal(Dests.At("T:first"), r.Destination);
         Assert.Equal("Tag:first", r.MatchedRule);
     }
 
@@ -134,12 +135,12 @@ public sealed class DestinationResolverPrecedenceTests
     {
         // Both the direct id (42) and an ancestor id (7) have rules → the direct rule wins.
         var e = Entity(studioId: 42, parentStudios: [(7, "Parent")]);
-        var lk = Lookups(studios: new Dictionary<int, string> { [42] = "S:42", [7] = "S:7" });
+        var lk = Lookups(studios: new Dictionary<int, Destination> { [42] = Dests.At("S:42"), [7] = Dests.At("S:7") });
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
         Assert.Equal(RouteCategory.Studio, r.Category);
-        Assert.Equal("S:42", r.DestinationRootTemplate);
+        Assert.Equal(Dests.At("S:42"), r.Destination);
         Assert.Equal("Studio:42(direct)", r.MatchedRule);
     }
 
@@ -148,12 +149,12 @@ public sealed class DestinationResolverPrecedenceTests
     {
         // No direct rule; ParentStudios is nearest-first [(7),(3)] and both have rules → 7 wins.
         var e = Entity(studioId: 42, parentStudios: [(7, "Near"), (3, "Far")]);
-        var lk = Lookups(studios: new Dictionary<int, string> { [7] = "S:7", [3] = "S:3" });
+        var lk = Lookups(studios: new Dictionary<int, Destination> { [7] = Dests.At("S:7"), [3] = Dests.At("S:3") });
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
         Assert.Equal(RouteCategory.Studio, r.Category);
-        Assert.Equal("S:7", r.DestinationRootTemplate);
+        Assert.Equal(Dests.At("S:7"), r.Destination);
         Assert.Equal("Studio:7(ancestor)", r.MatchedRule);
     }
 }
@@ -166,9 +167,9 @@ public sealed class DestinationResolverRouteOnStableStudioIdTests
     public void TwoNameVariantsOfOneStudioId_ResolveToOneDestination()
     {
         var lk = new RouteLookups(
-            new Dictionary<int, string> { [42] = "S:42" },
-            new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.Ordinal),
+            new Dictionary<int, Destination> { [42] = Dests.At("S:42") },
+            new Dictionary<int, Destination>(),
+            new Dictionary<string, Destination>(StringComparer.Ordinal),
             []);
 
         var a = new RenamerEntity(1, RenamerFileKind.Video, "A", null, "Reality Kings", null, true,
@@ -179,9 +180,9 @@ public sealed class DestinationResolverRouteOnStableStudioIdTests
         var ra = DestinationResolver.Resolve(a, new RenamerOptions(), lk);
         var rb = DestinationResolver.Resolve(b, new RenamerOptions(), lk);
 
-        Assert.Equal("S:42", ra.DestinationRootTemplate);
-        Assert.Equal("S:42", rb.DestinationRootTemplate);
-        Assert.Equal(ra.DestinationRootTemplate, rb.DestinationRootTemplate);
+        Assert.Equal(Dests.At("S:42"), ra.Destination);
+        Assert.Equal(Dests.At("S:42"), rb.Destination);
+        Assert.Equal(ra.Destination, rb.Destination);
     }
 }
 
@@ -193,9 +194,9 @@ public sealed class DestinationResolverRouteOnStableStudioIdTests
 [Trait("Tier", "L0")]
 public sealed class DestinationResolverTagRoutingTests
 {
-    private static RouteLookups TagLookups(IReadOnlyDictionary<int, string> tags)
-        => new(new Dictionary<int, string>(), tags,
-               new Dictionary<string, string>(StringComparer.Ordinal), []);
+    private static RouteLookups TagLookups(IReadOnlyDictionary<int, Destination> tags)
+        => new(new Dictionary<int, Destination>(), tags,
+               new Dictionary<string, Destination>(StringComparer.Ordinal), []);
 
     private static RenamerEntity TaggedEntity(params (int Id, string Name)[] tagRefs)
         => new(1, RenamerFileKind.Video, "T", null, null, null, true,
@@ -208,14 +209,14 @@ public sealed class DestinationResolverTagRoutingTests
         // The rename the id migration exists for: the SAME tag id spelled two different ways (a
         // rename, a case variant) routes to one destination. Under name-keying the renamed one would
         // have silently stopped matching.
-        var lk = TagLookups(new Dictionary<int, string> { [11] = "T:anime" });
+        var lk = TagLookups(new Dictionary<int, Destination> { [11] = Dests.At("T:anime") });
 
         var before = DestinationResolver.Resolve(TaggedEntity((11, "anime")), new RenamerOptions(), lk);
         var after = DestinationResolver.Resolve(TaggedEntity((11, "Japanese Animation")), new RenamerOptions(), lk);
 
-        Assert.Equal("T:anime", before.DestinationRootTemplate);
-        Assert.Equal("T:anime", after.DestinationRootTemplate);
-        Assert.Equal(before.DestinationRootTemplate, after.DestinationRootTemplate);
+        Assert.Equal(Dests.At("T:anime"), before.Destination);
+        Assert.Equal(Dests.At("T:anime"), after.Destination);
+        Assert.Equal(before.Destination, after.Destination);
     }
 
     [Fact]
@@ -224,7 +225,7 @@ public sealed class DestinationResolverTagRoutingTests
         // The preview's route reason is user-visible text. Matching moved to the id; the label must
         // still read the tag's CURRENT name, so a user reading a preview sees "Tag:anime", never
         // "Tag:11". Nothing else in the suite pins this.
-        var lk = TagLookups(new Dictionary<int, string> { [11] = "T:anime" });
+        var lk = TagLookups(new Dictionary<int, Destination> { [11] = Dests.At("T:anime") });
 
         var r = DestinationResolver.Resolve(TaggedEntity((11, "anime")), new RenamerOptions(), lk);
 
@@ -237,7 +238,7 @@ public sealed class DestinationResolverTagRoutingTests
     public void TagRoutedById_AfterARename_ReasonStringShowsTheNewName()
     {
         // The name is read off the entity, not off the stored rule, so the label follows a rename.
-        var lk = TagLookups(new Dictionary<int, string> { [11] = "T:anime" });
+        var lk = TagLookups(new Dictionary<int, Destination> { [11] = Dests.At("T:anime") });
 
         var r = DestinationResolver.Resolve(
             TaggedEntity((11, "Japanese Animation")), new RenamerOptions(), lk);
@@ -248,11 +249,11 @@ public sealed class DestinationResolverTagRoutingTests
     [Fact]
     public void AnEntityWithNoTags_NeverMatchesATagRule()
     {
-        var lk = TagLookups(new Dictionary<int, string> { [11] = "T:anime" });
+        var lk = TagLookups(new Dictionary<int, Destination> { [11] = Dests.At("T:anime") });
 
         var r = DestinationResolver.Resolve(TaggedEntity(), new RenamerOptions(), lk);
 
-        Assert.Equal(RouteCategory.SourceConfine, r.Category);
+        Assert.Equal(RouteCategory.Unmatched, r.Category);
     }
 }
 
@@ -267,39 +268,39 @@ public sealed class DestinationResolverSourcePathRoutingTests
     [Fact]
     public void ExactSourcePath_BeatsRegex()
     {
-        var exact = new Dictionary<string, string>(StringComparer.Ordinal) { ["media/raw"] = "P:exact" };
-        var regex = new List<(Regex, string)>
+        var exact = new Dictionary<string, Destination>(StringComparer.Ordinal) { ["media/raw"] = Dests.At("P:exact") };
+        var regex = new List<(Regex, Destination)>
         {
-            (new Regex("^media/", RegexOptions.None, TimeSpan.FromSeconds(1)), "P:regex"),
+            (new Regex("^media/", RegexOptions.None, TimeSpan.FromSeconds(1)), Dests.At("P:regex")),
         };
         var lk = new RouteLookups(
-            new Dictionary<int, string>(),
-            new Dictionary<int, string>(),
+            new Dictionary<int, Destination>(),
+            new Dictionary<int, Destination>(),
             exact, regex);
 
         var r = DestinationResolver.Resolve(AtPath("media/raw"), new RenamerOptions(), lk);
 
         Assert.Equal(RouteCategory.SourcePath, r.Category);
-        Assert.Equal("P:exact", r.DestinationRootTemplate);
+        Assert.Equal(Dests.At("P:exact"), r.Destination);
         Assert.Equal("SourcePath:exact", r.MatchedRule);
     }
 
     [Fact]
     public void RegexOnly_StillRoutes()
     {
-        var regex = new List<(Regex, string)>
+        var regex = new List<(Regex, Destination)>
         {
-            (new Regex(@"^media/raw/\d+$", RegexOptions.None, TimeSpan.FromSeconds(1)), "P:regex"),
+            (new Regex(@"^media/raw/\d+$", RegexOptions.None, TimeSpan.FromSeconds(1)), Dests.At("P:regex")),
         };
         var lk = new RouteLookups(
-            new Dictionary<int, string>(),
-            new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.Ordinal), regex);
+            new Dictionary<int, Destination>(),
+            new Dictionary<int, Destination>(),
+            new Dictionary<string, Destination>(StringComparer.Ordinal), regex);
 
         var r = DestinationResolver.Resolve(AtPath("media/raw/2024"), new RenamerOptions(), lk);
 
         Assert.Equal(RouteCategory.SourcePath, r.Category);
-        Assert.Equal("P:regex", r.DestinationRootTemplate);
+        Assert.Equal(Dests.At("P:regex"), r.Destination);
         Assert.Equal("SourcePath:regex", r.MatchedRule);
     }
 }
@@ -329,18 +330,18 @@ public sealed class DestinationResolverRegexTimeoutTests
 
         // The timing-out regex is the FIRST source-path rule; a second, benign exact rule for the SAME
         // path proves the cascade keeps going after the timeout (exact is tried before regex, so to
-        // exercise the regex-timeout fall-through we set ONLY the regex rule and assert SourceConfine).
+        // exercise the regex-timeout fall-through we set ONLY the regex rule and assert Unmatched).
         var lk = new RouteLookups(
-            new Dictionary<int, string>(),
-            new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.Ordinal),
-            [(redos, "P:never")]);
+            new Dictionary<int, Destination>(),
+            new Dictionary<int, Destination>(),
+            new Dictionary<string, Destination>(StringComparer.Ordinal),
+            [(redos, Dests.At("P:never"))]);
 
-        // Must NOT throw, and the timed-out rule must NOT match → fall through to source-confine.
+        // Must NOT throw, and the timed-out rule must NOT match → fall through to unmatched.
         var r = DestinationResolver.Resolve(AtPath(evil), new RenamerOptions(), lk);
 
-        Assert.Equal(RouteCategory.SourceConfine, r.Category);
-        Assert.Null(r.DestinationRootTemplate);
+        Assert.Equal(RouteCategory.Unmatched, r.Category);
+        Assert.Null(r.Destination);
     }
 
     [Fact]
@@ -355,15 +356,15 @@ public sealed class DestinationResolverRegexTimeoutTests
             [], [], [new RenamerFile(1, RenamerFileKind.Video, "a.mkv", 1, new string('a', 40) + "!")],
             StudioId: 42);
         var lk = new RouteLookups(
-            new Dictionary<int, string> { [42] = "S:42" },
-            new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.Ordinal),
-            [(redos, "P:never")]);
+            new Dictionary<int, Destination> { [42] = Dests.At("S:42") },
+            new Dictionary<int, Destination>(),
+            new Dictionary<string, Destination>(StringComparer.Ordinal),
+            [(redos, Dests.At("P:never"))]);
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
         Assert.Equal(RouteCategory.Studio, r.Category);
-        Assert.Equal("S:42", r.DestinationRootTemplate);
+        Assert.Equal(Dests.At("S:42"), r.Destination);
     }
 }
 
@@ -376,30 +377,30 @@ public sealed class DestinationResolverUnorganizedRouteTests
     {
         var e = new RenamerEntity(1, RenamerFileKind.Video, "T", null, null, null, Organized: false,
             [], [], [new RenamerFile(1, RenamerFileKind.Video, "a.mkv", 1, "x")]);
-        var o = new RenamerOptions { UnorganizedDestination = "U:dest" };
+        var o = new RenamerOptions { UnorganizedDestination = Dests.At("U:dest") };
 
         var r = DestinationResolver.Resolve(e, o, new RouteLookups(
-            new Dictionary<int, string>(),
-            new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.Ordinal), []));
+            new Dictionary<int, Destination>(),
+            new Dictionary<int, Destination>(),
+            new Dictionary<string, Destination>(StringComparer.Ordinal), []));
 
         Assert.Equal(RouteCategory.Unorganized, r.Category);
-        Assert.Equal("U:dest", r.DestinationRootTemplate);
+        Assert.Equal(Dests.At("U:dest"), r.Destination);
     }
 
     [Fact]
     public void UnorganizedItem_WithoutUnorganizedDestination_FallsThrough()
     {
-        // No unorganized destination set → the unorganized slot does NOT fire; falls to source-confine.
+        // No unorganized destination set → the unorganized slot does NOT fire; falls to unmatched.
         var e = new RenamerEntity(1, RenamerFileKind.Video, "T", null, null, null, Organized: false,
             [], [], [new RenamerFile(1, RenamerFileKind.Video, "a.mkv", 1, "x")]);
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), new RouteLookups(
-            new Dictionary<int, string>(),
-            new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.Ordinal), []));
+            new Dictionary<int, Destination>(),
+            new Dictionary<int, Destination>(),
+            new Dictionary<string, Destination>(StringComparer.Ordinal), []));
 
-        Assert.Equal(RouteCategory.SourceConfine, r.Category);
+        Assert.Equal(RouteCategory.Unmatched, r.Category);
     }
 }
 
@@ -427,18 +428,18 @@ public sealed class DestinationResolverExcludeTests
             StudioId: studioId, ParentStudios: parentStudios);
 
     private static RouteLookups Lookups(
-        IReadOnlyDictionary<int, string>? studios = null,
-        IReadOnlyDictionary<int, string>? tags = null,
-        IReadOnlyDictionary<string, string>? pathExact = null,
-        IReadOnlyList<(Regex, string)>? pathRegex = null,
+        IReadOnlyDictionary<int, Destination>? studios = null,
+        IReadOnlyDictionary<int, Destination>? tags = null,
+        IReadOnlyDictionary<string, Destination>? pathExact = null,
+        IReadOnlyList<(Regex, Destination)>? pathRegex = null,
         IReadOnlySet<int>? excludeTags = null,
         IReadOnlySet<int>? excludeStudios = null,
         IReadOnlySet<string>? excludePathsExact = null,
         IReadOnlyList<Regex>? excludePathRegex = null)
         => new(
-            studios ?? new Dictionary<int, string>(),
-            tags ?? new Dictionary<int, string>(),
-            pathExact ?? new Dictionary<string, string>(StringComparer.Ordinal),
+            studios ?? new Dictionary<int, Destination>(),
+            tags ?? new Dictionary<int, Destination>(),
+            pathExact ?? new Dictionary<string, Destination>(StringComparer.Ordinal),
             pathRegex ?? [],
             excludeTags, excludeStudios, excludePathsExact, excludePathRegex);
 
@@ -459,7 +460,7 @@ public sealed class DestinationResolverExcludeTests
 
         Assert.Equal(RouteCategory.Excluded, r.Category);
         Assert.Equal("Exclude:Tag:anime", r.MatchedRule);
-        Assert.Null(r.DestinationRootTemplate);
+        Assert.Null(r.Destination);
     }
 
     [Fact]
@@ -552,7 +553,7 @@ public sealed class DestinationResolverExcludeTests
         // the label is the exclude's, no destination is carried, and the route reason is absent.
         var e = Entity(tagRefs: [(11, "anime")]);
         var lk = Lookups(
-            tags: new Dictionary<int, string> { [11] = "T:anime" },
+            tags: new Dictionary<int, Destination> { [11] = Dests.At("T:anime") },
             excludeTags: TagSet(11));
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
@@ -560,7 +561,7 @@ public sealed class DestinationResolverExcludeTests
         Assert.Equal(RouteCategory.Excluded, r.Category);
         Assert.Equal("Exclude:Tag:anime", r.MatchedRule);
         Assert.NotEqual("Tag:anime", r.MatchedRule);
-        Assert.Null(r.DestinationRootTemplate);
+        Assert.Null(r.Destination);
     }
 
     [Fact]
@@ -569,7 +570,7 @@ public sealed class DestinationResolverExcludeTests
         // Studio 42 is both a route and an exclude → excluded.
         var e = Entity(studioId: 42);
         var lk = Lookups(
-            studios: new Dictionary<int, string> { [42] = "S:42" },
+            studios: new Dictionary<int, Destination> { [42] = Dests.At("S:42") },
             excludeStudios: new HashSet<int> { 42 });
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
@@ -582,7 +583,7 @@ public sealed class DestinationResolverExcludeTests
     {
         // An unorganized item that matches an exclude is Excluded, NOT routed to the unorganized dest.
         var e = Entity(organized: false, tagRefs: [(11, "anime")]);
-        var o = new RenamerOptions { UnorganizedDestination = "U:dest" };
+        var o = new RenamerOptions { UnorganizedDestination = Dests.At("U:dest") };
         var lk = Lookups(excludeTags: TagSet(11));
 
         var r = DestinationResolver.Resolve(e, o, lk);
@@ -596,13 +597,13 @@ public sealed class DestinationResolverExcludeTests
         // An entity whose tag is NOT excluded still routes normally (additive / non-breaking).
         var e = Entity(tagRefs: [(12, "keep")]);
         var lk = Lookups(
-            tags: new Dictionary<int, string> { [12] = "T:keep" },
+            tags: new Dictionary<int, Destination> { [12] = Dests.At("T:keep") },
             excludeTags: TagSet(11));
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
         Assert.Equal(RouteCategory.Tag, r.Category);
-        Assert.Equal("T:keep", r.DestinationRootTemplate);
+        Assert.Equal(Dests.At("T:keep"), r.Destination);
     }
 
     [Fact]
@@ -611,14 +612,14 @@ public sealed class DestinationResolverExcludeTests
         // The legacy 4-arg lookups (exclude params default null) must never exclude anything.
         var e = Entity(studioId: 42, tagRefs: [(11, "anime")], parentFolderPath: "media/protected");
         var lk = new RouteLookups(
-            new Dictionary<int, string>(),
-            new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.Ordinal),
+            new Dictionary<int, Destination>(),
+            new Dictionary<int, Destination>(),
+            new Dictionary<string, Destination>(StringComparer.Ordinal),
             []);
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
-        Assert.Equal(RouteCategory.SourceConfine, r.Category);
+        Assert.Equal(RouteCategory.Unmatched, r.Category);
     }
 
     // --- ReDoS: match-time timeout on an exclude regex = no-match (classify-not-throw) -----------
@@ -628,7 +629,7 @@ public sealed class DestinationResolverExcludeTests
     {
         // Classic ReDoS pattern + a long non-matching path → catastrophic backtracking. A tiny match
         // timeout makes it fast/deterministic. The timeout must be a NO-MATCH (the item is NOT
-        // excluded by that rule) and must NOT throw — so resolution completes as SourceConfine.
+        // excluded by that rule) and must NOT throw — so resolution completes as Unmatched.
         var redos = new Regex("^(a+)+$", RegexOptions.None, TimeSpan.FromMilliseconds(50));
         string evil = new string('a', 40) + "!";
         var e = Entity(parentFolderPath: evil);
@@ -636,6 +637,6 @@ public sealed class DestinationResolverExcludeTests
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
-        Assert.Equal(RouteCategory.SourceConfine, r.Category);
+        Assert.Equal(RouteCategory.Unmatched, r.Category);
     }
 }

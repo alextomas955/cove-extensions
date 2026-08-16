@@ -6,9 +6,9 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Planner;
 
 /// <summary>
-/// The FullPathMax re-check re-anchors on the ROUTED destination root, not the
-/// source folder. The load-bearing assertion is the contrast — the SAME rendered name FITS under a
-/// short source folder but OVERFLOWS under a deep routed root, so the over-long case becomes a
+/// The FullPathMax re-check measures the destination a matched RULE named, not the source folder.
+/// The load-bearing assertion is the contrast — the SAME rendered name FITS under a short source folder
+/// but OVERFLOWS under a deep rule destination, so the over-long case becomes a
 /// skip-with-reason at PREVIEW (not a move-time crash). Driven through <c>RenamerPlanner.PlanAsync</c>
 /// (the wiring), reusing the OS-aware Root style of <c>PathConfinementTests</c>. PURE — no disk.
 /// </summary>
@@ -34,12 +34,12 @@ public sealed class DestAnchoredMaxPathTests
             Performers: [new RenamerPerformer(1, "Bob", false, null)], TagRefs: [], Files: [file],
             StudioId: 42);
 
-    private static RouteLookups StudioLookup(string dest) =>
+    private static RouteLookups StudioLookup(Destination dest) =>
         new(
-            new Dictionary<int, string> { [42] = dest },
-            new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.Ordinal),
-            Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
+            new Dictionary<int, Destination> { [42] = dest },
+            new Dictionary<int, Destination>(),
+            new Dictionary<string, Destination>(StringComparer.Ordinal),
+            Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
 
     // A title chosen so its rendered absolute path FITS under the short source but OVERFLOWS the deep root.
     private static string Title => new('N', 60);
@@ -60,7 +60,12 @@ public sealed class DestAnchoredMaxPathTests
     // boundary rather than on it on the other.
     private static string BoundaryRoot => OperatingSystem.IsWindows() ? @"D:\d" : "/ddd";
 
+    // The rule's whole destination: a root chosen from the library paths plus the one folder below it.
+    // Written as one value because that is what a rule now holds — not a root some other setting
+    // completes.
     private const string BoundaryFolder = "S";
+
+    private static Destination BoundaryDestination => Dests.At(BoundaryRoot, BoundaryFolder);
     private const string BoundaryTitle = "Boundary";
 
     // The rendered basename, written out rather than composed from the template: "$title" plus the source
@@ -74,7 +79,6 @@ public sealed class DestAnchoredMaxPathTests
     private static RenamerOptions BoundaryOptions(int fullPathMax) => new()
     {
         FilenameTemplate = "$title",
-        FolderTemplate = BoundaryFolder,
         AllowedRoots = [BoundaryRoot],
         FullPathMax = fullPathMax,
     };
@@ -82,9 +86,10 @@ public sealed class DestAnchoredMaxPathTests
     private static async Task<RenamerPlanItem> PlanAtBudgetAsync(int fullPathMax)
     {
         var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot(BoundaryRoot);   // the rule's chosen root, so it is still one to choose
         port.SeedEntity(Entity(BoundaryTitle, VideoFile(ShortSource)));
         var plan = await new RenamerPlanner(port).PlanAsync(
-            RenamerFileKind.Video, 10, BoundaryOptions(fullPathMax), StudioLookup(BoundaryRoot), default);
+            RenamerFileKind.Video, 10, BoundaryOptions(fullPathMax), StudioLookup(BoundaryDestination), default);
         return Assert.Single(plan.Items);
     }
 
@@ -102,7 +107,9 @@ public sealed class DestAnchoredMaxPathTests
     {
         var item = await PlanAtBudgetAsync(BoundaryAbsoluteLength - 1);
 
-        Assert.Equal(RenamerStatus.SkipCollision, item.Status);
+        // The length refusal has its own status, so a user reading the dry run is told to shorten
+        // something rather than to wait for a name conflict that does not exist.
+        Assert.Equal(RenamerStatus.SkipTooLong, item.Status);
         // Transcribed from PathConfinement's own message. It is also what proves BoundaryAbsoluteLength
         // is the real absolute length on this platform rather than an arithmetic slip.
         Assert.Equal(
@@ -129,21 +136,22 @@ public sealed class DestAnchoredMaxPathTests
     {
         var port = new FakeRenamerDataPort();
         // The file SITS in the short source folder, but routes to the DEEP root.
+        port.SeedLibraryRoot(DeepRoot);
         port.SeedEntity(Entity(Title, VideoFile(ShortSource)));
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
         {
             FilenameTemplate = "$title",
-            FolderTemplate = "Sorted",
             AllowedRoots = [ShortSource, DeepRoot],
             FullPathMax = Max,
         };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, StudioLookup(DeepRoot), default);
+        var plan = await planner.PlanAsync(
+            RenamerFileKind.Video, 10, opts, StudioLookup(Dests.At(DeepRoot, "Sorted")), default);
 
         var item = Assert.Single(plan.Items);
-        // Re-anchored on the deep routed root → the absolute path overflows → skip-with-reason at preview.
-        Assert.Equal(RenamerStatus.SkipCollision, item.Status);
+        // Measured against the deep rule destination → the absolute path overflows → skip at preview.
+        Assert.Equal(RenamerStatus.SkipTooLong, item.Status);
         Assert.Contains("FullPathMax", item.Reason);
         Assert.Empty(port.ApplyAndSaveCalls);
     }
@@ -153,7 +161,8 @@ public sealed class DestAnchoredMaxPathTests
     {
         var port = new FakeRenamerDataPort();
         // The IDENTICAL render under the SHORT source folder (no route) fits within the same FullPathMax —
-        // proving the overflow above is caused by the deep ROUTED anchor, not the render itself.
+        // proving the overflow above is caused by the deep rule destination, not the render itself.
+        port.SeedLibraryRoot(ShortSource);   // the unrouted anchor: the library path holding the file
         port.SeedEntity(Entity(Title, VideoFile(ShortSource)));
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
@@ -164,12 +173,13 @@ public sealed class DestAnchoredMaxPathTests
             FullPathMax = Max,
         };
 
-        // Empty lookups → SourceConfine → anchored on the short source folder.
+        // Empty lookups → no rule matched → the default template, anchored on the short library path.
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
-        Assert.Null(item.ResolvedDestinationRoot);
+        // Measured from the library path holding the file, which is what "no rule matched" resolves to.
+        Assert.Equal(Fwd(ShortSource), item.ResolvedDestinationRoot);
         Assert.Empty(port.ApplyAndSaveCalls);
     }
 }

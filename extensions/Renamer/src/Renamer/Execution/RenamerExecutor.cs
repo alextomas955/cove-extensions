@@ -276,10 +276,15 @@ public sealed class RenamerExecutor
             .Where(cr => movedCaptionNames.Contains(cr.NewFilename))
             .ToList();
 
-        // (6) DB SAVE second; on a save throw, ROLLBACK the disk.
+        // (6) DB SAVE second; on a save throw, ROLLBACK the disk. The filename-derived title rides in
+        //     the SAME save as the rename that produced it — see MetadataProjector.DerivedTitle for why
+        //     recording it at all is what makes the rename converge.
         var mutation = new RenamerFileMutation(
             item.FileId, candidate, isMove ? targetFolderId : null,
-            appliedCaptionRenames.Count > 0 ? appliedCaptionRenames : null);
+            appliedCaptionRenames.Count > 0 ? appliedCaptionRenames : null,
+            item.DerivedTitle is { Length: > 0 } derived
+                ? new RenamerEntityTitleWrite(plan.Kind, plan.EntityId, derived)
+                : null);
 
         try
         {

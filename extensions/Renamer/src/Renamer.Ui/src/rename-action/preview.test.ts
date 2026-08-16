@@ -26,6 +26,7 @@ const RENAME_ITEM: PreviewItemView = {
   resolvedDestinationRoot: null,
   matchedRule: "InPlace",
   targetVolume: "/",
+  offLibraryDestination: false,
 };
 
 function summary(overrides: Partial<PreviewSummary> = {}): PreviewSummary {

@@ -66,7 +66,7 @@ public sealed partial class Renamer
             await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
             {
                 var db = services.GetRequiredService<DbContext>();
-                var port = new CoveRenamerDataPort(db);
+                var port = new CoveRenamerDataPort(db, _coveConfig);
 
                 // Route auto-renamer IDENTICALLY to the manual batch and to /preview. Build the same
                 // RouteLookups from the same RenamerOptions and use the routing overload, so a matched

@@ -185,7 +185,7 @@ public sealed record ScanSummaryView(
 /// One planned file of a whole-library dry run, served by <c>/scan-rows</c> a page at a time.
 /// </summary>
 /// <remarks>
-/// Deliberately narrower than <see cref="PreviewItemView"/>: <c>ResolvedDestinationRoot</c>,
+/// Deliberately narrower than <see cref="PreviewItemView"/>: <c>MatchedPathTemplate</c>,
 /// <c>MatchedRule</c> and <c>TargetVolume</c> have no reader, and the new basename and target folder are
 /// both <paramref name="NewFullPath"/> split at its last separator, which the client already does. The
 /// trim is for wire weight and dead surface — it is NOT what makes the dry run scale. What makes it
@@ -206,6 +206,12 @@ public sealed record ScanSummaryView(
 /// the preview's per-item flag drives, which is the table a user reads before approving a bulk rename —
 /// so it earns its place on a row that multiplies by library size.
 /// </param>
+/// <param name="OffLibraryDestination">
+/// True iff this row will act and lands outside every Cove library path (see
+/// <see cref="RenamerPlanItem.OffLibraryDestination"/>). It IS read — it drives the same badge the
+/// preview's per-item flag drives — and the dry-run table is the one surface that shows a user WHICH
+/// files leave the scanned set, which no aggregate can.
+/// </param>
 public sealed record ScanRow(
     RenamerFileKind Kind,
     int EntityId,
@@ -216,7 +222,8 @@ public sealed record ScanRow(
     string? Reason,
     bool Suffixed,
     bool Sanitized,
-    bool InFlightPathOverflow)
+    bool InFlightPathOverflow,
+    bool OffLibraryDestination)
 {
     /// <summary>Projects a planned <paramref name="item"/> of entity <paramref name="entityId"/> onto its wire shape.</summary>
     /// <remarks>
@@ -238,7 +245,8 @@ public sealed record ScanRow(
             item.Reason,
             item.Suffixed,
             item.Sanitized,
-            inFlightPathOverflow);
+            inFlightPathOverflow,
+            item.OffLibraryDestination);
     }
 }
 
@@ -294,3 +302,14 @@ public sealed record ScanRowsRequest(
     int? Take,
     string? Query,
     string? Bucket);
+
+/// <summary>
+/// The <c>/library-paths</c> response: the roots a destination may be measured from.
+/// </summary>
+/// <remarks>
+/// A reference the panel READS rather than a list a user types, which is the whole point of the
+/// current destination model: Cove owns these paths, so a copy of one in the extension's own settings
+/// would go stale the moment the user edits them in Cove.
+/// </remarks>
+/// <param name="Paths">Cove's configured library paths, in the order the host declares them; empty when it supplied no configuration.</param>
+public sealed record LibraryPathsView(IReadOnlyList<string> Paths);

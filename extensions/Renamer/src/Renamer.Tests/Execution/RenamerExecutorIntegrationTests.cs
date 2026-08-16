@@ -90,6 +90,86 @@ public sealed class RenamerExecutorIntegrationTests
     }
 
     /// <summary>
+    /// A filename-derived title reaches the database, in the same save as the rename, and only where
+    /// the item had none.
+    /// </summary>
+    /// <remarks>
+    /// The tier below (<c>PlanFixedPointTests</c>) proves the loop converges once the derivation stops
+    /// repeating, but it MODELS the commit — so it would keep passing against an executor that never
+    /// wrote the title at all, and the rename would then go on re-deriving it forever in production.
+    /// Only a real context can answer whether the write happened, which is what buys this case its
+    /// tier. The second half of the assertion is the safety one: this is the only place the extension
+    /// touches metadata rather than location, so a title someone typed must survive a rename untouched.
+    /// </remarks>
+    [Fact]
+    public async Task DerivedTitle_IsRecordedOnlyOnAnItemThatHadNone()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            // One folder row each: Folder.Path is unique, and SeedVideoAsync mints a folder per call.
+            string folderPath = dir.Root.Replace('\\', '/');
+            string siblingDir = Path.Combine(dir.Root, "sibling");
+            Directory.CreateDirectory(siblingDir);
+
+            var (_, titlelessId, titlelessFileId) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "Some Recording.mkv", title: null!);
+            var (_, titledId, titledFileId) = await ExecutorTestSeed.SeedVideoAsync(
+                db, siblingDir.Replace('\\', '/'), "other raw.mkv", "Kept Title");
+            File.WriteAllText(Path.Combine(dir.Root, "Some Recording.mkv"), "a");
+            File.WriteAllText(Path.Combine(siblingDir, "other raw.mkv"), "b");
+
+            // A height, so $resolution renders and both items actually ACT. Without one the template
+            // below collapses to a bare $title, the derived title equals the stem it came from, and the
+            // rename is a no-op that would write nothing for a reason unrelated to what is under test.
+            foreach (var row in await db.Set<VideoFile>()
+                .Where(f => f.Id == titlelessFileId || f.Id == titledFileId).ToListAsync())
+            {
+                row.Height = 1080;
+            }
+
+            await db.SaveChangesAsync();
+
+            var port = new CoveRenamerDataPort(db);
+            var executor = new RenamerExecutor(
+                port, new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
+
+            // A template that renders MORE than $title, which is the shape whose derived title used to
+            // grow a decoration per run.
+            var options = new RenamerOptions
+            {
+                FilenameTemplate = "$title{ [$resolution]}",
+                FilenameAsTitle = true,
+            };
+
+            var planner = new RenamerPlanner(port);
+            foreach (int id in new[] { titlelessId, titledId })
+            {
+                var plan = await planner.PlanAsync(
+                    RenamerFileKind.Video, id, options, RouteLookupsFixtures.RoutingNeutral, default);
+                var run = await executor.ExecuteAsync(plan, options, default);
+                Assert.Empty(run.Failed);
+            }
+
+            // Read back through a context that never saw the write, so the assertion is on the row
+            // rather than on a tracked instance the executor still holds.
+            db.ChangeTracker.Clear();
+            Assert.Equal(
+                "Some Recording",
+                await db.Set<Video>().Where(v => v.Id == titlelessId).Select(v => v.Title).SingleAsync());
+            Assert.Equal(
+                "Kept Title",
+                await db.Set<Video>().Where(v => v.Id == titledId).Select(v => v.Title).SingleAsync());
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
     /// T3: a host shutdown mid-save (an <see cref="OperationCanceledException"/> from the DB save) is
     /// cancellation, not a data failure. The post-move rollback still restores the disk, then the OCE
     /// propagates out of the batch — it must NOT land as a <see cref="RenamerStatus.Failed"/> item row.
@@ -1003,6 +1083,8 @@ public sealed class RenamerExecutorIntegrationTests
     {
         /// <summary>True once the swap has actually been performed.</summary>
         public bool Swapped { get; private set; }
+
+        public IReadOnlyList<string> LibraryRoots => inner.LibraryRoots;
 
         public Task<int> GetOrCreateFolderIdAsync(string folderPath, CancellationToken ct = default)
         {

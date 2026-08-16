@@ -2,6 +2,7 @@ using System.Collections;
 using System.Reflection;
 using System.Text.Json;
 using Renamer.Options;
+using Renamer.Tests.TestSupport;
 using Xunit.Abstractions;
 
 namespace Renamer.Tests.Options;
@@ -17,7 +18,7 @@ namespace Renamer.Tests.Options;
 [Trait("Tier", "L0")]
 public sealed class RenamerOptionsContractTests
 {
-    // 53 mutation paths are reachable at HEAD (37 direct properties + the 8 members of each of the two
+    // 54 mutation paths are reachable at HEAD (38 direct properties + the 8 members of each of the two
     // nested MultiValueOptions). The floor is what makes an EMPTY violation list evidence instead of a
     // tautology: a sweep whose property filter matches nothing reports no violations while inspecting
     // nothing, which is the exact failure this file exists to end. It sits ~13 below the measured
@@ -136,8 +137,12 @@ public sealed class RenamerOptionsContractTests
         Assert.Empty(o.ExcludeStudioIds); // EXCL-02
         Assert.Empty(o.ExcludePaths);     // EXCL-03
 
+        // The basename fallback is opt-in with the rest, and for the same reason: it is the one option
+        // that makes a rename WRITE metadata (the derived title is recorded on the item), so a fresh
+        // install must not do it unasked.
+        Assert.False(o.FilenameAsTitle);
+
         // … and the cosmetic behavior a fresh install is expected to want defaults ON.
-        Assert.True(o.FilenameAsTitle);            // basename fallback for a title-less item
         Assert.True(o.PreventConsecutiveSegments); // /Foo/Foo/Bar collapses (folder path only)
         Assert.True(o.NormalizePunctuation);       // smart quotes/dashes fold to ASCII
         Assert.Equal(",#", o.RemoveCharacters);    // strips comma + hash out of the box
@@ -177,9 +182,9 @@ public sealed class RenamerOptionsContractTests
         {
             DropOrder = ["studio", "date"],
             AllowedRoots = ["/media/a", "/media/b"],
-            StudioDestinations = new() { [1] = "/x", [2] = "/y" },
-            TagDestinations = new() { [11] = "/anime" },
-            PathDestinations = [new PathDestinationRule { Pattern = "p", Dest = "/d" }],
+            StudioDestinations = new() { [1] = Dests.At("/x"), [2] = Dests.At("/y") },
+            TagDestinations = new() { [11] = Dests.At("/anime") },
+            PathDestinations = [new PathDestinationRule { Pattern = "p", Dest = Dests.At("/d") }],
             Performers = new() { WhitelistIds = [3, 4] },
         };
 
@@ -193,25 +198,25 @@ public sealed class RenamerOptionsContractTests
         // A Dictionary has no guaranteed order and a round-trip may reorder its keys, so the maps
         // compare order-INDEPENDENTLY while the lists do not. The sweep mutates one property at a time
         // and would pass just as happily on an implementation that made key order significant.
-        var a = new RenamerOptions { TagDestinations = new() { [11] = "/x", [12] = "/y" } };
-        var reordered = new RenamerOptions { TagDestinations = new() { [12] = "/y", [11] = "/x" } };
+        var a = new RenamerOptions { TagDestinations = new() { [11] = Dests.At("/x"), [12] = Dests.At("/y") } };
+        var reordered = new RenamerOptions { TagDestinations = new() { [12] = Dests.At("/y"), [11] = Dests.At("/x") } };
 
         Assert.Equal(a, reordered);
         Assert.Equal(a.GetHashCode(), reordered.GetHashCode());
 
-        Assert.NotEqual(a, new RenamerOptions { TagDestinations = new() { [11] = "/x", [12] = "/DIFFERENT" } });
+        Assert.NotEqual(a, new RenamerOptions { TagDestinations = new() { [11] = Dests.At("/x"), [12] = Dests.At("/DIFFERENT") } });
     }
 
     [Fact]
     public void StudioDestinations_OrderIndependent_ValueSensitive()
     {
-        var a = new RenamerOptions { StudioDestinations = new() { [1] = "/x", [2] = "/y" } };
-        var reordered = new RenamerOptions { StudioDestinations = new() { [2] = "/y", [1] = "/x" } };
+        var a = new RenamerOptions { StudioDestinations = new() { [1] = Dests.At("/x"), [2] = Dests.At("/y") } };
+        var reordered = new RenamerOptions { StudioDestinations = new() { [2] = Dests.At("/y"), [1] = Dests.At("/x") } };
 
         Assert.Equal(a, reordered);
         Assert.Equal(a.GetHashCode(), reordered.GetHashCode());
 
-        Assert.NotEqual(a, new RenamerOptions { StudioDestinations = new() { [1] = "/x", [2] = "/DIFFERENT" } });
+        Assert.NotEqual(a, new RenamerOptions { StudioDestinations = new() { [1] = Dests.At("/x"), [2] = Dests.At("/DIFFERENT") } });
     }
 
     [Fact]
@@ -300,7 +305,7 @@ public sealed class RenamerOptionsContractTests
         Assert.Empty(loaded.AllowedRoots); // legacy source-confine behavior, and it must not throw
         Assert.True(loaded.PreventConsecutiveSegments);
         Assert.True(loaded.NormalizePunctuation);
-        Assert.True(loaded.FilenameAsTitle);
+        Assert.False(loaded.FilenameAsTitle);
         Assert.Equal(",#", loaded.RemoveCharacters);
     }
 
@@ -376,18 +381,22 @@ public sealed class RenamerOptionsContractTests
     [Fact]
     public void PathDestinationValue_WithWindowsPath_RoundTripsAsValidJson()
     {
-        // A routing destination holding a Windows path has backslashes that likewise must be escaped so
-        // the stored blob stays valid JSON across a save → load round-trip.
+        // A routing destination's ROOT is one of Cove's library paths, which on Windows carries
+        // backslashes that likewise must be escaped so the stored blob stays valid JSON across a
+        // save → load round-trip.
         var original = new RenamerOptions
         {
-            PathDestinations = [new PathDestinationRule { Pattern = @"C:\In", Dest = @"G:\Media\Sorted" }],
+            PathDestinations =
+            [
+                new PathDestinationRule { Pattern = @"C:\In", Dest = Dests.At(@"G:\Media", "Sorted") },
+            ],
         };
 
         var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
         using var parsed = JsonDocument.Parse(json); // valid JSON, no lone backslash
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        Assert.Equal(@"G:\Media\Sorted", Assert.Single(reloaded!.PathDestinations).Dest);
+        Assert.Equal(Dests.At(@"G:\Media", "Sorted"), Assert.Single(reloaded!.PathDestinations).Dest);
     }
 
     // ---- The settings panel ↔ backend binding ----
@@ -535,7 +544,10 @@ public sealed class RenamerOptionsContractTests
             {
                 var current = prop.GetValue(defaults);
 
-                if (IsNestedRecord(prop.PropertyType))
+                // A nested record whose default is NULL has no instance to walk into, and its own
+                // members are not the decision anyway: "unset" versus "set to something" is. It falls
+                // through to the leaf path below, which mutates it as one value.
+                if (IsNestedRecord(prop.PropertyType) && current is not null)
                 {
                     foreach (PropertyInfo nested in SettableProperties(prop.PropertyType))
                     {
@@ -607,9 +619,9 @@ public sealed class RenamerOptionsContractTests
             foreach (PropertyInfo prop in SettableProperties(type))
             {
                 var current = prop.GetValue(source);
-                if (IsNestedRecord(prop.PropertyType))
+                if (IsNestedRecord(prop.PropertyType) && current is not null)
                 {
-                    prop.SetValue(clone, PopulateAll(prop.PropertyType, current!));
+                    prop.SetValue(clone, PopulateAll(prop.PropertyType, current));
                     continue;
                 }
 
@@ -675,6 +687,13 @@ public sealed class RenamerOptionsContractTests
             else if (typeof(IList).IsAssignableFrom(type) && type.IsGenericType)
             {
                 AddListCandidates(type, (IList)current!, result);
+            }
+            else if (IsNestedRecord(type))
+            {
+                // Reached only for a nested record left NULL by default, where the mutation that means
+                // anything is supplying the whole object — its members are populated so the round-trip
+                // has to carry each of them, not merely a non-null marker.
+                result.Add((string.Empty, PopulateAll(type, Activator.CreateInstance(type)!)));
             }
 
             // A generator that quietly returned the current value would make that property's assertion

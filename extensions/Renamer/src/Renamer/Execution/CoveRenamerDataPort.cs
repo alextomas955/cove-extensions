@@ -1,4 +1,5 @@
 using Cove.Core.Entities;
+using Cove.Core.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Planner;
 
@@ -30,10 +31,72 @@ namespace Renamer.Execution;
 public class CoveRenamerDataPort : IRenamerDataPort
 {
     private readonly DbContext _db;
+    private readonly CoveConfiguration? _config;
 
-    public CoveRenamerDataPort(DbContext db) => _db = db;
+    /// <summary>Wraps one scope's context, and the host configuration the library anchor is read from.</summary>
+    /// <param name="db">The scope's context (the real <c>CoveContext</c> at runtime).</param>
+    /// <param name="config">
+    /// Cove's own configuration singleton, the source of <see cref="LibraryRoots"/>. Optional so a
+    /// caller with no library map — every DB-only test fixture — constructs the port unchanged; the
+    /// consequence of omitting it in production is visible rather than silent, since a source-confined
+    /// item with a folder template then plans as <see cref="RenamerStatus.SkipUnanchored"/> and says so.
+    /// </param>
+    public CoveRenamerDataPort(DbContext db, CoveConfiguration? config = null)
+    {
+        _db = db;
+        _config = config;
+    }
 
     // ── IRenamerDataPort (planner read seam) ──────────────────────────────────
+
+    /// <inheritdoc />
+    public IReadOnlyList<string> LibraryRoots => ReadLibraryRoots(_config);
+
+    /// <summary>
+    /// The ONE reading of <c>CoveConfiguration.CovePaths</c> into the library paths this extension
+    /// works from: blank entries dropped, each survivor spelled canonically, absent configuration an
+    /// empty list.
+    /// </summary>
+    /// <remarks>
+    /// Static and shared because the port is not the only caller — the one-time options conversion runs
+    /// at initialize, before any scope or port exists, and has to place stored rules under the SAME
+    /// paths the planner will later anchor on. A second projection there could disagree about a blank
+    /// entry, which is the difference between preserving a rule and dropping it.
+    /// </remarks>
+    public static IReadOnlyList<string> ReadLibraryRoots(CoveConfiguration? config) =>
+        config is null
+            ? []
+            : [.. config.CovePaths
+                .Select(p => p.Path)
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Select(Canonical)];
+
+    /// <summary>
+    /// The one spelling of a Cove library path this extension uses: forward slashes, no trailing
+    /// separator.
+    /// </summary>
+    /// <remarks>
+    /// Cove hands its paths back in the platform's own spelling — a Windows host gives
+    /// <c>G:\Downloads\P</c> — and every comparison INSIDE Renamer normalizes before comparing
+    /// (<c>PathConfinement.IsUnderRoot</c>), so the raw form was harmless here and stopped being
+    /// harmless the moment the list left over the wire. The settings panel stores a destination root as
+    /// the very string this list gave it and re-checks membership by exact equality, while the one-time
+    /// conversion writes the root <see cref="Planner.PathConfinement.ContainingRoot"/> returns, which is
+    /// normalized. Two spellings of one folder then read as two folders: every converted rule rendered
+    /// as pointing somewhere Cove no longer has, while the planner went on applying it correctly.
+    /// Normalizing at this boundary — the one place the host's value enters — is what leaves a single
+    /// spelling for the panel to store and the planner to re-check, rather than a comparison somewhere
+    /// downstream that tolerates a divergence the next writer would widen again.
+    /// </remarks>
+    private static string Canonical(string path)
+    {
+        string normalized = PathOps.NormalizeSlash(path).TrimEnd('/');
+
+        // A path of nothing but separators trims away entirely, and the empty string is not a spelling
+        // of a root here — it is how a destination says "the file's own library path", which is a
+        // different answer. Keep the separator so a root can never be mistaken for that sentinel.
+        return normalized.Length == 0 ? "/" : normalized;
+    }
 
     /// <summary>
     /// Loads a media item's full file graph (via the EF Include chain) and maps it into the
@@ -407,12 +470,63 @@ public class CoveRenamerDataPort : IRenamerDataPort
                 }
             }
 
+            if (m.EntityTitle is RenamerEntityTitleWrite titleWrite)
+            {
+                await ApplyDerivedTitleAsync(titleWrite, ct);
+            }
+
             touched.Add(file);
         }
 
         await _db.SaveChangesAsync(ct);  // ComputeFilePaths recomputes every touched file's Path here.
 
         return [.. touched.Select(f => new SavedFile(f.Id, f.Path))];
+    }
+
+    /// <summary>
+    /// Records a filename-derived title on its media entity, and only on one that still has none.
+    /// </summary>
+    /// <remarks>
+    /// This is the ONE place this extension writes metadata rather than location, and the emptiness
+    /// re-check against the TRACKED row is what keeps that safe: the planner derives a title only for a
+    /// title-less item, but a person can type one between the preview and the run, and a rename must
+    /// never overwrite what they wrote. The same check makes the write idempotent across the files of a
+    /// multi-file item, which save one at a time. No <c>SaveChangesAsync</c> here — the caller's single
+    /// save carries it, so a recorded title and its rename cannot come apart.
+    /// Why record it at all: <c>MetadataProjector.DerivedTitle</c>.
+    /// </remarks>
+    private async Task ApplyDerivedTitleAsync(RenamerEntityTitleWrite write, CancellationToken ct)
+    {
+        switch (write.Kind)
+        {
+            case RenamerFileKind.Video:
+                var video = await _db.Set<Video>().FirstOrDefaultAsync(x => x.Id == write.EntityId, ct);
+                if (video is not null && string.IsNullOrEmpty(video.Title))
+                {
+                    video.Title = write.Title;
+                }
+
+                break;
+            case RenamerFileKind.Image:
+                var image = await _db.Set<Image>().FirstOrDefaultAsync(x => x.Id == write.EntityId, ct);
+                if (image is not null && string.IsNullOrEmpty(image.Title))
+                {
+                    image.Title = write.Title;
+                }
+
+                break;
+            case RenamerFileKind.Audio:
+                var audio = await _db.Set<Audio>().FirstOrDefaultAsync(x => x.Id == write.EntityId, ct);
+                if (audio is not null && string.IsNullOrEmpty(audio.Title))
+                {
+                    audio.Title = write.Title;
+                }
+
+                break;
+            default:
+                // Defensive: see LoadEntityAsync — only an out-of-range cast lands here.
+                break;
+        }
     }
 
     // ── DTO mapping ──────────────────────────────────────────────────────────

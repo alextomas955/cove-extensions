@@ -81,6 +81,10 @@
     <!-- TransportSmokeTests derives the route table it exercises from this document rather than holding
          a second hand-written list, so it needs the committed bytes next to the test assembly. -->
     <Content Include="..\..\wire\openapi.json" Link="openapi.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- PlanFixedPointTests quantifies its invariant over the preset chips the settings panel actually
+         ships, read from the file that defines them rather than from a C# copy that would go stale the
+         first time a preset is added. Same reason as the two documents above. -->
+    <Content Include="..\Renamer.Ui\src\settings\presets.ts" Link="presets.ts" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -268,6 +272,9 @@
     <Compile Remove="Api\PreviewSampleEndpointTests.cs" />
     <Compile Remove="Api\EndpointPermissionTests.cs" />
     <Compile Remove="Api\EntityIdsCapTests.cs" />
+    <!-- Runs the real InitializeAsync against a real CoveContext, because its whole claim is that the
+         conversion and the endpoint agree — a fake on either side would supply the spelling it checks. -->
+    <Compile Remove="Api\LibraryPathsEndpointTests.cs" />
     <Compile Remove="Api\RenamerLibraryEndpointTests.cs" />
     <Compile Remove="Api\RequestPathPrincipalTests.cs" />
     <Compile Remove="Api\ScanLibraryEndpointTests.cs" />

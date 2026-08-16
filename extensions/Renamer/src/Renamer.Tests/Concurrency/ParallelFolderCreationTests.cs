@@ -25,12 +25,20 @@ namespace Renamer.Tests.Concurrency;
 public sealed class ParallelFolderCreationTests
 {
     private static async Task<(global::Renamer.Renamer ext, ConcurrentFakeStore store, CapturingEventBus bus)>
-        BuildAsync(SharedCacheSqlite shared, RenamerOptions options)
+        BuildAsync(SharedCacheSqlite shared, RenamerOptions options, params string[] libraryRoots)
     {
         var services = new ServiceCollection();
         services.AddScoped<DbContext>(_ => shared.NewContext());
         var bus = new CapturingEventBus();
         services.AddSingleton<IEventBus>(bus);
+        if (libraryRoots.Length > 0)
+        {
+            services.AddSingleton(new Cove.Core.Interfaces.CoveConfiguration
+            {
+                CovePaths = [.. libraryRoots.Select(r => new Cove.Core.Interfaces.CovePath { Path = r })],
+            });
+        }
+
         var provider = services.BuildServiceProvider();
 
         var ext = RenamerFixture.Create();
@@ -77,12 +85,14 @@ public sealed class ParallelFolderCreationTests
             var options = new RenamerOptions
             {
                 FilenameTemplate = "$title",
-                FolderTemplate = "sorted",
                 AllowedRoots = [destRootFwd],
                 PathDestinations =
-                    [new PathDestinationRule { Pattern = sourceFolderFwd, Dest = destRootFwd, IsRegex = false }],
+                    [new PathDestinationRule
+                    {
+                        Pattern = sourceFolderFwd, Dest = Dests.At(destRootFwd, "sorted"), IsRegex = false,
+                    }],
             };
-            var (ext, store, _) = await BuildAsync(shared, options);
+            var (ext, store, _) = await BuildAsync(shared, options, destRootFwd);
             var progress = new FakeJobProgress();
 
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);

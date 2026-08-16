@@ -1,7 +1,8 @@
 /**
  * Per-row status pill. Which badges a row earns is decided in `warningBadgeLogic.ts` — from the
  * PreviewItemView `status` STRING enum PLUS the row's advisory bools (`suffixed`, `sanitized`,
- * `inFlightPathOverflow`), since there is NO `flags[]` array on /preview. This file only renders them.
+ * `inFlightPathOverflow`, `offLibraryDestination`), since there is NO `flags[]` array on /preview.
+ * This file only renders them.
  *
  * Color is NEVER the only signal: amber/red badges lead with a lucide `AlertTriangle` glyph and
  * always carry text (accessibility). Every label string is a React text node (auto-escaped).

@@ -41,6 +41,89 @@ export type OverflowPolicy = Pascal<Wire.OverflowPolicy>;
 export type SortOrder = Pascal<Wire.SortOrder>;
 export type MultiValueOptions = Pascal<Wire.MultiValueOptions>;
 export type PathDestinationRule = Pascal<Wire.PathDestinationRule>;
+export type Destination = Pascal<Wire.Destination>;
+
+/** A destination naming neither a root nor a folder: the state that moves nothing. */
+export const NO_DESTINATION: Destination = { Root: "", Template: "" };
+
+/**
+ * Cove's library path that `root` names, or `undefined` when it names none — which is the state that
+ * skips the rule, so it is the state the editors badge.
+ *
+ * Exact equality would do for anything this panel wrote, because a root is only ever stored by
+ * copying a string out of `libraryPaths`, and the backend now emits one canonical spelling of each
+ * (forward slashes, no trailing separator — `CoveRenamerDataPort.ReadLibraryRoots`). What exact
+ * equality does NOT survive is a root stored BEFORE that: the endpoint used to hand back Cove's own
+ * platform spelling, so a store written by the old panel holds `I:\Downloads\P` where the one-time
+ * conversion wrote `I:/Downloads/P`. Both name one folder and the planner treats them as one, so
+ * badging such a rule broken would send a user to re-pick a destination that already works.
+ *
+ * Only the separator and a trailing one are forgiven. Case is deliberately not, because a case
+ * difference cannot arise: a converted root is the library path's own casing (it IS the library
+ * path), and a picked one is the string the endpoint gave. Folding case here would be this panel
+ * inventing a second opinion about when two paths are one folder, on a host whose case rule it
+ * cannot see.
+ */
+export function chosenLibraryPath(
+  root: string,
+  libraryPaths: readonly string[],
+): string | undefined {
+  const wanted = sameFolderKey(root);
+  return libraryPaths.find((path) => sameFolderKey(path) === wanted);
+}
+
+const sameFolderKey = (path: string) => path.replace(/\\/g, "/").replace(/\/+$/, "");
+
+/**
+ * The root a destination stores when Cove has exactly ONE library path: that path itself, never the
+ * _(the file's own library path)_ sentinel.
+ *
+ * With one library path the two resolve to the same folder for every file already inside the library,
+ * so the choice is visible only for a file outside it — the sentinel cannot place such a file and skips
+ * it, where a named root takes it in. A rule NAMES a destination, and items it matches go there
+ * wherever they are sitting now; storing the sentinel where a real path exists would be this panel
+ * quietly answering the other question.
+ *
+ * Returns the sentinel for none (there is nothing to name) and for several (the picker is shown and the
+ * user names one).
+ */
+export function soleLibraryPath(libraryPaths: readonly string[]): string {
+  return libraryPaths.length === 1 ? (libraryPaths[0] ?? "") : "";
+}
+
+/**
+ * A brand-new destination rule, as this panel's *add* buttons create one.
+ *
+ * Applied at CREATION only, never to a value already stored: a rule on disk holding the sentinel is a
+ * destination the user has, and rewriting it on load would relocate their files with no edit made.
+ */
+export function newDestination(libraryPaths: readonly string[]): Destination {
+  return { Root: soleLibraryPath(libraryPaths), Template: "" };
+}
+
+/**
+ * The root *Where files go* stores — the same auto-selection, with the one carve-out the default needs.
+ *
+ * A rule exists because someone created it, so it names a place even with a blank template. The
+ * default's blank template is instead the shipped "rename in place, nothing moves" state. A named root
+ * always relocates — that is what picking a folder out of a list means — so auto-selecting the sole
+ * library path against a blank template would turn the shipped default into "move every unmatched file
+ * to the top of the library", a destination nobody chose. The sole path is therefore stored exactly
+ * when the default names a folder to make.
+ *
+ * A stored root is returned untouched whenever the picker is on screen and the value is the user's own
+ * answer: several library paths, none at all, or a root that is no longer one of them.
+ */
+export function defaultDestinationRoot(
+  folderTemplate: string,
+  storedRoot: string,
+  libraryPaths: readonly string[],
+): string {
+  const sole = soleLibraryPath(libraryPaths);
+  if (sole === "") return storedRoot;
+  if (storedRoot !== "" && chosenLibraryPath(storedRoot, libraryPaths) !== sole) return storedRoot;
+  return folderTemplate === "" ? "" : sole;
+}
 export type ExcludeRule = Pascal<Wire.ExcludeRule>;
 export type FieldReplaceRule = Pascal<Wire.FieldReplaceRule>;
 
@@ -57,10 +140,10 @@ export type FieldReplaceRule = Pascal<Wire.FieldReplaceRule>;
  * because the contract does not describe them.
  *
  * `StudioDestinations`/`TagDestinations` derive to a string-keyed index signature, because a
- * `Dictionary<int, string>` generates as one and JSON object keys are strings either way. Their
+ * `Dictionary<int, Destination>` generates as one and JSON object keys are strings either way. Their
  * keys are still stable entity ids and never names — a rename in Cove must not orphan a rule or
  * split one entity across two destination trees — and the coercions on both sides of this module
- * (`numKeyStringMap` here, `fromStringKeyed` in the editors) are what keep them integral.
+ * (`destinationMap` here, `fromStringKeyed` in the editors) are what keep them integral.
  */
 type DerivedOptions = Omit<Pascal<Wire.RenamerOptions>, "FreeSpaceHeadroomBytes">;
 
@@ -75,9 +158,10 @@ export interface RenamerOptions extends DerivedOptions {
  *   FilenameTemplate "{$date - }$title{ [$resolution]}", FolderTemplate "", DateFormat "yyyy-MM-dd",
  *   DurationFormat verbatim `hh\-mm\-ss`, Performers.Separator ", ", Tags.Separator " ",
  *   FilenameMax 255, FullPathMax 259, the 9-field DropOrder, RequiredFields ["title"],
- *   DuplicateSuffixFormat " ({n})", Articles ["The","A","An"], FilenameAsTitle true and
- *   PreventConsecutiveSegments true (both on for a fresh install), RemoveEmptyFolder off
- *   (destructive stays opt-in), every routing map {} / list [] and every other flag/string off/empty.
+ *   DuplicateSuffixFormat " ({n})", Articles ["The","A","An"], PreventConsecutiveSegments true,
+ *   FilenameAsTitle off and RemoveEmptyFolder off (both write beyond a name — one records a title on
+ *   the item, one deletes a folder — so both stay opt-in), every routing map {} / list [] and every
+ *   other flag/string off/empty.
  *
  * CrossVolumeConcurrency / SameVolumeConcurrency ARE modeled — the Advanced panel edits them, so
  * they belong in DEFAULT_OPTIONS (and therefore MODELED_KEYS + normalizeOptions). FreeSpaceHeadroomBytes
@@ -88,6 +172,7 @@ export interface RenamerOptions extends DerivedOptions {
 export const DEFAULT_OPTIONS: RenamerOptions = {
   FilenameTemplate: "{$date - }$title{ [$resolution]}",
   FolderTemplate: "",
+  FolderRoot: "",
   DateFormat: "yyyy-MM-dd",
   // C# verbatim string @"hh\-mm\-ss" → the literal value contains single backslashes.
   DurationFormat: "hh\\-mm\\-ss",
@@ -133,7 +218,7 @@ export const DEFAULT_OPTIONS: RenamerOptions = {
     "date",
   ],
   OnlyOrganized: false,
-  FilenameAsTitle: true,
+  FilenameAsTitle: false,
   RequiredFields: ["title"],
   DuplicateSuffixFormat: " ({n})",
   AutoRenamerOnUpdate: false,
@@ -145,7 +230,7 @@ export const DEFAULT_OPTIONS: RenamerOptions = {
   ExcludePaths: [],
   AllowedRoots: [],
   AssociatedExtensions: [],
-  UnorganizedDestination: "",
+  UnorganizedDestination: null,
   EnableStudioDestinations: false,
   EnableTagDestinations: false,
   EnableAdvancedRouting: false,
@@ -184,7 +269,7 @@ export function cloneDefaults(): RenamerOptions {
     RequiredFields: [...DEFAULT_OPTIONS.RequiredFields],
     StudioDestinations: { ...DEFAULT_OPTIONS.StudioDestinations },
     TagDestinations: { ...DEFAULT_OPTIONS.TagDestinations },
-    PathDestinations: DEFAULT_OPTIONS.PathDestinations.map((r) => ({ ...r })),
+    PathDestinations: DEFAULT_OPTIONS.PathDestinations.map((r) => ({ ...r, Dest: { ...r.Dest } })),
     ExcludeTagIds: [...DEFAULT_OPTIONS.ExcludeTagIds],
     ExcludeStudioIds: [...DEFAULT_OPTIONS.ExcludeStudioIds],
     ExcludePaths: DEFAULT_OPTIONS.ExcludePaths.map((r) => ({ ...r })),
@@ -235,15 +320,29 @@ function numArray(v: unknown, fallback: number[]): number[] {
     ? v.filter((x): x is number => typeof x === "number" && Number.isFinite(x))
     : fallback;
 }
-// A routing map can arrive from a hand-edited/legacy blob with non-string values or non-numeric keys
+/**
+ * Coerce one stored destination. A blob written before this release holds a bare STRING here — a typed
+ * absolute root — which the backend's one-time conversion rewrites into a root/template pair. Until it
+ * has run, this panel must not present that string as either half of the pair: showing it as a root
+ * would offer a path that is not in the picker's list, and showing it as a template would silently
+ * turn a destination into a folder name. It coerces to "unset", and the backend's own conversion is
+ * what recovers it.
+ */
+function destination(v: unknown): Destination | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const r = v as Record<string, unknown>;
+  return { Root: str(r.Root, ""), Template: str(r.Template, "") };
+}
+// A routing map can arrive from a hand-edited/legacy blob with malformed values or non-numeric keys
 // (every routing map is id-keyed). Keep only the entries that conform and rebuild a fresh plain
 // object, so a malformed map yields a safe shape rather than propagating bad data.
-function numKeyStringMap(v: unknown): Record<number, string> {
+function destinationMap(v: unknown): Record<number, Destination> {
   const src = asRecord(v);
-  const out: Record<number, string> = {};
+  const out: Record<number, Destination> = {};
   for (const [k, val] of Object.entries(src)) {
     const n = Number(k);
-    if (Number.isInteger(n) && typeof val === "string") out[n] = val;
+    const d = destination(val);
+    if (Number.isInteger(n) && d) out[n] = d;
   }
   return out;
 }
@@ -258,8 +357,8 @@ function numKeyStringMap(v: unknown): Record<number, string> {
  * object keys are strings regardless, so this is the explicit, typed crossing of that boundary rather
  * than a silent cast.
  */
-export function toStringKeyed(map: Record<number, string>): Record<string, string> {
-  const out: Record<string, string> = {};
+export function toStringKeyed(map: Record<number, Destination>): Record<string, Destination> {
+  const out: Record<string, Destination> = {};
   for (const [k, v] of Object.entries(map)) out[k] = v;
   return out;
 }
@@ -272,11 +371,12 @@ export function toStringKeyed(map: Record<number, string>): Record<string, strin
  * ("x", "1.5") — dropping it here yields a safe shape value-equal with that coercion rather than
  * propagating a NaN key downstream.
  */
-export function fromStringKeyed(map: Record<string, string>): Record<number, string> {
-  const out: Record<number, string> = {};
+export function fromStringKeyed(map: Record<string, Destination>): Record<number, Destination> {
+  const out: Record<number, Destination> = {};
   for (const [k, v] of Object.entries(map)) {
     const n = Number(k);
-    if (Number.isInteger(n) && typeof v === "string") out[n] = v;
+    const d = destination(v);
+    if (Number.isInteger(n) && d) out[n] = d;
   }
   return out;
 }
@@ -289,7 +389,7 @@ function pathDestinations(v: unknown): PathDestinationRule[] {
           const r = x as Record<string, unknown>;
           return {
             Pattern: str(r.Pattern, ""),
-            Dest: str(r.Dest, ""),
+            Dest: destination(r.Dest) ?? NO_DESTINATION,
             IsRegex: bool(r.IsRegex, false),
           };
         })
@@ -440,6 +540,7 @@ export function normalizeOptions(raw: unknown): RenamerOptions {
   return {
     FilenameTemplate: str(r.FilenameTemplate, d.FilenameTemplate),
     FolderTemplate: str(r.FolderTemplate, d.FolderTemplate),
+    FolderRoot: str(r.FolderRoot, d.FolderRoot),
     DateFormat: str(r.DateFormat, d.DateFormat),
     DurationFormat: str(r.DurationFormat, d.DurationFormat),
     Performers: normalizeMultiValue(r.Performers, d.Performers),
@@ -460,15 +561,15 @@ export function normalizeOptions(raw: unknown): RenamerOptions {
     RequiredFields: strArray(r.RequiredFields, [...d.RequiredFields]),
     DuplicateSuffixFormat: str(r.DuplicateSuffixFormat, d.DuplicateSuffixFormat),
     AutoRenamerOnUpdate: bool(r.AutoRenamerOnUpdate, d.AutoRenamerOnUpdate),
-    StudioDestinations: numKeyStringMap(r.StudioDestinations),
-    TagDestinations: numKeyStringMap(r.TagDestinations),
+    StudioDestinations: destinationMap(r.StudioDestinations),
+    TagDestinations: destinationMap(r.TagDestinations),
     PathDestinations: pathDestinations(r.PathDestinations),
     ExcludeTagIds: numArray(r.ExcludeTagIds, []),
     ExcludeStudioIds: numArray(r.ExcludeStudioIds, []),
     ExcludePaths: excludeRules(r.ExcludePaths),
     AllowedRoots: strArray(r.AllowedRoots, []),
     AssociatedExtensions: strArray(r.AssociatedExtensions, [...d.AssociatedExtensions]),
-    UnorganizedDestination: str(r.UnorganizedDestination, d.UnorganizedDestination),
+    UnorganizedDestination: destination(r.UnorganizedDestination),
     EnableStudioDestinations: bool(r.EnableStudioDestinations, d.EnableStudioDestinations),
     EnableTagDestinations: bool(r.EnableTagDestinations, d.EnableTagDestinations),
     EnableAdvancedRouting: bool(r.EnableAdvancedRouting, d.EnableAdvancedRouting),

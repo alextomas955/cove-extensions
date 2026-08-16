@@ -19,8 +19,8 @@ namespace Renamer.Tests.Planner;
 public sealed class ScanRowPagerTests
 {
     private static readonly RouteLookups NoRoutes = new(
-        new Dictionary<int, string>(), new Dictionary<int, string>(),
-        new Dictionary<string, string>(), []);
+        new Dictionary<int, Destination>(), new Dictionary<int, Destination>(),
+        new Dictionary<string, Destination>(), []);
 
     private static readonly RenamerOptions Options = new() { FilenameTemplate = "$title" };
 
@@ -266,6 +266,12 @@ public sealed class ScanRowPagerTests
 
     private const string Folder = "S";
 
+    // Each rule's WHOLE path template: its root plus the one folder below it, since a rule now names the
+    // destination outright rather than a root the default template is rendered underneath.
+    private static Destination SourceDestination => Dests.At(SourceRoot, Folder);
+
+    private static Destination DestDestination => Dests.At(DestRoot, Folder);
+
     // root(4) + "/" + Folder(1) + "/" — the fixed part of every resolved path below. Hand-counted, and
     // asserted against the planner's own output before any flag is read.
     private const int PathPrefixLength = 7;
@@ -291,7 +297,6 @@ public sealed class ScanRowPagerTests
     private static readonly RenamerOptions OverflowOptions = new()
     {
         FilenameTemplate = "$title",
-        FolderTemplate = Folder,
         AllowedRoots = [SourceRoot, DestRoot],
         FullPathMax = Budget,
     };
@@ -299,9 +304,13 @@ public sealed class ScanRowPagerTests
     // Routing by studio, so one fixture reaches a cross-volume destination and a same-volume one without
     // the two differing in any other way.
     private static readonly RouteLookups OverflowLookups = new(
-        StudioIdToDest: new Dictionary<int, string> { [DestStudioId] = DestRoot, [SourceStudioId] = SourceRoot },
-        TagIdToDest: new Dictionary<int, string>(),
-        PathExactToDest: new Dictionary<string, string>(StringComparer.Ordinal),
+        StudioIdToDest: new Dictionary<int, Destination>
+        {
+            [DestStudioId] = DestDestination,
+            [SourceStudioId] = SourceDestination,
+        },
+        TagIdToDest: new Dictionary<int, Destination>(),
+        PathExactToDest: new Dictionary<string, Destination>(StringComparer.Ordinal),
         PathRegexRules: []);
 
     [Fact]
@@ -313,6 +322,8 @@ public sealed class ScanRowPagerTests
         int longestThatFits = Budget - CrossVolumeMover.InFlightSuffixLength;
 
         var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot(SourceRoot);   // both rules choose a root, so both must still be library paths
+        port.SeedLibraryRoot(DestRoot);
         port.SeedEntity(OverflowEntity(1, TitleForPathLength(Budget), DestStudioId));
         port.SeedEntity(OverflowEntity(2, TitleForPathLength(longestThatFits), DestStudioId));
         port.SeedEntity(OverflowEntity(3, TitleForPathLength(Budget), SourceStudioId));

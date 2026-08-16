@@ -11,6 +11,67 @@ User-facing changes, newest first.
      editing the 0.3.0 row: it describes an immutable artifact that genuinely runs on a 1.0.0 host.
      The full rule is in the repo-wide Releasing guide, under "Raising minCoveVersion". -->
 
+- **Every destination is now a root you pick from Cove's own library paths, plus a folder template
+  made under it.** _Where files go_, the per-studio and per-tag maps, the source-path rules and the
+  unorganized route all have this one shape, and **you no longer type a path anywhere**. Cove already
+  owns your library paths; a typed copy of one silently pointed at nothing the moment you changed it
+  in Cove, where a picked root follows it. A destination **names a place**: everything matching it goes
+  there, wherever those files sit now. When Cove has one library path there is nothing to choose, so
+  the picker is not shown and that path is the root of every rule you make.
+- **Read this one and the two below it together — between them they say what moves.** **A rule that
+  pointed inside one of Cove's library paths is converted for you and keeps sending its items to the
+  same folder** — a rule that said `I:\Downloads\P\videos` with a folder template of `$studio` becomes
+  the root `I:\Downloads\P` plus the template `videos/$studio`, the identical destination, and those
+  items do not move. **That covers the items those rules match, and only those.** A rule pointing
+  outside every library path is a different story and is removed — the next entry. And everything no
+  rule matches at all — which on most libraries is most of it — follows _Where files go_, and **where
+  that lands does change on the first run after upgrading**, as the folder-template entry below sets
+  out. So: rules inside the library unchanged, rules outside it removed, unmatched items moved once.
+  **Preview a dry run before your next rename** and read the destination column for a file that has no
+  rule.
+- **A rule pointing outside every Cove library path is REMOVED by that conversion, and its items now
+  follow _Where files go_ instead.** There is no root to pick for such a rule, and inventing one would
+  move files somewhere you never chose. Every removed rule is named in Cove's log at the first load of
+  this version. **If you had one, preview a dry run before your next rename** and add a replacement
+  rule — the way to send files to another drive is now to add that drive as a library path in Cove's
+  own settings, then pick it as the rule's root.
+- **A folder template no longer buries a file one directory deeper every run.** For an item with no
+  destination rule, the folder template used to be applied to the folder the file was sitting in _at
+  that moment_. That folder was the previous run's own output, so a second run added the folder again:
+  `…/Ann Miller` became `…/Ann Miller/Ann Miller`, and with _Auto-rename on update_ on, a single edit
+  ran the loop until the path became too long to write. A folder template is now measured from the
+  destination's root, which no rename can move, so running a rename twice leaves the file where the
+  first run put it. **This changes where an item no rule matched lands the first time you run it after
+  upgrading:** with the default root — _(the file's own library path)_ — a file already sitting below
+  its library path moves up to sit directly under that path, once, however deep it was. With a library
+  path of `/media/library` and a folder template of `$performers`, a file at
+  `/media/library/2024/incoming/batch7/clip.mp4` moves to `/media/library/Ann Miller/clip.mp4`, and
+  stays there on every later run. A file already sitting directly at its library path does not move at
+  all. **To keep an intermediate level, put it in the template** — `videos/$performers` rather than
+  `$performers`. **Preview a dry run before your first rename after upgrading.**
+- **Two new dry-run reasons, and neither stops the run.** _Skipped — destination root no longer
+  exists_ means the library path a rule was pointed at is not one of Cove's any more; re-pick it, and
+  note that those items are **not** quietly handed to _Where files go_. _Skipped — outside every Cove
+  library path_ means the destination measures from the file's own library path and the file is under
+  none of them; add its folder to Cove's library paths, or pick a library path for the destination.
+  Worth knowing for the first one: **renaming a library path in Cove reads as removing it.** Renamer is
+  handed the current list of paths, not a history of your edits, so a rule pointed at the old name
+  skips until you re-pick it — even when the new name still contains the old folder.
+- **_Allowed roots_ now only narrows.** A destination is a Cove library path plus a relative template,
+  so every target is inside your library by construction and there is no longer anything for this list
+  to permit. Filling it in restricts renaming to a smaller area **within** the library; leaving it
+  empty — the default — restricts nothing. It can no longer be used to send files outside the library;
+  add the folder to Cove's library paths instead.
+- **_Use filename as title when none is set_ now saves the title, and is off by default.** When it is
+  on and an item has no title, Renamer works one out from the filename and now **stores it on the item**
+  as part of the same rename — the first time this extension changes metadata rather than only a file's
+  name or location. That is what stops the name growing: the old behaviour re-read the title out of the
+  filename on every run, so a template rendering anything besides `$title` wrapped its own additions
+  around the name again each time (`Ann Miller.Delicacy` → `Ann Miller.Ann Miller.Delicacy.Delicacy`).
+  A title you have already set is never overwritten, and undo restores the file's name and folder but
+  leaves the title. Because it writes metadata, **the setting now ships off**; a value you have already
+  saved is kept exactly as it is, so this changes nothing for an existing install. On a fresh install an
+  item with no title is skipped by the shipped `title` required field, and the dry run names the reason.
 - **Your last whole-library dry run is discarded once, on the first load of this version.** Renamer
   labels each planned file with a status, and the label for "renamed where it sits" was misspelled
   `renamer`; it is now `rename`, and the never-used `gallery` file kind is gone with it. A dry-run

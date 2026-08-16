@@ -42,12 +42,32 @@ interface SkipClause {
 const SKIP_CLAUSES: Record<RenamerStatus, SkipClause | null> = {
   skipGated: { clause: "need a required field", reason: "needs a required field" },
   skipCollision: { clause: "have a name conflict", reason: "name conflict" },
+  // Split out of the collision entry, which counted all three as a name conflict. Appended after it so
+  // no sentence a user has already been reading changes order, exactly as the excluded entry was.
+  skipNotAllowed: {
+    clause: "would land somewhere Renamer is not allowed to write",
+    reason: "destination not allowed",
+  },
+  skipTooLong: { clause: "would make too long a path", reason: "path too long" },
   skipExcluded: { clause: "are excluded by a rule", reason: "excluded by a rule" },
   // Kept exactly as shipped even though the executor produces this one at move time, past this confirm
   // gate, so no preview item can carry it: retiring live user-facing copy is a decision of its own, and
   // is not the one being made here.
   skipLocked: { clause: "are in use", reason: "in use" },
   skipMissingSource: { clause: "are missing on disk", reason: "missing on disk" },
+  // The planner produces this one, so it CAN reach this dialog, and it needs copy: the folder template
+  // had no Cove library path to sit under because the file is under none.
+  skipUnanchored: {
+    clause: "sit outside every Cove library path",
+    reason: "outside every Cove library path",
+  },
+  // The other half of that pair: the file is fine, the RULE is broken — its chosen root is no longer
+  // one of Cove's library paths. Separate copy because the remedy is: re-pick the root in Renamer,
+  // where the one above asks the user to widen Cove's library.
+  skipRootMissing: {
+    clause: "use a destination root that no longer exists",
+    reason: "destination root no longer exists",
+  },
   // Not a skip: these two are the items that WILL change, counted by `willRename` above.
   rename: null,
   move: null,
