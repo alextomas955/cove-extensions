@@ -206,6 +206,22 @@ public sealed class EndpointPermissionTests
         Assert.Equal(403, StatusOf(result));
     }
 
+    [Fact]
+    public void LibraryPaths_WithoutVideosRead_Returns403()
+    {
+        // This route answers with Cove's real filesystem layout. Production already refuses an
+        // unauthorized caller twice — the declared policy below and the handler's own check, which
+        // refuses a null principal rather than defaulting through — so what is added here is the
+        // regression pin, not the gate. It has to be a STATUS assertion: TransportSmokeTests reaches
+        // this route but asserts only that the response is neither 404 nor 405, which an anonymous 200
+        // carrying those paths satisfies exactly as a 403 does.
+        var ext = NewExtension();
+
+        var result = ext.LibraryPaths(FakePrincipalAccessor.None());
+
+        Assert.Equal(403, StatusOf(result));
+    }
+
     /// <summary>The any-of read / write permission sets an endpoint's coarse policy is expected to declare.</summary>
     private static readonly string[] AnyRead =
         [Permissions.VideosRead, Permissions.ImagesRead, Permissions.AudiosRead];
@@ -218,7 +234,7 @@ public sealed class EndpointPermissionTests
     {
         const string b = "/api/extensions/com.alextomas955.renamer";
         var data = new TheoryData<string, string[]>();
-        foreach (var read in new[] { "/preview", "/preview-sample", "/last-batch", "/scan-library", "/last-scan", "/scan-rows" })
+        foreach (var read in new[] { "/preview", "/preview-sample", "/last-batch", "/scan-library", "/last-scan", "/scan-rows", "/library-paths" })
         {
             data.Add(b + read, AnyRead);
         }
