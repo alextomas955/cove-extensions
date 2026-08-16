@@ -68,6 +68,10 @@ A row can also be flagged because its move would cross to another drive and the 
 would be too long. Those rows are worth resolving before you rename — see
 [If the confirmation warns about a path being too long](#if-the-confirmation-warns-about-a-path-being-too-long).
 
+A row can also be marked **Lands outside your Cove library**. That rename still happens exactly as
+previewed; what it costs is that Cove stops seeing the file — see
+[When a rename lands outside your Cove library](./settings#when-a-rename-lands-outside-your-cove-library).
+
 A row that one of your exclude rules matched is marked as excluded in the table, and it counts toward
 the skipped total the rename confirmation shows.
 
