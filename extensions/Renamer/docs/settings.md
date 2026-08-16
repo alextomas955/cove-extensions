@@ -103,15 +103,28 @@ edited it. That one fact decides all three cases:
 
 #### When a destination cannot be worked out
 
-| What happened                                                      | What Renamer does                                                                                                                        |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| The root you picked is no longer one of Cove's library paths       | _Skipped — destination root no longer exists._ Re-pick it. The items do **not** fall back to the default.                                |
-| _(the file's own library path)_ and the file is under none of them | _Skipped — outside every Cove library path._ Add its folder to Cove's library paths, or pick a library path for the destination instead. |
+| What happened                                                           | What Renamer does                                                                                                                        |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| The root you picked is no longer one of Cove's library paths            | _Skipped — destination root no longer exists._ Re-pick it. The items do **not** fall back to the default.                                |
+| _(the file's own library path)_ and the file is under none of them      | _Skipped — outside every Cove library path._ Add its folder to Cove's library paths, or pick a library path for the destination instead. |
+| The destination is inside your library but outside every _Allowed root_ | _Skipped — destination is not under any allowed root._ Add that library path under _Allowed roots_, or clear _Allowed roots_.            |
 
-Neither fails the run, and neither touches the file. They differ in one way worth knowing: the second
-is about the folder, so those items are still renamed normally when no folder template is set — the
-first is about the destination itself, so a rule whose root has gone skips its items whether or not a
-folder would have been made.
+None of these fails the run, and none of them touches the file. The first two differ in one way worth
+knowing: the second is about the folder, so those items are still renamed normally when no folder
+template is set — the first is about the destination itself, so a rule whose root has gone skips its
+items whether or not a folder would have been made.
+
+#### When a rename lands outside your Cove library
+
+The dry run marks a row **Lands outside your Cove library** when the file is renamed where it already
+sits and that folder is under none of Cove's library paths. This is a warning, not a skip: the rename
+**still happens exactly as previewed**, and nothing about the new name or folder changes. What it costs
+is that Cove will not see the file at its new location — a rescan never re-examines it, and if anything
+later moves it on disk Cove cannot rediscover it.
+
+A rule's own destination never lands here. Every destination measures from a Cove library path, so a
+rule that still resolves writes inside your library, and a rule whose root has gone is skipped by the
+table above instead.
 
 ## What gets renamed
 
@@ -218,12 +231,20 @@ Two consequences of the order that surprise people, both correct:
 | Per-studio destinations | Map a studio → a destination (a library root + a folder template). Keyed on the studio's stable id, so a name typo never splits one studio across two trees. | _(none)_ |
 | Per-tag destinations    | Map a tag → a destination. Keyed on the tag's stable id, so renaming a tag keeps its rule pointed at it.                                                     | _(none)_ |
 
+An un-curated item goes to the [unorganized destination](#unorganized-destination) instead, whatever
+studio or tag rule matches it — see [precedence](#destination-routing).
+
 ### Advanced routing & safety
 
 | Setting                  | What it does                                                                                                                                                                                           | Default   |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
 | Allowed roots            | **Narrows** where a rename may write to these absolute folders. Every destination is already inside a Cove library path, so this can only make that area smaller — never larger. Empty = no narrowing. | _(empty)_ |
 | Source-path destinations | Ordered rules matching an item's source path (exact, or a regex) → a destination. Exact matches are tried before regex.                                                                                | _(none)_  |
+
+A source-path rule matches on where a file **is**, so it stops matching once it has moved the item.
+On the next run that item matches no rule and follows **_Where files go_** instead. A source-path rule
+together with a _Where files go_ that names a folder therefore relocates an item twice: the first run
+sends it to the rule's destination, and the next run sends it to the default one, where it then stays.
 
 ### Sidecar files and empty folders
 
@@ -249,12 +270,12 @@ Collapsed by default.
 
 ### Length & collisions
 
-| Setting                 | What it does                                                                                        | Default                                                                                     |
-| ----------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Filename max length     | Maximum length of the filename.                                                                     | `255`                                                                                       |
-| Full-path max length    | Maximum length of the full path.                                                                    | `259`                                                                                       |
-| Drop order              | When a name is too long, the order in which fields are dropped to fit (first listed dropped first). | `videoCodec, audioCodec, frameRate, resolution, tags, studioCode, studio, performers, date` |
-| Duplicate suffix format | Suffix added before the extension when the target name is taken; `{n}` is the collision counter.    | `" ({n})"` → `name (1).mp4`                                                                 |
+| Setting                 | What it does                                                                                                                              | Default                                                                                     |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Filename max length     | Maximum length of the filename.                                                                                                           | `255`                                                                                       |
+| Full-path max length    | Maximum length of the full path. Measured against the name the template renders; a name that gains a duplicate suffix is not re-measured. | `259`                                                                                       |
+| Drop order              | When a name is too long, the order in which fields are dropped to fit (first listed dropped first).                                       | `videoCodec, audioCodec, frameRate, resolution, tags, studioCode, studio, performers, date` |
+| Duplicate suffix format | Suffix added before the extension when the target name is taken; `{n}` is the collision counter.                                          | `" ({n})"` → `name (1).mp4`                                                                 |
 
 ### Cross-drive concurrency
 

@@ -13,11 +13,11 @@ User-facing changes, newest first.
 
 - **Every destination is now a root you pick from Cove's own library paths, plus a folder template
   made under it.** _Where files go_, the per-studio and per-tag maps, the source-path rules and the
-  unorganized route all have this one shape, and **you no longer type a path anywhere**. Cove already
-  owns your library paths; a typed copy of one silently pointed at nothing the moment you changed it
-  in Cove, where a picked root follows it. A destination **names a place**: everything matching it goes
-  there, wherever those files sit now. When Cove has one library path there is nothing to choose, so
-  the picker is not shown and that path is the root of every rule you make.
+  unorganized route all have this one shape, and **you no longer type a path for a destination**.
+  Cove already owns your library paths; a typed copy of one silently pointed at nothing the moment
+  you changed it in Cove, where a picked root follows it. A destination **names a place**: everything
+  matching it goes there, wherever those files sit now. When Cove has one library path there is
+  nothing to choose, so the picker is not shown and that path is the root of every rule you make.
 - **Read this one and the two below it together — between them they say what moves.** **A rule that
   pointed inside one of Cove's library paths is converted for you and keeps sending its items to the
   same folder** — a rule that said `I:\Downloads\P\videos` with a folder template of `$studio` becomes
@@ -46,9 +46,10 @@ User-facing changes, newest first.
   its library path moves up to sit directly under that path, once, however deep it was. With a library
   path of `/media/library` and a folder template of `$performers`, a file at
   `/media/library/2024/incoming/batch7/clip.mp4` moves to `/media/library/Ann Miller/clip.mp4`, and
-  stays there on every later run. A file already sitting directly at its library path does not move at
-  all. **To keep an intermediate level, put it in the template** — `videos/$performers` rather than
-  `$performers`. **Preview a dry run before your first rename after upgrading.**
+  stays there on every later run. With the folder template blank, a file already sitting directly at
+  its library path does not move at all. **To keep an intermediate level, put it in the template** —
+  `videos/$performers` rather than `$performers`. **Preview a dry run before your first rename after
+  upgrading.**
 - **Two new dry-run reasons, and neither stops the run.** _Skipped — destination root no longer
   exists_ means the library path a rule was pointed at is not one of Cove's any more; re-pick it, and
   note that those items are **not** quietly handed to _Where files go_. _Skipped — outside every Cove
