@@ -291,7 +291,13 @@ public sealed class RoutingPlannerTests
         // root is still declared. It must move — never fall through to the default, and never skip.
         var port = new FakeRenamerDataPort();
         port.SeedLibraryRoot(SrcRoot);
-        port.SeedLibraryRoot(StudioRoot);
+
+        // The two sides are spelled DIFFERENTLY on purpose, and that difference is the subject: the
+        // library root arrives in the canonical form the real port emits, while the rule keeps the raw
+        // form the panel wrote. Seeding both from one spelling would make the fixture supply both sides
+        // of the comparison, so the membership check could be narrowed to string equality with nothing
+        // going red — measured, and it is why this line does not read StudioRoot directly.
+        port.SeedLibraryRoot(Fwd(StudioRoot));
         port.SeedEntity(Entity(VideoFile(1, "a.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { FilenameTemplate = "$title" };
