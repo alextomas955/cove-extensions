@@ -235,7 +235,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
         return new(
             v.Id, RenamerFileKind.Video, v.Title, v.Code, v.Studio?.Name, v.Date, v.Organized,
             [.. v.VideoPerformers
-                .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
+                .Where(p => p.Performer is not null)
                 .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
             tagRefs,
             [.. v.Files.Select(MapVideoFile)],
@@ -250,7 +250,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
         return new(
             i.Id, RenamerFileKind.Image, i.Title, i.Code, i.Studio?.Name, i.Date, i.Organized,
             [.. i.ImagePerformers
-                .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
+                .Where(p => p.Performer is not null)
                 .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
             tagRefs,
             [.. i.Files.Select(MapImageFile)],
@@ -264,7 +264,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
         return new(
             a.Id, RenamerFileKind.Audio, a.Title, a.Code, a.Studio?.Name, a.Date, a.Organized,
             [.. a.AudioPerformers
-                .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
+                .Where(p => p.Performer is not null)
                 .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
             tagRefs,
             [.. a.Files.Select(MapAudioFile)],
@@ -273,8 +273,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
     }
 
     /// <summary>
-    /// The single source of an item's tag id/name pairs: a join row with no tag, or a tag with no name,
-    /// is dropped once here.
+    /// The single source of an item's tag id/name pairs: a join row with no tag is dropped once here.
     /// </summary>
     /// <remarks>
     /// Dropping once is what keeps the ids and the rendered names in step — tag routing takes the FIRST
@@ -283,7 +282,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
     /// remove, just moved one level up.
     /// </remarks>
     private static IReadOnlyList<(int Id, string Name)> TagPairs(IEnumerable<Tag?> tags) =>
-        [.. tags.Where(t => t is not null && !string.IsNullOrEmpty(t.Name)).Select(t => (t!.Id, t.Name))];
+        [.. tags.Where(t => t is not null).Select(t => (t!.Id, t.Name))];
 
     /// <summary>
     /// An <c>AsNoTracking</c> id-only bulk query over the kind's table. An out-of-range cast — the only
