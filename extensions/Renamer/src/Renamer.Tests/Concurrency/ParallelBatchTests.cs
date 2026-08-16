@@ -56,7 +56,8 @@ public sealed class ParallelBatchTests
     /// </param>
     /// <param name="libraryRoots">
     /// Registered as Cove's configured library paths when any are named — the list a destination root is
-    /// chosen from and re-checked against. Omitted, no <c>CoveConfiguration</c> is registered at all.
+    /// chosen from and re-checked against. Omitted, no <c>CoveConfiguration</c> is registered at all; see
+    /// <see cref="TestSupport.Library.LibraryConfig"/> for why.
     /// </param>
     private static async Task<(global::Renamer.Renamer ext, ConcurrentFakeStore store, CapturingEventBus bus)>
         BuildAsync(
@@ -76,10 +77,7 @@ public sealed class ParallelBatchTests
 
         if (libraryRoots.Length > 0)
         {
-            services.AddSingleton(new Cove.Core.Interfaces.CoveConfiguration
-            {
-                CovePaths = [.. libraryRoots.Select(r => new Cove.Core.Interfaces.CovePath { Path = r })],
-            });
+            services.AddSingleton(Library.LibraryConfig(libraryRoots));
         }
 
         var provider = services.BuildServiceProvider();

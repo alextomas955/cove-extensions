@@ -31,12 +31,10 @@ public sealed class ParallelFolderCreationTests
         services.AddScoped<DbContext>(_ => shared.NewContext());
         var bus = new CapturingEventBus();
         services.AddSingleton<IEventBus>(bus);
+        // Registered only when a caller names one — see Library.LibraryConfig for the whole statement.
         if (libraryRoots.Length > 0)
         {
-            services.AddSingleton(new Cove.Core.Interfaces.CoveConfiguration
-            {
-                CovePaths = [.. libraryRoots.Select(r => new Cove.Core.Interfaces.CovePath { Path = r })],
-            });
+            services.AddSingleton(Library.LibraryConfig(libraryRoots));
         }
 
         var provider = services.BuildServiceProvider();
