@@ -2,15 +2,23 @@
 
 User-facing changes, newest first.
 
-## 0.4.0 (unreleased) — Renamer needs Cove 1.1.0
+## 0.4.0 (unreleased) — Renamer needs Cove 1.3.0-rc.2
 
-<!-- Release step for whoever cuts `renamer/v0.4.0`, before pushing the tag: set
-     `src/Renamer/extension.json` `version` to 0.4.0, then PREPEND a row to
-     `registry/com.alextomas955.renamer.json` `versions[]` with version 0.4.0 and minCoveVersion
-     1.1.0. The tag push fails in validate if either is missing. Do NOT satisfy the second by
-     editing the 0.3.0 row: it describes an immutable artifact that genuinely runs on a 1.0.0 host.
-     The full rule is in the repo-wide Releasing guide, under "Raising minCoveVersion". -->
+<!-- Release state for whoever cuts `renamer/v0.4.0`: both manifest steps are already in the tree.
+     `src/Renamer/extension.json` declares version 0.4.0 and minCoveVersion 1.3.0-rc.2, and
+     `registry/com.alextomas955.renamer.json` `versions[]` carries a matching 0.4.0 row, so the tag
+     push has what validate needs. Never satisfy a floor raise by editing an existing `versions[]`
+     row instead: the 0.3.0 row declares 1.1.0 and describes an immutable artifact that genuinely
+     runs on a 1.1.0 host. The full rule is in the repo-wide Releasing guide, under "Raising
+     minCoveVersion". -->
 
+- **This release needs Cove 1.3.0-rc.2, and an older host will not install it.** Nothing here is a
+  feature you lose — an older Cove declines to load the extension at all, so no part of Renamer
+  appears. The floor rose because Renamer now relies on the host publishing entity events for bulk
+  mutations (Cove commit `ca14830`, 2026-08-02); without those, editing several items at once renames
+  one of them and says nothing about the rest. **That fix first shipped in the 1.2 line, and
+  1.3.0-rc.2 is a release candidate, so no generally-available Cove runs this release today.**
+  **Stay on 0.3.0 until you are ready to run a 1.3 release candidate.**
 - **Every destination is now a root you pick from Cove's own library paths, plus a folder template
   made under it.** _Where files go_, the per-studio and per-tag maps, the source-path rules and the
   unorganized route all have this one shape, and **you no longer type a path for a destination**.
