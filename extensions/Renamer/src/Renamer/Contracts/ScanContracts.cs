@@ -185,8 +185,9 @@ public sealed record ScanSummaryView(
 /// One planned file of a whole-library dry run, served by <c>/scan-rows</c> a page at a time.
 /// </summary>
 /// <remarks>
-/// Deliberately narrower than <see cref="PreviewItemView"/>: <c>MatchedPathTemplate</c>,
-/// <c>MatchedRule</c> and <c>TargetVolume</c> have no reader, and the new basename and target folder are
+/// Deliberately narrower than <see cref="PreviewItemView"/>:
+/// <see cref="PreviewItemView.ResolvedDestinationRoot"/>, <see cref="PreviewItemView.MatchedRule"/> and
+/// <see cref="PreviewItemView.TargetVolume"/> have no reader, and the new basename and target folder are
 /// both <paramref name="NewFullPath"/> split at its last separator, which the client already does. The
 /// trim is for wire weight and dead surface — it is NOT what makes the dry run scale. What makes it
 /// scale is that this row is never persisted: it is planned on demand for the page being read.
@@ -207,10 +208,10 @@ public sealed record ScanSummaryView(
 /// so it earns its place on a row that multiplies by library size.
 /// </param>
 /// <param name="OffLibraryDestination">
-/// True iff this row will act and lands outside every Cove library path (see
-/// <see cref="RenamerPlanItem.OffLibraryDestination"/>). It IS read — it drives the same badge the
-/// preview's per-item flag drives — and the dry-run table is the one surface that shows a user WHICH
-/// files leave the scanned set, which no aggregate can.
+/// True iff this row will act and the file is renamed where it already sits, in a folder under none of
+/// Cove's library paths (see <see cref="RenamerPlanItem.OffLibraryDestination"/>). It IS read — it
+/// drives the same badge the preview's per-item flag drives — and the dry-run table is the one surface
+/// that names WHICH files Cove will stop seeing, which no aggregate can.
 /// </param>
 public sealed record ScanRow(
     RenamerFileKind Kind,

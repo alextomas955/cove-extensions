@@ -73,9 +73,13 @@ public sealed partial class Renamer
                 // studio/tag/path rule relocates the just-edited item to its configured destination — the
                 // same on-disk outcome the user previews and the batch executes.
                 //
-                // This does NOT enable dribble-relocate of the whole library: only an explicitly-MATCHED
-                // routing rule relocates, an UNMATCHED item stays in place (SourceConfine), and the move
-                // still passes the allowlist/canonical confinement gate via the routed anchor.
+                // This does NOT enable dribble-relocate of the whole library: only the entity just
+                // edited is planned, and it lands where preview and the batch would put it — a matched
+                // rule's own destination, or the DEFAULT *Where files go* for an item no rule matched
+                // (RouteCategory.Unmatched), which leaves the item in place only while that default names
+                // neither a root nor a folder template. Either way the move passes the allowlist/canonical
+                // confinement gate via the routed anchor, and it settles after one pass because every
+                // destination measures from a library path the rename leaves standing.
                 // Preview, auto-renamer, and batch all resolve destinations identically.
                 var lookups = BuildLookups(options);
                 var plan = await new RenamerPlanner(port).PlanAsync(kind, entityId, options, lookups, ct);

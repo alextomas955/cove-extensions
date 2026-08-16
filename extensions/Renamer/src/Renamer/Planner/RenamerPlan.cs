@@ -109,8 +109,8 @@ public enum RenamerStatus
     /// that the move leaves standing. Kept DISTINCT from <see cref="SkipCollision"/> (a name-taken
     /// skip) and from <see cref="SkipBlocked"/> (a security denial) because it is neither: the
     /// destination is not forbidden, it cannot be computed. The item keeps its current name and folder
-    /// rather than being placed relative to its own parent, which is the arrangement that buries the
-    /// file one directory deeper on every run.
+    /// rather than being placed relative to its own parent — see
+    /// <see cref="IRenamerDataPort.LibraryRoots"/> for why that arrangement is refused.
     /// <para>
     /// A destination whose root was CHOSEN from the library paths never reaches this status — it names
     /// its anchor outright. Whether that chosen root is still one of Cove's library paths is a
@@ -189,16 +189,20 @@ public enum RenamerStatus
 /// only on a final Renamer/Move item, because a plan that changes nothing must write nothing.
 /// </param>
 /// <param name="OffLibraryDestination">
-/// UI badge signal: true iff this item will act and its destination folder lies under none of Cove's
-/// configured library paths, so the file ends up outside everything Cove scans. Not an error and never
-/// a block — a destination rule pointing outside the library is a supported configuration — but a cost
-/// worth stating before a bulk rename: a rescan never re-examines the file, and if anything later moves
-/// it on disk Cove cannot rediscover it, at which point the next Clean drops its row.
+/// UI badge signal: true iff this item will act and is renamed where it already sits, in a folder under
+/// none of Cove's configured library paths — so the file stays outside everything Cove scans. Not an
+/// error and never a block: the rename happens exactly as previewed, and nothing about the new name or
+/// folder changes. What it costs is worth stating before a bulk rename — a rescan never re-examines the
+/// file, and if anything later moves it on disk Cove cannot rediscover it, at which point the next Clean
+/// drops its row.
 /// <para>
-/// Keyed on the DESTINATION rather than on whether a rule routed the item, because the cost is the
-/// same either way: a file already outside the library, renamed in place, is outside it afterwards for
-/// exactly the reasons above. False when the host declares no library path at all, where "outside the
-/// scanned set" describes every file equally and so warns about nothing.
+/// A rule's own destination never lands here, and this flag must not be read as promising otherwise:
+/// every destination measures from a Cove library path, so a rule that still resolves writes inside the
+/// library, and one whose root has gone is a <see cref="RenamerStatus.SkipRootMissing"/> or a
+/// <see cref="RenamerStatus.SkipUnanchored"/> that never reaches this flag. Keyed on the resolved
+/// DESTINATION folder rather than on the route, which leaves the in-place rename above as the one
+/// reachable case. False when the host declares no library path at all, where "outside the scanned set"
+/// describes every file equally and so warns about nothing.
 /// </para>
 /// </param>
 public sealed record RenamerPlanItem(
