@@ -58,7 +58,7 @@
          existing setup changes.
       5. Otherwise `none`: published NuGet packages, the clean-clone path.
 
-    Explicitness is captured BEFORE any defaulting because D-06 turns on how a value ARRIVED, not on
+    Explicitness is captured BEFORE any defaulting because the choice turns on how a value ARRIVED, not on
     whether a path happens to exist: absence is a legitimate state for auto-detection and an error for
     explicit configuration. The failure arms themselves live in Directory.Build.targets, where a
     target can report and stop the build; a PropertyGroup can only compute.

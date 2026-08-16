@@ -159,8 +159,7 @@ public enum RenamerStatus
     /// loop runs. That loop lengthens the name to free a taken slot and nothing re-measures it, so a
     /// suffixed path CAN exceed the budget and still be planned, previewed and written to disk. This
     /// status is evidence that one path was refused for length; it is never evidence that every planned
-    /// path fits. Tracked at
-    /// <c>.planning/todos/pending/fullpathmax-not-re-measured-after-the-suffix-loop.md</c>.
+    /// path fits.
     /// </para>
     /// </summary>
     SkipTooLong,

@@ -47,11 +47,11 @@ public sealed class DestAnchoredMaxPathTests
     // FullPathMax tuned between the two absolute lengths: short-source path < max < deep-root path.
     private const int Max = 90;
 
-    // ── D-02: the planned basename does not move when the in-flight overflow warning is added ──────
+    // ── The planned basename does not move when the in-flight overflow warning is added ────────────
     //
     // A cross-volume move copies to a minted in-flight name 12 characters longer than the final one, so
     // the obvious fix is to subtract those 12 from the budget the reducer and this boundary fit against.
-    // D-02 forbids exactly that: LengthReducer drops fields and then hard-truncates, so a tighter budget
+    // That is forbidden: LengthReducer drops fields and then hard-truncates, so a tighter budget
     // renames every file near the limit — users who did nothing wrong get a different result. These cases
     // pin the boundary itself, so that subtraction fails here rather than shipping.
 
@@ -120,7 +120,7 @@ public sealed class DestAnchoredMaxPathTests
     [Fact]
     public async Task WithTheInFlightHeadroomAdded_TheBasenameIsByteIdentical()
     {
-        // The pair is the D-02 assertion: the same literal at the boundary and the minted segment's length
+        // The pair is the assertion: the same literal at the boundary and the minted segment's length
         // above it. Had that length been subtracted from the budget rather than warned about, the boundary
         // case above would be a skip and this one would be the only survivor. Read from the minter's own
         // declaration, so a narrowing of the minted name moves this case with it.

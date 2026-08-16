@@ -167,8 +167,8 @@ public sealed class CollisionAndRollbackTests
     /// save itself hits the index, the executor's catch fires, and the disk file is rolled back.
     /// </summary>
     /// <remarks>
-    /// Kept under its exact name deliberately. Plan 35-02 cited this test as the surviving coverage that
-    /// justified deleting <c>Planner/IRenamerDataPortSeamTests</c> — those cases asserted a test double's
+    /// Kept under its exact name deliberately. This test was the surviving coverage that justified
+    /// deleting <c>Planner/IRenamerDataPortSeamTests</c> — those cases asserted a test double's
     /// own seeded returns, whereas this one drives the real relational index. Renaming or dropping it
     /// would retroactively unpin that deletion.
     /// </remarks>

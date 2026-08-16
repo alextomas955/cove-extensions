@@ -2,7 +2,7 @@
 // a real containerized Cove that is STARTED ON TOP of a stored legacy blob, with the outcome read off
 // the settings panel a user would open.
 //
-// Why this exists when 21-07 already covers the conversion with 34 backend tests: every one of those
+// Why this exists when the backend suite already covers the conversion with 34 tests: every one of those
 // hands a hand-written blob to `OptionsMigration.Scan`/`Convert` or to the initialize seam directly,
 // and none of them starts a host. So none can answer the question a user actually has — "do my
 // settings survive the upgrade?" — because the answer depends on three things those tiers replace
@@ -10,7 +10,7 @@
 //
 //   1. that the host runs `InitializeAsync` (and therefore the conversion) before it serves the panel;
 //   2. that the elevated library read returns real rows through Cove's own authorization filters,
-//      which exist only under Npgsql and so are absent from the SQLite L1 tier (21-07's D11);
+//      which exist only under Npgsql and so are absent from the SQLite L1 tier;
 //   3. that the panel then RENDERS the converted ids as entity names rather than as numbers, empty
 //      fields, or the host's "Loading tag..." placeholder.
 //
@@ -19,8 +19,7 @@
 // What it is NOT: a test against data a real installation accumulated. The blob below is written by
 // this test, so it is realistic by construction rather than by history — six migrated fields in their
 // name-keyed form, both groups carrying the empty-array shape a real install always emitted, and
-// three unrelated fields whose survival is the preservation proof. The residue that leaves is stated
-// in 21-12-SUMMARY.md.
+// three unrelated fields whose survival is the preservation proof.
 import {
   test as base,
   expect,

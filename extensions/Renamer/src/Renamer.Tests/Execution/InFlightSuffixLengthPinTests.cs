@@ -9,8 +9,8 @@ namespace Renamer.Tests.Execution;
 /// <remarks>
 /// Two sides that must not drift. The preview's in-flight overflow warning derives its band from
 /// <see cref="CrossVolumeMover.InFlightSuffixLength"/>, while the cost the executor really pays is
-/// whatever the minter appends. The minted segment has already been narrowed once — phase 26's D-04
-/// replaced a 16-character fixed suffix with <c>".rnm"</c> plus 8 hexadecimal characters — so a further
+/// whatever the minter appends. The minted segment has already been narrowed once — a 16-character
+/// fixed suffix became <c>".rnm"</c> plus 8 hexadecimal characters — so a further
 /// narrowing is a live possibility rather than a hypothetical, and it would leave the warning firing on a
 /// band that no longer overruns. A warning on a correct plan is worse than the silence it replaced,
 /// because a user who is told to shorten a name that already fits learns to ignore the warning.

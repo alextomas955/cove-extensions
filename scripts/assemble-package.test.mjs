@@ -228,7 +228,7 @@ test("assembles into an absent package directory, and into an existing empty one
 // What the retired protected-path apparatus existed to prevent, now prevented by the redesign instead:
 // a packageDir pointed at a source tree is refused because that tree is not empty, and — because
 // nothing in this script deletes — the tree is byte-for-byte intact afterwards. The three destructive
-// spellings phase 22 reproduced (a drive-letter case alias, a junction, a source-bearing descendant)
+// spellings once reproduced here (a drive-letter case alias, a junction, a source-bearing descendant)
 // all reduce to this one case: whatever spelling reaches a populated directory, the run refuses.
 test("a packageDir pointed at a populated source tree is refused and destroys nothing", () => {
   const fixture = fixtureRoot();

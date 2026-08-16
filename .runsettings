@@ -13,7 +13,7 @@
       It replaces a pair of hand-maintained minimum-test-count floors in extensions/catalog.json. Those
       compared each leg's total against a number a human had to raise whenever tests were added, so the
       number silently fell behind the suite and the gate weakened while still printing green — twice
-      (WINDOWS #51, then 19/22 tests of slack by phase 28). The defect they were built for, a directory
+      — the second time carrying 19 of 22 tests' worth of slack. The defect they were built for, a directory
       wildcard dropping files out of a leg unnoticed, is closed at its source: the test project lists
       every cove-requiring file in an explicit per-file Compile Remove, so a file can only leave a leg
       by a reviewable edit. An empty extraction is likewise refused by AssertCoveLocation plus the

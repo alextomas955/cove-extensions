@@ -131,8 +131,8 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": noUnusedVars,
       // overlay.ts uses the intentional "latest ref" pattern (writing optsRef.current during render
       // to keep the newest options without forcing a re-render); react-hooks/refs flags it. Whether
-      // to rework it is a product-code call, not a lint-config one — advisory here (U-35), since this
-      // plan is behavior-neutral and only closes the shared-TS lint-scope gap.
+      // to rework it is a product-code call, not a lint-config one — advisory here, since widening
+      // the lint scope to shared TS was meant to be behavior-neutral.
       "react-hooks/refs": "warn",
     },
   },
@@ -220,7 +220,7 @@ export default tseslint.config(
   // may depend downward onto `wire`, sideways onto `common/` and the shared package, and never
   // across onto a sibling slice. Routing between two features goes through `common/` or the entry.
   //
-  // This block was deleted once (37-01) and is restored deliberately. The deletion's reasoning was
+  // This block was deleted once and is restored deliberately. The deletion's reasoning was
   // sound about the defect and wrong about the remedy: the resolver named ONE extension's tsconfig
   // by path, inside config that claims to be extension-generic, so a second extension would have
   // silently gone unclassified. That is fixed at its source above — `uiTsconfigProjects` reads the
