@@ -1,6 +1,27 @@
 <Project>
 
   <!--
+    Sonar's C# rules, on every project including the test ones, and unconditional on how Cove is
+    located: the analyzer inspects this repo's own source and has nothing to do with the host.
+
+    It lives in Directory.Build.targets rather than Directory.Build.props for one reason only —
+    consistency with the Cove.Sdk reference below. The claim that a package reference in props "fails
+    restore with NETSDK1013 because props is imported before a project sets TargetFramework" was
+    measured FALSE on this tree, and could not have been true anyway: Directory.Build.props sets
+    TargetFramework itself. That error was originally caused by a double hyphen inside an XML comment,
+    which raised MSB4024 and stopped the props file loading at all.
+
+    Note what adoption does to the pre-commit hook, because nothing else says it: that hook runs
+    per-file, so from here on it is also a per-file Sonar gate — clean on a file you did not touch
+    while findings may stand elsewhere. And all three CI workflows build with CoveSourceMode=none,
+    which sees a strict SUBSET of the findings a local source build sees, so a green CI leg is not
+    evidence that the tree is clean.
+  -->
+  <ItemGroup>
+    <PackageReference Include="SonarAnalyzer.CSharp" />
+  </ItemGroup>
+
+  <!--
     Cove.Sdk + Cove.Core wiring, centralized here so individual extension .csproj files under
     extensions/<Name>/src/<Name>/ don't each restate the local-vs-package selection or the
     relative-path math back to the sibling ../cove checkout. Cove.Sdk transitively carries
