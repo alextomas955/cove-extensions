@@ -237,9 +237,13 @@ public sealed class RenamerPlanner
         string renderedFolder = rendered.FolderPath;
         bool chosenRoot = destination.Root.Length > 0;
         bool isMove = chosenRoot || renderedFolder.Length > 0;
-        string? libraryRoot = chosenRoot
-            ? destination.Root
-            : isMove ? PathConfinement.ContainingRoot(file.ParentFolderPath, _port.LibraryRoots) : null;
+        // Resolved in two steps rather than one nested conditional. The guard on !chosenRoot is not
+        // cosmetic: a chosen root always implies isMove, so without it this would walk the library-root
+        // list on every routed item and discard the answer.
+        string? containingRoot = !chosenRoot && isMove
+            ? PathConfinement.ContainingRoot(file.ParentFolderPath, _port.LibraryRoots)
+            : null;
+        string? libraryRoot = chosenRoot ? destination.Root : containingRoot;
 
         // Told to measure from the file's own library path, and the file is under none: the destination
         // is not forbidden, it is uncomputable, and every remaining candidate anchor is one the rename

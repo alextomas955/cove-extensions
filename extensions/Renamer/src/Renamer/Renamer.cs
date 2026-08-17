@@ -820,8 +820,9 @@ public sealed partial class Renamer : FullExtensionBase
             // guard — same-drive moves are instant metadata renames). A value <= 0 means unbounded
             // (legacy behavior), mapped to Parallel's -1 sentinel. Each cross-volume (src,dst) pair is
             // bounded by the configured per-pair concurrency.
+            int sameVolumeDegree = options.SameVolumeConcurrency > 0 ? options.SameVolumeConcurrency : -1;
             int degree = pair == FreeSpaceGuard.SameVolumePair
-                ? (options.SameVolumeConcurrency > 0 ? options.SameVolumeConcurrency : -1)
+                ? sameVolumeDegree
                 : options.CrossVolumeConcurrency;
             var units = pairMoves.Select(m => unitByOldPath[m.OldFullPath]).ToList();
 

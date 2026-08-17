@@ -205,14 +205,20 @@ public static class TemplateEngine
         string key,
         out IReadOnlyList<string> values)
     {
-        foreach (var kv in multiValues)
+        // Matches on the KEY and then reads its value, rather than filtering on the pair: the value is
+        // returned whatever it holds, which is what the loop this replaced did. A linear
+        // case-insensitive scan, and it stays one — the lookup is O(n) in the number of multi-value
+        // keys, a handful fixed by the token set rather than by library size, so the case-insensitive
+        // dictionary that would remove the scan is a design change this does not need.
+        string? matchedKey = multiValues.Keys.FirstOrDefault(
+            k => string.Equals(k, key, StringComparison.OrdinalIgnoreCase));
+
+        if (matchedKey is not null)
         {
-            if (string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase))
-            {
-                values = kv.Value;
-                return true;
-            }
+            values = multiValues[matchedKey];
+            return true;
         }
+
         values = Array.Empty<string>();
         return false;
     }
