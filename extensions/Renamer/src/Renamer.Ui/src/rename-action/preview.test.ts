@@ -189,3 +189,35 @@ test("two skip kinds read as one multi-reason line, in the order the clauses are
     `expected the multi-reason line with the gated clause first, got:\n${text}`,
   );
 });
+
+// The blast-radius line renders a byte count, and until these cases existed nothing exercised it: every
+// summary above carries an empty `volumePairs`. That is how the size could read "0.0 GB" for a 500 MB
+// move — the string was user-facing and completely unpinned. The expectations below are the strings
+// Cove's own UI produces for the same byte counts, which is what makes the panel read like the host
+// rather than like a second opinion about sizes.
+const SIZE_CASES: readonly (readonly [number, string])[] = [
+  [0, "0 B"],
+  [512, "512 B"],
+  [1024 * 700, "700 KB"],
+  [1024 * 1024 * 500, "500 MB"],
+  [1024 * 1024 * 1024 * 1.5, "1.5 GB"],
+  [1024 * 1024 * 1024 * 2, "2 GB"],
+];
+
+for (const [bytes, expected] of SIZE_CASES) {
+  test(`a cross-volume move of ${bytes} bytes reads as "${expected}"`, () => {
+    const { text } = buildConfirmSummary(
+      [RENAME_ITEM],
+      summary({
+        crossVolumeCount: 1,
+        crossVolumeBytes: bytes,
+        volumePairs: [{ count: 1, bytes, from: "/a", to: "/b" }],
+      }),
+    );
+
+    assert.ok(
+      text.includes(`(${expected}) move from /a to /b.`),
+      `expected the blast-radius line to render ${bytes} bytes as "${expected}", got:\n${text}`,
+    );
+  });
+}
