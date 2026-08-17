@@ -75,5 +75,13 @@ public sealed class AutoRenamerEventRegistrationTests
         var store = await DispatchAsync(eventType, entityType);
 
         Assert.DoesNotContain(OptionsKey, store.GetKeys);
+
+        // The half no sibling here can assert, and what makes this test's own claim self-contained:
+        // these kinds ARE hooked, so the verb is the only reason nothing happened. Showing the same
+        // kind's update still reaches the handler is what separates "only updates are hooked" from
+        // "this kind is not hooked at all" — two states the assertion above cannot tell apart.
+        var updated = await DispatchAsync($"{entityType}.updated", entityType);
+
+        Assert.Contains(OptionsKey, updated.GetKeys);
     }
 }

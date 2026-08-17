@@ -178,6 +178,16 @@ public sealed class RevertJournalTests
         await using var ____ = afterConn;
 
         Assert.NotNull(after.Model.FindEntityType(typeof(LateRegistrationProbeEntity)));
+
+        // Round-tripping a row asks the question the model assertion above cannot: did the late
+        // registration produce a WORKING mapping, or only an entry in a model? The schema for this
+        // entity exists at all only because the context built after the registration created it, so a
+        // model that listed the type without mapping it would fail here rather than pass silently.
+        after.Add(new LateRegistrationProbeEntity { Id = 4242 });
+        await after.SaveChangesAsync();
+
+        var stored = await after.Set<LateRegistrationProbeEntity>().AsNoTracking().SingleAsync();
+        Assert.Equal(4242, stored.Id);
     }
 
     private static async Task<CoveRevertJournal> SeedBatchAsync(
