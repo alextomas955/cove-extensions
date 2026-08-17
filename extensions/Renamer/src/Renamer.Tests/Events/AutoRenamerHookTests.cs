@@ -139,7 +139,9 @@ public sealed class AutoRenamerHookTests
 
             // The host calls OnEventAsync; the inner option-load throws. The handler must swallow it
             // so the host's dispatch loop is not handed a context-free exception. No throw == pass.
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", 1), default);
+            var ex = await Record.ExceptionAsync(
+                () => ext.OnEventAsync(new ExtensionEvent("video.updated", "video", 1), default));
+            Assert.Null(ex);
         }
         finally
         {

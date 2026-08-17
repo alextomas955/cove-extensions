@@ -28,7 +28,8 @@ public sealed class JournalStartupAssertionTests
         var ext = RenamerFixture.Create();
         ((IStatefulExtension)ext).SetStore(new FakeStore());
 
-        await ext.InitializeAsync(library.BuildProvider());
+        var ex = await Record.ExceptionAsync(() => ext.InitializeAsync(library.BuildProvider()));
+        Assert.Null(ex);
     }
 
     [Fact]
