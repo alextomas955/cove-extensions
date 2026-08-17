@@ -322,11 +322,16 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
   // Ordered source search. The first two rules are exact — a declared name that matches one of them
   // is resolved from that root or not at all — and the remaining three are tried in order, so
   // precedence between roots is stated rather than left to whichever happens to hold the file.
+  //
+  // The ui-bundle rule covers BOTH bundle fields, because both are output of the same UI build and
+  // neither is ever produced by the dotnet publish. Matching only `jsBundle` sent a declared
+  // `cssBundle` down the publish/extension/repo-root search, where it cannot exist, so declaring one
+  // failed as MISSING however correctly it had been built.
   function resolveArtifactSource(name) {
     const searched =
       name === manifestName
         ? [{ source: manifestSource, root: "manifest" }]
-        : uiBundleDir && sourceManifest.jsBundle === name
+        : uiBundleDir && (sourceManifest.jsBundle === name || sourceManifest.cssBundle === name)
           ? [{ source: path.join(uiBundleDir, name), root: "ui-bundle" }]
           : [
               { source: path.join(absolutePublishDir, name), root: "publish" },
