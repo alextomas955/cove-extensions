@@ -86,9 +86,6 @@ const SKIP_CLAUSES: Record<RenamerStatus, SkipClause | null> = {
  * Render a byte count the way Cove's own UI renders one: scaled across B/KB/MB/GB/TB, one decimal,
  * trailing zeros dropped.
  *
- * This used to force GB always, which read "0.5 GB" for a 500 MB move and "0.0 GB" for anything under
- * ~50 MB — a wrong-looking number on exactly the small batches a user checks most carefully.
- *
  * The host exports its own `formatFileSize` to extensions through `@cove/runtime/components`, and this
  * deliberately does NOT import it. That module has no resolution outside a running host, and this file
  * is pure so its wording can be unit-tested without one; importing it would trade a testable module for
