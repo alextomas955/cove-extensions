@@ -256,12 +256,16 @@ export interface RenamerOptions extends DerivedOptions {
  *
  * The list stops there, and its silence is not a claim: a default it does not name is not thereby off
  * or empty — read RenamerOptions.cs for that one. Every value restated here is a second copy that can
- * fall out of step, which is why the list names only the non-obvious ones and no catch-all closes it.
+ * fall out of step, so the list stays as short as it can be. The one generalisation it does make —
+ * over the routing maps and the routing and exclude lists — was checked member by member, which is
+ * what the previous catch-all over "every other flag/string" was not.
  *
- * Both separators are " " because the effective default is the RenamerOptions initializer, which
+ * Both separators are " " because the shipped default is the RenamerOptions initializer, which
  * constructs each multi-value field as new() { Separator = " " }. MultiValueOptions declares its own
- * separator and this overrides it, so the nested class default is never the value in force: read a
- * default off the record's initializer, never off the class underneath it.
+ * separator, ", ", which that initializer overrides: read a shipped default off the record's
+ * initializer, never off the class underneath it. The class default is not unreachable, though —
+ * deserializing a partial nested object replaces the field rather than merging into the initializer,
+ * so a caller-supplied blob naming Performers without a Separator gets ", " back.
  *
  * CrossVolumeConcurrency / SameVolumeConcurrency ARE modeled — the Advanced panel edits them, so
  * they belong in DEFAULT_OPTIONS (and therefore MODELED_KEYS + normalizeOptions). FreeSpaceHeadroomBytes
