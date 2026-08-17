@@ -74,7 +74,7 @@ public sealed class ExtensionManifestFileTests
         // is where the real surface is declared. Assert it actually says what it reads/writes and the
         // permissions it needs, so the description can't silently regress to the one-liner.
         Assert.NotNull(manifest.Description);
-        string description = manifest.Description!;
+        string description = manifest.Description;
         Assert.Contains("disk", description, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("database", description, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("videos.read", description, StringComparison.OrdinalIgnoreCase);

@@ -59,12 +59,12 @@ public sealed class CoveDataPortRoutingFieldsTests
             Assert.NotNull(entity);
 
             // Route-on-id: the rule key is the STABLE id, not the (drift-prone) name.
-            Assert.Equal(direct.Id, entity!.StudioId);
+            Assert.Equal(direct.Id, entity.StudioId);
 
             // Parent chain is nearest-first: index 0 is the direct studio's immediate parent.
             Assert.NotNull(entity.ParentStudios);
-            Assert.NotEmpty(entity.ParentStudios!);
-            Assert.Equal(parent.Id, entity.ParentStudios![0].Id);
+            Assert.NotEmpty(entity.ParentStudios);
+            Assert.Equal(parent.Id, entity.ParentStudios[0].Id);
             Assert.Equal(parent.Name, entity.ParentStudios[0].Name);
             // The grandparent follows the parent (bounded eager walk hydrated it).
             Assert.Equal(grandparent.Id, entity.ParentStudios[1].Id);
@@ -112,7 +112,7 @@ public sealed class CoveDataPortRoutingFieldsTests
             Assert.NotNull(entity);
             Assert.Equal(
                 [(first.Id, first.Name), (second.Id, second.Name)],
-                entity!.TagRefs);
+                entity.TagRefs);
         }
         finally
         {
@@ -151,7 +151,7 @@ public sealed class CoveDataPortRoutingFieldsTests
             Assert.NotNull(entity);
             Assert.Equal(
                 [(blank.Id, TagNameRules.EmptyCanonicalName), (named.Id, named.Name)],
-                entity!.TagRefs);
+                entity.TagRefs);
             Assert.Equal([TagNameRules.EmptyCanonicalName, "raw"], entity.Tags);
         }
         finally
@@ -203,7 +203,7 @@ public sealed class CoveDataPortRoutingFieldsTests
                 var single = await port.LoadEntityAsync(RenamerFileKind.Video, id);
                 Assert.NotNull(single);
                 Assert.True(byId.TryGetValue(id, out var batched));
-                AssertEntityEqual(single!, batched);
+                AssertEntityEqual(single, batched);
             }
         }
         finally
@@ -334,7 +334,7 @@ public sealed class CoveDataPortRoutingFieldsTests
             var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
 
             Assert.NotNull(entity);
-            Assert.Null(entity!.StudioId);
+            Assert.Null(entity.StudioId);
             Assert.True(entity.ParentStudios is null || entity.ParentStudios.Count == 0);
         }
         finally
@@ -381,8 +381,8 @@ public sealed class CoveDataPortRoutingFieldsTests
             var entity = await port.LoadEntityAsync(renamerKind, entityId);
 
             Assert.NotNull(entity);
-            Assert.NotNull(entity!.ParentStudios);
-            Assert.Equal(CoveRenamerDataPort.MaxParentDepth, entity.ParentStudios!.Count);
+            Assert.NotNull(entity.ParentStudios);
+            Assert.Equal(CoveRenamerDataPort.MaxParentDepth, entity.ParentStudios.Count);
 
             // Nearest-first: index 0 is the direct studio's immediate parent (the deepest-seeded
             // ancestor), walking toward the root.
@@ -424,8 +424,8 @@ public sealed class CoveDataPortRoutingFieldsTests
             var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
 
             Assert.NotNull(entity);
-            Assert.NotNull(entity!.ParentStudios);
-            Assert.Equal(CoveRenamerDataPort.MaxParentDepth, entity.ParentStudios!.Count);
+            Assert.NotNull(entity.ParentStudios);
+            Assert.Equal(CoveRenamerDataPort.MaxParentDepth, entity.ParentStudios.Count);
 
             // The root ancestor (seeded first, deepest-above the limit) is absent from the loaded chain.
             var overDepthAncestorId = ancestors[0].Id;

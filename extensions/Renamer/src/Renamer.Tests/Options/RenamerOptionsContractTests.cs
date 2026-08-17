@@ -250,7 +250,7 @@ public sealed class RenamerOptionsContractTests
         var loaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
         Assert.NotNull(loaded);
-        Assert.Equal("$title{ [$resolution]}", loaded!.FilenameTemplate);
+        Assert.Equal("$title{ [$resolution]}", loaded.FilenameTemplate);
         Assert.False(loaded.PreventConsecutiveSegments);
         Assert.False(loaded.FilenameAsTitle);
         Assert.False(loaded.NormalizePunctuation);
@@ -266,7 +266,7 @@ public sealed class RenamerOptionsContractTests
         var loaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
         Assert.NotNull(loaded);
-        Assert.Equal("$studio - $title", loaded!.FilenameTemplate);
+        Assert.Equal("$studio - $title", loaded.FilenameTemplate);
         Assert.Equal(CaseTransform.Title, loaded.Case);
     }
 
@@ -279,7 +279,7 @@ public sealed class RenamerOptionsContractTests
         var loaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
         Assert.NotNull(loaded);
-        Assert.Equal(255, loaded!.FilenameMax);
+        Assert.Equal(255, loaded.FilenameMax);
         Assert.Equal(259, loaded.FullPathMax);
         Assert.Equal(CaseTransform.None, loaded.Case);
     }
@@ -295,7 +295,7 @@ public sealed class RenamerOptionsContractTests
         var loaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
         Assert.NotNull(loaded);
-        Assert.Empty(loaded!.FieldReplacers);
+        Assert.Empty(loaded.FieldReplacers);
         Assert.False(loaded.StripLeadingArticles);
         Assert.Equal(new List<string> { "The", "A", "An" }, loaded.Articles);
         Assert.False(loaded.PreventTitlePerformer);
@@ -320,7 +320,7 @@ public sealed class RenamerOptionsContractTests
         var opts = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
         Assert.NotNull(opts);
-        Assert.Empty(opts!.AllowedRoots);
+        Assert.Empty(opts.AllowedRoots);
     }
 
     [Fact]
@@ -489,7 +489,7 @@ public sealed class RenamerOptionsContractTests
         var loaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
         Assert.NotNull(loaded);
-        Assert.Equal(CaseTransform.Lower, loaded!.Case);
+        Assert.Equal(CaseTransform.Lower, loaded.Case);
         Assert.Equal(OverflowPolicy.KeepFirst, loaded.Performers.OnOverflow);
     }
 
@@ -563,7 +563,7 @@ public sealed class RenamerOptionsContractTests
 
                         foreach (var (suffix, value) in candidates)
                         {
-                            var mutatedNested = With(prop.PropertyType, current!, nested, value);
+                            var mutatedNested = With(prop.PropertyType, current, nested, value);
                             mutations.Add(new Mutation(
                                 path + suffix,
                                 (RenamerOptions)With(typeof(RenamerOptions), defaults, prop, mutatedNested)));

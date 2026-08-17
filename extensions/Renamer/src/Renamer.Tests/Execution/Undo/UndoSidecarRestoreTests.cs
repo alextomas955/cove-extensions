@@ -287,7 +287,7 @@ public sealed class UndoSidecarRestoreTests
         var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
         Assert.NotNull(batch);
 
-        return await new UndoReplayer(port, new CapturingEventBus(), new DiskMover()).RevertAsync(batch!);
+        return await new UndoReplayer(port, new CapturingEventBus(), new DiskMover()).RevertAsync(batch);
     }
 
     private static async Task<int> SeedCaptionAsync(CoveContext db, int fileId, string filename)

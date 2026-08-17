@@ -285,8 +285,8 @@ public sealed class PreviewSampleEndpointTests
         public override long Position { get => 0; set => throw new NotSupportedException(); }
         public override void Flush() { }
         public override int Read(byte[] buffer, int offset, int count) => throw new IOException("body must not be read");
-        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct) => throw new IOException("body must not be read");
-        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default) => throw new IOException("body must not be read");
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => throw new IOException("body must not be read");
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => throw new IOException("body must not be read");
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();

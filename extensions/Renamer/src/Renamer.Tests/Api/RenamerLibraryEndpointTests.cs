@@ -152,7 +152,7 @@ public sealed class RenamerLibraryEndpointTests
 
             var imageBatch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(imageBatch);
-            Assert.Equal(RenamerFileKind.Image, imageBatch!.Kind);
+            Assert.Equal(RenamerFileKind.Image, imageBatch.Kind);
             var imageRow = Assert.Single(imageBatch.Rows);
             Assert.Equal(imageFileId, imageRow.FileId);
 
@@ -160,7 +160,7 @@ public sealed class RenamerLibraryEndpointTests
 
             var videoBatch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(videoBatch);
-            Assert.Equal(RenamerFileKind.Video, videoBatch!.Kind);
+            Assert.Equal(RenamerFileKind.Video, videoBatch.Kind);
             Assert.Equal(videoFileId, Assert.Single(videoBatch.Rows).FileId);
 
             Assert.Equal(1d, progress.LastPercent);
@@ -201,7 +201,7 @@ public sealed class RenamerLibraryEndpointTests
 
             var summary = await new CoveRevertJournal(db).ReadUndoTargetAsync();
             Assert.NotNull(summary);
-            Assert.Equal(1, summary!.Value.OriginalCount);
+            Assert.Equal(1, summary.Value.OriginalCount);
         }
         finally
         {

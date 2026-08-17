@@ -189,7 +189,7 @@ public sealed class RevertJournalRetentionTests
         public int Executed { get; set; }
 
         public override ValueTask<DbDataReader> ReaderExecutedAsync(
-            DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken ct = default)
+            DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default)
         {
             Executed++;
             return ValueTask.FromResult(result);
@@ -203,7 +203,7 @@ public sealed class RevertJournalRetentionTests
         }
 
         public override ValueTask<int> NonQueryExecutedAsync(
-            DbCommand command, CommandExecutedEventData eventData, int result, CancellationToken ct = default)
+            DbCommand command, CommandExecutedEventData eventData, int result, CancellationToken cancellationToken = default)
         {
             Executed++;
             return ValueTask.FromResult(result);

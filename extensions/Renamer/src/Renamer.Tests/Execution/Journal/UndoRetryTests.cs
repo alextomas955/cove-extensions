@@ -66,7 +66,7 @@ public sealed class UndoRetryTests
             using var journal = new CoveRevertJournal(db);
             var open = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(open);
-            var remaining = Assert.Single(open!.Rows);
+            var remaining = Assert.Single(open.Rows);
             Assert.Equal(stays.FileId, remaining.FileId);
         }
         finally
@@ -148,7 +148,7 @@ public sealed class UndoRetryTests
             // …and the aggregate still says HOW it ended, on the counter that keeps the two apart.
             var summary = await journal.ReadUndoTargetAsync();
             Assert.NotNull(summary);
-            Assert.Equal(2, summary!.Value.OriginalCount);
+            Assert.Equal(2, summary.Value.OriginalCount);
             Assert.Equal(1, summary.Value.RestoredCount);
             Assert.Equal(1, summary.Value.UnrestorableCount);
             Assert.Equal(0, summary.Value.Remaining);
@@ -182,7 +182,7 @@ public sealed class UndoRetryTests
             using var journal = new CoveRevertJournal(db);
             var afterFirst = await journal.ReadUndoTargetAsync();
             Assert.NotNull(afterFirst);
-            Assert.Equal(3, afterFirst!.Value.OriginalCount);
+            Assert.Equal(3, afterFirst.Value.OriginalCount);
             Assert.Equal(1, afterFirst.Value.RestoredCount);
             Assert.Equal(1, afterFirst.Value.UnrestorableCount);
             Assert.Equal(1, afterFirst.Value.Remaining);
@@ -194,7 +194,7 @@ public sealed class UndoRetryTests
             var afterRetry = await journal.ReadUndoTargetAsync();
             Assert.NotNull(afterRetry);
             // The count of what the run journalled never moves; only how it was settled does.
-            Assert.Equal(3, afterRetry!.Value.OriginalCount);
+            Assert.Equal(3, afterRetry.Value.OriginalCount);
             Assert.Equal(2, afterRetry.Value.RestoredCount);
             Assert.Equal(1, afterRetry.Value.UnrestorableCount);
             Assert.Equal(0, afterRetry.Value.Remaining);

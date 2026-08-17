@@ -213,7 +213,7 @@ public sealed class JournalPagingTests
 
             var summary = await journal.ReadUndoTargetAsync();
             Assert.NotNull(summary);
-            Assert.Equal(UndoRowCount, summary!.Value.Remaining);
+            Assert.Equal(UndoRowCount, summary.Value.Remaining);
             Assert.Equal(0, summary.Value.RestoredCount);
         }
         finally
@@ -251,7 +251,7 @@ public sealed class JournalPagingTests
 
             var summary = await journal.ReadUndoTargetAsync();
             Assert.NotNull(summary);
-            Assert.Equal(UndoRowCount, summary!.Value.OriginalCount);
+            Assert.Equal(UndoRowCount, summary.Value.OriginalCount);
             Assert.Equal(UndoRowCount, summary.Value.RestoredCount);
             Assert.Equal(0, summary.Value.Remaining);
             Assert.Equal(

@@ -366,7 +366,7 @@ public sealed class AutoRenamerHookTests
             var readBack = new CoveRevertJournal(db);
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(readBack);
             Assert.NotNull(batch);
-            Assert.Equal(RenamerFileKind.Video, batch!.Kind);
+            Assert.Equal(RenamerFileKind.Video, batch.Kind);
 
             // (b) EntityId is the VIDEO id and FileId is the FILE id, and they differ — a row that
             // confused the two would have EntityId == FileId.

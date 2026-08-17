@@ -560,7 +560,7 @@ public sealed class PreviewEndpointTests
         public List<string> Texts { get; } = [];
 
         public override ValueTask<DbDataReader> ReaderExecutedAsync(
-            DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken ct = default)
+            DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default)
         {
             Texts.Add(command.CommandText);
             return ValueTask.FromResult(result);
