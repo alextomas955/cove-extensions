@@ -2,6 +2,22 @@
 
 User-facing changes, newest first.
 
+## 0.4.1 — The dry run finishes by itself, and a numbered name cannot outgrow your path limit
+
+- **Dry run → Will change now loads every matching row on its own.** It used to stop after a handful —
+  6 of 102 on a 7,459-item library — and clicking **Load more** often added one row or none at all, so
+  reaching the end took a dozen clicks or more. The cause was that Cove's scan answers in fixed
+  chunks of work rather than of rows, so a chunk containing no matches is a normal answer meaning
+  "keep asking", and the list treated it as the end. It now keeps asking until it has filled the view,
+  and the footer tells you how much of the library has been checked instead of asking you to scroll a
+  list with nothing in it to scroll. The narrower your filter, the more this was costing you.
+- **A file whose name has to be numbered can no longer be written past your path-length limit.** When
+  the target name is already taken, Renamer appends a number — and that happened _after_ the path
+  length was checked, so an item sitting at your configured limit was renamed to a path longer than
+  the limit allows. The length is now re-checked once the final name is settled, both while previewing
+  and while running, and such an item is skipped as too long rather than written. If you have never
+  lowered the path-length setting you are very unlikely to have hit this.
+
 ## 0.4.0 — Destinations you pick, not paths you type
 
 **Needs Cove 1.3.0.** An older host does not load Renamer at all — no Rename tab under Settings →
