@@ -333,6 +333,29 @@ public sealed class RenamerPlanner
             candidate = ApplySuffix(rendered.Filename, rendered.Ext, options.DuplicateSuffixFormat, attempt);
         }
 
+        // (3b) Re-measure the budget against the SETTLED candidate. The check at (2b) ran before the loop
+        //      above, and the loop lengthens the name to free a taken slot — so an item accepted at or
+        //      near the budget could be planned, previewed and written at a path the budget forbids. The
+        //      overrun is not bounded by one suffix: DuplicateSuffixFormat is user-configurable and the
+        //      loop runs to MaxSuffixAttempts.
+        //
+        //      Measured against confined.TargetFolderPath and NOT relTargetFolder, which is the one way
+        //      to get this silently wrong. The gate resolves under the synthetic __renamer_root__ when the
+        //      anchor is not itself absolute (see the note at the destination join above), so it is the
+        //      basis the first check measured; re-measuring against a different base would let the two
+        //      verdicts disagree about one path, refusing an item whose real destination fits. Only the
+        //      final candidate is ever written, so measuring here rather than inside the loop is the
+        //      correct placement and not merely a cheaper one. A collision-exhausted item has already
+        //      returned above, so that refusal keeps precedence with no ordering decision to make.
+        var recheck = PathConfinement.WithinBudget(confined.TargetFolderPath, candidate, options);
+        if (!recheck.Accepted)
+        {
+            return new RenamerPlanItem(
+                file.FileId, oldFullPath, oldFullPath, RenamerStatus.SkipTooLong,
+                file.Basename, file.ParentFolderPath,
+                ExplainRefusal(recheck, isMove, libraryRoot));
+        }
+
         string newFullPath = JoinPath(relTargetFolder, candidate);
 
         // UI badge signals (set only on the final Renamer/Move item; skip/no-op paths keep the

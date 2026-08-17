@@ -147,19 +147,20 @@ public enum RenamerStatus
     SkipNotAllowed,
 
     /// <summary>
-    /// Planner-only: the resolved absolute destination path is longer than
+    /// The resolved absolute destination path is longer than
     /// <see cref="Options.RenamerOptions.FullPathMax"/>, so the item keeps its current name and folder.
     /// Kept DISTINCT from <see cref="SkipCollision"/> (a name-taken skip) because the two ask a
     /// maintainer for opposite responses: a collision clears by itself once the other file moves, while
     /// an over-long path stands until someone shortens the template or picks a shallower destination, so
     /// reading them as one reason means waiting for a state that never arrives.
     /// <para>
-    /// WHAT THIS STATUS DOES NOT COVER, stated because the name reads wider than the check behind it:
-    /// the budget is measured ONCE, against the name the template rendered, BEFORE the duplicate-suffix
-    /// loop runs. That loop lengthens the name to free a taken slot and nothing re-measures it, so a
-    /// suffixed path CAN exceed the budget and still be planned, previewed and written to disk. This
-    /// status is evidence that one path was refused for length; it is never evidence that every planned
-    /// path fits.
+    /// Emitted at THREE points, which is what makes it evidence about the path that would actually be
+    /// written. The budget is measured against the rendered name before the duplicate-suffix loop, and
+    /// again against the settled candidate after it — because that loop lengthens the name to free a taken
+    /// slot, and by an amount the configured suffix format decides rather than a fixed one. The executor
+    /// repeats the second measurement, because its own loop re-suffixes against a fresher snapshot and can
+    /// reach a name longer than any the planner saw; that emission arrives after the confirm gate, before
+    /// anything is written.
     /// </para>
     /// </summary>
     SkipTooLong,

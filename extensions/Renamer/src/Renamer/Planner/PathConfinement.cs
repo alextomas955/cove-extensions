@@ -140,7 +140,13 @@ public static class PathConfinement
     /// could not measure because it never sees the root. The single site of the check, so the
     /// permission branches above cannot come to hold different budgets.
     /// </summary>
-    private static ConfinementResult WithinBudget(
+    /// <remarks>
+    /// <c>internal</c> rather than private because the duplicate-suffix loops re-measure through it after
+    /// they settle on a candidate: the loop lengthens the name to free a taken slot, so the name this was
+    /// first called with is not the name that gets written. Callers must pass the SAME folder basis the
+    /// original call used, or the two verdicts describe different paths — see the callers' own notes.
+    /// </remarks>
+    internal static ConfinementResult WithinBudget(
         string targetAbs, string newBasename, RenamerOptions options)
     {
         string fullAbs = Combine(targetAbs, newBasename);

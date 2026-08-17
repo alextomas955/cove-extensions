@@ -409,6 +409,72 @@ public sealed class CollisionAndRollbackTests
     }
 
     /// <summary>
+    /// The suffix this executor appends to free a taken slot pushes the absolute path past
+    /// <see cref="RenamerOptions.FullPathMax"/>, so the item is refused rather than written.
+    /// </summary>
+    /// <remarks>
+    /// Why this belongs here and not with the planner's own length cases: the plan arrives ALREADY at the
+    /// budget and legal, and this executor's collision loop is what lengthens it. A plan-time re-measure
+    /// cannot see this — it measures a name that fits — so the two sites refuse independently and each
+    /// needs its own case. The refusal lands after the confirm gate, which is why the second half of the
+    /// assertions matters more than the status: nothing may be left on disk or in the database.
+    /// </remarks>
+    [Fact]
+    public async Task SuffixPushingThePathPastTheBudget_IsSkippedTooLong_NothingMoves()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+
+            // The budget is DERIVED, never a literal: TempDir.Root sits under the machine's temp path and
+            // its length differs per machine and per OS, so a hand-written number would sit beside the
+            // boundary rather than on it. This is exactly the length of the unsuffixed target — the plan
+            // below is legal at plan time, and only the suffix breaks it.
+            var options = new RenamerOptions { FullPathMax = (folderPath + "/taken.mkv").Length };
+
+            var (folderId, videoId, fileA) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "My Film");
+            File.WriteAllText(Path.Combine(dir.Root, "a.mkv"), "a-bytes");
+
+            // A DIFFERENT file already holds the target name in the database, so the collision loop runs
+            // and appends " (1)" — four characters past a budget the unsuffixed name met exactly.
+            await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "taken.mkv");
+
+            var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
+            [
+                new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/taken.mkv",
+                    RenamerStatus.Rename, "taken.mkv", folderPath),
+            ]);
+
+            var port = new CoveRenamerDataPort(db);
+            var executor = new RenamerExecutor(
+                port, new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
+
+            var result = await executor.ExecuteAsync(plan, options, default);
+
+            var skipped = Assert.Single(result.Skipped);
+            Assert.Equal(RenamerStatus.SkipTooLong, skipped.Status);
+            Assert.Empty(result.Renamed);
+            Assert.Empty(result.Failed);
+
+            // The half that makes this a safety pin rather than a status assertion: the refusal happens
+            // before anything is touched, so the source survives, the suffixed name was never created, and
+            // the database still names the original.
+            Assert.True(File.Exists(Path.Combine(dir.Root, "a.mkv")));
+            Assert.False(File.Exists(Path.Combine(dir.Root, "taken (1).mkv")));
+            var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
+            Assert.Equal("a.mkv", basename);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
     /// Test-only port: performs the REAL save (so the DB row genuinely commits the new basename), then
     /// returns a <see cref="SavedFile"/> whose RecomputedPath is deliberately wrong,
     /// so the executor's post-save "recomputed Path == on-disk path" assertion fails on the success path.
