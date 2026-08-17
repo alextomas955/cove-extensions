@@ -31,10 +31,7 @@
  * have two, one directory over: a byte formatter in the bulk-rename confirm builder and a date
  * formatter in the undo panel's logic module. Neither imports the host's, and each says at its own site
  * why: the confirm builder is pure so its wording can be unit-tested without a running host, and the
- * undo module is bound by the `*Logic.ts` import rule and needs a different contract anyway. Scope
- * stated explicitly because a reader asking "should we use the host's helper?" is asking about the
- * repository, not about one folder, and the narrower sentence read as "there is nothing to consider".
- * Also
+ * undo module is bound by the `*Logic.ts` import rule and needs a different contract anyway.
  * `CustomFieldsDisplay`/`Editor` render Cove's custom-fields feature, which this extension has no
  * UI for. The bare `react`/`react-dom`/`lucide-react`/`@tanstack/react-query` import specifiers
  * used throughout this codebase are not a migration gap either: the host's `legacySpecifiers`
@@ -1201,17 +1198,13 @@ const tint = (variable: string, percent: number) =>
 // freezing a literal. A consumer whose text colour rides on inner spans still overrides the `text-*`
 // class, as before.
 //
-// CORRECTED 2026-08-17. This comment used to say "the amber and green tints and `bg-red-950/40` are
-// absent", and that is wrong for one of the five: `border-amber-400/40` IS emitted by the host at the
-// version this extension advertises as its floor. Four are genuinely absent — `bg-amber-400/10`,
-// `bg-red-950/40`, `border-green-500/40`, `bg-green-500/10`.
+// Four are genuinely absent at the floor — `bg-amber-400/10`, `bg-red-950/40`, `border-green-500/40`
+// and `bg-green-500/10`. `border-amber-400/40` is emitted at the floor and is inlined anyway, which
+// costs nothing because an inline style beats the class either way.
 //
-// Worth knowing WHY it was wrong, because the same mistake is easy to repeat: the check was made
-// against the host extraction checked into this repo, which is pinned to an OLDER tag than the floor.
-// `border-amber-400/40` is absent there and present at the floor. Any future host-absent claim must be
-// measured against the floor the manifest declares, never against whatever extraction happens to be
-// on disk. Inlining it anyway is harmless — an inline style beats the class either way — so this is a
-// correction to the reasoning, not to the rendering.
+// Measure any host-absent claim against the floor `extension.json` declares, never against the host
+// extraction checked into this repo: that extraction is pinned to an OLDER tag, and
+// `border-amber-400/40` is absent there while present at the floor.
 const STATUS_PILL_VARIANT: Record<StatusPillVariant, { className: string; style?: CSSProperties }> =
   {
     accent: { className: "border-accent/40 bg-accent/10 text-accent" },
@@ -1293,12 +1286,10 @@ export function SectionCard({
   children: ReactNode;
 }) {
   const hasHeader = Boolean(title) || badge != null || headerRight != null;
-  // The shadow is a class, not an inline style. The reason it was inlined — that an arbitrary
-  // `shadow-[…]` renders nothing because the host's Tailwind never scans this bundle — is the right test
-  // applied to the wrong question: what decides whether a class works is whether COVE uses it, not
-  // whether its value is arbitrary. Cove's own settings card carries this exact string
-  // (`SettingsPrimitives.tsx`), so the host stylesheet emits it and the class resolves. Measured present
-  // at the floor host, alongside seven other arbitrary shadows it also emits.
+  // The shadow resolves as a class because Cove's own settings card carries this exact string
+  // (`SettingsPrimitives.tsx`), so the host stylesheet emits it — measured present at the floor host,
+  // alongside seven other arbitrary shadows it also emits. What decides whether an arbitrary-value
+  // class works here is whether COVE uses it, not whether its value is arbitrary.
   return (
     <section className="rounded-2xl border border-border bg-surface p-5 shadow-[0_12px_30px_-20px_rgba(0,0,0,0.7)]">
       {hasHeader ? (
@@ -1427,20 +1418,16 @@ export function CollapsibleSection({
 }
 
 /**
- * The panel's button, carrying the behaviours Cove's own `SettingsButton` has.
+ * The panel's button, mirroring the behaviours of Cove's own `SettingsButton`.
  *
- * Five were missing and each is user-visible rather than cosmetic: `min-h-10` with `sm:min-h-0` and
- * `sm:py-1.5` gives a touch-sized target on a narrow viewport that shrinks on a wide one — without them
- * the panel's buttons are smaller than every other button on a phone; `transition-colors` makes hover
- * animate rather than snap; `disabled:cursor-not-allowed` shows a disabled control as disabled on
- * hover, where opacity alone reads as merely dim; and `justify-center` centres the label once a
- * minimum height exists to centre within.
+ * The shared class string is behaviour rather than decoration: `min-h-10` with `sm:min-h-0`/`sm:py-1.5`
+ * keeps a touch-sized target on a narrow viewport and shrinks it on a wide one; `transition-colors`
+ * animates hover rather than snapping it; `disabled:cursor-not-allowed` reads as disabled rather than
+ * merely dim; `justify-center` centres the label within that minimum height. `danger` is Cove's third
+ * variant, for a destructive action that must not read as an ordinary confirm.
  *
- * The `danger` variant is Cove's third, absent here, so a destructive action had to borrow `primary`
- * and read as an ordinary confirm.
- *
- * Every class below is emitted by the floor host — measured, all eight of the added ones — so this
- * needs no shipped stylesheet and contributes nothing to one.
+ * Every class here is emitted by the floor host — measured — so this needs no shipped stylesheet and
+ * contributes nothing to one.
  */
 export function Button({
   variant = "primary",
@@ -1453,9 +1440,8 @@ export function Button({
   onClick: () => void;
   disabled?: boolean;
 }) {
-  // The five behaviours only, appended to each variant's existing string. Deliberately NOT the host's
-  // base string wholesale: that would also change this button's padding and gap, which the parity audit
-  // did not flag and nobody asked to move.
+  // Appended to each variant's existing string, deliberately NOT the host's base string wholesale:
+  // that would also move this button's padding and gap.
   const shared =
     "min-h-10 justify-center transition-colors disabled:cursor-not-allowed sm:min-h-0 sm:py-1.5";
   const variantClass =
