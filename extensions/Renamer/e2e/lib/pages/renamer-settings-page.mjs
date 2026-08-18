@@ -15,6 +15,16 @@ export class RenamerSettingsPage {
     // The in-app (React) confirm modal's accept button — dynamic label ("Undo 1 rename",
     // "Undo 3 renames"), NOT a native browser dialog.
     this.undoConfirmButton = page.getByRole("button", { name: /^Undo \d+ renames?$/ });
+    // The confirm modal's shell, named by the heading its aria-labelledby points at.
+    this.undoConfirmDialog = page.getByRole("dialog", { name: "Undo last rename?" });
+    // The confirm's message paragraph. Anchored on the id the dialog's aria-describedby names, which is
+    // an accessibility contract the component owns rather than a styling hook — a class here would
+    // follow a restyle onto the wrong element instead of failing.
+    this.undoConfirmMessage = this.undoConfirmDialog.locator("#rename-undo-confirm-message");
+    this.undoConfirmCancelButton = this.undoConfirmDialog.getByRole("button", { name: "Cancel" });
+    // The panel's own sentence for "there is nothing to put back" — the branch that replaces the whole
+    // status-line-plus-button row, so it is what a withheld control looks like to a user.
+    this.noRenameToUndoText = page.getByText("No rename to undo.");
     // The section's one status line, rendered as `Last rename: {status.line}`. Keyed on that literal
     // prefix rather than on the counts, so resolving it proves the section mounted and its
     // /last-batch fetch reached a branch that has a batch to describe — it proves NOTHING about the
@@ -39,12 +49,19 @@ export class RenamerSettingsPage {
     // the one `EntitySelectField` the panel renders under DEFAULT options — every other one sits behind
     // a template token or a feature toggle — so reaching it needs no options edit.
     //
-    // role=combobox is the HOST control's own (it also sets aria-autocomplete=list), not a textbox: a
-    // getByRole("textbox") never matches it. The name is the wrapping Field label's text INCLUDING its
-    // helper line, because that label is the only accessible name this control has — the host input
-    // takes no label, id or aria-label of its own, which is the recorded reason every instance stays
-    // inside a Field.
-    this.excludeTagSelectorInput = page.getByRole("combobox", { name: "Tags Type to search." });
+    // role=combobox is the HOST control's own (it also sets aria-autocomplete=list), NOT a textbox: a
+    // getByRole("textbox") never matches it. Scoped to the card rather than named, because the only
+    // accessible name this control has is the wrapping Field label's whole text including its helper
+    // sentence — the host input takes no label, id or aria-label of its own, which is the recorded
+    // reason every instance stays inside a Field. The card hop is `GroupCard`'s own shape (heading →
+    // title box → header row → card root), the same anchor `rename-ui-coverage.spec.mjs` and
+    // `options-migration.spec.mjs` each reach it by, with the reasoning stated at both. They still hold
+    // their own copies of that hop; this handle is the place to consolidate them onto, in a change
+    // allowed to touch those files.
+    this.excludeTagSelectorInput = page
+      .getByRole("heading", { name: "Exclude by tag", exact: true })
+      .locator("xpath=../../..")
+      .getByRole("combobox");
   }
 
   async goto() {
@@ -146,6 +163,38 @@ export class RenamerSettingsPage {
   async undoStatusText() {
     await this.undoStatusLine.waitFor({ state: "visible", timeout: 30_000 });
     return this.undoStatusLine.textContent();
+  }
+
+  /**
+   * Opens the destructive confirm and stops there, WITHOUT accepting it.
+   *
+   * Separate from `undoLastRename()`, which accepts: a caller that only reads the confirm's wording must
+   * leave the batch untouched, so the accept click cannot be part of getting there. Waits for the dialog
+   * shell because its text does not exist until the shell mounts — an immediate read would find nothing
+   * at all, and the caller's assertion would then fail for that reason rather than for a wrong count.
+   */
+  async openUndoConfirm() {
+    await this.undoLastRenameButton.waitFor({ state: "visible", timeout: 10_000 });
+    await this.undoLastRenameButton.click();
+    await this.undoConfirmDialog.waitFor({ state: "visible", timeout: 5_000 });
+  }
+
+  /** Dismisses the confirm through its Cancel button, leaving the batch exactly as it was. */
+  async cancelUndoConfirm() {
+    await this.undoConfirmCancelButton.click();
+    await this.undoConfirmDialog.waitFor({ state: "hidden", timeout: 5_000 });
+  }
+
+  /**
+   * Waits until the panel has settled on its "No rename to undo." branch.
+   *
+   * A caller asserting that the undo control is WITHHELD must wait on this sentence first, never on the
+   * control's absence alone: the section renders a "Checking for a recent rename…" spinner until its
+   * /last-batch fetch resolves, and the control is absent throughout that window too — so an immediate
+   * absence check passes on a panel that has not yet decided, which is a green for the wrong reason.
+   */
+  async waitForNoRenameToUndo() {
+    await this.noRenameToUndoText.waitFor({ state: "visible", timeout: 30_000 });
   }
 
   /**
