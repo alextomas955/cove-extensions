@@ -387,6 +387,42 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
     "the panel dropped the retention clause, so the user is never told when the undo stops being offered",
   ).toContain("undo available until");
 
+  // The GATE, on the same arranged state and with no second setup: this batch has exactly one file
+  // outstanding of two. That is the case the gate is keyed on — the control acts on what is LEFT, not on
+  // what the batch started as — so a spent-but-nonzero batch must still be offered. Nothing read the
+  // control's offered state before this, so inverting that gate would have failed nothing.
+  await expect(
+    settingsPage.undoLastRenameButton,
+    "a batch with a file still outstanding is not being offered — the gate has stopped keying on what is left",
+  ).toBeVisible();
+  await expect(
+    settingsPage.undoLastRenameButton,
+    "the undo is offered but disabled on a batch that still has work to put back",
+  ).toBeEnabled();
+
+  // The destructive confirm's QUOTED COUNT, both strings TRANSCRIBED BY HAND off what the panel renders
+  // for an outstanding count of ONE. One rather than two on purpose: this is the singular arm, which a
+  // plural-only expectation would pass straight over on a component that never singularizes. Copied
+  // verbatim, "their" included — the singular sentence carries a plural possessive, and rewording user
+  // facing copy here would invalidate the transcription in the same change that made it.
+  //
+  // Deliberately NOT interpolated from `afterPartial.remainingCount`, which this spec is already holding
+  // a few lines up: an expectation taken from the API response agrees with the server rather than with
+  // what the user reads, and the gap between those two is the whole reason these assertions exist. The
+  // handle's own name pattern matches any digit, so it can find the control but can never pin the count.
+  await settingsPage.openUndoConfirm();
+  await expect(
+    settingsPage.undoConfirmMessage,
+    "the confirm does not quote the one file actually left to put back — a destructive control stating a number the batch no longer holds",
+  ).toHaveText("This moves 1 file back to their original names. This can't be undone again.");
+  await expect(
+    settingsPage.undoConfirmButton,
+    "the confirm's action label does not quote the one file actually left to put back",
+  ).toHaveText("Undo 1 rename");
+  // Dismissed, never accepted: the retry below is what consumes the remainder, and an accept here would
+  // undo it early and leave every assertion after this one describing a batch this spec did not arrange.
+  await settingsPage.cancelUndoConfirm();
+
   // Clear the obstruction and retry. The second attempt must act on the remainder only.
   await container.exec(["rm", blocked.originalPath], { user: "root" });
   expect(await fileExists(container, blocked.originalPath), "the obstruction is still there").toBe(
@@ -413,6 +449,18 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   );
   expect(afterRetry.count).toBe(2);
   expect(afterRetry.consumed, "a batch with no rows left is spent").toBe(true);
+
+  // The gate's other half, now that the batch is empty. The offered case above passes just as well on a
+  // gate keyed on nothing at all, so only the pair distinguishes one keyed on the outstanding count —
+  // and this is the half that says a destructive control is not offered when there is nothing to act on.
+  // Read through the panel's own sentence rather than through the control's absence alone; the page
+  // object states why an absence check on its own is a green for the wrong reason.
+  await settingsPage.goto();
+  await settingsPage.waitForNoRenameToUndo();
+  await expect(
+    settingsPage.undoLastRenameButton,
+    "a fully restored batch is still offering its undo — the gate is keying on the batch existing rather than on it having work left",
+  ).toHaveCount(0);
 
   // ── 4. Uninstall, reinstall, and journal a rename on the table that survived ────────────────────
   //

@@ -39,6 +39,34 @@ const THEME_COLOR_VARS = [
   "--color-green-500",
 ];
 
+// The box the shared `INPUT_CLASS` asks for, as the RELEASED host actually renders it — every value
+// TRANSCRIBED BY HAND off `ghcr.io/yourcove/cove-app:1.3.0-rc.2` on 2026-08-18 (the harness's declared
+// floor, which is the image the tag below boots). Nothing here is derived: no expression resolved in
+// the browser, no value read back off the element and compared with itself. Re-transcribe if the shared
+// class string moves — a check that recomputed these would agree with a broken hand-off forever.
+//
+// One entry per utility in that string that sets a box-model or type property, and only those:
+// `border-border`, `bg-card` and `text-foreground` resolve from host theme variables, so pinning them
+// would pin the HOST's decision rather than the extension's, and `w-full` resolves to a
+// viewport-dependent pixel width that says nothing about whether the class landed.
+//
+// Measured under a deliberate mutation (the hand-off deleted): the host's default box differs on
+// `borderRadius` ALONE — 4px against the 12px `rounded-xl` asks for — and already supplies this same
+// 1px border, 12px/8px padding and 14px/20px type. So the corner radius is the only entry that detects
+// a lost hand-off, and the other seven are NOT redundant with it: they are what would catch a released
+// host that stopped compiling `px-3`, `py-2`, `text-sm` or `border`, which is the third-wave failure
+// this file's header says nothing else catches. Two different defects, one object.
+const EXTENSION_INPUT_BOX = {
+  borderRadius: "12px", // rounded-xl
+  borderTopWidth: "1px", // border
+  paddingLeft: "12px", // px-3
+  paddingRight: "12px", // px-3
+  paddingTop: "8px", // py-2
+  paddingBottom: "8px", // py-2
+  fontSize: "14px", // text-sm
+  lineHeight: "20px", // text-sm
+};
+
 test("the extension declares no cssBundle (ships zero CSS — cannot leak onto host pages)", async ({
   api,
 }) => {
@@ -90,6 +118,43 @@ test("host-absent utilities render via inline styles on a released host, whose t
   for (const name of THEME_COLOR_VARS) {
     expect(defined[name], `${name} must be defined by the host theme`).not.toBe("");
   }
+});
+
+test("the embedded host entity selector renders the extension's input box, not the host's default", async ({
+  page,
+  baseUrl,
+}) => {
+  // The one place the extension styles a control it does not render: `EntitySelectField` hands the
+  // shared `INPUT_CLASS` to the host multi-selector's `inputClassName` so an embedded host control
+  // matches every other input in the panel. That hand-off is a single prop, and until this assertion
+  // existed nothing read its result — dropping it would leave the host's unstyled default box on a
+  // released host, visibly wrong to a user and green in every tier.
+  //
+  // It belongs in THIS file rather than beside the panel's other UI coverage because the claim is
+  // about the released host: the utilities below are only rendered at all if Cove's own prebuilt
+  // bundle emits them, and the local dev host's @source contamination would emit them regardless.
+  const settings = new RenamerSettingsPage(page, baseUrl);
+  await settings.goto();
+  await settings.openExcludes();
+
+  const box = await settings.excludeTagSelectorInput.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return {
+      borderRadius: s.borderRadius,
+      borderTopWidth: s.borderTopWidth,
+      paddingLeft: s.paddingLeft,
+      paddingRight: s.paddingRight,
+      paddingTop: s.paddingTop,
+      paddingBottom: s.paddingBottom,
+      fontSize: s.fontSize,
+      lineHeight: s.lineHeight,
+    };
+  });
+
+  expect(
+    box,
+    "the entity selector's input is rendering the host's default box, not the extension's — either the shared input class stopped reaching the host control's inputClassName, or the released host no longer compiles one of the utilities it names",
+  ).toEqual(EXTENSION_INPUT_BOX);
 });
 
 test("host account page is unaffected by the extension (no CSS leak)", async ({
