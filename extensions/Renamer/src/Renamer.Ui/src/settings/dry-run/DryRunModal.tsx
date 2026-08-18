@@ -109,7 +109,13 @@ function usePollJob(
     return () => {
       poll.cancel();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- onDone/onProgress/onExpire are stable refs from the caller
+    // The three callbacks are NOT stable refs — the one caller passes inline arrows, rebuilt on every
+    // render. They are left out of the dependency list on purpose: listing them would restart the poll
+    // on each render. What makes the captured first-render closures safe to keep is that they touch
+    // only useState setters and useRef values, both stable for the component's life, so a stale
+    // closure reads nothing stale. Give one of them a render-scoped value to capture and that stops
+    // being true — the poll would then report against a snapshot from the first render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate; see above
   }, [jobId]);
 }
 
