@@ -25,7 +25,10 @@ public enum RenamerStatus
     NoOp,
 
     /// <summary>
-    /// A taken target the suffix loop could not free. The executor must NOT attempt a move.
+    /// The destination name was taken and nothing was overwritten. From a suffix loop that could not
+    /// free a name — the planner's, or the executor's own — in which case the executor must NOT attempt
+    /// a move; or from a move that WAS attempted and met an occupied destination at move time, which
+    /// leaves both the file holding the name and the source standing.
     /// </summary>
     SkipCollision,
 
