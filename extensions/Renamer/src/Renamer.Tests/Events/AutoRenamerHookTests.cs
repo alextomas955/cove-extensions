@@ -275,6 +275,125 @@ public sealed class AutoRenamerHookTests
     }
 
     /// <summary>
+    /// The re-entrancy story over a destination pair that NEVER reaches a fixed point: one action moves
+    /// the file exactly once, the event that move re-raised moves it nowhere, and a later genuine edit is
+    /// still processed.
+    /// </summary>
+    /// <remarks>
+    /// A source-path rule sends the file out of the folder the rule keys on, and the default
+    /// <i>Where files go</i> is rooted at exactly that folder with an EMPTY folder template — so it names
+    /// the very folder the rule empties. The rule matches on where the file IS, so after the rule fires it
+    /// stops matching and the default reclaims the item; the two alternate rather than compete and no pass
+    /// is ever all-NoOp. That is what separates this case from
+    /// <see cref="FlagOn_NameDiffers_RenamesOnce_ThenReentryIsStableNoOp"/>: there the second pass has
+    /// nothing to do, here it WOULD act, so the plan-is-empty condition can never stop the loop and only a
+    /// suppression scoped to the handler's own save can.
+    /// <para>
+    /// A non-empty default template would land the file in a subfolder the rule's pattern does not name,
+    /// which converges in three passes; the emptiness here is what makes the pair non-converging and is
+    /// the whole arrangement.
+    /// </para>
+    /// <para>
+    /// Every expected path below is written out from the arrangement by hand. Asking the resolver or the
+    /// planner where the file should be would produce an expectation that agrees with the code under test
+    /// however far the two drift, which is the one failure these assertions exist to catch.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task FlagOn_NonConvergingDestinationPair_OneHopPerAction_NoBounceOnItsOwnEvent()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            // Sibling folders under one temp root → same volume, so the atomic File.Move path applies.
+            string libraryFolder = Path.Combine(dir.Root, "library");
+            string sortedRoot = Path.Combine(dir.Root, "sorted");
+            Directory.CreateDirectory(libraryFolder);
+
+            string libraryFwd = libraryFolder.Replace('\\', '/');
+            string sortedFwd = sortedRoot.Replace('\\', '/');
+
+            var (_, videoId, fileId) =
+                await ExecutorTestSeed.SeedVideoAsync(db, libraryFwd, "raw.mkv", "My Film");
+            File.WriteAllText(Path.Combine(libraryFolder, "raw.mkv"), "bytes");
+
+            var options = new RenamerOptions
+            {
+                AutoRenamerOnUpdate = true,
+                FilenameTemplate = "$title",
+                AllowedRoots = [libraryFwd, sortedFwd],
+                // The pair that never settles: the rule sends the file OUT of libraryFolder, and the
+                // default is rooted AT libraryFolder with nothing rendered under it, so it sends the file
+                // straight back.
+                FolderRoot = libraryFwd,
+                FolderTemplate = "",
+                PathDestinations =
+                    [new PathDestinationRule
+                    {
+                        Pattern = libraryFwd, Dest = Dests.At(sortedFwd, "Films"), IsRegex = false,
+                    }],
+            };
+            var (ext, bus, _) = await EventTestHarness.BuildAsync(db, options, libraryFwd, sortedFwd);
+
+            // Both destinations, transcribed from the arrangement above — never computed.
+            string atRule = Path.Combine(sortedRoot, "Films", "My Film.mkv");
+            string atDefault = Path.Combine(libraryFolder, "My Film.mkv");
+
+            // (1) One action, one hop: the rule matches the file's folder and relocates it once.
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+
+            Assert.True(File.Exists(atRule), $"the matched rule did not relocate the file to {atRule}");
+            Assert.False(File.Exists(Path.Combine(libraryFolder, "raw.mkv")));
+            var (_, pathAfterFirst) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            Assert.Equal($"{sortedFwd}/Films/My Film.mkv", pathAfterFirst.Replace('\\', '/'));
+            Assert.True(
+                bus.Published.Count == 1,
+                $"one save must re-raise exactly one event, but {bus.Published.Count} were published");
+
+            // (2) The event that save re-raised. On this pair the plan is NOT empty — the default would
+            //     take the file back — so nothing but the self-save suppression can stop it.
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+
+            Assert.True(
+                File.Exists(atRule),
+                "the file bounced back on the event its own save raised — the auto-renamer re-entered "
+                    + "itself instead of ignoring an item it had just saved");
+            Assert.False(
+                File.Exists(atDefault),
+                $"the file bounced back to {atDefault} on the event its own save raised");
+            var (_, pathAfterReentry) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            Assert.Equal($"{sortedFwd}/Films/My Film.mkv", pathAfterReentry.Replace('\\', '/'));
+            Assert.True(
+                bus.Published.Count == 1,
+                "the re-entrant event saved and re-raised again, which is the runaway: "
+                    + $"{bus.Published.Count} events published where one action happened");
+
+            // (3) A LATER genuine edit — not the re-raised one. It must be processed: the suppression is
+            //     scoped to the action that armed it, not a mode the handler stays in. Without this
+            //     assertion a suppression that never released would pass (1) and (2) and mute the hook
+            //     permanently.
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+
+            Assert.True(
+                File.Exists(atDefault),
+                "a genuine later edit was swallowed — the self-save suppression never released, so the "
+                    + "auto-renamer is now permanently muted for this item");
+            Assert.False(File.Exists(atRule), "the later edit left a copy at the rule's destination");
+            var (_, pathAfterThird) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            Assert.Equal($"{libraryFwd}/My Film.mkv", pathAfterThird.Replace('\\', '/'));
+            Assert.True(
+                bus.Published.Count == 2,
+                $"the later edit's own save must re-raise one event, but the bus holds {bus.Published.Count}");
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
     /// The load-bearing safety property: with the flag ON but the file ALREADY named exactly what the
     /// template renders, the plan is all-NoOp, so firing the handler performs ZERO saves and the bus
     /// records ZERO published events.
