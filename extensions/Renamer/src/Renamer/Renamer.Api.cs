@@ -968,10 +968,12 @@ public sealed partial class Renamer
     /// batch" behavior. Never combines kinds into one call: a journal batch carries one
     /// <see cref="RenamerFileKind"/> by design, so a whole-library renamer across all three kinds
     /// naturally opens up to three separate batches/runIds, one per acting kind — this introduces NO
-    /// multi-kind batch format and NO engine/executor/journal change. A consequence worth
-    /// noting (not fixed here, out of scope): <c>/undo</c> only replays the newest batch with rows left, so if
-    /// this run touches more than one kind, only the last kind's batch is undoable via the existing
-    /// single-shot Undo button.
+    /// multi-kind batch format and NO engine/executor/journal change. A consequence worth noting:
+    /// undoing such a run takes one press of the Undo button per acting kind, because
+    /// <see cref="UndoAsync"/> acts on one batch per call — see its summary for how that batch is named.
+    /// Successive presses therefore walk back from the kind the run reached LAST to the kind it reached
+    /// first, and every batch the run opened is reachable to a caller holding that kind's write
+    /// permission; none of them is stranded.
     /// </summary>
     /// <param name="writableKinds">The kinds the enqueuing principal held write permission for, captured at enqueue time (same rationale as <see cref="RunScanLibraryJobAsync"/>'s <c>readableKinds</c> parameter).</param>
     /// <param name="progress">The job-progress sink, forwarded into each per-kind <see cref="RunRenamerBatchAsync"/> call.</param>
