@@ -56,7 +56,7 @@ public sealed class CrossVolumeMoverTests
         var result = await mover.MoveAsync(old, dest, sidecars: null, CancellationToken.None);
 
         Assert.False(result.Moved);
-        Assert.Equal(MoveOutcome.LockedOrExists, result.Outcome);
+        Assert.Equal(MoveOutcome.TargetExists, result.Outcome);
         // The pre-existing destination is never clobbered, and the source survives.
         Assert.Equal("original", File.ReadAllText(dest));
         Assert.True(File.Exists(old));
@@ -64,6 +64,35 @@ public sealed class CrossVolumeMoverTests
         // The no-clobber pre-check returns before anything is minted, so the directory holds exactly
         // the two files the test put there.
         Assert.Equal(new[] { dest, old }.Order(), Directory.GetFiles(dir.Root).Order());
+    }
+
+    [Fact]
+    public async Task FinalNameTakenAfterThePreCheck_TargetExists_RacingWritersFilePreserved()
+    {
+        using var dir = new TempDir();
+        var old = dir.Touch("clip.mkv", "payload");
+        var dest = Path.Combine(dir.Root, "Taken.mkv");
+        var minted = new List<string>();
+
+        // The one race the up-front pre-check cannot see: the destination is free when the pre-check
+        // reads it and occupied by the time the promote asks for it, so the promote's own IOException is
+        // the only place left to classify it. The post-copy seam is the single point between the two,
+        // which is why the racing writer is played from there.
+        var mover = new CrossVolumeMover((inFlight, _) =>
+        {
+            minted.Add(inFlight);
+            File.WriteAllText(dest, "the racing writer's file");
+            return Task.CompletedTask;
+        });
+
+        var result = await mover.MoveAsync(old, dest, sidecars: null, CancellationToken.None);
+
+        Assert.False(result.Moved);
+        Assert.Equal(MoveOutcome.TargetExists, result.Outcome);
+        // Never clobbered: the racing writer's bytes stand and the source stays where it was.
+        Assert.Equal("the racing writer's file", File.ReadAllText(dest));
+        Assert.Equal("payload", File.ReadAllText(old));
+        AssertMintedPathsGone(minted, "the unpromotable in-flight copy must be removed after a lost race");
     }
 
     [Fact]
@@ -111,7 +140,7 @@ public sealed class CrossVolumeMoverTests
             var result = await mover.MoveAsync(old, dest, sidecars: null, CancellationToken.None);
 
             Assert.False(result.Moved);
-            Assert.Equal(MoveOutcome.LockedOrExists, result.Outcome);
+            Assert.Equal(MoveOutcome.Locked, result.Outcome);
             Assert.NotNull(result.Reason);
         }
 
