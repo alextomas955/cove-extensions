@@ -29,8 +29,9 @@ public enum MoveOutcome
     /// copy that was verified, atomically promoted, and whose source was then deleted.</summary>
     Moved = 0,
 
-    /// <summary>The source was locked/in-use OR the destination already existed.</summary>
-    LockedOrExists,
+    /// <summary>The source was locked/in-use at move time — the move never started, so the source
+    /// stays at its old path and no destination was created.</summary>
+    Locked,
 
     /// <summary>The OS denied permission for the move — across volumes, for the copy, the promote or
     /// the source delete.</summary>
@@ -44,6 +45,20 @@ public enum MoveOutcome
     /// that call created is removed and the source is left untouched — a cancel never loses or
     /// duplicates a file and never throws out (classify-not-throw).</summary>
     Cancelled,
+
+    /// <summary>The destination path was occupied when the move needed it — never overwritten. Both
+    /// files survive: whatever holds the destination name, and the source at its old path.</summary>
+    /// <remarks>
+    /// Appended last so that splitting this cause out of the old merged member could not renumber any
+    /// member above it — the same reason the ordinals are pinned at all.
+    /// <para>
+    /// Where the operating system raises one <see cref="IOException"/> for both an occupied destination
+    /// and a locked source, the tier that catches it tells them apart by TESTING the destination, never
+    /// by reading the exception's message: that message is prose, and a decision keyed on it changes
+    /// meaning the moment someone rewords it.
+    /// </para>
+    /// </remarks>
+    TargetExists,
 }
 
 /// <summary>
@@ -82,7 +97,8 @@ public static class MoveOutcomeClassifier
     /// </remarks>
     public static RenamerStatus StatusFor(MoveOutcome outcome) => outcome switch
     {
-        MoveOutcome.LockedOrExists => RenamerStatus.SkipLocked,
+        MoveOutcome.Locked => RenamerStatus.SkipLocked,
+        MoveOutcome.TargetExists => RenamerStatus.SkipCollision,
         MoveOutcome.PermissionDenied => RenamerStatus.SkipPermissionDenied,
         MoveOutcome.VerifyFailed => RenamerStatus.SkipVerifyFailed,
         MoveOutcome.Cancelled => RenamerStatus.SkipCancelled,

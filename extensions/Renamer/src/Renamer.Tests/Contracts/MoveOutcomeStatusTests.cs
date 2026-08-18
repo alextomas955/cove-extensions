@@ -33,10 +33,11 @@ public sealed class MoveOutcomeStatusTests
     /// </summary>
     public static TheoryData<MoveOutcome, RenamerStatus> EveryNonMovedOutcome => new()
     {
-        { MoveOutcome.LockedOrExists, RenamerStatus.SkipLocked },
+        { MoveOutcome.Locked, RenamerStatus.SkipLocked },
         { MoveOutcome.PermissionDenied, RenamerStatus.SkipPermissionDenied },
         { MoveOutcome.VerifyFailed, RenamerStatus.SkipVerifyFailed },
         { MoveOutcome.Cancelled, RenamerStatus.SkipCancelled },
+        { MoveOutcome.TargetExists, RenamerStatus.SkipCollision },
     };
 
     [Theory]

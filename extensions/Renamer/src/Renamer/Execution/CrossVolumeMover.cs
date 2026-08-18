@@ -48,7 +48,7 @@ namespace Renamer.Execution;
 /// inside the SAME all-or-nothing <c>try</c> as the copy in (1) and the promote in (3), so a delete
 /// that throws AFTER the promote already succeeded lands in the same <see cref="IOException"/> /
 /// <see cref="UnauthorizedAccessException"/> arms as a failure before it, and the attempt is
-/// classified as a move that did NOT happen — <see cref="MoveOutcome.LockedOrExists"/> or
+/// classified as a move that did NOT happen — <see cref="MoveOutcome.TargetExists"/> or
 /// <see cref="MoveOutcome.PermissionDenied"/>, whose summary names the source delete beside the copy
 /// and the promote for exactly this reason. The promoted destination survives that classification,
 /// because (3) already renamed the in-flight name away and the cleanup's <c>File.Exists</c> guard is
@@ -62,13 +62,15 @@ namespace Renamer.Execution;
 /// taking the source delete out of the all-or-nothing block, or giving a promoted-but-source-remains
 /// attempt an outcome of its own, changes move semantics for real user files and can only land
 /// behind a test that locks or denies the source between the promote and the delete. Until then,
-/// read a <see cref="MoveOutcome.LockedOrExists"/> or <see cref="MoveOutcome.PermissionDenied"/>
+/// read a <see cref="MoveOutcome.TargetExists"/> or <see cref="MoveOutcome.PermissionDenied"/>
 /// skip from this class as "the move may or may not have happened", never as "nothing changed on
 /// disk".
 /// </para></item>
 /// </list>
-/// classify-not-throw: a locked source / existing destination (<see cref="IOException"/>) → a
-/// <see cref="MoveOutcome.LockedOrExists"/> skip; a permission denial
+/// classify-not-throw: a locked source (<see cref="IOException"/>) → a
+/// <see cref="MoveOutcome.Locked"/> skip; an occupied destination (the up-front check, or the same
+/// <see cref="IOException"/> resolved by testing the destination) → a
+/// <see cref="MoveOutcome.TargetExists"/> skip; a permission denial
 /// (<see cref="UnauthorizedAccessException"/>) → a <see cref="MoveOutcome.PermissionDenied"/> skip;
 /// a failed verify → <see cref="MoveOutcome.VerifyFailed"/>; a cancelled token → a
 /// <see cref="MoveOutcome.Cancelled"/> skip (the in-flight copy this call created is removed first).
@@ -169,9 +171,9 @@ public sealed class CrossVolumeMover
     /// <summary>
     /// Copies <paramref name="oldFull"/> → <paramref name="newFull"/> across volumes via the strict
     /// never-reordered copy → verify(size + hash) → atomic-renamer → delete-source-last sequence, then
-    /// moves each planned sidecar skip-not-clobber through the SAME sequence. A locked source or an
-    /// existing destination is caught and returned as a
-    /// <see cref="MoveOutcome.LockedOrExists"/> skip; a permission failure as
+    /// moves each planned sidecar skip-not-clobber through the SAME sequence. A locked source is caught
+    /// and returned as a <see cref="MoveOutcome.Locked"/> skip and an occupied destination as a
+    /// <see cref="MoveOutcome.TargetExists"/> skip; a permission failure as
     /// <see cref="MoveOutcome.PermissionDenied"/>; a destination that does not match the source by size
     /// or hash as <see cref="MoveOutcome.VerifyFailed"/>; a cancelled <paramref name="ct"/> as
     /// <see cref="MoveOutcome.Cancelled"/>. On any failure the source is never deleted and the suspect
@@ -257,10 +259,11 @@ public sealed class CrossVolumeMover
         string finalFull,
         CancellationToken ct)
     {
-        // (0) No-clobber pre-check: an existing final destination is never overwritten.
+        // (0) No-clobber pre-check: an existing final destination is never overwritten. The one site of
+        // the three below that needs no destination test to decide — it IS the destination test.
         if (System.IO.File.Exists(finalFull))
         {
-            return (false, MoveOutcome.LockedOrExists, $"target exists, not overwritten: {finalFull}");
+            return (false, MoveOutcome.TargetExists, $"target exists, not overwritten: {finalFull}");
         }
 
         // Every delete below targets this one path, minted here in this invocation — which is what makes
@@ -300,7 +303,12 @@ public sealed class CrossVolumeMover
             catch (IOException ex)
             {
                 TryDelete(inFlightFull);
-                return (false, MoveOutcome.LockedOrExists, $"final exists or locked: {ex.Message}");
+                // A racing writer that took the final name between the pre-check and here, and a locked
+                // in-flight copy, arrive as the same IOException. Decide by measuring the destination —
+                // see MoveOutcome.TargetExists for why the exception's message is never read.
+                return System.IO.File.Exists(finalFull)
+                    ? (false, MoveOutcome.TargetExists, $"target exists at promote, not overwritten: {ex.Message}")
+                    : (false, MoveOutcome.Locked, $"promote refused, in-flight copy locked: {ex.Message}");
             }
 
             // (4) Delete the source ONLY after the promote succeeds (delete-last).
@@ -320,7 +328,12 @@ public sealed class CrossVolumeMover
             // Covers a locked source and torn I/O. Skip + report; never force, never delete the source.
             // Remove the suspect in-flight copy if the CreateNew got far enough to make one.
             TryDelete(inFlightFull);
-            return (false, MoveOutcome.LockedOrExists, $"locked or target exists: {ex.Message}");
+            // Decide by measuring the destination, never by reading the exception's message — see
+            // MoveOutcome.TargetExists. A destination present here also covers the class summary's
+            // promote-then-delete window in (4): the promote landed and the source delete threw.
+            return System.IO.File.Exists(finalFull)
+                ? (false, MoveOutcome.TargetExists, $"target exists, not overwritten: {ex.Message}")
+                : (false, MoveOutcome.Locked, $"source locked/in-use: {ex.Message}");
         }
         catch (UnauthorizedAccessException ex)
         {
