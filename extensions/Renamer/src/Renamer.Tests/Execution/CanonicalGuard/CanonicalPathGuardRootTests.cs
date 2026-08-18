@@ -44,10 +44,26 @@ public sealed class CanonicalPathGuardRootTests
             CreateNoWindow = true,
         };
         using var p = Process.Start(psi)!;
-        p.WaitForExit(5000);
+
+        // The returned bool is what makes a timeout its own named failure. Discarded, the next line
+        // reads ExitCode on a process that is still running, which throws about the accessor
+        // ("Process must exit before …") rather than about mklink — so the arrangement failure is
+        // reported as something else entirely, and the child is left behind. Both streams are drained
+        // only after a confirmed exit: mklink emits one short line, well inside the pipe buffer, so
+        // reading late cannot deadlock THIS child, but it would for a chattier one.
+        if (!p.WaitForExit(5000))
+        {
+            p.Kill(entireProcessTree: true);
+            throw new InvalidOperationException(
+                $"mklink /J did not exit within 5s for '{link}' -> '{target}'.");
+        }
+
         if (p.ExitCode != 0)
         {
-            throw new InvalidOperationException("mklink /J failed: " + p.StandardError.ReadToEnd());
+            throw new InvalidOperationException(
+                $"mklink /J failed ({p.ExitCode}) for '{link}' -> '{target}': "
+                    + p.StandardError.ReadToEnd()
+                    + p.StandardOutput.ReadToEnd());
         }
     }
 

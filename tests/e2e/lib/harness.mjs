@@ -108,7 +108,7 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
   environment = environment.withEnvironment(composeEnv);
 
   const started = await environment.up();
-  let coveContainer = started.getContainer("cove-1");
+  const coveContainer = started.getContainer("cove-1");
   // Resolved eagerly, like the Cove container above: a service name that no longer matches fails
   // here, at startup, rather than part-way through whatever assertion first reached for it.
   const dbContainer = started.getContainer("db-1");
