@@ -1,7 +1,9 @@
 using Cove.Core.Auth;
 using Cove.Core.Entities;
+using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
 using Renamer.Jobs;
 using Renamer.Options;
@@ -451,4 +453,148 @@ public sealed class DetachedElevationTests
     /// </summary>
     private static RenamerOptions TitleOnlyOptions() =>
         new() { FilenameTemplate = "$title", SameVolumeConcurrency = 1 };
+}
+
+/// <summary>
+/// The elevation seam's own contract, asserted directly: both
+/// <see cref="RunAsSystem.RunAsSystemAsync{T}(IServiceProvider, Func{Task{T}})"/> and its void form
+/// elevate for the SPAN of the body and put the caller's principal back afterwards, including when the
+/// body throws.
+/// </summary>
+/// <remarks>
+/// Here, beside the entry-point assertions, because the seam lives in a shared package whose
+/// test-support project is not a test project — a concrete fact placed there never executes — and this
+/// file is where the elevation seam's assertions already live.
+/// <para>
+/// Its own tier, and the lowest one that can observe this contract: a service collection carrying a
+/// settable accessor is the whole arrangement, with no database and no host double. The class above needs
+/// one because it observes the principal at a real SQL command; this contract is about the accessor, so
+/// nothing below it is required.
+/// </para>
+/// <para>
+/// Every case records the principal the body SAW and asserts on that as well as on what the accessor
+/// holds afterwards. A case asserting the restore alone would pass identically had the body never run,
+/// which is the same vacuous pass the class above refuses with its non-empty-first rule.
+/// </para>
+/// <para>
+/// <see cref="RunAsSystem.RunInSystemScopeAsync{T}"/> is deliberately absent. It delegates its elevation
+/// to the overloads below and is already exercised through every case in the class above, so a case here
+/// would assert this same contract a second time across a scope factory that adds nothing to observe.
+/// </para>
+/// </remarks>
+[Trait("Tier", "L0")]
+public sealed class RunAsSystemContractTests
+{
+    [Fact]
+    public async Task TheGenericOverload_ElevatesForTheBody_ReturnsItsValue_AndRestoresTheCaller()
+    {
+        var accessor = Caller();
+        var caller = accessor.Current;
+
+        PrincipalKind? seenInside = null;
+        int returned = await RunAsSystem.RunAsSystemAsync(
+            ProviderWith(accessor),
+            () =>
+            {
+                seenInside = accessor.Current?.Kind;
+                return Task.FromResult(7);
+            });
+
+        Assert.Equal(PrincipalKind.System, seenInside);
+        Assert.Equal(7, returned);
+        Assert.Same(caller, accessor.Current);
+    }
+
+    [Fact]
+    public async Task TheVoidOverload_ElevatesForTheBody_AndRestoresTheCaller()
+    {
+        var accessor = Caller();
+        var caller = accessor.Current;
+
+        PrincipalKind? seenInside = null;
+        Func<Task> body = () =>
+        {
+            seenInside = accessor.Current?.Kind;
+            return Task.CompletedTask;
+        };
+
+        await RunAsSystem.RunAsSystemAsync(ProviderWith(accessor), body);
+
+        Assert.Equal(PrincipalKind.System, seenInside);
+        Assert.Same(caller, accessor.Current);
+    }
+
+    [Fact]
+    public async Task ABodyThatThrows_SurfacesTheException_AndStillRestoresTheCaller()
+    {
+        var accessor = Caller();
+        var caller = accessor.Current;
+
+        PrincipalKind? seenInside = null;
+        Func<Task> failing = () =>
+        {
+            seenInside = accessor.Current?.Kind;
+            throw new InvalidOperationException("the body failed");
+        };
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => RunAsSystem.RunAsSystemAsync(ProviderWith(accessor), failing));
+
+        Assert.Equal("the body failed", thrown.Message);
+        Assert.Equal(PrincipalKind.System, seenInside);
+
+        // The restore is the finally's contract and not a courtesy of the happy path: without it a caller
+        // whose body failed keeps an elevated principal for the remainder of its own scope.
+        Assert.Same(caller, accessor.Current);
+    }
+
+    [Fact]
+    public async Task APriorPrincipalThatWasAbsent_ComesBackAbsent_AndNotAsADefault()
+    {
+        // The queued condition at this tier: nothing was set, so nothing is what has to come back.
+        // Restoring Anonymous, or leaving System in place, would each be a different bug wearing the
+        // same green — which is why the assertion names null rather than any principal at all.
+        var accessor = new FakePrincipalAccessor();
+
+        PrincipalKind? seenInside = null;
+        await RunAsSystem.RunAsSystemAsync(
+            ProviderWith(accessor),
+            () =>
+            {
+                seenInside = accessor.Current?.Kind;
+                return Task.FromResult(true);
+            });
+
+        Assert.Equal(PrincipalKind.System, seenInside);
+        Assert.Null(accessor.Current);
+    }
+
+    [Fact]
+    public async Task AScopeWithNoAccessor_RunsTheBodyUnchanged_AndReturnsItsValue()
+    {
+        bool ran = false;
+
+        // Nothing to observe from inside, because there is no accessor to observe — so what this case
+        // records instead is that the body ran at all, which a silently swallowed body would break.
+        int returned = await RunAsSystem.RunAsSystemAsync(
+            new ServiceCollection().BuildServiceProvider(),
+            () =>
+            {
+                ran = true;
+                return Task.FromResult(11);
+            });
+
+        Assert.True(ran);
+        Assert.Equal(11, returned);
+    }
+
+    /// <summary>
+    /// A present caller principal: a user holding no permissions. Present rather than absent so the
+    /// restore assertions have an instance to name — the absent prior value is its own case above.
+    /// </summary>
+    private static FakePrincipalAccessor Caller() => FakePrincipalAccessor.WithPermissions();
+
+    /// <summary>A provider whose only registration is <paramref name="accessor"/>.</summary>
+    private static ServiceProvider ProviderWith(ICurrentPrincipalAccessor accessor) =>
+        new ServiceCollection().AddSingleton(accessor).BuildServiceProvider();
 }
