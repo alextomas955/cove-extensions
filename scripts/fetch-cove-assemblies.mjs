@@ -578,6 +578,24 @@ function parseArguments(argv) {
       if (value === undefined) throw new Error(`${argument} needs an argument.`);
       if (argument === "--out") {
         out = path.resolve(value);
+        // The extraction empties this directory recursively before it writes. A path that CONTAINS the
+        // repository therefore deletes the working tree, and `--out .` from the repo root is one
+        // keystroke away from `--out ./artifacts`. CI always passes a fixed path, so this refuses the
+        // developer typo rather than a live defect. Compared case-insensitively on Windows because a
+        // drive letter arrives in either case there and a case-sensitive prefix test would miss.
+        const same = (a, b) =>
+          process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
+        // A drive root ("I:\") and a POSIX root ("/") already END in the separator, so appending one
+        // yields a doubled prefix that matches nothing — and the root is the most destructive target
+        // there is. Normalise to exactly one trailing separator before comparing.
+        const asPrefix = (dir) => (dir.endsWith(path.sep) ? dir : dir + path.sep);
+        const contains = (ancestor, descendant) =>
+          same(descendant.slice(0, asPrefix(ancestor).length), asPrefix(ancestor));
+        if (same(out, repoRoot) || contains(out, repoRoot)) {
+          throw new Error(
+            `--out '${out}' is the repository or contains it, and the extraction empties its target recursively. Refusing to delete the working tree.`,
+          );
+        }
       } else {
         // A tag reaches a registry URL, and --tag is how a CI leg's resolved version arrives. The
         // resolver emits strict semver only, so anything else is refused here rather than encoded

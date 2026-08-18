@@ -640,3 +640,29 @@ test("--tag together with --resolve-tags is refused: two modes, one argument", a
 test("an unrecognised argument is refused with the usage line rather than ignored", async () => {
   await assert.rejects(() => main(["--not-an-argument"]), /Unrecognised argument/);
 });
+
+// The extraction empties its target recursively, so an --out that CONTAINS the repository deletes the
+// working tree. Driven through main for the reason the section header states, and the repo root is
+// derived the way the script derives it rather than written down, so this cannot pass by naming a
+// directory that is not the one the guard compares against.
+//
+// Every target is absolute: `--out .` is the realistic typo, but it resolves against the runner's
+// working directory, so asserting on it would pass or fail for a reason that is not this guard. The
+// case-varied forms are here because Windows hands a drive letter over in either case and a
+// case-sensitive prefix comparison lets the destructive path straight through.
+test("--out is refused when it is the repository or an ancestor of it", async () => {
+  const repoRoot = path.resolve(import.meta.dirname, "..");
+  const targets = [repoRoot, path.dirname(repoRoot), path.parse(repoRoot).root];
+
+  if (process.platform === "win32") {
+    targets.push(repoRoot.toLowerCase(), repoRoot.toUpperCase());
+  }
+
+  for (const target of targets) {
+    await assert.rejects(
+      () => main(["--out", target]),
+      /Refusing to delete the working tree/,
+      `--out '${target}' reaches a recursive delete of the repository`,
+    );
+  }
+});
