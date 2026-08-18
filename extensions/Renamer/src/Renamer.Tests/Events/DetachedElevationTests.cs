@@ -39,10 +39,18 @@ namespace Renamer.Tests.Events;
 /// wrong over that window, and what replaces it.
 /// </para>
 /// <para>
-/// Each case starts from <see cref="CovePrincipal.Anonymous"/> — present but unprivileged. That is the
-/// dangerous case and the reason the elevation exists: <c>CoveContext</c> bypasses its authorization
-/// filters for a null principal as well as for System, so a case constructing "no principal" would
-/// prove the SAFE case while reading as coverage.
+/// Most cases start from <see cref="CovePrincipal.Anonymous"/> — present but unprivileged. That is the
+/// dangerous case for a ROW COUNT and the reason the elevation exists: <c>CoveContext</c> bypasses its
+/// authorization filters for a null principal as well as for System, so a case constructing "no
+/// principal" and then reading its meaning off a row count would prove the SAFE case while reading as
+/// coverage.
+/// </para>
+/// <para>
+/// The two job bodies each have a second case that starts from NO ambient principal, and the sentence
+/// above is what makes it evidence instead of the trap it warns of: these assert the principal AT THE
+/// COMMAND, which is what the filters consult, and never a row count. No row count can stand in — the
+/// paragraph below gives the two measured reasons. An absent principal is also the condition the host
+/// really produces on this path, so it is the one under which the elevation has to hold.
 /// </para>
 /// <para>
 /// The proof is the principal AT THE COMMAND rather than a row count, and on the queued-job path it is
@@ -223,6 +231,37 @@ public sealed class DetachedElevationTests
         AssertRanEntirelyAsSystem(library);
     }
 
+    [Fact]
+    public async Task TheScanLibraryJobBody_WithNoAmbientPrincipal_RunsEveryCommandAsSystem()
+    {
+        await using var library = await Library.CreateAsync();
+        var (ext, _) = await LoadedExtensionAsync(library, TitleOnlyOptions());
+
+        // The queued condition, and the load's arming deliberately undone to reach it: the host runs this
+        // body from a queue processor started before any request, so it enters carrying no principal at
+        // all rather than the unprivileged one the case above arms with.
+        library.Principals.Set(null);
+        library.CommandsExecuted.Clear();
+
+        await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], null, new FakeJobProgress(), default);
+
+        AssertRanEntirelyAsSystem(library, expectedPriorKind: null);
+    }
+
+    [Fact]
+    public async Task TheRenamerLibraryJobBody_WithNoAmbientPrincipal_RunsEveryCommandAsSystem()
+    {
+        await using var library = await Library.CreateAsync();
+        var (ext, _) = await LoadedExtensionAsync(library, TitleOnlyOptions());
+
+        library.Principals.Set(null);
+        library.CommandsExecuted.Clear();
+
+        await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video], new FakeJobProgress(), default);
+
+        AssertRanEntirelyAsSystem(library, expectedPriorKind: null);
+    }
+
     /// <summary>
     /// The classification the verdict rests on, at the shape that used to escape it: one statement
     /// reaching BOTH a table this extension owns and a table Cove owns is a Cove read.
@@ -274,7 +313,15 @@ public sealed class DetachedElevationTests
     /// Every command recorded since the last clear ran as System, and at least one was recorded — plus
     /// the caller's own principal is back, because elevation is a span and not a mode.
     /// </summary>
-    private static void AssertRanEntirelyAsSystem(Library library)
+    /// <param name="library">The observed database and its principal accessor.</param>
+    /// <param name="expectedPriorKind">
+    /// The principal kind in effect when the body was entered, or null when there was none. The restore
+    /// is asserted against whatever the caller actually had rather than against a fixed Anonymous,
+    /// because a queued body enters with none and putting back a default instead of nothing would be a
+    /// different bug wearing the same green.
+    /// </param>
+    private static void AssertRanEntirelyAsSystem(
+        Library library, PrincipalKind? expectedPriorKind = PrincipalKind.Anonymous)
     {
         var recorded = library.CommandsExecuted.ToList();
 
@@ -282,7 +329,7 @@ public sealed class DetachedElevationTests
         // never reached the database is the failure that produces one.
         Assert.NotEmpty(recorded);
         Assert.All(recorded, c => Assert.Equal(PrincipalKind.System, c.Principal));
-        Assert.Equal(PrincipalKind.Anonymous, library.Principals.Current!.Kind);
+        Assert.Equal(expectedPriorKind, library.Principals.Current?.Kind);
     }
 
     /// <summary>
