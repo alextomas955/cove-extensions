@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Cove.Extensions.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,13 +18,27 @@ namespace Renamer;
 /// hook.
 ///
 /// SAFETY: the executor's save re-raises <c>video.updated</c>, which re-enters this
-/// handler — an unconditional execute would loop forever. The guard is idempotency: build the plan
-/// for the single touched id and short-circuit BEFORE the executor when every item is a non-acting
-/// status (no save → no re-raised event → loop broken). Combined with the opt-in default-OFF flag,
-/// a real metadata change triggers at most one renamer.
+/// handler — an unconditional execute would loop forever. TWO separate guards stop it, and reading
+/// them as redundancy is a mistake: a self-save suppression, which is what breaks the loop, and a
+/// plan-is-empty short-circuit, which stops a pass that would act on nothing from opening a batch.
+/// Each is stated in full at its own site inside <see cref="AutoRenamerAsync"/>.
 /// </summary>
 public sealed partial class Renamer
 {
+    /// <summary>
+    /// The entities whose next update event was caused by this handler's OWN executor save, keyed by the
+    /// (kind, id) pair the handler is invoked with. Membership is the suppression; the value carries
+    /// nothing.
+    /// </summary>
+    /// <remarks>
+    /// In memory only, and deliberately so: the guard reads no database row, consults no timestamp and
+    /// no time window, and holds nothing across a process restart — so an interrupted or restarted host
+    /// leaves behind no suppression to swallow the first edit after it comes back. Concurrent because
+    /// the host dispatches these events fire-and-forget and can have several in flight at once; two
+    /// entities cannot interfere with each other because each is its own key.
+    /// </remarks>
+    private readonly ConcurrentDictionary<(RenamerFileKind Kind, int EntityId), byte> _selfSaved = new();
+
     /// <summary>
     /// Registered by the base ctor (runs before <c>InitializeAsync</c> captures the seams), so this
     /// only wires the routing — the handler bodies, which run later, are what touch the scope/store.
@@ -36,8 +51,9 @@ public sealed partial class Renamer
 
     /// <summary>
     /// Re-renames a single updated entity when the opt-in flag is set and the item is not already
-    /// correctly named. Returns without any DB work when the hook is off; returns without calling
-    /// the executor (zero saves) when the plan is entirely non-acting (the re-entrancy guard).
+    /// correctly named. Returns without any DB work when the hook is off; returns before planning when
+    /// this handler's own save is what raised the event (the re-entrancy suppression); and returns
+    /// without calling the executor when the plan is entirely non-acting.
     /// <para>
     /// The whole body is wrapped so that a failure on one updated item (a transient DB error, a
     /// missing folder, etc.) is contained instead of escaping back to the host. The host dispatches
@@ -65,6 +81,28 @@ public sealed partial class Renamer
             // an empty result much later.
             await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
             {
+                var selfSaveKey = (kind, entityId);
+
+                // THE re-entrancy guard, and the one that actually breaks the loop. The executor's save
+                // makes the host re-raise the update event for the very entity just saved, and that
+                // re-entry is the loop's engine — so an item this handler itself just saved is not
+                // planned at all: no plan, no run id, no batch, no executor call.
+                //
+                // SINGLE-USE, never a mode. One save re-raises one event, so the token is CONSUMED here
+                // and the item is live again immediately. A suppression that stayed armed would mute a
+                // genuine later edit to the same item, silently and forever, which is strictly worse
+                // than the loop it was added to stop.
+                //
+                // Its bound, stated because it is the conservative half of the one-event assumption: an
+                // item whose files save individually re-raises one event per saved file, so a multi-file
+                // item can still take a further hop. Arming a COUNT instead would trade that for a
+                // leftover token muting a real edit — a failure with no symptom at all, where a further
+                // hop at least shows up as a moved file.
+                if (_selfSaved.TryRemove(selfSaveKey, out _))
+                {
+                    return;
+                }
+
                 var db = services.GetRequiredService<DbContext>();
                 var port = new CoveRenamerDataPort(db, _coveConfig);
 
@@ -78,16 +116,31 @@ public sealed partial class Renamer
                 // rule's own destination, or the DEFAULT *Where files go* for an item no rule matched
                 // (RouteCategory.Unmatched), which leaves the item in place only while that default names
                 // neither a root nor a folder template. Either way the move passes the allowlist/canonical
-                // confinement gate via the routed anchor, and it settles after one pass because every
-                // destination measures from a library path the rename leaves standing.
+                // confinement gate via the routed anchor.
+                //
+                // It does NOT follow that the item then settles. A source-path rule matches on where the
+                // file IS, so once the rule has moved the file the rule no longer matches and the default
+                // takes the item back: the two destinations ALTERNATE rather than compete, and a default
+                // rooted exactly at a rule's source path with an EMPTY folder template names the very
+                // folder that rule empties, so the pair never reaches a fixed point at all. What bounds
+                // the damage is the self-save suppression above, not convergence.
+                //
+                // The accepted cost, so it is never read as an oversight: such a pair still moves the
+                // item ONE HOP PER ACTION — one per manual "Rename all" click, one per external edit —
+                // and nothing in the panel names the cause. The pair is exactly decidable at save time (a
+                // default whose folder EQUALS a rule's source path while its folder template is empty)
+                // and refusing it there is deliberately not done here.
                 // Preview, auto-renamer, and batch all resolve destinations identically.
                 var lookups = BuildLookups(options);
                 var plan = await new RenamerPlanner(port).PlanAsync(kind, entityId, options, lookups, ct);
 
-                // Re-entrancy guard: if nothing would actually move, do NOT touch the executor. No save
-                // means no re-raised update event, so the save→event→re-enter loop never starts. Gated
-                // items land here as SkipGated (only-organized / require-fields respected) and are
-                // likewise skipped.
+                // The NARROWER of the two guards, and not redundant with the suppression above: this one
+                // stops a pass that would act on nothing from doing anything at all — no batch opened, no
+                // run id minted, no executor call — while the suppression stops a pass this handler's own
+                // save caused. Gated items land here as SkipGated (only-organized / require-fields
+                // respected) and are likewise skipped. On a configuration that converges this guard is
+                // what ends the chain; on one that does not, it never fires, which is why it cannot be
+                // the re-entrancy guard on its own.
                 int actingFiles = plan.Items.Count(i =>
                     i.Status is RenamerStatus.Rename or RenamerStatus.Move);
                 if (actingFiles == 0)
@@ -105,10 +158,36 @@ public sealed partial class Renamer
                 await journal.BeginBatchAsync(runId, kind, DateTime.UtcNow, ct);
 
                 var executor = new RenamerExecutor(port, EventBus, journal, runId, new DiskMover());
-                // Single-entity hook path (no batch concurrency): no pre-resolved folder map — the
-                // executor resolves the destination folder itself, safe because this call is not
-                // parallelized.
-                var result = await executor.ExecuteAsync(plan, options, ct: ct);
+
+                // Armed BEFORE the call, never after. The host's re-raise is fire-and-forget and can
+                // arrive while ExecuteAsync is still running, so a token set afterwards is a race the
+                // event wins — and the one it wins is the loop.
+                _selfSaved[selfSaveKey] = 0;
+                RenamerExecutor.RenamerRunResult result;
+                try
+                {
+                    // Single-entity hook path (no batch concurrency): no pre-resolved folder map — the
+                    // executor resolves the destination folder itself, safe because this call is not
+                    // parallelized.
+                    result = await executor.ExecuteAsync(plan, options, ct: ct);
+                }
+                catch
+                {
+                    // Disarm on any escape, cancellation included. A throw says nothing about whether a
+                    // save landed, and a token nothing consumes swallows the next genuine edit — this
+                    // design's one failure mode. Erring toward one extra hop beats erring toward a
+                    // silently muted hook.
+                    _selfSaved.TryRemove(selfSaveKey, out _);
+                    throw;
+                }
+
+                if (result.Renamed.Count == 0)
+                {
+                    // Nothing saved ⇒ no event will be re-raised ⇒ nothing will consume the token.
+                    // Disarm immediately, for the same reason as the catch above: a leaked suppression
+                    // is what this guard must not become.
+                    _selfSaved.TryRemove(selfSaveKey, out _);
+                }
 
                 foreach (var r in result.Renamed)
                 {
