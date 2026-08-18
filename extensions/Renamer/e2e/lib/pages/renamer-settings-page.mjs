@@ -32,6 +32,19 @@ export class RenamerSettingsPage {
       name: /^Rename \d+ files?$/,
     });
     this.dryRunCloseButton = this.dryRunDialog.getByRole("button", { name: "Close" });
+    // The "Excludes" collapsible's header button. Its accessible name carries the section summary
+    // after the title, hence the anchored prefix rather than an exact string.
+    this.excludesSectionHeader = page.getByRole("button", { name: /^Excludes/ });
+    // The host entity multi-selector's own input, inside Excludes → "Exclude by tag". That instance is
+    // the one `EntitySelectField` the panel renders under DEFAULT options — every other one sits behind
+    // a template token or a feature toggle — so reaching it needs no options edit.
+    //
+    // role=combobox is the HOST control's own (it also sets aria-autocomplete=list), not a textbox: a
+    // getByRole("textbox") never matches it. The name is the wrapping Field label's text INCLUDING its
+    // helper line, because that label is the only accessible name this control has — the host input
+    // takes no label, id or aria-label of its own, which is the recorded reason every instance stays
+    // inside a Field.
+    this.excludeTagSelectorInput = page.getByRole("combobox", { name: "Tags Type to search." });
   }
 
   async goto() {
@@ -77,6 +90,23 @@ export class RenamerSettingsPage {
   async save() {
     await this.saveChangesButton.click();
     await this.unsavedChangesIndicator.waitFor({ state: "hidden", timeout: 10_000 });
+  }
+
+  /**
+   * Expands the "Excludes" section and waits for its tag selector to be visible.
+   *
+   * Waits instead of returning on the click, and reads aria-expanded instead of clicking blind, for two
+   * separate reasons a caller's assertion must not absorb: the section renders its children only while
+   * open (a conditional, not a hidden block), so an immediate read finds no element at all rather than
+   * a wrong one; and a second call on an already-open section would collapse it, which would fail the
+   * caller for the opposite reason.
+   */
+  async openExcludes() {
+    await this.excludesSectionHeader.waitFor({ state: "visible", timeout: 30_000 });
+    if ((await this.excludesSectionHeader.getAttribute("aria-expanded")) !== "true") {
+      await this.excludesSectionHeader.click();
+    }
+    await this.excludeTagSelectorInput.waitFor({ state: "visible", timeout: 15_000 });
   }
 
   /** Opens the Dry run modal and waits for its dialog shell to mount (the scan runs inside it). */
