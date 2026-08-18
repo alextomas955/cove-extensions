@@ -50,7 +50,7 @@ public sealed class MoveOutcomeStatusTests
     {
         // A move that happened takes the planner's own status, so `Moved` is the single member the
         // mapping answers for by refusing. Asserting the refusal keeps that arm from being the one
-        // nothing describes — the state the deleted comment left this code in.
+        // nothing describes.
         var thrown = Assert.Throws<ArgumentOutOfRangeException>(
             () => MoveOutcomeClassifier.StatusFor(MoveOutcome.Moved));
 
