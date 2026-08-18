@@ -46,13 +46,15 @@ public sealed class DiskMover
 
     /// <summary>
     /// Moves <paramref name="oldFull"/> → <paramref name="newFull"/> (creating the destination
-    /// directory if needed), then moves each planned sidecar skip-not-clobber. A locked source or
-    /// existing destination is caught and returned as a <see cref="MoveOutcome.LockedOrExists"/>
-    /// skip (the primary move did NOT happen and no sidecars are touched); a permission failure as
+    /// directory if needed), then moves each planned sidecar skip-not-clobber. A locked source is
+    /// caught and returned as a <see cref="MoveOutcome.Locked"/> skip and an occupied destination as a
+    /// <see cref="MoveOutcome.TargetExists"/> skip — the atomic move raises one
+    /// <see cref="IOException"/> for both, so they are told apart by testing the destination (in either
+    /// case the primary move did NOT happen and no sidecars are touched); a permission failure as
     /// <see cref="MoveOutcome.PermissionDenied"/>. NEVER overwrites and NEVER touches a locking process.
     /// </summary>
     /// <remarks>
-    /// Those three are the only members of the shared <see cref="MoveOutcome"/> this tier produces: an
+    /// Those four are the only members of the shared <see cref="MoveOutcome"/> this tier produces: an
     /// atomic rename has no copy to read back and no cancellation point, so
     /// <see cref="MoveOutcome.VerifyFailed"/> and <see cref="MoveOutcome.Cancelled"/> belong to
     /// <see cref="CrossVolumeMover"/> alone. The type is shared by both tiers, so this sentence — not
@@ -68,8 +70,12 @@ public sealed class DiskMover
         }
         catch (IOException ex)
         {
-            // Covers BOTH "destination exists" and "source locked/in-use". Skip + report; never force.
-            return new MoveResult(false, MoveOutcome.LockedOrExists, [], [], $"locked or target exists: {ex.Message}");
+            // Covers BOTH "destination exists" and "source locked/in-use", and the exception cannot say
+            // which. Decide by measuring the destination — see MoveOutcome.TargetExists for why the
+            // exception's message is never read. Skip + report; never force.
+            return System.IO.File.Exists(newFull)
+                ? new MoveResult(false, MoveOutcome.TargetExists, [], [], $"target exists, not overwritten: {ex.Message}")
+                : new MoveResult(false, MoveOutcome.Locked, [], [], $"source locked/in-use: {ex.Message}");
         }
         catch (UnauthorizedAccessException ex)
         {
