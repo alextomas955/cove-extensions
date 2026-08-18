@@ -17,6 +17,8 @@ so every run starts from the same clean state and touches nothing on your machin
 - Docker (Docker Desktop on Windows/macOS, or native Docker on Linux) — running, with the daemon
   reachable from your shell.
 - Node.js 22+ and npm (already required elsewhere in this repo).
+- The .NET SDK this repo builds with — `npm test` publishes each extension before the browser starts,
+  and that is a `dotnet publish`.
 
 No host-specific Docker configuration is required — extension install works by copying files
 directly into the running container (via Testcontainers' `copyFilesToContainer`/`exec`, not a host
@@ -35,6 +37,12 @@ npm test
 That's it — `npm test` runs every project in [`playwright.config.mjs`](playwright.config.mjs) (see
 "One Playwright install, many extensions" below) across 4 parallel workers by default, each spec
 file provisioning and tearing down its own isolated Cove instance.
+
+`npm test` also builds what it installs: a `pretest` hook runs
+[`scripts/publish-extensions.mjs`](../../scripts/publish-extensions.mjs), which publishes every
+extension whose catalog entry declares an e2e suite. Do not add a manual publish step back — the one
+non-obvious cost of not having one is that a first run is slow, because it also installs and builds
+each extension's UI bundle.
 
 ## One Playwright install, many extensions
 
