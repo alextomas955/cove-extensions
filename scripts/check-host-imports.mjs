@@ -3,10 +3,10 @@
 //
 // lucide-react is a host import-map external (shared/cove-extensions-ui/vite/createExtensionViteConfig.ts),
 // so the bundle never carries it: at runtime the name is resolved against the host's generated re-export
-// shim, not against the version installed here for typechecking. Those are different major lines today
-// (host ^0.513, extensions 1.25), and lucide renames icons across majors. A name that exists only in the
-// local copy typechecks, builds, and passes every offline gate — then throws an ESM SyntaxError at load
-// that kills the WHOLE bundle, so every surface of the extension renders "component not found".
+// shim, not against the version installed here for typechecking. Those two can diverge, and lucide renames
+// icons between releases, so a name that exists only in the local copy typechecks, builds, and passes every
+// offline gate — then throws an ESM SyntaxError at load that kills the WHOLE bundle, so every surface of
+// the extension renders "component not found".
 //
 // The host's list is authoritative and generated from its own package exports, so it is read from the
 // sibling checkout rather than mirrored here. With no sibling this cannot be checked at all, so it skips
@@ -17,7 +17,7 @@ import path from "node:path";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const coveRepo = process.env.COVE_REPO ?? path.resolve(repoRoot, "../cove");
-const shim = path.join(coveRepo, "ui/src/generated/extensions/runtime/v2/lucide-react.ts");
+const shim = path.join(coveRepo, "ui/src/generated/extensions/runtime/v1/lucide-react.ts");
 
 if (!existsSync(shim)) {
   console.log(
