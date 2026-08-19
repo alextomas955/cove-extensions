@@ -54,8 +54,9 @@
       Direct reference ONLY to raise the transitive native SQLite lib that
       Microsoft.EntityFrameworkCore.Sqlite resolves, past a version carrying a known advisory
       (NU1903). No code here consumes this package: the reference exists so the version is chosen
-      by this repo rather than by EF Core's floor, which is what keeps the restore audit green
-      without a NoWarn. Drop it once EF Core's own floor resolves a version the audit accepts.
+      by this repo rather than by EF Core's floor. The host is on the same EF Core version as this
+      repo and still resolves the vulnerable native lib, so matching the host does NOT remove the
+      need for this; drop it only once the resolved transitive version satisfies the audit on its own.
     -->
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
