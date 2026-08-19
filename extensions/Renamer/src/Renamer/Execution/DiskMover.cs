@@ -64,6 +64,10 @@ public sealed class DiskMover
     /// skip (the primary move did NOT happen and no sidecars are touched); a permission failure as
     /// <see cref="MoveOutcome.PermissionDenied"/>. NEVER overwrites and NEVER touches a locking process.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
+        Justification = "Kept as an instance method: DiskMover is a constructor-injected collaborator of " +
+            "RenamerExecutor/UndoReplayer and is exercised as an instance across the test suite; making it " +
+            "static would break that injection seam and every call site (CS0176) with no behavior change.")]
     public MoveResult Move(string oldFull, string newFull, IReadOnlyList<SidecarMove>? sidecars = null)
     {
         try
@@ -123,6 +127,10 @@ public sealed class DiskMover
     /// and reported in the returned warnings rather than thrown, so a failed save's cleanup can never
     /// itself crash the batch. Returns the warnings (empty when the restore was clean).
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
+        Justification = "Kept as an instance method: DiskMover is a constructor-injected collaborator of " +
+            "RenamerExecutor/UndoReplayer and is exercised as an instance across the test suite; making it " +
+            "static would break that injection seam and every call site (CS0176) with no behavior change.")]
     public IReadOnlyList<string> Rollback(string oldFull, string newFull, IReadOnlyList<SidecarMove> movedSidecars)
     {
         var warnings = new List<string>();

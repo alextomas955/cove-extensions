@@ -84,28 +84,11 @@ dotnet_naming_symbols.private_field_symbols.applicable_accessibilities = private
 dotnet_naming_style.underscore_camel_style.capitalization = camel_case
 dotnet_naming_style.underscore_camel_style.required_prefix = _
 
-# ---------- Analyzer category tuning (strict-but-not-pedantic) ----------
-[*.cs]
-# CA1062 (validate public args) is noisy for an internal-ish extension; keep as suggestion.
-dotnet_diagnostic.CA1062.severity = suggestion
-# CA1031 (do not catch general Exception) — the disk-mover/undo paths intentionally do; suggestion.
-dotnet_diagnostic.CA1031.severity = suggestion
-# CA2007 (ConfigureAwait) — not needed in a library hosted by ASP.NET; suppress to avoid churn.
-dotnet_diagnostic.CA2007.severity = none
+# ---------- Analyzer category tuning ----------
+# Only relax rules latest-Recommended actually enables (the SDK's analysislevel_<n>_recommended
+# .globalconfig lists them) — an entry for an off-by-default rule is dead config, not a relaxation.
 
-# DiskMover is a deliberately-injectable collaborator (passed to RenameExecutor/UndoReplayer and
-# spied/exercised as an instance in tests). Marking Move/Rollback static would break that DI seam and
-# every `_disk.Move(...)`/`mover.Move(...)` call site (CS0176) — a design change, not a lint fix.
-# Keep them instance methods; CA1822 (mark static) is intentionally relaxed for this one file.
-[extensions/Renamer/src/Renamer/Execution/DiskMover.cs]
-dotnet_diagnostic.CA1822.severity = none
-
-# Tests: relax a few rules that fight idiomatic xUnit.
-[extensions/Renamer/src/Renamer.Tests/**.cs]
+# CA1707 vs xUnit's deliberate Method_Scenario_Expectation naming. Keyed on the *.Tests shape, not
+# one extension's path, so a second extension needs no edit.
+[**/*.Tests/**.cs]
 dotnet_diagnostic.CA1707.severity = none
-dotnet_diagnostic.CA1822.severity = none
-dotnet_diagnostic.CA2007.severity = none
-# CA1861 (hoist constant array args to static readonly fields) is a micro-perf rule that fights
-# inline literal arrays in test arrange/assert (e.g. Assert.Equal(new[] { 3, 2, 1 }, ...)); test
-# readability wins over a non-measurable allocation in a unit test.
-dotnet_diagnostic.CA1861.severity = none
