@@ -43,13 +43,13 @@ individual specs don't repeat build paths. `resolveExtensionPaths` derives the p
 file's own location, so nothing hardcodes a distance to the repo root:
 
 ```js
-import { test as baseTest, expect } from '@cove-extensions/e2e';
-import { resolveExtensionPaths } from '@cove-extensions/e2e/resolve-extension';
+import { test as baseTest, expect } from "@cove-extensions/e2e";
+import { resolveExtensionPaths } from "@cove-extensions/e2e/resolve-extension";
 // import any other helpers you need: '@cove-extensions/e2e/seed-media', '@cove-extensions/e2e/poll'
 
 export const YOUREXT_EXTENSION = resolveExtensionPaths(import.meta.url, {
-  srcProject: 'YourProject', // → src/YourProject/extension.json
-  uiProject: 'YourProject.Ui', // → src/YourProject.Ui/dist/index.mjs
+  srcProject: "YourProject", // → src/YourProject/extension.json
+  uiProject: "YourProject.Ui", // → src/YourProject.Ui/dist/index.mjs
 });
 
 export const test = baseTest.extend({

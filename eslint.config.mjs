@@ -61,10 +61,7 @@ export default tseslint.config(
   // --- Every extension's React/TS UI bundle (type-aware) ---
   {
     files: ["extensions/*/src/**/*.{ts,tsx}"],
-    extends: [
-      tseslint.configs.strictTypeChecked,
-      tseslint.configs.stylisticTypeChecked,
-    ],
+    extends: [tseslint.configs.strictTypeChecked, tseslint.configs.stylisticTypeChecked],
     languageOptions: {
       ecmaVersion: 2024,
       globals: { ...globals.browser },
@@ -180,9 +177,7 @@ export default tseslint.config(
       "import/resolver": {
         typescript: {
           noWarnOnMultipleProjects: true,
-          project: [
-            "extensions/Renamer/src/Renamer.Ui/tsconfig.json",
-          ],
+          project: ["extensions/Renamer/src/Renamer.Ui/tsconfig.json"],
         },
       },
       "boundaries/elements": [

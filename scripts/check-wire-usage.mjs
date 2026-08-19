@@ -17,20 +17,12 @@
 // With --warn it never blocks; without, a finding exits non-zero.
 
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
-import { join, extname, dirname, resolve } from "node:path";
+import { join, extname, resolve } from "node:path";
 
 const warnOnly = process.argv.includes("--warn");
-const root = resolve(dirname(new URL(import.meta.url).pathname), "..");
+const root = resolve(import.meta.dirname, "..");
 
-const SKIP_DIRS = new Set([
-  "node_modules",
-  "obj",
-  "bin",
-  "dist",
-  ".git",
-  "vendor",
-  ".planning",
-]);
+const SKIP_DIRS = new Set(["node_modules", "obj", "bin", "dist", ".git", "vendor", ".planning"]);
 
 function walk(dir, out = []) {
   if (!existsSync(dir)) return out;
@@ -67,8 +59,7 @@ function recordParams(body) {
 
 // Only records that can reach the UI: the wire Contracts unit, the redaction-safe options view, and the
 // per-slice projections.
-const RESPONSE_DTO_FILE =
-  /(\/Contracts\/|PreviewContracts\.cs$|RenamerPlan\.cs$)/;
+const RESPONSE_DTO_FILE = /(\/Contracts\/|PreviewContracts\.cs$|RenamerPlan\.cs$)/;
 // Inbound provider shapes and server-internal DTOs: never serialized to the UI, so absence there means nothing.
 const INTERNAL_DTO =
   /^(Cove(Video|EntityIdentity|EntityRef|PerformerImage)|MetadataServerCandidate|ResolvedMetadataCredential|DiscoveryPage|MatchResult)$/;
@@ -76,16 +67,12 @@ const INTERNAL_DTO =
 function analyze(extensionDir) {
   const files = walk(join(root, extensionDir));
   const load = (pred) =>
-    files
-      .filter((p) => pred(p))
-      .map((p) => ({ p, s: readFileSync(p, "utf8") }));
+    files.filter((p) => pred(p)).map((p) => ({ p, s: readFileSync(p, "utf8") }));
   const isTest = (p) => /\.Tests\//.test(p) || /\/e2e\//.test(p);
 
   const prodCs = load((p) => extname(p) === ".cs" && !isTest(p));
   const ui = load((p) => [".ts", ".tsx"].includes(extname(p)) && !isTest(p));
-  const tests = load(
-    (p) => isTest(p) && [".cs", ".mjs", ".ts", ".js"].includes(extname(p)),
-  );
+  const tests = load((p) => isTest(p) && [".cs", ".mjs", ".ts", ".js"].includes(extname(p)));
   const docs = load((p) => extname(p) === ".md");
 
   const text = (list) => list.map((f) => f.s).join("\n");
@@ -96,17 +83,13 @@ function analyze(extensionDir) {
 
   const routeConst = new Map();
   for (const { s } of prodCs) {
-    for (const m of s.matchAll(
-      /const string (\w+)\s*=\s*RouteBase\s*\+\s*"([^"]+)"/g,
-    )) {
+    for (const m of s.matchAll(/const string (\w+)\s*=\s*RouteBase\s*\+\s*"([^"]+)"/g)) {
       routeConst.set(m[1], m[2].replace(/^\//, ""));
     }
   }
   const registered = new Map();
   for (const { s } of prodCs) {
-    for (const m of s.matchAll(
-      /endpoints\.Map(Get|Post|Put|Delete|Patch)\(\s*(\w+)/g,
-    )) {
+    for (const m of s.matchAll(/endpoints\.Map(Get|Post|Put|Delete|Patch)\(\s*(\w+)/g)) {
       const name = routeConst.get(m[2]);
       if (!name) continue;
       if (!registered.has(name)) registered.set(name, new Set());
@@ -152,10 +135,7 @@ function analyze(extensionDir) {
           ui: re.test(uiText),
           // A field the SERVER still reads is a working setting with no UI, not dead surface.
           server: new RegExp(`\\b${field}\\b`).test(
-            csText.replace(
-              /(?:internal|public)\s+sealed\s+record[\s\S]*?\)\s*[;{]/g,
-              "",
-            ),
+            csText.replace(/(?:internal|public)\s+sealed\s+record[\s\S]*?\)\s*[;{]/g, ""),
           ),
           tests: re.test(testText),
           docs: re.test(docText),
@@ -167,9 +147,7 @@ function analyze(extensionDir) {
   return { routes, fields };
 }
 
-const catalog = JSON.parse(
-  readFileSync(join(root, "extensions", "catalog.json"), "utf8"),
-);
+const catalog = JSON.parse(readFileSync(join(root, "extensions", "catalog.json"), "utf8"));
 let findings = 0;
 
 for (const entry of catalog.extensions) {
@@ -184,9 +162,7 @@ for (const entry of catalog.extensions) {
   );
 
   for (const r of orphanRoutes) {
-    const also =
-      [r.tests && "tests", r.docs && "docs"].filter(Boolean).join(" + ") ||
-      "nothing";
+    const also = [r.tests && "tests", r.docs && "docs"].filter(Boolean).join(" + ") || "nothing";
     console.log(
       `  UNREACHABLE ROUTE  ${r.verbs.padEnd(8)} /${r.name.padEnd(24)} referenced only by: ${also}`,
     );
@@ -199,12 +175,8 @@ for (const entry of catalog.extensions) {
     const kind = f.server
       ? "UNREAD BY UI, name used server-side"
       : "UNREAD ANYWHERE                   ";
-    const also =
-      [f.tests && "tests", f.docs && "docs"].filter(Boolean).join(" + ") ||
-      "nothing";
-    console.log(
-      `  ${kind}  ${(f.dto + "." + f.field).padEnd(40)} referenced only by: ${also}`,
-    );
+    const also = [f.tests && "tests", f.docs && "docs"].filter(Boolean).join(" + ") || "nothing";
+    console.log(`  ${kind}  ${(f.dto + "." + f.field).padEnd(40)} referenced only by: ${also}`);
     findings++;
   }
   if (orphanRoutes.length === 0 && orphanFields.length === 0)

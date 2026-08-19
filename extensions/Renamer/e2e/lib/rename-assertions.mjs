@@ -2,18 +2,18 @@
 // two independent truth sources agree on the EXACT computed name: the Cove DB record (files[0].path)
 // AND the container filesystem. Asserting only one would let a half-applied rename (DB updated but
 // no disk move, or a copy that left the source behind) pass.
-import { expect } from '@cove-extensions/e2e';
-import { pollUntil } from '@cove-extensions/e2e/poll';
+import { expect } from "@cove-extensions/e2e";
+import { pollUntil } from "@cove-extensions/e2e/poll";
 
 /** POSIX basename — container paths are always '/'-separated. */
 export function basename(path) {
-  return path.slice(path.lastIndexOf('/') + 1);
+  return path.slice(path.lastIndexOf("/") + 1);
 }
 
 /** POSIX dirname — container paths are always '/'-separated. */
 export function dirname(path) {
-  const idx = path.lastIndexOf('/');
-  return idx <= 0 ? '/' : path.slice(0, idx);
+  const idx = path.lastIndexOf("/");
+  return idx <= 0 ? "/" : path.slice(0, idx);
 }
 
 /**
@@ -34,14 +34,20 @@ export async function assertRenamedTo({ api, container, videoId, expectedBasenam
     `DB record for video ${videoId} should point at exactly "${expectedBasename}", got "${basename(newPath)}"`,
   ).toBe(expectedBasename);
 
-  const newOnDisk = await container.exec(['test', '-f', newPath]);
-  expect(newOnDisk.exitCode, `Renamed file "${newPath}" is missing from disk in the Cove container`).toBe(0);
+  const newOnDisk = await container.exec(["test", "-f", newPath]);
+  expect(
+    newOnDisk.exitCode,
+    `Renamed file "${newPath}" is missing from disk in the Cove container`,
+  ).toBe(0);
 
   // The old path being gone is proven on disk, never inferred from the DB path: a DB update with no
   // disk move, or a copy that left the source behind, both leave a stale file while the record reads
   // correct — only a filesystem check catches that leak.
-  const oldOnDisk = await container.exec(['test', '-f', originalPath]);
-  expect(oldOnDisk.exitCode, `Original path "${originalPath}" still exists on disk after the rename`).not.toBe(0);
+  const oldOnDisk = await container.exec(["test", "-f", originalPath]);
+  expect(
+    oldOnDisk.exitCode,
+    `Original path "${originalPath}" still exists on disk after the rename`,
+  ).not.toBe(0);
 
   return newPath;
 }
@@ -63,6 +69,6 @@ export async function assertRestoredTo({ api, container, videoId, originalPath }
     `DB record for video ${videoId} should be restored to exactly "${originalPath}", got "${record.files[0].path}"`,
   ).toBe(originalPath);
 
-  const onDisk = await container.exec(['test', '-f', originalPath]);
+  const onDisk = await container.exec(["test", "-f", originalPath]);
   expect(onDisk.exitCode, `Original file "${originalPath}" is not back on disk after undo`).toBe(0);
 }

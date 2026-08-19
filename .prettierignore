@@ -1,0 +1,35 @@
+# The formatter reads only the `.gitignore` at its working directory, never a nested one, so a
+# root-run pass reaches every subject a nested file excludes. Each nested `.gitignore` entry that the
+# root one does not already carry is repeated here. Anchored with `**/` rather than pinned to the one
+# path that exists today, so a second package is excluded with no edit.
+
+# Build and generated output.
+**/dist/
+**/.docusaurus/
+**/.cache-loader/
+
+# Test-runner output and staging.
+**/test-results/
+**/playwright-report/
+**/.staged-extensions/
+
+# Local environment files and debug logs.
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+
+# Tracked, so no ignore file excludes it, and rewriting it produces a diff no one reads.
+**/package-lock.json
+
+# Wire snapshots are compared byte for byte, so reformatting one rewrites what the test expects
+# rather than tidying it. They carry their own WIRE_SNAPSHOT_UPDATE path for the deliberate case.
+**/Renamer.Tests/Contracts/fixtures/
+
+# The check-classes guard is its own verify gate. The nested .prettierignore beside it covers the
+# run made from inside that package; this covers a run made from the repo root, since Prettier reads
+# an ignore file only from its own working directory and never a nested one.
+**/Renamer.Ui/scripts/

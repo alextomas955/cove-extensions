@@ -35,15 +35,8 @@ const HOST_EXTERNALS = [
  * source alias, the host import-map externals, and the `index.mjs` output the manifest's `jsBundle`
  * points at. The two per-extension configs were byte-identical, so they now call this factory.
  */
-export function createExtensionViteConfig(
-  options: ExtensionViteOptions,
-): UserConfig {
-  const {
-    packageDir,
-    entry = "src/index.ts",
-    extraExternals = [],
-    reactPlugin,
-  } = options;
+export function createExtensionViteConfig(options: ExtensionViteOptions): UserConfig {
+  const { packageDir, entry = "src/index.ts", extraExternals = [], reactPlugin } = options;
   // Anchored on the factory's own location so no consumer restates the relative climb to shared/.
   const factoryDir = path.dirname(fileURLToPath(import.meta.url));
   const sharedSrcIndex = path.resolve(factoryDir, "../src/index.ts");

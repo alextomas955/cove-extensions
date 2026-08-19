@@ -10,14 +10,12 @@
 pre-commit:
   parallel: true
   commands:
-    # --- TypeScript/JS: prettier + per-UI class guard, then one repo-root ESLint ---
-    # Per extension UI bundle: Prettier formatting + the host-JIT-Tailwind/XSS class guard (`root:`
-    # makes `npx`/node resolve that package's local binaries). Add a matching pair when a new
-    # extension ships a UI. ESLint is deliberately NOT here — it is the single repo-root js-lint gate
-    # below, covering every extension's UI and all .mjs/.cjs scripts from one config.
-    frontend-format-renamer:
-      root: extensions/Renamer/src/Renamer.Ui/
-      glob: "*.{ts,tsx,json,jsonc,css,md}"
+    # --- TypeScript/JS: one repo-root Prettier, then one repo-root ESLint ---
+    # Selected by file type and never by location, so a second extension or a second shared package
+    # needs no entry here. Formatting settings resolve per file by walking up from it, so a package
+    # that needs its own conventions declares them without this entry knowing.
+    format:
+      glob: "*.{ts,tsx,mjs,cjs,json,jsonc,css,md,yml,yaml}"
       run: npx prettier --write {staged_files}
       stage_fixed: true
     check-classes-renamer:

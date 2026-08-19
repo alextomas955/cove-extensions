@@ -76,9 +76,13 @@ function makeFixture({ catalog, buildProps = "", extensionJsonByPath = {} }) {
 }
 
 function runValidator(fixtureRoot) {
-  const result = spawnSync(process.execPath, [path.join(fixtureRoot, "scripts", "validate-extension-repo.mjs")], {
-    encoding: "utf8",
-  });
+  const result = spawnSync(
+    process.execPath,
+    [path.join(fixtureRoot, "scripts", "validate-extension-repo.mjs")],
+    {
+      encoding: "utf8",
+    },
+  );
   return { status: result.status, stderr: result.stderr, stdout: result.stdout };
 }
 
@@ -235,7 +239,9 @@ test("non-semver extension.json minCoveVersion produces a non-zero exit and the 
     catalog: { schemaVersion: 1, extensions: [entry] },
     buildProps,
     extensionJsonByPath: {
-      "extensions/Foo/extension.json": validManifest("com.example.foo", { minCoveVersion: "not-a-version" }),
+      "extensions/Foo/extension.json": validManifest("com.example.foo", {
+        minCoveVersion: "not-a-version",
+      }),
     },
   });
   try {

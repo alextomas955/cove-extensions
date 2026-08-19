@@ -58,7 +58,9 @@ test("requiredBundledDlls: fails when the required bundled dll is missing, passe
     denylist,
   });
   assert.equal(rMissing.ok, false);
-  assert.ok(rMissing.failures.some((f) => f.includes("MISSING") && f.includes("System.IO.Hashing.dll")));
+  assert.ok(
+    rMissing.failures.some((f) => f.includes("MISSING") && f.includes("System.IO.Hashing.dll")),
+  );
 
   const present = tmpDir();
   write(present, "Renamer.dll");

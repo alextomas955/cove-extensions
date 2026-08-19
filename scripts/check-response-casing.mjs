@@ -53,7 +53,7 @@ const rootFlag = argv.indexOf("--root");
 const root =
   rootFlag !== -1 && argv[rootFlag + 1]
     ? resolve(argv[rootFlag + 1])
-    : resolve(dirname(new URL(import.meta.url).pathname), "..");
+    : resolve(import.meta.dirname, "..");
 
 // Extensions whose Cove-facing responses serialize through JsonSerializerDefaults.Web (camelCase).
 const POLICY = ["extensions/Renamer"];
@@ -101,7 +101,10 @@ function keysOfBody(body) {
     }
     if (depth === 0 && ch === ":") {
       if (atKeyPosition) {
-        const name = cur.trim().replace(/\?$/, "").replace(/^readonly\s+/, "");
+        const name = cur
+          .trim()
+          .replace(/\?$/, "")
+          .replace(/^readonly\s+/, "");
         if (/^[A-Za-z_]\w*$/.test(name)) keys.push(name);
       }
       atKeyPosition = false;
@@ -137,7 +140,9 @@ function unionMembers(expr) {
  * a type alias's whole right-hand side (not just a leading object literal). Null if not declared here.
  */
 function declaredType(src, name) {
-  const iface = new RegExp(`\\binterface\\s+${name}\\b\\s*(?:<[^{]*>)?\\s*(?:extends[^{]*)?\\{`).exec(src);
+  const iface = new RegExp(
+    `\\binterface\\s+${name}\\b\\s*(?:<[^{]*>)?\\s*(?:extends[^{]*)?\\{`,
+  ).exec(src);
   if (iface) {
     const open = iface.index + iface[0].length - 1;
     let depth = 0;
@@ -166,9 +171,12 @@ function importSourceFor(src, name) {
   const re = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*["']([^"']+)["']/g;
   let m;
   while ((m = re.exec(src))) {
-    const named = m[1]
-      .split(",")
-      .map((s) => s.replace(/^\s*type\s+/, "").split(/\s+as\s+/)[0].trim());
+    const named = m[1].split(",").map((s) =>
+      s
+        .replace(/^\s*type\s+/, "")
+        .split(/\s+as\s+/)[0]
+        .trim(),
+    );
     if (named.includes(name)) return m[2];
   }
   return null;
@@ -194,7 +202,8 @@ function resolveSpec(fromFile, spec) {
 }
 
 // These declare no properties at all, so they cannot carry a PascalCase key. Not a blind spot.
-const KEYLESS = /^(?:unknown|void|never|any|null|undefined|string|number|boolean|true|false|\d|["'`])/;
+const KEYLESS =
+  /^(?:unknown|void|never|any|null|undefined|string|number|boolean|true|false|\d|["'`])/;
 
 /**
  * Where `name` is declared, following imports and `export *` / `export { … } from` barrels — the
@@ -222,9 +231,13 @@ function reExportSourceFor(src, name) {
   const re = /export\s+(?:type\s+)?\{([^}]*)\}\s*from\s*["']([^"']+)["']/g;
   let m;
   while ((m = re.exec(src))) {
-    const named = m[1]
-      .split(",")
-      .map((s) => s.replace(/^\s*type\s+/, "").split(/\s+as\s+/).pop().trim());
+    const named = m[1].split(",").map((s) =>
+      s
+        .replace(/^\s*type\s+/, "")
+        .split(/\s+as\s+/)
+        .pop()
+        .trim(),
+    );
     if (named.includes(name)) return m[2];
   }
   return null;
@@ -250,14 +263,19 @@ function collectKeys(expr, file, src, seen = new Set(), depth = 0) {
 
   for (const raw of unionMembers(expr)) {
     let m = raw.trim();
-    while (m.startsWith("(") && balancedSpan(m, 0, "(", ")") === m.length - 1) m = m.slice(1, -1).trim();
-    m = m.replace(/(?:\s*\[\s*\])+$/, "").replace(/^readonly\s+/, "").trim();
+    while (m.startsWith("(") && balancedSpan(m, 0, "(", ")") === m.length - 1)
+      m = m.slice(1, -1).trim();
+    m = m
+      .replace(/(?:\s*\[\s*\])+$/, "")
+      .replace(/^readonly\s+/, "")
+      .trim();
     if (m === "") continue;
 
     if (m.startsWith("{")) {
       const close = balancedSpan(m, 0, "{", "}");
       if (close === -1) unreached.push(raw.trim());
-      else keys.push(...keysOfBody(m.slice(1, close)).map((k) => ({ typeName: "<inline>", key: k })));
+      else
+        keys.push(...keysOfBody(m.slice(1, close)).map((k) => ({ typeName: "<inline>", key: k })));
       continue;
     }
     if (KEYLESS.test(m)) continue;
@@ -279,7 +297,12 @@ function collectKeys(expr, file, src, seen = new Set(), depth = 0) {
     if (seen.has(key)) continue;
     seen.add(key);
     const inner = collectKeys(body, target, targetSrc, seen, depth + 1);
-    keys.push(...inner.keys.map((k) => ({ typeName: k.typeName === "<inline>" ? name : k.typeName, key: k.key })));
+    keys.push(
+      ...inner.keys.map((k) => ({
+        typeName: k.typeName === "<inline>" ? name : k.typeName,
+        key: k.key,
+      })),
+    );
     unreached.push(...inner.unreached);
   }
   return { keys, unreached };
@@ -329,7 +352,8 @@ for (const policyDir of POLICY) {
       // A generic counts as resolved only when EVERY member was reached — a partial read is the
       // failure mode this gate had.
       if (unreached.length > 0) {
-        for (const u of unreached) unresolved.push(`${rel}:${line}  ${trimmed}  (unreachable member: ${u})`);
+        for (const u of unreached)
+          unresolved.push(`${rel}:${line}  ${trimmed}  (unreachable member: ${u})`);
       } else {
         resolvedCount++;
       }
@@ -343,7 +367,9 @@ console.log(
   `check-response-casing: files=${filesScanned} resolved=${resolvedCount} unresolved=${unresolved.length} keys=${membersInspected} findings=${findings.length}`,
 );
 if (unresolved.length > 0) {
-  console.log("An unresolved generic is a shape this gate cannot read, so its silence says nothing about it.");
+  console.log(
+    "An unresolved generic is a shape this gate cannot read, so its silence says nothing about it.",
+  );
 }
 
 if ((findings.length > 0 || unresolved.length > 0) && !warnOnly) process.exit(1);

@@ -45,13 +45,17 @@ export function verifyPublishSet({ dir, entryName, requiredBundledDlls = [], den
 
   if (!files.includes(entryName + ".dll")) {
     failures.push(
-      "MISSING: " + entryName + ".dll is absent from the publish set — build produced no extension assembly.",
+      "MISSING: " +
+        entryName +
+        ".dll is absent from the publish set — build produced no extension assembly.",
     );
   }
 
   for (const name of requiredBundledDlls) {
     if (!files.includes(name + ".dll")) {
-      failures.push("MISSING: " + name + ".dll is absent — a required bundled runtime dependency did not ship.");
+      failures.push(
+        "MISSING: " + name + ".dll is absent — a required bundled runtime dependency did not ship.",
+      );
     }
   }
 
@@ -59,9 +63,17 @@ export function verifyPublishSet({ dir, entryName, requiredBundledDlls = [], den
     if (!file.endsWith(".json")) continue;
     const lines = fs.readFileSync(path.join(dir, file), "utf8").split(/\r?\n/);
     lines.forEach((line, index) => {
-      const hit = WINDOWS_DRIVE_ROOT.test(line) || UNIX_HOME_PREFIXES.some((prefix) => line.includes(prefix));
+      const hit =
+        WINDOWS_DRIVE_ROOT.test(line) || UNIX_HOME_PREFIXES.some((prefix) => line.includes(prefix));
       if (hit) {
-        failures.push("LEAK: absolute path found in publish-set json: " + file + ":" + (index + 1) + ": " + line.trim());
+        failures.push(
+          "LEAK: absolute path found in publish-set json: " +
+            file +
+            ":" +
+            (index + 1) +
+            ": " +
+            line.trim(),
+        );
       }
     });
   }
@@ -80,14 +92,18 @@ function main(argv) {
     return 1;
   }
 
-  const catalog = JSON.parse(fs.readFileSync(path.join(root, "extensions", "catalog.json"), "utf8"));
+  const catalog = JSON.parse(
+    fs.readFileSync(path.join(root, "extensions", "catalog.json"), "utf8"),
+  );
   const entry = resolveEntry(catalog, idOrName);
   if (!entry) {
     console.error("No catalog entry matches id/name: " + idOrName);
     return 1;
   }
 
-  const denylist = JSON.parse(fs.readFileSync(path.join(root, ".github", "DLL_DENYLIST.json"), "utf8"));
+  const denylist = JSON.parse(
+    fs.readFileSync(path.join(root, ".github", "DLL_DENYLIST.json"), "utf8"),
+  );
   const result = verifyPublishSet({
     dir,
     entryName: entry.name,

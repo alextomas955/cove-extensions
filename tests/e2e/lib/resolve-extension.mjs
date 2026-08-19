@@ -2,8 +2,8 @@
 // that encodes the `extensions/<Ext>/e2e/lib/…` layout, so per-extension fixtures never hand-roll a
 // fixed-distance-to-repo-root path. Replaces the old `repoRoot = join(__dirname, '..','..','..','..')`
 // anti-pattern (which broke the moment the harness or extensions/ folder moved).
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
 /**
  * @param {string} callerUrl - `import.meta.url` of an extension's fixtures file, which lives at
@@ -15,10 +15,10 @@ import { dirname, join } from 'node:path';
  */
 export function resolveExtensionPaths(callerUrl, { srcProject, uiProject }) {
   const here = dirname(fileURLToPath(callerUrl)); // …/extensions/<Ext>/e2e/lib
-  const extRoot = join(here, '..', '..'); // …/extensions/<Ext>
+  const extRoot = join(here, "..", ".."); // …/extensions/<Ext>
   return {
-    publishDir: join(extRoot, 'artifacts', 'publish'),
-    manifestPath: join(extRoot, 'src', srcProject, 'extension.json'),
-    uiBundlePath: join(extRoot, 'src', uiProject, 'dist', 'index.mjs'),
+    publishDir: join(extRoot, "artifacts", "publish"),
+    manifestPath: join(extRoot, "src", srcProject, "extension.json"),
+    uiBundlePath: join(extRoot, "src", uiProject, "dist", "index.mjs"),
   };
 }
