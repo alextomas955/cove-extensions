@@ -18,8 +18,8 @@ namespace Renamer;
 /// hook.
 ///
 /// SAFETY: the executor's save re-raises <c>video.updated</c>, which re-enters this
-/// handler — an unconditional execute would loop forever. TWO separate guards stop it, and reading
-/// them as redundancy is a mistake: a self-save suppression, which is what breaks the loop, and a
+/// handler — an unconditional execute would loop forever. TWO separate guards hold it down, and
+/// reading them as redundancy is a mistake: a self-save suppression, which is what breaks the loop, and a
 /// plan-is-empty short-circuit, which stops a pass that would act on nothing from opening a batch.
 /// Each is stated in full at its own site inside <see cref="AutoRenamerAsync"/>.
 /// </summary>
@@ -93,11 +93,17 @@ public sealed partial class Renamer
                 // genuine later edit to the same item, silently and forever, which is strictly worse
                 // than the loop it was added to stop.
                 //
-                // Its bound, stated because it is the conservative half of the one-event assumption: an
-                // item whose files save individually re-raises one event per saved file, so a multi-file
-                // item can still take a further hop. Arming a COUNT instead would trade that for a
-                // leftover token muting a real edit — a failure with no symptom at all, where a further
-                // hop at least shows up as a moved file.
+                // WHAT IT DOES NOT BOUND, because the two arities do not match: the token is one per
+                // ENTITY and consumed once, while a save publishes one event per renamed FILE. An
+                // entity with more than one acting file therefore leaves a surplus event unsuppressed
+                // in every generation, and under a destination pair that never reaches a fixed point
+                // that survivor re-plans and publishes a full set of its own — so the chain sustains
+                // itself generation after generation instead of ending. This suppression bounds the
+                // chain only where one save raises one event, which is the single-file case.
+                //
+                // Arming a COUNT instead is the obvious remedy and is deliberately not taken: a
+                // leftover token mutes a genuine later edit with no symptom at all, which is a worse
+                // failure than a relocation the user can see.
                 if (_selfSaved.TryRemove(selfSaveKey, out _))
                 {
                     return;
@@ -123,13 +129,14 @@ public sealed partial class Renamer
                 // takes the item back: the two destinations ALTERNATE rather than compete, and a default
                 // rooted exactly at a rule's source path with an EMPTY folder template names the very
                 // folder that rule empties, so the pair never reaches a fixed point at all. What bounds
-                // the damage is the self-save suppression above, not convergence.
+                // the damage is the self-save suppression above, not convergence — and only as far as
+                // that suppression reaches, which its own site states.
                 //
-                // The accepted cost, so it is never read as an oversight: such a pair still moves the
-                // item ONE HOP PER ACTION — one per manual "Rename all" click, one per external edit —
-                // and nothing in the panel names the cause. The pair is exactly decidable at save time (a
-                // default whose folder EQUALS a rule's source path while its folder template is empty)
-                // and refusing it there is deliberately not done here.
+                // The accepted cost, so it is never read as an oversight: on a single-file item such a
+                // pair still moves it ONE HOP PER ACTION — one per manual "Rename all" click, one per
+                // external edit — and nothing in the panel names the cause. The pair is exactly
+                // decidable at save time (a default whose folder EQUALS a rule's source path while its
+                // folder template is empty) and refusing it there is deliberately not done here.
                 // Preview, auto-renamer, and batch all resolve destinations identically.
                 var lookups = BuildLookups(options);
                 var plan = await new RenamerPlanner(port).PlanAsync(kind, entityId, options, lookups, ct);
