@@ -94,3 +94,22 @@ export function extensionShapeAdvisory(value: string): string | null {
   }
   return null;
 }
+
+/** Move/remove for an ordered list, bound to one `values`/`onChange`. An out-of-range move does nothing. */
+export function listEditors<T>(
+  values: readonly T[],
+  onChange: (next: T[]) => void,
+): { move: (i: number, dir: -1 | 1) => void; remove: (i: number) => void } {
+  return {
+    move(i, dir) {
+      const j = i + dir;
+      if (j < 0 || j >= values.length) return;
+      const next = [...values];
+      [next[i], next[j]] = [next[j], next[i]];
+      onChange(next);
+    },
+    remove(i) {
+      onChange(values.filter((_, idx) => idx !== i));
+    },
+  };
+}

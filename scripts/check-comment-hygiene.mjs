@@ -24,7 +24,7 @@ const working = process.argv.includes("--working");
 const rangeArg = process.argv[process.argv.indexOf("--range") + 1];
 const range = process.argv.includes("--range") ? rangeArg : null;
 // A revision reaches a shell, so accept only rev-shaped text.
-if (range !== null && !/^[A-Za-z0-9._/@^~-]+(\.\.\.?[A-Za-z0-9._/@^~-]+)?$/.test(range ?? "")) {
+if (range !== null && !/^[A-Za-z0-9._/@^~-]+$/.test(range)) {
   console.error("comment-hygiene: --range needs a revision or revision range (e.g. main..HEAD)");
   process.exit(2);
 }
@@ -63,7 +63,7 @@ const TELLS = [
 
 const mode = range !== null ? `range ${range}` : working ? "working tree" : "staged";
 const selector = range !== null ? ` ${range}` : working ? "" : " --cached";
-const DIFF = `git diff${selector} --unified=0 --no-color -- '*.cs' '*.ts' '*.tsx'`;
+const DIFF = `git diff${selector} --unified=0 --no-color -- "*.cs" "*.ts" "*.tsx"`;
 
 function commentText(added) {
   const t = added.replace(/^\+/, "").trim();

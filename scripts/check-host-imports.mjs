@@ -81,9 +81,8 @@ if (missing.length > 0) {
     const alt = [...hostExports]
       .filter((e) => e.includes(name.replace(/Icon$/, "")) || name.includes(e))
       .slice(0, 3);
-    console.error(
-      `  ${file}\n    "${name}" is absent from the host runtime shim${alt.length ? ` — the host offers: ${alt.join(", ")}` : ""}`,
-    );
+    const offers = alt.length ? ` — the host offers: ${alt.join(", ")}` : "";
+    console.error(`  ${file}\n    "${name}" is absent from the host runtime shim${offers}`);
   }
   console.error(
     `\nThis would fail the whole bundle at load with an ESM SyntaxError, not just the icon.`,

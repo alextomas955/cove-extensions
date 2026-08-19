@@ -59,7 +59,7 @@ function read(argPath) {
 // The two C#-source overrides are matched by PROPERTY NAME so the artifact Version and the
 // MinCoveVersion (which carry different values) are never confused for one another.
 function csharpOverride(source, property) {
-  const m = source.match(new RegExp(`${property}\\s*=>\\s*"([^"]+)"`));
+  const m = new RegExp(String.raw`${property}\s*=>\s*"([^"]+)"`).exec(source);
   return m ? m[1] : null;
 }
 

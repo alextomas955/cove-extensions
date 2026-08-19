@@ -113,9 +113,9 @@ export function useOverlayKeys(
       const panel = ref.current;
       if (!panel) return;
       const items = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE));
-      if (items.length === 0) return;
-      const firstEl = items[0];
-      const lastEl = items[items.length - 1];
+      const firstEl = items.at(0);
+      const lastEl = items.at(-1);
+      if (!firstEl || !lastEl) return;
       const active = document.activeElement as HTMLElement | null;
       if (e.shiftKey && active === firstEl) {
         e.preventDefault();

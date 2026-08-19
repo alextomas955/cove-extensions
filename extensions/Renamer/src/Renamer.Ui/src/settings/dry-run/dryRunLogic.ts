@@ -183,8 +183,8 @@ export const ETA_MIN_RATES = 2;
 export function etaFromSamples(samples: readonly ProgressSample[]): number | null {
   if (samples.length < 2) return null;
 
-  const latest = samples[samples.length - 1];
-  if (!Number.isFinite(latest.timeMs) || !Number.isFinite(latest.progress)) return null;
+  const latest = samples.at(-1);
+  if (!latest || !Number.isFinite(latest.timeMs) || !Number.isFinite(latest.progress)) return null;
   const p = latest.progress;
   if (p <= 0 || p >= 1) return null;
 
