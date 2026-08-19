@@ -8,7 +8,7 @@
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "check-classes": "node ../../../../shared/cove-extensions-ui/scripts/check-classes.cjs --allow 'shadow-[0_12px_30px_-20px_rgba(0,0,0,0.7)]'",
+    "check-classes": "node ../../../../shared/cove-extensions-ui/scripts/check-classes.cjs --allow \"shadow-[0_12px_30px_-20px_rgba(0,0,0,0.7)]\"",
     "test": "node ../../../../shared/cove-extensions-ui/scripts/run-logic-gate.mjs --manifest scripts/gates.json --manifest ../../../../shared/cove-extensions-ui/scripts/gates.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

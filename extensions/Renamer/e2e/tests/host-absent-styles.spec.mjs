@@ -35,7 +35,9 @@ test("host-absent utilities render via inline styles on a released host", async 
   const knobTransformBefore = await knob.evaluate((el) => getComputedStyle(el).transform);
   // toggle its parent switch
   await knob.evaluate((el) => el.closest("button")?.click());
-  await page.waitForTimeout(300);
+  await expect
+    .poll(() => knob.evaluate((el) => getComputedStyle(el).transform), { timeout: 5_000 })
+    .not.toBe(knobTransformBefore);
   const knobTransformAfter = await knob.evaluate((el) => getComputedStyle(el).transform);
   expect(
     knobTransformBefore,

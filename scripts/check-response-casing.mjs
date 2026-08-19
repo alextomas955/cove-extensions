@@ -141,7 +141,7 @@ function unionMembers(expr) {
  */
 function declaredType(src, name) {
   const iface = new RegExp(
-    `\\binterface\\s+${name}\\b\\s*(?:<[^{]*>)?\\s*(?:extends[^{]*)?\\{`,
+    String.raw`\binterface\s+${name}\b\s*(?:<[^{]*>)?\s*(?:extends[^{]*)?\{`,
   ).exec(src);
   if (iface) {
     const open = iface.index + iface[0].length - 1;
@@ -152,7 +152,7 @@ function declaredType(src, name) {
     }
     return null;
   }
-  const alias = new RegExp(`\\btype\\s+${name}\\b\\s*(?:<[^=]*>)?\\s*=\\s*`).exec(src);
+  const alias = new RegExp(String.raw`\btype\s+${name}\b\s*(?:<[^=]*>)?\s*=\s*`).exec(src);
   if (!alias) return null;
   // A type alias's RHS runs to the first depth-0 `;` — prettier always terminates one.
   const start = alias.index + alias[0].length;

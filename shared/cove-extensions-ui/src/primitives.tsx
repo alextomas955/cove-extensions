@@ -30,7 +30,7 @@
 import type { ReactNode } from "react";
 import { useId, useRef, useState, useEffect } from "react";
 import { Loader2, X, ChevronUp, ChevronDown } from "lucide-react";
-import { isRegexValid, isAbsolutePathShape } from "./primitivesLogic";
+import { isRegexValid, isAbsolutePathShape, listEditors } from "./primitivesLogic";
 import { availableOptions, type ValueOption } from "./entityPickerLogic";
 
 const INPUT_CLASS =
@@ -556,17 +556,7 @@ export function TagListInput({
     input.value = "";
   }
 
-  function remove(i: number) {
-    onChange(values.filter((_, idx) => idx !== i));
-  }
-
-  function move(i: number, dir: -1 | 1) {
-    const j = i + dir;
-    if (j < 0 || j >= values.length) return;
-    const next = [...values];
-    [next[i], next[j]] = [next[j], next[i]];
-    onChange(next);
-  }
+  const { move, remove } = listEditors(values, onChange);
 
   return (
     <div>
@@ -731,16 +721,7 @@ export function OrderedPickToAdd({
   const labelOf = (value: string) => options.find((o) => o.value === value)?.label ?? value;
   const offerable = availableOptions(options, values);
 
-  function move(i: number, dir: -1 | 1) {
-    const j = i + dir;
-    if (j < 0 || j >= values.length) return;
-    const next = [...values];
-    [next[i], next[j]] = [next[j], next[i]];
-    onChange(next);
-  }
-  function remove(i: number) {
-    onChange(values.filter((_, idx) => idx !== i));
-  }
+  const { move, remove } = listEditors(values, onChange);
 
   return (
     <div>

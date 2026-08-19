@@ -53,7 +53,7 @@ function recordParams(body) {
   return parts
     .map((raw) => raw.replace(/\[[^\]]*\]/g, " ").trim())
     .map((raw) => raw.split("=")[0].trim())
-    .map((raw) => raw.split(/\s+/).filter(Boolean).pop() ?? "")
+    .map((raw) => raw.split(/\s+/).findLast(Boolean) ?? "")
     .filter((name) => /^[A-Za-z_]\w*$/.test(name));
 }
 
@@ -111,7 +111,7 @@ function analyze(extensionDir) {
       host: hostDeclared.has(name),
       external: name === "webhook",
       tests: new RegExp(`["'\`]${name}["'\`]|/${name}\\b`).test(testText),
-      docs: new RegExp(`/${name}\\b`).test(docText),
+      docs: new RegExp(String.raw`/${name}\b`).test(docText),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -119,7 +119,7 @@ function analyze(extensionDir) {
   const seen = new Set();
   for (const { s } of prodCs.filter((f) => RESPONSE_DTO_FILE.test(f.p))) {
     for (const m of s.matchAll(
-      /(?:internal|public)\s+sealed\s+record\s+(\w+)\s*\(([\s\S]*?)\)\s*(?:\{|;)/g,
+      /(?:internal|public)\s+sealed\s+record\s+(\w+)\s*\(([\s\S]*?)\)\s*[{;]/g,
     )) {
       const [, dto, body] = m;
       if (INTERNAL_DTO.test(dto)) continue;
@@ -128,13 +128,13 @@ function analyze(extensionDir) {
         if (seen.has(key)) continue;
         seen.add(key);
         const camel = field.charAt(0).toLowerCase() + field.slice(1);
-        const re = new RegExp(`\\b(${camel}|${field})\\b`);
+        const re = new RegExp(String.raw`\b(${camel}|${field})\b`);
         fields.push({
           dto,
           field,
           ui: re.test(uiText),
           // A field the SERVER still reads is a working setting with no UI, not dead surface.
-          server: new RegExp(`\\b${field}\\b`).test(
+          server: new RegExp(String.raw`\b${field}\b`).test(
             csText.replace(/(?:internal|public)\s+sealed\s+record[\s\S]*?\)\s*[;{]/g, ""),
           ),
           tests: re.test(testText),

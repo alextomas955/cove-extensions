@@ -43,7 +43,7 @@ export function PreviewCard({ result }: { result: PreviewSampleResult }) {
       </div>
 
       {result.folder.length > 0 ? (
-        <div className="mb-1 text-xs text-secondary">{result.folder.split("/").join(" / ")} /</div>
+        <div className="mb-1 text-xs text-secondary">{result.folder.replaceAll("/", " / ")} /</div>
       ) : null}
 
       <div className="font-mono text-sm text-muted line-through">{result.oldName}</div>
