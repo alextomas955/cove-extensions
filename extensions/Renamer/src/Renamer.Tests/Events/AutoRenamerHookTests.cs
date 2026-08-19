@@ -794,6 +794,177 @@ public sealed class AutoRenamerHookTests
     }
 
     /// <summary>
+    /// A two-file entity whose files render ONE target name reaches a fixed point: the genuine edit acts
+    /// on both files, and the generation that edit drives acts on nothing and publishes nothing.
+    /// </summary>
+    /// <remarks>
+    /// A DIFFERENT arrangement from
+    /// <see cref="FlagOn_NonConvergingPair_TwoFileEntity_MeasuresTheChainAcrossGenerations"/>, whose two
+    /// files carry different container extensions on purpose so they never collide and whose destination
+    /// pair never settles. Here the extensions are the SAME, so <c>$title</c> renders one name for both
+    /// files and the surplus file's suffix loop settles on the numbered name it already carries — which is
+    /// the classification this fact is about — while the default <i>Where files go</i> names neither a
+    /// root nor a template, so an item no rule matches stays put.
+    /// <para>
+    /// A second tier is here because the tier below cannot observe this: an L0 plan test sees one plan's
+    /// classification and has no executor, no event bus and no hook, so it cannot see a save, a published
+    /// event, or a generation going silent. <see cref="Planner.CollisionTests"/> pins the classification;
+    /// only here can the chain's own end be observed.
+    /// </para>
+    /// <para>
+    /// Driven by hand for a FIXED number of generations, never until it settles: the recording bus
+    /// dispatches nothing of its own, and the cap is what makes an arrangement that did NOT terminate end
+    /// at the cap and report, rather than hang the suite.
+    /// </para>
+    /// <para>
+    /// Both settled paths are transcribed from the arrangement. Asking the planner or the executor where a
+    /// file belongs would produce an expectation that agrees with the code under test however far the two
+    /// drift.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task FlagOn_TwoFilesRenderingOneTarget_ChainReachesAFixedPoint()
+    {
+        const int Generations = 4;
+
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string libraryFolder = Path.Combine(dir.Root, "library");
+            string sortedRoot = Path.Combine(dir.Root, "sorted");
+            Directory.CreateDirectory(libraryFolder);
+
+            string libraryFwd = libraryFolder.Replace('\\', '/');
+            string sortedFwd = sortedRoot.Replace('\\', '/');
+
+            var (folderId, videoId, firstId) =
+                await ExecutorTestSeed.SeedVideoAsync(db, libraryFwd, "raw.mkv", "My Film");
+            int secondId = await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "extra.mkv");
+            File.WriteAllText(Path.Combine(libraryFolder, "raw.mkv"), "bytes");
+            File.WriteAllText(Path.Combine(libraryFolder, "extra.mkv"), "bytes");
+
+            var options = new RenamerOptions
+            {
+                AutoRenamerOnUpdate = true,
+                FilenameTemplate = "$title",
+                AllowedRoots = [libraryFwd, sortedFwd],
+                // FolderRoot and FolderTemplate stay at their shipped empty values, so once the rule has
+                // emptied the library folder nothing reclaims the item.
+                PathDestinations =
+                    [new PathDestinationRule
+                    {
+                        Pattern = libraryFwd, Dest = Dests.At(sortedFwd, "Films"), IsRegex = false,
+                    }],
+            };
+            var (ext, bus, _) = await EventTestHarness.BuildAsync(db, options, libraryFwd, sortedFwd);
+
+            // The two settled destinations, written out from the arrangement above — never computed. Both
+            // files PLAN into the rendered name; the executor de-conflicts the second at execution time,
+            // which is why the numbered form is one of the two terminal paths.
+            string rendered = $"{sortedFwd}/Films/My Film.mkv";
+            string numbered = $"{sortedFwd}/Films/My Film (1).mkv";
+
+            var evt = new ExtensionEvent("video.updated", "video", videoId);
+
+            var fanOut = new int[Generations + 1];
+            var firstAt = new string[Generations + 1];
+            var secondAt = new string[Generations + 1];
+
+            async Task RecordAsync(int gen)
+            {
+                (_, string firstPath) = await ExecutorTestSeed.ReadFileAsync(db, firstId);
+                (_, string secondPath) = await ExecutorTestSeed.ReadFileAsync(db, secondId);
+                firstAt[gen] = firstPath.Replace('\\', '/');
+                secondAt[gen] = secondPath.Replace('\\', '/');
+            }
+
+            int before = bus.Published.Count;
+            await ext.OnEventAsync(evt, default);
+            fanOut[0] = bus.Published.Count - before;
+            await RecordAsync(0);
+
+            for (int gen = 1; gen <= Generations; gen++)
+            {
+                int calls = fanOut[gen - 1];
+                before = bus.Published.Count;
+                for (int i = 0; i < calls; i++)
+                {
+                    await ext.OnEventAsync(evt, default);
+                }
+                fanOut[gen] = bus.Published.Count - before;
+                await RecordAsync(gen);
+            }
+
+            _output.WriteLine($"libraryFwd = {libraryFwd}");
+            _output.WriteLine($"sortedFwd  = {sortedFwd}");
+            for (int gen = 0; gen <= Generations; gen++)
+            {
+                _output.WriteLine(
+                    $"gen {gen}: calls={(gen == 0 ? 1 : fanOut[gen - 1])} published={fanOut[gen]} "
+                        + $"first={firstAt[gen]} second={secondAt[gen]}");
+            }
+            _output.WriteLine($"bus.Published total = {bus.Published.Count}");
+
+            // The genuine edit: one published event per acting FILE, because the executor publishes inside
+            // its per-item loop. This is the arity the surplus event comes from and it is unchanged.
+            Assert.True(
+                fanOut[0] == 2,
+                $"one action on a two-file entity must publish one event per renamed file, but "
+                    + $"{fanOut[0]} were published — the executor's publish arity has changed");
+
+            // The chain ENDS here. Two events were fired; the single-use token absorbed one, and the
+            // survivor planned an entity with nothing left to do — the surplus file's suffix loop settles
+            // on the name it already holds, which is a no-op and not an act — so it returned before
+            // minting a run id. A 1 here is the defect: the surplus file planned as a move to its own
+            // path, the executor moved it onto itself and saved, and the save re-raised the event.
+            Assert.True(
+                fanOut[1] == 0,
+                $"the generation the genuine edit drove published {fanOut[1]} events where 0 are "
+                    + "required — an item whose settled destination is the path it already occupies was "
+                    + "executed and saved, so the chain did not reach a fixed point");
+
+            for (int gen = 2; gen <= Generations; gen++)
+            {
+                Assert.True(
+                    fanOut[gen] == 0,
+                    $"generation {gen} published {fanOut[gen]} events after the chain had already gone "
+                        + "quiet");
+            }
+
+            Assert.True(
+                bus.Published.Count == 2,
+                $"the whole run must publish the genuine edit's two events and nothing else, but the bus "
+                    + $"holds {bus.Published.Count}");
+
+            // Asserted as a SET: nothing orders an entity's files, so naming which file id takes which
+            // path would be flaky by construction.
+            Assert.Equal(
+                new[] { rendered, numbered }.Order(StringComparer.Ordinal),
+                new[] { firstAt[Generations], secondAt[Generations] }.Order(StringComparer.Ordinal));
+
+            // The fixed point is STABLE, not merely a queue that emptied: one more event fired by hand
+            // publishes nothing and moves neither file.
+            int beforeExtra = bus.Published.Count;
+            await ext.OnEventAsync(evt, default);
+            Assert.True(
+                bus.Published.Count == beforeExtra,
+                $"an event fired after the chain went quiet published "
+                    + $"{bus.Published.Count - beforeExtra} events");
+
+            await RecordAsync(Generations);
+            Assert.Equal(
+                new[] { rendered, numbered }.Order(StringComparer.Ordinal),
+                new[] { firstAt[Generations], secondAt[Generations] }.Order(StringComparer.Ordinal));
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
     /// Seeds one throwaway Video so the next <see cref="ExecutorTestSeed.SeedVideoAsync"/> hands back a
     /// Video id one ahead of its VideoFile id — guaranteeing videoId ≠ fileId.
     /// </summary>
