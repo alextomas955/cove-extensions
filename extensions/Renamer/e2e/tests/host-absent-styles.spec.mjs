@@ -40,8 +40,8 @@ const THEME_COLOR_VARS = [
 ];
 
 // The box the shared `INPUT_CLASS` asks for, as the RELEASED host actually renders it — every value
-// TRANSCRIBED BY HAND off `ghcr.io/yourcove/cove-app:1.3.0-rc.2` on 2026-08-18 (the harness's declared
-// floor, which is the image the tag below boots). Nothing here is derived: no expression resolved in
+// TRANSCRIBED BY HAND off `ghcr.io/yourcove/cove-app:1.3.0` (the harness's declared floor, which is the
+// image the tag below boots). Nothing here is derived: no expression resolved in
 // the browser, no value read back off the element and compared with itself. Re-transcribe if the shared
 // class string moves — a check that recomputed these would agree with a broken hand-off forever.
 //
