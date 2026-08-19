@@ -81,7 +81,7 @@ public sealed class RevertLogBatchTests
         var batch = await log.ReadLastOpenBatchAsync();
         Assert.NotNull(batch);
         // Newest-first (reverse append order): last appended (entity 3) is first.
-        Assert.Equal(new[] { 3, 2, 1 }, batch!.Entries.Select(e => e.EntityId).ToArray());
+        Assert.Equal([3, 2, 1], batch!.Entries.Select(e => e.EntityId).ToArray());
     }
 
     [Fact]
