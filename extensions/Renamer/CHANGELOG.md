@@ -17,6 +17,12 @@ User-facing changes, newest first.
   the limit allows. The length is now re-checked once the final name is settled, both while previewing
   and while running, and such an item is skipped as too long rather than written. If you have never
   lowered the path-length setting you are very unlikely to have hit this.
+- **An item holding more than one file is no longer renamed over and over without stopping.** With
+  **Rename on update** switched on, editing such an item could start a rename that never finished:
+  every pass wrote to your disk and to Cove's database, and it kept going until you restarted Cove. It
+  now stops by itself. Nothing was lost when this happened, and your files came out correctly named —
+  but it could run for as long as the host stayed up, so if you have **Rename on update** on and any
+  item with two or more files, this is the reason to take this update.
 
 ## 0.4.0 — Destinations you pick, not paths you type
 

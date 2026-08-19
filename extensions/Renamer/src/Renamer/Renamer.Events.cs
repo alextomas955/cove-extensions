@@ -96,20 +96,17 @@ public sealed partial class Renamer
                 // WHAT IT DOES NOT BOUND, because the two arities do not match: the token is one per
                 // ENTITY and consumed once, while a save publishes one event per renamed FILE. An
                 // entity with more than one acting file therefore leaves a surplus event unsuppressed
-                // in every generation; that survivor re-plans and publishes a full set of its own, so
-                // the chain sustains itself generation after generation instead of ending. This
-                // suppression bounds the chain only where one save raises one event, which is the
-                // single-file case.
+                // in every generation, and that mismatch is unchanged. This suppression bounds the chain
+                // only where one save raises one event, which is the single-file case.
                 //
-                // It needs no unusual configuration to start — a multi-file entity is the whole
-                // precondition, and reading it as conditional on some contradictory pair of destination
-                // settings would send a reader hunting a cause that does not have to be there. Every
-                // file of one entity plans into a SINGLE destination path, because the de-duplicating
-                // suffix is measured against the destination folder's existing contents and never
-                // against the batch; a surplus file then plans as a move whose source already equals
-                // its target. A move that moves nothing still saves, and the save is what re-raises the
-                // event. That collision is the engine, and ending it is what ends the chain — which is
-                // why the remedy belongs there and not in this token's arity.
+                // What the surplus event needs in order to still have something to DO is a destination
+                // configuration that never reaches a fixed point of its own — the alternating pair the
+                // routing note below states, and the cost it records as accepted. Under such a pair a
+                // multi-file item remains unbounded: every generation's survivor re-plans, acts, and
+                // publishes a full set again, which AutoRenamerHookTests measures across generations.
+                // Otherwise the survivor's re-plan finds an item that changes nothing, because
+                // PlanFileAsync refuses a destination that is the file's current path once its
+                // duplicate-name loop has settled.
                 //
                 // Arming a COUNT instead is the obvious remedy and is deliberately not taken: a
                 // leftover token mutes a genuine later edit with no symptom at all, which is a worse
