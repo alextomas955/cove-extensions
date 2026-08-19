@@ -3,28 +3,30 @@ export class RenamerSettingsPage {
   constructor(page, baseUrl) {
     this.page = page;
     this.baseUrl = baseUrl;
-    this.filenameTemplateInput = page.getByRole('textbox', { name: 'Filename template' });
-    this.folderTemplateInput = page.getByRole('textbox', { name: 'Folder template' });
-    this.saveChangesButton = page.getByRole('button', { name: 'Save changes' });
-    this.unsavedChangesIndicator = page.getByText('Unsaved changes');
-    this.renameAllButton = page.getByRole('button', { name: 'Rename all files' });
+    this.filenameTemplateInput = page.getByRole("textbox", { name: "Filename template" });
+    this.folderTemplateInput = page.getByRole("textbox", { name: "Folder template" });
+    this.saveChangesButton = page.getByRole("button", { name: "Save changes" });
+    this.unsavedChangesIndicator = page.getByText("Unsaved changes");
+    this.renameAllButton = page.getByRole("button", { name: "Rename all files" });
     // The whole-library run's success banner ("Renamed N file(s)") — the poll target that proves the
     // scan+rename job pair settled, NOT the correctness proof (disk+DB state is asserted separately).
     this.renameAllFeedback = page.getByText(/Renamed \d+ file/);
-    this.undoLastRenameButton = page.getByRole('button', { name: 'Undo last rename' });
+    this.undoLastRenameButton = page.getByRole("button", { name: "Undo last rename" });
     // The in-app (React) confirm modal's accept button — dynamic label ("Undo 1 rename",
     // "Undo 3 renames"), NOT a native browser dialog.
-    this.undoConfirmButton = page.getByRole('button', { name: /^Undo \d+ renames?$/ });
+    this.undoConfirmButton = page.getByRole("button", { name: /^Undo \d+ renames?$/ });
     // Always-visible switch under the flat "Run & automation" section (the settings redesign
     // replaced the old collapsible "Automation" sub-section, so there is no header to expand).
-    this.autoRenameOnUpdateSwitch = page.getByRole('switch', { name: 'Auto-rename on update' });
+    this.autoRenameOnUpdateSwitch = page.getByRole("switch", { name: "Auto-rename on update" });
     // The "Dry run" button opens the whole-library preview modal (the native-<dialog> overlay).
-    this.dryRunButton = page.getByRole('button', { name: 'Dry run' });
+    this.dryRunButton = page.getByRole("button", { name: "Dry run" });
     // DryRunModal's shell: role="dialog" aria-labelledby the "Dry run" title.
-    this.dryRunDialog = page.getByRole('dialog', { name: 'Dry run' });
+    this.dryRunDialog = page.getByRole("dialog", { name: "Dry run" });
     // The modal footer's "Rename N files" button — enabled only once the scan lands with a will-change count.
-    this.dryRunRenameButton = this.dryRunDialog.getByRole('button', { name: /^Rename \d+ files?$/ });
-    this.dryRunCloseButton = this.dryRunDialog.getByRole('button', { name: 'Close' });
+    this.dryRunRenameButton = this.dryRunDialog.getByRole("button", {
+      name: /^Rename \d+ files?$/,
+    });
+    this.dryRunCloseButton = this.dryRunDialog.getByRole("button", { name: "Close" });
   }
 
   async goto() {
@@ -52,7 +54,7 @@ export class RenamerSettingsPage {
       await this.save();
     }
     await this.renameAllButton.click();
-    await this.renameAllFeedback.waitFor({ state: 'visible', timeout: 60_000 });
+    await this.renameAllFeedback.waitFor({ state: "visible", timeout: 60_000 });
   }
 
   /**
@@ -60,27 +62,27 @@ export class RenamerSettingsPage {
    * same as any other edit. The switch is always visible in the flat "Run & automation" section.
    */
   async enableAutoRenameOnUpdate() {
-    await this.autoRenameOnUpdateSwitch.waitFor({ state: 'visible', timeout: 10_000 });
-    const isChecked = await this.autoRenameOnUpdateSwitch.getAttribute('aria-checked');
-    if (isChecked !== 'true') {
+    await this.autoRenameOnUpdateSwitch.waitFor({ state: "visible", timeout: 10_000 });
+    const isChecked = await this.autoRenameOnUpdateSwitch.getAttribute("aria-checked");
+    if (isChecked !== "true") {
       await this.autoRenameOnUpdateSwitch.click();
     }
   }
 
   async save() {
     await this.saveChangesButton.click();
-    await this.unsavedChangesIndicator.waitFor({ state: 'hidden', timeout: 10_000 });
+    await this.unsavedChangesIndicator.waitFor({ state: "hidden", timeout: 10_000 });
   }
 
   /** Opens the Dry run modal and waits for its dialog shell to mount (the scan runs inside it). */
   async openDryRun() {
     await this.dryRunButton.click();
-    await this.dryRunDialog.waitFor({ state: 'visible', timeout: 10_000 });
+    await this.dryRunDialog.waitFor({ state: "visible", timeout: 10_000 });
   }
 
   /** The "Sample: Video" live-preview card's full text, used to assert the debounced preview updated. */
   liveVideoSampleCard() {
-    return this.page.getByText('SAMPLE: VIDEO', { exact: false }).locator('..');
+    return this.page.getByText("SAMPLE: VIDEO", { exact: false }).locator("..");
   }
 
   hasUndoAvailable() {
@@ -89,9 +91,9 @@ export class RenamerSettingsPage {
 
   /** Clicks "Undo last rename" and confirms the in-app modal. Throws if the button isn't present. */
   async undoLastRename() {
-    await this.undoLastRenameButton.waitFor({ state: 'visible', timeout: 10_000 });
+    await this.undoLastRenameButton.waitFor({ state: "visible", timeout: 10_000 });
     await this.undoLastRenameButton.click();
-    await this.undoConfirmButton.waitFor({ state: 'visible', timeout: 5_000 });
+    await this.undoConfirmButton.waitFor({ state: "visible", timeout: 5_000 });
     await this.undoConfirmButton.click();
     // The undo mutation completes asynchronously after this click resolves (the same
     // read-after-write gap poll.mjs's pollUntil exists for elsewhere) — give it a moment to land

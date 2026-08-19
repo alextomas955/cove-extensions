@@ -43,7 +43,7 @@ harness lives at `tests/e2e/` and is published as the npm-workspace package `@co
 a root `npm install` hoists the single `@playwright/test` to the repo-root `node_modules` and
 symlinks the harness there by name. Each extension's E2E suite is registered as a Playwright
 **project** in [`playwright.config.mjs`](playwright.config.mjs) pointing `testDir` at that
-extension's own test directory (e.g. `extensions/Renamer/e2e/tests/`) — the test *files* live next
+extension's own test directory (e.g. `extensions/Renamer/e2e/tests/`) — the test _files_ live next
 to the extension they test, and each imports the harness **by name** (`@cove-extensions/e2e`), never
 by a relative `../../../e2e/...` path.
 
@@ -130,19 +130,19 @@ hand-rolled repo-root paths.
 
 ```js
 // from e.g. extensions/<YourExtension>/e2e/tests/your-test.spec.mjs
-import { test, expect } from '@cove-extensions/e2e';
-import { resolveExtensionPaths } from '@cove-extensions/e2e/resolve-extension';
+import { test, expect } from "@cove-extensions/e2e";
+import { resolveExtensionPaths } from "@cove-extensions/e2e/resolve-extension";
 
 test.use({
   extension: resolveExtensionPaths(import.meta.url, {
-    srcProject: 'YourProject', // → src/YourProject/extension.json
-    uiProject: 'YourProject.Ui', // → src/YourProject.Ui/dist/index.mjs (omit usage if no frontend)
+    srcProject: "YourProject", // → src/YourProject/extension.json
+    uiProject: "YourProject.Ui", // → src/YourProject.Ui/dist/index.mjs (omit usage if no frontend)
   }),
 });
 
-test('your extension does the thing', async ({ api, page }) => {
+test("your extension does the thing", async ({ api, page }) => {
   // api.get/post/put/delete talk straight to the running instance's REST API — no browser needed.
-  const { json } = await api.get('/api/extensions');
+  const { json } = await api.get("/api/extensions");
 
   // page is a real Playwright page already navigated to the running instance's home page, ALREADY
   // signed in (see "Signing in" below) — use it for anything needing the real UI.
@@ -165,7 +165,7 @@ Cove's frontend hard-gates the **entire** app behind a first-run setup wizard un
 account exists — there is no button to dismiss it while `ownerMissing` is true (confirmed directly:
 clicking "Skip setup for now" does nothing in that state). The `harness` fixture calls
 `bootstrapOwner()` once per worker before any test runs, and the `page` fixture pre-seeds
-`sessionStorage`'s `cove-setup-dismissed` flag via `addInitScript` so the wizard's *other* gate
+`sessionStorage`'s `cove-setup-dismissed` flag via `addInitScript` so the wizard's _other_ gate
 (`needsSetup`, true whenever no library path is configured — genuinely the case for a fresh
 container) doesn't block every UI test either. You don't need to do anything for this — every
 `page` fixture use already lands on the real app, signed in. See `lib/harness.mjs`'s
@@ -173,11 +173,11 @@ container) doesn't block every UI test either. You don't need to do anything for
 
 ### Available fixtures
 
-| Fixture | What it gives you |
-| --- | --- |
-| `baseUrl` | The running instance's URL (e.g. `http://localhost:54321`) — a fresh random port every run |
-| `api` | `{ get, post, put, delete }` helpers for calling the instance's REST API directly, no browser |
-| `page` | A real Playwright `Page`, already navigated to `baseUrl` and already signed in |
+| Fixture   | What it gives you                                                                                                                          |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `baseUrl` | The running instance's URL (e.g. `http://localhost:54321`) — a fresh random port every run                                                 |
+| `api`     | `{ get, post, put, delete }` helpers for calling the instance's REST API directly, no browser                                              |
+| `page`    | A real Playwright `Page`, already navigated to `baseUrl` and already signed in                                                             |
 | `harness` | The raw harness handle, if you need lower-level control (`installExtensionFromUrl`, `container` for direct `exec`/file copy, `stop`, etc.) |
 
 One Cove instance is shared per Playwright **worker** (not per test) to keep the suite fast —

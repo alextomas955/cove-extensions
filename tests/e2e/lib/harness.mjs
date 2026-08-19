@@ -7,14 +7,14 @@
 // even if the test process is killed (not just on a graceful exit) — a hand-rolled wrapper only
 // cleans up in the success path, leaking containers on a killed run. It also owns port resolution
 // and health-check waiting, removing two hand-written polling loops this file used to have.
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { DockerComposeEnvironment, Wait } from 'testcontainers';
-import { installViaContainerCopy, installViaUrl } from './install-extension.mjs';
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { DockerComposeEnvironment, Wait } from "testcontainers";
+import { installViaContainerCopy, installViaUrl } from "./install-extension.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const COMPOSE_DIR = join(__dirname, '..', 'docker');
-const COMPOSE_FILE = 'docker-compose.yml';
+const COMPOSE_DIR = join(__dirname, "..", "docker");
+const COMPOSE_FILE = "docker-compose.yml";
 
 // Shared-runner container cold-start is measurably slower than a dedicated dev machine's Docker
 // Desktop — widen the default startup budget in CI rather than tuning it tight against local timing.
@@ -28,15 +28,15 @@ const DEFAULT_STARTUP_TIMEOUT_MS = process.env.CI ? 240_000 : 180_000;
 export async function startHarness({ image, timeoutMs = DEFAULT_STARTUP_TIMEOUT_MS } = {}) {
   let environment = new DockerComposeEnvironment(COMPOSE_DIR, COMPOSE_FILE)
     .withStartupTimeout(timeoutMs)
-    .withWaitStrategy('cove', Wait.forHealthCheck())
-    .withWaitStrategy('db', Wait.forHealthCheck());
+    .withWaitStrategy("cove", Wait.forHealthCheck())
+    .withWaitStrategy("db", Wait.forHealthCheck());
 
   if (image) {
     environment = environment.withEnvironment({ COVE_E2E_IMAGE: image });
   }
 
   const started = await environment.up();
-  let coveContainer = started.getContainer('cove-1');
+  let coveContainer = started.getContainer("cove-1");
 
   const handle = {
     get baseUrl() {
@@ -51,7 +51,12 @@ export async function startHarness({ image, timeoutMs = DEFAULT_STARTUP_TIMEOUT_
     },
 
     async installExtension({ publishDir, manifestPath, uiBundlePath }) {
-      const result = await installViaContainerCopy({ container: coveContainer, publishDir, manifestPath, uiBundlePath });
+      const result = await installViaContainerCopy({
+        container: coveContainer,
+        publishDir,
+        manifestPath,
+        uiBundlePath,
+      });
       await coveContainer.restart();
       // A restart on a container published with an ephemeral host port can reassign a NEW host
       // port — re-fetch the started container's own view of itself rather than trusting a cached
@@ -63,7 +68,9 @@ export async function startHarness({ image, timeoutMs = DEFAULT_STARTUP_TIMEOUT_
 
     async installExtensionFromUrl(zipUrl) {
       const result = await installViaUrl({ baseUrl: handle.baseUrl, zipUrl });
-      await waitForExtensionEnabled(handle.baseUrl, result.id ?? result.manifest?.id, { timeoutMs });
+      await waitForExtensionEnabled(handle.baseUrl, result.id ?? result.manifest?.id, {
+        timeoutMs,
+      });
       return result;
     },
 
@@ -83,15 +90,17 @@ export async function startHarness({ image, timeoutMs = DEFAULT_STARTUP_TIMEOUT_
      * wizard until an owner is created via `POST /api/auth/bootstrap-owner`. Every extension's
      * browser-driven E2E test needs this, so it lives here rather than being copy-pasted per test.
      */
-    async bootstrapOwner({ username = 'e2e-owner', password = 'E2eTestPassword123!' } = {}) {
+    async bootstrapOwner({ username = "e2e-owner", password = "E2eTestPassword123!" } = {}) {
       const res = await fetch(`${handle.baseUrl}/api/auth/bootstrap-owner`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
       if (!res.ok) {
-        const body = await res.text().catch(() => '<unreadable body>');
-        throw new Error(`bootstrapOwner: POST /api/auth/bootstrap-owner failed (${res.status}): ${body}`);
+        const body = await res.text().catch(() => "<unreadable body>");
+        throw new Error(
+          `bootstrapOwner: POST /api/auth/bootstrap-owner failed (${res.status}): ${body}`,
+        );
       }
       return res.json();
     },
@@ -103,7 +112,11 @@ export async function startHarness({ image, timeoutMs = DEFAULT_STARTUP_TIMEOUT_
   return handle;
 }
 
-async function waitForExtensionEnabled(baseUrl, extensionId, { timeoutMs = 60_000, intervalMs = 1000 } = {}) {
+async function waitForExtensionEnabled(
+  baseUrl,
+  extensionId,
+  { timeoutMs = 60_000, intervalMs = 1000 } = {},
+) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const res = await fetch(`${baseUrl}/api/extensions`).catch(() => null);
@@ -115,6 +128,6 @@ async function waitForExtensionEnabled(baseUrl, extensionId, { timeoutMs = 60_00
     await new Promise((r) => setTimeout(r, intervalMs));
   }
   throw new Error(
-    `waitForExtensionEnabled: extension "${extensionId}" was not found/enabled within ${timeoutMs}ms at ${baseUrl}/api/extensions`
+    `waitForExtensionEnabled: extension "${extensionId}" was not found/enabled within ${timeoutMs}ms at ${baseUrl}/api/extensions`,
   );
 }

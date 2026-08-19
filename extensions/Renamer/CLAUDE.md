@@ -17,8 +17,8 @@ the thing that must work.
 
 ## What NOT to do (Renamer-specific)
 
-| Avoid | Why |
-|-------|-----|
+| Avoid                                                         | Why                                                                                                                       |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | Assuming a core "rename/move file" service exists on the host | **It does not.** Only `POST /api/files/move` (changes folder, keeps basename). The extension does the disk rename itself. |
 
 The monorepo-wide bans (shipping host assemblies, direct SQLite/Postgres writes) are in the root
@@ -73,14 +73,14 @@ specifics:
 ## Frontend SDK (`Renamer.Ui`)
 
 - Renamer ships a frontend — the settings/preview panel bundle built from `src/Renamer.Ui/` to
-  `dist/index.mjs` — using **`@cove/extension-sdk`**, the Cove *frontend* host SDK (separate from
+  `dist/index.mjs` — using **`@cove/extension-sdk`**, the Cove _frontend_ host SDK (separate from
   `Cove.Sdk`). It is not published to npm, so it is vendored as a committed tarball at
   `src/Renamer.Ui/vendor/` and consumed through a `file:` dependency that `npm ci` installs offline.
   Regenerate the tarball with `scripts/update-cove-sdk.ps1` when the SDK version changes.
 
 ## Comments — where they are earned in Renamer
 
-The monorepo C# comment / XML-doc policy (root `CLAUDE.md`) applies. Renamer's value is *safe*
+The monorepo C# comment / XML-doc policy (root `CLAUDE.md`) applies. Renamer's value is _safe_
 renaming, so the invariants that earn a comment here are the safety-critical ones: TOCTOU windows,
 copy-then-verify-then-delete across volumes, MAX_PATH re-anchoring, the single-writer revert log,
 and the routing precedence (Tags over Studio over Default). Comment those; leave the obvious code

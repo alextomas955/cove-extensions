@@ -15,9 +15,9 @@ Always:
 
 - [ ] `dotnet build CoveExtensions.slnx` (the whole monorepo) succeeds
 - [ ] **Cove-present safety gate (required local pre-merge):** with the `../cove` sibling checked out,
-  `dotnet test` both test projects passes — green modulo the documented Windows-only Skippable cases on
-  macOS/Linux. CI's bare leg Compile-Removes the rollback/undo/ingest/loop-safety tests (Cove.Data is
-  source-only), and the containerized e2e job is their CI backstop; this local run gates the C# tier.
+      `dotnet test` both test projects passes — green modulo the documented Windows-only Skippable cases on
+      macOS/Linux. CI's bare leg Compile-Removes the rollback/undo/ingest/loop-safety tests (Cove.Data is
+      source-only), and the containerized e2e job is their CI backstop; this local run gates the C# tier.
 - [ ] Built and checked in a running Cove (if the change affects runtime/UI behavior)
 - [ ] Docs updated for any settings, config, public API, or user-facing behavior change (or none needed)
 

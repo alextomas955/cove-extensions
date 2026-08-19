@@ -6,8 +6,8 @@
 //   import { test, expect } from '../../lib/fixtures.mjs';
 //   test.use({ extension: { publishDir: '...', manifestPath: '...', uiBundlePath: '...' } });
 //   test('...', async ({ page, baseUrl, api }) => { ... });
-import { test as base, expect } from '@playwright/test';
-import { startHarness } from './harness.mjs';
+import { test as base, expect } from "@playwright/test";
+import { startHarness } from "./harness.mjs";
 
 export const test = base.extend({
   extension: [undefined, { option: true }],
@@ -23,7 +23,7 @@ export const test = base.extend({
       await use(harness);
       await harness.stop();
     },
-    { scope: 'worker' },
+    { scope: "worker" },
   ],
 
   baseUrl: async ({ harness, extension }, use) => {
@@ -44,7 +44,7 @@ export const test = base.extend({
     // present before the app's first render, matching how a returning user who already dismissed
     // it would experience it) avoids depending on a wizard button existing/working at all.
     await page.addInitScript(() => {
-      sessionStorage.setItem('cove-setup-dismissed', 'true');
+      sessionStorage.setItem("cove-setup-dismissed", "true");
     });
     await page.goto(baseUrl);
     await use(page);
@@ -54,7 +54,7 @@ export const test = base.extend({
     async function call(method, path, body) {
       const res = await fetch(`${baseUrl}${path}`, {
         method,
-        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        headers: body ? { "Content-Type": "application/json" } : undefined,
         body: body ? JSON.stringify(body) : undefined,
       });
       const text = await res.text();
@@ -67,10 +67,10 @@ export const test = base.extend({
       return { status: res.status, ok: res.ok, json, text };
     }
     await use({
-      get: (path) => call('GET', path),
-      post: (path, body) => call('POST', path, body),
-      put: (path, body) => call('PUT', path, body),
-      delete: (path) => call('DELETE', path),
+      get: (path) => call("GET", path),
+      post: (path, body) => call("POST", path, body),
+      put: (path, body) => call("PUT", path, body),
+      delete: (path) => call("DELETE", path),
     });
   },
 });

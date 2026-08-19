@@ -62,7 +62,12 @@ function makeFixture({
   catalogManifest = validCatalogManifest(),
 } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "version-parity-fixture-"));
-  const args = ["src/extension.json", "src/Fixture.cs", "ui/package.json", "registry/com.example.fixture.json"];
+  const args = [
+    "src/extension.json",
+    "src/Fixture.cs",
+    "ui/package.json",
+    "registry/com.example.fixture.json",
+  ];
   for (const rel of args) {
     mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
   }
@@ -150,7 +155,9 @@ test("the real committed call shape, built from extensions/catalog.json, exits 0
   // Reproduces the argv the release workflow assembles per catalog entry: manifestPath,
   // versionSourcePath, "<uiPath>/package.json", and the registry manifest at
   // "<path>/extensions/<id>.json" appended only when that file exists.
-  const catalog = JSON.parse(readFileSync(path.join(repoRoot, "extensions", "catalog.json"), "utf8"));
+  const catalog = JSON.parse(
+    readFileSync(path.join(repoRoot, "extensions", "catalog.json"), "utf8"),
+  );
   let checked = 0;
   for (const entry of catalog.extensions) {
     if (!entry.versionSourcePath) {

@@ -17,10 +17,7 @@ import path from "node:path";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const coveRepo = process.env.COVE_REPO ?? path.resolve(repoRoot, "../cove");
-const shim = path.join(
-  coveRepo,
-  "ui/src/generated/extensions/runtime/v2/lucide-react.ts",
-);
+const shim = path.join(coveRepo, "ui/src/generated/extensions/runtime/v2/lucide-react.ts");
 
 if (!existsSync(shim)) {
   console.log(
@@ -30,9 +27,7 @@ if (!existsSync(shim)) {
 }
 
 const hostExports = new Set(
-  [...readFileSync(shim, "utf8").matchAll(/^export const (\w+) =/gm)].map(
-    (m) => m[1],
-  ),
+  [...readFileSync(shim, "utf8").matchAll(/^export const (\w+) =/gm)].map((m) => m[1]),
 );
 
 function* sources(dir) {
@@ -52,9 +47,7 @@ const uiRoots = readdirSync(path.join(repoRoot, "extensions"), {
       withFileTypes: true,
     })
       .filter((u) => u.isDirectory() && u.name.endsWith(".Ui"))
-      .map((u) =>
-        path.join(repoRoot, "extensions", e.name, "src", u.name, "src"),
-      ),
+      .map((u) => path.join(repoRoot, "extensions", e.name, "src", u.name, "src")),
   )
   .filter(existsSync);
 
@@ -74,8 +67,7 @@ for (const root of uiRoots) {
         const name = specifier.split(/\s+as\s+/)[0].trim();
         if (!name) continue;
         checked++;
-        if (!hostExports.has(name))
-          missing.push({ file: path.relative(repoRoot, file), name });
+        if (!hostExports.has(name)) missing.push({ file: path.relative(repoRoot, file), name });
       }
     }
   }
@@ -96,9 +88,7 @@ if (missing.length > 0) {
   console.error(
     `\nThis would fail the whole bundle at load with an ESM SyntaxError, not just the icon.`,
   );
-  console.error(
-    `Host shim: ${path.relative(repoRoot, shim)} (${hostExports.size} exports)`,
-  );
+  console.error(`Host shim: ${path.relative(repoRoot, shim)} (${hostExports.size} exports)`);
   process.exit(1);
 }
 

@@ -51,8 +51,7 @@ const uiTscCandidates = [
 
 /** `@shared/x` → the shared UI module's own src/x; anything else is relative to the package root. */
 function resolveToken(token, pkgRoot) {
-  if (token.startsWith("@shared/"))
-    return path.join(sharedSrc, token.slice("@shared/".length));
+  if (token.startsWith("@shared/")) return path.join(sharedSrc, token.slice("@shared/".length));
   return path.resolve(pkgRoot, token);
 }
 
@@ -73,9 +72,7 @@ function findTsc(pkgRoot) {
   const own = path.join(pkgRoot, "node_modules", "typescript", "bin", "tsc");
   const found = [own, ...uiTscCandidates].find((p) => existsSync(p));
   if (!found)
-    throw new Error(
-      "no TypeScript compiler found in the package or either UI's node_modules",
-    );
+    throw new Error("no TypeScript compiler found in the package or either UI's node_modules");
   return found;
 }
 
@@ -97,12 +94,8 @@ function runGate(gate, pkgRoot) {
   const tsc = findTsc(pkgRoot);
 
   const entryModule =
-    (gate.entry &&
-      modules.find((m) => path.basename(jsExt(m)) === gate.entry)) ||
-    modules[0];
-  const envVar =
-    gate.envVar ??
-    `${gate.name.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_MODULE`;
+    (gate.entry && modules.find((m) => path.basename(jsExt(m)) === gate.entry)) || modules[0];
+  const envVar = gate.envVar ?? `${gate.name.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_MODULE`;
   const prefix = gate.tmpPrefix ?? `${path.basename(pkgRoot)}-${gate.name}-`;
 
   const outDir = mkdtempSync(path.join(tmpdir(), prefix));
@@ -132,34 +125,22 @@ function runGate(gate, pkgRoot) {
       paths["react/jsx-runtime"] = [
         path.join(pkgRoot, "node_modules", "@types", "react", "jsx-runtime"),
       ];
-      paths["react-dom"] = [
-        path.join(pkgRoot, "node_modules", "@types", "react-dom"),
-      ];
+      paths["react-dom"] = [path.join(pkgRoot, "node_modules", "@types", "react-dom")];
       paths["react-dom/client"] = [
         path.join(pkgRoot, "node_modules", "@types", "react-dom", "client"),
       ];
-      paths["lucide-react"] = [
-        path.join(pkgRoot, "node_modules", "lucide-react"),
-      ];
+      paths["lucide-react"] = [path.join(pkgRoot, "node_modules", "lucide-react")];
     }
     if (Object.keys(paths).length) compilerOptions.paths = paths;
 
     const tsconfigPath = path.join(outDir, "tsconfig.json");
-    writeFileSync(
-      tsconfigPath,
-      JSON.stringify({ compilerOptions, files: modules }),
-    );
+    writeFileSync(tsconfigPath, JSON.stringify({ compilerOptions, files: modules }));
     // Mark the scratch dir as ESM so Node loads the emitted .js as a module without a reparse warning.
-    writeFileSync(
-      path.join(outDir, "package.json"),
-      JSON.stringify({ type: "module" }),
-    );
+    writeFileSync(path.join(outDir, "package.json"), JSON.stringify({ type: "module" }));
 
-    const compile = spawnSync(
-      process.execPath,
-      [tsc, "--project", tsconfigPath],
-      { stdio: "inherit" },
-    );
+    const compile = spawnSync(process.execPath, [tsc, "--project", tsconfigPath], {
+      stdio: "inherit",
+    });
     if (compile.status !== 0) {
       console.error(`${gate.name}: tsc compile FAILED`);
       return compile.status ?? 1;
@@ -173,18 +154,14 @@ function runGate(gate, pkgRoot) {
       ? Object.fromEntries(
           Object.entries(gate.aliases).map(([name, token]) => [
             name,
-            path.join(
-              outDir,
-              jsExt(path.relative(rootDir, resolveToken(token, pkgRoot))),
-            ),
+            path.join(outDir, jsExt(path.relative(rootDir, resolveToken(token, pkgRoot)))),
           ]),
         )
       : {};
     for (const emittedPath of emittedJsFiles(outDir)) {
       const source = readFileSync(emittedPath, "utf8");
-      let patched = source.replaceAll(
-        /from "(\.\.?\/[^"]+)"/g,
-        (match, spec) => (spec.endsWith(".js") ? match : `from "${spec}.js"`),
+      let patched = source.replaceAll(/from "(\.\.?\/[^"]+)"/g, (match, spec) =>
+        spec.endsWith(".js") ? match : `from "${spec}.js"`,
       );
       for (const [name, target] of Object.entries(aliasTargets)) {
         patched = patched.replaceAll(`from "${name}"`, () => {
@@ -252,9 +229,7 @@ function parseArgs(argv) {
 }
 
 function main() {
-  const { manifests, only, modules, aliases, direct } = parseArgs(
-    process.argv.slice(2),
-  );
+  const { manifests, only, modules, aliases, direct } = parseArgs(process.argv.slice(2));
 
   // Collect (gate, pkgRoot) pairs from every manifest, plus an optional direct-flag gate.
   const jobs = [];
@@ -269,9 +244,7 @@ function main() {
     jobs.push({
       pkgRoot: process.cwd(),
       gate: {
-        name:
-          direct.entry ??
-          path.basename(direct.test).replace(/\.test\.mjs$/, ""),
+        name: direct.entry ?? path.basename(direct.test).replace(/\.test\.mjs$/, ""),
         modules,
         test: direct.test,
         envVar: direct.envVar,
@@ -287,9 +260,7 @@ function main() {
   const selected = only ? jobs.filter((j) => j.gate.name === only) : jobs;
   if (!selected.length) {
     console.error(
-      only
-        ? `run-logic-gate: no gate named "${only}"`
-        : "run-logic-gate: no gates to run",
+      only ? `run-logic-gate: no gate named "${only}"` : "run-logic-gate: no gates to run",
     );
     process.exit(1);
   }
@@ -308,9 +279,7 @@ function main() {
     console.error(`\nrun-logic-gate: FAILED gates → ${failures.join(", ")}`);
     process.exit(1);
   }
-  console.log(
-    `\nrun-logic-gate: OK (${selected.length} gate${selected.length === 1 ? "" : "s"})`,
-  );
+  console.log(`\nrun-logic-gate: OK (${selected.length} gate${selected.length === 1 ? "" : "s"})`);
 }
 
 main();
