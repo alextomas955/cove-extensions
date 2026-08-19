@@ -362,6 +362,28 @@ public sealed class RenamerPlanner
 
         string newFullPath = JoinPath(relTargetFolder, candidate);
 
+        // (3c) NoOp AGAIN, now against the SETTLED candidate. The check at (3) ran on the RENDERED name,
+        //      before the loop above; the loop then lengthens that name to free a slot a sibling holds,
+        //      and the first free candidate it reaches can be the very name this file already carries. So
+        //      an item that changes nothing arrives here looking like an act — and an act is executed and
+        //      SAVED. On the auto-rename path the save is what makes the host re-raise the update event,
+        //      which re-plans this item and saves it again: the classification is what ends that, because
+        //      a non-acting item is never executed at all. Same structural argument as the budget re-check
+        //      just above — a verdict reached before the loop cannot stand for one after it.
+        //
+        //      Ordinal, like the check at (3) and NOT via PathsEqual: both parts went through JoinPath so
+        //      separators are exact, and the case rule that helper owns is deliberately not applied here,
+        //      because a target differing from the source by case alone is a rename the user asked for and
+        //      suppressing it would silently refuse a case correction.
+        if (string.Equals(newFullPath, oldFullPath, StringComparison.Ordinal))
+        {
+            return new RenamerPlanItem(
+                file.FileId, oldFullPath, oldFullPath, RenamerStatus.NoOp,
+                file.Basename, relTargetFolder,
+                "no-op: the name this file would take is in use by another file in this folder, and the "
+                    + "next free numbered name is the one this file already has");
+        }
+
         // UI badge signals (set only on the final Renamer/Move item; skip/no-op paths keep the
         // defaults). Suffixed iff the collision loop appended a number; Sanitized via the SAME engine
         // check /preview-sample uses (single source of truth — never string-sniff the basename).
