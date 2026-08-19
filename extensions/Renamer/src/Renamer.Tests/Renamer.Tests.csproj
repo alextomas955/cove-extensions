@@ -19,19 +19,12 @@
     -->
     <CoveHostProvidedAssemblies>;__renamer_tests_no_strip__;</CoveHostProvidedAssemblies>
     <!--
-      NU1903: a known-vuln transitive native lib (SQLitePCLRaw.lib.e_sqlite3, pulled in by
-      Microsoft.EntityFrameworkCore.Sqlite). It is a TEST-ONLY dependency for the SQLite-in-memory
-      integration tier and is NEVER part of the deployed Renamer.dll payload, so it poses no risk to
-      users of the extension. Suppress the audit-as-error here (test project only) so
-      TreatWarningsAsErrors does not block the build.
-    -->
-    <!--
       CA1716: the linked shared fakes (Testing.Cove/*.cs, LinkBase="TestSupport\Shared") declare the
       Cove.Extensions.Shared.Testing namespace, whose "Shared" segment is a VB reserved keyword. These are
       C#-only test types never consumed from VB, so the rule does not apply — mirror the suppression on the
       Cove.Extensions.Shared(.Testing) projects. Fires here because linked files compile INTO this assembly.
     -->
-    <NoWarn>$(NoWarn);NU1903;CA1716</NoWarn>
+    <NoWarn>$(NoWarn);CA1716</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -57,6 +50,14 @@
       a major.minor line. Dependabot may bump these freely.
     -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <!--
+      Direct reference ONLY to raise the transitive native SQLite lib that
+      Microsoft.EntityFrameworkCore.Sqlite resolves, past a version carrying a known advisory
+      (NU1903). No code here consumes this package: the reference exists so the version is chosen
+      by this repo rather than by EF Core's floor, which is what keeps the restore audit green
+      without a NoWarn. Drop it once EF Core's own floor resolves a version the audit accepts.
+    -->
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <!--
       TEST-ONLY: TransportSmokeTests mounts the extension's MapEndpoints in an in-process
