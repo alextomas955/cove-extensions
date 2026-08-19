@@ -47,18 +47,9 @@
       publishes Renamer.csproj alone, so host assemblies are never bundled. No version-parity
       constraint with Cove.Data's own EF Core version — confirmed a patch-level gap between the
       two already exists and works fine, since EF Core patch releases are binary-compatible within
-      a major.minor line. Dependabot may bump these freely.
+      a major.minor line.
     -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
-    <!--
-      Direct reference ONLY to raise the transitive native SQLite lib that
-      Microsoft.EntityFrameworkCore.Sqlite resolves, past a version carrying a known advisory
-      (NU1903). No code here consumes this package: the reference exists so the version is chosen
-      by this repo rather than by EF Core's floor. The host is on the same EF Core version as this
-      repo and still resolves the vulnerable native lib, so matching the host does NOT remove the
-      need for this; drop it only once the resolved transitive version satisfies the audit on its own.
-    -->
-    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <!--
       TEST-ONLY: TransportSmokeTests mounts the extension's MapEndpoints in an in-process
