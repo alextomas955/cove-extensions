@@ -17,6 +17,12 @@ User-facing changes, newest first.
   the limit allows. The length is now re-checked once the final name is settled, both while previewing
   and while running, and such an item is skipped as too long rather than written. If you have never
   lowered the path-length setting you are very unlikely to have hit this.
+- **A dry run over an item holding several files now shows each file at the name it will really get.**
+  It used to show every one of them heading for the same destination name, and the run then quietly
+  numbered all but the first — so the preview you approved did not describe what happened, and none of
+  those rows was marked as numbered. Each file is now shown at its own name, numbered where the name
+  before it is taken. Your files came out correctly named either way; what changes is that you can now
+  see it before you agree to it.
 - **An item holding more than one file is no longer renamed over and over without stopping.** With
   **Rename on update** switched on, editing such an item could start a rename that never finished:
   every pass wrote to your disk and to Cove's database, and it kept going until you restarted Cove. It

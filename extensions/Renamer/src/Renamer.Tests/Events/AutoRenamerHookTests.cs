@@ -859,9 +859,9 @@ public sealed class AutoRenamerHookTests
             };
             var (ext, bus, _) = await EventTestHarness.BuildAsync(db, options, libraryFwd, sortedFwd);
 
-            // The two settled destinations, written out from the arrangement above — never computed. Both
-            // files PLAN into the rendered name; the executor de-conflicts the second at execution time,
-            // which is why the numbered form is one of the two terminal paths.
+            // The two settled destinations, written out from the arrangement above — never computed. The
+            // two files render ONE name, so the plan gives the second the numbered form, which is why
+            // that form is one of the two terminal paths.
             string rendered = $"{sortedFwd}/Films/My Film.mkv";
             string numbered = $"{sortedFwd}/Films/My Film (1).mkv";
 
