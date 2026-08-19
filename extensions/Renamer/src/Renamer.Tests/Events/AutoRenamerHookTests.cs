@@ -10,6 +10,7 @@ using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
+using Xunit.Abstractions;
 
 namespace Renamer.Tests.Events;
 
@@ -34,6 +35,10 @@ namespace Renamer.Tests.Events;
 [Trait("Tier", "L1")]
 public sealed class AutoRenamerHookTests
 {
+    private readonly ITestOutputHelper _output;
+
+    public AutoRenamerHookTests(ITestOutputHelper output) => _output = output;
+
     /// <summary>
     /// An <see cref="IExtensionStore"/> whose every read throws — standing in for any inner failure
     /// (a transient store/DB error) on the auto-renamer path. The handler loads options from the store
@@ -385,6 +390,170 @@ public sealed class AutoRenamerHookTests
             Assert.True(
                 bus.Published.Count == 2,
                 $"the later edit's own save must re-raise one event, but the bus holds {bus.Published.Count}");
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// The same non-converging destination pair as
+    /// <see cref="FlagOn_NonConvergingDestinationPair_OneHopPerAction_NoBounceOnItsOwnEvent"/>, driven
+    /// against an entity with TWO acting files: the self-save suppression does not bound the chain
+    /// there, and this measures what it does instead.
+    /// </summary>
+    /// <remarks>
+    /// The suppression arms ONE token per (kind, entity) and consumes it once, while a save publishes
+    /// one event per renamed FILE. Those arities differ, so a two-file entity leaves one event of every
+    /// generation unsuppressed; that survivor re-plans, finds the pair still alternating, and publishes
+    /// two more. The chain therefore sustains itself at a constant rate rather than decaying — the
+    /// single-file bound the sibling fact proves does not carry over.
+    /// <para>
+    /// Driven by hand for a FIXED number of generations, never until it settles: on this pair it does
+    /// not settle, and the recording bus dispatches nothing of its own, so the cap is what keeps the
+    /// suite from hanging. Each generation fires exactly as many events as the previous one published.
+    /// </para>
+    /// <para>
+    /// All four destinations are transcribed from the arrangement. Asking the resolver where a file
+    /// belongs would produce an expectation that agrees with the code under test however far the two
+    /// drift — the one failure these assertions exist to catch.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task FlagOn_NonConvergingPair_TwoFileEntity_MeasuresTheChainAcrossGenerations()
+    {
+        const int Generations = 4;
+
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string libraryFolder = Path.Combine(dir.Root, "library");
+            string sortedRoot = Path.Combine(dir.Root, "sorted");
+            Directory.CreateDirectory(libraryFolder);
+
+            string libraryFwd = libraryFolder.Replace('\\', '/');
+            string sortedFwd = sortedRoot.Replace('\\', '/');
+
+            var (folderId, videoId, mkvId) =
+                await ExecutorTestSeed.SeedVideoAsync(db, libraryFwd, "raw.mkv", "My Film");
+            int mp4Id = await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "raw.mp4");
+            File.WriteAllText(Path.Combine(libraryFolder, "raw.mkv"), "bytes");
+            File.WriteAllText(Path.Combine(libraryFolder, "raw.mp4"), "bytes");
+
+            var options = new RenamerOptions
+            {
+                AutoRenamerOnUpdate = true,
+                FilenameTemplate = "$title",
+                AllowedRoots = [libraryFwd, sortedFwd],
+                FolderRoot = libraryFwd,
+                FolderTemplate = "",
+                PathDestinations =
+                    [new PathDestinationRule
+                    {
+                        Pattern = libraryFwd, Dest = Dests.At(sortedFwd, "Films"), IsRegex = false,
+                    }],
+            };
+            var (ext, bus, _) = await EventTestHarness.BuildAsync(db, options, libraryFwd, sortedFwd);
+
+            // All four destinations, written out from the arrangement above — never computed. The two
+            // container extensions differ on purpose so "$title" renders two DISTINCT targets and both
+            // files are acting items rather than a collision pair.
+            string mkvAtRule = $"{sortedFwd}/Films/My Film.mkv";
+            string mp4AtRule = $"{sortedFwd}/Films/My Film.mp4";
+            string mkvAtDefault = $"{libraryFwd}/My Film.mkv";
+            string mp4AtDefault = $"{libraryFwd}/My Film.mp4";
+
+            var evt = new ExtensionEvent("video.updated", "video", videoId);
+
+            var fanOut = new int[Generations + 1];
+            var mkvAt = new string[Generations + 1];
+            var mp4At = new string[Generations + 1];
+
+            async Task RecordAsync(int gen)
+            {
+                (_, string mkvPath) = await ExecutorTestSeed.ReadFileAsync(db, mkvId);
+                (_, string mp4Path) = await ExecutorTestSeed.ReadFileAsync(db, mp4Id);
+                mkvAt[gen] = mkvPath.Replace('\\', '/');
+                mp4At[gen] = mp4Path.Replace('\\', '/');
+            }
+
+            int before = bus.Published.Count;
+            await ext.OnEventAsync(evt, default);
+            fanOut[0] = bus.Published.Count - before;
+            await RecordAsync(0);
+
+            for (int gen = 1; gen <= Generations; gen++)
+            {
+                int calls = fanOut[gen - 1];
+                before = bus.Published.Count;
+                for (int i = 0; i < calls; i++)
+                {
+                    await ext.OnEventAsync(evt, default);
+                }
+                fanOut[gen] = bus.Published.Count - before;
+                await RecordAsync(gen);
+            }
+
+            _output.WriteLine($"libraryFwd = {libraryFwd}");
+            _output.WriteLine($"sortedFwd  = {sortedFwd}");
+            for (int gen = 0; gen <= Generations; gen++)
+            {
+                _output.WriteLine(
+                    $"gen {gen}: calls={(gen == 0 ? 1 : fanOut[gen - 1])} published={fanOut[gen]} "
+                        + $"mkv={mkvAt[gen]} mp4={mp4At[gen]}");
+            }
+            _output.WriteLine($"bus.Published total = {bus.Published.Count}");
+            _output.WriteLine(
+                $"mkv on disk: rule={File.Exists(Path.Combine(sortedRoot, "Films", "My Film.mkv"))} "
+                    + $"default={File.Exists(Path.Combine(libraryFolder, "My Film.mkv"))}");
+            _output.WriteLine(
+                $"mp4 on disk: rule={File.Exists(Path.Combine(sortedRoot, "Films", "My Film.mp4"))} "
+                    + $"default={File.Exists(Path.Combine(libraryFolder, "My Film.mp4"))}");
+
+            // Every number below was read off the run above and then written here — none was computed
+            // from the planner, the resolver or the guard.
+
+            // The genuine edit. TWO published events for ONE entity is the fan-out side of the
+            // mismatch: the executor publishes inside its per-item loop, so the count tracks acting
+            // FILES. A 1 here would mean the publish had moved out to the entity, which is the shape
+            // that would make one token enough.
+            Assert.True(
+                fanOut[0] == 2,
+                $"one action on a two-file entity must publish one event per renamed file, but "
+                    + $"{fanOut[0]} were published — the executor's publish arity has changed");
+
+            // The chain does not decay. Each generation fires the previous generation's fan-out; the
+            // single-use token eats exactly ONE of those calls, so on a two-file entity one survivor
+            // always remains, acts, and publishes two again. A number below 2 here would mean the
+            // suppression now absorbs more than one event per action; a 0 would mean the chain ends.
+            for (int gen = 1; gen <= Generations; gen++)
+            {
+                Assert.True(
+                    fanOut[gen] == 2,
+                    $"generation {gen} published {fanOut[gen]} events where 2 were measured — the "
+                        + "self-save token's arity relative to the executor's per-file publish has "
+                        + "changed, so the chain no longer sustains itself at a constant rate");
+            }
+
+            // Both files hop TOGETHER every generation, alternating between the rule's destination and
+            // the default that reclaims them — so this is not one extra relocation, it is a relocation
+            // of the whole entity per generation, without end.
+            for (int gen = 0; gen <= Generations; gen++)
+            {
+                bool atRule = gen % 2 == 0;
+                Assert.Equal(atRule ? mkvAtRule : mkvAtDefault, mkvAt[gen]);
+                Assert.Equal(atRule ? mp4AtRule : mp4AtDefault, mp4At[gen]);
+            }
+
+            // The whole run's total, pinned so a change to the shape above cannot pass by adjusting one
+            // generation: 2 from the genuine edit plus 2 from each of the four generations it drove.
+            Assert.True(
+                bus.Published.Count == 10,
+                $"the four driven generations plus the genuine edit published {bus.Published.Count} "
+                    + "events where 10 were measured");
         }
         finally
         {
