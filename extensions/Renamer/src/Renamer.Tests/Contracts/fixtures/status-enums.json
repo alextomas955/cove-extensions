@@ -1,6 +1,6 @@
 {
   "renamerStatus": {
-    "Renamer": "\u0022renamer\u0022",
+    "Rename": "\u0022rename\u0022",
     "Move": "\u0022move\u0022",
     "NoOp": "\u0022noOp\u0022",
     "SkipCollision": "\u0022skipCollision\u0022",
@@ -10,12 +10,18 @@
     "SkipMissingSource": "\u0022skipMissingSource\u0022",
     "SkipNoSpace": "\u0022skipNoSpace\u0022",
     "SkipBlocked": "\u0022skipBlocked\u0022",
-    "Failed": "\u0022failed\u0022"
+    "Failed": "\u0022failed\u0022",
+    "SkipPermissionDenied": "\u0022skipPermissionDenied\u0022",
+    "SkipVerifyFailed": "\u0022skipVerifyFailed\u0022",
+    "SkipCancelled": "\u0022skipCancelled\u0022",
+    "SkipUnanchored": "\u0022skipUnanchored\u0022",
+    "SkipRootMissing": "\u0022skipRootMissing\u0022",
+    "SkipNotAllowed": "\u0022skipNotAllowed\u0022",
+    "SkipTooLong": "\u0022skipTooLong\u0022"
   },
   "renamerFileKind": {
     "Video": "\u0022video\u0022",
     "Image": "\u0022image\u0022",
-    "Audio": "\u0022audio\u0022",
-    "Gallery": "\u0022gallery\u0022"
+    "Audio": "\u0022audio\u0022"
   }
 }

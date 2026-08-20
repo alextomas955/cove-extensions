@@ -18,7 +18,7 @@ public sealed class GatingTests
 
     private static RenamerEntity Entity(string? title, bool organized, params RenamerFile[] files) =>
         new(EntityId: 10, Kind: RenamerFileKind.Video, Title: title, Code: null, StudioName: null,
-            Date: null, Organized: organized, Performers: [], Tags: [], Files: files);
+            Date: null, Organized: organized, Performers: [], TagRefs: [], Files: files);
 
     [Fact]
     public async Task OnlyOrganized_UnorganizedItem_SkipGated()
@@ -28,7 +28,7 @@ public sealed class GatingTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { OnlyOrganized = true };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
 
         Assert.Equal(2, plan.Items.Count);
         Assert.All(plan.Items, i =>
@@ -36,7 +36,7 @@ public sealed class GatingTests
             Assert.Equal(RenamerStatus.SkipGated, i.Status);
             Assert.NotNull(i.Reason);
         });
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -49,12 +49,12 @@ public sealed class GatingTests
         // is gated rather than rescued by the basename fallback (which now defaults on) — this case
         // exercises the require-fields gate, not the fallback.
         var opts = new RenamerOptions { FilenameAsTitle = false };
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipGated, item.Status);
         Assert.NotEqual(RenamerStatus.Failed, item.Status);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -66,11 +66,11 @@ public sealed class GatingTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { RequiredFields = ["zzznope"] };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipGated, item.Status);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -85,8 +85,9 @@ public sealed class GatingTests
         var port = new FakeRenamerDataPort();
         port.SeedEntity(new RenamerEntity(
             EntityId: 10, Kind: RenamerFileKind.Video, Title: "My Film", Code: null, StudioName: null,
-            Date: null, Organized: false, Performers: [], Tags: [],
+            Date: null, Organized: false, Performers: [], TagRefs: [],
             Files: [new RenamerFile(1, RenamerFileKind.Video, "raw.mkv", 5, srcFolder, Format: "mkv")]));
+        port.SeedLibraryRoot(unorgRoot);
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
         {
@@ -94,17 +95,17 @@ public sealed class GatingTests
             FilenameTemplate = "$title",
             FolderTemplate = "Sorted",
             AllowedRoots = [srcFolder, unorgRoot],
-            UnorganizedDestination = unorgRoot,
+            UnorganizedDestination = Dests.At(unorgRoot),
         };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         Assert.NotEqual(RenamerStatus.SkipGated, item.Status);
         Assert.Equal(RenamerStatus.Move, item.Status);
-        Assert.Equal(unorgRoot, item.ResolvedDestinationRoot);
+        Assert.Equal(unorgRoot.Replace('\\', '/'), item.ResolvedDestinationRoot);
         Assert.Equal("Unorganized", item.MatchedRule);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -117,10 +118,10 @@ public sealed class GatingTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { OnlyOrganized = true }; // UnorganizedDestination = "" (default)
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
 
         Assert.Equal(RenamerStatus.SkipGated, Assert.Single(plan.Items).Status);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -131,9 +132,9 @@ public sealed class GatingTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { OnlyOrganized = true };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
 
         Assert.NotEqual(RenamerStatus.SkipGated, Assert.Single(plan.Items).Status);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 }

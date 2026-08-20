@@ -84,34 +84,20 @@ public class MultiValueTests
     }
 
     [Fact]
-    public void Resolve_Whitelist_KeepsOnlyListedCaseInsensitive()
+    public void Resolve_NameOnlyList_IsNotFilteredByTheIdWhitelistOrBlacklist()
     {
+        // A name carries no id, so neither id list can be tested against it. Silently dropping every
+        // value (treating "not in the whitelist" as a match failure) would empty the $tags token of
+        // every preview sample; keeping them all is the only honest reading of "cannot be filtered".
         var m = new MultiValueOptions
         {
             Separator = ",",
             Sort = SortOrder.None,
-            Whitelist = ["ALICE", "bob"],
+            WhitelistIds = [1],
+            BlacklistIds = [2],
         };
-        Assert.Equal("alice,Bob", MultiValue.Resolve(Three, m));
-    }
 
-    [Fact]
-    public void Resolve_Blacklist_DropsListedCaseInsensitive()
-    {
-        var m = new MultiValueOptions
-        {
-            Separator = ",",
-            Sort = SortOrder.None,
-            Blacklist = ["BOB"],
-        };
-        Assert.Equal("Charlie,alice", MultiValue.Resolve(Three, m));
-    }
-
-    [Fact]
-    public void Resolve_EverythingFilteredOut_ReturnsEmpty()
-    {
-        var m = new MultiValueOptions { Whitelist = ["nobody"] };
-        Assert.Equal("", MultiValue.Resolve(Three, m));
+        Assert.Equal("Charlie,alice,Bob", MultiValue.Resolve(Three, m));
     }
 
     [Fact]
@@ -174,6 +160,75 @@ public class MultiValueTests
         Assert.Equal("alice,Bob", MultiValue.Resolve(Three, m));
     }
 
+    // ---- MultiValue.Resolve (tag records: whitelist/blacklist keyed on the stable tag id) ----
+
+    private static readonly IReadOnlyList<(int Id, string Name)> TagRefs =
+    [
+        (30, "Charlie"),
+        (10, "alice"),
+        (20, "Bob"),
+    ];
+
+    [Fact]
+    public void Resolve_TagRefs_WhitelistIds_KeepsOnlyListedIds()
+    {
+        var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.None, WhitelistIds = [10, 20] };
+        Assert.Equal("alice,Bob", MultiValue.Resolve(TagRefs, m));
+    }
+
+    [Fact]
+    public void Resolve_TagRefs_BlacklistIds_DropsListedIds()
+    {
+        var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.None, BlacklistIds = [20] };
+        Assert.Equal("Charlie,alice", MultiValue.Resolve(TagRefs, m));
+    }
+
+    [Fact]
+    public void Resolve_TagRefs_EmptyList_ReturnsEmpty_LikeTheStringOverload()
+    {
+        var m = new MultiValueOptions { Separator = ",", WhitelistIds = [10] };
+        Assert.Equal(
+            MultiValue.Resolve(Array.Empty<string>(), m),
+            MultiValue.Resolve(Array.Empty<(int, string)>(), m));
+        Assert.Equal("", MultiValue.Resolve(Array.Empty<(int, string)>(), m));
+    }
+
+    [Fact]
+    public void Resolve_TagRefs_RendersNames_NotIds()
+    {
+        // The whole point of keying on the id: it decides WHO survives, and never reaches the
+        // rendered filename. A regression here would write "10 20" into users' names.
+        var m = new MultiValueOptions { Separator = " ", WhitelistIds = [10, 20] };
+
+        var rendered = MultiValue.Resolve(TagRefs, m);
+
+        Assert.Equal("alice Bob", rendered);
+        Assert.DoesNotContain("10", rendered, StringComparison.Ordinal);
+        Assert.DoesNotContain("20", rendered, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Resolve_TagRefs_SurvivesARename_AndRendersTheNewName()
+    {
+        // The property the id migration buys: the same tag spelled differently keeps its rule.
+        var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.None, WhitelistIds = [10] };
+
+        Assert.Equal("alice", MultiValue.Resolve([(10, "alice")], m));
+        Assert.Equal("Alicia", MultiValue.Resolve([(10, "Alicia")], m));
+    }
+
+    [Fact]
+    public void Resolve_TagRefs_DefaultOptions_RenderNamesLikeTheStringPath()
+    {
+        // With no id filter configured the two overloads must agree byte for byte, which is what
+        // keeps a filename produced from an unchanged library identical across this migration.
+        var m = new MultiValueOptions { Separator = ", " };
+
+        Assert.Equal(
+            MultiValue.Resolve(Three, m),
+            MultiValue.Resolve(TagRefs, m));
+    }
+
     // ---- MultiValue.Resolve (performer records: id/favorite sort + gender order/ignore) ----
 
     private static readonly IReadOnlyList<RenamerPerformer> Performers = new[]
@@ -182,6 +237,29 @@ public class MultiValueTests
         new RenamerPerformer(1, "alice", Favorite: true, Gender: "Female"),
         new RenamerPerformer(2, "Bob", Favorite: false, Gender: "Male"),
     };
+
+    [Fact]
+    public void Resolve_Performers_WhitelistIds_KeepsOnlyListedIds_AndRendersNames()
+    {
+        var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.None, WhitelistIds = [1, 2] };
+        Assert.Equal("alice,Bob", MultiValue.Resolve(Performers, m));
+    }
+
+    [Fact]
+    public void Resolve_Performers_BlacklistIds_DropsListedIds()
+    {
+        var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.None, BlacklistIds = [2] };
+        Assert.Equal("Charlie,alice", MultiValue.Resolve(Performers, m));
+    }
+
+    [Fact]
+    public void Resolve_Performers_FilterSurvivesARename()
+    {
+        var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.None, WhitelistIds = [1] };
+
+        Assert.Equal("alice", MultiValue.Resolve([new RenamerPerformer(1, "alice", false, null)], m));
+        Assert.Equal("Alicia", MultiValue.Resolve([new RenamerPerformer(1, "Alicia", false, null)], m));
+    }
 
     [Fact]
     public void Resolve_Performers_SortById_OrdersByAscendingId()

@@ -44,26 +44,26 @@ public sealed class DiskMover
         IReadOnlyList<string> Warnings,
         string? Reason);
 
-    /// <summary>How a primary move attempt was classified.</summary>
-    public enum MoveOutcome
-    {
-        /// <summary>The file moved old→new successfully.</summary>
-        Moved,
-
-        /// <summary>The source was locked/in-use OR the destination already existed.</summary>
-        LockedOrExists,
-
-        /// <summary>The OS denied permission for the move.</summary>
-        PermissionDenied,
-    }
-
     /// <summary>
     /// Moves <paramref name="oldFull"/> → <paramref name="newFull"/> (creating the destination
-    /// directory if needed), then moves each planned sidecar skip-not-clobber. A locked source or
-    /// existing destination is caught and returned as a <see cref="MoveOutcome.LockedOrExists"/>
-    /// skip (the primary move did NOT happen and no sidecars are touched); a permission failure as
+    /// directory if needed), then moves each planned sidecar skip-not-clobber. A locked source is
+    /// caught and returned as a <see cref="MoveOutcome.Locked"/> skip and an occupied destination as a
+    /// <see cref="MoveOutcome.TargetExists"/> skip — the atomic move raises one
+    /// <see cref="IOException"/> for both, so they are told apart by testing the destination (in either
+    /// case the primary move did NOT happen and no sidecars are touched); a permission failure as
     /// <see cref="MoveOutcome.PermissionDenied"/>. NEVER overwrites and NEVER touches a locking process.
     /// </summary>
+    /// <remarks>
+    /// Those four are the only members of the shared <see cref="MoveOutcome"/> this tier produces: an
+    /// atomic rename has no copy to read back and no cancellation point, so
+    /// <see cref="MoveOutcome.VerifyFailed"/> and <see cref="MoveOutcome.Cancelled"/> belong to
+    /// <see cref="CrossVolumeMover"/> alone. The type is shared by both tiers, so this sentence — not
+    /// the type — is what narrows the set a caller of this method can receive.
+    /// </remarks>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
+        Justification = "Kept as an instance method: DiskMover is a constructor-injected collaborator of " +
+            "RenamerExecutor/UndoReplayer and is exercised as an instance across the test suite; making it " +
+            "static would break that injection seam and every call site (CS0176) with no behavior change.")]
     public MoveResult Move(string oldFull, string newFull, IReadOnlyList<SidecarMove>? sidecars = null)
     {
         try
@@ -74,8 +74,12 @@ public sealed class DiskMover
         }
         catch (IOException ex)
         {
-            // Covers BOTH "destination exists" and "source locked/in-use". Skip + report; never force.
-            return new MoveResult(false, MoveOutcome.LockedOrExists, [], [], $"locked or target exists: {ex.Message}");
+            // Covers BOTH "destination exists" and "source locked/in-use", and the exception cannot say
+            // which. Decide by measuring the destination — see MoveOutcome.TargetExists for why the
+            // exception's message is never read. Skip + report; never force.
+            return System.IO.File.Exists(newFull)
+                ? new MoveResult(false, MoveOutcome.TargetExists, [], [], $"target exists, not overwritten: {ex.Message}")
+                : new MoveResult(false, MoveOutcome.Locked, [], [], $"source locked/in-use: {ex.Message}");
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -123,6 +127,10 @@ public sealed class DiskMover
     /// and reported in the returned warnings rather than thrown, so a failed save's cleanup can never
     /// itself crash the batch. Returns the warnings (empty when the restore was clean).
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
+        Justification = "Kept as an instance method: DiskMover is a constructor-injected collaborator of " +
+            "RenamerExecutor/UndoReplayer and is exercised as an instance across the test suite; making it " +
+            "static would break that injection seam and every call site (CS0176) with no behavior change.")]
     public IReadOnlyList<string> Rollback(string oldFull, string newFull, IReadOnlyList<SidecarMove> movedSidecars)
     {
         var warnings = new List<string>();

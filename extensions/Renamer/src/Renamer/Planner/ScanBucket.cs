@@ -26,7 +26,7 @@ public static class ScanBucket
     /// </remarks>
     public static ScanBucketKind Of(RenamerStatus status) => status switch
     {
-        RenamerStatus.Renamer or RenamerStatus.Move => ScanBucketKind.WillChange,
+        RenamerStatus.Rename or RenamerStatus.Move => ScanBucketKind.WillChange,
         RenamerStatus.NoOp => ScanBucketKind.NoChange,
         _ => ScanBucketKind.Attention,
     };

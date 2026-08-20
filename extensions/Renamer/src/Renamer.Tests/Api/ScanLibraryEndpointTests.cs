@@ -15,6 +15,7 @@ using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
+using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
@@ -25,7 +26,7 @@ namespace Renamer.Tests.Api;
 /// persisted aggregate back per readable kind, <c>ScanRowsAsync</c> serves the rows a page at a time, and
 /// <c>InitializeAsync</c> purges the pre-0.2.1 per-file scan value. Exercised as plain methods (no HTTP
 /// host) with a real SQLite <c>CoveContext</c>, mirroring
-/// <c>PreviewEndpointTests</c>/<c>EntityIdsCapTests</c>/<c>RenamerBatchJobTests</c>.
+/// <c>PreviewEndpointTests</c>/<c>EntityIdsCapTests</c> and <c>RenamerExecutorIntegrationTests</c>' batch cases.
 /// </summary>
 [Trait("Tier", "L1")]
 public sealed class ScanLibraryEndpointTests
@@ -50,7 +51,7 @@ public sealed class ScanLibraryEndpointTests
 
     private static async Task<(global::Renamer.Renamer ext, FakeStore store)> NewExtensionAsync()
     {
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         var store = new FakeStore();
         // Pin a stable title-only template so seeded (height-less) rows render a deterministic name,
         // independent of the shipped default template.
@@ -63,7 +64,7 @@ public sealed class ScanLibraryEndpointTests
     /// Wires the extension's captured seams (<c>_scopeFactory</c>, <c>_eventBus</c>) from a DI
     /// provider whose <c>DbContext</c> registration is SCOPED over <paramref name="conn"/>, so the job
     /// body's own <c>CreateAsyncScope()</c> resolves a context over the SAME database the test seeded —
-    /// mirrors <c>RenamerBatchJobTests.BuildExtensionAsync</c>. The scan job never touches <c>IEventBus</c>,
+    /// the same shape <c>ExtensionHarness.CreateWithScopedContextAsync</c> builds. The scan job never touches <c>IEventBus</c>,
     /// but <c>InitializeAsync</c> requires both seams to be resolvable.
     /// </summary>
     private static async Task InitializeOverSharedConnectionAsync(global::Renamer.Renamer ext, SqliteConnection conn)
@@ -79,7 +80,10 @@ public sealed class ScanLibraryEndpointTests
         await ext.InitializeAsync(provider);
     }
 
-    private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode ?? 0;
+    // Unwrapped first: a handler declaring Results<…> hands back a union that carries no status of its
+    // own and converts implicitly to IResult, so an un-unwrapped read throws instead of reporting one.
+    private static int StatusOf(IResult result) =>
+        Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
     [Fact]
     public async Task ScanLibraryEnqueue_WithAnyReadPermission_Returns202_AndEnqueuesExclusiveOnce()
@@ -130,7 +134,7 @@ public sealed class ScanLibraryEndpointTests
             var json = await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey);
             Assert.False(string.IsNullOrEmpty(json));
 
-            var summary = JsonSerializer.Deserialize<global::Renamer.Contracts.ScanSummary>(json!, EnumJson)!;
+            var summary = JsonSerializer.Deserialize<global::Renamer.Contracts.ScanSummary>(json, EnumJson)!;
 
             // Per kind, not flat — that split is what lets the readback drop a kind the caller cannot see.
             Assert.Equal(
@@ -276,7 +280,7 @@ public sealed class ScanLibraryEndpointTests
         public int ReaderCount { get; set; }
 
         public override ValueTask<DbDataReader> ReaderExecutedAsync(
-            DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken ct = default)
+            DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default)
         {
             ReaderCount++;
             return ValueTask.FromResult(result);
@@ -307,8 +311,8 @@ public sealed class ScanLibraryEndpointTests
         var planner = new RenamerPlanner(port);
         var options = new RenamerOptions { FilenameTemplate = "$title" };
         var lookups = new RouteLookups(
-            new Dictionary<int, string>(), new Dictionary<string, string>(),
-            new Dictionary<string, string>(), Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
+            new Dictionary<int, Destination>(), new Dictionary<int, Destination>(),
+            new Dictionary<string, Destination>(), Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
 
         var loaded = await port.LoadEntitiesAsync(RenamerFileKind.Video, ids);
         var byId = loaded.ToDictionary(e => e.EntityId);
@@ -316,7 +320,7 @@ public sealed class ScanLibraryEndpointTests
         {
             if (byId.TryGetValue(id, out var e))
             {
-                await planner.PlanLoadedEntity(e, options, lookups, default);
+                await planner.PlanLoadedEntityAsync(e, options, lookups, default);
             }
         }
 
@@ -379,7 +383,7 @@ public sealed class ScanLibraryEndpointTests
 
         var result = await ext.ScanLibraryResultAsync(principal, default);
 
-        Assert.IsType<NotFound>(result);
+        Assert.IsType<NotFound>(Unwrap(result));
     }
 
     [Fact]
@@ -402,7 +406,8 @@ public sealed class ScanLibraryEndpointTests
         global::Renamer.Renamer ext, ICurrentPrincipalAccessor principal)
     {
         var result = await ext.ScanLibraryResultAsync(principal, default);
-        return Assert.IsType<JsonHttpResult<global::Renamer.Contracts.ScanSummaryView>>(result).Value!;
+        return Assert.IsType<Cove.Extensions.Shared.WireJson<global::Renamer.Contracts.ScanSummaryView>>(
+            Unwrap(result)).Value!;
     }
 
     /// <summary>Invokes the page query and unwraps the page.</summary>
@@ -411,7 +416,8 @@ public sealed class ScanLibraryEndpointTests
         global::Renamer.Contracts.ScanRowsRequest? body = null)
     {
         var result = await ext.ScanRowsAsync(body, principal, default);
-        return Assert.IsType<JsonHttpResult<global::Renamer.Contracts.ScanRowsPage>>(result).Value!;
+        return Assert.IsType<Cove.Extensions.Shared.WireJson<global::Renamer.Contracts.ScanRowsPage>>(
+            Unwrap(result)).Value!;
     }
 
     /// <summary>A one-kind aggregate whose per-status counts are the only thing the readback merges.</summary>
@@ -420,7 +426,7 @@ public sealed class ScanLibraryEndpointTests
         new(kind, Entities: files, Files: files,
             StatusCounts: [.. Enum.GetValues<RenamerStatus>()
                 .Select(s => new global::Renamer.Contracts.ScanStatusCount(s, s == status ? files : 0))],
-            BlastRadius: new PreviewSummary(files, files, 0, 0, [], ConfirmLevel.Light, Undoable: true),
+            BlastRadius: new PreviewSummary(files, files, 0, 0, [], ConfirmLevel.Light, 0),
             VolumePairsTruncated: false);
 
     private static Task StoreSummaryAsync(FakeStore store, params global::Renamer.Contracts.ScanKindSummary[] kinds)
@@ -438,8 +444,8 @@ public sealed class ScanLibraryEndpointTests
         // video-only caller reading it back must NOT receive the image/audio counts (the cross-kind leak).
         var (ext, store) = await NewExtensionAsync();
         await StoreSummaryAsync(store,
-            MakeKind(RenamerFileKind.Video, 3, RenamerStatus.Renamer),
-            MakeKind(RenamerFileKind.Image, 5, RenamerStatus.Renamer),
+            MakeKind(RenamerFileKind.Video, 3, RenamerStatus.Rename),
+            MakeKind(RenamerFileKind.Image, 5, RenamerStatus.Rename),
             MakeKind(RenamerFileKind.Audio, 7, RenamerStatus.NoOp));
 
         var view = await ReadSummaryAsync(ext, FakePrincipalAccessor.WithPermissions(Permissions.VideosRead));
@@ -455,7 +461,7 @@ public sealed class ScanLibraryEndpointTests
     {
         var (ext, store) = await NewExtensionAsync();
         await StoreSummaryAsync(store,
-            MakeKind(RenamerFileKind.Video, 3, RenamerStatus.Renamer),
+            MakeKind(RenamerFileKind.Video, 3, RenamerStatus.Rename),
             MakeKind(RenamerFileKind.Image, 5, RenamerStatus.SkipGated),
             MakeKind(RenamerFileKind.Audio, 7, RenamerStatus.NoOp));
 
@@ -476,8 +482,8 @@ public sealed class ScanLibraryEndpointTests
         var (ext, store) = await NewExtensionAsync();
 
         await store.SetAsync(global::Renamer.Renamer.LastScanSummaryKey, "{not json");
-        Assert.IsType<NotFound>(await ext.ScanLibraryResultAsync(
-            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default));
+        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
 
         await store.SetAsync(
             global::Renamer.Renamer.LastScanSummaryKey,
@@ -485,8 +491,63 @@ public sealed class ScanLibraryEndpointTests
                 new global::Renamer.Contracts.ScanSummary(
                     global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion + 1, 0L, []),
                 EnumJson));
-        Assert.IsType<NotFound>(await ext.ScanLibraryResultAsync(
-            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default));
+        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
+    }
+
+    /// <summary>
+    /// A hand-written stored aggregate, so a RETIRED enum spelling can be fed in at all — a fixture
+    /// re-serialized from today's members could only ever carry today's values.
+    /// </summary>
+    private static string StoredSummaryText(string statusJson, string kindJson)
+    {
+        int schema = global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion;
+        return $$"""
+        {"schemaVersion":{{schema}},
+         "completedAtUtcTicks":42,
+         "kinds":[{"kind":{{kindJson}},"entities":1,"files":1,
+                   "statusCounts":[{"status":{{statusJson}},"count":1}],
+                   "blastRadius":{"totalCount":1,"sameVolumeCount":1,"crossVolumeCount":0,
+                                  "crossVolumeBytes":0,"volumePairs":[],"confirmLevel":"light",
+                                  "inFlightPathOverflowCount":0},
+                   "volumePairsTruncated":false}]}
+        """;
+    }
+
+    // A blob written before the status enum's in-place member was respelled carries "renamer" where the
+    // current converter accepts only "rename"; one written before the non-renamable kind was retired
+    // carries "gallery". Both are VALID JSON stamped with the CURRENT schema version, so neither guard
+    // above sees them — the enum converter throws mid-parse instead, and that throw would land on the
+    // whole settings page. It must degrade to "no scan yet" (one lost dry run) instead.
+    [Theory]
+    [InlineData("\"renamer\"", "\"video\"")]   // the retired STATUS spelling
+    [InlineData("\"rename\"", "\"gallery\"")]  // the retired KIND
+    public async Task ScanLibraryResultAsync_BlobWithARetiredEnumValue_Reads404_NotA500(
+        string statusJson, string kindJson)
+    {
+        var (ext, store) = await NewExtensionAsync();
+        await store.SetAsync(
+            global::Renamer.Renamer.LastScanSummaryKey, StoredSummaryText(statusJson, kindJson));
+
+        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
+    }
+
+    // The control the two cases above need: the SAME hand-written text with both values at their current
+    // spelling parses and reads back. Without it, either 404 could be this fixture's own shape being
+    // wrong rather than the retired value — a test that agrees with itself however the reader behaves.
+    [Fact]
+    public async Task ScanLibraryResultAsync_TheSameHandWrittenBlob_WithCurrentEnumValues_ReadsBack()
+    {
+        var (ext, store) = await NewExtensionAsync();
+        await store.SetAsync(
+            global::Renamer.Renamer.LastScanSummaryKey, StoredSummaryText("\"rename\"", "\"video\""));
+
+        var view = await ReadSummaryAsync(ext, FakePrincipalAccessor.WithPermissions(Permissions.VideosRead));
+
+        Assert.Equal(1, view.TotalFiles);
+        Assert.Equal(1, view.WillChange);
+        Assert.Equal(42L, view.CompletedAtUtcTicks);
     }
 
     [Fact]
@@ -560,11 +621,12 @@ public sealed class ScanLibraryEndpointTests
 
     private static async Task<global::Renamer.Renamer> InitializeWithStoreAsync(Cove.Plugins.IExtensionStore store)
     {
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         ((IStatefulExtension)ext).SetStore(store);
-        var services = new ServiceCollection();
-        services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
-        await ext.InitializeAsync(services.BuildServiceProvider());
+        // A real database, because the load refuses to complete without a readable undo journal.
+        // These cases are about the STORE purges, so the library behind it is left empty.
+        await using var library = await Library.CreateAsync();
+        await ext.InitializeAsync(library.BuildProvider());
         return ext;
     }
 
@@ -599,7 +661,7 @@ public sealed class ScanLibraryEndpointTests
     }
 
     [Fact]
-    public async Task InitializeAsync_WithAPreUpgradeJournal_DiscardsIt_WithoutEverReadingIt()
+    public async Task InitializeAsync_WithAnUnstampedJournal_DiscardsIt_WithoutEverReadingIt()
     {
         var store = new FakeStore();
         await store.SetAsync(RevertLog.Key, "1|11|/lib/a.mkv|/lib/A.mkv");
@@ -607,36 +669,33 @@ public sealed class ScanLibraryEndpointTests
 
         await InitializeWithStoreAsync(store);
 
-        // Reading the journal to decide is the one operation guaranteed to hurt — a pre-cap value can be
-        // hundreds of megabytes, which is the failure being cleared. The stamp answers instead.
+        // Reading a journal written under a shape this code does not parse is the one operation
+        // guaranteed to hurt — a pre-cap value can be hundreds of megabytes, which is the failure being
+        // cleared. The few-byte stamp answers instead, and both keys then go.
         Assert.DoesNotContain(RevertLog.Key, store.GetKeys);
         Assert.Contains(RevertLog.SchemaKey, store.GetKeys);
         Assert.Null(await store.GetAsync(RevertLog.Key));
-        Assert.Equal(RevertLog.CurrentSchema, await store.GetAsync(RevertLog.SchemaKey));
+        Assert.Null(await store.GetAsync(RevertLog.SchemaKey));
     }
 
     [Fact]
-    public async Task InitializeAsync_OnASecondLoad_LeavesTheJournalIntact()
+    public async Task InitializeAsync_ConsumesTheLegacyJournalKeysOnce_AndNeverRecreatesThem()
     {
-        // The discard is ONE-TIME. Cove restarts on every deploy, container restart and host reboot, so
-        // a purge on every load would take the user's undo with it — the capability this bounding exists
-        // to keep. The stamp written by the first load is what stops the second from firing.
+        // The migration is ONE-TIME, and deleting the source keys is what makes it so. Cove restarts on
+        // every deploy, container restart and host reboot, so a load that re-created either key would
+        // put the extension back in the state the settings-page incident came from.
         var store = new FakeStore();
-        await store.SetAsync(RevertLog.Key, "[a pre-upgrade journal]");
-        await InitializeWithStoreAsync(store);
-        Assert.Null(await store.GetAsync(RevertLog.Key));
+        await store.SetAsync(RevertLog.SchemaKey, RevertLog.CurrentSchema);
+        await store.SetAsync(RevertLog.Key, "#batch|R1|638000000000000000|Video|open\n7|70|/lib/raw.mkv");
 
-        var log = new RevertLog(store);
-        await log.BeginBatchAsync("R1", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 7, fileId: 70, oldPath: "/lib/raw.mkv");
-        string journalled = (await store.GetAsync(RevertLog.Key))!;
+        await InitializeWithStoreAsync(store);
+        Assert.DoesNotContain(RevertLog.Key, await store.GetAllAsync());
+        Assert.DoesNotContain(RevertLog.SchemaKey, await store.GetAllAsync());
 
         await InitializeWithStoreAsync(store);
 
-        Assert.Equal(journalled, await store.GetAsync(RevertLog.Key));
-        var batch = await log.ReadLastOpenBatchAsync();
-        Assert.NotNull(batch);
-        Assert.Equal(70, Assert.Single(batch!.Entries).FileId);
+        Assert.DoesNotContain(RevertLog.Key, await store.GetAllAsync());
+        Assert.DoesNotContain(RevertLog.SchemaKey, await store.GetAllAsync());
     }
 
     [Fact]
@@ -649,14 +708,14 @@ public sealed class ScanLibraryEndpointTests
         await InitializeWithStoreAsync(store);
 
         Assert.Null(await store.GetAsync(RevertLog.Key));
-        Assert.Equal(RevertLog.CurrentSchema, await store.GetAsync(RevertLog.SchemaKey));
+        Assert.Null(await store.GetAsync(RevertLog.SchemaKey));
     }
 
     [Fact]
     public async Task InitializeAsync_LeavesAPreExistingScanSummaryUntouched()
     {
         var store = new FakeStore();
-        await StoreSummaryAsync(store, MakeKind(RenamerFileKind.Video, 2, RenamerStatus.Renamer));
+        await StoreSummaryAsync(store, MakeKind(RenamerFileKind.Video, 2, RenamerStatus.Rename));
         await store.SetAsync(global::Renamer.Renamer.LastScanResultKey, "[legacy]");
         string before = (await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey))!;
 

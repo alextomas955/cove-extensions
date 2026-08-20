@@ -34,12 +34,13 @@ public sealed class RollbackTests
         fake.ApplyAndSaveThrow = new InvalidOperationException("forced save failure (unique index)");
 
         var bus = new CapturingEventBus();
-        var executor = new RenamerExecutor(fake, bus, new RevertLog(new FakeStore()), new DiskMover());
+        var journal = new FakeRevertJournal();
+        var executor = new RenamerExecutor(fake, bus, journal, "run-test", new DiskMover());
 
         var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
         [
             new RenamerPlanItem(fileId, folderPath + "/a.mkv", folderPath + "/b.mkv",
-                RenamerStatus.Renamer, "b.mkv", folderPath),
+                RenamerStatus.Rename, "b.mkv", folderPath),
         ]);
 
         var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
@@ -51,7 +52,7 @@ public sealed class RollbackTests
         Assert.Equal(RenamerStatus.Failed, failedItem.Status);
         Assert.Contains("rolled back", failedItem.Reason);
         Assert.Empty(result.Renamed);
-        Assert.Empty(result.RevertLog);
+        Assert.Empty(journal.Rows);
         Assert.Empty(bus.Published);
 
         // The file is restored to its ORIGINAL path with original content, and not left at the new path.
@@ -77,24 +78,25 @@ public sealed class RollbackTests
         fake.RecomputedPaths[fileId] = folderPath + "/b.mkv";
 
         var bus = new CapturingEventBus();
-        var executor = new RenamerExecutor(fake, bus, new RevertLog(new FakeStore()), new DiskMover());
+        var journal = new FakeRevertJournal();
+        var executor = new RenamerExecutor(fake, bus, journal, "run-test", new DiskMover());
 
         var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
         [
             new RenamerPlanItem(fileId, folderPath + "/a.mkv", folderPath + "/b.mkv",
-                RenamerStatus.Renamer, "b.mkv", folderPath),
+                RenamerStatus.Rename, "b.mkv", folderPath),
         ]);
 
         var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
         // The save-seam received the mutation and reported success → the item is renamed on disk with a
-        // revert-log row and a reindex event, and the DB write carried the new basename.
+        // journal row and a reindex event, and the DB write carried the new basename.
         var savedCall = Assert.Single(fake.ApplyAndSaveCalls);
         Assert.Equal("b.mkv", Assert.Single(savedCall).NewBasename);
         var renamedItem = Assert.Single(result.Renamed);
-        Assert.Equal(RenamerStatus.Renamer, renamedItem.Status);
+        Assert.Equal(RenamerStatus.Rename, renamedItem.Status);
         Assert.Empty(result.Failed);
-        Assert.Single(result.RevertLog);
+        Assert.Single(journal.Rows);
         Assert.Single(bus.Published);
 
         Assert.True(File.Exists(newB), "file must be at the new path after a successful save");
@@ -108,7 +110,7 @@ public sealed class RollbackTests
         var file = new RenamerFile(fileId, RenamerFileKind.Video, basename, ParentFolderId: 1, ParentFolderPath: folderPath);
         fake.SeedEntity(new RenamerEntity(
             entityId, RenamerFileKind.Video, "Film A", Code: null, StudioName: null, Date: null,
-            Organized: true, Performers: [], Tags: [], Files: [file]));
+            Organized: true, Performers: [], TagRefs: [], Files: [file]));
         return fake;
     }
 }
