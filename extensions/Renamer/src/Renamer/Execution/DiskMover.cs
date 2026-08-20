@@ -60,6 +60,10 @@ public sealed class DiskMover
     /// <see cref="CrossVolumeMover"/> alone. The type is shared by both tiers, so this sentence — not
     /// the type — is what narrows the set a caller of this method can receive.
     /// </remarks>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
+        Justification = "Kept as an instance method: DiskMover is a constructor-injected collaborator of " +
+            "RenamerExecutor/UndoReplayer and is exercised as an instance across the test suite; making it " +
+            "static would break that injection seam and every call site (CS0176) with no behavior change.")]
     public MoveResult Move(string oldFull, string newFull, IReadOnlyList<SidecarMove>? sidecars = null)
     {
         try
@@ -123,6 +127,10 @@ public sealed class DiskMover
     /// and reported in the returned warnings rather than thrown, so a failed save's cleanup can never
     /// itself crash the batch. Returns the warnings (empty when the restore was clean).
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
+        Justification = "Kept as an instance method: DiskMover is a constructor-injected collaborator of " +
+            "RenamerExecutor/UndoReplayer and is exercised as an instance across the test suite; making it " +
+            "static would break that injection seam and every call site (CS0176) with no behavior change.")]
     public IReadOnlyList<string> Rollback(string oldFull, string newFull, IReadOnlyList<SidecarMove> movedSidecars)
     {
         var warnings = new List<string>();

@@ -21,18 +21,18 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
-    "eslint": "10.8.0",
+    "eslint": "10.8.1",
     "eslint-config-prettier": "10.1.8",
     "eslint-import-resolver-typescript": "4.4.5",
-    "eslint-plugin-boundaries": "7.1.0",
+    "eslint-plugin-boundaries": "7.2.0",
     "eslint-plugin-react-hooks": "7.1.1",
-    "globals": "17.8.0",
+    "globals": "17.11.0",
     "lefthook": "2.1.10",
     "openapi-typescript": "7.13.0",
     "prettier": "3.9.6",
-    "syncpack": "15.3.2",
+    "syncpack": "15.3.3",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.65.0"
+    "typescript-eslint": "8.67.0"
   },
   "workspaces": [
     "tests/e2e",

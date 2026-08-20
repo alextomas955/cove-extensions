@@ -76,3 +76,34 @@ export function extensionShapeAdvisory(value: string): string | null {
   }
   return null;
 }
+
+/**
+ * `list` with the items at `i` and `j` exchanged, or unchanged when either index is empty. Returns a
+ * copy; the caller decides whether to publish it.
+ */
+export function swapped<T>(list: readonly T[], i: number, j: number): T[] {
+  const next = [...list];
+  const a = next[i];
+  const b = next[j];
+  if (a === undefined || b === undefined) return next;
+  next[i] = b;
+  next[j] = a;
+  return next;
+}
+
+/** Move/remove for an ordered list, bound to one `values`/`onChange`. An out-of-range move does nothing. */
+export function listEditors<T>(
+  values: readonly T[],
+  onChange: (next: T[]) => void,
+): { move: (i: number, dir: -1 | 1) => void; remove: (i: number) => void } {
+  return {
+    move(i, dir) {
+      const j = i + dir;
+      if (j < 0 || j >= values.length) return;
+      onChange(swapped(values, i, j));
+    },
+    remove(i) {
+      onChange(values.filter((_, idx) => idx !== i));
+    },
+  };
+}
