@@ -1,0 +1,8 @@
+* text=auto eol=lf
+
+# Explicit so `* text=auto` cannot reclassify them.
+*.ico binary
+*.jpg binary
+*.mp4 binary
+*.png binary
+*.tgz binary
