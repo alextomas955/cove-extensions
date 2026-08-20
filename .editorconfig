@@ -85,27 +85,100 @@ dotnet_naming_style.underscore_camel_style.capitalization = camel_case
 dotnet_naming_style.underscore_camel_style.required_prefix = _
 
 # ---------- Analyzer category tuning (strict-but-not-pedantic) ----------
+# Only list rules latest-Recommended actually enables — the SDK's analysislevel_<n>_recommended
+# .globalconfig is that list. An entry for a rule that mode leaves off is dead config, not a
+# relaxation, and reads as though it holds something back.
 [*.cs]
-# CA1062 (validate public args) is noisy for an internal-ish extension; keep as suggestion.
-dotnet_diagnostic.CA1062.severity = suggestion
-# CA1031 (do not catch general Exception) — the disk-mover/undo paths intentionally do; suggestion.
-dotnet_diagnostic.CA1031.severity = suggestion
-# CA2007 (ConfigureAwait) — not needed in a library hosted by ASP.NET; suppress to avoid churn.
-dotnet_diagnostic.CA2007.severity = none
+# Dead code must block a merge, not whisper. These three rules DO run in a command-line build (with
+# EnforceCodeStyleInBuild, set in Directory.Build.props) but ship at SUGGESTION severity, which
+# TreatWarningsAsErrors never sees — so an unused private member or parameter was invisible to CI
+# while looking covered. Escalated to error so the build itself refuses it.
+#   IDE0051 unused private method / field / property / event
+#   IDE0052 unread private member
+#   IDE0060 unused parameter
+# Note the scoping: these MUST live under a [*.cs] section. Appended to the end of this file they
+# would land in the last, narrower section and silently apply to almost nothing — which is exactly
+# how their absence was first mis-measured.
+dotnet_diagnostic.IDE0051.severity = error
+dotnet_diagnostic.IDE0052.severity = error
+dotnet_diagnostic.IDE0060.severity = error
+
+# CA1031 (do not catch general Exception) is ENFORCED here, and relaxed only at the enumerated files
+# below. It used to be `suggestion` repo-wide carrying a file-specific reason ("the disk-mover/undo
+# paths intentionally do"), which made the permission unbounded: the next bare `catch (Exception)`
+# anyone wrote, anywhere, for no reason, was soft too. Every one of the sites that catches broadly
+# today carries a written best-effort justification, so narrowing surfaces no finding now — its value
+# is prospective, and that is the point. Note a filter is a CODE fix rather than a relaxation: this
+# rule does not fire on `catch (Exception ex) when (ex is not OperationCanceledException)`, an idiom
+# already used in five places here.
+dotnet_diagnostic.CA1031.severity = warning
+
+# ── Sonar rules disabled repo-wide, each for a structural reason and none because it had hits ──
+#
+# S125 reads a comment containing code-like prose as commented-out code. This repo's comment policy
+# REQUIRES explaining invariants, and those explanations quote identifiers, paths and class names, so
+# the rule fires on exactly the comments the policy asks for. Every one of its hits here is prose.
+dotnet_diagnostic.S125.severity = none
+# S1135 flags every TODO. Deferred design is recorded in prose on purpose here, with the condition for
+# acting on it, and the roadmap's re-add ledger is the mechanism that revisits it — not a lint sweep.
+dotnet_diagnostic.S1135.severity = none
 
 # DiskMover is a deliberately-injectable collaborator (passed to RenameExecutor/UndoReplayer and
 # spied/exercised as an instance in tests). Marking Move/Rollback static would break that DI seam and
 # every `_disk.Move(...)`/`mover.Move(...)` call site (CS0176) — a design change, not a lint fix.
 # Keep them instance methods; CA1822 (mark static) is intentionally relaxed for this one file.
+#
+# S2325 is Sonar's twin of CA1822 and fires on the same two methods, so it is relaxed here for the same
+# already-written reason rather than for a new one. This is the existing decision reaching a second
+# analyzer, not a fifth rule silenced — the alternative would be making the code change that reason
+# refuses. CA1031 is relaxed for the rollback catch at :153, which accumulates a warning string and
+# never rethrows.
 [extensions/Renamer/src/Renamer/Execution/DiskMover.cs]
 dotnet_diagnostic.CA1822.severity = none
+dotnet_diagnostic.S2325.severity = none
+dotnet_diagnostic.CA1031.severity = none
+
+# S127 flags updating a for-loop's stop condition inside the body. These three files are hand-written
+# scanners that advance the index to consume a multi-character token, which is the correct shape for a
+# tokenizer and not a mistake to fix; every one of the rule's hits in this repo is inside them.
+[extensions/Renamer/src/Renamer/Engine/{Tokenizer,TemplateEngine}.cs]
+dotnet_diagnostic.S127.severity = none
+
+[extensions/Renamer/src/Renamer/Execution/RevertDelta.cs]
+dotnet_diagnostic.S127.severity = none
+
+# The remaining files that catch broadly, each with the reason already written at the catch site. They
+# are enumerated rather than covered by a blanket relaxation so that a NEW unjustified catch elsewhere
+# is a build error.
+[extensions/Renamer/src/Renamer/Execution/CrossVolumeMover.cs]
+dotnet_diagnostic.CA1031.severity = none
+
+[extensions/Renamer/src/Renamer/Execution/VolumeClassifier.cs]
+dotnet_diagnostic.CA1031.severity = none
+
+[extensions/Renamer/src/Renamer/Renamer.cs]
+dotnet_diagnostic.CA1031.severity = none
+
+[extensions/Renamer/src/Renamer/Renamer.Events.cs]
+dotnet_diagnostic.CA1031.severity = none
 
 # Tests: relax a few rules that fight idiomatic xUnit.
-[extensions/Renamer/src/Renamer.Tests/**.cs]
+[**/*.Tests/**.cs]
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1822.severity = none
-dotnet_diagnostic.CA2007.severity = none
 # CA1861 (hoist constant array args to static readonly fields) is a micro-perf rule that fights
 # inline literal arrays in test arrange/assert (e.g. Assert.Equal(new[] { 3, 2, 1 }, ...)); test
 # readability wins over a non-measurable allocation in a unit test.
 dotnet_diagnostic.CA1861.severity = none
+# S6966 wants the awaitable overload. In test arrange, synchronous file I/O is setup rather than load,
+# and rewriting it buys nothing a test can observe. Scoped to the test tier only, where the shared
+# testing project below needs its own section because this glob does not reach it.
+dotnet_diagnostic.S6966.severity = none
+# The test-support helpers catch broadly in Dispose and in best-effort cleanup, each with its reason at
+# the site; a failure to unmap a drive or delete a temp dir must not fail the test that used it.
+dotnet_diagnostic.CA1031.severity = none
+
+# The shared testing project is a SECOND test-tier glob, not covered by the section above. Its absence
+# left one S6966 finding standing and the build red — measured, which is why both sections exist.
+[shared/Cove.Extensions.Shared.Testing/**.cs]
+dotnet_diagnostic.S6966.severity = none
