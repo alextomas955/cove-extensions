@@ -7,7 +7,14 @@
  */
 import type { Ref, RefObject } from "react";
 
-import { type RenamerOptions } from "./options";
+import {
+  CONTAINING_ROOT,
+  CONTAINING_ROOT_LABEL,
+  defaultDestinationRoot,
+  destinationPicker,
+  type LibraryPathsState,
+  type RenamerOptions,
+} from "./options";
 import {
   Field,
   TextInput,
@@ -15,10 +22,92 @@ import {
   SectionCard,
   Chip,
   StatusText,
+  Select,
 } from "@cove-extensions/ui-shared";
 import { TokenLegend } from "./TokenLegend";
 import { TemplateValidation } from "./templateAdvisories";
 import { PRESETS } from "./presets";
+
+/**
+ * The DEFAULT destination: the same root-plus-relative-template shape every rule has, spelled as the
+ * two option fields it is stored in.
+ *
+ * It does not reuse `DestinationField`, deliberately. The template input here carries the caret-token
+ * insertion the folder template has always had — a ref and a focus handler the shared editor has no
+ * business knowing about — and the "leave it blank and nothing moves" reading is the default's alone:
+ * a rule exists because someone created it, so an empty rule still names a place.
+ */
+function DefaultDestinationFields({
+  options,
+  set,
+  activeTemplateRef,
+  folderRef,
+  library,
+}: {
+  options: RenamerOptions;
+  set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+  activeTemplateRef: RefObject<"filename" | "folder">;
+  folderRef: Ref<HTMLInputElement>;
+  library: LibraryPathsState;
+}) {
+  // The same derivation `DestinationField` draws from — see `destinationPicker`. Only the derivation
+  // is shared: the template input below keeps its own caret handling and its own sentence.
+  const { chosen, stale, showPicker } = destinationPicker(options.FolderRoot, library);
+
+  return (
+    <>
+      {showPicker ? (
+        <Field label="Under" helper="Which of Cove's library paths unmatched items measure from.">
+          <Select
+            // The matched path rather than the stored string — see DestinationField for why.
+            value={chosen ?? options.FolderRoot}
+            onChange={(v) => {
+              set("FolderRoot", v);
+            }}
+            options={[
+              { value: CONTAINING_ROOT, label: CONTAINING_ROOT_LABEL },
+              ...library.paths.map((path) => ({ value: path, label: path })),
+              ...(stale
+                ? [
+                    {
+                      value: options.FolderRoot,
+                      label: `${options.FolderRoot} (no longer a library path)`,
+                    },
+                  ]
+                : []),
+            ]}
+          />
+          {stale ? (
+            <StatusText kind="error">
+              This root is no longer one of Cove&apos;s library paths, so unmatched items are
+              skipped. Pick another.
+            </StatusText>
+          ) : null}
+        </Field>
+      ) : null}
+      <Field
+        label="Folder template"
+        helper="Blank = no folder move (unmatched items are renamed where they are). Otherwise a relative template such as $studio / $year, made under the root above."
+      >
+        <TextInput
+          value={options.FolderTemplate}
+          onChange={(v) => {
+            set("FolderTemplate", v);
+            // With one library path the picker is not on screen, so the root is derived from the
+            // template rather than remembered: naming a folder names the library path to make it
+            // under, and clearing the folder returns the default to "nothing moves". See
+            // defaultDestinationRoot, which states why the default cannot simply take the sole path.
+            set("FolderRoot", defaultDestinationRoot(v, options.FolderRoot, library.paths));
+          }}
+          onFocus={() => (activeTemplateRef.current = "folder")}
+          inputRef={folderRef}
+          mono
+          placeholder="$studio / $year"
+        />
+      </Field>
+    </>
+  );
+}
 
 /**
  * One-click starter templates. Each chip sets FilenameTemplate via the parent's
@@ -62,6 +151,9 @@ export interface FilenameSectionProps {
   activeTemplateRef: RefObject<"filename" | "folder">;
   emptySamples: string[];
   recoveredFromBadBlob: boolean;
+  pendingNameMigration: boolean;
+  /** Cove's configured library paths, fetched once at the panel root. */
+  library: LibraryPathsState;
 }
 
 export function FilenameSection({
@@ -73,6 +165,8 @@ export function FilenameSection({
   activeTemplateRef,
   emptySamples,
   recoveredFromBadBlob,
+  pendingNameMigration,
+  library,
 }: FilenameSectionProps) {
   return (
     <div className="col-span-2 space-y-6">
@@ -80,6 +174,14 @@ export function FilenameSection({
         <StatusText kind="error">
           Your saved settings couldn't be read and have been reset to defaults. Review the options
           below and save to store a clean copy.
+        </StatusText>
+      ) : null}
+
+      {pendingNameMigration ? (
+        <StatusText kind="error">
+          Your tag and performer rules are still stored by name and are waiting for a one-time
+          conversion that runs when Cove starts. Saving is disabled until then, because this page
+          can't show those rules and would replace them. Restart Cove, then reload this page.
         </StatusText>
       ) : null}
 
@@ -113,23 +215,15 @@ export function FilenameSection({
         </Subsection>
         <Subsection
           title="Where files go"
-          description="Folder path template — moves files on rename."
+          description="The default destination, for an item no rule matched — moves files on rename."
         >
-          <Field
-            label="Folder template"
-            helper="Blank = no folder move (rename in place). Use / for sub-folders, e.g. $studio / $year."
-          >
-            <TextInput
-              value={options.FolderTemplate}
-              onChange={(v) => {
-                set("FolderTemplate", v);
-              }}
-              onFocus={() => (activeTemplateRef.current = "folder")}
-              inputRef={folderRef}
-              mono
-              placeholder="$studio / $year"
-            />
-          </Field>
+          <DefaultDestinationFields
+            options={options}
+            set={set}
+            activeTemplateRef={activeTemplateRef}
+            folderRef={folderRef}
+            library={library}
+          />
           <TemplateValidation value={options.FolderTemplate} />
         </Subsection>
       </SectionCard>

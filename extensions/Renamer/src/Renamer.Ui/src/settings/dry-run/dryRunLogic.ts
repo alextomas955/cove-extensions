@@ -1,13 +1,14 @@
 /**
  * Pure, DOM-free logic behind the Dry Run modal: the status→bucket classification the table and the
- * server's filter share, the reduction of a scan aggregate to display counts, and the scan-progress
- * ETA maths. Kept import-free (no React, no DOM, no SDK) so the offline test runner can compile it in
- * isolation exactly like studioFilterLogic.ts/options.ts.
+ * server's filter share, the rule deciding whether the paged row walk asks for another page, the
+ * reduction of a scan aggregate to display counts, and the scan-progress ETA maths. Kept import-free
+ * (no React, no DOM, no SDK) so it stays L0 — testable with no environment — exactly like
+ * studioFilterLogic.ts/options.ts.
  */
 
 /**
  * The three buckets a scan row falls into, used by the Dry Run filter segments:
- * - `will-change`: the file WILL be renamed and/or moved (status Renamer | Move).
+ * - `will-change`: the file WILL be renamed and/or moved (status Rename | Move).
  * - `attention`: the file was skipped for a reason the user may want to act on (a name conflict, a
  *   missing required field, a locked file, …) or a rename that Failed and rolled back.
  * - `no-change`: nothing to do — the computed name already matches (status NoOp). Not a problem,
@@ -24,11 +25,11 @@ export type DryRunFilter = "all" | DryRunBucket;
  *
  * Its server twin is `Planner/ScanBucket.Of`, and the two MUST agree on every status: this map drives
  * the row styling and the segment labels, while that one answers `/scan-rows`' bucket filter, so a
- * divergence would show a row in a segment it was not counted in. The offline gate pins the agreement
- * against a transcription of the C# map.
+ * divergence would show a row in a segment it was not counted in. The suite pins the agreement against
+ * a hand transcription of the C# map.
  */
 export function classifyItem(item: { status: string }): DryRunBucket {
-  if (item.status === "renamer" || item.status === "move") return "will-change";
+  if (item.status === "rename" || item.status === "move") return "will-change";
   if (item.status === "noOp") return "no-change";
   return "attention";
 }
@@ -51,6 +52,68 @@ export function bucketWireValue(filter: DryRunFilter): string {
   }
 }
 
+/**
+ * The state of a paged row walk that a continuation decision reads. Declared structurally rather than
+ * over the wire types, so this module keeps to its relative siblings and stays environment-free.
+ */
+export interface WalkProgress {
+  /** Rows accumulated across every page of the walk so far. */
+  readonly loadedRows: number;
+  /** How many rows the viewport and its prefetch window want loaded. */
+  readonly targetRows: number;
+  /** A cursor survives, so the server has more of the library left to read. */
+  readonly hasMore: boolean;
+  /** A page is already in flight. */
+  readonly loading: boolean;
+  /** The last page failed. */
+  readonly hasError: boolean;
+}
+
+/**
+ * Whether the row walk should ask for another page.
+ *
+ * The decision reads the cursor and the row target and deliberately never reads how many rows the last
+ * page carried. The server's per-request ceiling is a budget on entities *examined*, not on rows
+ * *returned*, so a page of zero rows arriving with a live cursor is a normal, resumable answer — "I
+ * stopped looking for now, resume here" — and not the end of the data. It is also the most common
+ * answer over a sparse filter, where whole budget windows hold nothing the filter matches: read it as
+ * the end and the walk halts a handful of rows in with most of the library never looked at.
+ *
+ * The error arm is what keeps the retry bounded, and it is load-bearing rather than tidiness. A failed
+ * page clears the in-flight flag and leaves the cursor untouched, so every other input still reads as
+ * "more to fetch, nothing in flight" — a caller that re-evaluates whenever a request settles would
+ * therefore reissue the same failing request without end. Refusing here leaves the manual retry as the
+ * way forward.
+ */
+export function shouldContinueWalk(progress: WalkProgress): boolean {
+  return (
+    progress.hasMore &&
+    !progress.loading &&
+    !progress.hasError &&
+    progress.loadedRows < progress.targetRows
+  );
+}
+
+/**
+ * The badge copy for a row whose cross-volume copy would not fit. Stated in the user's terms — what will
+ * happen and where — because the mechanism (a temporary name minted beside the destination) is the
+ * server's business, and a path-length number the user cannot act on is not advice.
+ */
+export const IN_FLIGHT_OVERFLOW_LABEL = "Too long to copy across drives";
+
+/**
+ * The label a row earns from the server's `inFlightPathOverflow` flag, or `null` for a row without one.
+ *
+ * Both wire shapes that reach a badge declare the flag now, so the compile-time requirement lives at the
+ * `Badgeable` boundary rather than here. What stays optional on the way IN is a runtime guard: a response
+ * decoded from a build that predates the field has no field, and that must read as "no warning" rather than
+ * throw. It is read with `=== true` for the neighbouring reason — an absent field is `undefined`, and a
+ * truthiness test would also swallow a wire value that arrived as the string `"false"`.
+ */
+export function inFlightOverflowLabel(item: { inFlightPathOverflow?: boolean }): string | null {
+  return item.inFlightPathOverflow === true ? IN_FLIGHT_OVERFLOW_LABEL : null;
+}
+
 /** Per-bucket file counts of a whole scan: the header line, the segment labels and the rename banner. */
 export interface DryRunCounts {
   willChange: number;
@@ -62,7 +125,7 @@ export interface DryRunCounts {
 /**
  * Reduce a scan aggregate's per-status counts to the header + filter-segment display counts.
  *
- * The invariant this holds, and the one the offline gate pins: `willChange`, `attention` and
+ * The invariant this holds, and the one the suite pins: `willChange`, `attention` and
  * `noChange` partition `scanned` exactly once, because every status classifies into exactly one
  * bucket and an unrecognised status still lands in `attention` rather than vanishing from the total.
  */
@@ -85,6 +148,10 @@ export function summaryCounts(summary: {
  * Cove's asset detail-route segment for each scan kind. Enumerated (not `kind.toLowerCase()`) so an
  * unexpected kind falls through to `null` rather than fabricating a wrong URL — the href is derived
  * from this fixed map and the numeric id ONLY, never from a path or basename.
+ *
+ * This covers the wire's whole kind union today, so the fallthrough is for a kind the server grows
+ * after this bundle ships — a segment invented for one would be a guessed URL, and an unlinked row is
+ * the right answer.
  */
 const KIND_SEGMENT: Record<string, string | undefined> = {
   video: "video",
@@ -96,7 +163,7 @@ const KIND_SEGMENT: Record<string, string | undefined> = {
  * The root-relative Cove detail path for an asset (`/video/123`), or `null` when the row cannot link
  * — a missing/zero/non-positive id, or a kind outside {@link KIND_SEGMENT}. DOM-free: the caller
  * prepends `window.location.origin` so a sub-path deployment can't misfire a bare `/video/…`, and the
- * helper stays offline-testable. Never interpolates a path/name — the URL is the id + fixed segment only.
+ * helper stays pure. Never interpolates a path/name — the URL is the id + fixed segment only.
  */
 export function assetHref(kind: string, entityId: number | undefined): string | null {
   const segment = KIND_SEGMENT[kind];
@@ -183,22 +250,19 @@ export const ETA_MIN_RATES = 2;
 export function etaFromSamples(samples: readonly ProgressSample[]): number | null {
   if (samples.length < 2) return null;
 
-  const latest = samples[samples.length - 1];
-  if (!Number.isFinite(latest.timeMs) || !Number.isFinite(latest.progress)) return null;
+  const latest = samples.at(-1);
+  if (!latest || !Number.isFinite(latest.timeMs) || !Number.isFinite(latest.progress)) return null;
   const p = latest.progress;
   if (p <= 0 || p >= 1) return null;
 
-  // Fold each consecutive pair's instantaneous rate into the EWMA. The FIRST rate merely SEEDS the
-  // average (nothing to blend with yet), so it carries any cold-start/first-poll noise unsmoothed —
-  // showing an ETA off that single seed is what flashes a wrong "~2m" for one poll. So we withhold
-  // the estimate until at least ETA_MIN_RATES rates have folded in (the seed + one more), i.e. the
-  // EWMA has actually smoothed. This is the standard "don't show a low-confidence ETA yet" rule that
-  // curl (`--:--`) and tqdm (`?`) use — a display-confidence gate, NOT discarding data from the math.
+  // Fold each consecutive pair's instantaneous rate into the EWMA, counting the rates so the
+  // display-confidence gate {@link ETA_MIN_RATES} describes can be applied at the end.
   let smoothedRate: number | null = null;
   let rateCount = 0;
   for (let i = 1; i < samples.length; i++) {
     const prev = samples[i - 1];
     const cur = samples[i];
+    if (!prev || !cur) continue;
     if (!Number.isFinite(prev.timeMs) || !Number.isFinite(cur.timeMs)) continue;
     const dt = (cur.timeMs - prev.timeMs) / 1000;
     const dp = cur.progress - prev.progress;

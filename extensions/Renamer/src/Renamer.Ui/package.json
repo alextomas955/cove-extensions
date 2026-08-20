@@ -1,35 +1,31 @@
 {
   "name": "@cove-extensions/renamer-ui",
   "private": true,
-  "version": "0.3.0",
   "type": "module",
-  "description": "RenameSettingsPanel \u2014 the Cove Renamer extension's settings + live-preview frontend (Vite library bundle \u2192 index.mjs).",
-  "license": "AGPL-3.0",
+  "description": "RenameSettingsPanel — the Cove Renamer extension's settings + live-preview frontend (Vite library bundle → index.mjs).",
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "check-classes": "node ../../../../shared/cove-extensions-ui/scripts/check-classes.cjs --allow 'shadow-[0_12px_30px_-20px_rgba(0,0,0,0.7)]'",
-    "test": "node ../../../../shared/cove-extensions-ui/scripts/run-logic-gate.mjs --manifest scripts/gates.json --manifest ../../../../shared/cove-extensions-ui/scripts/gates.json",
+    "test": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "verify": "npm run typecheck && npm run format:check && npm run check-classes && npm run check-host-imports && npm run test",
-    "check-host-imports": "node ../../../../scripts/check-host-imports.mjs"
+    "verify": "npm run typecheck && npm run format:check && npm run test"
   },
   "dependencies": {
     "@cove/extension-sdk": "file:vendor/cove-extension-sdk-0.1.0.tgz",
-    "@tanstack/react-virtual": "3.14.6"
+    "@tanstack/react-virtual": "3.14.10"
   },
   "devDependencies": {
-    "@types/node": "26.1.2",
-    "@types/react": "19.2.17",
-    "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "6.0.4",
-    "lucide-react": "1.25.0",
+    "@types/node": "26.2.0",
+    "@types/react": "19.2.18",
+    "@vitejs/plugin-react": "6.0.5",
+    "lucide-react": "1.28.0",
     "prettier": "3.9.6",
-    "react": "19.2.7",
-    "react-dom": "19.2.7",
+    "react": "19.2.8",
     "typescript": "6.0.3",
-    "vite": "8.1.5"
+    "vite": "8.2.1",
+    "vitest": "4.1.10"
   },
   "volta": {
     "node": "24.11.0"

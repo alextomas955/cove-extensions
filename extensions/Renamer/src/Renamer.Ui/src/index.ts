@@ -3,23 +3,25 @@
  * `components` map KEY `RenamerPage` MUST equal the C# manifest `componentName`
  * so the host resolves the registered component to render for the settings page.
  *
- * The default export ALSO carries an `actionHandlers` map. The SDK `ExtensionModule`
- * type does NOT declare `actionHandlers` (see sdk/frontend/dist/types.d.ts), but the host
- * loader reads `mod.default.actionHandlers` UNTYPED. So we attach it via a local cast — NOT by
- * editing the SDK. The handler key `renamerSelected` MUST match the action's HandlerName.
+ * The default export ALSO carries an `actionHandlers` map, which the SDK types as
+ * `Record<string, ExtensionActionHandler>`. That handler type erases the payload to
+ * `Record<string, unknown>`, because one signature has to cover every action kind. The narrowing
+ * below rests on both host payload builders — the bulk-selection one and the per-entity one —
+ * emitting `entityType` plus an `entityIds` array (`ActionPayload`). It is an unchecked assertion
+ * about the host, not something the compiler can check, so host drift surfaces at runtime rather
+ * than here. The handler key `renamerSelected` MUST match the action's HandlerName.
  */
 import { defineExtension } from "@cove/extension-sdk";
+import type { ActionPayload } from "@cove-extensions/ui-shared";
 import { RenamePage } from "./settings/RenamePage";
 import { renameSelected } from "./rename-action/renameSelected";
-
-interface WithActionHandlers {
-  actionHandlers: Record<string, unknown>;
-}
 
 // `RenamerPage` key MUST be byte-identical to the C# manifest componentName (Renamer.Api.cs
 // AddSettingsSection) and the host resolveComponent lookup — one literal, three places that must
 // all agree.
 const mod = defineExtension({ components: { RenamerPage: RenamePage } });
-(mod as typeof mod & WithActionHandlers).actionHandlers = { renamerSelected: renameSelected };
+mod.actionHandlers = {
+  renamerSelected: (action, payload) => renameSelected(action, payload as unknown as ActionPayload),
+};
 
 export default mod;

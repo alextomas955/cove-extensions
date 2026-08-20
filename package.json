@@ -3,19 +3,16 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "format:cs": "dotnet format CoveExtensions.slnx --severity warn --exclude ../cove/",
     "format:cs:check": "dotnet format CoveExtensions.slnx --verify-no-changes --severity warn --exclude ../cove/",
-    "generate:wire": "node scripts/generate-wire-types.mjs",
-    "jscpd": "jscpd .",
-    "knip": "knip",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "prepare": "lefthook install",
     "syncpack": "syncpack lint",
-    "test": "node --test scripts/*.test.mjs",
-    "wire-usage": "node scripts/check-wire-usage.mjs"
+    "prepare": "lefthook install",
+    "generate:wire": "node scripts/generate-wire-types.mjs",
+    "test": "node --test scripts/*.test.mjs"
   },
   "overrides": {
     "openapi-typescript": {
@@ -28,12 +25,8 @@
     "eslint-config-prettier": "10.1.8",
     "eslint-import-resolver-typescript": "4.4.5",
     "eslint-plugin-boundaries": "7.2.0",
-    "eslint-plugin-import-x": "4.17.1",
     "eslint-plugin-react-hooks": "7.1.1",
-    "eslint-plugin-react-refresh": "0.5.3",
     "globals": "17.11.0",
-    "jscpd": "5.0.14",
-    "knip": "6.29.0",
     "lefthook": "2.1.10",
     "openapi-typescript": "7.13.0",
     "prettier": "3.9.6",

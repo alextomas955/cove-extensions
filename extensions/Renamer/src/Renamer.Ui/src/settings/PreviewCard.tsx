@@ -1,21 +1,12 @@
 /**
- * One sample's old→new diff + advisory flags. The shape mirrors the backend
- * `PreviewSampleResult` DTO; the host's minimal-API endpoint serializes with the default
- * camelCase policy, so field names are camelCase here.
+ * One sample's old→new diff + advisory flags. The shape is generated from the extension's own
+ * OpenAPI document rather than transcribed: `/preview-sample` writes its body through the
+ * extension's result type and its serializer, so the document's field names are the endpoint's.
  *
  * SECURITY: every filename / folder / flag string is rendered as a React text node —
  * React escapes it. There is NO raw-HTML rendering anywhere in this file.
  */
-
-/** Mirrors the backend PreviewSampleResult DTO (camelCase over the wire). */
-export interface PreviewSampleResult {
-  sampleLabel: string;
-  oldName: string;
-  newName: string;
-  folder: string;
-  flags: string[];
-  droppedFields: string[];
-}
+import type { PreviewSampleResult } from "../wire/api";
 
 /** Maps a backend flag code + the result to the user-facing advisory copy. */
 function flagMessage(flag: string, r: PreviewSampleResult): string | null {
@@ -43,7 +34,7 @@ export function PreviewCard({ result }: { result: PreviewSampleResult }) {
       </div>
 
       {result.folder.length > 0 ? (
-        <div className="mb-1 text-xs text-secondary">{result.folder.split("/").join(" / ")} /</div>
+        <div className="mb-1 text-xs text-secondary">{result.folder.replaceAll("/", " / ")} /</div>
       ) : null}
 
       <div className="font-mono text-sm text-muted line-through">{result.oldName}</div>
