@@ -36,12 +36,18 @@ once, including files that no rule of yours matches.
   was — `/media/library/2024/incoming/batch7/clip.mp4` with a template of `$performers` becomes
   `/media/library/Ann Miller/clip.mp4`, and stays there on every later run. To keep an intermediate
   level, put it in the template — `videos/$performers` rather than `$performers`.
-- **An item holding more than one file is no longer renamed over and over without stopping.** With
-  **Rename on update** switched on, editing such an item could start a rename that never finished:
-  every pass wrote to your disk and to Cove's database, and it kept going until you restarted Cove. It
-  now stops by itself. Nothing was lost when this happened, and your files came out correctly named —
-  but it could run for as long as the host stayed up, so if you have **Rename on update** on and any
-  item with two or more files, this is the reason to take this update.
+- **A rename that never finished now stops in the common case, and is far less likely in the rest.**
+  With **Rename on update** switched on, editing an item could start a rename that kept going until you
+  restarted Cove, writing to your disk and to Cove's database on every pass. Two causes are gone: a
+  file already sitting at its target is recognised as needing no move, and a name that collides with
+  itself no longer counts as work. Nothing was lost when this happened and your files came out
+  correctly named, but it could run for as long as the host stayed up.
+  **One case is not fixed.** An item holding more than one file raises one update per file while only
+  one of them is absorbed, so if your rules never settle on a final location for that item, it can
+  still loop. Rules that never settle are the ones that send an item back and forth: a default
+  destination rooted at the same path a source-path rule matches, with no folder template of its own;
+  or two source-path rules each pointing into the other's folder. If you run **Rename on update** with
+  items that hold several files, dry-run an item that keeps changing destination before leaving it on.
 - **Undo is much harder to lose.** It keeps **seven days** instead of only the most recent rename, so
   a background _Auto-rename on update_ can no longer silently discard the undo of the rename you ran
   minutes earlier; several renames can be waiting at once, and the panel offers the most recent one
@@ -77,8 +83,12 @@ once, including files that no rule of yours matches.
   never overwritten. Because it now writes metadata the setting ships off, but a value you have already
   saved is kept exactly as it is — so this changes nothing for an existing install.
 - **Two settings retired, one narrowed.** _Default destination_ and _Relocate unmatched items to the
-  default destination_ are **gone**; an item matching no rule is renamed where it already sits, exactly
-  as before, and to move a group of items you give them a per-studio, per-tag or source-path rule.
+  default destination_ are **gone**. An item matching no rule is now renamed where it already sits, and
+  to move a group of items you give them a per-studio, per-tag or source-path rule.
+  **If you had the relocate switch on, unmatched items stop moving.** They were being collected into
+  your default destination; from this version they are renamed in place instead. The retired values are
+  ignored rather than converted and the panel does not warn you, so if you relied on that collection,
+  add a source-path rule for the folders those items come from before your next run.
   _Allowed roots_ now only narrows **within** your library — every destination is inside it by
   construction — so leaving it empty restricts nothing, and it can no longer send files outside the
   library. Your stored settings still load; the retired values are ignored.
