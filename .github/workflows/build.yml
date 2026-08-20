@@ -26,7 +26,6 @@ name: Build and Release Extensions
 
 on:
   pull_request:
-    branches: [main]
   push:
     tags:
       - '*/v*'
