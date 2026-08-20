@@ -65,7 +65,7 @@ section its own folder only when it holds more than one file.
 ## Two levels of shared code
 
 "Shared" is reserved for **repo-level, cross-extension** code — the frontend package
-`shared/cove-extensions-ui` and the backend package `shared/Cove.Extensions.Shared`. A module earns a
+`shared/ui-shared` and the backend package `shared/Cove.Extensions.Shared`. A module earns a
 place there only by being business-agnostic and reusable by _every_ extension unchanged.
 
 The frontend package's `src/` is **flat**: `index.ts` sits beside `primitives.tsx`, `primitivesLogic.ts`,
@@ -74,9 +74,9 @@ applied, not an omission — at this size a `ui/` and `lib/` split would only re
 already say.
 
 Code shared by several features of a _single_ extension is not "shared" — it lives in that extension's
-own `common/` folder, which _is_ split into `common/ui/` and `common/lib/`. A component carrying one
-extension's branding is local, so it belongs in that extension's `common/ui/`, not in the repo-level UI
-package.
+own `common/` folder, flat for the same reason: at this size a `ui/` and `lib/` split restates the
+filenames. A component carrying one extension's branding is local, so it belongs in that extension's
+`common/`, not in the repo-level UI package.
 
 **The deciding test is reach, not a directory name.** Ask whether every extension could use the module
 unchanged: if yes it is repo-level, if only one extension can it belongs in that extension's `common/`,

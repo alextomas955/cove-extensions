@@ -295,19 +295,19 @@ public sealed class EmptySourceFolderCleanerTests
             var options = new RenamerOptions { FilenameTemplate = "$title", RemoveEmptyFolder = true };
 
             var plan = await new RenamerPlanner(new CoveRenamerDataPort(db))
-                .PlanAsync(RenamerFileKind.Video, videoId, options, default);
+                .PlanAsync(RenamerFileKind.Video, videoId, options, RouteLookupsFixtures.RoutingNeutral, default);
             var item = Assert.Single(plan.Items);
-            Assert.Equal(RenamerStatus.Renamer, item.Status); // an in-place renamer, not a move
+            Assert.Equal(RenamerStatus.Rename, item.Status); // an in-place rename, not a move
 
             // The trigger predicate's two independent reasons to skip both hold for this item:
             // it is not a move, AND the parent dir does not change.
-            Assert.False(item.Status == RenamerStatus.Move, "an in-place renamer is not a move → cleanup never fires");
+            Assert.False(item.Status == RenamerStatus.Move, "an in-place rename is not a move → cleanup never fires");
             Assert.Equal(DirOf(item.OldFullPath), DirOf(item.NewFullPath));
 
             var result = await executor.ExecuteAsync(plan, options, default);
 
             Assert.Single(result.Renamed);
-            Assert.True(Directory.Exists(dir.Root), "the source folder must survive a same-folder renamer");
+            Assert.True(Directory.Exists(dir.Root), "the source folder must survive a same-folder rename");
             Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.mkv")), "the renamed file stays in the folder");
         }
         finally

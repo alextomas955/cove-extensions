@@ -12,24 +12,16 @@ import { requestJson, ApiError } from "@cove-extensions/ui-shared/extensionReque
 
 import type { JobEnqueued, ScanSummaryView } from "../wire/api";
 import { summaryCounts, type DryRunCounts } from "./dry-run/dryRunLogic";
-import {
-  JOB_FAILURE_ALLOWANCE,
-  JOB_STALL_BUDGET_MS,
-  JobUnresponsiveError,
-  advanceStallClock,
-  decidePoll,
-  nextFailureCount,
-  type StallClock,
-} from "./jobPollLogic";
+import { JobUnresponsiveError } from "./jobPollLogic";
+import { pollJob, type JobInfo } from "./pollJob";
 import {
   buildRenameLibraryError,
   buildRenameLibrarySuccess,
   type RenameFailure,
 } from "./renameLibraryBannerLogic";
-import { api } from "../common/lib/extension";
+import { api } from "../common/extension";
 
 const RENAME_LIBRARY_PATH = api("renamer-library");
-const JOB_POLL_INTERVAL_MS = 1000;
 
 /** The "Run for the whole library" success/error banner state — mirrors UndoSection's Feedback shape. */
 export type RunLibraryFeedback =
@@ -39,119 +31,6 @@ interface RenameProgress {
   progress: number;
   subTask?: string | null;
   etaSeconds?: number | null;
-}
-
-/** A running poll: the promise the caller awaits, and the handle that stops it. */
-interface JobPoll {
-  /** Resolves when the job completes; rejects on failure, on expiry, and on {@link JobPoll.cancel}. */
-  done: Promise<void>;
-  /**
-   * Stops the poll and rejects `done`. Called from the hook's unmount cleanup, which is why the
-   * caller must also guard its post-await state writes — the rejection lands after the component
-   * that would render it is gone.
-   */
-  cancel: () => void;
-}
-
-/**
- * Polls `GET /jobs/{jobId}` until {@link decidePoll} says to stop. The host's minimal-API JSON
- * options apply JsonStringEnumConverter(JsonNamingPolicy.CamelCase), which lowercases the leading
- * character of the JobStatus enum's PascalCase member names (Completed -> "completed") — the status
- * strings here must be camelCase, not PascalCase.
- *
- * This is the one response shape in the panel still declared by hand, deliberately: `/jobs/{id}` is
- * the HOST's endpoint, so it is absent from the extension's OpenAPI document and no generated type
- * for it can exist. Anything the extension itself serves is read from `../wire/api` instead.
- *
- * Every bound is the logic module's: a read failure counts against an allowance rather than being
- * swallowed, and silence counts against a stall budget that restarts whenever progress moves. The
- * clock reads live here, in the poll handler, so the module stays testable without one.
- */
-function pollJobToCompletion(jobId: string, onProgress?: (p: RenameProgress) => void): JobPoll {
-  let stop: () => void = () => undefined;
-
-  const done = new Promise<void>((resolve, reject) => {
-    let failures = 0;
-    // NaN as the seed so the first reading always counts as movement: nothing has been observed yet,
-    // and treating that as silence would spend budget the job never had a chance to use.
-    let stall: StallClock = { progress: Number.NaN, sinceMs: Date.now() };
-    // Clearing the interval does not cancel the reads already in flight, and at a one-second interval
-    // a slow endpoint has more than one. Without this, a read issued before the run ended settles
-    // after it and calls onProgress — a progress write for a job the caller has finished reporting on.
-    let settled = false;
-
-    const interval = setInterval(() => {
-      requestJson<{
-        status: string;
-        error?: string | null;
-        progress?: number;
-        subTask?: string | null;
-        etaSeconds?: number | null;
-      }>(`/jobs/${jobId}`)
-        .then((job) => {
-          if (settled) return;
-          const now = Date.now();
-          failures = nextFailureCount(failures, true);
-          stall = advanceStallClock(stall, job.progress ?? 0, now);
-          const decision = decidePoll(
-            { read: "ok", status: job.status, error: job.error },
-            {
-              msSinceProgress: now - stall.sinceMs,
-              consecutiveFailures: failures,
-              stallBudgetMs: JOB_STALL_BUDGET_MS,
-              failureAllowance: JOB_FAILURE_ALLOWANCE,
-            },
-          );
-
-          if (decision.action === "continue") {
-            // Still going — surface live progress from this SAME poll (no second poller).
-            onProgress?.({
-              progress: job.progress ?? 0,
-              subTask: job.subTask,
-              etaSeconds: job.etaSeconds,
-            });
-            return;
-          }
-
-          settled = true;
-          clearInterval(interval);
-          if (decision.action === "resolve") resolve();
-          else if (decision.action === "reject") reject(new Error(decision.message));
-          else reject(new JobUnresponsiveError(decision.message));
-        })
-        .catch(() => {
-          if (settled) return;
-          failures = nextFailureCount(failures, false);
-          const decision = decidePoll(
-            { read: "failed" },
-            {
-              msSinceProgress: Date.now() - stall.sinceMs,
-              consecutiveFailures: failures,
-              stallBudgetMs: JOB_STALL_BUDGET_MS,
-              failureAllowance: JOB_FAILURE_ALLOWANCE,
-            },
-          );
-          if (decision.action === "expire") {
-            settled = true;
-            clearInterval(interval);
-            reject(new JobUnresponsiveError(decision.message));
-          }
-        });
-    }, JOB_POLL_INTERVAL_MS);
-
-    stop = () => {
-      settled = true;
-      clearInterval(interval);
-      reject(new Error("the poll was stopped"));
-    };
-  });
-
-  return {
-    done,
-    cancel: () => {
-      stop();
-    },
-  };
 }
 
 /**
@@ -188,7 +67,7 @@ export function useRenameLibrary(): UseRenameLibrary {
   // Bumped on every in-panel rename success so UndoSection re-reads /last-batch (both the panel
   // button and the Dry Run modal's "Rename all" flow through renameLibrary below).
   const [undoRefreshKey, setUndoRefreshKey] = useState(0);
-  // Live rename-job progress, threaded from the SINGLE pollJobToCompletion into the modal.
+  // Live rename-job progress, threaded from the SINGLE pollJob into the modal.
   // Null before/after the job (falls back to the bare spinner); a {progress, subTask, etaSeconds}
   // sample while it runs.
   const [renameProgress, setRenameProgress] = useState<RenameProgress | null>(null);
@@ -210,11 +89,14 @@ export function useRenameLibrary(): UseRenameLibrary {
   }, []);
 
   /** Run one poll to settlement while keeping it reachable by the unmount cleanup. */
-  const runPoll = useCallback(async (jobId: string, onProgress?: (p: RenameProgress) => void) => {
-    const poll = pollJobToCompletion(jobId, onProgress);
+  const runPoll = useCallback(async (jobId: string, onProgress?: (job: JobInfo) => void) => {
+    const poll = pollJob(jobId, onProgress);
     activePoll.current = poll.cancel;
     try {
-      await poll.done;
+      const { failure } = await poll.done;
+      // The job reported that the work stopped. The wording is decidePoll's, including what it says
+      // when a failed job names no reason, so the banner reads exactly as it always has.
+      if (failure !== null) throw new Error(failure);
     } finally {
       activePoll.current = null;
     }
@@ -254,8 +136,13 @@ export function useRenameLibrary(): UseRenameLibrary {
         const { jobId } = await requestJson<JobEnqueued>(RENAME_LIBRARY_PATH, {
           method: "POST",
         });
-        await runPoll(jobId, (p) => {
-          if (mounted.current) setRenameProgress(p);
+        await runPoll(jobId, (job) => {
+          if (mounted.current)
+            setRenameProgress({
+              progress: job.progress,
+              subTask: job.subTask,
+              etaSeconds: job.etaSeconds,
+            });
         });
 
         if (!mounted.current) return;

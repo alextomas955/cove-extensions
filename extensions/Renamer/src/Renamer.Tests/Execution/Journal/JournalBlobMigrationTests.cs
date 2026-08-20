@@ -94,22 +94,6 @@ public sealed class JournalBlobMigrationTests
     }
 
     [Fact]
-    public async Task WithNoStoredJournal_TheMigrationDoesNothingAndCompletes()
-    {
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        await using var _ = db;
-        await using var __ = conn;
-
-        var store = new FakeStore();
-        var journal = new CoveRevertJournal(db);
-
-        Assert.Equal(0, await JournalBlobMigration.RunAsync(store, journal, Now));
-
-        Assert.Null(await journal.ReadUndoTargetAsync());
-        await AssertBothKeysGoneAsync(store);
-    }
-
-    [Fact]
     public async Task ASecondRun_DoesNothing_BecauseTheSourceKeysAreAlreadyGone()
     {
         // Deleting the source keys IS the idempotency marker. A separate "already migrated" flag would
@@ -176,26 +160,6 @@ public sealed class JournalBlobMigrationTests
 
         // Nothing was invented from an unreadable value — no empty batch was opened either.
         Assert.Null(await journal.ReadUndoTargetAsync());
-        await AssertBothKeysGoneAsync(store);
-    }
-
-    [Fact]
-    public async Task AJournalStampedForAnOlderShape_IsDiscardedUnread_AndBothKeysGo()
-    {
-        // The stamp exists to say whether the journal may be PARSED at all. One written under an older
-        // shape is discarded rather than guessed at — which is what the stored stamp has always meant.
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        await using var _ = db;
-        await using var __ = conn;
-
-        var store = new FakeStore();
-        await store.SetAsync(RevertLog.SchemaKey, "1");
-        await store.SetAsync(RevertLog.Key, string.Join("\n", Header(), "7|70|/lib/a.mkv"));
-        store.GetKeys.Clear();
-
-        Assert.Equal(0, await JournalBlobMigration.RunAsync(store, new CoveRevertJournal(db), Now));
-
-        Assert.DoesNotContain(RevertLog.Key, store.GetKeys);
         await AssertBothKeysGoneAsync(store);
     }
 

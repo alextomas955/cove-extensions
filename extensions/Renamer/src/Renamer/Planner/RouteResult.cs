@@ -5,7 +5,7 @@ namespace Renamer.Planner;
 /// <summary>
 /// The routing classification for one entity, in the locked precedence order the
 /// <c>DestinationResolver</c> evaluates: <c>Excludes → Unorganized → Tag → Studio (incl. parent)
-/// → Source-path → Default</c>, with <see cref="SourceConfine"/> as the no-route fallback. The
+/// → Source-path</c>, with <see cref="SourceConfine"/> as the no-route fallback. The
 /// first category that produces a match wins.
 /// </summary>
 public enum RouteCategory
@@ -26,16 +26,8 @@ public enum RouteCategory
     SourcePath,
 
     /// <summary>
-    /// The GATED default-relocate: an unmatched item routed to the configured default root. Reachable
-    /// ONLY when <c>EnableDefaultRelocate</c> is true — the flag ships off because a runaway
-    /// default-relocate has whole-library blast radius and volume-aware undo is the recovery path.
-    /// </summary>
-    Default,
-
-    /// <summary>
-    /// No route matched (or default-relocate is disabled): the file keeps its OWN parent-folder
-    /// anchor — the legacy, non-relocating behavior. <see cref="RouteResult.DestinationRootTemplate"/>
-    /// is null for this category.
+    /// No route matched: the file keeps its OWN parent-folder anchor — the legacy, non-relocating
+    /// behavior. <see cref="RouteResult.DestinationRootTemplate"/> is null for this category.
     /// </summary>
     SourceConfine,
 }
@@ -48,7 +40,7 @@ public enum RouteCategory
 /// <param name="MatchedRule">
 /// A short human label for preview/log: e.g. <c>"Tag:anime"</c>, <c>"Studio:42(direct)"</c>,
 /// <c>"Studio:7(ancestor)"</c>, <c>"SourcePath:exact"</c>, <c>"SourcePath:regex"</c>,
-/// <c>"Unorganized"</c>, <c>"Default"</c>, <c>"Exclude"</c>, <c>"InPlace"</c>.
+/// <c>"Unorganized"</c>, <c>"Exclude"</c>, <c>"InPlace"</c>.
 /// </param>
 /// <param name="DestinationRootTemplate">
 /// The absolute destination-root template to anchor the move against, or <c>null</c> for

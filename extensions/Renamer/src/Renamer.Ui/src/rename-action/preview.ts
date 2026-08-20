@@ -11,14 +11,8 @@
  * The wire shapes it consumes are generated from the extension's own OpenAPI document.
  */
 
-import type { ConfirmLevel, PreviewItemView, PreviewSummary, RenamerStatus } from "../../wire/api";
-
-/** Last path segment, tolerant of both `/` and `\` separators (Windows paths). */
-function basename(p: string): string {
-  if (!p) return p;
-  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-  return i >= 0 ? p.slice(i + 1) : p;
-}
+import type { ConfirmLevel, PreviewItemView, PreviewSummary, RenamerStatus } from "../wire/api";
+import { basename } from "../common/pathLogic";
 
 const SAMPLE_LIMIT = 5;
 
@@ -54,7 +48,7 @@ const SKIP_CLAUSES: Record<RenamerStatus, SkipClause | null> = {
   skipLocked: { clause: "are in use", reason: "in use" },
   skipMissingSource: { clause: "are missing on disk", reason: "missing on disk" },
   // Not a skip: these two are the items that WILL change, counted by `willRename` above.
-  renamer: null,
+  rename: null,
   move: null,
   noOp: null,
   // Executor-only, so a forward-run outcome cannot appear in a list assembled before the run: this gate
@@ -76,9 +70,7 @@ function formatGb(bytes: number): string {
 
 /**
  * The per-cross-volume blast-radius lines: one "↪ N items (X GB) move from A to B." line per pair.
- * Single source shared by the bulk-action window.confirm and the settings-panel Review dialog, so
- * both rename entry points describe a cross-drive batch identically. A same-drive batch has no
- * `volumePairs` and yields an empty array.
+ * A same-drive batch has no `volumePairs` and yields an empty array.
  */
 function buildBlastLines(summary?: PreviewSummary): string[] {
   return (summary?.volumePairs ?? []).map(
@@ -90,7 +82,6 @@ function buildBlastLines(summary?: PreviewSummary): string[] {
 /**
  * The blast-radius call-to-action, scaled by `ConfirmLevel`: Heavy is the strongest cross-drive
  * warning, Standard a plainer cross-drive notice, Light the original reassuring line.
- * Single source shared by both rename confirm surfaces.
  *
  * The promise of an undo is unconditional. It used to be branched on a server flag that went false
  * past a file-count ceiling; no such ceiling exists, so no size makes a rename unrecordable and any
@@ -129,7 +120,7 @@ export function buildConfirmSummary(
   text: string;
   willRenameCount: number;
 } {
-  const willRename = items.filter((it) => it.status === "renamer" || it.status === "move");
+  const willRename = items.filter((it) => it.status === "rename" || it.status === "move");
   const n = willRename.length;
   const m = items.length;
 
@@ -180,8 +171,9 @@ export function buildConfirmSummary(
   }
   if (skipped > 0) {
     // If only one reason kind, collapse to the compact "(reason)" form.
-    if (skipKinds.length === 1 && unclassified === 0) {
-      warningLines.push(`⚠ ${skipped} skipped (${skipKinds[0].reason}).`);
+    const onlyKind = skipKinds.length === 1 ? skipKinds[0] : undefined;
+    if (onlyKind && unclassified === 0) {
+      warningLines.push(`⚠ ${skipped} skipped (${onlyKind.reason}).`);
     } else {
       const clauses = skipKinds.map((kind) => `${kind.count} ${kind.clause}`);
       if (unclassified > 0) clauses.push(`${unclassified} for an unrecognised reason`);

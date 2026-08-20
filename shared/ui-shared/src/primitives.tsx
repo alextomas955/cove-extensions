@@ -509,6 +509,26 @@ export function Toggle({
 }
 
 /**
+ * A copy of `list` with the entries at `i` and `j` exchanged, or an unchanged copy when either index
+ * is out of range.
+ *
+ * @remarks
+ * The three reordering controls below shared one destructuring swap, which reads both slots before
+ * it writes either and so can put an `undefined` into the array it is reordering when an index is
+ * stale. Doing it once here means the bound is established in one place instead of being re-assumed
+ * at each call site.
+ */
+function swapped<T>(list: readonly T[], i: number, j: number): T[] {
+  const next = [...list];
+  const a = next[i];
+  const b = next[j];
+  if (a === undefined || b === undefined) return next;
+  next[i] = b;
+  next[j] = a;
+  return next;
+}
+
+/**
  * String-list editor: chips above an add-on-Enter input. Used for Whitelist / Blacklist /
  * RequiredFields / DropOrder. DropOrder additionally gets up/down reordering (`ordered`).
  */
@@ -546,9 +566,7 @@ export function TagListInput({
   function move(i: number, dir: -1 | 1) {
     const j = i + dir;
     if (j < 0 || j >= values.length) return;
-    const next = [...values];
-    [next[i], next[j]] = [next[j], next[i]];
-    onChange(next);
+    onChange(swapped(values, i, j));
   }
 
   return (
@@ -717,9 +735,7 @@ export function OrderedPickToAdd({
   function move(i: number, dir: -1 | 1) {
     const j = i + dir;
     if (j < 0 || j >= values.length) return;
-    const next = [...values];
-    [next[i], next[j]] = [next[j], next[i]];
-    onChange(next);
+    onChange(swapped(values, i, j));
   }
   function remove(i: number) {
     onChange(values.filter((_, idx) => idx !== i));
@@ -908,14 +924,8 @@ export function ObjectArrayEditor<T>({
   function move(i: number, dir: -1 | 1) {
     const j = i + dir;
     if (j < 0 || j >= rows.length) return;
-    const next = [...rows];
-    [next[i], next[j]] = [next[j], next[i]];
-    onChange(next);
-    setKeys((ks) => {
-      const nk = [...ks];
-      [nk[i], nk[j]] = [nk[j], nk[i]];
-      return nk;
-    });
+    onChange(swapped(rows, i, j));
+    setKeys((ks) => swapped(ks, i, j));
   }
 
   function add() {
@@ -1015,7 +1025,10 @@ export function KeyValueMapEditor({
 }) {
   const [draftKey, setDraftKey] = useState("");
   const [draftValue, setDraftValue] = useState("");
-  const keys = Object.keys(map);
+  // Rows render from the entries rather than from the keys, so each row's value arrives paired with
+  // its key out of one traversal instead of being looked back up by index.
+  const entries = Object.entries(map);
+  const keys = entries.map(([key]) => key);
 
   function setValue(key: string, value: string) {
     onChange({ ...map, [key]: value });
@@ -1038,7 +1051,7 @@ export function KeyValueMapEditor({
 
   return (
     <div className="space-y-2">
-      {keys.map((key) => (
+      {entries.map(([key, value]) => (
         <div
           key={key}
           className="flex items-center gap-2 rounded-xl border border-border bg-card p-3"
@@ -1047,7 +1060,7 @@ export function KeyValueMapEditor({
             {renderKeyLabel?.(key) ?? key}
           </span>
           <span className="flex-1">
-            {renderValue(map[key], (v) => {
+            {renderValue(value, (v) => {
               setValue(key, v);
             })}
           </span>

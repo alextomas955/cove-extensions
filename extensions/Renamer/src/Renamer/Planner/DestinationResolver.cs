@@ -16,7 +16,7 @@ namespace Renamer.Planner;
 /// once per batch); this resolver only calls <c>IsMatch</c> — it never compiles a regex.
 ///
 /// Precedence (first CATEGORY that produces a match wins):
-/// <c>Excludes → Unorganized → Tag → Studio (incl. parent) → Source-path → Default</c>; within a
+/// <c>Excludes → Unorganized → Tag → Studio (incl. parent) → Source-path</c>; within a
 /// category the first user-ordered rule wins, and within Studio a DIRECT match outranks an ANCESTOR.
 ///
 /// Excludes run FIRST and beat every routing category including Unorganized: a matching tag id,
@@ -24,23 +24,25 @@ namespace Renamer.Planner;
 /// short-circuits to <see cref="RouteCategory.Excluded"/> (the planner then produces a
 /// <c>SkipExcluded</c> for every file). The exclude lookups arrive PRE-PARSED in the
 /// <see cref="RouteLookups"/> (a null/empty member = no excludes = legacy behavior, no regression);
-/// an exclude regex match-time timeout is treated as no-match, never thrown. Default-relocate is
-/// implemented but GATED — the <see cref="RouteCategory.Default"/> branch is reachable ONLY when
-/// <see cref="RenamerOptions.EnableDefaultRelocate"/> is true; the off branch returns
-/// <see cref="RouteCategory.SourceConfine"/> as a code-level guard, not merely a config default.
+/// an exclude regex match-time timeout is treated as no-match, never thrown. An item that matches no
+/// rule is never relocated: it falls through to <see cref="RouteCategory.SourceConfine"/> and keeps
+/// its own parent-folder anchor.
 /// </summary>
 public static class DestinationResolver
 {
     /// <summary>
     /// The OS-aware string comparer for EXACT source-path matching — <see cref="StringComparer.OrdinalIgnoreCase"/>
-    /// on Windows (where paths are case-insensitive, the primary platform) and
-    /// <see cref="StringComparer.Ordinal"/> elsewhere, mirroring <c>VolumeClassifier</c> /
-    /// <c>PathConfinement.IsUnderRoot</c>. The exact-path lookup dictionary is built with this comparer
-    /// so an exact rule for <c>media/incoming</c> matches a stored <c>Media/Incoming</c> on Windows
-    /// instead of silently falling through.
+    /// where the default filesystem folds case (Windows, macOS) and <see cref="StringComparer.Ordinal"/>
+    /// elsewhere, matching <c>PathOps.PathsEqual</c> and <c>PathConfinement.IsUnderRoot</c> (the case
+    /// rule and its caveats are stated once at <c>PathOps.PathsEqual</c>; note <c>VolumeClassifier</c> is
+    /// NOT part of that set — it compares volume keys, not filenames). The exact-path lookup dictionary
+    /// is built with this comparer so an exact rule for <c>media/incoming</c> matches a stored
+    /// <c>Media/Incoming</c> on such a filesystem instead of silently falling through.
     /// </summary>
     public static StringComparer SourcePathComparer =>
-        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
 
     /// <summary>
     /// Normalizes a source path for EXACT-match keying/lookup — trims a single trailing
@@ -52,18 +54,10 @@ public static class DestinationResolver
     public static string NormalizeSourcePath(string path) => path.TrimEnd('/');
 
     /// <summary>
-    /// The matched-rule label this resolver emits for the GATED default-relocate category
-    /// (<see cref="RouteCategory.Default"/>). Exposed as the single source of truth so the auto-renamer
-    /// hook can detect a default-relocate route off <see cref="RenamerPlanItem.MatchedRule"/> without
-    /// duplicating the literal string.
-    /// </summary>
-    public const string DefaultRouteLabel = "Default";
-
-    /// <summary>
     /// Resolves <paramref name="e"/> to a <see cref="RouteResult"/> by the locked precedence.
     /// </summary>
     /// <param name="e">The entity to route (read-only; only routing-relevant fields are read).</param>
-    /// <param name="o">The renamer options carrying the destination maps + the default-relocate gate.</param>
+    /// <param name="o">The renamer options carrying the destination maps.</param>
     /// <param name="lk">The per-batch hoisted lookups (studio-id, tag-name, path-exact, pre-parsed regex).</param>
     public static RouteResult Resolve(RenamerEntity e, RenamerOptions o, RouteLookups lk)
     {
@@ -149,16 +143,8 @@ public static class DestinationResolver
             }
         }
 
-        // 4. Default — GATED: reachable ONLY when the flag is on AND a default is set. A code-level
-        //    guard, NOT just a config default — an unmatched item NEVER silently relocates while
-        //    EnableDefaultRelocate is false (it stays gated until volume-aware undo exists).
-        if (o.EnableDefaultRelocate && !string.IsNullOrEmpty(o.DefaultDestination))
-        {
-            return new RouteResult(RouteCategory.Default, DefaultRouteLabel, o.DefaultDestination);
-        }
-
-        // 5. No route → source-confine. The default-relocate-disabled false branch lands HERE, so an
-        //    unmatched item keeps its own parent-folder anchor and does not relocate.
+        // 4. No route → source-confine: an unmatched item keeps its own parent-folder anchor and does
+        //    not relocate. There is no catch-all destination — relocating requires an explicit rule.
         return new RouteResult(RouteCategory.SourceConfine, "InPlace", null);
     }
 

@@ -11,7 +11,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { generateWireTypes } from "./generate-wire-types-core.mjs";
+import { generateWireTypes } from "./generate-wire-types.mjs";
 
 const ID = "com.example.fixture";
 const NAME = "Fixture";

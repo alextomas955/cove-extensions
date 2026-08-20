@@ -1,12 +1,12 @@
 import path from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
-import { createExtensionViteConfig } from "../../../../shared/cove-extensions-ui/vite/createExtensionViteConfig";
+import { createExtensionViteConfig } from "../../../../shared/ui-shared/vite/createExtensionViteConfig";
 
 // The shared UI package is consumed as raw source through a Vite alias rather than installed, so it
 // has no node_modules and cannot host a runner of its own. Its suite runs from here as a second
 // vitest project rooted at that package — one install, one runner, both surfaces.
-const sharedUiRoot = path.resolve(__dirname, "../../../../shared/cove-extensions-ui");
+const sharedUiRoot = path.resolve(__dirname, "../../../../shared/ui-shared");
 
 export default defineConfig({
   ...createExtensionViteConfig({ packageDir: __dirname, reactPlugin: react() }),
@@ -20,7 +20,7 @@ export default defineConfig({
         test: {
           name: "renamer-ui",
           root: __dirname,
-          include: ["src/**/*.test.mjs"],
+          include: ["src/**/*.test.ts"],
           environment: "node",
         },
       },
@@ -29,7 +29,7 @@ export default defineConfig({
         test: {
           name: "ui-shared",
           root: sharedUiRoot,
-          include: ["src/**/*.test.mjs"],
+          include: ["src/**/*.test.ts"],
           environment: "node",
         },
       },

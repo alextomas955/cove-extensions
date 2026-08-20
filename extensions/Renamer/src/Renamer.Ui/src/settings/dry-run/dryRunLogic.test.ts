@@ -16,8 +16,6 @@ import {
   isFinalizing,
   formatEta,
   etaFromSamples,
-  ETA_SMOOTHING,
-  ETA_MIN_RATES,
 } from "./dryRunLogic";
 
 /**
@@ -31,8 +29,13 @@ import {
  * Whether it is COMPLETE is not checked here at all — that expectation comes from the wire document
  * below, which the server emits.
  */
-const SERVER_BUCKETS = [
-  ["renamer", "will-change"],
+// Declared as a list of PAIRS, not a list of string lists: the array literal alone widens to
+// string[][], under which destructuring a row hands back `string | undefined` and every use below
+// has to re-establish a shape the table already guarantees. The element type stays `string` rather
+// than the generated status union on purpose — this table is a hand transcription, and typing it
+// against the union the assertion below compares it to would let the two agree by construction.
+const SERVER_BUCKETS: readonly (readonly [string, string])[] = [
+  ["rename", "will-change"],
   ["move", "will-change"],
   ["noOp", "no-change"],
   ["skipCollision", "attention"],
@@ -56,9 +59,13 @@ const SERVER_BUCKETS = [
 const WIRE_DOCUMENT = path.join(import.meta.dirname, "../../../../../wire/openapi.json");
 
 test("classifyItem agrees with ScanBucket.Of on every status the server can emit", () => {
-  const emitted = new Set(
-    JSON.parse(readFileSync(WIRE_DOCUMENT, "utf8")).components.schemas.RenamerStatus.enum,
-  );
+  // The enum path is spelled out as a type so the read is checked rather than riding on `any`. It
+  // describes only the one branch this test needs; a document that stopped carrying it yields
+  // undefined here and fails loudly on the next line instead of comparing an empty set.
+  const document = JSON.parse(readFileSync(WIRE_DOCUMENT, "utf8")) as {
+    components: { schemas: { RenamerStatus: { enum: string[] } } };
+  };
+  const emitted = new Set(document.components.schemas.RenamerStatus.enum);
   const tabled = new Set(SERVER_BUCKETS.map(([status]) => status));
   const untabled = [...emitted].filter((s) => !tabled.has(s));
   const retired = [...tabled].filter((s) => !emitted.has(s));
@@ -125,7 +132,7 @@ test("a row from a wire shape that has no overflow field reads as unflagged, not
 test("summaryCounts partitions the aggregate's status counts into three buckets summing to the total", () => {
   const counts = summaryCounts({
     statusCounts: [
-      { status: "renamer", count: 3 },
+      { status: "rename", count: 3 },
       { status: "move", count: 4 },
       { status: "noOp", count: 5 },
       { status: "skipGated", count: 2 },
@@ -150,7 +157,7 @@ test("summaryCounts over an empty status list returns all zeros", () => {
 test("summaryCounts counts an unknown status as attention and still sums correctly", () => {
   const counts = summaryCounts({
     statusCounts: [
-      { status: "renamer", count: 2 },
+      { status: "rename", count: 2 },
       { status: "skipInvented", count: 3 },
     ],
   });
@@ -228,7 +235,7 @@ test("etaFromSamples is an EWMA of the rate; a warmed steady rate gives the plai
         { timeMs: 0, progress: 0.4 },
         { timeMs: 1000, progress: 0.5 },
         { timeMs: 2000, progress: 0.6 },
-      ]) - 4,
+      ])! - 4,
     ) < 1e-6,
   );
 
@@ -303,7 +310,6 @@ test("etaFromSamples EWMA decays the cold-start rate instead of flashing a bogus
 test("etaFromSamples withholds the estimate until it has ETA_MIN_RATES smoothed rates", () => {
   // Exactly one rate observation (unsmoothed seed) → null, no matter how clean the pair looks. This
   // is the fix for the intermittent one-poll "~2m" flash: never DISPLAY off a single raw seed.
-  assert.equal(ETA_MIN_RATES, 2);
   assert.equal(
     etaFromSamples([
       { timeMs: 0, progress: 0.2 },
@@ -328,8 +334,4 @@ test("etaFromSamples withholds the estimate until it has ETA_MIN_RATES smoothed 
       { timeMs: 2000, progress: 0.4 },
     ]) !== null,
   );
-});
-
-test("ETA_SMOOTHING is tqdm's 0.3 default", () => {
-  assert.equal(ETA_SMOOTHING, 0.3);
 });

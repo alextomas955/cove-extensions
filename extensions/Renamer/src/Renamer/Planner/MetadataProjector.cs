@@ -97,7 +97,9 @@ public static class MetadataProjector
 
         if (file.Duration is double dur)
         {
-            Put(tokens, Tokens.Duration, dur.ToString(CultureInfo.InvariantCulture));
+            // $duration honors the configured DurationFormat, like $date above; see FormatDuration for
+            // what a malformed format or a nonsense stored duration degrades to.
+            Put(tokens, Tokens.Duration, FormatDuration(dur, options.DurationFormat));
         }
 
         // $bitrate: the file's stored overall bitrate, rendered in kbps (Cove stores bits/sec on
@@ -121,6 +123,30 @@ public static class MetadataProjector
         };
 
         return (tokens, multi, entity.Performers, entity.TagRefs);
+    }
+
+    /// <summary>
+    /// Renders a stored duration in seconds through the user-configured <c>DurationFormat</c>.
+    /// </summary>
+    /// <remarks>
+    /// Both inputs are untrusted and this runs once per file of every item in a plan, so a throw here
+    /// would abort a whole plan or batch over one bad setting instead of spoiling one token: a malformed
+    /// format string throws <see cref="FormatException"/>, and a non-finite or out-of-range stored
+    /// duration throws out of <see cref="TimeSpan.FromSeconds(double)"/>. Either way the token degrades
+    /// to the raw invariant seconds — the shape this projection emitted before the format was honored,
+    /// and the one rendering that cannot itself fail for any <see cref="double"/>. The format is NOT
+    /// pre-validated: only actually formatting it can decide whether .NET accepts it.
+    /// </remarks>
+    private static string FormatDuration(double seconds, string format)
+    {
+        try
+        {
+            return TimeSpan.FromSeconds(seconds).ToString(format, CultureInfo.InvariantCulture);
+        }
+        catch (Exception ex) when (ex is FormatException or ArgumentException or OverflowException)
+        {
+            return seconds.ToString(CultureInfo.InvariantCulture);
+        }
     }
 
     /// <summary>Adds <paramref name="value"/> under <paramref name="key"/> only when non-empty (omit-not-blank).</summary>

@@ -61,6 +61,11 @@ public sealed partial class Renamer : FullExtensionBase
     {
         // Resolve the captured seams with GetRequiredService so a missing host registration fails
         // clearly here, at load, instead of surfacing as a NullReferenceException at first use.
+        //
+        // The SDK says to inject IExtensionServiceScopeFactory rather than the container engine's
+        // IServiceScopeFactory. Verified against the host (Cove.Plugins/ExtensionServiceOverlay.cs:565-568,
+        // 547-555): the provider handed to InitializeAsync answers BOTH service types with the same
+        // TrackedScopeFactory, so this capture is already the retirement-tracked instance.
         _scopeFactory = services.GetRequiredService<IServiceScopeFactory>();
         _eventBus = services.GetRequiredService<IEventBus>();
         // Logging is optional: the host forwards ILogger into the extension scope, but treat its
@@ -332,8 +337,8 @@ public sealed partial class Renamer : FullExtensionBase
     /// Maps a <see cref="RenamerFileKind"/> to the host read/write permission pair that gates operating
     /// on that entity kind. Cove models entity permissions per-kind (<c>videos.*</c>/<c>images.*</c>/
     /// <c>audios.*</c>), so a renamer of an image must require <c>images.write</c> — not the video
-    /// permission. <c>Gallery</c> is not a renamable kind; it is mapped to the video pair only so the
-    /// switch is total, and it never reaches an endpoint (<see cref="TryParseKind"/> rejects it).
+    /// permission. The fallthrough carries <see cref="RenamerFileKind.Video"/> so the switch is total
+    /// for an out-of-range cast, which is the only value no arm names.
     /// </summary>
     internal static (string Read, string Write) PermissionsFor(RenamerFileKind kind) => kind switch
     {
@@ -400,7 +405,7 @@ public sealed partial class Renamer : FullExtensionBase
 
         if (!TryParseKind(entityType, out var kind) || ids.Length == 0)
         {
-            progress.Report(1d, "Nothing to renamer.");
+            progress.Report(1d, "Nothing to rename.");
             return;
         }
 
@@ -456,6 +461,14 @@ public sealed partial class Renamer : FullExtensionBase
         var acting = new List<BatchUnit>();
         var folderIdByPath = new Dictionary<string, int>(DestinationResolver.SourcePathComparer);
 
+        // The destinations the canonical allowlist guard REFUSED during the pre-create, with the guard's
+        // own reason. It rides beside the folder-id map because it is the same decision seen from the
+        // other side: the pre-create is the single source of folder creation for the batch, so it is
+        // also the only place the batch can refuse a destination BEFORE a row exists. Without the reason
+        // recorded here a refused destination would reach the worker as nothing but a missing map entry,
+        // and the worker would have to guess why — so a skip a user cannot act on.
+        var rejectedDestinations = new Dictionary<string, string>(DestinationResolver.SourcePathComparer);
+
         // PHASE A reports no progress percentage (that starts in PHASE B), so trace the planning loop to
         // the log — otherwise a large library sits at 0% here with no signal that it is still planning.
         LogPlanningStarted(runId, kind, ids.Length);
@@ -485,7 +498,7 @@ public sealed partial class Renamer : FullExtensionBase
                 int actingThisItem = 0;
                 foreach (var item in plan.Items)
                 {
-                    if (item.Status is not (RenamerStatus.Renamer or RenamerStatus.Move))
+                    if (item.Status is not (RenamerStatus.Rename or RenamerStatus.Move))
                     {
                         continue;
                     }
@@ -523,10 +536,21 @@ public sealed partial class Renamer : FullExtensionBase
                     continue;
                 }
 
-                if (!folderIdByPath.ContainsKey(planItem.TargetFolderPath))
+                if (!folderIdByPath.ContainsKey(planItem.TargetFolderPath)
+                    && !rejectedDestinations.ContainsKey(planItem.TargetFolderPath))
                 {
-                    folderIdByPath[planItem.TargetFolderPath] =
-                        await port.GetOrCreateFolderIdAsync(planItem.TargetFolderPath, ct);
+                    // Through the GUARDED seam, never the raw create: this is where a batch persists a
+                    // destination Folder row, so it is where the canonical allowlist check belongs.
+                    var resolved = await CoveRenamerDataPort.GuardedGetOrCreateFolderIdAsync(
+                        port, planItem.TargetFolderPath, options.AllowedRoots, ct);
+                    if (resolved.Accepted)
+                    {
+                        folderIdByPath[planItem.TargetFolderPath] = resolved.FolderId;
+                    }
+                    else
+                    {
+                        rejectedDestinations[planItem.TargetFolderPath] = resolved.Reason ?? "no reason given";
+                    }
                 }
             }
         });
@@ -550,7 +574,7 @@ public sealed partial class Renamer : FullExtensionBase
         if (acting.Count == 0)
         {
             LogBatchDone(runId, 0, 0, 0);
-            progress.Report(1d, "Nothing to renamer.");
+            progress.Report(1d, "Nothing to rename.");
             return;
         }
 
@@ -606,6 +630,24 @@ public sealed partial class Renamer : FullExtensionBase
 
         async ValueTask RunUnitAsync(BatchUnit unit, CancellationToken token)
         {
+            // FIRST, before any other work for the unit: a destination the pre-create's allowlist guard
+            // refused has no folder row and never will, so there is nothing for this unit to move into.
+            // Classify it exactly as the in-flight free-space skip below does — count, log with the
+            // guard's OWN reason, advance, return — and never throw: classify-not-throw is the rule at
+            // this boundary. The unit deliberately stays in `acting`, so the progress denominator and
+            // the batch-done counts are the same as they would be with no adversarial destination in
+            // the batch at all.
+            var blockedItem = unit.Plan.Items[0];
+            if (blockedItem.Status == RenamerStatus.Move
+                && rejectedDestinations.TryGetValue(blockedItem.TargetFolderPath, out var blockedReason))
+            {
+                Interlocked.Increment(ref totalSkipped);
+                LogItemSkipped(runId, kind, unit.EntityId, RenamerStatus.SkipBlocked, blockedReason);
+                Interlocked.Increment(ref done);
+                ReportProgress((double)Volatile.Read(ref done) / totalUnits);
+                return;
+            }
+
             // Cross-volume only: re-check free space just before the copy so a concurrent scanner that
             // shrank the destination since PHASE A skips this item gracefully instead of filling the
             // disk. Same-volume moves consume ~no space and are excluded by the guard, so this is a

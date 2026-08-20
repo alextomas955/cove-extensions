@@ -36,6 +36,27 @@ cases that skip on Windows. They are compiled onto the bare leg and so execute o
 before that they were skipped on the only host that compiled them and Compile-Removed on the only host
 that could run them, which is to say asserted nowhere.
 
+## macOS: cross-volume tests
+
+The cross-volume tests need a second filesystem. `SecondVolume` finds one by itself on Windows (a
+`subst` drive) and on Linux (`/dev/shm`), but macOS has neither, so they skip until you supply one
+through `COVE_TEST_SECOND_VOLUME`. A RAM disk is the cheapest way, and needs no `sudo`:
+
+```sh
+dev=$(hdiutil attach -nomount ram://2097152)      # 1 GiB
+diskutil erasevolume APFS RenamerTestVol "$dev"
+export COVE_TEST_SECOND_VOLUME=/Volumes/RenamerTestVol
+dotnet test extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj
+diskutil eject "$dev"                              # when done
+```
+
+The override takes precedence over the inferred arms on every OS, so it is also how you point a run
+at a real second disk. Pointing it at a directory on the volume the temp tree already lives on
+throws rather than falling back — otherwise every gated test would pass while quietly exercising the
+same-volume path. The fixture deliberately does not run `hdiutil` itself: it is constructed per test,
+so attaching and detaching a volume a dozen times would cost seconds each and leak a mounted image
+whenever a run crashed.
+
 ## Coverage guard
 
 `TierTraitCoverageTests` (this project) calls the shared `TierTraitGuard` reflection helper and fails

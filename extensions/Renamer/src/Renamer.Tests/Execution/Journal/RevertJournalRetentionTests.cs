@@ -11,7 +11,7 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Execution.Journal;
 
 /// <summary>
-/// The retention window: a batch older than <see cref="JournalRetention.Window"/> disappears WHOLE on
+/// The retention window: a batch older than <see cref="CoveRevertJournal.RetentionWindow"/> disappears WHOLE on
 /// the next batch open, and one inside the window survives it.
 /// </summary>
 /// <remarks>
@@ -26,10 +26,10 @@ public sealed class RevertJournalRetentionTests
     private static readonly DateTime Opened = new(2026, 8, 3, 10, 0, 0, DateTimeKind.Utc);
 
     /// <summary>Just past the window: everything opened at <see cref="Opened"/> is expired at this moment.</summary>
-    private static DateTime JustOutside => Opened + JournalRetention.Window + TimeSpan.FromHours(1);
+    private static DateTime JustOutside => Opened + CoveRevertJournal.RetentionWindow + TimeSpan.FromHours(1);
 
     /// <summary>Just inside the window: everything opened at <see cref="Opened"/> still survives.</summary>
-    private static DateTime JustInside => Opened + JournalRetention.Window - TimeSpan.FromHours(1);
+    private static DateTime JustInside => Opened + CoveRevertJournal.RetentionWindow - TimeSpan.FromHours(1);
 
     [Fact]
     public async Task ABatchOutsideTheWindow_GoesWholeWhenTheNextBatchOpens()
@@ -133,8 +133,8 @@ public sealed class RevertJournalRetentionTests
         await using var __ = conn;
 
         var now = new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc);
-        await SeedBatchAsync(db, "run-expired", now - JournalRetention.Window - TimeSpan.FromMinutes(1), rows: 2);
-        await SeedBatchAsync(db, "run-live", now - JournalRetention.Window + TimeSpan.FromMinutes(1), rows: 2);
+        await SeedBatchAsync(db, "run-expired", now - CoveRevertJournal.RetentionWindow - TimeSpan.FromMinutes(1), rows: 2);
+        await SeedBatchAsync(db, "run-live", now - CoveRevertJournal.RetentionWindow + TimeSpan.FromMinutes(1), rows: 2);
 
         await new CoveRevertJournal(db).PurgeExpiredAsync(now);
 

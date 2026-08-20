@@ -25,11 +25,11 @@ public sealed class MultiFileTests
             Files: [File(1, "part1.mkv"), File(2, "part2.mkv")]));
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), RouteLookupsFixtures.RoutingNeutral, default);
 
         Assert.Equal(2, plan.Items.Count);
         Assert.Contains(plan.Items, i => i.FileId == 1);
         Assert.Contains(plan.Items, i => i.FileId == 2);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 }

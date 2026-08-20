@@ -7,7 +7,7 @@
 
 /**
  * The three buckets a scan row falls into, used by the Dry Run filter segments:
- * - `will-change`: the file WILL be renamed and/or moved (status Renamer | Move).
+ * - `will-change`: the file WILL be renamed and/or moved (status Rename | Move).
  * - `attention`: the file was skipped for a reason the user may want to act on (a name conflict, a
  *   missing required field, a locked file, …) or a rename that Failed and rolled back.
  * - `no-change`: nothing to do — the computed name already matches (status NoOp). Not a problem,
@@ -28,7 +28,7 @@ export type DryRunFilter = "all" | DryRunBucket;
  * a hand transcription of the C# map.
  */
 export function classifyItem(item: { status: string }): DryRunBucket {
-  if (item.status === "renamer" || item.status === "move") return "will-change";
+  if (item.status === "rename" || item.status === "move") return "will-change";
   if (item.status === "noOp") return "no-change";
   return "attention";
 }
@@ -106,9 +106,9 @@ export function summaryCounts(summary: {
  * unexpected kind falls through to `null` rather than fabricating a wrong URL — the href is derived
  * from this fixed map and the numeric id ONLY, never from a path or basename.
  *
- * The wire's kind union has a fourth member, `gallery`, and its absence here is deliberate: the scan
- * walks only the three renamable kinds, so no row can carry it, and a segment invented for one would
- * be a guessed URL. An unlinked row is the right answer if that ever changes.
+ * This covers the wire's whole kind union today, so the fallthrough is for a kind the server grows
+ * after this bundle ships — a segment invented for one would be a guessed URL, and an unlinked row is
+ * the right answer.
  */
 const KIND_SEGMENT: Record<string, string | undefined> = {
   video: "video",
@@ -208,6 +208,7 @@ export function etaFromSamples(samples: readonly ProgressSample[]): number | nul
   if (samples.length < 2) return null;
 
   const latest = samples[samples.length - 1];
+  if (!latest) return null;
   if (!Number.isFinite(latest.timeMs) || !Number.isFinite(latest.progress)) return null;
   const p = latest.progress;
   if (p <= 0 || p >= 1) return null;
@@ -223,6 +224,7 @@ export function etaFromSamples(samples: readonly ProgressSample[]): number | nul
   for (let i = 1; i < samples.length; i++) {
     const prev = samples[i - 1];
     const cur = samples[i];
+    if (!prev || !cur) continue;
     if (!Number.isFinite(prev.timeMs) || !Number.isFinite(cur.timeMs)) continue;
     const dt = (cur.timeMs - prev.timeMs) / 1000;
     const dp = cur.progress - prev.progress;

@@ -11,7 +11,10 @@ import {
   extractUnmodeledFields,
   hasUnmigratedNameRules,
   cloneDefaults,
+  toStringKeyed,
+  fromStringKeyed,
   DEFAULT_OPTIONS,
+  type RenamerOptions,
 } from "./options";
 
 // A blob with every modeled field at a value distinct from its default, in PascalCase (the wire
@@ -69,9 +72,7 @@ function fullyPopulatedBlob() {
     ExcludePaths: [{ Pattern: "C:/skip", IsRegex: false }],
     AllowedRoots: ["D:/", "E:/"],
     AssociatedExtensions: ["srt", "vtt"],
-    DefaultDestination: "D:/default",
     UnorganizedDestination: "D:/unorganized",
-    EnableDefaultRelocate: true,
     EnableStudioDestinations: true,
     EnableTagDestinations: true,
     EnableAdvancedRouting: true,
@@ -116,11 +117,13 @@ test("every modeled field survives load → no-op edit → save value-equal", ()
 });
 
 test("cloneDefaults isolates every mutable collection from DEFAULT_OPTIONS", () => {
-  const before = JSON.parse(JSON.stringify(DEFAULT_OPTIONS));
+  const before = JSON.parse(JSON.stringify(DEFAULT_OPTIONS)) as RenamerOptions;
   const clone = cloneDefaults();
 
-  clone.StudioDestinations[1] = "x";
-  clone.TagDestinations[2] = "x";
+  // Written as string keys because that is what the derived index signature accepts; JS object keys
+  // are strings either way, so this sets the same entries the panel's numeric ids do.
+  clone.StudioDestinations["1"] = "x";
+  clone.TagDestinations["2"] = "x";
   clone.PathDestinations.push({ Pattern: "p", Dest: "d", IsRegex: false });
   clone.ExcludePaths.push({ Pattern: "p", IsRegex: false });
   clone.FieldReplacers.push({ TargetToken: "t", Find: "f", Replace: "r" });
@@ -157,7 +160,9 @@ test("FreeSpaceHeadroomBytes stays the only unmodeled knob; concurrency is model
   assert.ok(!("CrossVolumeConcurrency" in extras));
   assert.ok(!("SameVolumeConcurrency" in extras));
 
-  const persisted = { ...extras, ...normalizeOptions(blob) };
+  // Typed as the loose blob it is: the merge's whole point is that it carries keys the model does not
+  // declare, which is exactly what a RenamerOptions-shaped type would refuse to describe.
+  const persisted: Record<string, unknown> = { ...extras, ...normalizeOptions(blob) };
   assert.equal(persisted.FreeSpaceHeadroomBytes, UNMODELED_KNOB.FreeSpaceHeadroomBytes);
   assert.equal(persisted.CrossVolumeConcurrency, 4);
   assert.equal(persisted.SameVolumeConcurrency, 16);
@@ -166,7 +171,7 @@ test("FreeSpaceHeadroomBytes stays the only unmodeled knob; concurrency is model
   const extras2 = extractUnmodeledFields(persisted);
   assert.ok(!("CrossVolumeConcurrency" in extras2));
   assert.ok(!("SameVolumeConcurrency" in extras2));
-  const persisted2 = { ...extras2, ...normalizeOptions(persisted) };
+  const persisted2: Record<string, unknown> = { ...extras2, ...normalizeOptions(persisted) };
   assert.equal(persisted2.FreeSpaceHeadroomBytes, UNMODELED_KNOB.FreeSpaceHeadroomBytes);
   assert.equal(persisted2.CrossVolumeConcurrency, 4);
   assert.equal(persisted2.SameVolumeConcurrency, 16);
@@ -263,11 +268,14 @@ const CSHARP_EXCLUDE_TAG_IDS = "ExcludeTagIds";
 // The pre-migration spellings the C# record no longer declares. Emitting one is the failure above.
 const RETIRED_MULTI_VALUE_FIELDS = ["Whitelist", "Blacklist"];
 const RETIRED_EXCLUDE_TAGS = "ExcludeTags";
+// The two entity groups that carry the migrated id lists. Named as their literal keys rather than
+// plain strings so the loops below index the options model instead of an untyped bag.
+const MULTI_VALUE_GROUPS: ("Performers" | "Tags")[] = ["Performers", "Tags"];
 
 test("the six migrated fields are emitted under the C# property names, and no retired name is", () => {
   const emitted = normalizeOptions(fullyPopulatedBlob());
 
-  for (const group of ["Performers", "Tags"]) {
+  for (const group of MULTI_VALUE_GROUPS) {
     for (const field of CSHARP_MULTI_VALUE_ID_FIELDS) {
       assert.ok(Object.hasOwn(emitted[group], field), `${group}.${field} missing from the wire`);
     }
@@ -376,7 +384,7 @@ test("a destination key that is not an id's invariant spelling counts as a name"
   // The backend reads an int-spelled key as an ALREADY-migrated id and anything else as a tag name,
   // so the two must agree on the spelling exactly or the panel unblocks a save the backend still
   // has work for. int.MaxValue is the bound: past it the C# parse fails and the key is a name.
-  for (const [key, pending] of [
+  const keySpellings: [string, boolean][] = [
     ["9", false],
     ["0", false],
     ["2147483647", false],
@@ -386,7 +394,8 @@ test("a destination key that is not an id's invariant spelling counts as a name"
     ["2147483648", true],
     ["9 ", true],
     ["Anime", true],
-  ]) {
+  ];
+  for (const [key, pending] of keySpellings) {
     assert.equal(
       hasUnmigratedNameRules({ TagDestinations: { [key]: "D:/x" } }),
       pending,
@@ -415,7 +424,7 @@ test("a malformed value for each migrated field yields an empty list or map, nev
 
 test("the defaults and cloneDefaults both produce the id-valued shapes", () => {
   for (const options of [DEFAULT_OPTIONS, cloneDefaults()]) {
-    for (const group of ["Performers", "Tags"]) {
+    for (const group of MULTI_VALUE_GROUPS) {
       assert.deepEqual(options[group].WhitelistIds, []);
       assert.deepEqual(options[group].BlacklistIds, []);
     }
@@ -426,7 +435,43 @@ test("the defaults and cloneDefaults both produce the id-valued shapes", () => {
   // A fresh install must accept an id without a coercion step the loaded path would not apply.
   const fresh = cloneDefaults();
   fresh.Tags.WhitelistIds.push(9);
-  fresh.TagDestinations[9] = "D:/nine";
+  fresh.TagDestinations["9"] = "D:/nine";
   fresh.ExcludeTagIds.push(9);
   assert.deepEqual(normalizeOptions(fresh), fresh);
+});
+
+// --- The destination-map key codec ---
+// Here rather than in a file of its own because the codec it covers lives beside the
+// `numKeyStringMap` coercion it has to agree with.
+
+test("a number-keyed map becomes a string-keyed map preserving values", () => {
+  assert.deepEqual(toStringKeyed({ 3: "/a", 12: "/b" }), { 3: "/a", 12: "/b" });
+});
+
+test("a round-trip through string keys restores number keys identically", () => {
+  const original = { 3: "/a", 12: "/b" };
+  const back = fromStringKeyed(toStringKeyed(original));
+  assert.deepEqual(back, original);
+});
+
+test("every back-converted key is an integer (value-equal with the backend's number keys)", () => {
+  // JS object keys are always strings at the JS level, so a `typeof` check would be tautological;
+  // the real invariant is that each key round-trips to an integer (no NaN/float survives).
+  const back = fromStringKeyed({ 7: "/x", 42: "/y" });
+  assert.ok(Object.keys(back).every((k) => Number.isInteger(Number(k))));
+  assert.equal(back[7], "/x");
+});
+
+test("a non-integer key is dropped rather than producing a NaN key", () => {
+  const back = fromStringKeyed({ x: "/a", 1.5: "/b", 9: "/c" });
+  assert.deepEqual(back, { 9: "/c" });
+});
+
+test("a non-string value is dropped on back-conversion", () => {
+  // The number value is off-contract on purpose and the cast is what says so: the guard under test
+  // exists for a stored blob that a previous version or a hand edit left holding a non-string, which
+  // the declared parameter type cannot describe. Casting the input keeps the guard exercised; widening
+  // the signature would retire it.
+  const back = fromStringKeyed({ 4: 12, 5: "/ok" } as unknown as Record<string, string>);
+  assert.deepEqual(back, { 5: "/ok" });
 });

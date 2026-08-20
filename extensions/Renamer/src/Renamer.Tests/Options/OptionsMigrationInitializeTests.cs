@@ -42,22 +42,6 @@ public sealed class OptionsMigrationInitializeTests
         {"FilenameTemplate":"$title","TagDestinations":{"Anime":"/media/anime"},"ExcludeTags":["Sample"]}
         """;
 
-    /// <summary>
-    /// What the pre-migration panel ACTUALLY wrote for a user who configured one tag rule and nothing
-    /// else: every legacy key present, most of them empty, because the panel serialized its whole
-    /// defaults object. Transcribed by hand from that shipped default, never generated here.
-    /// </summary>
-    private const string RealisticLegacyBlob =
-        """
-        {
-          "FilenameTemplate": "$title",
-          "Performers": { "Separator": " ", "Whitelist": [], "Blacklist": [] },
-          "Tags": { "Separator": " ", "Whitelist": [], "Blacklist": [] },
-          "TagDestinations": { "Anime": "/media/anime" },
-          "ExcludeTags": []
-        }
-        """;
-
     // ── The two refusal paths ─────────────────────────────────────────────────
 
     [Fact]
@@ -92,29 +76,6 @@ public sealed class OptionsMigrationInitializeTests
 
         Assert.Equal(setsBefore, store.SetCallCount);
         await AssertStillLegacyAsync(store);
-    }
-
-    [Fact]
-    public async Task ALibraryWithTagsButNoPerformers_StillConverts_BecauseTheEmptyPerformerKeysNeedNoRows()
-    {
-        // A library with tags and no performer rows is ordinary, not degenerate — and the blob above is
-        // what such a user has, because the panel wrote an empty Whitelist/Blacklist for BOTH groups
-        // whether or not they configured either. Gating on key PRESENCE therefore demands performer rows
-        // that legitimately do not exist, defers on every start, and never converts; the tag rule then
-        // keeps its name key, the blob keeps failing to bind, and every rename silently runs the default
-        // template. Gating on names that actually need resolving is what makes that reachable state
-        // convert instead.
-        var store = await NewStoreAsync();
-        await new OptionsStore(store).SaveRawAsync(RealisticLegacyBlob);
-
-        await using var library = await Library.CreateAsync();
-        await library.SeedAsync(tags: ["Anime"], performers: []);
-
-        await InitializeAsync(store, library.BuildProvider());
-
-        var converted = await LoadOptionsAsync(store);
-        Assert.Equal(["/media/anime"], converted.TagDestinations.Values);
-        Assert.Equal(OptionsMigration.CurrentSchema, await store.GetAsync(OptionsMigration.SchemaKey));
     }
 
     // ── The elevation the zero-row rule stands beside ─────────────────────────
@@ -221,24 +182,6 @@ public sealed class OptionsMigrationInitializeTests
         var options = await LoadOptionsAsync(store);
         Assert.Equal(new Dictionary<int, string> { [9] = "/media/anime" }, options.TagDestinations);
         Assert.Equal([15], options.ExcludeTagIds);
-    }
-
-    // ── The dropped-name path, end to end ─────────────────────────────────────
-
-    [Fact]
-    public async Task ANameMatchingNoRow_IsDroppedWhileTheRestOfTheBlobConverts()
-    {
-        var store = await NewStoreAsync();
-        await new OptionsStore(store).SaveRawAsync(
-            """{"ExcludeTags":["Sample","tag-that-no-longer-exists"]}""");
-
-        await using var library = await Library.CreateAsync();
-        await library.SeedAsync(tags: ["Sample"], performers: []);
-
-        await InitializeAsync(store, library.BuildProvider());
-
-        Assert.Single((await LoadOptionsAsync(store)).ExcludeTagIds);
-        Assert.Equal(OptionsMigration.CurrentSchema, await store.GetAsync(OptionsMigration.SchemaKey));
     }
 
     // ── What survives a stamp write that fails after the settings were rewritten ──

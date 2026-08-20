@@ -15,17 +15,26 @@
                     assert it exists. `npm install` runs only when node_modules is absent (keeps the
                     dev loop fast). No CSS bundle is shipped (host-Tailwind path).
 
-      2b. ASSEMBLE  Copy the file set extensions/catalog.json declares for this extension into
-                    artifacts/package, with the manifest version stamped, via the shared
-                    scripts/assemble-package.mjs. That declaration is the one statement of what
-                    ships: this script and CI copy the same list, so a dev deploy installs what a
-                    release ships. A declared file the build did not produce fails here, before the
-                    deploy target is touched.
+      2b. ASSEMBLE  Remove and recreate artifacts/package, then copy the file set
+                    extensions/catalog.json declares for this extension into it, with the manifest
+                    version stamped, via the shared scripts/assemble-package.mjs. That declaration
+                    is the one statement of what ships: this script and CI copy the same list, so a
+                    dev deploy installs what a release ships. A declared file the build did not
+                    produce fails here, before the deploy target is touched.
 
-      3. DEPLOY  Resolve the Cove data root (COVE_HOME if set, else %LOCALAPPDATA%\cove),
-                    target the FIXED subdir <root>\extensions\com.alextomas955.renamer (never an
-                    arbitrary/caller-supplied path), clean only that subdir's contents (never the
-                    sibling host-managed .load-cache), then copy the assembled package in.
+                    The packer never deletes and refuses a package directory that is not empty, so
+                    clearing that directory belongs to whichever caller re-uses one. CI and the E2E
+                    harness both hand over a path that is fresh by construction; this script is the
+                    only caller with a stable one, and therefore the only one that owns the delete.
+
+      3. DEPLOY  Resolve the Cove data root: COVE_HOME when set, otherwise the per-user
+                    local-application-data 'cove' folder, which is a WINDOWS-only default. On any
+                    other OS COVE_HOME is required and its absence throws, because a guessed data
+                    root is worse than no default — it deploys to a directory Cove never reads and
+                    reports success. Then target the FIXED subdir
+                    <root>/extensions/com.alextomas955.renamer (never an arbitrary/caller-supplied
+                    path), clean only that subdir's contents (never the sibling host-managed
+                    .load-cache), then copy the assembled package in.
 
       4. RESTART    Detect the process owning port 5073 and attempt a graceful restart. The exact
                     launcher is environment-specific (dotnet run vs InstanceManager); if a reliable
@@ -40,6 +49,9 @@
                 the restart step never kills unrelated processes.
 
 .NOTES
+    Runs on Windows, macOS and Linux, and must be invoked as `pwsh` — it reads the $IsWindows
+    automatic variable, which Windows PowerShell 5.1 does not define.
+
     Location-independent: all paths resolve relative to $PSScriptRoot, so this is CI/GitHub-publishable.
     Property names (UseLocalCoveSource/CoveSdkVersion) must match the monorepo root's
     Directory.Build.props, since that is what selects the local-source build path.
@@ -156,18 +168,43 @@ $SourceManifest = Join-Path $ExtensionRoot 'src/Renamer/extension.json'
 $Version = (Get-Content -Raw -Path $SourceManifest | ConvertFrom-Json).version
 
 Write-Host "`n==> Assembling the declared package (extensions/catalog.json)…" -ForegroundColor Cyan
+
+# The packer refuses a package directory that is not empty, so this run-to-run directory is cleared
+# here. Not best-effort like the publish pre-clean above: a leftover handle that defeats this leaves
+# the assemble refusing, so a failure must stop the deploy rather than be worked around. $PackageDir is
+# derived from $PSScriptRoot at the top of this script and is never caller-supplied, which is what
+# makes a recursive remove of it safe to state.
+if (Test-Path $PackageDir) {
+    Remove-Item -Recurse -Force $PackageDir
+}
+New-Item -ItemType Directory -Force -Path $PackageDir | Out-Null
+
 node (Join-Path $MonorepoRoot 'scripts/assemble-package.mjs') --publish-dir $PublishDir --package-dir $PackageDir --extension $ExtensionId --version $Version
 if ($LASTEXITCODE -ne 0) {
     throw "Package assemble failed with exit code $LASTEXITCODE — deploy aborted."
 }
 
 # --- 4. DEPLOY ---------------------------------------------------------------------------------
-$CoveRoot = if ($env:COVE_HOME) { $env:COVE_HOME } else { Join-Path $env:LOCALAPPDATA 'cove' }
+# The clean below deletes this directory's contents, so resolving it wrongly is destructive. Only two
+# answers are safe: what the caller declared, or the one default this script actually knows. There is
+# no third guess — an invented per-OS path would either delete a directory that is not Cove's or
+# deploy where Cove never looks, and the run would report success either way.
+$CoveRoot = if ($env:COVE_HOME) {
+    $env:COVE_HOME
+} elseif ($IsWindows) {
+    Join-Path $env:LOCALAPPDATA 'cove'
+} else {
+    throw "COVE_HOME is not set. On Windows this falls back to the per-user local application-data " +
+          "'cove' folder, but that location is Windows-only and this script will not guess an " +
+          "equivalent on $([System.Runtime.InteropServices.RuntimeInformation]::OSDescription). " +
+          "Set COVE_HOME to your Cove instance's data directory (the folder holding 'extensions') " +
+          "and re-run."
+}
 $ExtensionsDir = Join-Path $CoveRoot 'extensions'
 $Target = Join-Path $ExtensionsDir $ExtensionId
 
 Write-Host "`n==> Deploying to $Target" -ForegroundColor Cyan
-Write-Host "    Cove root : $CoveRoot ($(if ($env:COVE_HOME) { 'COVE_HOME' } else { '%LOCALAPPDATA%\cove fallback' }))"
+Write-Host "    Cove root : $CoveRoot ($(if ($env:COVE_HOME) { 'COVE_HOME' } else { 'Windows default' }))"
 
 if (-not (Test-Path $ExtensionsDir)) {
     throw "Cove extensions dir not found at $ExtensionsDir — is Cove installed / has it run once? " +
@@ -191,31 +228,52 @@ Get-ChildItem -Path $Target -File | Sort-Object Name | ForEach-Object {
 # --- 5. RESTART (best-effort; manual fallback) -------------------------------------------------
 Write-Host "`n==> Restart Cove backend (no hot-reload — required to pick up the new DLL)…" -ForegroundColor Cyan
 
-$conn = $null
+# A connect attempt rather than a connection-table query, so the probe works on all three OSes. Three
+# outcomes, kept distinct on purpose: connected, refused, and "the probe did not run". Collapsing the
+# third into the second is what the previous version did, and it printed "nothing is listening" when
+# the check itself had failed — the one reading that reasonably restarts nothing.
+$listening = $false
+$probeFailure = $null
 try {
-    $conn = Get-NetTCPConnection -LocalPort $CovePort -State Listen -ErrorAction Stop | Select-Object -First 1
+    $client = [System.Net.Sockets.TcpClient]::new()
+    try {
+        # The host name, not a literal address: it resolves to whichever of ::1 / 127.0.0.1 the
+        # backend actually bound, and Connect succeeds if any resolved address answers.
+        $client.Connect('localhost', $CovePort)
+        $listening = $client.Connected
+    } finally {
+        $client.Dispose()
+    }
+} catch [System.Net.Sockets.SocketException] {
+    if ($_.Exception.SocketErrorCode -eq [System.Net.Sockets.SocketError]::ConnectionRefused) {
+        $listening = $false
+    } else {
+        $probeFailure = "socket error $($_.Exception.SocketErrorCode)"
+    }
 } catch {
-    $conn = $null
+    $probeFailure = $_.Exception.Message
 }
 
-if ($null -eq $conn) {
+if ($null -ne $probeFailure) {
+    Write-Host "    Port probe did not complete ($probeFailure), so whether anything is listening on" -ForegroundColor Yellow
+    Write-Host "    port $CovePort is UNKNOWN — this is not a report that the backend is stopped." -ForegroundColor Yellow
+} elseif (-not $listening) {
     Write-Host "    No process is listening on port $CovePort." -ForegroundColor Yellow
     Write-Host "    The Cove dev backend does not appear to be running. Start your Cove dev host;" -ForegroundColor Yellow
     Write-Host "    on next startup it will discover the freshly deployed extension." -ForegroundColor Yellow
     exit 0
+} else {
+    Write-Host "    Something is listening on port $CovePort." -ForegroundColor Yellow
 }
 
-$proc = $null
-try { $proc = Get-Process -Id $conn.OwningProcess -ErrorAction Stop } catch { $proc = $null }
-
-if ($null -ne $proc) {
-    Write-Host "    Found PID $($proc.Id) ($($proc.ProcessName)) listening on $CovePort." -ForegroundColor Yellow
-}
 Write-Host "    Automated graceful restart of the Cove host is environment-specific and is intentionally" -ForegroundColor Yellow
 Write-Host "    NOT forced here (we never kill a process we cannot cleanly identify as the Cove dev backend)." -ForegroundColor Yellow
 Write-Host "    ACTION REQUIRED: restart your Cove dev host (the process on port $CovePort)," -ForegroundColor Yellow
 Write-Host "    then confirm the extension loaded:" -ForegroundColor Yellow
-Write-Host "      curl -s http://localhost:$CovePort/api/extensions | findstr $ExtensionId" -ForegroundColor Yellow
-Write-Host "      (expect enabled:true; check %LOCALAPPDATA%\cove\logs\cove-YYYYMMDD.log for '... initialized')" -ForegroundColor Yellow
+# Cmdlets rather than curl piped to a text matcher: pwsh carries these on every OS it runs on, where
+# an external binary on PATH is an assumption that does not hold off Windows. The log path is derived
+# from the resolved root above, so it names the directory this run actually deployed into.
+Write-Host "      (Invoke-WebRequest `"http://localhost:$CovePort/api/extensions`").Content | Select-String $ExtensionId" -ForegroundColor Yellow
+Write-Host "      (expect enabled:true; check $(Join-Path (Join-Path $CoveRoot 'logs') 'cove-YYYYMMDD.log') for '... initialized')" -ForegroundColor Yellow
 
 exit 0

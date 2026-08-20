@@ -40,7 +40,7 @@ public sealed class RollbackTests
         var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
         [
             new RenamerPlanItem(fileId, folderPath + "/a.mkv", folderPath + "/b.mkv",
-                RenamerStatus.Renamer, "b.mkv", folderPath),
+                RenamerStatus.Rename, "b.mkv", folderPath),
         ]);
 
         var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
@@ -84,7 +84,7 @@ public sealed class RollbackTests
         var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
         [
             new RenamerPlanItem(fileId, folderPath + "/a.mkv", folderPath + "/b.mkv",
-                RenamerStatus.Renamer, "b.mkv", folderPath),
+                RenamerStatus.Rename, "b.mkv", folderPath),
         ]);
 
         var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
@@ -94,7 +94,7 @@ public sealed class RollbackTests
         var savedCall = Assert.Single(fake.ApplyAndSaveCalls);
         Assert.Equal("b.mkv", Assert.Single(savedCall).NewBasename);
         var renamedItem = Assert.Single(result.Renamed);
-        Assert.Equal(RenamerStatus.Renamer, renamedItem.Status);
+        Assert.Equal(RenamerStatus.Rename, renamedItem.Status);
         Assert.Empty(result.Failed);
         Assert.Single(journal.Rows);
         Assert.Single(bus.Published);

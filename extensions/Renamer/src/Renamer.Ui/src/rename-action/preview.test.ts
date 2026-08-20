@@ -10,22 +10,25 @@ import { test } from "vitest";
 import assert from "node:assert/strict";
 
 import { buildConfirmSummary } from "./preview";
+import type { ConfirmLevel, PreviewItemView, PreviewSummary } from "../wire/api";
 
-const RENAME_ITEM = {
+const RENAME_ITEM: PreviewItemView = {
   fileId: 1,
   oldFullPath: "/lib/raw.mkv",
   newFullPath: "/lib/Film.mkv",
-  status: "renamer",
+  status: "rename",
   newBasename: "Film.mkv",
   targetFolderPath: "/lib",
+  reason: null,
   suffixed: false,
   sanitized: false,
   inFlightPathOverflow: false,
+  resolvedDestinationRoot: null,
   matchedRule: "InPlace",
   targetVolume: "/",
 };
 
-function summary(overrides) {
+function summary(overrides: Partial<PreviewSummary> = {}): PreviewSummary {
   return {
     totalCount: 1,
     sameVolumeCount: 1,
@@ -38,7 +41,8 @@ function summary(overrides) {
   };
 }
 
-for (const level of ["light", "standard", "heavy"]) {
+const CONFIRM_LEVELS: ConfirmLevel[] = ["light", "standard", "heavy"];
+for (const level of CONFIRM_LEVELS) {
   test(`the ${level} call-to-action promises an undo`, () => {
     const { text } = buildConfirmSummary([RENAME_ITEM], summary({ confirmLevel: level }));
     assert.match(text, /You can undo this afterwards\./);
@@ -97,9 +101,15 @@ test("a confirm built without a summary still reads as undoable", () => {
 });
 
 /** A selected item the server refused, differing from a will-rename item only in its status. */
-function skipped(status) {
+function skipped(status: PreviewItemView["status"]): PreviewItemView {
   return { ...RENAME_ITEM, status };
 }
+
+/**
+ * A status absent from the generated union, for the version-skew cases below. It cannot be expressed
+ * as the union it is deliberately outside of, so the assertion is the case rather than a shortcut.
+ */
+const UNDECLARED_STATUS = "skipSomethingNewerServersDo" as unknown as PreviewItemView["status"];
 
 test("an item an exclude rule matched is counted among the skipped, and the count says why", () => {
   // The live defect: an excluded item was in no skip filter, so the total under-reported it and the
@@ -120,7 +130,7 @@ test("a status this bundle cannot classify is still inside the number the user a
   // will not move is the failure this whole line exists to prevent.
   const { text, willRenameCount } = buildConfirmSummary([
     RENAME_ITEM,
-    skipped("skipSomethingNewerServersDo"),
+    skipped(UNDECLARED_STATUS),
     skipped("skipGated"),
   ]);
 
@@ -133,7 +143,7 @@ test("a status this bundle cannot classify is still inside the number the user a
 });
 
 test("an unclassifiable status alone still produces the line, rather than no line at all", () => {
-  const { text } = buildConfirmSummary([RENAME_ITEM, skipped("skipSomethingNewerServersDo")]);
+  const { text } = buildConfirmSummary([RENAME_ITEM, skipped(UNDECLARED_STATUS)]);
 
   assert.ok(
     text.includes("⚠ 1 skipped") && text.includes("unrecognised"),
@@ -146,7 +156,7 @@ test("an unclassifiable status alone still produces the line, rather than no lin
  * shipped copy rather than read back from the module, so a reworded reason fails here instead of
  * silently changing what a user reads before files move.
  */
-const COMPACT_REASONS = [
+const COMPACT_REASONS: [PreviewItemView["status"], string][] = [
   ["skipGated", "needs a required field"],
   ["skipCollision", "name conflict"],
   ["skipExcluded", "excluded by a rule"],

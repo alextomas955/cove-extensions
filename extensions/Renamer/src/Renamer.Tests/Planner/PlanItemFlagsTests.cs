@@ -29,10 +29,10 @@ public sealed class PlanItemFlagsTests
         port.SeedEntity(Entity("My Film", File(1, "raw.mkv")));
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.Renamer, item.Status);
+        Assert.Equal(RenamerStatus.Rename, item.Status);
         Assert.False(item.Suffixed);
     }
 
@@ -45,10 +45,10 @@ public sealed class PlanItemFlagsTests
         port.SeedOccupied(folderId: 5, basename: "My Film.mkv", fileId: 99);
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.Renamer, item.Status);
+        Assert.Equal(RenamerStatus.Rename, item.Status);
         Assert.True(item.Suffixed);
         Assert.Equal("My Film (1).mkv", item.NewBasename);
     }
@@ -61,7 +61,7 @@ public sealed class PlanItemFlagsTests
         port.SeedEntity(Entity("My: Film", File(1, "raw.mkv")));
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         Assert.True(item.Sanitized);
@@ -76,7 +76,7 @@ public sealed class PlanItemFlagsTests
         port.SeedEntity(Entity("My Film", File(1, "raw.mkv")));
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         Assert.False(item.Sanitized);

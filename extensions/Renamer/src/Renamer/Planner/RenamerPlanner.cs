@@ -1,6 +1,6 @@
-using System.Globalization;
 using Renamer.Engine;
 using Renamer.Options;
+using static global::Renamer.Execution.PathOps;
 
 namespace Renamer.Planner;
 
@@ -22,31 +22,6 @@ public sealed class RenamerPlanner
     private const int MaxSuffixAttempts = 1000;
 
     public RenamerPlanner(IRenamerDataPort port) => _port = port;
-
-    /// <summary>
-    /// An empty <see cref="RouteLookups"/> (no destination maps, no regex rules) — the legacy,
-    /// non-routing behavior every entity gets through the parameterless overload. With empty lookups
-    /// the resolver always returns <see cref="RouteCategory.SourceConfine"/>, so the anchor stays the
-    /// file's own parent folder exactly as before this phase.
-    /// </summary>
-    private static readonly RouteLookups EmptyLookups = new(
-        StudioIdToDest: new Dictionary<int, string>(),
-        TagIdToDest: new Dictionary<int, string>(),
-        PathExactToDest: new Dictionary<string, string>(),
-        PathRegexRules: Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
-
-    /// <summary>
-    /// Back-compat overload for callers that do not route (tests, single-entity callers): plans with
-    /// <see cref="EmptyLookups"/>, which yields legacy source-confine behavior for every file.
-    /// </summary>
-    public Task<RenamerPlan> PlanAsync(
-        RenamerFileKind kind, int entityId, RenamerOptions options, CancellationToken ct)
-        => PlanAsync(kind, entityId, options, EmptyLookups, ct);
-
-    /// <summary>Non-routing overload of <see cref="PlanWithEntityAsync(RenamerFileKind,int,RenamerOptions,RouteLookups,CancellationToken)"/> (legacy source-confine).</summary>
-    public Task<PlanResult> PlanWithEntityAsync(
-        RenamerFileKind kind, int entityId, RenamerOptions options, CancellationToken ct)
-        => PlanWithEntityAsync(kind, entityId, options, EmptyLookups, ct);
 
     /// <summary>
     /// Computes the per-file old→new plan for the given entity, performing zero disk/DB mutation.
@@ -84,7 +59,7 @@ public sealed class RenamerPlanner
             return new PlanResult(new RenamerPlan(entityId, kind, Array.Empty<RenamerPlanItem>()), null);
         }
 
-        return new PlanResult(await PlanLoadedEntity(entity, options, lookups, ct), entity);
+        return new PlanResult(await PlanLoadedEntityAsync(entity, options, lookups, ct), entity);
     }
 
     /// <summary>
@@ -97,7 +72,7 @@ public sealed class RenamerPlanner
     /// a batch loader uses: load many entities in one round-trip, then plan each here with results
     /// identical to the per-id load-then-plan path.
     /// </remarks>
-    public async Task<RenamerPlan> PlanLoadedEntity(
+    public async Task<RenamerPlan> PlanLoadedEntityAsync(
         RenamerEntity entity, RenamerOptions options, RouteLookups lookups, CancellationToken ct)
     {
         // Route ONCE per entity (mirroring how the metadata projector runs once per file), and do it
@@ -313,7 +288,7 @@ public sealed class RenamerPlanner
 
         return new RenamerPlanItem(
             file.FileId, oldFullPath, newFullPath,
-            isMove ? RenamerStatus.Move : RenamerStatus.Renamer,
+            isMove ? RenamerStatus.Move : RenamerStatus.Rename,
             candidate, relTargetFolder, null, suffixed, sanitized,
             resolvedRoot, route.MatchedRule, targetVolume);
     }
@@ -325,28 +300,6 @@ public sealed class RenamerPlanner
         return new RenamerPlanItem(file.FileId, oldFullPath, oldFullPath, status, file.Basename, file.ParentFolderPath, reason);
     }
 
-    /// <summary>Inserts the suffix counter before the extension (e.g. "name" + " ({n})" + ".mkv" → "name (1).mkv").</summary>
-    private static string ApplySuffix(string filename, string ext, string suffixFormat, int counter)
-    {
-        string suffix = suffixFormat.Replace("{n}", counter.ToString(CultureInfo.InvariantCulture));
-        return filename + suffix + ext;
-    }
-
-    /// <summary>Joins two forward-slash path parts, trimming a single boundary separator; skips an empty part.</summary>
-    private static string JoinPath(string a, string b)
-    {
-        if (string.IsNullOrEmpty(a))
-        {
-            return b;
-        }
-
-        if (string.IsNullOrEmpty(b))
-        {
-            return a;
-        }
-
-        return a.TrimEnd('/') + "/" + b.TrimStart('/');
-    }
 }
 
 /// <summary>The dry-run plan plus the entity it was computed from (<c>null</c> when the id was not found).</summary>

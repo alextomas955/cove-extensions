@@ -1,8 +1,9 @@
 /**
  * The "Undo last rename" settings-panel section + its destructive confirm.
  *
- * Reads GET /last-batch on mount (and whenever `refreshKey` bumps — the Review dialog's success
- * callback bumps it). Gates POST /undo behind a red destructive confirm. Feedback is honest:
+ * Reads GET /last-batch on mount, and again whenever `refreshKey` bumps — which `useRenameLibrary`
+ * does once a whole-library rename succeeds. Gates POST /undo behind a red destructive confirm.
+ * Feedback is honest:
  * success / partial ("k couldn't be moved back") / total failure.
  *
  * SECURITY: reasons are rendered as React text nodes (auto-escaped).
@@ -11,22 +12,18 @@ import { useCallback, useEffect, useState } from "react";
 import { requestJson, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 import { Undo2 } from "lucide-react";
 
-import { Dialog } from "../common/ui/Dialog";
+import { Dialog } from "../common/Dialog";
 import { Button, StatusText, Spinner } from "@cove-extensions/ui-shared";
-import { api } from "../common/lib/extension";
+import { api } from "../common/extension";
+import { errText } from "../common/format";
 import type { LastBatchSummary, UndoResult } from "../wire/api";
-import { buildUndoStatus } from "./undoSummaryLogic";
-import { buildUndoFeedback, type UndoFeedback } from "./undoFeedbackLogic";
+import { buildUndoStatus, buildUndoFeedback, type UndoFeedback } from "./undoLogic";
 
 const LAST_BATCH_PATH = api("last-batch");
 const UNDO_PATH = api("undo");
 
 const UNDO_TITLE_ID = "rename-undo-confirm-title";
 const UNDO_DESC_ID = "rename-undo-confirm-message";
-
-function errText(err: unknown): string {
-  return err instanceof ApiError ? `${err.status} ${err.body}` : String(err);
-}
 
 type Feedback = UndoFeedback | null;
 

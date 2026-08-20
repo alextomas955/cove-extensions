@@ -76,7 +76,7 @@ export interface StatusBadging {
  */
 const STATUS_BADGING: Record<RenamerStatus, StatusBadging> = {
   // The two acting statuses: no badge of their own, and the only readers of the advisory flags.
-  renamer: { badge: null, readsAdvisoryFlags: true },
+  rename: { badge: null, readsAdvisoryFlags: true },
   move: { badge: null, readsAdvisoryFlags: true },
   noOp: { badge: { label: "No change needed", variant: "gray" }, readsAdvisoryFlags: false },
   skipGated: {

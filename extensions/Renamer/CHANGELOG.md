@@ -6,11 +6,34 @@ User-facing changes, newest first.
 
 <!-- Release step for whoever cuts `renamer/v0.4.0`, before pushing the tag: set
      `src/Renamer/extension.json` `version` to 0.4.0, then PREPEND a row to
-     `extensions/com.alextomas955.renamer.json` `versions[]` with version 0.4.0 and minCoveVersion
+     `registry/com.alextomas955.renamer.json` `versions[]` with version 0.4.0 and minCoveVersion
      1.1.0. The tag push fails in validate if either is missing. Do NOT satisfy the second by
      editing the 0.3.0 row: it describes an immutable artifact that genuinely runs on a 1.0.0 host.
      The full rule is in the repo-wide Releasing guide, under "Raising minCoveVersion". -->
 
+- **Your last whole-library dry run is discarded once, on the first load of this version.** Renamer
+  labels each planned file with a status, and the label for "renamed where it sits" was misspelled
+  `renamer`; it is now `rename`, and the never-used `gallery` file kind is gone with it. A dry-run
+  summary stored by an earlier version spells the old label, so Renamer reads it as "no scan yet"
+  rather than showing you figures it cannot interpret. **Nothing else is affected** — no setting, no
+  template and no filename changes, and your undo history is untouched. Run the dry run again to get
+  the summary back. If you call Renamer's HTTP API yourself, this is a breaking change to the `status`
+  field: match `rename` instead of `renamer`.
+- **_Default destination_ and _Relocate unmatched items to the default destination_ are gone.** The
+  relocate switch shipped off and was never going to be turned on — it moved every item that matched no
+  rule, with whole-library reach and no way to undo a move across drives — and the default destination it
+  fed did nothing on its own. An item matching no rule is renamed where it already sits, exactly as
+  before. **Nothing moves differently:** to move a group of items, give them a per-studio, per-tag or
+  source-path rule, which is what already did the work. Your stored settings still load; the two retired
+  values are ignored.
+- **The _Duration format_ setting now takes effect.** `$duration` used to render the raw number of
+  seconds whatever you picked, so a template using it produced `My Film [5025]` where the setting's own
+  example column promised `My Film [01-23-45]`. It now renders in the format you chose, so the dry run,
+  the preview samples and the finished filename all agree. **If a template of yours uses `$duration`,
+  your names will change** — check a dry run before your next rename. One example was also wrong and is
+  corrected: `mm-ss` renders the minutes within the hour, so 1h 23m 45s is `23-45`, not `83-45`. A format
+  the .NET duration formatter rejects no longer stops the whole run; that file's `$duration` falls back
+  to the seconds, and every other file renames normally.
 - **A file your exclude rules skip now says so in the dry run, and is counted with the other skips.**
   Such a file used to appear flagged in the dry-run table with nothing naming the reason, so the row read
   as a problem you could not act on; and it was left out of the skipped total the rename confirmation

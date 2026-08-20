@@ -131,7 +131,7 @@ public sealed class RenamerExecutor
         CancellationToken ct)
     {
         // (1) Carry planner skips/no-ops straight into the skipped bucket (act only on Renamer/Move).
-        if (item.Status is not (RenamerStatus.Renamer or RenamerStatus.Move))
+        if (item.Status is not (RenamerStatus.Rename or RenamerStatus.Move))
         {
             skipped.Add(new ItemResult(item.FileId, item.OldFullPath, item.NewFullPath, item.Status, item.Reason));
             return;
@@ -153,43 +153,36 @@ public sealed class RenamerExecutor
 
         bool isMove = item.Status == RenamerStatus.Move;
 
-        // (1b) CANONICAL ALLOWLIST GUARD — PRE-MUTATION. This MUST precede GetOrCreateFolderIdAsync
-        //      (which persists a Folder DB row) and the collision loop (which calls File.Exists),
-        //      so a destination the allowlist will reject never materializes a DB folder row pointing
-        //      outside the allowlist nor touches disk. We canonically resolve the destination FOLDER's
-        //      real on-disk target (following any junction/symlink and expanding 8.3) and reject when
-        //      it escapes every configured root. Only runs on a destination move with a configured
-        //      allowlist — with empty AllowedRoots the source-confine path is byte-identical and
-        //      there is no allowlist to canonically re-check. A reject is a SkipBlocked skip
-        //      carrying the guard reason (never a throw); the source then stays put as the fallback.
-        //      The FINAL full destination path is re-checked again at (4b) once the candidate basename
-        //      settles, so the leaf is guarded too — belt-and-suspenders for the security boundary.
-        if (isMove && options.AllowedRoots.Count > 0)
-        {
-            var folderGuard = CanonicalPathGuard.Check(item.TargetFolderPath, options.AllowedRoots);
-            if (!folderGuard.Accepted)
-            {
-                skipped.Add(new ItemResult(item.FileId, item.OldFullPath, item.NewFullPath,
-                    RenamerStatus.SkipBlocked, folderGuard.Reason));
-                return;
-            }
-        }
-
         // (2) Resolve the destination folder id. For an in-place renamer it is the source folder.
         //     For a Move, prefer the folder id the caller PRE-RESOLVED once in its sequential
         //     phase (keyed by TargetFolderPath) so no parallel worker does a check-then-act create on a
         //     shared Folder row. Fall back to resolving here only when no pre-resolved map is supplied
         //     (single-threaded callers / tests) — never on the parallel batch path, which always passes
-        //     the map.
+        //     the map. That fallback goes through the GUARDED seam, never the raw create: it is the
+        //     point at which this call path can persist a destination Folder row, so it is where the
+        //     canonical allowlist check has to run.
         var srcFile = filesById.GetValueOrDefault(item.FileId);
         int targetFolderId;
         if (isMove)
         {
-            targetFolderId =
-                preResolvedFolderIds is not null
-                && preResolvedFolderIds.TryGetValue(item.TargetFolderPath, out var preId)
-                    ? preId
-                    : await _port.GetOrCreateFolderIdAsync(item.TargetFolderPath, ct);
+            if (preResolvedFolderIds is not null
+                && preResolvedFolderIds.TryGetValue(item.TargetFolderPath, out var preId))
+            {
+                targetFolderId = preId;
+            }
+            else
+            {
+                var resolved = await CoveRenamerDataPort.GuardedGetOrCreateFolderIdAsync(
+                    _port, item.TargetFolderPath, options.AllowedRoots, ct);
+                if (!resolved.Accepted)
+                {
+                    skipped.Add(new ItemResult(item.FileId, item.OldFullPath, item.NewFullPath,
+                        RenamerStatus.SkipBlocked, resolved.Reason));
+                    return;
+                }
+
+                targetFolderId = resolved.FolderId;
+            }
         }
         else
         {
@@ -226,12 +219,19 @@ public sealed class RenamerExecutor
         // (4) Sidecar moves: DB-tracked captions + configured same-stem neighbors that ride with the primary.
         var (plannedSidecars, captionRenames) = PlanSidecarMoves(srcFile, item.OldFullPath, targetFolder, candidate, options);
 
-        // (4b) CANONICAL ALLOWLIST RE-CHECK on the FINAL FULL DESTINATION PATH — the latest point
-        //      before disk is touched, now that the candidate basename has settled. Unlike the
-        //      pre-mutation folder check at (1b), this resolves the REAL on-disk target of the WHOLE
-        //      path Move() actually writes to (folder + candidate), so a reparse point / 8.3 alias /
-        //      separator introduced at the LEAF level — including a check/use swap of the leaf into a
-        //      junction-to-elsewhere between (1b) and here — is re-resolved and re-contained.
+        // (4b) CANONICAL ALLOWLIST RE-CHECK on the FINAL FULL DESTINATION PATH — the DISK boundary, and
+        //      the latest point before disk is touched, now that the candidate basename has settled.
+        //      It is one of the two surviving canonical seams and the only one on this side of the
+        //      folder resolve. The other is the ROW-CREATION guard at
+        //      CoveRenamerDataPort.GuardedGetOrCreateFolderIdAsync, which every forward caller that can
+        //      persist a destination Folder row goes through — including (2) above.
+        //
+        //      The two do NOT overlap, which is why both exist. The row-creation guard reads the
+        //      destination FOLDER as it stands before the row is written; this one resolves the REAL
+        //      on-disk target of the WHOLE path Move() actually writes to (folder + candidate). So a
+        //      reparse point / 8.3 alias / separator introduced at the LEAF level — including a
+        //      check/use swap of the leaf into a junction-to-elsewhere AFTER the folder was resolved —
+        //      is re-resolved and re-contained here and nowhere else.
         //      ResolveRealTargetFolder stacks the non-existent leaf, so passing the file path is safe.
         //      A reject is a SkipBlocked skip carrying the guard reason (never a throw); the source
         //      then stays put as the durable fallback.
@@ -247,7 +247,7 @@ public sealed class RenamerExecutor
 
         // (5) DISK MOVE FIRST — move on disk before touching the DB, so a failed move leaves the
         //     database untouched (the DB stays authoritative and never points at a missing file).
-        //     VOLUME BRANCH (runs STRICTLY AFTER the allowlist guards at (1b)/(4b)): a
+        //     VOLUME BRANCH (runs STRICTLY AFTER the final-path allowlist guard at (4b)): a
         //     same-volume renamer takes the atomic synchronous DiskMover.Move fast path; a
         //     cross-volume move takes the verified copy→verify→promote→delete-source-last
         //     CrossVolumeMover.MoveAsync. Both return the identical MoveResult shape, so the skip
@@ -588,7 +588,14 @@ public sealed class RenamerExecutor
 
     // ── event mapping ────────────────────────────────────────────────────────
 
-    private static EventType EventTypeFor(RenamerFileKind kind) => kind switch
+    /// <summary>The host event a renamed file of this kind publishes.</summary>
+    /// <remarks>
+    /// Internal rather than private because <see cref="UndoReplayer"/> publishes through this same
+    /// method. Undo must announce exactly what the forward rename announced, or an undone rename is
+    /// indistinguishable to the host from one that never happened — so the forward owner holds the one
+    /// map and undo calls it, which makes that equivalence structural instead of a promise in prose.
+    /// </remarks>
+    internal static EventType EventTypeFor(RenamerFileKind kind) => kind switch
     {
         RenamerFileKind.Video => EventType.VideoUpdated,
         RenamerFileKind.Image => EventType.ImageUpdated,
@@ -596,7 +603,8 @@ public sealed class RenamerExecutor
         _ => EventType.VideoUpdated,
     };
 
-    private static string EntityTypeName(RenamerFileKind kind) => kind switch
+    /// <summary>The entity-type name that event carries. Internal for the same reason as <see cref="EventTypeFor"/>.</summary>
+    internal static string EntityTypeName(RenamerFileKind kind) => kind switch
     {
         RenamerFileKind.Video => "Video",
         RenamerFileKind.Image => "Image",
@@ -605,22 +613,6 @@ public sealed class RenamerExecutor
     };
 
     // ── path/name helpers (pure string math) ─────────────────────────────────
-
-    private static (string filename, string ext) SplitBasename(string basename)
-    {
-        int dot = basename.LastIndexOf('.');
-        return dot > 0 ? (basename[..dot], basename[dot..]) : (basename, "");
-    }
-
-    private static string ApplySuffix(string filename, string ext, string suffixFormat, int counter)
-        => filename + suffixFormat.Replace("{n}", counter.ToString(System.Globalization.CultureInfo.InvariantCulture)) + ext;
-
-    /// <summary>The stem (name without its final extension): "video.mkv" → "video"; "video.en.vtt" → "video.en".</summary>
-    private static string StemOf(string basename)
-    {
-        int dot = basename.LastIndexOf('.');
-        return dot > 0 ? basename[..dot] : basename;
-    }
 
     /// <summary>
     /// Retargets a caption basename from the old stem to the new stem. A caption "video.en.vtt"
@@ -631,26 +623,6 @@ public sealed class RenamerExecutor
         => captionFilename.StartsWith(oldStem, StringComparison.Ordinal)
             ? newStem + captionFilename[oldStem.Length..]
             : captionFilename;
-
-    private static string JoinPath(string a, string b)
-    {
-        if (string.IsNullOrEmpty(a))
-        {
-            return b;
-        }
-
-        if (string.IsNullOrEmpty(b))
-        {
-            return a;
-        }
-
-        return a.TrimEnd('/', '\\') + "/" + b.TrimStart('/', '\\');
-    }
-
-
-
-
-
 
     /// <summary>True iff <paramref name="candidate"/> is the source file's own path — the same
     /// canonical location differing at most by case on a case-insensitive volume. Mirrors the

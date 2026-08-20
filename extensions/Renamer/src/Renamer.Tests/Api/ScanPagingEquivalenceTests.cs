@@ -10,7 +10,7 @@ namespace Renamer.Tests.Api;
 /// The proof the whole store-aggregates-serve-rows-on-demand design rests on: a paged walk must return
 /// exactly what a single full-library plan would have returned, so that serving a slice on demand is not
 /// a different answer from the one the old whole-library pass produced. It holds because
-/// <see cref="RenamerPlanner.PlanLoadedEntity"/> carries no cross-entity state; the one place a same-run
+/// <see cref="RenamerPlanner.PlanLoadedEntityAsync"/> carries no cross-entity state; the one place a same-run
 /// coupling could have hidden is the collision suffix loop, and that resolves against the database
 /// rather than against this run's own planned targets, so the answer does not depend on which entities
 /// happen to share a page. Two entities in ONE run that would collide with each other are consequently
@@ -163,7 +163,7 @@ public sealed class ScanPagingEquivalenceTests
             {
                 if (byId.TryGetValue(id, out var entity))
                 {
-                    var plan = await planner.PlanLoadedEntity(entity, Options, Lookups, default);
+                    var plan = await planner.PlanLoadedEntityAsync(entity, Options, Lookups, default);
                     // The overflow flag is sourced exactly as the pager sources it — the same predicate,
                     // the same budget out of the same options, and no mount table on either side — so a
                     // difference between the two sequences can only be the traversal, which is what this
@@ -225,7 +225,7 @@ public sealed class ScanPagingEquivalenceTests
         var rows = await FullPlanAsync(port);
 
         var statuses = rows.Select(r => r.Status).ToHashSet();
-        Assert.Contains(RenamerStatus.Renamer, statuses);
+        Assert.Contains(RenamerStatus.Rename, statuses);
         Assert.Contains(RenamerStatus.Move, statuses);
         Assert.Contains(RenamerStatus.NoOp, statuses);
         Assert.Contains(RenamerStatus.SkipExcluded, statuses);

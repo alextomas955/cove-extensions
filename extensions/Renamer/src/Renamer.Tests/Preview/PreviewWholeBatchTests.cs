@@ -14,7 +14,7 @@ namespace Renamer.Tests.Preview;
 /// Whole-batch wire shape: <c>/preview</c> now answers an object
 /// <c>{ items, summary }</c> (was a bare array). This pins the load-bearing serialization contract:
 /// each per-item object stays camelCase with <c>status</c> the STRING (so the UI's
-/// <c>status === "renamer"</c> match survives) AND carries its routing fields; the additive summary
+/// <c>status === "rename"</c> match survives) AND carries its routing fields; the additive summary
 /// serializes camelCase with <c>confirmLevel</c> the STRING and <c>volumePairs</c> as
 /// <c>{ from, to, count, bytes }</c>. The handler is exercised as a plain method (no HTTP host) over a
 /// real SQLite <c>CoveContext</c>, and zero mutation is re-asserted.

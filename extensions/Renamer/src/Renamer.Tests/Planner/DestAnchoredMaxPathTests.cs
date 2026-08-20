@@ -41,13 +41,6 @@ public sealed class DestAnchoredMaxPathTests
             new Dictionary<string, string>(StringComparer.Ordinal),
             Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
 
-    private static RouteLookups EmptyLookup() =>
-        new(
-            new Dictionary<int, string>(),
-            new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.Ordinal),
-            Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
-
     // A title chosen so its rendered absolute path FITS under the short source but OVERFLOWS the deep root.
     private static string Title => new('N', 60);
 
@@ -152,7 +145,7 @@ public sealed class DestAnchoredMaxPathTests
         // Re-anchored on the deep routed root → the absolute path overflows → skip-with-reason at preview.
         Assert.Equal(RenamerStatus.SkipCollision, item.Status);
         Assert.Contains("FullPathMax", item.Reason);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -172,11 +165,11 @@ public sealed class DestAnchoredMaxPathTests
         };
 
         // Empty lookups → SourceConfine → anchored on the short source folder.
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, EmptyLookup(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.Null(item.ResolvedDestinationRoot);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 }

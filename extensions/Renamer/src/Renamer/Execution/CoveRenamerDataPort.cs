@@ -65,7 +65,8 @@ public class CoveRenamerDataPort : IRenamerDataPort
                     return a is null ? null : MapAudioEntity(a);
                 }
             default:
-                // Gallery is not yet a renamable kind.
+                // Defensive: every declared kind is renamable, so this arm is reached only by an
+                // out-of-range cast, which a C# enum permits. Absent rather than a throw.
                 return null;
         }
     }
@@ -120,7 +121,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
                 }
                 break;
             default:
-                // Gallery is not yet a renamable kind.
+                // Defensive: see LoadEntityAsync — only an out-of-range cast lands here.
                 return [];
         }
 
@@ -211,9 +212,9 @@ public class CoveRenamerDataPort : IRenamerDataPort
         [.. tags.Where(t => t is not null && !string.IsNullOrEmpty(t.Name)).Select(t => (t!.Id, t.Name))];
 
     /// <summary>
-    /// An <c>AsNoTracking</c> id-only bulk query over the kind's table — Gallery (and any other
-    /// non-renamable kind) returns empty rather than throwing, mirroring <see cref="LoadEntityAsync"/>'s
-    /// own treatment of Gallery as "not yet a renamable kind."
+    /// An <c>AsNoTracking</c> id-only bulk query over the kind's table. An out-of-range cast — the only
+    /// value <see cref="RenamerFileKind"/> holds that no arm names — returns empty rather than throwing,
+    /// mirroring <see cref="LoadEntityAsync"/>'s own fallthrough.
     /// </summary>
     public async Task<IReadOnlyList<int>> LoadAllEntityIdsAsync(RenamerFileKind kind, CancellationToken ct = default)
     {
@@ -268,6 +269,51 @@ public class CoveRenamerDataPort : IRenamerDataPort
         => (await GetOrCreateFolderAsync(folderPath, ct)).Id;
 
     /// <summary>
+    /// The GUARDED row-creation seam: canonically checks <paramref name="folderPathFwd"/> against
+    /// <paramref name="allowedRoots"/> and resolves-or-creates its <see cref="Folder"/> row ONLY on
+    /// acceptance. Every FORWARD caller that creates a destination folder row — the batch's
+    /// destination pre-create and the executor's own fallback resolve — goes through here rather than
+    /// through the raw <see cref="GetOrCreateFolderIdAsync"/> above.
+    /// </summary>
+    /// <remarks>
+    /// CANONICAL ALLOWLIST GUARD — PRE-MUTATION. This MUST precede
+    /// <see cref="GetOrCreateFolderIdAsync"/> (which persists a Folder DB row), so a destination the
+    /// allowlist will reject never materializes a DB folder row pointing outside the allowlist. We
+    /// canonically resolve the destination FOLDER's real on-disk target (following any junction/symlink
+    /// and expanding 8.3) and reject when it escapes every configured root.
+    /// <para>
+    /// Only guards when an allowlist is configured — with empty <paramref name="allowedRoots"/> the
+    /// source-confine path is byte-identical and there is no allowlist to canonically re-check, so the
+    /// create runs exactly as it did before. A reject is a classification carrying the guard's own
+    /// reason string, NEVER a throw: both call sites turn it into a SkipBlocked item, and the reason
+    /// they report is this one, so a skipped item is attributable rather than generic.
+    /// </para>
+    /// <para>
+    /// The raw create remains reachable — this seam reduces the bypass risk rather than removing it —
+    /// which is why it sits directly beside the member it guards: a future caller reading the raw
+    /// create meets this one first.
+    /// </para>
+    /// </remarks>
+    /// <returns>
+    /// <c>Accepted</c> with the resolved <c>FolderId</c>, or a rejection carrying the guard's
+    /// <c>Reason</c> and no row created.
+    /// </returns>
+    internal static async Task<(bool Accepted, int FolderId, string? Reason)> GuardedGetOrCreateFolderIdAsync(
+        IRenamerDataPort port, string folderPathFwd, IReadOnlyList<string> allowedRoots, CancellationToken ct = default)
+    {
+        if (allowedRoots.Count > 0)
+        {
+            var guard = CanonicalPathGuard.Check(folderPathFwd, allowedRoots);
+            if (!guard.Accepted)
+            {
+                return (false, 0, guard.Reason);
+            }
+        }
+
+        return (true, await port.GetOrCreateFolderIdAsync(folderPathFwd, ct), null);
+    }
+
+    /// <summary>
     /// Read-only counterpart to <see cref="GetOrCreateFolderIdAsync"/>: returns the existing folder's
     /// id or <c>null</c> when absent. Same path normalization and lookup as
     /// <see cref="GetOrCreateFolderAsync"/>, but it never <c>Add</c>s or
@@ -288,14 +334,6 @@ public class CoveRenamerDataPort : IRenamerDataPort
         var native = fullPath.Replace('/', Path.DirectorySeparatorChar);
         return Task.FromResult(System.IO.File.Exists(native));
     }
-
-    /// <summary>
-    /// Persists a planned set of mutations via <see cref="ApplyAndSaveAsync"/>. Provided so the
-    /// planner-facing seam is complete; the executor uses the richer <see cref="ApplyAndSaveAsync"/>
-    /// directly so it can read back the recomputed paths.
-    /// </summary>
-    public async Task<int> SaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
-        => (await ApplyAndSaveAsync(mutations, ct)).Count;
 
     // ── Executor-facing primitives ───────────────────────────────────────────
 

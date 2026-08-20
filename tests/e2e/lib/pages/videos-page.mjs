@@ -1,14 +1,13 @@
-// Shared Page Object for Cove's /videos grid, consumed by every extension's e2e specs. The core
-// (goto / cardByFilename / selectCard) is extension-agnostic; "Rename selected" is Renamer's own
-// affordance and lives here so a second extension can add its own beside it.
+// Shared Page Object for Cove's /videos grid, consumed by every extension's e2e specs. Everything
+// here is extension-agnostic — navigating the grid, finding a card, selecting cards. An extension's
+// own bulk action belongs in a subclass beside its other page objects; Renamer's "Rename selected"
+// is one, in extensions/Renamer/e2e/lib/pages/renamer-videos-page.mjs.
 import { expect } from "@cove-extensions/e2e";
 
 export class VideosPage {
   constructor(page, baseUrl) {
     this.page = page;
     this.baseUrl = baseUrl;
-    // Renamer: the bulk "Rename selected" action button.
-    this.renameSelectedButton = page.getByRole("button", { name: "Rename selected" });
   }
 
   async goto() {
@@ -39,46 +38,6 @@ export class VideosPage {
     const selectButton = card.getByRole("button", { name: /^(Select|Deselect) item$/ });
     await expect(selectButton).toHaveCount(1);
     await selectButton.click();
-  }
-
-  /**
-   * Clicks "Rename selected" and accepts the confirm() preview dialog it raises. The rename then
-   * runs as a job surfaced in the Job Drawer, so the host suppresses the queued-success alert
-   * (suppressSuccessAlert) — there is no second dialog. Returns the accepted dialog message(s) so a
-   * test can assert on the preview text; the rename outcome itself is verified by polling the API/disk.
-   */
-  async renameSelected() {
-    const messages = [];
-    let resolveConfirm;
-    const confirmSeen = new Promise((resolve) => {
-      resolveConfirm = resolve;
-    });
-    const handler = async (dialog) => {
-      messages.push(dialog.message());
-      await dialog.accept();
-      resolveConfirm();
-    };
-    this.page.on("dialog", handler);
-    try {
-      await this.renameSelectedButton.click();
-      // Only the before-disk confirm() gate fires; wait for it to be accepted (a fixed sleep was
-      // flaky under CI load), then let the caller poll the API/disk for the job's result.
-      await Promise.race([
-        confirmSeen,
-        this.page.waitForTimeout(10_000).then(() => {
-          throw new Error("renameSelected: confirm dialog never fired within 10s");
-        }),
-      ]);
-    } finally {
-      this.page.off("dialog", handler);
-    }
-    return messages;
-  }
-
-  /** Reads every currently-visible video card's displayed filename, in DOM order. */
-  async visibleFilenames() {
-    const texts = await this.page.locator("main p").allTextContents();
-    return texts.filter((t) => /\.(mp4|jpg|png|flac)$/i.test(t.trim()));
   }
 
   /**

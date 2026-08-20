@@ -138,11 +138,15 @@ public static class EmptySourceFolderCleaner
         }
 
         string? root = Path.GetPathRoot(nativeDir);
+
+        // Case rule and its caveats: see PathOps.PathsEqual.
         return !string.IsNullOrEmpty(root)
             && string.Equals(
                 NormalizeSlash(nativeDir).TrimEnd('/'),
                 NormalizeSlash(root).TrimEnd('/'),
-                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+                OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+                    ? StringComparison.OrdinalIgnoreCase
+                    : StringComparison.Ordinal);
     }
 
     // Canonicalizes each allowed root the SAME way the resolved target is canonicalized (Check resolves
@@ -150,7 +154,10 @@ public static class EmptySourceFolderCleaner
     // "is this dir a configured root" compare is real-target vs real-target.
     private static bool ResolvesToAnyRoot(string resolvedTargetFwd, IReadOnlyList<string> allowedRoots)
     {
-        var cmp = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        // Case rule and its caveats: see PathOps.PathsEqual.
+        var cmp = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
         string target = NormalizeSlash(resolvedTargetFwd).TrimEnd('/');
         foreach (var root in allowedRoots)
         {

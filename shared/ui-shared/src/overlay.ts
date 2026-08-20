@@ -117,10 +117,10 @@ export function useOverlayKeys(
       const active = document.activeElement as HTMLElement | null;
       if (e.shiftKey && active === firstEl) {
         e.preventDefault();
-        lastEl.focus();
+        lastEl?.focus();
       } else if (!e.shiftKey && active === lastEl) {
         e.preventDefault();
-        firstEl.focus();
+        firstEl?.focus();
       }
     }
 

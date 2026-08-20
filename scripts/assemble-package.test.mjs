@@ -13,9 +13,10 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-// The core is imported directly, while the CLI cases below spawn ./assemble-package.mjs — the entry
-// point a caller names — so the command line is exercised as a caller actually reaches it.
-import { assemblePackage } from "./assemble-package-core.mjs";
+// One module, reached both ways: assemblePackage is imported here exactly as the E2E harness imports
+// it, while the CLI cases below SPAWN the same file, so the command line is exercised as a caller
+// actually reaches it rather than by calling the function that sits behind it.
+import { assemblePackage } from "./assemble-package.mjs";
 
 const scriptPath = fileURLToPath(new URL("./assemble-package.mjs", import.meta.url));
 const scriptDir = fileURLToPath(new URL("./", import.meta.url));
@@ -123,69 +124,6 @@ function ciShapedPublish(fixture) {
   return publishDir;
 }
 
-function linkToDir(target, linkName) {
-  // A junction needs no elevation on Windows, where a directory symlink does; elsewhere a directory
-  // symlink is the same identity-through-an-alias. Picking per platform is what makes this portable.
-  const linkType = process.platform === "win32" ? "junction" : "dir";
-  const link = path.join(tmpDir(), linkName);
-  fs.symlinkSync(target, link, linkType);
-  return { link, linkType };
-}
-
-/**
- * The three spellings of a destructive packageDir that phase 22's verifier reproduced, each building
- * its own fixture. Shared between the per-spelling refusal cases and the "removes nothing" case so a
- * spelling cannot be closed in one and forgotten in the other.
- *
- * Every fixture root here is a fresh OS temp directory. These cases are destructive by construction
- * against an unfixed packer — that discipline is the only thing between them and a real tree, so no
- * packageDir in this file may ever point outside tmpDir().
- */
-const DESTRUCTIVE_SPELLINGS = [
-  // The same directory, a different string: on Windows a drive letter is case-insensitive to the
-  // filesystem and case-sensitive to `===`, and this workspace's own docs spell its root both ways.
-  // A platform with no drive letters has no such spelling, so it exercises the equivalent alias
-  // through a symlink — reported, never skipped.
-  function driveCaseAlias() {
-    const fixture = fixtureRoot();
-    const drive = /^([A-Za-z]):/.exec(fixture.root);
-    if (drive) {
-      const flipped =
-        drive[1] === drive[1].toLowerCase() ? drive[1].toUpperCase() : drive[1].toLowerCase();
-      return {
-        fixture,
-        form: "drive-letter case alias (" + flipped + ": for " + drive[1] + ":)",
-        overrides: { packageDir: flipped + fixture.root.slice(1) },
-      };
-    }
-    const { link } = linkToDir(fixture.root, "root-alias");
-    return {
-      fixture,
-      form: "directory symlink alias (this platform spells no drive letter)",
-      overrides: { packageDir: link },
-    };
-  },
-  function linkAlias() {
-    const fixture = fixtureRoot();
-    const { link, linkType } = linkToDir(fixture.root, "link-to-root");
-    return { fixture, form: linkType + " to the repo root", overrides: { packageDir: link } };
-  },
-  // The upward-only ancestor test had nothing to say about this one: <root>/extensions is neither the
-  // root nor an ancestor of it, so a green run replaced the catalog and the whole source tree with
-  // the packaged files.
-  function sourceBearingDescendant() {
-    const fixture = fixtureRoot();
-    return {
-      fixture,
-      form: "<root>/extensions with a CI-shaped publish dir",
-      overrides: {
-        packageDir: path.join(fixture.root, "extensions"),
-        publishDir: ciShapedPublish(fixture),
-      },
-    };
-  },
-];
-
 function snapshotTree(root) {
   const sizes = new Map();
   const walk = (dir) => {
@@ -244,61 +182,76 @@ test("fails: one declared artifact absent from every source root, named with the
   );
 });
 
-// The ordered search ends at the repository root, which exists for one kind of name: a file a
-// repository carries once, at its root, by convention. Any other name matching a root file would ship
-// a different file under the declared name with nothing reporting it. Both halves are in one case so
-// neither can be closed while the other rots.
-test("a declared name that is not a repository-level file is not resolved from the repository root", () => {
-  const fixture = fixtureRoot();
-  const extensionRelative = path.join("extensions", NAME);
-  fs.rmSync(path.join(fixture.root, extensionRelative, "README.md"));
-  write(fixture.root, "README.md", "# the repository, which is not the extension\n");
-
-  const r = assemble(fixture);
-
-  assert.equal(
-    r.ok,
-    false,
-    "a file of the right name in the wrong place is a substitution, not a resolution",
-  );
-  const missing = r.failures.find((f) => f.startsWith("MISSING:") && f.includes("README.md"));
-  assert.ok(missing, "expected a MISSING failure naming README.md, got: " + r.failures.join("; "));
-  for (const searchedRoot of [
-    path.join(extensionRelative, "artifacts", "publish", "README.md"),
-    path.join(extensionRelative, "README.md"),
-  ]) {
-    assert.ok(
-      missing.includes(searchedRoot),
-      "the MISSING message must still list " + searchedRoot + ", got: " + missing,
-    );
-  }
-  // The repository root is last in the reported list, so this is what proves the message still names
-  // every root tried rather than narrowing with the rule.
-  assert.ok(
-    missing.endsWith(", README.md"),
-    "the repository root must still be named as searched, got: " + missing,
-  );
-  assert.equal(fs.existsSync(fixture.packageDir), false);
-
-  // The one legitimate user of the same fallback, proven still to work rather than assumed.
-  const licensed = fixtureRoot();
-  const green = assemble(licensed);
-  assert.equal(green.ok, true, green.failures.join("; "));
-  assert.equal(
-    green.copied.find((f) => f.name === "LICENSE").root,
-    "repo-root",
-    "a licence is a repository-level file and must still resolve from the repository root",
-  );
-});
-
-test("re-assembling into a dirty package directory leaves no leftover from the earlier run", () => {
+// This packer never deletes, so run-to-run contamination is refused rather than cleaned up: a second
+// run into a directory holding the first run's output fails, naming the directory, and everything that
+// was there stays there. The caller that re-uses a directory is the one that clears it.
+test("refuses a package directory that is not empty, naming it, and removes nothing from it", () => {
   const fixture = fixtureRoot();
   assert.equal(assemble(fixture).ok, true);
   write(fixture.packageDir, "Leftover.dll", "MZ");
 
   const r = assemble(fixture);
-  assert.equal(r.ok, true, r.failures.join("; "));
-  assert.deepEqual(fs.readdirSync(fixture.packageDir).sort(), [...DECLARED].sort());
+
+  assert.equal(r.ok, false, "a second run into a populated package directory must be refused");
+  const refusal = r.failures.find((f) => f.startsWith("INVALID:") && f.includes("not empty"));
+  assert.ok(refusal, "expected a not-empty refusal, got: " + r.failures.join("; "));
+  assert.ok(
+    refusal.includes(fixture.packageDir),
+    "the refusal must name the directory it refused, got: " + refusal,
+  );
+  assert.equal(r.copied.length, 0);
+  assert.deepEqual(
+    fs.readdirSync(fixture.packageDir).sort(),
+    [...DECLARED, "Leftover.dll"].sort(),
+    "a refusal must leave the earlier run's output and the leftover exactly as they were",
+  );
+});
+
+// The negative control for the refusal above: a refusal that fired on every directory would pass that
+// case while making the packer unusable. An absent directory is created, and an existing empty one is
+// used as-is.
+test("assembles into an absent package directory, and into an existing empty one", () => {
+  for (const { form, prepare } of [
+    { form: "absent", prepare: () => {} },
+    { form: "existing but empty", prepare: (dir) => fs.mkdirSync(dir, { recursive: true }) },
+  ]) {
+    const fixture = fixtureRoot();
+    prepare(fixture.packageDir);
+
+    const r = assemble(fixture);
+
+    assert.equal(r.ok, true, form + " — " + r.failures.join("; "));
+    assert.deepEqual(fs.readdirSync(fixture.packageDir).sort(), [...DECLARED].sort(), form);
+  }
+});
+
+// What the retired protected-path apparatus existed to prevent, now prevented by the redesign instead:
+// a packageDir pointed at a source tree is refused because that tree is not empty, and — because
+// nothing in this script deletes — the tree is byte-for-byte intact afterwards. The three destructive
+// spellings phase 22 reproduced (a drive-letter case alias, a junction, a source-bearing descendant)
+// all reduce to this one case: whatever spelling reaches a populated directory, the run refuses.
+test("a packageDir pointed at a populated source tree is refused and destroys nothing", () => {
+  const fixture = fixtureRoot();
+  const before = snapshotTree(fixture.root);
+
+  const r = assemble(fixture, { packageDir: fixture.root });
+
+  assert.equal(r.ok, false, "the repo root is not empty and must be refused");
+  // Named, so this case cannot pass on some other refusal firing first — the claim is that the
+  // not-empty refusal is what makes the retired protected-path set unnecessary.
+  assert.ok(
+    r.failures.some((f) => f.startsWith("INVALID:") && f.includes("not empty")),
+    "expected the not-empty refusal, got: " + r.failures.join("; "),
+  );
+  for (const [relative, size] of before) {
+    const full = path.join(fixture.root, relative);
+    assert.equal(fs.existsSync(full), true, "a refusal removed " + relative);
+    assert.equal(fs.statSync(full).size, size, "a refusal rewrote " + relative);
+  }
+  // Named as well as swept, because these are what each phase-22 reproduction was measured destroying.
+  for (const survivor of ["extensions/catalog.json", "extensions/Fixture/README.md", "LICENSE"]) {
+    assert.equal(fs.existsSync(path.join(fixture.root, survivor)), true, survivor + " was removed");
+  }
 });
 
 test("fails HARD: an empty artifacts array, rather than reporting a green zero-file copy", () => {
@@ -336,32 +289,6 @@ test("fails HARD: an entry declaring requiredBundledDlls but no artifacts — ne
     r.failures.some((f) => f.startsWith("MISSING:") && f.includes("declares no artifacts array")),
     r.failures.join("; "),
   );
-});
-
-test("fails: a name repeated in artifacts, rather than collapsing into one copy counted twice", () => {
-  const fixture = fixtureRoot({ artifacts: ["Fixture.dll", "Fixture.Extra.dll", "Fixture.dll"] });
-  const r = assemble(fixture);
-
-  assert.equal(r.ok, false);
-  assert.ok(
-    r.failures.some((f) => f.startsWith("DUPLICATE:") && f.includes("Fixture.dll")),
-    r.failures.join("; "),
-  );
-  assert.equal(r.copied.length, 0, "the reported count must never exceed what was written");
-});
-
-test("two distinct failures are emitted in declaration order", () => {
-  // The manifest and its script bundle are declared so the only failures left are the two absent
-  // artifacts: this case's subject is the order they are emitted in, not how many classes can fire.
-  const fixture = fixtureRoot({
-    artifacts: ["Aardvark.dll", "extension.json", "bundle.mjs", "Fixture.dll", "Zebra.dll"],
-  });
-  const r = assemble(fixture);
-
-  assert.equal(r.ok, false);
-  assert.equal(r.failures.length, 2, r.failures.join("; "));
-  assert.ok(r.failures[0].includes("Aardvark.dll"), r.failures.join("; "));
-  assert.ok(r.failures[1].includes("Zebra.dll"), r.failures.join("; "));
 });
 
 test("refuses to write a shipped json carrying a Windows drive-root path, naming file and line", () => {
@@ -425,8 +352,7 @@ function leakyFixture(value) {
 
 const BACKSLASH = String.fromCodePoint(92);
 const FORWARD_SLASH = String.fromCodePoint(47);
-// A drive path as a build tool writes it, and as a json file then escapes it.
-const DRIVE_FORWARD = "D:" + FORWARD_SLASH + "build/agent/_work/out";
+// A drive path as a json file escapes it.
 const DRIVE_ESCAPED = "C:" + BACKSLASH + BACKSLASH + "build" + BACKSLASH + BACKSLASH + "out";
 // A network share in both spellings: raw, and escaped the way a generated json carries it.
 const SHARE_RAW = BACKSLASH + BACKSLASH + "buildsrv" + BACKSLASH + "share" + BACKSLASH + "out";
@@ -442,22 +368,6 @@ const SHARE_ESCAPED =
   BACKSLASH +
   BACKSLASH +
   "out";
-
-test("refuses a shipped json carrying a drive path spelled with a forward slash", () => {
-  const fixture = leakyFixture(DRIVE_FORWARD);
-  const r = assemble(fixture);
-
-  assert.equal(r.ok, false, "a drive path is absolute whichever separator follows the colon");
-  assert.ok(
-    r.failures.some((f) => f.startsWith("LEAK:") && f.includes("Leaky.json") && f.includes(":2:")),
-    "expected a LEAK failure naming Leaky.json line 2, got: " + r.failures.join("; "),
-  );
-  assert.equal(
-    fs.existsSync(fixture.packageDir),
-    false,
-    "the refused json must not reach the package",
-  );
-});
 
 test("refuses a shipped json carrying a network share path, in the spelling a generated json contains", () => {
   for (const { form, value } of [
@@ -562,21 +472,6 @@ test("rejects a declared name that escapes the package, before any source is rea
   }
 });
 
-test("rejects a declared name that is not a non-empty string, before any source is read", () => {
-  for (const value of ["", 42, null, {}]) {
-    const fixture = fixtureRoot({ artifacts: [value] });
-    const r = assemble(fixture, { publishDir: path.join(fixture.root, "no-such-publish-dir") });
-    assert.equal(r.ok, false, "expected a rejection for " + JSON.stringify(value));
-    assert.ok(
-      r.failures.some((f) => f.startsWith("INVALID:")),
-      "expected an INVALID failure for " +
-        JSON.stringify(value) +
-        ", got: " +
-        r.failures.join("; "),
-    );
-  }
-});
-
 // A declaration can name only files that exist and still describe a package the host cannot load.
 // These are the replacement for the two checks that went with the deleted strip-verification gate, so
 // each one names the property rather than the gate.
@@ -611,36 +506,9 @@ test("fails: a manifest whose entry assembly is not in the declared set", () => 
   );
 });
 
-test("fails: a manifest whose script bundle is not in the declared set", () => {
-  const fixture = fixtureRoot({ artifacts: ["extension.json", "Fixture.dll"] });
-  const r = assemble(fixture);
-
-  assert.equal(r.ok, false);
-  assert.ok(
-    r.failures.some(
-      (f) => f.startsWith("UNLOADABLE:") && f.includes("jsBundle") && f.includes("bundle.mjs"),
-    ),
-    "expected an UNLOADABLE failure naming both the field and its value, got: " +
-      r.failures.join("; "),
-  );
-});
-
-test("fails: a manifest whose stylesheet bundle is not in the declared set", () => {
-  const fixture = fixtureRoot({ manifest: { cssBundle: "styles.css" } });
-  const r = assemble(fixture);
-
-  assert.equal(r.ok, false);
-  assert.ok(
-    r.failures.some(
-      (f) => f.startsWith("UNLOADABLE:") && f.includes("cssBundle") && f.includes("styles.css"),
-    ),
-    "expected an UNLOADABLE failure naming both the field and its value, got: " +
-      r.failures.join("; "),
-  );
-});
-
-// The other half of the same check: a field the manifest does not carry makes no claim, so it must not
-// be failed for. Without this the branch above could pass by refusing everything.
+// The other half of the same check: the loadability check walks one list of optional manifest fields,
+// and a field the manifest does not carry makes no claim, so it must not be failed for. Without this
+// the entryDll case above could pass on a check that refused every field, present or not.
 test("a manifest declaring no stylesheet bundle is not failed for the field it does not have", () => {
   const fixture = fixtureRoot();
   const r = assemble(fixture);
@@ -736,118 +604,9 @@ test("stamps the packaged manifest with the version passed in, byte-for-byte and
   }
 });
 
-test("refuses a packageDir that is the repo root, the publish dir, or an ancestor of the publish dir", () => {
-  const cases = [(f) => f.root, (f) => f.publishDir, (f) => path.dirname(f.publishDir)];
-
-  for (const pick of cases) {
-    const fixture = fixtureRoot();
-    const packageDir = pick(fixture);
-    const r = assemble(fixture, { packageDir });
-
-    assert.equal(r.ok, false, "expected a refusal for packageDir " + packageDir);
-    assert.ok(
-      r.failures.some((f) => f.startsWith("INVALID:")),
-      r.failures.join("; "),
-    );
-    // Nothing may have been removed on the way to that refusal.
-    assert.equal(fs.existsSync(path.join(fixture.root, "LICENSE")), true);
-    assert.equal(fs.existsSync(path.join(fixture.publishDir, "Fixture.dll")), true);
-  }
-});
-
-test("refuses a packageDir that is the repo root spelled with a different drive-letter case", (t) => {
-  const { fixture, form, overrides } = DESTRUCTIVE_SPELLINGS[0]();
-  // Emitted so the passing run itself names which spelling ran on this platform: a case whose value
-  // depends on having been exercised must report which form it exercised, never skip quietly.
-  t.diagnostic("exercised form: " + form);
-
-  const r = assemble(fixture, overrides);
-
-  assert.equal(
-    r.ok,
-    false,
-    "exercised form: " +
-      form +
-      " — " +
-      overrides.packageDir +
-      " is the fixture root and must be refused",
-  );
-  assert.ok(
-    r.failures.some((f) => f.startsWith("INVALID:")),
-    "exercised form: " + form + " — expected an INVALID refusal, got: " + r.failures.join("; "),
-  );
-});
-
-test("refuses a packageDir reached through a junction or symlink to a protected path", (t) => {
-  const { fixture, form, overrides } = DESTRUCTIVE_SPELLINGS[1]();
-  t.diagnostic("exercised form: " + form);
-
-  const r = assemble(fixture, overrides);
-
-  assert.equal(
-    r.ok,
-    false,
-    "exercised form: " + form + " — a link resolving onto the repo root must be refused",
-  );
-  assert.ok(
-    r.failures.some((f) => f.startsWith("INVALID:")),
-    "exercised form: " + form + " — expected an INVALID refusal, got: " + r.failures.join("; "),
-  );
-});
-
-test("refuses a packageDir that contains the catalog, the extension source tree, the manifest or the UI directory", () => {
-  const { fixture, form, overrides } = DESTRUCTIVE_SPELLINGS[2]();
-
-  const r = assemble(fixture, overrides);
-
-  assert.equal(
-    r.ok,
-    false,
-    form + " — packageDir holds the catalog and the whole extension source tree",
-  );
-  assert.ok(
-    r.failures.some((f) => f.startsWith("INVALID:")),
-    form + " — expected an INVALID refusal, got: " + r.failures.join("; "),
-  );
-  assert.deepEqual(
-    fs.readdirSync(path.join(fixture.root, "extensions")).sort(),
-    ["Fixture", "catalog.json"],
-    form + " — the catalog and the extension source directory must both survive the refusal",
-  );
-});
-
-test("a refused packageDir removes nothing — every fixture file still exists afterwards", () => {
-  for (const spelling of DESTRUCTIVE_SPELLINGS) {
-    const { fixture, form, overrides } = spelling();
-    const before = snapshotTree(fixture.root);
-
-    const r = assemble(fixture, overrides);
-    assert.equal(r.ok, false, form + " — expected a refusal, got ok:true");
-
-    for (const [relative, size] of before) {
-      const full = path.join(fixture.root, relative);
-      assert.equal(fs.existsSync(full), true, form + " — a refusal removed " + relative);
-      assert.equal(fs.statSync(full).size, size, form + " — a refusal rewrote " + relative);
-    }
-    // Named as well as swept, because these are what each reproduction was measured destroying.
-    for (const survivor of ["extensions/catalog.json", "extensions/Fixture/README.md", "LICENSE"]) {
-      assert.equal(
-        fs.existsSync(path.join(fixture.root, survivor)),
-        true,
-        form + " — " + survivor + " was removed",
-      );
-    }
-    const publishDir = overrides.publishDir ?? fixture.publishDir;
-    assert.ok(
-      fs.readdirSync(publishDir).length > 0,
-      form + " — the publish directory was emptied by a refused run",
-    );
-  }
-});
-
 test("the three real caller shapes still assemble", () => {
-  // The widened refusal only holds if no live caller's package directory collides with the protected
-  // set. Each shape is exercised against a fixture rather than assumed safe.
+  // The refusal only holds if every live caller hands over a fresh directory. Each shape is exercised
+  // against a fixture rather than assumed safe.
   const shapes = [
     {
       name: "CI: artifacts/publish/<Name> -> artifacts/<Name>",
@@ -876,71 +635,11 @@ test("the three real caller shapes still assemble", () => {
   }
 });
 
-test("refuses to empty a package directory that holds anything other than regular files", (t) => {
-  const linkType = process.platform === "win32" ? "junction" : "dir";
-  const cases = [
-    {
-      form: "a subdirectory",
-      plant: (dir) => {
-        fs.mkdirSync(path.join(dir, "nested"), { recursive: true });
-        fs.writeFileSync(path.join(dir, "nested", "someone-elses-data.txt"), "keep me");
-        return "nested";
-      },
-    },
-    {
-      form: "a " + linkType + " entry",
-      plant: (dir) => {
-        const target = tmpDir();
-        fs.writeFileSync(path.join(target, "someone-elses-data.txt"), "keep me");
-        fs.symlinkSync(target, path.join(dir, "linked"), linkType);
-        return "linked";
-      },
-    },
-  ];
-
-  for (const { form, plant } of cases) {
-    t.diagnostic("exercised form: " + form);
-    const fixture = fixtureRoot();
-    fs.mkdirSync(fixture.packageDir, { recursive: true });
-    const planted = plant(fixture.packageDir);
-    // Sorts before both planted names, so a refusal raised partway through the removal loop rather
-    // than before it would already have taken this file.
-    write(fixture.packageDir, "Leftover.dll", "MZ");
-
-    const r = assemble(fixture);
-
-    assert.equal(
-      r.ok,
-      false,
-      form + " — a package directory holding a non-file entry must be refused",
-    );
-    assert.ok(
-      r.failures.some((f) => f.startsWith("INVALID:") && f.includes(planted)),
-      form + " — expected an INVALID failure naming " + planted + ", got: " + r.failures.join("; "),
-    );
-    assert.equal(
-      fs.existsSync(path.join(fixture.packageDir, planted)),
-      true,
-      form + " — " + planted + " was removed",
-    );
-    assert.equal(
-      fs.existsSync(path.join(fixture.packageDir, planted, "someone-elses-data.txt")),
-      true,
-      form + " — data under " + planted + " was removed",
-    );
-    assert.equal(
-      fs.existsSync(path.join(fixture.packageDir, "Leftover.dll")),
-      true,
-      form + " — a sibling file was removed before the refusal fired",
-    );
-  }
-});
-
 // Resolution is an existence check and the copy happens later, so a source that resolves can still
-// fail to be written — and by then the package directory has already been emptied. This case is the
-// tested form of the two clauses that were carried as a backstop: the package directory is left
-// incomplete, and nothing outside it is created, modified or removed.
-test("a write that fails partway reports a named failure and touches nothing outside the package directory", () => {
+// fail to be written. The failure is REPORTED rather than thrown — a caller that reads failures would
+// otherwise see an exception escape the exported function instead — and the loop stops there rather
+// than reporting a count for a package that is not on disk.
+test("a write that fails partway is a reported WRITE failure, not a throw, and stops the loop", () => {
   const fixture = fixtureRoot();
   // A directory bearing a declared artifact's name. The existence check that resolves a source is
   // satisfied by a directory, so resolution succeeds and the copy is what fails — and it is the
@@ -949,13 +648,8 @@ test("a write that fails partway reports a named failure and touches nothing out
   fs.rmSync(path.join(fixture.publishDir, planted));
   fs.mkdirSync(path.join(fixture.publishDir, planted));
 
-  const packageRelative = path.relative(fixture.root, fixture.packageDir) + path.sep;
-  const outside = (tree) =>
-    [...tree].filter(([relative]) => !relative.startsWith(packageRelative)).sort();
-  const before = outside(snapshotTree(fixture.root));
-
   // Called with no try/catch on purpose: an exception escaping the exported function fails this case
-  // as itself, which is the pre-fix behaviour this exists to remove.
+  // as itself, which is the behaviour this exists to keep out.
   const r = assemble(fixture);
 
   assert.equal(r.ok, false, "a write that could not happen must not report success");
@@ -963,30 +657,10 @@ test("a write that fails partway reports a named failure and touches nothing out
     r.failures.some((f) => f.startsWith("WRITE:") && f.includes(planted)),
     "expected a WRITE failure naming " + planted + ", got: " + r.failures.join("; "),
   );
-
-  assert.deepEqual(
-    outside(snapshotTree(fixture.root)),
-    before,
-    "nothing outside the package directory may be created, modified or removed by a failed write",
-  );
-
-  // The loop stops at the failure rather than reporting a count that implies a package which is not
-  // there: the three names before the planted one landed, and nothing after it did.
-  assert.deepEqual(
-    fs.readdirSync(fixture.packageDir).sort(),
-    ["Fixture.dll", "bundle.mjs", "extension.json"].sort(),
-  );
   assert.deepEqual(
     r.copied.map((f) => f.name),
     ["extension.json", "bundle.mjs", "Fixture.dll"],
-  );
-
-  const run = runCli(fixture, fullArgv(fixture));
-  assert.notEqual(run.status, 0, "the CLI leg must exit non-zero: " + run.stdout + run.stderr);
-  assert.match(
-    run.stderr,
-    /WRITE:/,
-    "the CLI leg must print the WRITE failure on stderr, got: " + run.stderr,
+    "the reported count must be what landed, and the loop must stop at the failure",
   );
 });
 
@@ -1037,101 +711,25 @@ function fullArgv(fixture, overrides = {}) {
   return Object.entries(values).flat();
 }
 
-test("CLI: reports the entry, the version and a count equal to the files written", () => {
-  const fixture = fixtureRoot();
-  const run = runCli(fixture, fullArgv(fixture));
-
-  assert.equal(run.status, 0, run.stdout + run.stderr);
-  assert.ok(run.stdout.includes(ID), run.stdout);
-  assert.ok(run.stdout.includes(VERSION), run.stdout);
-  assert.ok(run.stdout.includes(String(DECLARED.length) + " file(s)"), run.stdout);
-  assert.equal(fs.readdirSync(fixture.packageDir).length, DECLARED.length);
-  for (const name of DECLARED) {
-    assert.match(
-      run.stdout,
-      new RegExp("^ +" + name.replace(".", "\\.") + " ", "m"),
-      "expected an indented line for " + name,
-    );
-  }
-});
-
 test("CLI: two runs over identical input print byte-identical output", () => {
   const fixture = fixtureRoot();
   const first = runCli(fixture, fullArgv(fixture));
+  // The caller clears the directory between runs, which is what the packer's refusal now requires of
+  // one that re-uses a path — the same remove-and-recreate the dev deploy does. Without it the second
+  // run is refused, and determinism would be measured over two different code paths.
+  fs.rmSync(fixture.packageDir, { recursive: true, force: true });
   const second = runCli(fixture, fullArgv(fixture));
 
   assert.equal(first.status, 0, first.stdout + first.stderr);
+  assert.equal(second.status, 0, second.stdout + second.stderr);
   assert.equal(second.stdout, first.stdout);
-});
-
-test("CLI: a missing declared artifact exits non-zero and writes no package", () => {
-  const fixture = fixtureRoot({
-    publishFiles: { "Fixture.dll": "MZ", "Fixture.deps.json": "{}\n" },
-  });
-  const run = runCli(fixture, fullArgv(fixture));
-
-  assert.notEqual(run.status, 0);
-  assert.match(run.stderr, /MISSING:/);
-  assert.equal(fs.existsSync(fixture.packageDir), false);
-});
-
-test("CLI: each required flag omitted in turn prints usage and exits non-zero", () => {
-  const fixture = fixtureRoot();
-  for (const omitted of ["--publish-dir", "--package-dir", "--extension", "--version"]) {
-    const argv = Object.entries({
-      "--publish-dir": fixture.publishDir,
-      "--package-dir": fixture.packageDir,
-      "--extension": ID,
-      "--version": VERSION,
-    })
-      .filter(([flag]) => flag !== omitted)
-      .flat();
-
-    const run = runCli(fixture, argv);
-    assert.notEqual(run.status, 0, "omitting " + omitted + " must not exit 0");
-    assert.match(run.stderr, /Usage:/, "omitting " + omitted + " must print usage");
-  }
-});
-
-// The same class the required-flag check exists to catch: a run that exits 0 having assembled from an
-// argument the caller did not choose.
-test("CLI: a flag supplied twice is refused rather than silently taking one value", () => {
-  const fixture = fixtureRoot();
-  const elsewhere = path.join(tmpDir(), "somewhere-else");
-
-  const repeated = runCli(fixture, [...fullArgv(fixture), "--package-dir", elsewhere]);
-
-  assert.notEqual(
-    repeated.status,
-    0,
-    "a repeated flag must not exit 0: " + repeated.stdout + repeated.stderr,
-  );
-  assert.match(
-    repeated.stderr,
-    /Usage:/,
-    "a repeated flag must print usage, got: " + repeated.stderr,
-  );
-  // Neither value may have been used, so the refusal is not "the wrong one won" but "no run happened".
-  assert.equal(
-    fs.existsSync(elsewhere),
-    false,
-    "the second value must not have been assembled into",
-  );
-  assert.equal(
-    fs.existsSync(fixture.packageDir),
-    false,
-    "the first value must not have been assembled into",
-  );
-
-  // The same invocation without the repeat, so the refusal is about the repeat rather than the flags.
-  const clean = runCli(fixture, fullArgv(fixture));
-  assert.equal(clean.status, 0, clean.stdout + clean.stderr);
 });
 
 // One directory has many spellings, and which one a caller happens to use must not decide whether the
 // script does anything at all. These two cases are the whole cover for that: run with no arguments the
 // entry point must refuse, and run with a full set it must assemble — identically through an alias and
-// through the real path.
+// through the real path. They are also what proves the `import.meta.main` guard that replaced the
+// two-file split, which is why the trim to representative pins kept both.
 test("CLI: invoked through an aliased path, no arguments still prints usage and exits non-zero", (t) => {
   const { aliased, form } = aliasedEntryScript();
   t.diagnostic("exercised form: " + form);

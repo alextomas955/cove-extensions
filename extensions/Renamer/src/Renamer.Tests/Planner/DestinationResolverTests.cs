@@ -6,10 +6,9 @@ namespace Renamer.Tests.Planner;
 
 /// <summary>
 /// Pure unit tests for <see cref="DestinationResolver.Resolve"/> — no DB, no disk. Proves the
-/// locked routing precedence (Excludes → Unorganized → Tag → Studio → Source-path → Default →
+/// locked routing precedence (Excludes → Unorganized → Tag → Studio → Source-path →
 /// SourceConfine), within-category list order, direct-outranks-ancestor, route-on-stable-id for
-/// both studios and tags, source-path exact-beats-regex, the unorganized slot, and the
-/// default-relocate code guard (off → SourceConfine, on → Default).
+/// both studios and tags, source-path exact-beats-regex, and the unorganized slot.
 /// </summary>
 [Trait("Tier", "L0")]
 public sealed class DestinationResolverPrecedenceTests
@@ -401,45 +400,6 @@ public sealed class DestinationResolverUnorganizedRouteTests
             new Dictionary<string, string>(StringComparer.Ordinal), []));
 
         Assert.Equal(RouteCategory.SourceConfine, r.Category);
-    }
-}
-
-/// <summary>
-/// The milestone hard gate: default-relocate is OFF by default. The SAME
-/// unmatched entity + options-but-for-the-flag proves the guard is the flag, not a missing feature.
-/// </summary>
-[Trait("Tier", "L0")]
-public sealed class DestinationResolverDefaultRelocateDisabledTests
-{
-    private static RenamerEntity Unmatched()
-        => new(1, RenamerFileKind.Video, "T", null, null, null, true,
-               [], [], [new RenamerFile(1, RenamerFileKind.Video, "a.mkv", 1, "media/in")]);
-
-    private static RouteLookups Empty()
-        => new(new Dictionary<int, string>(),
-               new Dictionary<int, string>(),
-               new Dictionary<string, string>(StringComparer.Ordinal), []);
-
-    [Fact]
-    public void FlagOff_UnmatchedItem_StaysSourceConfine_NoRelocate()
-    {
-        var o = new RenamerOptions { DefaultDestination = "D:dest", EnableDefaultRelocate = false };
-
-        var r = DestinationResolver.Resolve(Unmatched(), o, Empty());
-
-        Assert.Equal(RouteCategory.SourceConfine, r.Category);
-        Assert.Null(r.DestinationRootTemplate);
-    }
-
-    [Fact]
-    public void FlagOn_SameUnmatchedItem_RoutesToDefault()
-    {
-        var o = new RenamerOptions { DefaultDestination = "D:dest", EnableDefaultRelocate = true };
-
-        var r = DestinationResolver.Resolve(Unmatched(), o, Empty());
-
-        Assert.Equal(RouteCategory.Default, r.Category);
-        Assert.Equal("D:dest", r.DestinationRootTemplate);
     }
 }
 

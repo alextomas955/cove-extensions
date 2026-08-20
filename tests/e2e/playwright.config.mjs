@@ -51,6 +51,9 @@ export default defineConfig({
   // count as local. Override with `--workers=N` if a given machine/runner can sustain more (or
   // fewer) than its default.
   fullyParallel: true,
+  // A committed `.only` silently shrinks the suite to the focused test and still exits 0, which reads
+  // as a green run over work nothing checked. Keyed on CI so a local focused run stays possible.
+  forbidOnly: !!process.env.CI,
   workers: process.env.CI ? 2 : 4,
   retries: process.env.CI ? 2 : 0,
   timeout: 180_000,

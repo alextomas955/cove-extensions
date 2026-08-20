@@ -730,8 +730,7 @@
         "enum": [
           "video",
           "image",
-          "audio",
-          "gallery"
+          "audio"
         ]
       },
       "RenamerOptions": {
@@ -882,14 +881,8 @@
               "$ref": "#/components/schemas/ExcludeRule"
             }
           },
-          "defaultDestination": {
-            "type": "string"
-          },
           "unorganizedDestination": {
             "type": "string"
-          },
-          "enableDefaultRelocate": {
-            "type": "boolean"
           },
           "freeSpaceHeadroomBytes": {
             "type": "integer",
@@ -926,7 +919,7 @@
       },
       "RenamerStatus": {
         "enum": [
-          "renamer",
+          "rename",
           "move",
           "noOp",
           "skipCollision",

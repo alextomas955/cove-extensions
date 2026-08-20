@@ -267,14 +267,17 @@ public sealed class CoveDataPortRoutingFieldsTests
         }
     }
 
+    // Every DECLARED kind is renamable and has its own query arm, so the switch's fallthrough is now
+    // reachable only by an out-of-range cast — which C# permits for any enum, including one deserialized
+    // or cast from an untrusted int. It must read as "no such rows", never throw.
     [Fact]
-    public async Task LoadEntities_Gallery_ReturnsEmpty()
+    public async Task LoadEntities_OutOfRangeKind_ReturnsEmpty_NeverThrows()
     {
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
             var port = new CoveRenamerDataPort(db);
-            var result = await port.LoadEntitiesAsync(RenamerFileKind.Gallery, [1, 2, 3]);
+            var result = await port.LoadEntitiesAsync((RenamerFileKind)999, [1, 2, 3]);
             Assert.Empty(result);
         }
         finally

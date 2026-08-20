@@ -1,9 +1,9 @@
 /**
- * DestinationRoutingSection — the "Destination routing" card: default/unorganized destinations, the
+ * DestinationRoutingSection — the "Destination routing" card: the unorganized destination, the
  * per-studio and per-tag destination maps, advanced allowed-roots + source-path rules, the sidecar-
  * extension list, and the empty-folder cleanup toggle.
  *
- * Card ORDER is presentation only (default & unorganized first, then per-studio, per-tag, advanced,
+ * Card ORDER is presentation only (unorganized first, then per-studio, per-tag, advanced,
  * then sidecar and empty-folder); it does NOT set the engine's rule-evaluation precedence, which is
  * decided server-side, so reordering these cards is safe. Presentational — every field flows up
  * through `set`.
@@ -11,7 +11,12 @@
 import { useState } from "react";
 import { EntityReferenceValue } from "@cove/runtime/components";
 
-import { type RenamerOptions, type PathDestinationRule } from "./options";
+import {
+  toStringKeyed,
+  fromStringKeyed,
+  type RenamerOptions,
+  type PathDestinationRule,
+} from "./options";
 import {
   Field,
   TextInput,
@@ -29,7 +34,6 @@ import {
 } from "@cove-extensions/ui-shared";
 import { EntitySelectField } from "./EntitySelectField";
 import { StudioDestinationsEditor } from "./StudioMap";
-import { toStringKeyed, fromStringKeyed } from "./studioMapLogic";
 
 /** Strip one leading dot if present, then lowercase — the add-time transform for a sidecar extension. */
 function normalizeSidecarExtension(raw: string): string {
@@ -51,45 +55,25 @@ export function DestinationRoutingSection({ options, set }: DestinationRoutingSe
   return (
     <SectionCard
       title="Destination routing"
-      description="Where renamed files land. Per-studio and per-tag rules override the default."
+      description="Where renamed files land. An item matching no rule stays in its own folder."
     >
-      <GroupCard title="Default destination" description="The root most of your library lands in.">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Field
-            label="Default destination"
-            helper="Where an item matching no rule goes. Blank = no default route. Honored only with the relocate gate below ON."
-          >
-            <TextInput
-              value={options.DefaultDestination}
-              onChange={(v) => {
-                set("DefaultDestination", v);
-              }}
-              placeholder="Absolute root, or blank"
-            />
-            <PathShapeHint value={options.DefaultDestination} />
-          </Field>
-          <Field
-            label="Unorganized destination"
-            helper="Where un-curated items route instead of being skipped. Blank = no unorganized route."
-          >
-            <TextInput
-              value={options.UnorganizedDestination}
-              onChange={(v) => {
-                set("UnorganizedDestination", v);
-              }}
-              placeholder="Absolute root, or blank"
-            />
-            <PathShapeHint value={options.UnorganizedDestination} />
-          </Field>
-        </div>
-        <Toggle
-          label="Relocate unmatched items to the default destination"
-          checked={options.EnableDefaultRelocate}
-          onChange={(v) => {
-            set("EnableDefaultRelocate", v);
-          }}
-          helper="Moves every item matching no rule to the default destination — whole-library reach. Dry-run first. Off by default."
-        />
+      <GroupCard
+        title="Unorganized destination"
+        description="Where items you have not curated yet land."
+      >
+        <Field
+          label="Unorganized destination"
+          helper="Where un-curated items route instead of being skipped. Blank = no unorganized route."
+        >
+          <TextInput
+            value={options.UnorganizedDestination}
+            onChange={(v) => {
+              set("UnorganizedDestination", v);
+            }}
+            placeholder="Absolute root, or blank"
+          />
+          <PathShapeHint value={options.UnorganizedDestination} />
+        </Field>
       </GroupCard>
 
       <ToggleHeaderCard

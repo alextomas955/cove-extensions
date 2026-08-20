@@ -12,11 +12,6 @@ namespace Renamer.Execution;
 /// read them exactly once before deleting them; there is deliberately no second reader for the legacy
 /// format, because a one-shot path is the worst place to have two things that can disagree.
 /// <para>
-/// It also still holds the file-count ceiling members, which belong to no part of the above. They are
-/// scheduling, not oversight: two preview producers still call the predicate, and plan 26-07 retires
-/// those callers and these members in the one change that regenerates the wire contract.
-/// </para>
-/// <para>
 /// ON-DISK FORMAT, as the parsers below read it. The blob is newline-delimited, in two line shapes:
 /// a <em>batch header</em> begins with <c>#</c> and carries <c>runId</c>, a server-written UTC-ticks
 /// timestamp, the run's <see cref="RenamerFileKind"/> and a lifecycle marker; a <em>data row</em> is

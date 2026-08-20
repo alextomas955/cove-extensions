@@ -1,215 +1,39 @@
-// Behavior coverage for the Cove assembly extractor. Everything here runs offline: the registry is
-// never contacted, and the layer-selection case drives an injected probe rather than a download, so
-// a red here means the selection or the parsing is wrong and never that a CDN was slow.
+// Behavior coverage for the Cove assembly extractor. Everything here runs offline: neither the
+// registry nor Docker is contacted, and the extraction's refusals are driven over temporary
+// directories, so a red here means the logic is wrong and never that a CDN or a daemon was slow.
 //
-// The exception is deliberate — one case reads this repo's REAL Directory.Build.props, so renaming
-// either image property fails the validate job's `node --test scripts/*.test.mjs` glob instead of
-// leaving the fetcher to read an empty value and fail somewhere further away.
+// Four cases deliberately read REAL repository files rather than fixtures, because each pins a seam
+// where a copy would agree with itself forever while the other side drifted: Directory.Build.props
+// (the image properties), extensions/catalog.json (each extension's declared floor),
+// .github/workflows/build.yml (the three anchored greps that parse this script's stdout) and
+// tests/e2e/lib/harness.mjs (the helpers it imports from this module).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import {
-  assertBlobMatchesDigest,
+  assertExtractionNotEmpty,
   collectRegistryTags,
   compareSemver,
-  flattenCoveMemberPath,
-  orderLayerCandidates,
+  main,
   parseMsBuildProperties,
   parseSemver,
-  parseTarHeader,
   readCoveImageReference,
   readExtensionFloors,
-  readTarMembers,
+  readGuardedAssemblies,
   readVersionStrings,
   renderExtractionProps,
+  renderVersionLines,
   resolveCoveLegs,
-  selectLayerByContent,
+  selectRepoDigest,
   splitImageReference,
   splitReleaseChannels,
+  STDOUT_CONTRACT,
 } from "./fetch-cove-assemblies.mjs";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
-
-// ---- fixtures ---------------------------------------------------------------------------------
-
-function tarHeader({ name = "", size = 0, type = "0", prefix = "" } = {}) {
-  const block = Buffer.alloc(512);
-  block.write(name, 0, 100, "utf8");
-  block.write(size.toString(8).padStart(11, "0") + "\0", 124, 12, "utf8");
-  block.write(type, 156, 1, "utf8");
-  block.write("ustar\0", 257, 6, "utf8");
-  block.write(prefix, 345, 155, "utf8");
-  return block;
-}
-
-function tarMember({ name, body = Buffer.alloc(0), type = "0", prefix = "" }) {
-  const content = Buffer.isBuffer(body) ? body : Buffer.from(body, "utf8");
-  const padded = Buffer.alloc(Math.ceil(content.length / 512) * 512);
-  content.copy(padded);
-  return Buffer.concat([tarHeader({ name, size: content.length, type, prefix }), padded]);
-}
-
-// ---- layer ordering and content-based selection ------------------------------------------------
-
-test("layer candidates are probed largest first, and digest-less descriptors are dropped", () => {
-  const ordered = orderLayerCandidates([
-    { digest: "sha256:small", size: 100 },
-    { size: 999_999 },
-    { digest: "sha256:big", size: 84_600_000 },
-    { digest: "sha256:middle", size: 5_000 },
-  ]);
-
-  assert.deepEqual(
-    ordered.map((layer) => layer.digest),
-    ["sha256:big", "sha256:middle", "sha256:small"],
-  );
-});
-
-test("the layer is chosen by content, not by size, when two candidates are the same size", async () => {
-  // The real amd64 manifest lists the /opt/cove layer TWICE under different digests, which is why
-  // neither index nor size can identify it. Both candidates here are byte-identical in size and only
-  // the second carries the marker.
-  const candidates = [
-    { digest: "sha256:decoy", size: 84_600_000 },
-    { digest: "sha256:real", size: 84_600_000 },
-  ];
-  const probed = [];
-
-  const chosen = await selectLayerByContent(candidates, async (candidate) => {
-    probed.push(candidate.digest);
-    return candidate.digest === "sha256:real";
-  });
-
-  assert.equal(chosen.digest, "sha256:real");
-  assert.deepEqual(probed, ["sha256:decoy", "sha256:real"], "candidates are probed in order");
-});
-
-test("the first carrying layer wins and no later candidate is downloaded", async () => {
-  const probed = [];
-  const chosen = await selectLayerByContent(
-    [
-      { digest: "sha256:a", size: 3 },
-      { digest: "sha256:b", size: 2 },
-    ],
-    async (candidate) => {
-      probed.push(candidate.digest);
-      return true;
-    },
-  );
-
-  assert.equal(chosen.digest, "sha256:a");
-  assert.deepEqual(probed, ["sha256:a"]);
-});
-
-test("no carrying layer is an error naming every layer searched, never an empty extraction", async () => {
-  await assert.rejects(
-    () =>
-      selectLayerByContent(
-        [
-          { digest: "sha256:a", size: 1 },
-          { digest: "sha256:b", size: 2 },
-        ],
-        async () => false,
-      ),
-    (error) => {
-      assert.match(error.message, /opt\/cove\/Cove\.Data\.dll/);
-      assert.match(error.message, /Searched 2 layer\(s\)/);
-      assert.match(error.message, /sha256:a/);
-      assert.match(error.message, /sha256:b/);
-      return true;
-    },
-  );
-});
-
-// ---- tar member parsing ------------------------------------------------------------------------
-
-test("a tar header yields its name, octal size and type flag", () => {
-  const header = parseTarHeader(
-    tarHeader({ name: "opt/cove/Cove.Data.dll", size: 2_629_632, type: "0" }),
-  );
-
-  assert.equal(header.name, "opt/cove/Cove.Data.dll");
-  assert.equal(header.size, 2_629_632);
-  assert.equal(header.type, "0");
-});
-
-test("a ustar prefix is joined onto the name", () => {
-  const header = parseTarHeader(tarHeader({ name: "Cove.Data.dll", prefix: "opt/cove" }));
-  assert.equal(header.name, "opt/cove/Cove.Data.dll");
-});
-
-test("the all-zero end-of-archive block reads as null", () => {
-  assert.equal(parseTarHeader(Buffer.alloc(512)), null);
-});
-
-test("a base-256 size is refused rather than silently truncated", () => {
-  const block = tarHeader({ name: "big", size: 0 });
-  block[124] = 0x80;
-  assert.throws(() => parseTarHeader(block), /base-256/);
-});
-
-test("the 512-byte padding advances the cursor, so an odd-sized member does not desynchronise the next", () => {
-  // 10 bytes of content occupy a whole 512-byte block. Reading the declared size but advancing by the
-  // padded size is the only way the second member's header lands where it is looked for.
-  const archive = Buffer.concat([
-    tarMember({ name: "opt/cove/first.txt", body: "0123456789" }),
-    tarMember({ name: "opt/cove/second.txt", body: "second" }),
-    Buffer.alloc(1024),
-  ]);
-
-  const members = [...readTarMembers(archive)];
-
-  assert.deepEqual(
-    members.map((member) => member.name),
-    ["opt/cove/first.txt", "opt/cove/second.txt"],
-  );
-  assert.equal(members[0].body.toString("utf8"), "0123456789");
-  assert.equal(members[1].body.toString("utf8"), "second");
-});
-
-test("directory entries are skipped and a GNU long name applies to the member that follows", () => {
-  const longName =
-    "opt/cove/runtimes/linux-x64/native/a-name-long-enough-to-need-its-own-record.so";
-  const archive = Buffer.concat([
-    tarMember({ name: "opt/cove/", type: "5" }),
-    tarMember({ name: "././@LongLink", type: "L", body: `${longName}\0` }),
-    tarMember({ name: "opt/cove/truncated", body: "payload" }),
-    Buffer.alloc(1024),
-  ]);
-
-  const members = [...readTarMembers(archive)];
-
-  assert.deepEqual(
-    members.map((member) => member.name),
-    [longName],
-  );
-});
-
-// ---- member path flattening --------------------------------------------------------------------
-
-test("opt/cove members are flattened, keeping any deeper structure", () => {
-  assert.equal(flattenCoveMemberPath("opt/cove/Cove.Data.dll"), "Cove.Data.dll");
-  assert.equal(flattenCoveMemberPath("./opt/cove/Cove.Data.dll"), "Cove.Data.dll");
-  assert.equal(flattenCoveMemberPath("/opt/cove/Cove.Data.dll"), "Cove.Data.dll");
-  assert.equal(
-    flattenCoveMemberPath("opt/cove/runtimes/linux-x64/native/libe_sqlite3.so"),
-    "runtimes/linux-x64/native/libe_sqlite3.so",
-  );
-});
-
-test("anything outside opt/cove, and anything that would escape the output directory, is refused", () => {
-  assert.equal(flattenCoveMemberPath("opt/other/thing.dll"), null);
-  assert.equal(flattenCoveMemberPath("usr/lib/thing.dll"), null);
-  assert.equal(flattenCoveMemberPath("opt/cove/"), null);
-  assert.equal(flattenCoveMemberPath("opt/cove/../../etc/passwd"), null);
-  assert.equal(
-    flattenCoveMemberPath("opt/cove/.wh.Cove.Data.dll"),
-    null,
-    "overlay whiteout marker",
-  );
-});
 
 // ---- image reference -----------------------------------------------------------------------------
 
@@ -273,7 +97,7 @@ test("the version-resource reader finds a key's UTF-16 value across its alignmen
     ]);
 
   const buffer = Buffer.concat([
-    Buffer.from("MZ  ", "utf8"),
+    Buffer.from("MZ\0\0", "utf8"),
     entry("Assembly Version", "1.1.1.0"),
     entry("ProductVersion", "1.1.1-dev.175"),
   ]);
@@ -553,56 +377,250 @@ test("the tag reader follows Link: rel=next across pages and reports how many it
   assert.deepEqual(read, Object.keys(pages));
 });
 
-// ---- layer blob digest verification ------------------------------------------------------------
+// ---- the stdout contract build.yml greps ---------------------------------------------------------
 
-// This is the ONLY upstream-integrity check in the fetch→build chain, which is what makes the mismatch
-// case load-bearing rather than decorative. The build-time output-closure guard in
-// Directory.Build.targets compares the build output against a hash recorded FROM these same bytes, so it
-// catches a local assembly displacing an extracted one and cannot, even in principle, notice the upstream
-// bytes being wrong. If this check does not fire, nothing downstream ever will.
-//
-// Both digests below were produced by `sha256sum` outside this file and transcribed by hand. That is the
-// point: a case that hashed its own input with node:crypto would be comparing the function under test
-// against the primitive it calls, and would agree with it forever — including while both were wrong.
+// The three prefixes are read out of the WORKFLOW rather than transcribed into this file, so drift on
+// either side goes red. A copy here would agree with itself forever, including while the workflow had
+// been renamed out from under it — which is the exact failure these three lines can suffer: the grep
+// silently matches nothing and the shell variable reading it goes empty.
+function workflowGrepPrefixes() {
+  const workflow = fs.readFileSync(
+    path.join(repoRoot, ".github", "workflows", "build.yml"),
+    "utf8",
+  );
+  // Matches the `grep -E '^...'` patterns in the fetch step: the anchored pattern is what a rename
+  // would have to change on the consumer side.
+  return [...workflow.matchAll(/grep -E '\^([^']+)'/g)].map((match) => match[1]);
+}
 
-test("a blob whose bytes hash to the declared digest is accepted", () => {
-  // printf 'cove' | sha256sum
-  const digest = "sha256:6a259d3299684d8a1f5693be49dde21e5e22195158487a86c3d73d07c36a5cfc";
-  assert.doesNotThrow(() => assertBlobMatchesDigest(Buffer.from("cove", "utf8"), digest));
+test("every stdout prefix the fetcher prints is one build.yml actually greps for, anchored at line start", () => {
+  const patterns = workflowGrepPrefixes();
+  assert.ok(
+    patterns.length > 0,
+    "build.yml must contain at least one anchored grep to pin against",
+  );
+
+  for (const [key, prefix] of Object.entries(STDOUT_CONTRACT)) {
+    // The workflow's pattern is a regex with `.` escaped as `\.`; the prefix is literal text. A
+    // matching pattern is one this prefix satisfies when anchored.
+    const matching = patterns.filter((pattern) => new RegExp(`^${pattern}`).test(prefix));
+    assert.equal(
+      matching.length,
+      1,
+      `STDOUT_CONTRACT.${key} ('${prefix}') is matched by ${matching.length} of build.yml's anchored greps (${patterns.join(" | ")}); exactly one must match, or the workflow reads an empty value`,
+    );
+  }
 });
 
-test("one flipped byte is refused, and the refusal names both digests and says it refuses", () => {
-  // The accepted fixture above, with a single character changed — the smallest difference that must fail.
-  const digest = "sha256:6a259d3299684d8a1f5693be49dde21e5e22195158487a86c3d73d07c36a5cfc";
+test("the informational-version line survives, because build.yml has no guard that would notice its loss", () => {
+  // Named on its own deliberately. build.yml fails the job when the digest or the assembly version is
+  // empty, but NOT when the informational one is — so losing this line degrades the ::notice:: in
+  // silence and no CI failure anywhere would report it. This assertion is the only thing that would.
+  const workflow = fs.readFileSync(
+    path.join(repoRoot, ".github", "workflows", "build.yml"),
+    "utf8",
+  );
+
+  assert.equal(
+    STDOUT_CONTRACT.informationalVersion,
+    "Cove.Data.dll informational version: ",
+    "the exact prefix captured in 36-DISCHARGE.md off run 31727686648",
+  );
+  assert.ok(
+    workflow.includes("Cove\\.Data\\.dll informational version: "),
+    "build.yml must still grep for the informational version line",
+  );
+
+  const [, informational] = renderVersionLines({
+    "Assembly Version": "1.1.0.0",
+    ProductVersion: "1.1.0",
+  });
+  assert.equal(informational, "Cove.Data.dll informational version: 1.1.0");
+});
+
+test("the three contract lines are rendered in the spelling captured off the real CI run", () => {
+  // Transcribed by hand from 36-DISCHARGE.md's verbatim capture of job 94540139402, not computed from
+  // the module under test — an expectation derived from the code would agree with it forever.
+  const digestLine = `${STDOUT_CONTRACT.digest}sha256:9365e9b1165b8134c899829401996f075ebd113447fe7933e652121bd6c4863c`;
+  assert.equal(
+    digestLine,
+    "manifest digest: sha256:9365e9b1165b8134c899829401996f075ebd113447fe7933e652121bd6c4863c",
+  );
+
+  assert.deepEqual(renderVersionLines({ "Assembly Version": "1.1.0.0", ProductVersion: "1.1.0" }), [
+    "Cove.Data.dll assembly version: 1.1.0.0",
+    "Cove.Data.dll informational version: 1.1.0",
+  ]);
+});
+
+test("an unreadable version key prints 'unreadable' rather than an empty value", () => {
+  // An empty value would keep the prefix and read as a blank version in the notice; `unreadable` says
+  // what happened.
+  assert.deepEqual(renderVersionLines({}), [
+    "Cove.Data.dll assembly version: unreadable",
+    "Cove.Data.dll informational version: unreadable",
+  ]);
+});
+
+// ---- the helpers tests/e2e/lib/harness.mjs imports ----------------------------------------------
+
+test("the four helpers the e2e harness imports still resolve from this module", async () => {
+  // Imported the way tests/e2e/lib/harness.mjs imports them, so an accidental un-export or a rename
+  // goes red here rather than deep inside a Playwright run where the cause is much further away.
+  const module = await import("./fetch-cove-assemblies.mjs");
+
+  for (const name of [
+    "compareSemver",
+    "parseSemver",
+    "readCoveImageReference",
+    "readExtensionFloors",
+  ]) {
+    assert.equal(typeof module[name], "function", `${name} must stay exported for the e2e harness`);
+  }
+
+  // Read the harness's own import list, so adding a fifth import there without exporting it fails here.
+  const harness = fs.readFileSync(
+    path.join(repoRoot, "tests", "e2e", "lib", "harness.mjs"),
+    "utf8",
+  );
+  const imported =
+    /import \{([^}]+)\} from "\.\.\/\.\.\/\.\.\/scripts\/fetch-cove-assemblies\.mjs"/.exec(harness);
+  assert.ok(imported !== null, "the harness must still import from this module by relative path");
+
+  for (const name of imported[1]
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)) {
+    assert.equal(
+      typeof module[name],
+      "function",
+      `harness.mjs imports ${name}, which this module must export`,
+    );
+  }
+});
+
+// ---- extraction refusals -------------------------------------------------------------------------
+
+function temporaryDirectory() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), "fetch-cove-assemblies-"));
+}
+
+test("an extraction that wrote nothing is refused, never returned as a smaller success", () => {
+  const directory = temporaryDirectory();
+  assert.throws(() => assertExtractionNotEmpty(directory, 0), /wrote 0 file\(s\)/);
+});
+
+test("files written with no marker member is refused — the shape a wrong container path produces", () => {
+  // `docker cp` from the wrong source path yields an empty or marker-less directory, so this is the
+  // arm that turns a mistyped container path into a failure instead of a quietly smaller test run.
+  const directory = temporaryDirectory();
+  fs.writeFileSync(path.join(directory, "Something.Else.dll"), "x");
+  assert.throws(() => assertExtractionNotEmpty(directory, 1), /left no Cove\.Data\.dll/);
+});
+
+test("a complete extraction returns the marker path it verified", () => {
+  const directory = temporaryDirectory();
+  fs.writeFileSync(path.join(directory, "Cove.Data.dll"), "x");
+  assert.equal(assertExtractionNotEmpty(directory, 1), path.join(directory, "Cove.Data.dll"));
+});
+
+test("each guarded assembly missing on its own is refused, naming that assembly", () => {
+  const guarded = ["Cove.Core.dll", "Cove.Data.dll", "Cove.Plugins.dll", "Cove.Sdk.dll"];
+
+  // One arm per assembly: a loop that only ever dropped the first would leave three unproven.
+  for (const absent of guarded) {
+    const directory = temporaryDirectory();
+    for (const name of guarded) {
+      if (name !== absent) fs.writeFileSync(path.join(directory, name), name);
+    }
+    assert.throws(
+      () => readGuardedAssemblies(directory),
+      new RegExp(`left no ${absent.replaceAll(".", "\\.")}`),
+      `${absent} absent must be refused`,
+    );
+  }
+
+  const complete = temporaryDirectory();
+  for (const name of guarded) fs.writeFileSync(path.join(complete, name), name);
+  const read = readGuardedAssemblies(complete);
+  assert.deepEqual(
+    read.map((assembly) => assembly.name),
+    guarded,
+    "a complete extraction yields one entry per guarded assembly, in declaration order",
+  );
+  // Each body above is its own file name, and both digests below were produced by `sha256sum` outside
+  // this file and transcribed by hand. That is the point: hashing the same input with node:crypto here
+  // would compare the function under test against the primitive it calls and agree with it forever.
+  assert.equal(
+    read.find((assembly) => assembly.name === "Cove.Data.dll").sha256,
+    "d783b667d2a145e9c94771e78658133f19e1ccb7ca9c66ef45a5d2ae8ce54c9c",
+  );
+  assert.equal(
+    read.find((assembly) => assembly.name === "Cove.Core.dll").sha256,
+    "4757d278843a37c603cb100bbafbc1a477bf1fc8c4105af1511559419ded4de2",
+  );
+});
+
+// ---- the digest docker records -------------------------------------------------------------------
+
+test("the RepoDigests entry is matched on the repository, never taken by position", () => {
+  // Index 0 can belong to a DIFFERENT repository the same image is known under, which would record a
+  // provenance digest naming an image nobody asked about.
+  const digest = `sha256:${"b".repeat(64)}`;
+  assert.equal(
+    selectRepoDigest(
+      [`docker.io/someone/else@sha256:${"a".repeat(64)}`, `ghcr.io/yourcove/cove-app@${digest}`],
+      "ghcr.io/yourcove/cove-app",
+    ),
+    digest,
+  );
+});
+
+test("no digest, no matching digest, and two digests for one repository are all refused", () => {
+  assert.throws(() => selectRepoDigest([], "ghcr.io/yourcove/cove-app"), /no RepoDigests/);
   assert.throws(
-    () => assertBlobMatchesDigest(Buffer.from("cave", "utf8"), digest),
-    (error) =>
-      /does not match the digest the manifest declared/.test(error.message) &&
-      error.message.includes("6a259d3299684d8a1f5693be49dde21e5e22195158487a86c3d73d07c36a5cfc") &&
-      /Refusing to extract/.test(error.message),
-    "a reader must be told the expected digest, the actual one, and that nothing was extracted",
+    () =>
+      selectRepoDigest(
+        [`docker.io/other/img@sha256:${"a".repeat(64)}`],
+        "ghcr.io/yourcove/cove-app",
+      ),
+    /None of docker's 1 RepoDigests/,
   );
-});
-
-test("a second independent vector matches, so the accepted case is not a one-off", () => {
-  // printf 'the bytes the registry attested' | sha256sum
-  const digest = "sha256:842867a8cbd04d49a49fdeef1b23390a481f8ab93bbc8b7586d8e012e0f82801";
-  const blob = Buffer.from("the bytes the registry attested", "utf8");
-  assert.doesNotThrow(() => assertBlobMatchesDigest(blob, digest));
-  // Upper-case hex is the same digest — a registry casing difference must not read as tampering.
-  assert.doesNotThrow(() =>
-    assertBlobMatchesDigest(blob, digest.toUpperCase().replace("SHA256", "sha256")),
-  );
-});
-
-test("a digest that cannot be verified fails closed rather than being skipped", () => {
-  const blob = Buffer.from("cove", "utf8");
-  // An algorithm this runtime does not have.
   assert.throws(
-    () => assertBlobMatchesDigest(blob, "notahash:abcdef"),
-    /does not name a hash this Node supports/,
+    () =>
+      selectRepoDigest(
+        [
+          `ghcr.io/yourcove/cove-app@sha256:${"a".repeat(64)}`,
+          `ghcr.io/yourcove/cove-app@sha256:${"b".repeat(64)}`,
+        ],
+        "ghcr.io/yourcove/cove-app",
+      ),
+    /ambiguous/,
   );
-  // Bare hex with no algorithm must NOT default to sha256: guessing would extract unverified bytes.
-  assert.throws(() => assertBlobMatchesDigest(blob, "abcdef"), /cannot be verified/);
-  assert.throws(() => assertBlobMatchesDigest(blob, ""), /cannot be verified/);
+});
+
+test("a digest docker reports in a shape renderExtractionProps would reject is refused at the source", () => {
+  assert.throws(
+    () => selectRepoDigest(["ghcr.io/yourcove/cove-app@not-a-digest"], "ghcr.io/yourcove/cove-app"),
+    /not an algorithm:hex digest/,
+  );
+});
+
+// ---- the CLI's two mode refusals -----------------------------------------------------------------
+
+// Driven through the real exported entry point rather than a private parser, so the refusal is proven
+// where a caller meets it. Both throw before anything reaches the network or Docker.
+
+test("--tag refuses a value that is not strict semver, before it can reach a registry URL", async () => {
+  await assert.rejects(() => main(["--tag", "latest"]), /not a strict X\.Y\.Z semver/);
+  await assert.rejects(() => main(["--tag", "1.1"]), /not a strict X\.Y\.Z semver/);
+});
+
+test("--tag together with --resolve-tags is refused: two modes, one argument", async () => {
+  await assert.rejects(() => main(["--resolve-tags", "--tag", "1.1.0"]), /no meaning/);
+  await assert.rejects(() => main(["--tag", "1.1.0", "--resolve-tags"]), /no meaning/);
+});
+
+test("an unrecognised argument is refused with the usage line rather than ignored", async () => {
+  await assert.rejects(() => main(["--not-an-argument"]), /Unrecognised argument/);
 });

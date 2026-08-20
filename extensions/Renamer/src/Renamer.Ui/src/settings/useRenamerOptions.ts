@@ -20,7 +20,7 @@ import {
   extractUnmodeledFields,
   hasUnmigratedNameRules,
 } from "./options";
-import { EXTENSION_ID } from "../common/lib/extension";
+import { EXTENSION_ID } from "../common/extension";
 
 const OPTIONS_KEY = "options";
 const store = createExtensionDataStore(EXTENSION_ID);

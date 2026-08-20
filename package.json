@@ -9,9 +9,7 @@
     "format:check": "prettier --check .",
     "format:cs": "dotnet format CoveExtensions.slnx --severity warn --exclude ../cove/",
     "format:cs:check": "dotnet format CoveExtensions.slnx --verify-no-changes --severity warn --exclude ../cove/",
-    "knip": "knip --treat-config-hints-as-errors",
     "syncpack": "syncpack lint",
-    "jscpd": "jscpd . && jscpd --config .jscpd.tests.json .",
     "prepare": "lefthook install",
     "generate:wire": "node scripts/generate-wire-types.mjs",
     "test": "node --test scripts/*.test.mjs"
@@ -25,14 +23,8 @@
     "@eslint/js": "10.0.1",
     "eslint": "10.8.0",
     "eslint-config-prettier": "10.1.8",
-    "eslint-import-resolver-typescript": "4.4.5",
-    "eslint-plugin-boundaries": "7.1.0",
-    "eslint-plugin-import-x": "4.17.1",
     "eslint-plugin-react-hooks": "7.1.1",
-    "eslint-plugin-react-refresh": "0.5.3",
     "globals": "17.8.0",
-    "jscpd": "5.0.14",
-    "knip": "6.29.0",
     "lefthook": "2.1.10",
     "openapi-typescript": "7.13.0",
     "prettier": "3.9.6",
@@ -43,5 +35,11 @@
   "workspaces": [
     "tests/e2e",
     "extensions/*/e2e"
-  ]
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "volta": {
+    "node": "24.11.0"
+  }
 }

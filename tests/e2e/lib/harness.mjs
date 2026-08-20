@@ -9,7 +9,7 @@
 // and health-check waiting, removing two hand-written polling loops this file used to have.
 import { join } from "node:path";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
-import { installViaContainerCopy, installViaUrl } from "./install-extension.mjs";
+import { installViaContainerCopy } from "./install-extension.mjs";
 // The repository the image lives in and the floor each extension declares both already have exactly
 // one reader, and a second parse of either here would be free to disagree with the one CI resolves
 // against.
@@ -176,14 +176,6 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
       if (handle.token) {
         await handle.login();
       }
-    },
-
-    async installExtensionFromUrl(zipUrl) {
-      const result = await installViaUrl({ baseUrl: handle.baseUrl, zipUrl });
-      await waitForExtensionEnabled(handle.baseUrl, result.id ?? result.manifest?.id, {
-        timeoutMs,
-      });
-      return result;
     },
 
     /**

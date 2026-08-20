@@ -9,9 +9,9 @@ namespace Renamer.Tests.Events;
 /// Regression for the auto-renamer hook: a matched routing rule must relocate the just-edited
 /// item to its configured destination — the SAME on-disk outcome the manual batch and <c>/preview</c>
 /// produce. Before the fix the hook called the empty-lookups overload, so auto-renames silently never
-/// relocated even when a matching destination rule was configured. Default-relocate stays
-/// gated (default off), so this proves only an explicitly-MATCHED rule relocates — not a dribble of
-/// the whole library.
+/// relocated even when a matching destination rule was configured. The companion case proves the other
+/// half: an item matching NO rule is renamed in place and never relocated, so a metadata edit cannot
+/// dribble the library toward a catch-all destination — there is none.
 /// </summary>
 [Trait("Tier", "L1")]
 public sealed class AutoRenamerRoutingTests
@@ -66,7 +66,7 @@ public sealed class AutoRenamerRoutingTests
     }
 
     [Fact]
-    public async Task FlagOn_UnmatchedItem_DefaultRelocateOff_StaysInPlace()
+    public async Task FlagOn_UnmatchedItem_StaysInPlace_NeverRelocated()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -78,23 +78,23 @@ public sealed class AutoRenamerRoutingTests
                 await ExecutorTestSeed.SeedVideoAsync(db, srcPathFwd, "raw.mkv", "My Film");
             File.WriteAllText(Path.Combine(srcFolder, "raw.mkv"), "bytes");
 
-            // No matching rule + default-relocate OFF → the item must NOT relocate; an in-place renamer
-            // (My Film.mkv) is fine, but it stays under the source folder.
+            // No matching rule → source-confine: an in-place renamer (My Film.mkv) is fine, but the file
+            // must stay in its own folder. Relocating requires an explicit rule; there is no catch-all.
             var options = new RenamerOptions
             {
                 AutoRenamerOnUpdate = true,
                 FilenameTemplate = "$title",
-                DefaultDestination = Path.Combine(dir.Root, "overflow").Replace('\\', '/'),
-                EnableDefaultRelocate = false,
             };
             var (ext, _, _) = await EventTestHarness.BuildAsync(db, options);
 
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
-            // Renamed in place, never relocated to the default destination (the gate held).
+            // Renamed in place. Asserted as the WHOLE stored path rather than as the absence of one
+            // destination name: with no catch-all to name, an absence assertion would hold however far
+            // the file had moved.
             Assert.True(File.Exists(Path.Combine(srcFolder, "My Film.mkv")));
             var (_, pathAfter) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
-            Assert.DoesNotContain("overflow", pathAfter.Replace('\\', '/'));
+            Assert.Equal($"{srcPathFwd}/My Film.mkv", pathAfter.Replace('\\', '/'));
         }
         finally
         {

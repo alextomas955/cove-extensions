@@ -91,7 +91,7 @@ public static class BatchPreview
     private const int HeavyVolumeCountThreshold = 2;       // >= 2 distinct destination volumes is "spread out"
 
     /// <summary>
-    /// Summarizes the acting subset of <paramref name="items"/> (Status Renamer | Move) into the
+    /// Summarizes the acting subset of <paramref name="items"/> (Status Rename | Move) into the
     /// whole-batch blast radius: total count, same/cross split, per-(source,dest) volume-pair byte
     /// sums, and a <see cref="ConfirmLevel"/> scaled to the cross-volume blast radius. Bytes come from
     /// <paramref name="sizeByFileId"/> (missing ids contribute 0). Pure — no disk/DB.
@@ -114,7 +114,7 @@ public static class BatchPreview
         ArgumentNullException.ThrowIfNull(sizeByFileId);
 
         var acting = items
-            .Where(i => i.Status is RenamerStatus.Renamer or RenamerStatus.Move)
+            .Where(i => i.Status is RenamerStatus.Rename or RenamerStatus.Move)
             .ToList();
 
         // The cross/same split AND the destination-volume ("To") grouping key both read the SAME value —
@@ -183,7 +183,7 @@ public static class BatchPreview
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        return item.Status is RenamerStatus.Renamer or RenamerStatus.Move
+        return item.Status is RenamerStatus.Rename or RenamerStatus.Move
             && !VolumeClassifier.SameVolume(item.OldFullPath, item.NewFullPath, mountPoints)
             && item.NewFullPath.Length + CrossVolumeMover.InFlightSuffixLength > fullPathMax;
     }
