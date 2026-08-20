@@ -424,21 +424,15 @@ public sealed class UndoReplayer
     // The two movers classify their own failures, so a reverse move's stop reason is a translation of a
     // value that already exists rather than a fresh judgement about what went wrong. The `Moved` arm is
     // unreachable from a caller that only asks when the move did NOT happen; it maps to the retryable
-    // catch-all so an unreachable arm becoming reachable cannot silently retire a row.
-    private static UndoStopReason StopFor(DiskMover.MoveOutcome outcome) => outcome switch
+    // reason so an unreachable arm becoming reachable cannot silently retire a row. Every member is
+    // named, so a member added to MoveOutcome fails this build instead of collapsing into a default.
+    private static UndoStopReason StopFor(MoveOutcome outcome) => outcome switch
     {
-        DiskMover.MoveOutcome.LockedOrExists => UndoStopReason.ReverseMoveLockedOrTargetExists,
-        DiskMover.MoveOutcome.PermissionDenied => UndoStopReason.ReverseMovePermissionDenied,
-        _ => UndoStopReason.UnexpectedError,
-    };
-
-    private static UndoStopReason StopFor(CrossVolumeMover.MoveOutcome outcome) => outcome switch
-    {
-        CrossVolumeMover.MoveOutcome.LockedOrExists => UndoStopReason.ReverseMoveLockedOrTargetExists,
-        CrossVolumeMover.MoveOutcome.PermissionDenied => UndoStopReason.ReverseMovePermissionDenied,
-        CrossVolumeMover.MoveOutcome.VerifyFailed => UndoStopReason.ReverseMoveVerifyFailed,
-        CrossVolumeMover.MoveOutcome.Cancelled => UndoStopReason.ReverseMoveCancelled,
-        _ => UndoStopReason.UnexpectedError,
+        MoveOutcome.LockedOrExists => UndoStopReason.ReverseMoveLockedOrTargetExists,
+        MoveOutcome.PermissionDenied => UndoStopReason.ReverseMovePermissionDenied,
+        MoveOutcome.VerifyFailed => UndoStopReason.ReverseMoveVerifyFailed,
+        MoveOutcome.Cancelled => UndoStopReason.ReverseMoveCancelled,
+        MoveOutcome.Moved => UndoStopReason.UnexpectedError,
     };
 
     /// <summary>

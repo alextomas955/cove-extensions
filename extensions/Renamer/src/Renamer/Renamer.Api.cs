@@ -262,8 +262,11 @@ public sealed partial class Renamer
             }
         }
 
-        // The whole-batch blast radius: a pure aggregate over the acting items + their sizes.
-        var summary = BatchPreview.Summarize(items, sizeByFileId);
+        // The whole-batch blast radius: a pure aggregate over the acting items + their sizes. The path
+        // budget is read from the loaded options ONCE and handed to both halves of the response below, so
+        // the aggregate's in-flight overflow COUNT and the per-row FLAGS cannot be measured against
+        // different limits and disagree.
+        var summary = BatchPreview.Summarize(items, sizeByFileId, options.FullPathMax);
 
         // WireJson<T> writes the response with the extension's own options rather than the host's: the
         // property names are camelCase AND the RenamerStatus/ConfirmLevel enums are STRINGS, spelled
@@ -280,7 +283,10 @@ public sealed partial class Renamer
         // options instance, so the per-item array keeps its exact shape. The domain plan items are
         // projected onto PreviewItemView (the wire type) at this boundary.
         return new WireJson<PreviewResponse>(
-            new PreviewResponse([.. items.Select(PreviewItemView.From)], summary));
+            new PreviewResponse(
+                [.. items.Select(i => PreviewItemView.From(
+                    i, BatchPreview.InFlightPathOverflows(i, options.FullPathMax)))],
+                summary));
     }
 
     /// <summary>
@@ -783,15 +789,15 @@ public sealed partial class Renamer
         // otherwise it scans the saved options — the original behavior.
         var options = overrideOptions ?? await new OptionsStore(Store).LoadAsync(ct);
 
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<DbContext>();
         // The widest of the elevated bodies, because RunScanCoreAsync takes a PORT rather than a
         // service provider — deliberately, so its boundedness is provable over a fake — and so there is
         // no narrower seam here to wrap. Per-kind authorization still reaches the detached job through
         // readableKinds, captured at enqueue time.
-        await Cove.Extensions.Shared.RunAsSystem.RunAsSystemAsync(
-            scope.ServiceProvider,
-            () => RunScanCoreAsync(new CoveRenamerDataPort(db), readableKinds, options, progress, ct));
+        await Cove.Extensions.Shared.RunAsSystem.RunInSystemScopeAsync(ScopeFactory, services =>
+        {
+            var db = services.GetRequiredService<DbContext>();
+            return RunScanCoreAsync(new CoveRenamerDataPort(db), readableKinds, options, progress, ct);
+        });
     }
 
     /// <summary>
@@ -821,7 +827,7 @@ public sealed partial class Renamer
     {
         var lookups = BuildLookups(options);
         var planner = new RenamerPlanner(port);
-        var aggregator = new ScanAggregator();
+        var aggregator = new ScanAggregator(options.FullPathMax);
 
         // Load every kind's ids up front so the TOTAL is known before planning — the scan previously
         // reported only a single Report(1.0) at the end, so the job jumped 0%→100% with no intermediate
@@ -949,13 +955,13 @@ public sealed partial class Renamer
         {
             ct.ThrowIfCancellationRequested();
 
-            IReadOnlyList<int> ids;
-            await using (var scope = ScopeFactory.CreateAsyncScope())
-            {
-                var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-                ids = await Cove.Extensions.Shared.RunAsSystem.RunAsSystemAsync(
-                    scope.ServiceProvider, () => new CoveRenamerDataPort(db).LoadAllEntityIdsAsync(kind, ct));
-            }
+            var ids = await Cove.Extensions.Shared.RunAsSystem.RunInSystemScopeAsync(
+                ScopeFactory,
+                services =>
+                {
+                    var db = services.GetRequiredService<DbContext>();
+                    return new CoveRenamerDataPort(db).LoadAllEntityIdsAsync(kind, ct);
+                });
 
             if (ids.Count == 0)
             {

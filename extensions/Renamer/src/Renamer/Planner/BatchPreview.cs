@@ -45,13 +45,19 @@ public sealed record VolumePairDelta(string From, string To, int Count, long Byt
 /// <param name="CrossVolumeBytes">The summed bytes of the cross-volume moves (same-volume bytes excluded — they consume ~no extra space).</param>
 /// <param name="VolumePairs">One <see cref="VolumePairDelta"/> per (source,destination) volume pair touched by a cross-volume move.</param>
 /// <param name="ConfirmLevel">How loud the confirm must be, derived from the blast radius.</param>
+/// <param name="InFlightPathOverflowCount">
+/// How many acting items would overrun the path budget while their cross-volume copy is in flight (see
+/// <see cref="BatchPreview.InFlightPathOverflows"/>). A count, never the paths: a batch reaches library
+/// size, and the offending rows carry their own flag on the page that serves them.
+/// </param>
 public sealed record PreviewSummary(
     int TotalCount,
     int SameVolumeCount,
     int CrossVolumeCount,
     long CrossVolumeBytes,
     IReadOnlyList<VolumePairDelta> VolumePairs,
-    ConfirmLevel ConfirmLevel);
+    ConfirmLevel ConfirmLevel,
+    int InFlightPathOverflowCount);
 
 /// <summary>
 /// Pure whole-batch blast-radius aggregate over a planned <see cref="RenamerPlanItem"/> set — the
@@ -92,10 +98,16 @@ public static class BatchPreview
     /// </summary>
     /// <param name="items">The full planned item set (skips/no-ops are filtered out internally).</param>
     /// <param name="sizeByFileId">FileId → file size in bytes, from the loaded entity's <c>RenamerFile.SizeBytes</c>.</param>
+    /// <param name="fullPathMax">
+    /// The caller's <see cref="Options.RenamerOptions.FullPathMax"/>, for the in-flight overflow count.
+    /// Required and third rather than optional and last: a default would let an unwired caller count
+    /// against a budget nobody configured, silently, which is the failure the count exists to surface.
+    /// </param>
     /// <param name="mountPoints">Mount table to resolve Unix volumes against; omit for the real one.</param>
     public static PreviewSummary Summarize(
         IReadOnlyList<RenamerPlanItem> items,
         IReadOnlyDictionary<int, long> sizeByFileId,
+        int fullPathMax,
         IReadOnlyCollection<string>? mountPoints = null)
     {
         ArgumentNullException.ThrowIfNull(items);
@@ -131,9 +143,49 @@ public static class BatchPreview
         long crossBytes = volumePairs.Sum(p => p.Bytes);
 
         var level = ClassifyConfirm(crossCount, crossBytes, volumePairs);
+        int inFlightOverflowCount = acting.Count(i => InFlightPathOverflows(i, fullPathMax, mountPoints));
 
         return new PreviewSummary(
-            totalCount, sameCount, crossCount, crossBytes, volumePairs, level);
+            totalCount, sameCount, crossCount, crossBytes, volumePairs, level, inFlightOverflowCount);
+    }
+
+    /// <summary>
+    /// True iff <paramref name="item"/> will act, will cross volumes, and the in-flight copy of it would
+    /// overrun <paramref name="fullPathMax"/> — the band the planner accepts but the executor cannot fit.
+    /// </summary>
+    /// <remarks>
+    /// The gap is a real platform limit rather than a self-imposed budget: no <c>\\?\</c> extended-length
+    /// prefix is ever applied (<see cref="CanonicalPathGuard"/> rejects that form), and a cross-volume move
+    /// copies to a name <see cref="CrossVolumeMover.InFlightSuffixLength"/> characters longer beside the
+    /// destination before promoting it. The planner budgets only the FINAL path, so an item accepted at the
+    /// limit still overruns while its copy is in flight — and the plan the user approved is then not the
+    /// plan that has to fit. Warned about here, beside the decision, and deliberately never fed back into
+    /// it: subtracting the suffix length from the budget the engine reduces against would drop fields and
+    /// truncate earlier, changing the planned filename for every item near the limit.
+    /// <para>
+    /// <c>internal</c> rather than <c>private</c> so the aggregate count and the per-row flag on the
+    /// preview response both read THIS comparison — a second copy could disagree and report a count with
+    /// no flagged row under it.
+    /// </para>
+    /// <para>
+    /// Same-volume items are excluded because <see cref="DiskMover"/> mints no temporary name at all, and
+    /// non-acting items because nothing is copied for them. Either would be a warning on a correct plan,
+    /// and a skip already carries its own reason.
+    /// </para>
+    /// </remarks>
+    /// <param name="item">The planned item to test.</param>
+    /// <param name="fullPathMax">The configured absolute-path budget the executor must also fit.</param>
+    /// <param name="mountPoints">Mount table to resolve Unix volumes against; omit for the real one.</param>
+    internal static bool InFlightPathOverflows(
+        RenamerPlanItem item,
+        int fullPathMax,
+        IReadOnlyCollection<string>? mountPoints = null)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        return item.Status is RenamerStatus.Renamer or RenamerStatus.Move
+            && !VolumeClassifier.SameVolume(item.OldFullPath, item.NewFullPath, mountPoints)
+            && item.NewFullPath.Length + CrossVolumeMover.InFlightSuffixLength > fullPathMax;
     }
 
     /// <remarks>

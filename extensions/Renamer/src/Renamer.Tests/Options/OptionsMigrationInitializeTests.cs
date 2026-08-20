@@ -130,12 +130,12 @@ public sealed class OptionsMigrationInitializeTests
         await using var library = await Library.CreateAsync();
         await library.SeedAsync(tags: ["Anime", "Sample"], performers: []);
         library.Principals.Set(CovePrincipal.Anonymous());
-        library.PrincipalPerCommand.Clear();
+        library.CommandsExecuted.Clear();
 
         await InitializeAsync(store, library.BuildProvider());
 
-        Assert.NotEmpty(library.PrincipalPerCommand);
-        Assert.All(library.PrincipalPerCommand, kind => Assert.Equal(PrincipalKind.System, kind));
+        Assert.NotEmpty(library.CommandsExecuted);
+        Assert.All(library.CommandsExecuted, c => Assert.Equal(PrincipalKind.System, c.Principal));
 
         // Elevation is a span, not a mode: the helper put the caller's principal back.
         Assert.Equal(PrincipalKind.Anonymous, library.Principals.Current!.Kind);

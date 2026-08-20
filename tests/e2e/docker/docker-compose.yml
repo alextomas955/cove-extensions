@@ -31,15 +31,20 @@ services:
       - /var/lib/postgresql
 
   cove:
-    # Pinned to a versioned tag, NOT floating `latest`, for two reasons: (1) the catalog's extension
-    # declares `minCoveVersion: 1.1.0`, so the host must be at least that or its version gate silently
-    # refuses to LOAD the extension (the routes 404 and every browser spec fails against a Settings
-    # page that never gains the extension's tab); (2) `latest` drifts — a stale local `latest` pulled
-    # before the 1.0.0 release still resolved to 0.9.0, dropping the whole suite below the floor
-    # without any error. Bump this tag deliberately in lockstep with that minCoveVersion: nothing
-    # asserts the two agree, so a mismatch is caught only by the e2e job failing wholesale — loud, but
-    # no earlier than a full suite run. Override per-run with COVE_E2E_IMAGE.
-    image: ${COVE_E2E_IMAGE:-ghcr.io/yourcove/cove-app:1.1.0}
+    # Required, with NO default: `lib/harness.mjs`'s resolveCoveImage is the only thing that decides
+    # which host boots — the highest floor the catalog's extensions declare in their own manifests, on
+    # the repository the build properties declare, with a CI leg's resolved version overriding it. A
+    # version written here would be a second declaration of a number that already lives in a manifest,
+    # free to fall behind it — and a host below an extension's floor does not error, it silently refuses
+    # to LOAD the extension, so the routes 404 and every browser spec fails against a Settings page that
+    # never gains the extension's tab. A floating `latest` is not the alternative either: a stale local
+    # `latest` pulled before the 1.0.0 release still resolved to 0.9.0, dropping the whole suite below
+    # the floor with no error at all.
+    #
+    # The cost this shape accepts: `docker compose up` in this directory no longer starts anything,
+    # because there is no value left to fall back to. Go through the harness (see ../README.md), or
+    # name an image yourself in COVE_E2E_IMAGE.
+    image: ${COVE_E2E_IMAGE:?set by tests/e2e/lib/harness.mjs from the catalog floor — this compose file declares no Cove version, so a bare docker compose invocation must name one}
     depends_on:
       db:
         condition: service_healthy

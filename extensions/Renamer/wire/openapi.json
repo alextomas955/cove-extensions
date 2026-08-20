@@ -555,6 +555,7 @@
           "reason",
           "suffixed",
           "sanitized",
+          "inFlightPathOverflow",
           "resolvedDestinationRoot",
           "matchedRule",
           "targetVolume"
@@ -590,6 +591,9 @@
             "type": "boolean"
           },
           "sanitized": {
+            "type": "boolean"
+          },
+          "inFlightPathOverflow": {
             "type": "boolean"
           },
           "resolvedDestinationRoot": {
@@ -686,7 +690,8 @@
           "crossVolumeCount",
           "crossVolumeBytes",
           "volumePairs",
-          "confirmLevel"
+          "confirmLevel",
+          "inFlightPathOverflowCount"
         ],
         "type": "object",
         "properties": {
@@ -714,6 +719,10 @@
           },
           "confirmLevel": {
             "$ref": "#/components/schemas/ConfirmLevel"
+          },
+          "inFlightPathOverflowCount": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -927,7 +936,10 @@
           "skipMissingSource",
           "skipNoSpace",
           "skipBlocked",
-          "failed"
+          "failed",
+          "skipPermissionDenied",
+          "skipVerifyFailed",
+          "skipCancelled"
         ]
       },
       "ScanCursor": {
@@ -970,7 +982,8 @@
           "status",
           "reason",
           "suffixed",
-          "sanitized"
+          "sanitized",
+          "inFlightPathOverflow"
         ],
         "type": "object",
         "properties": {
@@ -1004,6 +1017,9 @@
             "type": "boolean"
           },
           "sanitized": {
+            "type": "boolean"
+          },
+          "inFlightPathOverflow": {
             "type": "boolean"
           }
         }

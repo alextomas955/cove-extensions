@@ -114,11 +114,17 @@ seam or vocabulary has to be named exactly to be actionable.
   undo journal is the worked example: a value under one key put every writer into a read-modify-write
   race and made "how much history is kept" a number someone had to choose, where a row insert is atomic
   and a whole batch either falls inside the window or is gone.
-- **Two correctness invariants whose failure is silent.** Background database reads run as System
-  through one `RunAsSystemAsync` seam — under an Anonymous principal Cove's authorization filters
-  return zero rows with no error, so an empty result is the symptom of getting this wrong rather than
-  of an empty library. And on shutdown, work classifies as `Cancelled`, never `Failed`, so a clean
-  stop is never read as a defect.
+- **Two correctness invariants whose failure is silent.** A detached database body takes its scope from
+  the one `RunAsSystem` seam, which hands one out already elevated to System — under a present but
+  under-privileged principal Cove's authorization filters return zero rows with no error, so an empty
+  result is the symptom of getting this wrong rather than of an empty library. Which principal arrives
+  decides the symptom, and that is worth knowing before trusting a row count: Cove bypasses those filters
+  for a NULL principal exactly as for System, and a queued job body has none — the host starts its queue
+  processor before any request and holds the principal in an `AsyncLocal` — so on that path forgetting to
+  elevate reads the whole library instead, and no row count at any tier can detect it. Assert on the
+  principal at the command. A request path is the mirror image and must NOT elevate, because that would
+  bypass its caller's own authorization. And on shutdown, work classifies as `Cancelled`, never `Failed`,
+  so a clean stop is never read as a defect.
 - **Every backend test class carries exactly one tier trait** — L0 pure logic · L1 host double · L2
   in-process endpoint · L3 containerized end-to-end — so a tier runs in isolation. A shared reflection
   guard (`TierTraitGuard`) fails the suite when a class lacks one, which keeps the taxonomy exhaustive

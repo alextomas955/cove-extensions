@@ -14,8 +14,17 @@
  * pages import it directly. The barrel offers entity-browsing (`ListPage`, `VideoCard`,
  * `DetailListToolbar`, `Pager`), dialog (`ConfirmDialog`, `EditModal`), and formatting
  * (`TagBadge`, `formatDuration`, `formatFileSize`, `formatDate`, `getResolutionLabel`,
- * `CustomFieldsDisplay`/`Editor`) utilities, none of which overlap a settings-field primitive's
- * shape. `TagBadge` is a tag/label pill with color and provenance — this codebase's status pills
+ * `CustomFieldsDisplay`/`Editor`) utilities. Only the dialog entry overlaps a settings-field
+ * primitive's shape: alongside `EditModal` the barrel re-exports six field primitives whose names
+ * collide with the ones here — `Field`, `TextInput`, `TextArea`, `NumberInput`, `SelectInput`,
+ * `SaveButton`. They are still not the swap, on two counts. Geometry: the host keeps two field
+ * idioms and exports only the MODAL one, whose input string differs from {@link INPUT_CLASS} in
+ * exactly one utility (`rounded` against `rounded-xl`), so adopting it would change the panel's
+ * corner radius and defeat the byte-for-byte match above. Props: the exported shapes are narrower
+ * than the panel needs — no input ref for the token picker to insert through, no monospace flag for
+ * template fields — and the exported `Field` has no equivalent for the helper slot or the
+ * empty-label branch this file's `Field` carries across its call sites.
+ * `TagBadge` is a tag/label pill with color and provenance — this codebase's status pills
  * (`WarningBadge.tsx`) key off a rename-status enum instead, a different concept, not a swap.
  * `formatDuration`/`formatFileSize`/`formatDate`/`getResolutionLabel` have no local counterpart
  * anywhere in this directory: nothing here renders a raw duration, file size, or date value, and

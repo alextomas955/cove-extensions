@@ -1,3 +1,4 @@
+using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
@@ -52,6 +53,83 @@ public sealed class DestAnchoredMaxPathTests
 
     // FullPathMax tuned between the two absolute lengths: short-source path < max < deep-root path.
     private const int Max = 90;
+
+    // ── D-02: the planned basename does not move when the in-flight overflow warning is added ──────
+    //
+    // A cross-volume move copies to a minted in-flight name 12 characters longer than the final one, so
+    // the obvious fix is to subtract those 12 from the budget the reducer and this boundary fit against.
+    // D-02 forbids exactly that: LengthReducer drops fields and then hard-truncates, so a tighter budget
+    // renames every file near the limit — users who did nothing wrong get a different result. These cases
+    // pin the boundary itself, so that subtraction fails here rather than shipping.
+
+    // Both spellings are FOUR characters, which is load-bearing: a Windows absolute root ("D:\dest") is
+    // longer than its Unix twin ("/dest"), so a budget literal tuned on one platform would sit beside the
+    // boundary rather than on it on the other.
+    private static string BoundaryRoot => OperatingSystem.IsWindows() ? @"D:\d" : "/ddd";
+
+    private const string BoundaryFolder = "S";
+    private const string BoundaryTitle = "Boundary";
+
+    // The rendered basename, written out rather than composed from the template: "$title" plus the source
+    // file's own extension. An expectation computed from the engine agrees with it forever.
+    private const string BoundaryBasename = "Boundary.mkv";
+
+    // The absolute path the item resolves to: root(4) + "/" + folder(1) + "/" + basename(12). Hand-counted,
+    // and proved by the reject case below, whose reason names the length the planner actually measured.
+    private const int BoundaryAbsoluteLength = 19;
+
+    private static RenamerOptions BoundaryOptions(int fullPathMax) => new()
+    {
+        FilenameTemplate = "$title",
+        FolderTemplate = BoundaryFolder,
+        AllowedRoots = [BoundaryRoot],
+        FullPathMax = fullPathMax,
+    };
+
+    private static async Task<RenamerPlanItem> PlanAtBudgetAsync(int fullPathMax)
+    {
+        var port = new FakeRenamerDataPort();
+        port.SeedEntity(Entity(BoundaryTitle, VideoFile(ShortSource)));
+        var plan = await new RenamerPlanner(port).PlanAsync(
+            RenamerFileKind.Video, 10, BoundaryOptions(fullPathMax), StudioLookup(BoundaryRoot), default);
+        return Assert.Single(plan.Items);
+    }
+
+    [Fact]
+    public async Task AtTheBudgetExactly_TheItemIsPlanned_WithTheBasenameWrittenBelow()
+    {
+        var item = await PlanAtBudgetAsync(BoundaryAbsoluteLength);
+
+        Assert.Equal(RenamerStatus.Move, item.Status);
+        Assert.Equal(BoundaryBasename, item.NewBasename);
+    }
+
+    [Fact]
+    public async Task OneCharacterOverTheBudget_IsRejected_NamingTheLengthItMeasured()
+    {
+        var item = await PlanAtBudgetAsync(BoundaryAbsoluteLength - 1);
+
+        Assert.Equal(RenamerStatus.SkipCollision, item.Status);
+        // Transcribed from PathConfinement's own message. It is also what proves BoundaryAbsoluteLength
+        // is the real absolute length on this platform rather than an arithmetic slip.
+        Assert.Equal(
+            $"resolved absolute path length {BoundaryAbsoluteLength} exceeds FullPathMax {BoundaryAbsoluteLength - 1}",
+            item.Reason);
+    }
+
+    [Fact]
+    public async Task WithTheInFlightHeadroomAdded_TheBasenameIsByteIdentical()
+    {
+        // The pair is the D-02 assertion: the same literal at the boundary and the minted segment's length
+        // above it. Had that length been subtracted from the budget rather than warned about, the boundary
+        // case above would be a skip and this one would be the only survivor. Read from the minter's own
+        // declaration, so a narrowing of the minted name moves this case with it.
+        var item = await PlanAtBudgetAsync(
+            BoundaryAbsoluteLength + CrossVolumeMover.InFlightSuffixLength);
+
+        Assert.Equal(RenamerStatus.Move, item.Status);
+        Assert.Equal(BoundaryBasename, item.NewBasename);
+    }
 
     [Fact]
     public async Task RoutedDeepDestination_Overflows_SkipWithLengthReason()

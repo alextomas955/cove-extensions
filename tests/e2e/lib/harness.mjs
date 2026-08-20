@@ -7,18 +7,79 @@
 // even if the test process is killed (not just on a graceful exit) — a hand-rolled wrapper only
 // cleans up in the success path, leaking containers on a killed run. It also owns port resolution
 // and health-check waiting, removing two hand-written polling loops this file used to have.
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
 import { installViaContainerCopy, installViaUrl } from "./install-extension.mjs";
+// The repository the image lives in and the floor each extension declares both already have exactly
+// one reader, and a second parse of either here would be free to disagree with the one CI resolves
+// against.
+import {
+  compareSemver,
+  parseSemver,
+  readCoveImageReference,
+  readExtensionFloors,
+} from "../../../scripts/fetch-cove-assemblies.mjs";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const COMPOSE_DIR = join(__dirname, "..", "docker");
+// import.meta.dirname, never a filesystem path read off a module URL's path component: on Windows
+// that yields a leading-slash form which resolves to a doubled drive prefix.
+const COMPOSE_DIR = join(import.meta.dirname, "..", "docker");
 const COMPOSE_FILE = "docker-compose.yml";
 
 // Shared-runner container cold-start is measurably slower than a dedicated dev machine's Docker
 // Desktop — widen the default startup budget in CI rather than tuning it tight against local timing.
 const DEFAULT_STARTUP_TIMEOUT_MS = process.env.CI ? 240_000 : 180_000;
+
+/**
+ * The Cove image an instance boots, resolved from the most specific input available.
+ *
+ * <remarks>
+ * In order: a reference the caller states outright (a locally built host, say); a complete reference in
+ * `COVE_E2E_IMAGE`; a version in `COVE_E2E_TAG`, placed on the repository the build properties declare;
+ * and failing all three the highest floor the catalog's extensions declare in their own manifests. The
+ * compose file holds no default of its own, so this is the only thing that decides.
+ *
+ * The tag-only form is what a CI leg has to give: a version leg resolves a VERSION, and the repository
+ * is declared once in the build properties — which is why the fetcher and the build's version guard
+ * take a tag too, rather than each being handed a whole reference to get wrong.
+ *
+ * Every path is derived, never written down. A version literal here would be a second declaration of a
+ * number that already lives in a manifest, free to fall behind it — and a host BELOW an extension's
+ * floor does not error: its version gate silently refuses to LOAD the extension, so the routes 404 and
+ * every browser spec fails against a Settings page that never gains the extension's tab. The floor
+ * taken is the HIGHEST declared, because one instance serves whichever extensions a run installs into
+ * it and the lowest would boot a host beneath somebody's floor. Nothing here names an extension: a
+ * second one arrives through the catalog and needs no edit in this file.
+ *
+ * Throws rather than falling back when a floor cannot be read or is not strict semver. An image nobody
+ * chose is how a suite passes against the wrong host.
+ * </remarks>
+ * @param {string} [image] - an explicit complete reference, which wins over both environment forms.
+ * @returns {string} a complete image reference, e.g. `ghcr.io/yourcove/cove-app:1.1.0`.
+ */
+export function resolveCoveImage(image) {
+  if (image) return image;
+  if (process.env.COVE_E2E_IMAGE) return process.env.COVE_E2E_IMAGE;
+  // registry AND repository, never the `repository` field alone: that one is the host-less path, and a
+  // reference missing its registry host resolves to Docker Hub — a real image, from a registry nobody
+  // named.
+  const { registry, repository } = readCoveImageReference();
+  return `${registry}/${repository}:${process.env.COVE_E2E_TAG || highestDeclaredFloor()}`;
+}
+
+/** The highest `minCoveVersion` any catalog entry declares, reached through that entry's own manifest. */
+function highestDeclaredFloor() {
+  let highest = null;
+  for (const { entry, floor, manifestPath } of readExtensionFloors()) {
+    const parsed = parseSemver(floor);
+    if (parsed === null) {
+      throw new Error(
+        `${manifestPath} declares minCoveVersion '${floor}' for '${entry.id ?? entry.name}', which is not a strict X.Y.Z semver version, so no Cove image can be resolved from it.`,
+      );
+    }
+    if (highest === null || compareSemver(parsed, highest) > 0) highest = parsed;
+  }
+  return highest.tag;
+}
 
 /**
  * Brings up an isolated Cove instance and returns a handle with baseUrl + install/teardown methods.
@@ -28,6 +89,9 @@ const DEFAULT_STARTUP_TIMEOUT_MS = process.env.CI ? 240_000 : 180_000;
  * `env` is passed to the compose invocation, so it reaches any `${VAR:-default}` substitution in
  * docker-compose.yml — e.g. `{ COVE_E2E_AUTH_ENABLED: 'true' }` for an instance that must enforce
  * real authentication.
+ *
+ * `image` is a complete reference and overrides every other source; see `resolveCoveImage` for what
+ * decides when it is absent.
  */
 export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIMEOUT_MS } = {}) {
   let environment = new DockerComposeEnvironment(COMPOSE_DIR, COMPOSE_FILE)
@@ -40,10 +104,8 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     .withWaitStrategy("cove-1", Wait.forHealthCheck())
     .withWaitStrategy("db-1", Wait.forHealthCheck());
 
-  const composeEnv = { ...(image ? { COVE_E2E_IMAGE: image } : {}), ...env };
-  if (Object.keys(composeEnv).length > 0) {
-    environment = environment.withEnvironment(composeEnv);
-  }
+  const composeEnv = { COVE_E2E_IMAGE: resolveCoveImage(image), ...env };
+  environment = environment.withEnvironment(composeEnv);
 
   const started = await environment.up();
   let coveContainer = started.getContainer("cove-1");
@@ -124,9 +186,17 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
       return result;
     },
 
-    /** Runs a command inside the Cove container (e.g. to inspect /data2 for the cross-device test). */
-    exec(command) {
-      return coveContainer.exec(command);
+    /**
+     * Runs a command inside the Cove container (e.g. to inspect /data2 for the cross-device test).
+     *
+     * Takes Testcontainers' own exec options alongside the argv, for the same reason `execDb` below
+     * does: passing a value through `env` is what lets a command carry quotes with no escaping rule
+     * to get wrong, and `user` is what reaches a path the container's own user may not. Dropping the
+     * options does not fail loudly — the command still runs and still exits 0, just without what the
+     * caller meant to supply — so the caller reads a successful run of a command that did nothing.
+     */
+    exec(command, opts) {
+      return coveContainer.exec(command, opts);
     },
 
     /**
@@ -170,7 +240,9 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
         );
       }
       credentials = { username, password };
-      return takeToken(await res.json(), "bootstrapOwner");
+      const payload = await res.json();
+      handle.token = readToken(payload, "bootstrapOwner");
+      return payload;
     },
 
     /**
@@ -191,7 +263,107 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
         throw new Error(`login: POST /api/auth/login failed (${res.status}): ${body}`);
       }
       credentials = { username, password };
-      return takeToken(await res.json(), "login");
+      const payload = await res.json();
+      handle.token = readToken(payload, "login");
+      return payload;
+    },
+
+    /**
+     * Creates a NON-OWNER user Cove's row-level authorization filters actually apply to, and returns
+     * its token WITHOUT replacing the handle's own.
+     *
+     * Why this exists at all: `CoveContext` short-circuits every one of those filters to true for a
+     * principal holding the `"*"` permission, and Cove's bootstrap grants exactly that to the owner
+     * role. So a spec driven with `bootstrapOwner()`'s token cannot observe row-level authorization —
+     * every assertion it makes about which rows a principal sees passes whatever the filters do. The
+     * same clause treats a MISSING principal as bypassed too, so "send no credential" proves the safe
+     * case rather than the dangerous one. What discriminates is a present, under-privileged user.
+     *
+     * Why a permission list is not enough on its own, and the deny rule is what does the work: Cove's
+     * write permissions declare the matching read as implied, so a role granted `videos.write` is
+     * expanded to hold `videos.read` and reaches every video read endpoint. A CONTENT RULE denying
+     * read on a kind is the mechanism that leaves the permission in place while making the per-entity
+     * SQL predicate answer false — which is the shape worth testing, because it is the one where a
+     * caller gets 200 and zero rows rather than a 403 that names itself.
+     *
+     * The handle's `token` deliberately stays the owner's: the caller still needs it to seed the
+     * fixture and to read the same data back as somebody the filters do not apply to, which is the
+     * comparison that gives a zero-row assertion any meaning.
+     *
+     * @param {object} opts
+     * @param {string[]} opts.permissions - Host permission keys granted to the role, verbatim; this
+     *   helper never adds to them.
+     * @param {string[]} opts.denyReadEntityKinds - Cove entity kinds (its own lowercase vocabulary,
+     *   e.g. `video`) to deny read on for the whole role.
+     * @returns {Promise<{token: string, userId: number, roleId: number, roleName: string,
+     *   username: string, password: string}>}
+     */
+    async createRestrictedUser({
+      username = "e2e-restricted",
+      password = "E2eRestrictedPassword123!",
+      roleName = "e2e-restricted",
+      permissions = [],
+      denyReadEntityKinds = [],
+    } = {}) {
+      // Every call below is made as the OWNER: creating a role, a content rule and a user require
+      // RolesWrite/UsersWrite, which at this point only the bootstrapped owner holds.
+      const asOwner = async (path, body) => {
+        const res = await fetch(`${handle.baseUrl}${path}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(handle.token ? { Authorization: `Bearer ${handle.token}` } : {}),
+          },
+          body: JSON.stringify(body),
+        });
+        const text = await res.text().catch(() => "<unreadable body>");
+        if (!res.ok) {
+          throw new Error(
+            `createRestrictedUser: POST ${path} failed (${res.status}): ${text || "<empty body>"}`,
+          );
+        }
+        try {
+          return text ? JSON.parse(text) : undefined;
+        } catch {
+          throw new Error(
+            `createRestrictedUser: POST ${path} answered ${res.status} with a body that is not JSON: ${text}`,
+          );
+        }
+      };
+
+      const role = await asOwner("/api/roles", {
+        Name: roleName,
+        Description: "Restricted e2e role — no wildcard, read denied by content rule.",
+        Permissions: permissions,
+      });
+      const roleId = requireId(role, "id", `createRestrictedUser: POST /api/roles`);
+
+      for (const entityKind of denyReadEntityKinds) {
+        // The vocabulary is the host's own (ContentRuleService's valid effect/scope/appliesTo sets);
+        // it is lowercase there and matched case-insensitively, so it is written that way here rather
+        // than in an invented uppercase form. An empty ScopeValue is normalised to `{}` by the host,
+        // which is what a scope of "all" wants.
+        await asOwner("/api/content-rules", {
+          RoleId: roleId,
+          EntityKind: entityKind,
+          Effect: "deny",
+          ScopeKind: "all",
+          ScopeValue: "",
+          AppliesTo: "read",
+        });
+      }
+
+      const user = await asOwner("/api/users", {
+        Username: username,
+        Password: password,
+        Roles: [roleName],
+      });
+      const userId = requireId(user, "id", `createRestrictedUser: POST /api/users`);
+
+      const loginPayload = await asOwner("/api/auth/login", { username, password });
+      const token = readToken(loginPayload, "createRestrictedUser login");
+
+      return { token, userId, roleId, roleName, username, password };
     },
 
     async stop() {
@@ -202,18 +374,35 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
   // The access token is `token` — NOT `accessToken`. Reading the wrong field yields
   // `Bearer undefined`, which the host rejects identically to sending no header at all, so a spec
   // would go red for a broken fixture rather than for the behavior it means to prove. Asserted here,
-  // at the one place either response's field name is spelled, so that failure names itself.
-  function takeToken(response, source) {
+  // at the one place any login response's field name is spelled, so that failure names itself.
+  //
+  // Returns the token instead of storing it: the handle's `token` is the owner's by contract, and a
+  // helper that mints a second, deliberately less privileged one must not be able to overwrite it —
+  // silently swapping the owner's credential for a restricted one turns every later fixture call into
+  // a permission failure a long way from its cause.
+  function readToken(response, source) {
     if (typeof response?.token !== "string" || response.token.length === 0) {
       throw new Error(
         `${source}: response carried no usable token (top-level keys: ${Object.keys(response ?? {}).join(", ") || "<none>"})`,
       );
     }
-    handle.token = response.token;
-    return response;
+    return response.token;
   }
 
   return handle;
+}
+
+// Reads an id the host minted, failing with the keys it actually returned rather than handing a
+// caller `undefined` to put in a URL — where it reads as a 404 about a missing entity instead of as
+// a wire-shape mismatch.
+function requireId(payload, field, source) {
+  const value = payload?.[field];
+  if (typeof value !== "number") {
+    throw new Error(
+      `${source}: response carried no numeric "${field}" (top-level keys: ${Object.keys(payload ?? {}).join(", ") || "<none>"})`,
+    );
+  }
+  return value;
 }
 
 // The restart's own wait strategy is a health check, but that probe runs INSIDE the container and

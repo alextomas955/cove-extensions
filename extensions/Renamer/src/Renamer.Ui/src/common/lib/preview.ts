@@ -11,7 +11,7 @@
  * The wire shapes it consumes are generated from the extension's own OpenAPI document.
  */
 
-import type { ConfirmLevel, PreviewItemView, PreviewSummary } from "../../wire/api";
+import type { ConfirmLevel, PreviewItemView, PreviewSummary, RenamerStatus } from "../../wire/api";
 
 /** Last path segment, tolerant of both `/` and `\` separators (Windows paths). */
 function basename(p: string): string {
@@ -21,6 +21,51 @@ function basename(p: string): string {
 }
 
 const SAMPLE_LIMIT = 5;
+
+/**
+ * The two spellings one skip kind needs in the confirm text: the plural `clause` the multi-reason line
+ * joins behind a count, and the singular `reason` the compact single-kind form parenthesises.
+ */
+interface SkipClause {
+  readonly clause: string;
+  readonly reason: string;
+}
+
+/**
+ * Every status the wire can carry, and whether it counts as a skip in the confirm dialog.
+ *
+ * Total by TYPE, not by convention: keyed on the union generated from the extension's own OpenAPI
+ * document, so a status the server grows fails this build (TS2741, naming the missing key) rather than
+ * going uncounted. This replaced four independent per-status filter passes, and it is the number a user
+ * approves a rename on — `skipExcluded` was missing from all four, so every excluded item was left out
+ * of the total and the whole line vanished when an exclude was the only reason anything was skipped.
+ *
+ * DECLARATION ORDER IS THE RENDERED CLAUSE ORDER. The five clause-bearing entries lead, in the order
+ * their clauses appear in the sentence; the excluded entry was inserted after the collision one so no
+ * sentence a user has already been reading changed order.
+ */
+const SKIP_CLAUSES: Record<RenamerStatus, SkipClause | null> = {
+  skipGated: { clause: "need a required field", reason: "needs a required field" },
+  skipCollision: { clause: "have a name conflict", reason: "name conflict" },
+  skipExcluded: { clause: "are excluded by a rule", reason: "excluded by a rule" },
+  // Kept exactly as shipped even though the executor produces this one at move time, past this confirm
+  // gate, so no preview item can carry it: retiring live user-facing copy is a decision of its own, and
+  // is not the one being made here.
+  skipLocked: { clause: "are in use", reason: "in use" },
+  skipMissingSource: { clause: "are missing on disk", reason: "missing on disk" },
+  // Not a skip: these two are the items that WILL change, counted by `willRename` above.
+  renamer: null,
+  move: null,
+  noOp: null,
+  // Executor-only, so a forward-run outcome cannot appear in a list assembled before the run: this gate
+  // is what starts it. No copy is invented for any of them — a clause written here would be dead text.
+  failed: null,
+  skipPermissionDenied: null,
+  skipVerifyFailed: null,
+  skipCancelled: null,
+  skipNoSpace: null,
+  skipBlocked: null,
+};
 
 /** Render a byte count as a compact GB string for the blast-radius lines (e.g. "1.5 GB"). */
 function formatGb(bytes: number): string {
@@ -65,8 +110,9 @@ function confirmCallToAction(level: ConfirmLevel): string {
  * Build the exact text for the in-flow window.confirm gate shown before a bulk rename runs.
  *
  * - N = items that will actually change (status Rename | Move); M = total selected.
- * - One `⚠` line per non-zero warning kind: skips (split into gated / collision sub-counts),
- *   numbered (suffixed), cleaned (sanitized).
+ * - One `⚠` line per non-zero warning kind: cross-drive copies whose temporary path would not fit,
+ *   skips (one sub-count per reason kind {@link SKIP_CLAUSES} declares), numbered (suffixed),
+ *   cleaned (sanitized).
  * - Up to 5 `old → new` basename examples drawn from will-rename items; "… and R more." when N > 5.
  * - When N == 0 the body states nothing will be renamed (the handler then cancels even on OK).
  *
@@ -87,33 +133,58 @@ export function buildConfirmSummary(
   const n = willRename.length;
   const m = items.length;
 
-  const gated = items.filter((it) => it.status === "skipGated").length;
-  const collision = items.filter((it) => it.status === "skipCollision").length;
-  const lockedSkipped = items.filter((it) => it.status === "skipLocked").length;
-  const missingSkipped = items.filter((it) => it.status === "skipMissingSource").length;
-  const skipped = gated + collision + lockedSkipped + missingSkipped;
+  const tally = new Map<string, number>();
+  // Membership, not `!== null`: an undeclared status also satisfies `!== null`, so the looser test
+  // counted it here and then lost it again below, where the clause list reads only declared keys. That
+  // is the same disappearance `skipExcluded` suffered, re-created for a status the running server grew
+  // after this bundle shipped. Counted separately instead, because a number the user approves a rename
+  // on must not omit rows it could not classify.
+  let unclassified = 0;
+  for (const it of items) {
+    // Widened deliberately: `RenamerStatus` is a claim about what the server sends, checked by the
+    // compiler against itself and never against the server, so this map is exhaustive by TYPE while the
+    // lookup can still miss at RUNTIME. Typed as declared, `no-unnecessary-condition` correctly calls the
+    // undefined branch dead — because to the compiler it is.
+    const clause = (SKIP_CLAUSES as Record<string, SkipClause | null | undefined>)[it.status];
+    if (clause === undefined) unclassified++;
+    else if (clause !== null) tally.set(it.status, (tally.get(it.status) ?? 0) + 1);
+  }
+  // Read in the MAP's declaration order, never the tally's — that one follows whatever order the items
+  // happened to arrive in, which would let the same selection word its sentence differently twice.
+  const skipKinds = Object.entries(SKIP_CLAUSES).flatMap(([status, clause]) => {
+    const count = tally.get(status) ?? 0;
+    return clause !== null && count > 0 ? [{ ...clause, count }] : [];
+  });
+  // Includes the unclassified remainder: the headline number is what the user weighs the rename
+  // against, so a row that reached no clause still has to be inside it.
+  const skipped = skipKinds.reduce((sum, kind) => sum + kind.count, 0) + unclassified;
   const numbered = willRename.filter((it) => it.suffixed).length;
   const cleaned = willRename.filter((it) => it.sanitized).length;
 
   const warningLines: string[] = [];
+  // First, and phrased as a failure rather than an advisory: every other line here describes a rename
+  // that will happen differently, while this one describes files the executor will not be able to move at
+  // all. It reads the aggregate COUNT, never a list of paths — the selection reaches library size, and
+  // this text goes into a native confirm box that cannot scroll usefully.
+  //
+  // The cause is not stated in characters on purpose. A cross-drive move copies to a temporary name
+  // longer than the final one, and the exact number belongs to the server that mints it; repeating it
+  // here would be a second copy of a value that has already been narrowed once. What the user can act on
+  // is the remedy, so that is what the line carries.
+  const inFlightOverflow = summary?.inFlightPathOverflowCount ?? 0;
+  if (inFlightOverflow > 0) {
+    warningLines.push(
+      `⚠ ${inFlightOverflow} cannot be copied across drives — the temporary copy's path would be too ` +
+        `long. Shorten the destination folder or the filename template for ${inFlightOverflow === 1 ? "it" : "them"}.`,
+    );
+  }
   if (skipped > 0) {
-    const clauses: string[] = [];
-    if (gated > 0) clauses.push(`${gated} need a required field`);
-    if (collision > 0) clauses.push(`${collision} have a name conflict`);
-    if (lockedSkipped > 0) clauses.push(`${lockedSkipped} are in use`);
-    if (missingSkipped > 0) clauses.push(`${missingSkipped} are missing on disk`);
     // If only one reason kind, collapse to the compact "(reason)" form.
-    if (clauses.length === 1) {
-      const onlyReason =
-        gated > 0
-          ? "needs a required field"
-          : collision > 0
-            ? "name conflict"
-            : lockedSkipped > 0
-              ? "in use"
-              : "missing on disk";
-      warningLines.push(`⚠ ${skipped} skipped (${onlyReason}).`);
+    if (skipKinds.length === 1 && unclassified === 0) {
+      warningLines.push(`⚠ ${skipped} skipped (${skipKinds[0].reason}).`);
     } else {
+      const clauses = skipKinds.map((kind) => `${kind.count} ${kind.clause}`);
+      if (unclassified > 0) clauses.push(`${unclassified} for an unrecognised reason`);
       warningLines.push(`⚠ ${skipped} skipped — ${clauses.join(", ")}.`);
     }
   }

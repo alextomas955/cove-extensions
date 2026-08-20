@@ -75,10 +75,15 @@ public sealed class WireSnapshotTests
         };
         var summary = new PreviewSummary(
             TotalCount: 1, SameVolumeCount: 1, CrossVolumeCount: 0, CrossVolumeBytes: 0,
-            VolumePairs: [], ConfirmLevel: ConfirmLevel.Light);
+            VolumePairs: [], ConfirmLevel: ConfirmLevel.Light, InFlightPathOverflowCount: 0);
+        // Both items are same-volume, so the in-flight overflow flag is false for each — this fixture pins
+        // that the field is ON the wire and spelled camelCase, and the true arm is a behavioural question
+        // answered in BlastRadiusTests rather than by planting a value the classification contradicts.
         AssertSnapshot("preview-response",
             JsonSerializer.Serialize(
-                new PreviewResponse([.. items.Select(PreviewItemView.From)], summary), PreviewResponse_));
+                new PreviewResponse(
+                    [.. items.Select(i => PreviewItemView.From(i, inFlightPathOverflow: false))], summary),
+                PreviewResponse_));
     }
 
     [Fact]
@@ -88,8 +93,13 @@ public sealed class WireSnapshotTests
             FileId: 42, OldFullPath: "/lib/a.mp3", NewFullPath: "/music/Artist - Song.mp3",
             Status: RenamerStatus.Move, NewBasename: "Artist - Song.mp3", TargetFolderPath: "/music",
             ResolvedDestinationRoot: "/music", MatchedRule: "Studio:7(direct)", TargetVolume: "/");
+        // Same-volume by construction (one root), so the overflow flag is false — this fixture pins that
+        // the field is ON the wire and spelled camelCase, and the true arm is a behavioural question
+        // answered in ScanAggregatorTests / ScanRowOverflowFlagTests rather than by planting a value the
+        // classification contradicts.
         string json = JsonSerializer.Serialize(
-            ScanRow.From(RenamerFileKind.Audio, entityId: 5, item), PreviewResponse_);
+            ScanRow.From(RenamerFileKind.Audio, entityId: 5, item, inFlightPathOverflow: false),
+            PreviewResponse_);
 
         // The three consumer-less fields and the two the client derives from newFullPath must be ABSENT:
         // this row multiplies by library size, so a field nobody reads is weight on every page.
@@ -117,7 +127,7 @@ public sealed class WireSnapshotTests
             BlastRadius: new PreviewSummary(
                 TotalCount: files, SameVolumeCount: 0, CrossVolumeCount: files, CrossVolumeBytes: 4096,
                 VolumePairs: [new VolumePairDelta("/src", "/dest", files, 4096)],
-                ConfirmLevel: ConfirmLevel.Heavy),
+                ConfirmLevel: ConfirmLevel.Heavy, InFlightPathOverflowCount: 0),
             VolumePairsTruncated: truncated);
 
         var populated = new ScanSummary(
@@ -139,10 +149,13 @@ public sealed class WireSnapshotTests
     [Fact]
     public void ScanRowsPage_CamelCase_WithAndWithoutACursor()
     {
-        var row = ScanRow.From(RenamerFileKind.Video, entityId: 9, new RenamerPlanItem(
-            FileId: 90, OldFullPath: "/lib/raw.mkv", NewFullPath: "/lib/Title.mkv",
-            Status: RenamerStatus.Renamer, NewBasename: "Title.mkv", TargetFolderPath: "/lib",
-            Suffixed: true, Sanitized: true));
+        var row = ScanRow.From(
+            RenamerFileKind.Video, entityId: 9,
+            new RenamerPlanItem(
+                FileId: 90, OldFullPath: "/lib/raw.mkv", NewFullPath: "/lib/Title.mkv",
+                Status: RenamerStatus.Renamer, NewBasename: "Title.mkv", TargetFolderPath: "/lib",
+                Suffixed: true, Sanitized: true),
+            inFlightPathOverflow: false);
 
         var snapshot = new
         {

@@ -1,10 +1,14 @@
 /** Behavior contract for the pure dry-run logic. */
 import { test } from "vitest";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 import {
   classifyItem,
   bucketWireValue,
+  inFlightOverflowLabel,
+  IN_FLIGHT_OVERFLOW_LABEL,
   summaryCounts,
   assetHref,
   clampProgress,
@@ -23,6 +27,9 @@ import {
  * from `classifyItem`: an expectation computed from the code under test would pass no matter how far
  * the two sides drifted, and a drift means a row appearing in a segment it was never counted in.
  * Re-check this table against that C# file if either side changes.
+ *
+ * Whether it is COMPLETE is not checked here at all — that expectation comes from the wire document
+ * below, which the server emits.
  */
 const SERVER_BUCKETS = [
   ["renamer", "will-change"],
@@ -36,10 +43,34 @@ const SERVER_BUCKETS = [
   ["skipNoSpace", "attention"],
   ["skipBlocked", "attention"],
   ["failed", "attention"],
+  ["skipPermissionDenied", "attention"],
+  ["skipVerifyFailed", "attention"],
+  ["skipCancelled", "attention"],
 ];
 
+/**
+ * The committed OpenAPI document, which the server generates from its own types. Resolved from this
+ * file's own directory and NEVER from the module URL's pathname property — on Windows that yields a
+ * leading-slash form resolving to a doubled drive prefix, which has silently disabled gates here before.
+ */
+const WIRE_DOCUMENT = path.join(import.meta.dirname, "../../../../../wire/openapi.json");
+
 test("classifyItem agrees with ScanBucket.Of on every status the server can emit", () => {
-  assert.equal(SERVER_BUCKETS.length, 11, "RenamerStatus has 11 members — pin them all");
+  const emitted = new Set(
+    JSON.parse(readFileSync(WIRE_DOCUMENT, "utf8")).components.schemas.RenamerStatus.enum,
+  );
+  const tabled = new Set(SERVER_BUCKETS.map(([status]) => status));
+  const untabled = [...emitted].filter((s) => !tabled.has(s));
+  const retired = [...tabled].filter((s) => !emitted.has(s));
+  assert.deepEqual(
+    { untabled, retired },
+    { untabled: [], retired: [] },
+    `The table above is transcribed by hand and this expectation comes from the document the SERVER ` +
+      `emits, so the two cannot agree with each other by construction the way a hand-written member ` +
+      `count could — that one was checked against the very table it was counting. Emitted but not ` +
+      `tabled: ${JSON.stringify(untabled)}. Tabled but no longer emitted: ${JSON.stringify(retired)}. ` +
+      `Re-check the table against ScanBucket.Of, then regenerate the wire types.`,
+  );
   for (const [status, bucket] of SERVER_BUCKETS) {
     assert.equal(classifyItem({ status }), bucket, `status ${status}`);
   }
@@ -60,6 +91,35 @@ test("bucketWireValue emits the camelCase ScanBucketKind names the server parses
   assert.equal(bucketWireValue("no-change"), "noChange");
   assert.equal(bucketWireValue("attention"), "attention");
   assert.equal(bucketWireValue("all"), "all");
+});
+
+/**
+ * The wire field name the server spells for the in-flight overflow flag, TRANSCRIBED BY HAND from
+ * `extensions/Renamer/src/Renamer/Contracts/PreviewContracts.cs` (`PreviewItemView.InFlightPathOverflow`,
+ * camel-cased by the response serializer). Written out here rather than read from the generated wire types,
+ * because a key spelled wrong reads `undefined` — falsy — so the badge would simply never render and
+ * nothing would fail: not the type-check, not the request, not this suite if it asked the module for the
+ * name it already uses.
+ */
+const OVERFLOW_WIRE_FIELD = "inFlightPathOverflow";
+
+test("a row the server flagged earns the overflow label, and an unflagged row earns none", () => {
+  assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: true }), IN_FLIGHT_OVERFLOW_LABEL);
+  assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: false }), null);
+});
+
+test("the overflow label carries words, so the badge is never colour alone", () => {
+  // The badge leads with a lucide glyph, and the glyph is not the message: a red pill with no text tells a
+  // colour-blind or screen-reader user nothing about what is wrong with the row.
+  assert.match(IN_FLIGHT_OVERFLOW_LABEL, /[A-Za-z]{3}/);
+});
+
+test("a row from a wire shape that has no overflow field reads as unflagged, not as flagged", () => {
+  // `/scan-rows` carries this field as of 29-06, so this is no longer about a field the wire lacks —
+  // it is about how a row that arrives without one must read. A missing field is `undefined`, and
+  // treating that as truthy would put a red pill on every row of the dry-run table.
+  assert.equal(inFlightOverflowLabel({}), null);
+  assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: undefined }), null);
 });
 
 test("summaryCounts partitions the aggregate's status counts into three buckets summing to the total", () => {

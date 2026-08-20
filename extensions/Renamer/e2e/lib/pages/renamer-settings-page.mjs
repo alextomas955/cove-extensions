@@ -15,6 +15,11 @@ export class RenamerSettingsPage {
     // The in-app (React) confirm modal's accept button — dynamic label ("Undo 1 rename",
     // "Undo 3 renames"), NOT a native browser dialog.
     this.undoConfirmButton = page.getByRole("button", { name: /^Undo \d+ renames?$/ });
+    // The section's one status line, rendered as `Last rename: {status.line}`. Keyed on that literal
+    // prefix rather than on the counts, so resolving it proves the section mounted and its
+    // /last-batch fetch reached a branch that has a batch to describe — it proves NOTHING about the
+    // figures in the line, which a caller asserts itself against a hand-written expectation.
+    this.undoStatusLine = page.getByText(/^Last rename:/);
     // Always-visible switch under the flat "Run & automation" section (the settings redesign
     // replaced the old collapsible "Automation" sub-section, so there is no header to expand).
     this.autoRenameOnUpdateSwitch = page.getByRole("switch", { name: "Auto-rename on update" });
@@ -80,6 +85,22 @@ export class RenamerSettingsPage {
     await this.dryRunDialog.waitFor({ state: "visible", timeout: 10_000 });
   }
 
+  /**
+   * One row of the Dry run table, scoped by the CURRENT name its first column shows.
+   *
+   * Anchored on that column's link, whose accessible name ("Open <name> in Cove (new tab)") is the only
+   * per-row handle a user can also see — a class would silently follow a restyle onto the wrong element
+   * instead of failing. `.last()` picks the innermost `div` wrapping the link, i.e. the row itself
+   * rather than the scroll container above it; same reasoning as the shared VideosPage.cardByFilename.
+   */
+  dryRunRowFor(currentBasename) {
+    return this.dryRunDialog
+      .locator("div", {
+        has: this.page.getByRole("link", { name: `Open ${currentBasename} in Cove (new tab)` }),
+      })
+      .last();
+  }
+
   /** The "Sample: Video" live-preview card's full text, used to assert the debounced preview updated. */
   liveVideoSampleCard() {
     return this.page.getByText("SAMPLE: VIDEO", { exact: false }).locator("..");
@@ -87,6 +108,18 @@ export class RenamerSettingsPage {
 
   hasUndoAvailable() {
     return this.undoLastRenameButton.isVisible();
+  }
+
+  /**
+   * The status line's rendered text, once the section's /last-batch fetch has landed.
+   *
+   * Waits instead of reading on arrival: the section renders a "Checking for a recent rename…"
+   * spinner until that fetch resolves, so an immediate read returns null on a loaded host and the
+   * caller's assertion would then fail for a reason that is not the one it exists to catch.
+   */
+  async undoStatusText() {
+    await this.undoStatusLine.waitFor({ state: "visible", timeout: 30_000 });
+    return this.undoStatusLine.textContent();
   }
 
   /** Clicks "Undo last rename" and confirms the in-app modal. Throws if the button isn't present. */

@@ -61,6 +61,13 @@ destination, and any warnings — without changing anything.
    iterate on the template and re-run until the preview looks right. If something looks wrong,
    adjust the template or the relevant setting and dry-run again.
 
+A row can also be flagged because its move would cross to another drive and the temporary copy's path
+would be too long. Those rows are worth resolving before you rename — see
+[If the confirmation warns about a path being too long](#if-the-confirmation-warns-about-a-path-being-too-long).
+
+A row that one of your exclude rules matched is marked as excluded in the table, and it counts toward
+the skipped total the rename confirmation shows.
+
 ## Rename
 
 1. When the preview looks right, **save** your settings (the sticky Save bar at the bottom).
@@ -69,11 +76,39 @@ destination, and any warnings — without changing anything.
 3. Renamer renames each file and updates its Cove record together. A file is never renamed onto an
    existing file — a collision gets a numbered suffix such as `(1)` instead.
 
+If the panel says it **couldn't confirm the rename**, the job stopped telling Renamer how it was
+getting on — it did not necessarily stop working. Some of your files may already have been renamed.
+Run a dry run again to see where your library actually stands before you start another rename.
+
 When a move crosses to another drive, Renamer copies the file, verifies the copy, and only then
 removes the original. If the machine loses power in the middle of that, you may find one stray file
 in the destination folder, named after the file being moved with `.rnm` and eight characters added.
 Nothing reads it, the next attempt writes a different one, and you can delete it. Renamer will not
 delete it for you, because it never removes a file it did not create.
+
+### If the confirmation warns about a path being too long
+
+That temporary name is longer than the final one, so a file can fit its new name and still not fit
+while the copy is in flight. Renamer checks for this before you approve, and the confirmation says so:
+
+```text
+⚠ 3 cannot be copied across drives — the temporary copy's path would be too long.
+  Shorten the destination folder or the filename template for them.
+```
+
+Two remedies, either of which is enough:
+
+- **Shorten the destination folder.** A destination closer to the drive root leaves more room for the
+  name. This is usually the quicker fix, because it applies to every file heading there.
+- **Shorten the filename template.** Drop a token, or shorten a separator, so the generated name is
+  smaller. See [Templates](./templates.md).
+
+The check only reports — it never renames a file differently to make it fit. Your names are exactly
+what the preview showed, whether or not this warning appears, so you can dry-run again after changing
+a setting and compare the two previews directly.
+
+This applies only to moves that cross drives. A rename within one drive never mints the temporary
+name, so it is never affected.
 
 ## Undo the last rename
 
@@ -101,8 +136,9 @@ Know what undo covers:
 - Any rename can be undone, whatever its size.
 - **Rename all files** renames each media kind as its own batch, so one undo restores one kind — the
   **last kind** the run reached. If your library holds videos and images, undoing once after a
-  whole-library rename brings back one of them, not both. The success message says so when the run
-  finishes.
+  whole-library rename brings back one of them, not both. Click **Undo last rename** again and the
+  kind before it comes back — one click per kind, and each kind keeps its own 7 days. The success
+  message says so when the run finishes.
 - A pending undo survives an update or a reinstall of Renamer, because the record lives in Cove's
   database rather than in the extension's own folder.
 - Undo does **not** re-create a source folder that ["Delete the source folder when a move leaves it

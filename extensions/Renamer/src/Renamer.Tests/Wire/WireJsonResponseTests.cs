@@ -39,6 +39,7 @@ public sealed class WireJsonResponseTests
                 Reason: null,
                 Suffixed: false,
                 Sanitized: true,
+                InFlightPathOverflow: false,
                 ResolvedDestinationRoot: null,
                 MatchedRule: "InPlace",
                 TargetVolume: "/"),
@@ -49,7 +50,8 @@ public sealed class WireJsonResponseTests
             CrossVolumeCount: 0,
             CrossVolumeBytes: 0,
             VolumePairs: [],
-            ConfirmLevel: ConfirmLevel.Light));
+            ConfirmLevel: ConfirmLevel.Light,
+            InFlightPathOverflowCount: 0));
 
     /// <summary>Executes a result against a real response body and returns what it wrote, as UTF-8 text.</summary>
     /// <param name="result">The result to execute.</param>
@@ -100,6 +102,13 @@ public sealed class WireJsonResponseTests
         Assert.Contains("\"targetFolderPath\":", body, StringComparison.Ordinal);
         Assert.DoesNotContain("\"CrossVolumeBytes\":", body, StringComparison.Ordinal);
         Assert.DoesNotContain("\"TargetFolderPath\":", body, StringComparison.Ordinal);
+
+        // The in-flight overflow pair, spelled as the generated frontend types read them. A PascalCase
+        // member here would leave the badge's bool undefined — falsy, so the warning would simply never
+        // render and nothing anywhere would fail. Transcribed by hand, like the two constants above.
+        Assert.Contains("\"inFlightPathOverflow\":", body, StringComparison.Ordinal);
+        Assert.Contains("\"inFlightPathOverflowCount\":", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"InFlightPathOverflow\":", body, StringComparison.Ordinal);
     }
 
     [Fact]

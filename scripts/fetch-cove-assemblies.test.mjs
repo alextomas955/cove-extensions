@@ -1,0 +1,608 @@
+// Behavior coverage for the Cove assembly extractor. Everything here runs offline: the registry is
+// never contacted, and the layer-selection case drives an injected probe rather than a download, so
+// a red here means the selection or the parsing is wrong and never that a CDN was slow.
+//
+// The exception is deliberate — one case reads this repo's REAL Directory.Build.props, so renaming
+// either image property fails the validate job's `node --test scripts/*.test.mjs` glob instead of
+// leaving the fetcher to read an empty value and fail somewhere further away.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+
+import {
+  assertBlobMatchesDigest,
+  collectRegistryTags,
+  compareSemver,
+  flattenCoveMemberPath,
+  orderLayerCandidates,
+  parseMsBuildProperties,
+  parseSemver,
+  parseTarHeader,
+  readCoveImageReference,
+  readExtensionFloors,
+  readTarMembers,
+  readVersionStrings,
+  renderExtractionProps,
+  resolveCoveLegs,
+  selectLayerByContent,
+  splitImageReference,
+  splitReleaseChannels,
+} from "./fetch-cove-assemblies.mjs";
+
+const repoRoot = path.resolve(import.meta.dirname, "..");
+
+// ---- fixtures ---------------------------------------------------------------------------------
+
+function tarHeader({ name = "", size = 0, type = "0", prefix = "" } = {}) {
+  const block = Buffer.alloc(512);
+  block.write(name, 0, 100, "utf8");
+  block.write(size.toString(8).padStart(11, "0") + "\0", 124, 12, "utf8");
+  block.write(type, 156, 1, "utf8");
+  block.write("ustar\0", 257, 6, "utf8");
+  block.write(prefix, 345, 155, "utf8");
+  return block;
+}
+
+function tarMember({ name, body = Buffer.alloc(0), type = "0", prefix = "" }) {
+  const content = Buffer.isBuffer(body) ? body : Buffer.from(body, "utf8");
+  const padded = Buffer.alloc(Math.ceil(content.length / 512) * 512);
+  content.copy(padded);
+  return Buffer.concat([tarHeader({ name, size: content.length, type, prefix }), padded]);
+}
+
+// ---- layer ordering and content-based selection ------------------------------------------------
+
+test("layer candidates are probed largest first, and digest-less descriptors are dropped", () => {
+  const ordered = orderLayerCandidates([
+    { digest: "sha256:small", size: 100 },
+    { size: 999_999 },
+    { digest: "sha256:big", size: 84_600_000 },
+    { digest: "sha256:middle", size: 5_000 },
+  ]);
+
+  assert.deepEqual(
+    ordered.map((layer) => layer.digest),
+    ["sha256:big", "sha256:middle", "sha256:small"],
+  );
+});
+
+test("the layer is chosen by content, not by size, when two candidates are the same size", async () => {
+  // The real amd64 manifest lists the /opt/cove layer TWICE under different digests, which is why
+  // neither index nor size can identify it. Both candidates here are byte-identical in size and only
+  // the second carries the marker.
+  const candidates = [
+    { digest: "sha256:decoy", size: 84_600_000 },
+    { digest: "sha256:real", size: 84_600_000 },
+  ];
+  const probed = [];
+
+  const chosen = await selectLayerByContent(candidates, async (candidate) => {
+    probed.push(candidate.digest);
+    return candidate.digest === "sha256:real";
+  });
+
+  assert.equal(chosen.digest, "sha256:real");
+  assert.deepEqual(probed, ["sha256:decoy", "sha256:real"], "candidates are probed in order");
+});
+
+test("the first carrying layer wins and no later candidate is downloaded", async () => {
+  const probed = [];
+  const chosen = await selectLayerByContent(
+    [
+      { digest: "sha256:a", size: 3 },
+      { digest: "sha256:b", size: 2 },
+    ],
+    async (candidate) => {
+      probed.push(candidate.digest);
+      return true;
+    },
+  );
+
+  assert.equal(chosen.digest, "sha256:a");
+  assert.deepEqual(probed, ["sha256:a"]);
+});
+
+test("no carrying layer is an error naming every layer searched, never an empty extraction", async () => {
+  await assert.rejects(
+    () =>
+      selectLayerByContent(
+        [
+          { digest: "sha256:a", size: 1 },
+          { digest: "sha256:b", size: 2 },
+        ],
+        async () => false,
+      ),
+    (error) => {
+      assert.match(error.message, /opt\/cove\/Cove\.Data\.dll/);
+      assert.match(error.message, /Searched 2 layer\(s\)/);
+      assert.match(error.message, /sha256:a/);
+      assert.match(error.message, /sha256:b/);
+      return true;
+    },
+  );
+});
+
+// ---- tar member parsing ------------------------------------------------------------------------
+
+test("a tar header yields its name, octal size and type flag", () => {
+  const header = parseTarHeader(
+    tarHeader({ name: "opt/cove/Cove.Data.dll", size: 2_629_632, type: "0" }),
+  );
+
+  assert.equal(header.name, "opt/cove/Cove.Data.dll");
+  assert.equal(header.size, 2_629_632);
+  assert.equal(header.type, "0");
+});
+
+test("a ustar prefix is joined onto the name", () => {
+  const header = parseTarHeader(tarHeader({ name: "Cove.Data.dll", prefix: "opt/cove" }));
+  assert.equal(header.name, "opt/cove/Cove.Data.dll");
+});
+
+test("the all-zero end-of-archive block reads as null", () => {
+  assert.equal(parseTarHeader(Buffer.alloc(512)), null);
+});
+
+test("a base-256 size is refused rather than silently truncated", () => {
+  const block = tarHeader({ name: "big", size: 0 });
+  block[124] = 0x80;
+  assert.throws(() => parseTarHeader(block), /base-256/);
+});
+
+test("the 512-byte padding advances the cursor, so an odd-sized member does not desynchronise the next", () => {
+  // 10 bytes of content occupy a whole 512-byte block. Reading the declared size but advancing by the
+  // padded size is the only way the second member's header lands where it is looked for.
+  const archive = Buffer.concat([
+    tarMember({ name: "opt/cove/first.txt", body: "0123456789" }),
+    tarMember({ name: "opt/cove/second.txt", body: "second" }),
+    Buffer.alloc(1024),
+  ]);
+
+  const members = [...readTarMembers(archive)];
+
+  assert.deepEqual(
+    members.map((member) => member.name),
+    ["opt/cove/first.txt", "opt/cove/second.txt"],
+  );
+  assert.equal(members[0].body.toString("utf8"), "0123456789");
+  assert.equal(members[1].body.toString("utf8"), "second");
+});
+
+test("directory entries are skipped and a GNU long name applies to the member that follows", () => {
+  const longName =
+    "opt/cove/runtimes/linux-x64/native/a-name-long-enough-to-need-its-own-record.so";
+  const archive = Buffer.concat([
+    tarMember({ name: "opt/cove/", type: "5" }),
+    tarMember({ name: "././@LongLink", type: "L", body: `${longName}\0` }),
+    tarMember({ name: "opt/cove/truncated", body: "payload" }),
+    Buffer.alloc(1024),
+  ]);
+
+  const members = [...readTarMembers(archive)];
+
+  assert.deepEqual(
+    members.map((member) => member.name),
+    [longName],
+  );
+});
+
+// ---- member path flattening --------------------------------------------------------------------
+
+test("opt/cove members are flattened, keeping any deeper structure", () => {
+  assert.equal(flattenCoveMemberPath("opt/cove/Cove.Data.dll"), "Cove.Data.dll");
+  assert.equal(flattenCoveMemberPath("./opt/cove/Cove.Data.dll"), "Cove.Data.dll");
+  assert.equal(flattenCoveMemberPath("/opt/cove/Cove.Data.dll"), "Cove.Data.dll");
+  assert.equal(
+    flattenCoveMemberPath("opt/cove/runtimes/linux-x64/native/libe_sqlite3.so"),
+    "runtimes/linux-x64/native/libe_sqlite3.so",
+  );
+});
+
+test("anything outside opt/cove, and anything that would escape the output directory, is refused", () => {
+  assert.equal(flattenCoveMemberPath("opt/other/thing.dll"), null);
+  assert.equal(flattenCoveMemberPath("usr/lib/thing.dll"), null);
+  assert.equal(flattenCoveMemberPath("opt/cove/"), null);
+  assert.equal(flattenCoveMemberPath("opt/cove/../../etc/passwd"), null);
+  assert.equal(
+    flattenCoveMemberPath("opt/cove/.wh.Cove.Data.dll"),
+    null,
+    "overlay whiteout marker",
+  );
+});
+
+// ---- image reference -----------------------------------------------------------------------------
+
+test("an image reference splits into its registry host and repository", () => {
+  assert.deepEqual(splitImageReference("ghcr.io/yourcove/cove-app"), {
+    registry: "ghcr.io",
+    repository: "yourcove/cove-app",
+  });
+});
+
+test("a URL or a host-less reference is refused rather than defaulted to some other registry", () => {
+  assert.throws(
+    () => splitImageReference("https://ghcr.io/yourcove/cove-app"),
+    /not a URL|not a url|URL/,
+  );
+  assert.throws(() => splitImageReference("cove-app"), /names no registry host/);
+  assert.throws(() => splitImageReference(""), /empty/);
+});
+
+// ---- the seam with the real build file ------------------------------------------------------------
+
+test("the real Directory.Build.props declares both image properties", () => {
+  // Reads the repo's own build file, so renaming CoveTestImageRepository or CoveTestImageTag fails
+  // here — where the fetcher takes them from — instead of drifting until a CI leg cannot resolve a tag.
+  const propsPath = path.join(repoRoot, "Directory.Build.props");
+  const props = parseMsBuildProperties(fs.readFileSync(propsPath, "utf8"));
+
+  assert.ok(
+    (props.CoveTestImageRepository ?? "") !== "",
+    "Directory.Build.props must declare a non-empty CoveTestImageRepository",
+  );
+  assert.ok(
+    (props.CoveTestImageTag ?? "") !== "",
+    "Directory.Build.props must declare a non-empty CoveTestImageTag",
+  );
+
+  const reference = readCoveImageReference(propsPath);
+  assert.equal(reference.repository, props.CoveTestImageRepository.split("/").slice(1).join("/"));
+  assert.equal(reference.tag, props.CoveTestImageTag);
+});
+
+test("the property reader expands a $(Name) reference to the value already read", () => {
+  const props = parseMsBuildProperties(`
+    <Project><PropertyGroup>
+      <CoveMinVersion>1.1.0</CoveMinVersion>
+      <CoveSdkVersion Condition="'$(CoveSdkVersion)' == ''">$(CoveMinVersion)</CoveSdkVersion>
+    </PropertyGroup></Project>
+  `);
+
+  assert.equal(props.CoveSdkVersion, "1.1.0");
+});
+
+// ---- version strings ------------------------------------------------------------------------------
+
+test("the version-resource reader finds a key's UTF-16 value across its alignment padding", () => {
+  const entry = (key, value) =>
+    Buffer.concat([
+      Buffer.from(`${key}\0`, "utf16le"),
+      Buffer.alloc(2), // the 4-byte alignment padding a real version block carries
+      Buffer.from(`${value}\0`, "utf16le"),
+    ]);
+
+  const buffer = Buffer.concat([
+    Buffer.from("MZ  ", "utf8"),
+    entry("Assembly Version", "1.1.1.0"),
+    entry("ProductVersion", "1.1.1-dev.175"),
+  ]);
+
+  const versions = readVersionStrings(buffer);
+
+  assert.equal(versions["Assembly Version"], "1.1.1.0");
+  assert.equal(versions.ProductVersion, "1.1.1-dev.175");
+  assert.equal(
+    versions.FileVersion,
+    undefined,
+    "an absent key yields no entry rather than a guess",
+  );
+});
+
+// ---- tag parsing, ranking and leg resolution ------------------------------------------------------
+
+test("the strict-semver regex is the whole filter: every non-semver tag spelling parses to null", () => {
+  // No denylist names `latest`, `nightly`, `sha-*` or the truncated `X.Y` aliases anywhere — the
+  // regex rejects all of them, so an upstream tag convention nobody anticipated cannot leak in
+  // through a list nobody updated.
+  for (const spelling of ["latest", "nightly", "sha-deadbeef", "1.1"]) {
+    assert.equal(parseSemver(spelling), null, spelling);
+  }
+
+  assert.deepEqual(parseSemver("1.1.0"), {
+    tag: "1.1.0",
+    major: 1,
+    minor: 1,
+    patch: 0,
+    prerelease: [],
+  });
+  assert.deepEqual(parseSemver("1.3.0-rc.2").prerelease, ["rc", "2"]);
+});
+
+test("ranking follows semver precedence, including the three pre-release rules", () => {
+  const ranked = [
+    "1.1.0",
+    "1.0.0-alpha.1",
+    "1.2.0-rc.2",
+    "1.0.0",
+    "1.1.1-dev.179",
+    "1.0.0-1",
+    "1.3.0-rc.2",
+    "1.1.0-rc.1",
+    "1.1.1-dev.175",
+    "1.0.0-alpha",
+  ]
+    .map(parseSemver)
+    .sort(compareSemver)
+    .map((parsed) => parsed.tag);
+
+  assert.deepEqual(ranked, [
+    "1.0.0-1", // a numeric identifier ranks BELOW an alphanumeric one
+    "1.0.0-alpha",
+    "1.0.0-alpha.1", // a longer pre-release outranks a shorter prefix of itself
+    "1.0.0", // a release outranks every pre-release of the same version
+    "1.1.0-rc.1",
+    "1.1.0",
+    "1.1.1-dev.175",
+    "1.1.1-dev.179",
+    "1.2.0-rc.2",
+    "1.3.0-rc.2",
+  ]);
+});
+
+test("the GA/pre-release split puts every tag carrying a pre-release component in the pre-release bucket and nothing else", () => {
+  const { ga, prerelease } = splitReleaseChannels(
+    ["1.0.0", "1.1.0", "1.3.0-rc.2", "1.1.1-dev.175", "0.9.0"].map(parseSemver),
+  );
+
+  assert.deepEqual(
+    ga.map((parsed) => parsed.tag),
+    ["0.9.0", "1.0.0", "1.1.0"],
+    "GA ascending, so the newest is last",
+  );
+  assert.deepEqual(
+    prerelease.map((parsed) => parsed.tag),
+    ["1.1.1-dev.175", "1.3.0-rc.2"],
+  );
+});
+
+test("the floor leg resolves to the exact floor tag the registry lists", () => {
+  const resolved = resolveCoveLegs({
+    floor: "1.1.0",
+    tags: ["latest", "nightly", "1.0.0", "1.1.0", "1.3.0-rc.2"],
+  });
+
+  const floorLeg = resolved.legs.find((leg) => leg.role.split("+").includes("floor"));
+  assert.equal(floorLeg.tag, "1.1.0");
+  assert.equal(floorLeg.advisory, false);
+  assert.equal(resolved.examined.tags, 5);
+  assert.equal(resolved.examined.parsed, 3);
+});
+
+test("a floor tag absent from the registry's tag list is refused, never defaulted to something near it", () => {
+  // A floor leg pointing at a tag that is not there would otherwise surface as an HTTP 404 deep
+  // inside the extraction, long after the value that caused it was chosen.
+  assert.throws(
+    () => resolveCoveLegs({ floor: "1.2.0", tags: ["1.1.0", "1.2.0-rc.1", "1.2.0-rc.2"] }),
+    (error) => {
+      assert.match(error.message, /1\.2\.0/);
+      assert.match(error.message, /not/);
+      return true;
+    },
+  );
+});
+
+test("a floor that is not strict semver is refused before it can reach a registry URL", () => {
+  assert.throws(() => resolveCoveLegs({ floor: "1.2", tags: ["1.1.0"] }), /1\.2/);
+});
+
+test("a tag list from which nothing parses as strict semver is refused, naming how many were read", () => {
+  // Not an empty leg set: a registry that only ever answered with noise has told us nothing, and a
+  // resolver that returned no legs from it would read as "this extension needs no version leg".
+  assert.throws(
+    () =>
+      resolveCoveLegs({
+        floor: "1.1.0",
+        tags: ["latest", "nightly", "sha-abc123", "1.1"],
+        source: "ghcr.io/o/r",
+      }),
+    (error) => {
+      assert.match(error.message, /None of the 4 tag\(s\)/);
+      assert.match(error.message, /ghcr\.io\/o\/r/);
+      return true;
+    },
+  );
+});
+
+test("an empty tag list is refused, naming the registry and repository that was read", () => {
+  assert.throws(() => resolveCoveLegs({ floor: "1.1.0", tags: [], source: "ghcr.io/o/r" }), {
+    message: /ghcr\.io\/o\/r listed no tags at all/,
+  });
+});
+
+test("a tag list that never stops advertising rel=next is refused at the page cap rather than looping", async () => {
+  let served = 0;
+  await assert.rejects(
+    () =>
+      collectRegistryTags(
+        async () => {
+          served += 1;
+          return { tags: ["1.0.0"], link: '</v2/x/tags/list?last=1.0.0>; rel="next"' };
+        },
+        "/v2/x/tags/list",
+        4,
+      ),
+    (error) => {
+      assert.match(error.message, /after 4 page\(s\)/);
+      assert.match(error.message, /cap of 4/);
+      return true;
+    },
+  );
+  assert.equal(served, 4, "the cap stops the loop rather than the loop stopping itself");
+});
+
+test("when the newest GA equals the floor, the two legs collapse onto one image and the roles merge", () => {
+  const resolved = resolveCoveLegs({
+    floor: "1.1.0",
+    tags: ["1.0.0", "1.1.0", "1.2.0-rc.1", "1.3.0-rc.2", "latest"],
+  });
+
+  assert.deepEqual(resolved.legs, [
+    { tag: "1.1.0", role: "floor+newest-ga", advisory: false },
+    { tag: "1.3.0-rc.2", role: "newest-prerelease", advisory: true },
+  ]);
+  assert.equal(resolved.examined.roles, 3, "three roles resolved");
+  assert.equal(resolved.legs.length, 2, "two distinct images");
+});
+
+test("a newest GA above the floor yields three legs and three distinct images", () => {
+  const resolved = resolveCoveLegs({
+    floor: "1.1.0",
+    tags: ["1.1.0", "1.2.0", "1.3.0-rc.2"],
+  });
+
+  assert.deepEqual(resolved.legs, [
+    { tag: "1.1.0", role: "floor", advisory: false },
+    { tag: "1.2.0", role: "newest-ga", advisory: false },
+    { tag: "1.3.0-rc.2", role: "newest-prerelease", advisory: true },
+  ]);
+  assert.equal(resolved.examined.roles, 3);
+});
+
+// ---- the generated build expectation ---------------------------------------------------------------
+
+test("the rendered expectation carries the tag, the digest and one Sha256 per assembly, in the form the build reads back", () => {
+  const rendered = renderExtractionProps({
+    tag: "1.1.0",
+    digest: "sha256:abc123",
+    assemblies: [
+      { name: "Cove.Data.dll", sha256: "a".repeat(64) },
+      { name: "Cove.Core.dll", sha256: "b".repeat(64) },
+    ],
+  });
+
+  // Read back with the same property reader the fetcher uses on Directory.Build.props, so the
+  // attributed form is pinned rather than assumed.
+  const props = parseMsBuildProperties(rendered);
+  assert.equal(props.CoveExtractionImageTag, "1.1.0");
+  assert.equal(props.CoveExtractionManifestDigest, "sha256:abc123");
+  assert.match(
+    rendered,
+    /<CoveExtractedAssembly Include="Cove\.Data\.dll" Sha256="a{64}" \/>/,
+    "the expected hash rides as metadata on the item the build hashes",
+  );
+});
+
+test("a value that could inject markup into a file the build imports is refused", () => {
+  const assemblies = [{ name: "Cove.Data.dll", sha256: "a".repeat(64) }];
+  assert.throws(
+    () =>
+      renderExtractionProps({
+        tag: '1.1.0"/><Exec Command="whoami',
+        digest: "sha256:ab",
+        assemblies,
+      }),
+    /not a plain tag name/,
+  );
+  assert.throws(
+    () => renderExtractionProps({ tag: "1.1.0", digest: "not-a-digest", assemblies }),
+    /algorithm:hex digest/,
+  );
+  assert.throws(
+    () => renderExtractionProps({ tag: "1.1.0", digest: "sha256:ab", assemblies: [] }),
+    /recorded no assemblies/,
+  );
+  assert.throws(
+    () =>
+      renderExtractionProps({
+        tag: "1.1.0",
+        digest: "sha256:ab",
+        assemblies: [{ name: "Cove.Data.dll", sha256: "A".repeat(64) }],
+      }),
+    /64 lowercase hex digits/,
+  );
+});
+
+// ---- the seam with the real catalog ---------------------------------------------------------------
+
+test("every real catalog entry reaches a minCoveVersion floor through its own manifestPath", () => {
+  // minCoveVersion is NOT a catalog field; it lives in each entry's manifest, reached through
+  // manifestPath. Reading the repo's real files here means a catalog entry that loses its manifest
+  // path, or a manifest that loses its floor, fails the validate job's own node --test rather than
+  // failing later as a leg with no version to resolve.
+  const floors = readExtensionFloors();
+
+  assert.ok(floors.length > 0, "extensions/catalog.json must declare at least one extension");
+  for (const { floor, manifestPath } of floors) {
+    assert.ok(
+      parseSemver(floor) !== null,
+      `${manifestPath} declares minCoveVersion '${floor}', which is not strict semver`,
+    );
+  }
+});
+
+// ---- paginated tag reading ------------------------------------------------------------------------
+
+test("the tag reader follows Link: rel=next across pages and reports how many it read", async () => {
+  const pages = {
+    "/v2/x/tags/list": {
+      tags: ["1.0.0", "1.1.0"],
+      link: '</v2/x/tags/list?last=1.1.0&n=2>; rel="next"',
+    },
+    "/v2/x/tags/list?last=1.1.0&n=2": { tags: ["1.2.0"], link: "" },
+  };
+
+  const read = [];
+  const result = await collectRegistryTags(async (pathAndQuery) => {
+    read.push(pathAndQuery);
+    return pages[pathAndQuery];
+  }, "/v2/x/tags/list");
+
+  assert.deepEqual(result.tags, ["1.0.0", "1.1.0", "1.2.0"]);
+  assert.equal(result.pages, 2);
+  assert.deepEqual(read, Object.keys(pages));
+});
+
+// ---- layer blob digest verification ------------------------------------------------------------
+
+// This is the ONLY upstream-integrity check in the fetch→build chain, which is what makes the mismatch
+// case load-bearing rather than decorative. The build-time output-closure guard in
+// Directory.Build.targets compares the build output against a hash recorded FROM these same bytes, so it
+// catches a local assembly displacing an extracted one and cannot, even in principle, notice the upstream
+// bytes being wrong. If this check does not fire, nothing downstream ever will.
+//
+// Both digests below were produced by `sha256sum` outside this file and transcribed by hand. That is the
+// point: a case that hashed its own input with node:crypto would be comparing the function under test
+// against the primitive it calls, and would agree with it forever — including while both were wrong.
+
+test("a blob whose bytes hash to the declared digest is accepted", () => {
+  // printf 'cove' | sha256sum
+  const digest = "sha256:6a259d3299684d8a1f5693be49dde21e5e22195158487a86c3d73d07c36a5cfc";
+  assert.doesNotThrow(() => assertBlobMatchesDigest(Buffer.from("cove", "utf8"), digest));
+});
+
+test("one flipped byte is refused, and the refusal names both digests and says it refuses", () => {
+  // The accepted fixture above, with a single character changed — the smallest difference that must fail.
+  const digest = "sha256:6a259d3299684d8a1f5693be49dde21e5e22195158487a86c3d73d07c36a5cfc";
+  assert.throws(
+    () => assertBlobMatchesDigest(Buffer.from("cave", "utf8"), digest),
+    (error) =>
+      /does not match the digest the manifest declared/.test(error.message) &&
+      error.message.includes("6a259d3299684d8a1f5693be49dde21e5e22195158487a86c3d73d07c36a5cfc") &&
+      /Refusing to extract/.test(error.message),
+    "a reader must be told the expected digest, the actual one, and that nothing was extracted",
+  );
+});
+
+test("a second independent vector matches, so the accepted case is not a one-off", () => {
+  // printf 'the bytes the registry attested' | sha256sum
+  const digest = "sha256:842867a8cbd04d49a49fdeef1b23390a481f8ab93bbc8b7586d8e012e0f82801";
+  const blob = Buffer.from("the bytes the registry attested", "utf8");
+  assert.doesNotThrow(() => assertBlobMatchesDigest(blob, digest));
+  // Upper-case hex is the same digest — a registry casing difference must not read as tampering.
+  assert.doesNotThrow(() =>
+    assertBlobMatchesDigest(blob, digest.toUpperCase().replace("SHA256", "sha256")),
+  );
+});
+
+test("a digest that cannot be verified fails closed rather than being skipped", () => {
+  const blob = Buffer.from("cove", "utf8");
+  // An algorithm this runtime does not have.
+  assert.throws(
+    () => assertBlobMatchesDigest(blob, "notahash:abcdef"),
+    /does not name a hash this Node supports/,
+  );
+  // Bare hex with no algorithm must NOT default to sha256: guessing would extract unverified bytes.
+  assert.throws(() => assertBlobMatchesDigest(blob, "abcdef"), /cannot be verified/);
+  assert.throws(() => assertBlobMatchesDigest(blob, ""), /cannot be verified/);
+});

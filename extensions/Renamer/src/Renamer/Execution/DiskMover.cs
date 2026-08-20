@@ -44,19 +44,6 @@ public sealed class DiskMover
         IReadOnlyList<string> Warnings,
         string? Reason);
 
-    /// <summary>How a primary move attempt was classified.</summary>
-    public enum MoveOutcome
-    {
-        /// <summary>The file moved old→new successfully.</summary>
-        Moved,
-
-        /// <summary>The source was locked/in-use OR the destination already existed.</summary>
-        LockedOrExists,
-
-        /// <summary>The OS denied permission for the move.</summary>
-        PermissionDenied,
-    }
-
     /// <summary>
     /// Moves <paramref name="oldFull"/> → <paramref name="newFull"/> (creating the destination
     /// directory if needed), then moves each planned sidecar skip-not-clobber. A locked source or
@@ -64,6 +51,13 @@ public sealed class DiskMover
     /// skip (the primary move did NOT happen and no sidecars are touched); a permission failure as
     /// <see cref="MoveOutcome.PermissionDenied"/>. NEVER overwrites and NEVER touches a locking process.
     /// </summary>
+    /// <remarks>
+    /// Those three are the only members of the shared <see cref="MoveOutcome"/> this tier produces: an
+    /// atomic rename has no copy to read back and no cancellation point, so
+    /// <see cref="MoveOutcome.VerifyFailed"/> and <see cref="MoveOutcome.Cancelled"/> belong to
+    /// <see cref="CrossVolumeMover"/> alone. The type is shared by both tiers, so this sentence — not
+    /// the type — is what narrows the set a caller of this method can receive.
+    /// </remarks>
     public MoveResult Move(string oldFull, string newFull, IReadOnlyList<SidecarMove>? sidecars = null)
     {
         try

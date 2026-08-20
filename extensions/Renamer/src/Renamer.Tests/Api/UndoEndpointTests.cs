@@ -19,15 +19,20 @@ namespace Renamer.Tests.Api;
 /// (SQLite + a real <see cref="TempDir"/>, mirroring <see cref="RenamerExecutorIntegrationTests"/>).
 /// Each test first performs one or more REAL renamers through <c>RunRenamerBatchAsync</c> (so genuine
 /// batches are journalled) and then exercises the endpoints on the SAME extension
-/// instance — the RevertLog blob lives in the extension's <see cref="FakeStore"/>, the undo event is
-/// captured on the wired <see cref="CapturingEventBus"/>, and the DbContext is resolved from the
-/// wired scope factory exactly as the production handler does. Proves: round-trip restore (disk + DB
+/// instance — the journal is two tables in the same <see cref="CoveContext"/> those renames wrote
+/// through, so a batch and the rows it opened are read back from where production reads them; the
+/// <see cref="FakeStore"/> here carries only the extension's stored options; the undo event is captured
+/// on the wired <see cref="CapturingEventBus"/>; and the DbContext is resolved from the wired scope
+/// factory exactly as the production handler does. Proves: round-trip restore (disk + DB
 /// + correct entity event), header-driven kind (an image batch publishes ImageUpdated — never a Video
 /// default), a batch reaching SPENT as its rows retire rather than being consumed on the first partial
 /// success (a second undo and an empty journal are no-ops), the summary read shape, and that one
 /// journal read names the batch BOTH the summary and the button speak about — including once a newer
 /// batch has settled over an older one that still holds rows, which is the state that used to render
-/// as "No rename to undo." over a live remainder.
+/// as "No rename to undo." over a live remainder; and that two FULLY pending batches are walked back
+/// one press at a time, the newer kind first and then the one before it, each restored in full — the
+/// state a whole-library run leaves behind, which no other case here reaches because every one of them
+/// first partly undoes or settles a batch.
 /// </summary>
 [Trait("Tier", "L2")]
 public sealed class UndoEndpointTests
@@ -490,10 +495,11 @@ public sealed class UndoEndpointTests
         // metadata edit opens its own batch per edit, so a newer batch settling over an older one that
         // still holds rows is the ORDINARY state.
         //
-        // Before this plan the panel's summary read the newest batch whatever its remaining count while
-        // /undo acted on the newest batch that still had rows. Once the newer batch settled the two named
-        // different batches, the summary reported nothing remaining, and the panel rendered "No rename to
-        // undo." over an older batch whose rows were still live and still restorable.
+        // The defect this pins: a summary that reads the newest batch whatever its remaining count, while
+        // /undo acts on the newest batch that still HAS rows, makes the two name different batches as soon
+        // as the newer one settles — so the summary reports nothing remaining and the panel renders "No
+        // rename to undo." over an older batch whose rows are still live and still restorable. One read,
+        // naming one batch, is what forecloses it.
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
@@ -589,6 +595,150 @@ public sealed class UndoEndpointTests
             Assert.Equal(2, settledA.OriginalCount);
             Assert.Equal(2, settledA.RestoredCount);
             Assert.Equal(0, settledA.UnrestorableCount);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Undo_TwiceAcrossTwoFullyPendingBatches_WalksBackFromTheNewerToTheOlder_AndRestoresBoth()
+    {
+        // TWO batches, BOTH fully pending, undone one after the other. Every other multi-batch case in
+        // this file first partly undoes a batch or settles one, so none of them reaches this state — and
+        // it is the ordinary state a whole-library run leaves, because such a run opens one batch per
+        // kind and the button reaches one batch per press.
+        //
+        // The opener is ONE RunRenamerLibraryJobAsync call, which is legal only because a whole-library
+        // run opens one batch PER KIND rather than one combined batch; that is pinned a tier down by
+        // RenamerLibraryEndpointTests.RunRenamerLibraryJobAsync_VideoAndImageCandidates_OpensOneBatchPerKind_NeverACombinedBatch.
+        //
+        // Asserted on IDENTITY and not only on counts, at every step: both batches hold one row here, so
+        // a second press that acted on the wrong batch — or on nothing at all while still answering 200
+        // with Undone 0 — would satisfy a case written on totals alone. The run ids come off the journal
+        // because the wire summary deliberately carries none.
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            // Folder.Path is unique-indexed, so the video and the image need distinct folder rows.
+            string videoFolder = Path.Combine(dir.Root, "videos").Replace('\\', '/');
+            string imageFolder = Path.Combine(dir.Root, "images").Replace('\\', '/');
+            Directory.CreateDirectory(Path.Combine(dir.Root, "videos"));
+            Directory.CreateDirectory(Path.Combine(dir.Root, "images"));
+
+            var (_, _, videoFileId) = await ExecutorTestSeed.SeedVideoAsync(db, videoFolder, "raw film.mkv", "Film");
+            var (_, _, imageFileId) = await ExecutorTestSeed.SeedImageAsync(db, imageFolder, "raw shot.jpg", "Pic");
+
+            string videoOld = Path.Combine(dir.Root, "videos", "raw film.mkv");
+            string videoNew = Path.Combine(dir.Root, "videos", "Film.mkv");
+            string imageOld = Path.Combine(dir.Root, "images", "raw shot.jpg");
+            string imageNew = Path.Combine(dir.Root, "images", "Pic.jpg");
+            File.WriteAllText(videoOld, "video-bytes");
+            File.WriteAllText(imageOld, "image-bytes");
+
+            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
+            // One worker: every scope in this fixture resolves the one seeded context.
+            await new global::Renamer.Options.OptionsStore(store).SaveAsync(new global::Renamer.Options.RenamerOptions
+            {
+                FilenameTemplate = "$title",
+                SameVolumeConcurrency = 1,
+            });
+
+            // BOTH kinds' writes. The undo re-gates on the kind of the batch it is about to act on, so a
+            // principal holding one kind's write would 403 on the second half of the walk-back.
+            var write = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite, Permissions.ImagesWrite);
+            var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead, Permissions.ImagesRead);
+            using var journal = new global::Renamer.Execution.CoveRevertJournal(db);
+
+            // ── One call, two batches. Video is listed first, so the IMAGE batch is the newer one. ──
+            await ext.RunRenamerLibraryJobAsync(
+                [global::Renamer.Planner.RenamerFileKind.Video, global::Renamer.Planner.RenamerFileKind.Image],
+                new FakeJobProgress(),
+                default);
+
+            // Both kinds really renamed, on disk and in the database — so nothing below can proceed on a
+            // run that did nothing.
+            Assert.True(File.Exists(videoNew), "the video was renamed");
+            Assert.True(File.Exists(imageNew), "the image was renamed");
+            var (renamedVideo, _) = await ExecutorTestSeed.ReadFileAsync(db, videoFileId);
+            var (renamedImage, _) = await ExecutorTestSeed.ReadFileAsync(db, imageFileId);
+            Assert.Equal("Film.mkv", renamedVideo);
+            Assert.Equal("Pic.jpg", renamedImage);
+
+            // ── The state no existing case reaches: two batches, each holding all of its work. ──────
+            var opened = await db.Set<global::Renamer.Execution.RevertBatchEntity>().AsNoTracking().ToListAsync();
+            Assert.Equal(2, opened.Count);
+
+            string newerRunId = (await journal.ReadUndoTargetAsync())!.Value.RunId;
+            var newerBatch = opened.Single(b => b.RunId == newerRunId);
+            var olderBatch = opened.Single(b => b.RunId != newerRunId);
+
+            // The offered batch is the IMAGE one — the kind the run reached SECOND — read off the batch
+            // row rather than assumed from the order the kinds were passed in. Were that order ever to
+            // change, this fails loudly instead of quietly walking the other way.
+            Assert.Equal(nameof(global::Renamer.Planner.RenamerFileKind.Image), newerBatch.Kind);
+            Assert.Equal(nameof(global::Renamer.Planner.RenamerFileKind.Video), olderBatch.Kind);
+
+            // Each journalled exactly one file and neither has settled any of it. The original counts are
+            // what the two Undone assertions below are compared against, so a batch that journalled
+            // nothing would make those assertions vacuous — this is where that is foreclosed.
+            foreach (var batch in opened)
+            {
+                Assert.Equal(1, batch.OriginalCount);
+                Assert.Equal(0, batch.RestoredCount);
+                Assert.Equal(0, batch.UnrestorableCount);
+            }
+
+            var offered = LastBatchValue(await ext.LastBatchAsync(read, default));
+            Assert.True(offered.HasBatch);
+            Assert.False(offered.Consumed, "both batches are still fully pending");
+            Assert.Equal(newerBatch.OriginalCount, offered.RemainingCount);
+
+            // ── First press: the newer kind comes back, and the older one is left exactly where it is. ──
+            var first = UndoValue(await ext.UndoAsync(write, default));
+            Assert.Equal(newerBatch.OriginalCount, first.Undone);
+            Assert.Equal(0, first.SkippedCount);
+            Assert.Equal(0, first.FailedCount);
+
+            Assert.True(File.Exists(imageOld), "the newer kind is back at its original name");
+            Assert.False(File.Exists(imageNew));
+            var (imageBasename, imagePath) = await ExecutorTestSeed.ReadFileAsync(db, imageFileId);
+            Assert.Equal("raw shot.jpg", imageBasename);
+            Assert.Equal(imageFolder + "/raw shot.jpg", imagePath);
+
+            Assert.True(File.Exists(videoNew), "one press reaches one kind — the older one is untouched");
+            Assert.False(File.Exists(videoOld));
+
+            // ── The walk-back itself. Asserted on the run id: the two batches' counts are equal here, so
+            // only identity can tell an offer that moved from one that did not. ─────────────────────
+            Assert.Equal(olderBatch.RunId, (await journal.ReadUndoTargetAsync())!.Value.RunId);
+
+            // ── Second press: the kind before it comes back too. ────────────────────────────────────
+            var second = UndoValue(await ext.UndoAsync(write, default));
+            Assert.NotEqual(0, second.Undone);
+            Assert.Equal(olderBatch.OriginalCount, second.Undone);
+            Assert.Equal(0, second.SkippedCount);
+            Assert.Equal(0, second.FailedCount);
+
+            Assert.True(File.Exists(videoOld), "the older kind is back at its original name");
+            Assert.False(File.Exists(videoNew));
+            var (videoBasename, videoPath) = await ExecutorTestSeed.ReadFileAsync(db, videoFileId);
+            Assert.Equal("raw film.mkv", videoBasename);
+            Assert.Equal(videoFolder + "/raw film.mkv", videoPath);
+
+            // Both batches ended fully restored, read off their OWN rows by run id rather than through
+            // the target read — that read answers "the batch to act on", so asking it here would only
+            // confirm itself.
+            foreach (var expected in opened)
+            {
+                var settled = await db.Set<global::Renamer.Execution.RevertBatchEntity>()
+                    .AsNoTracking().SingleAsync(b => b.RunId == expected.RunId);
+                Assert.Equal(expected.OriginalCount, settled.RestoredCount);
+                Assert.Equal(0, settled.UnrestorableCount);
+            }
         }
         finally
         {

@@ -386,9 +386,14 @@ test("a declared catalog path that does not exist fails, naming the field", () =
 test("declared catalog paths that all exist pass, and the report line names how many were checked", () => {
   // The "prove it ran" half, for this check. Two fields are declared and both resolve, so the run is
   // clean — and the count is what distinguishes that from a check that silently examined nothing.
+  //
+  // Which two fields is immaterial: the counter walks matrixPathFields and does not read their names.
+  // uiPath is deliberately not one of them, because it cannot coexist with the manifestOnly baseline —
+  // that pairing is its own refusal, and borrowing uiPath here would make this case fail for a reason
+  // it says nothing about.
   const entry = validEntry("com.example.foo", "Foo", {
-    uiPath: "extensions/Foo/ui",
     e2ePath: "extensions/Foo/e2e",
+    e2eNodeTestsPath: "extensions/Foo/e2e/node",
   });
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },
@@ -396,8 +401,8 @@ test("declared catalog paths that all exist pass, and the report line names how 
       "extensions/Foo/extension.json": validManifest("com.example.foo"),
       // Each planted file is only a way to make its parent directory exist on disk; the validator
       // checks the declared directory, never these.
-      "extensions/Foo/ui/package.json": { name: "foo-ui" },
       "extensions/Foo/e2e/package.json": { name: "foo-e2e" },
+      "extensions/Foo/e2e/node/package.json": { name: "foo-e2e-node" },
     },
   });
   try {
@@ -459,6 +464,81 @@ test("an entry with a UI and a test project but no wireDocumentPath fails, namin
       stderr,
       /com\.example\.foo: declares uiPath and testProjectPath but no wireDocumentPath/,
     );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a manifestOnly entry that declares a uiPath fails, naming both fields", () => {
+  // The two fields contradict each other and nothing else in the catalog can say so: each is
+  // individually well-formed, and uiPath's own existence check passes here because the directory is
+  // real. What makes the pairing a defect is what CI does with it — several build steps read uiPath
+  // and would generate, verify and bundle a frontend for an entry that ships no assembly to load it.
+  // The refusal is read from the entry alone, so it must also speak for an entry whose directory or
+  // manifest is broken; the case below plants both so this one has exactly one malformation.
+  const entry = validEntry("com.example.foo", "Foo", { uiPath: "extensions/Foo/ui" });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo"),
+      // Planted so the matrixPathFields existence check is silent — without it this case passes on
+      // "uiPath does not exist", which proves nothing about the pairing.
+      "extensions/Foo/ui/package.json": { name: "foo-ui" },
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(stderr, /com\.example\.foo: declares both manifestOnly and uiPath/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a manifestOnly entry declaring no uiPath is untouched by the pairing refusal", () => {
+  // The arm that proves the refusal reads both operands rather than firing on manifestOnly alone.
+  // Every entry in this suite is manifestOnly by baseline, so a one-operand condition would redden
+  // most of the file — but it would redden it for reasons each of those cases is silent about, and
+  // this case is the one that names the operand. The fixture is deliberately the happy path's: what
+  // differs is the claim, which is that adding the refusal changed nothing here.
+  const entry = validEntry("com.example.foo", "Foo");
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo"),
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a uiPath on an entry that is not manifestOnly is untouched by the pairing refusal", () => {
+  // The opposite arm, and the shape the repository's own catalog has: a UI on an assembly-bearing
+  // entry is ordinary, so manifestOnly:false must disarm the refusal. Dropping manifestOnly puts the
+  // entry back on the C# path, which is why the convention-derived .csproj, its solution membership
+  // and an entryDll are all supplied — each answers a check the entry only now reaches, so exit 0
+  // means the refusal stayed silent rather than that some earlier error short-circuited past it.
+  const entry = validEntry("com.example.foo", "Foo", {
+    name: "Foo",
+    manifestOnly: false,
+    uiPath: "extensions/Foo/ui",
+  });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    solution: ["extensions/Foo/Foo.csproj"],
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", { entryDll: "Foo.dll" }),
+      "extensions/Foo/ui/package.json": { name: "foo-ui" },
+    },
+    filesByPath: { "extensions/Foo/Foo.csproj": "<Project />\n" },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -674,6 +754,206 @@ test("non-semver extension.json minCoveVersion produces a non-zero exit and the 
     const { status, stderr } = runValidator(root);
     assert.notEqual(status, 0);
     assert.match(stderr, /must be a semantic version/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a registry versions[] row whose floor disagrees with extension.json fails, naming both floors", () => {
+  // The drift that has already shipped here once and was corrected by hand. Both files declare a
+  // minCoveVersion, nothing compares them, and the disagreement is invisible until a user on the
+  // version between the two floors is either locked out or offered a zip their host cannot run.
+  const entry = validEntry("com.example.foo", "Foo", {
+    registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
+  });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    buildProps: buildPropsWithFloor("1.1.0"),
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", {
+        version: "0.3.0",
+        minCoveVersion: "1.1.0",
+      }),
+    },
+    filesByPath: {
+      "extensions/Foo/extensions/com.example.foo.json": JSON.stringify({
+        versions: [{ version: "0.3.0", minCoveVersion: "1.0.0" }],
+      }),
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(
+      stderr,
+      /com\.example\.foo: registry manifest extensions\/Foo\/extensions\/com\.example\.foo\.json versions\[\] row 0\.3\.0 declares minCoveVersion 1\.0\.0, but extension\.json declares 1\.1\.0/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a registry versions[] row agreeing with extension.json passes, and the report names the count", () => {
+  // The "prove it ran" half for this guard. Exit 0 alone cannot distinguish a floor that matched from
+  // a manifest that was never opened — and the second is what every version of this check looked like
+  // before it existed.
+  const entry = validEntry("com.example.foo", "Foo", {
+    registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
+  });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    buildProps: buildPropsWithFloor("1.1.0"),
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", {
+        version: "0.3.0",
+        minCoveVersion: "1.1.0",
+      }),
+    },
+    filesByPath: {
+      "extensions/Foo/extensions/com.example.foo.json": JSON.stringify({
+        versions: [{ version: "0.3.0", minCoveVersion: "1.1.0" }],
+      }),
+    },
+  });
+  try {
+    const { status, stdout, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(
+      stdout,
+      /compared 1 registry versions\[\] row\(s\) against the extension\.json floor/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a registry row carrying no minCoveVersion fails, rather than comparing against nothing", () => {
+  // The floor is asserted present BEFORE it is compared. Without that order an absent floor compares
+  // undefined against a real version string, which is unequal, so the run would fail with a message
+  // describing a mismatch that is really an omission — and a deleted field is exactly half of the
+  // injection this guard exists to catch.
+  const entry = validEntry("com.example.foo", "Foo", {
+    registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
+  });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    buildProps: buildPropsWithFloor("1.1.0"),
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", {
+        version: "0.3.0",
+        minCoveVersion: "1.1.0",
+      }),
+    },
+    filesByPath: {
+      "extensions/Foo/extensions/com.example.foo.json": JSON.stringify({
+        versions: [{ version: "0.3.0" }],
+      }),
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(
+      stderr,
+      /versions\[\] row 0\.3\.0 declares no minCoveVersion, so its floor cannot be compared/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("older versions[] rows with lower floors are not compared, so history stays immutable", () => {
+  // The case a naive implementation fails, and the only one that can speak for it. An implementation
+  // comparing EVERY row passes every other case in this file while demanding the historical-row edit
+  // releasing.md forbids: each row describes an immutable published zip whose floor is the floor that
+  // zip needs, so the two older rows here are correct precisely by disagreeing with the current one.
+  // The three rows mirror the real manifest's shape (1.1.0 / 1.0.0 / 0.7.1, newest first).
+  const entry = validEntry("com.example.foo", "Foo", {
+    registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
+  });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    buildProps: buildPropsWithFloor("1.1.0"),
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", {
+        version: "0.3.0",
+        minCoveVersion: "1.1.0",
+      }),
+    },
+    filesByPath: {
+      "extensions/Foo/extensions/com.example.foo.json": JSON.stringify({
+        versions: [
+          { version: "0.3.0", minCoveVersion: "1.1.0" },
+          { version: "0.2.0", minCoveVersion: "1.0.0" },
+          { version: "0.1.0", minCoveVersion: "0.7.1" },
+        ],
+      }),
+    },
+  });
+  try {
+    const { status, stdout, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(
+      stdout,
+      /compared 1 registry versions\[\] row\(s\) against the extension\.json floor/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("an entry declaring no registryManifestPath says so, rather than reporting nothing", () => {
+  // The "prove it ran" half for the absent-declaration state. An entry set declaring none is
+  // legitimate — an extension not yet published to the store has no registry manifest — but it is NOT
+  // the same as one whose rows were all compared, and a clause dropped on absence reads as both.
+  const entry = validEntry("com.example.foo", "Foo");
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo"),
+    },
+  });
+  try {
+    const { status, stdout, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(
+      stdout,
+      /no entry declared a registryManifestPath, so no registry floor was compared/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("two versions[] rows carrying the same version fail, naming the duplicated version", () => {
+  // A precondition of the guard above rather than a separate feature: with two rows claiming one
+  // version, "the row describing the current version" is not well defined, and the comparison would
+  // silently take whichever came first — passing or failing on row order alone.
+  const entry = validEntry("com.example.foo", "Foo", {
+    registryManifestPath: "extensions/Foo/extensions/com.example.foo.json",
+  });
+  const root = makeFixture({
+    catalog: { schemaVersion: 1, extensions: [entry] },
+    buildProps: buildPropsWithFloor("1.1.0"),
+    extensionJsonByPath: {
+      "extensions/Foo/extension.json": validManifest("com.example.foo", {
+        version: "0.3.0",
+        minCoveVersion: "1.1.0",
+      }),
+    },
+    filesByPath: {
+      "extensions/Foo/extensions/com.example.foo.json": JSON.stringify({
+        versions: [
+          { version: "0.3.0", minCoveVersion: "1.1.0" },
+          { version: "0.3.0", minCoveVersion: "1.1.0" },
+        ],
+      }),
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(stderr, /declares versions\[\] row 0\.3\.0 more than once/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
