@@ -1,11 +1,8 @@
 using Cove.Core.Auth;
 using Cove.Core.Entities;
-using Cove.Core.Events;
 using Cove.Data;
-using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Renamer.Contracts;
 using Renamer.Execution;
 using Renamer.Options;
@@ -62,7 +59,10 @@ public sealed class UndoRetryTests
             Assert.True(File.Exists(comes.OldFull), "the restorable file is back");
             Assert.True(File.Exists(stays.NewFull), "the blocked file never moved");
 
-            // The table is the record of what is left — exactly the row that did not come back.
+            // The table is the record of what is left — exactly the row that did not come back. The
+            // previous defect spent the whole batch on the FIRST partial success, which is what made
+            // the remaining work unreachable; row presence is the state, so the read that feeds the
+            // button must still return this batch.
             using var journal = new CoveRevertJournal(db);
             var open = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(open);
@@ -153,39 +153,6 @@ public sealed class UndoRetryTests
             Assert.Equal(1, summary.Value.UnrestorableCount);
             Assert.Equal(0, summary.Value.Remaining);
             Assert.True(File.Exists(comes.OldFull));
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
-    public async Task ABatchWithRowsRemaining_IsNeverSpent_EvenAfterAFilePartlyCameBack()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            var (ext, _, stays) = await RenameTwoAsync(db, dir);
-            File.WriteAllText(stays.OldFull, "someone else's file");
-
-            Assert.Equal(1, UndoValue(await ext.UndoAsync(Write, default)).Undone);
-
-            using var journal = new CoveRevertJournal(db);
-
-            // The previous defect spent the batch on the FIRST partial success, which is what made the
-            // remaining work unreachable. Row presence is the state, so the read that feeds the button
-            // must still return this batch.
-            var open = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
-            Assert.NotNull(open);
-            Assert.Single(open!.Rows);
-
-            var summary = await journal.ReadUndoTargetAsync();
-            Assert.NotNull(summary);
-            Assert.Equal(open.RunId, summary!.Value.RunId);
-            Assert.Equal(1, summary.Value.Remaining);
         }
         finally
         {
@@ -314,7 +281,7 @@ public sealed class UndoRetryTests
             }
         }
 
-        var ext = await BuildExtensionAsync(db, options);
+        var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options: options);
 
         foreach (var s in seeded)
         {
@@ -323,25 +290,6 @@ public sealed class UndoRetryTests
         }
 
         return (ext, seeded);
-    }
-
-    /// <summary>
-    /// Wires the extension over the seeded context so <c>/undo</c> resolves the same database this test
-    /// journalled into, mirroring <c>JournalRenameUndoTracerTests</c>.
-    /// </summary>
-    private static async Task<global::Renamer.Renamer> BuildExtensionAsync(CoveContext db, RenamerOptions options)
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton<DbContext>(db);
-        services.AddSingleton<IEventBus>(new CapturingEventBus());
-
-        var store = new FakeStore();
-        await new OptionsStore(store).SaveAsync(options);
-
-        var ext = RenamerFixture.Create();
-        ((IStatefulExtension)ext).SetStore(store);
-        await ext.InitializeAsync(services.BuildServiceProvider());
-        return ext;
     }
 
     private static UndoResult UndoValue(IResult result) =>

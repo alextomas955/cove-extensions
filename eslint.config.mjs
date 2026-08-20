@@ -1,8 +1,11 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 import prettier from "eslint-config-prettier";
+import boundaries from "eslint-plugin-boundaries";
 
 // The single ESLint config for the whole monorepo — every extension's React/TS UI bundle AND every
 // first-party .mjs/.cjs helper/build/test script. There is intentionally NO per-extension ESLint
@@ -25,6 +28,17 @@ const scriptGlobals = { ...globals.node, ...globals.browser };
 // one wording.
 const noRawHtml =
   "Raw-HTML rendering is banned: filenames, diffs and flags must render as escaped text nodes, never as parsed HTML.";
+
+// Every catalog UI bundle's tsconfig, for the boundaries block's TypeScript resolver below. Read
+// from `catalog.json` rather than written down here: naming one extension's tsconfig inside config
+// whose whole point is being extension-generic is what got the boundary rule deleted once already,
+// and a glob would fix only the drift while leaving the registry unread. A catalog entry without a
+// UI declares no `uiPath` and contributes nothing.
+const uiTsconfigProjects = JSON.parse(
+  readFileSync(path.join(import.meta.dirname, "extensions/catalog.json"), "utf8"),
+)
+  .extensions.filter((entry) => entry.uiPath)
+  .map((entry) => `${entry.uiPath}/tsconfig.json`);
 
 const scriptRules = {
   ...js.configs.recommended.rules,
@@ -117,8 +131,8 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": noUnusedVars,
       // overlay.ts uses the intentional "latest ref" pattern (writing optsRef.current during render
       // to keep the newest options without forcing a re-render); react-hooks/refs flags it. Whether
-      // to rework it is a product-code call, not a lint-config one — advisory here (U-35), since this
-      // plan is behavior-neutral and only closes the shared-TS lint-scope gap.
+      // to rework it is a product-code call, not a lint-config one — advisory here, since widening
+      // the lint scope to shared TS was meant to be behavior-neutral.
       "react-hooks/refs": "warn",
     },
   },
@@ -199,6 +213,82 @@ export default tseslint.config(
   {
     files: ["shared/ui-shared/src/index.ts"],
     rules: { "@typescript-eslint/triple-slash-reference": "off" },
+  },
+
+  // --- Architectural boundaries (eslint-plugin-boundaries, `boundaries/dependencies`) ---
+  // The taxonomy's one dependency rule, stated as a lint rather than left to review: a feature slice
+  // may depend downward onto `wire`, sideways onto `common/` and the shared package, and never
+  // across onto a sibling slice. Routing between two features goes through `common/` or the entry.
+  //
+  // This block was deleted once and is restored deliberately. The deletion's reasoning was
+  // sound about the defect and wrong about the remedy: the resolver named ONE extension's tsconfig
+  // by path, inside config that claims to be extension-generic, so a second extension would have
+  // silently gone unclassified. That is fixed at its source above — `uiTsconfigProjects` reads the
+  // catalog — rather than by removing the rule. Everything else here was already generic.
+  //
+  // The src-root index.ts (each extension's defineExtension entry, the one sanctioned barrel) is
+  // intentionally left unclassified: the rule does not constrain an unknown source, which is exactly
+  // the entry's role — it may import any slice.
+  {
+    files: ["extensions/*/src/**/*.{ts,tsx}", "shared/ui-shared/**/*.{ts,tsx}"],
+    plugins: { boundaries },
+    settings: {
+      // Classifies the `@cove-extensions/ui-shared` alias through each UI's tsconfig paths, so a
+      // shared import lands as the `shared` element instead of an unclassified external.
+      "import/resolver": {
+        typescript: { noWarnOnMultipleProjects: true, project: uiTsconfigProjects },
+      },
+      "boundaries/elements": [
+        // common/ is one element (incl. its ui/ and lib/); stopMatching keeps the broader slice glob
+        // below from re-classifying it as a slice named "common".
+        {
+          type: "common",
+          pattern: "extensions/*/src/*.Ui/src/common",
+          capture: ["extension", "ui"],
+          stopMatching: true,
+        },
+        // The generated wire module is a data shape, not a feature: derived from the extension's own
+        // OpenAPI document, type-only, importing nothing. Every layer may depend downward onto it, so
+        // classifying it as a sibling slice would forbid the one import it exists for.
+        {
+          type: "wire",
+          pattern: "extensions/*/src/*.Ui/src/wire",
+          capture: ["extension", "ui"],
+          stopMatching: true,
+        },
+        {
+          type: "slice",
+          pattern: "extensions/*/src/*.Ui/src/*",
+          capture: ["extension", "ui", "slice"],
+        },
+        { type: "shared", pattern: "shared/ui-shared/src" },
+      ],
+    },
+    rules: {
+      "boundaries/dependencies": [
+        "error",
+        {
+          // External npm packages (react, @cove/extension-sdk, …) are governed by
+          // boundaries/external, not this rule; only imports between local elements are constrained.
+          default: "disallow",
+          policies: [
+            {
+              from: { element: { type: "common" } },
+              allow: { to: { element: { types: { anyOf: ["common", "shared", "wire"] } } } },
+            },
+            // A feature slice may reach common/, the shared package and wire — but NOT a sibling.
+            {
+              from: { element: { type: "slice" } },
+              allow: { to: { element: { types: { anyOf: ["common", "shared", "wire"] } } } },
+            },
+            {
+              from: { element: { type: "shared" } },
+              allow: { to: { element: { type: "shared" } } },
+            },
+          ],
+        },
+      ],
+    },
   },
 
   // MUST BE LAST: disable all formatting rules so Prettier is the sole formatter.

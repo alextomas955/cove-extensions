@@ -4,14 +4,14 @@ namespace Renamer.Planner;
 
 /// <summary>
 /// The pure routing brain: maps one <see cref="RenamerEntity"/> to a <see cref="RouteResult"/>
-/// (a routed destination-root template, or source-confine) by the deterministic precedence.
+/// (the matched rule's own destination, or no rule at all) by the deterministic precedence.
 /// Called ONCE per entity in the planner, mirroring how <c>MetadataProjector.Project</c>
 /// is called once per file.
 ///
 /// PURE: no <c>System.IO</c>, no <c>Cove.*</c> types, no DB. The cascade is classify-not-throw — a
 /// null <see cref="RenamerEntity.StudioId"/>, an empty <see cref="RenamerEntity.ParentStudios"/>, an
 /// empty <see cref="RenamerEntity.TagRefs"/>, or empty destination maps all fall straight through to
-/// <see cref="RouteCategory.SourceConfine"/>.
+/// <see cref="RouteCategory.Unmatched"/>.
 /// The source-path regex set arrives PRE-PARSED in <see cref="RouteLookups.PathRegexRules"/> (built
 /// once per batch); this resolver only calls <c>IsMatch</c> — it never compiles a regex.
 ///
@@ -25,8 +25,8 @@ namespace Renamer.Planner;
 /// <c>SkipExcluded</c> for every file). The exclude lookups arrive PRE-PARSED in the
 /// <see cref="RouteLookups"/> (a null/empty member = no excludes = legacy behavior, no regression);
 /// an exclude regex match-time timeout is treated as no-match, never thrown. An item that matches no
-/// rule is never relocated: it falls through to <see cref="RouteCategory.SourceConfine"/> and keeps
-/// its own parent-folder anchor.
+/// rule falls through to <see cref="RouteCategory.Unmatched"/>, where the planner renders the DEFAULT
+/// destination instead of a rule's.
 /// </summary>
 public static class DestinationResolver
 {
@@ -68,9 +68,9 @@ public static class DestinationResolver
         }
 
         // 2. Unorganized: its own route, BEFORE the tag/studio/path cascade.
-        if (!e.Organized && !string.IsNullOrEmpty(o.UnorganizedDestination))
+        if (!e.Organized && o.UnorganizedDestination is { } unorganized)
         {
-            return new RouteResult(RouteCategory.Unorganized, "Unorganized", o.UnorganizedDestination);
+            return new RouteResult(RouteCategory.Unorganized, "Unorganized", unorganized);
         }
 
         // 3. Cascade — first CATEGORY that produces a match wins.
@@ -109,9 +109,9 @@ public static class DestinationResolver
         {
             var sourcePath = e.Files[0].ParentFolderPath;
 
-            // Normalize the source path the SAME way the exact map keys were normalized (OS-aware case
-            // via SourcePathComparer baked into the dict + trailing-slash trim here) so a stored
-            // "media/incoming/" matches a rule for "media/incoming" on Windows.
+            // Normalize the source path the SAME way the exact map keys were normalized (case via
+            // SourcePathComparer baked into the dict + trailing-slash trim here) so a stored
+            // "media/incoming/" matches a rule for "media/incoming".
             if (lk.PathExactToDest.TryGetValue(NormalizeSourcePath(sourcePath), out var exactDest))
             {
                 return new RouteResult(RouteCategory.SourcePath, "SourcePath:exact", exactDest);
@@ -143,9 +143,10 @@ public static class DestinationResolver
             }
         }
 
-        // 4. No route → source-confine: an unmatched item keeps its own parent-folder anchor and does
-        //    not relocate. There is no catch-all destination — relocating requires an explicit rule.
-        return new RouteResult(RouteCategory.SourceConfine, "InPlace", null);
+        // 4. No rule matched. The item's destination is the DEFAULT, which the planner reads from the
+        //    options — this resolver carries none for it, because a rule that did not match has none
+        //    to carry.
+        return new RouteResult(RouteCategory.Unmatched, "Default", null);
     }
 
     /// <summary>

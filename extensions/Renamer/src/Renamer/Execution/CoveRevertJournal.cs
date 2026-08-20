@@ -32,9 +32,7 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
     /// <para>
     /// 500 because it is the same number <see cref="JournalBlobMigration.LinesPerChunk"/> already uses
     /// for the other place journal rows are handled in bulk, so the codebase has one answer to "how many
-    /// journal rows at once" rather than two. At two paths a row a page is tens of kilobytes, while the
-    /// whole-batch read this replaced grew with the library — which on a real library is already past
-    /// the file-count ceiling that was retired on the premise that undo pages.
+    /// journal rows at once" rather than two.
     /// </para>
     /// </remarks>
     public const int DefaultPageSize = 500;

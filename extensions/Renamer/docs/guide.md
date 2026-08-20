@@ -31,7 +31,10 @@ that Cove fills in from each item's metadata — for example `$title` becomes th
 2. Watch the **live preview** below the field — it shows the new name for a few sample items and
    updates as you type. Nothing is renamed yet.
 3. To move files into folders as well as rename them, fill in the **folder template** (for example
-   `$studio / $year`). Leave it blank to rename each file in place.
+   `$studio / $year`). It is made under one of **Cove's own library paths** — the one you pick beside
+   the field, or, when Cove has several and you have picked none, whichever one holds the file. Leave
+   the template blank to rename each file in place. See
+   [Where a file lands](./settings#where-a-file-lands).
 
 If a token might be empty for some items, wrap it in a `{ … }` group so its surrounding punctuation
 disappears when the value is missing — `$title{ [$resolution]}` produces `My Movie [1080p]` when
@@ -64,6 +67,10 @@ destination, and any warnings — without changing anything.
 A row can also be flagged because its move would cross to another drive and the temporary copy's path
 would be too long. Those rows are worth resolving before you rename — see
 [If the confirmation warns about a path being too long](#if-the-confirmation-warns-about-a-path-being-too-long).
+
+A row can also be marked **Lands outside your Cove library**. That rename still happens exactly as
+previewed; what it costs is that Cove stops seeing the file — see
+[When a rename lands outside your Cove library](./settings#when-a-rename-lands-outside-your-cove-library).
 
 A row that one of your exclude rules matched is marked as excluded in the table, and it counts toward
 the skipped total the rename confirmation shows.
@@ -179,8 +186,15 @@ re-run is how you change your mind about a template. Before the first run on a s
 
 - **Rename only curated items** — turn on _Only rename organized items_ (What gets renamed).
 - **Keep files organized into folders by studio/year** — set a folder template like
-  `$studio / $year` and, if the destination is outside the source folder, add that root under
-  _Allowed roots_ (Destination routing → Advanced).
+  `$studio / $year`. The folders are made under the library path you picked beside it, or under
+  whichever one holds each file if you picked none.
+- **Tidy each drive in place, without gathering files onto one** — leave every root at
+  _(the file's own library path)_. Every other choice names a place and pulls matching files to it.
+- **Keep an intermediate level, such as `videos/<studio>`** — put that level in the folder template:
+  `videos/$studio`. The template is relative to the root beside it, so the level has to be written in.
+- **Send some studios to another drive** — add that drive as a library path in **Cove's** settings,
+  then pick it as the root of a _Per-studio destination_. Renamer only ever writes inside Cove's own
+  library paths. See [Where a file lands](./settings#where-a-file-lands).
 - **Route certain studios or tags to specific drives** — use _Per-studio destinations_ or
   _Per-tag destinations_ (Destination routing).
 - **Skip certain items entirely** — add exclude rules by tag, studio, or path (Advanced → Excludes).

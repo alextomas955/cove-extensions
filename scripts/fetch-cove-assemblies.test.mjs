@@ -283,6 +283,22 @@ test("a newest GA above the floor yields three legs and three distinct images", 
   assert.equal(resolved.examined.roles, 3);
 });
 
+test("a floor above every published GA omits the newest-ga role rather than resolving it below the floor", () => {
+  const resolved = resolveCoveLegs({
+    floor: "1.3.0-rc.2",
+    tags: ["1.0.0", "1.1.0", "1.2.0-rc.1", "1.3.0-rc.2", "latest"],
+  });
+
+  assert.deepEqual(resolved.legs, [
+    { tag: "1.3.0-rc.2", role: "floor+newest-prerelease", advisory: false },
+  ]);
+  assert.equal(
+    resolved.examined.roles,
+    2,
+    "a role with no subject at or above the floor is absent, not counted",
+  );
+});
+
 // ---- the generated build expectation ---------------------------------------------------------------
 
 test("the rendered expectation carries the tag, the digest and one Sha256 per assembly, in the form the build reads back", () => {

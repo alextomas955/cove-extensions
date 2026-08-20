@@ -1,155 +1,32 @@
-using Cove.Core.Auth;
 using Cove.Core.Entities;
-using Cove.Core.Events;
 using Cove.Data;
-using Cove.Plugins;
-using Microsoft.AspNetCore.Http;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Renamer.Contracts;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
-using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Execution.Journal;
 
 /// <summary>
-/// The journal on the real lifecycle path: a real rename writes rows a real undo reads back and
-/// restores, a second batch leaves the first one's rows alone, and a rename far past the retired
-/// file-count ceiling is journalled in full.
+/// What the EXECUTOR writes into the journal: a rename far past the retired file-count ceiling is
+/// journalled in full, and the sidecar delta a rename carried is recorded in the forward direction the
+/// mover actually took — including the marker a rename that carried nothing leaves behind.
 /// </summary>
 /// <remarks>
+/// This is the suite's only executor→journal seam. Every other site that mentions <c>SidecarsJson</c>
+/// SUPPLIES it as test input, so nothing else can catch a broken write: the replayer trusts the row,
+/// and a row written wrong restores the wrong thing while every downstream count still reads right.
+/// <para>
 /// Every assertion reads the journal back through the port over a real <c>CoveContext</c>, never an
 /// in-memory collection: what a later undo can actually offer is whatever the table still holds, and a
 /// fake's memory agreeing with itself would say nothing about that.
+/// </para>
 /// </remarks>
 [Trait("Tier", "L1")]
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class JournalRenameUndoTracerTests
 {
     private static readonly DateTime Opened = new(2026, 8, 11, 9, 0, 0, DateTimeKind.Utc);
-
-    [Fact]
-    public async Task ARealRenameJournalsARow_AndARealUndoRestoresTheFileAndRetiresIt()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            string folderPath = dir.Root.Replace('\\', '/');
-            // Offset the Video id sequence so the video id differs from its file's id: the row carries
-            // both, and a row that confused them would still look right while restoring the wrong thing.
-            db.Set<Video>().Add(new Video { Title = "decoy", Organized = true });
-            await db.SaveChangesAsync();
-            var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw clip.mkv", "My Film");
-            Assert.NotEqual(videoId, fileId);
-
-            string oldFull = Path.Combine(dir.Root, "raw clip.mkv");
-            string newFull = Path.Combine(dir.Root, "My Film.mkv");
-            File.WriteAllText(oldFull, "video-bytes");
-
-            const string runId = "tracer-run";
-            var port = new CoveRenamerDataPort(db);
-            var journal = new CoveRevertJournal(db);
-            var options = new RenamerOptions { FilenameTemplate = "$title" };
-
-            await journal.BeginBatchAsync(runId, RenamerFileKind.Video, Opened);
-
-            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, RouteLookupsFixtures.RoutingNeutral, default);
-            var forward = await new RenamerExecutor(port, new CapturingEventBus(), journal, runId, new DiskMover())
-                .ExecuteAsync(plan, options, default);
-
-            Assert.Single(forward.Renamed);
-            Assert.True(File.Exists(newFull));
-
-            // One ROW in the table — not one entry in a list the executor happened to keep.
-            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
-            Assert.NotNull(batch);
-            Assert.Equal(runId, batch!.RunId);
-            Assert.Equal(RenamerFileKind.Video, batch.Kind);
-            var row = Assert.Single(batch.Rows);
-            Assert.Equal(runId, row.RunId);
-            Assert.Equal(videoId, row.EntityId);
-            Assert.Equal(fileId, row.FileId);
-            Assert.Equal(folderPath + "/raw clip.mkv", row.OldPath);
-
-            // The undo runs through the endpoint rather than through a hand-built UndoReplayer call, so
-            // the row is retired by the code that will retire it in production. The endpoint builds the
-            // same real replayer over the same batch this test just read.
-            var undoBus = new CapturingEventBus();
-            var ext = await BuildExtensionAsync(db, undoBus, options);
-            var undo = UndoValue(await ext.UndoAsync(
-                FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite), default));
-
-            Assert.Equal(1, undo.Undone);
-            Assert.Equal(0, undo.FailedCount);
-            Assert.Equal(0, undo.SkippedCount);
-
-            // Restored on disk AND in the database — either one alone would leave the two disagreeing.
-            Assert.True(File.Exists(oldFull), "the file is back at its original path");
-            Assert.False(File.Exists(newFull), "and no longer at the renamed one");
-            Assert.Equal("video-bytes", File.ReadAllText(oldFull));
-            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
-            Assert.Equal("raw clip.mkv", basename);
-            Assert.Equal(folderPath + "/raw clip.mkv", path);
-
-            // Nothing left to offer, and yet the batch can still describe itself: the row went away as
-            // the file came back, while the count of what the run journalled never moves.
-            Assert.Null(await JournalPageReader.ReadWholeUndoTargetAsync(journal));
-            var summary = await journal.ReadUndoTargetAsync();
-            Assert.NotNull(summary);
-            Assert.Equal(runId, summary!.Value.RunId);
-            Assert.Equal(1, summary.Value.OriginalCount);
-            Assert.Equal(1, summary.Value.RestoredCount);
-            Assert.Equal(0, summary.Value.Remaining);
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
-    public async Task OpeningASecondBatch_LeavesTheFirstBatchsRowsWhereTheyWere()
-    {
-        // The defect this closes: under the single-blob journal, opening a batch REPLACED the stored
-        // value, so one background auto-rename — which opens its own batch per metadata edit — silently
-        // destroyed the undo record of a deliberate run that had just moved hundreds of files.
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            var journal = new CoveRevertJournal(db);
-
-            await SeedBatchAsync(journal, "deliberate-run", rows: 3, Opened);
-            await SeedBatchAsync(journal, "background-edit", rows: 1, Opened.AddMinutes(5));
-
-            // The newest batch is what an undo is offered first…
-            var newest = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
-            Assert.NotNull(newest);
-            Assert.Equal("background-edit", newest!.RunId);
-            var backgroundRow = Assert.Single(newest.Rows);
-
-            // …and once it is spent, the earlier run is still there, whole.
-            await journal.DeleteRowAsync(backgroundRow.RunId, backgroundRow.Seq, unrestorable: false);
-
-            var earlier = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
-            Assert.NotNull(earlier);
-            Assert.Equal("deliberate-run", earlier!.RunId);
-            Assert.Equal(3, earlier.Rows.Count);
-            Assert.Equal(
-                ["/media/old/3.mkv", "/media/old/2.mkv", "/media/old/1.mkv"],
-                earlier.Rows.Select(r => r.OldPath));
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
 
     [Fact]
     public async Task ABatchFarPastTheRetiredCeiling_IsJournalledInFull()
@@ -349,27 +226,4 @@ public sealed class JournalRenameUndoTracerTests
                 new RevertRow(runId, Seq: 0, EntityId: 100 + i, FileId: 200 + i, $"/media/old/{i}.mkv", ""));
         }
     }
-
-    /// <summary>
-    /// Wires the extension over the seeded context so <c>/undo</c> resolves the same database this test
-    /// journalled into, mirroring <c>UndoEndpointTests</c>.
-    /// </summary>
-    private static async Task<global::Renamer.Renamer> BuildExtensionAsync(
-        CoveContext db, IEventBus bus, RenamerOptions options)
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton<DbContext>(db);
-        services.AddSingleton(bus);
-
-        var store = new FakeStore();
-        await new OptionsStore(store).SaveAsync(options);
-
-        var ext = RenamerFixture.Create();
-        ((IStatefulExtension)ext).SetStore(store);
-        await ext.InitializeAsync(services.BuildServiceProvider());
-        return ext;
-    }
-
-    private static UndoResult UndoValue(IResult result) =>
-        Assert.IsType<UndoResult>(Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value);
 }

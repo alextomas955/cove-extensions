@@ -71,10 +71,9 @@ export type PollDecision =
 /**
  * Raised when a poll ends on an `expire` decision rather than on the job's own verdict.
  *
- * A distinct type because the two cannot share a sentence. A rejection means the work stopped, so
- * nothing was changed; an expiry means the UI stopped watching, under which the job may have renamed
- * files already. A caller that cannot tell them apart has to guess, and the honest-looking guess —
- * "nothing was changed" — is the false one.
+ * A distinct TYPE, so that the {@link PollDecision} split survives into the caller's `catch`: a caller
+ * that cannot tell an expiry from a rejection has to guess, and the honest-looking guess — "nothing
+ * was changed" — is the false one.
  */
 export class JobUnresponsiveError extends Error {}
 

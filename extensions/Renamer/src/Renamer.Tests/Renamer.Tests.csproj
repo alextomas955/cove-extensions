@@ -78,6 +78,13 @@
     <!-- The extension declares no metadata in code, so its identity comes from this file. RenamerFixture
          parses the SHIPPED bytes rather than a stub, which needs them next to the test assembly. -->
     <Content Include="..\Renamer\extension.json" Link="extension.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- TransportSmokeTests derives the route table it exercises from this document rather than holding
+         a second hand-written list, so it needs the committed bytes next to the test assembly. -->
+    <Content Include="..\..\wire\openapi.json" Link="openapi.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- PlanFixedPointTests quantifies its invariant over the preset chips the settings panel actually
+         ships, read from the file that defines them rather than from a C# copy that would go stale the
+         first time a preset is added. Same reason as the two documents above. -->
+    <Content Include="..\Renamer.Ui\src\settings\presets.ts" Link="presets.ts" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -240,15 +247,15 @@
     file. Do not read this list as a guarantee of the second.
 
     Notes on the entries that are not self-evident:
-      - Cove.Core-ONLY (auth/events/entities, no CoveContext): ActionDeclarationTests,
-        Api/SettingsManifestTests, Concurrency/Parallel*.
+      - Cove.Core-ONLY (auth/events/entities, no CoveContext): Api/ExtensionDeclarationTests,
+        Concurrency/Parallel*.
       - TestSupport/CoveDataExtensionScope: registers the extension via CoveContext.SetDataExtensions, which is
         Cove.Data. Its sibling TestSupport/FakeRevertJournal needs no line: it implements a port declared in
         Renamer's own assembly and names no Cove type. Nor does the TestSupport event-bus recorder, which
         names only Cove.Core.Events — NuGet supplies those, and Execution/Undo/RollbackTests needs the
         recorder on this leg.
-      - INTEGRATION (real CoveContext via Cove.Data): Jobs/RenamerBatchJobTests, the Api/*EndpointTests,
-        and the named files under the four folders below.
+      - INTEGRATION (real CoveContext via Cove.Data): the Api/*EndpointTests and the named files under
+        the four folders below.
     The shared CoveContextFactory is NOT listed here: it lives in the source-only Testing.Cove dir and is
     pulled in by the positive Exists()-guarded Compile Include below (present only when cove is), so its
     consumers above cover the bare leg without a Compile Remove for the fake itself. FakePrincipalAccessor
@@ -258,33 +265,30 @@
     now come from the unconditional Cove.Extensions.Shared.Testing ProjectReference (Cove.Plugins-only too).
   -->
   <ItemGroup Condition="'$(CoveSourceMode)' == 'none'">
-    <Compile Remove="ActionDeclarationTests.cs" />
     <!-- TransportSmokeTests boots the extension in a TestServer over a real CoveContext (Cove.Data) + CovePrincipal → drops out on a bare CI runner. -->
     <Compile Remove="Api\TransportSmokeTests.cs" />
-    <Compile Remove="Api\SettingsManifestTests.cs" />
+    <Compile Remove="Api\ExtensionDeclarationTests.cs" />
     <Compile Remove="Api\PreviewEndpointTests.cs" />
     <Compile Remove="Api\PreviewSampleEndpointTests.cs" />
     <Compile Remove="Api\EndpointPermissionTests.cs" />
     <Compile Remove="Api\EntityIdsCapTests.cs" />
-    <Compile Remove="Api\PreviewRoutingTests.cs" />
+    <!-- Runs the real InitializeAsync against a real CoveContext, because its whole claim is that the
+         conversion and the endpoint agree — a fake on either side would supply the spelling it checks. -->
+    <Compile Remove="Api\LibraryPathsEndpointTests.cs" />
     <Compile Remove="Api\RenamerLibraryEndpointTests.cs" />
     <Compile Remove="Api\RequestPathPrincipalTests.cs" />
     <Compile Remove="Api\ScanLibraryEndpointTests.cs" />
     <Compile Remove="Api\UndoEndpointTests.cs" />
-    <Compile Remove="Jobs\RenamerBatchJobTests.cs" />
     <!-- The options conversion's L1 half drives a real CoveContext + CovePrincipal; its L0 twin
          (Options\OptionsMigrationLogicTests.cs) is pure and stays on the bare leg. -->
     <Compile Remove="Options\OptionsMigrationInitializeTests.cs" />
 
-    <!-- Execution/ — the cove-dependent files only; the canonical-guard prefix/8.3/junction/symlink
-         cases, the cross-volume mover, temp ownership, verify-fail, the volume classifier, free space,
+    <!-- Execution/ — the cove-dependent files only; CanonicalPathGuardTests (which now holds the
+         prefix/8.3/junction/symlink cases), the cross-volume mover, the volume classifier, free space,
          locked files, SidecarTests, RevertLogBatchTests and Undo/RollbackTests stay on this leg. -->
     <Compile Remove="Execution\CanonicalGuard\CanonicalPathGuardRootTests.cs" />
-    <Compile Remove="Execution\CanonicalGuard\ExecutorAllowlistGuardTests.cs" />
-    <Compile Remove="Execution\Collisions\CaseOnlyRenamerTests.cs" />
+    <Compile Remove="Execution\Collisions\CollisionAndRollbackTests.cs" />
     <Compile Remove="Execution\Collisions\CollisionBlindDataPort.cs" />
-    <Compile Remove="Execution\Collisions\CollisionTests.cs" />
-    <Compile Remove="Execution\Collisions\RollbackTests.cs" />
     <Compile Remove="Execution\CoveDataPortRoutingFieldsTests.cs" />
     <Compile Remove="Execution\CrossVolume\CrossVolumeUndoTests.cs" />
     <Compile Remove="Execution\EmptySourceFolderCleanerTests.cs" />
@@ -297,37 +301,30 @@
     <Compile Remove="Execution\Journal\RevertJournalRetentionTests.cs" />
     <Compile Remove="Execution\Journal\RevertJournalTests.cs" />
     <Compile Remove="Execution\Journal\UndoRetryTests.cs" />
-    <Compile Remove="Execution\LoadAllEntityIdsAsyncTests.cs" />
     <Compile Remove="Execution\RenamerExecutorIntegrationTests.cs" />
     <Compile Remove="Execution\Sidecars\AssociatedExtensionSidecarTests.cs" />
-    <Compile Remove="Execution\StudioDepthLockstepTests.cs" />
     <Compile Remove="Execution\Undo\UndoReGateTests.cs" />
     <Compile Remove="Execution\Undo\UndoReplayerTests.cs" />
     <Compile Remove="Execution\Undo\UndoSidecarRestoreTests.cs" />
 
     <!-- Events/ — all but AutoRenamerEventRegistrationTests, which drives the hook surface through
-         Cove.Plugins alone and so compiles against the NuGet package on this leg. -->
-    <Compile Remove="Events\AutoRenamerElevationTests.cs" />
-    <Compile Remove="Events\AutoRenamerFailureContainmentTests.cs" />
-    <Compile Remove="Events\AutoRenamerGateTests.cs" />
-    <Compile Remove="Events\AutoRenamerNoDribbleTests.cs" />
-    <Compile Remove="Events\AutoRenamerOnceTests.cs" />
-    <Compile Remove="Events\AutoRenamerRevertLogBatchTests.cs" />
-    <Compile Remove="Events\AutoRenamerRoutingTests.cs" />
+         Cove.Plugins alone and so compiles against the NuGet package on this leg. That makes it this
+         leg's only hook coverage, which is why it is not folded into AutoRenamerHookTests. -->
+    <Compile Remove="Events\AutoRenamerHookTests.cs" />
     <Compile Remove="Events\DetachedElevationTests.cs" />
     <Compile Remove="Events\EventTestHarness.cs" />
-    <Compile Remove="Events\ReentrancyGuardTests.cs" />
 
-    <!-- Concurrency/ — PhaseALoadOnceTests is pure and stays. -->
+    <!-- Concurrency/ — every file here is cove-dependent. -->
     <Compile Remove="Concurrency\ParallelBatchTests.cs" />
     <Compile Remove="Concurrency\ParallelFolderCreationTests.cs" />
     <Compile Remove="Concurrency\PerWorkerScopeTests.cs" />
     <Compile Remove="Concurrency\RevertJournalConcurrencyTests.cs" />
 
-    <!-- Preview/ — BlastRadiusTests is pure and stays. -->
-    <Compile Remove="Preview\PreviewWholeBatchTests.cs" />
+    <!-- Preview/ names nothing here: its only cove-dependent file folded into Api\PreviewEndpointTests,
+         which is removed above, and BlastRadiusTests is pure. -->
 
     <Compile Remove="TestSupport\CoveDataExtensionScope.cs" />
+    <Compile Remove="TestSupport\ExtensionHarness.cs" />
     <Compile Remove="TestSupport\JournalOnlyDatabase.cs" />
     <Compile Remove="TestSupport\Library.cs" />
     <Compile Remove="TestSupport\SharedCacheSqlite.cs" />

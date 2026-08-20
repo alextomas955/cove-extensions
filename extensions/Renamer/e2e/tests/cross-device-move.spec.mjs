@@ -42,11 +42,21 @@ test("a move across a real filesystem boundary is refused safely while the desti
   const video = await seedVideo({ container: harness.container, baseUrl });
   const originalPath = video.files[0].path;
 
+  // A title, because Cove leaves a scanned item's Title null on purpose and the shipped template
+  // renders $title behind a required-field gate — so without one this spec would measure a gated skip
+  // and never reach the volume boundary it is about. Set here rather than left to the filename
+  // fallback, which is a setting a sibling spec is free to change.
+  expect(
+    (await api.put(`/api/videos/${video.id}`, { Title: `Cross Device ${Date.now()}` })).ok,
+  ).toBe(true);
+
   // An explicit source-path rule is what routes /data → /data2 here. Routing by rule rather than by a
   // catch-all also means this spec drives the mechanism a real deployment uses; a catch-all destination
   // no longer exists.
   const optionsBody = JSON.stringify({
-    PathDestinations: [{ Pattern: "/data", Dest: "/data2", IsRegex: false }],
+    PathDestinations: [
+      { Pattern: "/data", Dest: { Root: "/data2", Template: "" }, IsRegex: false },
+    ],
     AllowedRoots: ["/data", "/data2"],
   });
   const put = await api.put(`/api/extensions/${EXTENSION_ID}/data/options`, optionsBody);

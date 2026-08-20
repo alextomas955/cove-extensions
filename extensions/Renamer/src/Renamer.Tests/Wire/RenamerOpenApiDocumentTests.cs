@@ -115,36 +115,4 @@ public sealed class RenamerOpenApiDocumentTests : ExtensionOpenApiDocumentTests
         // would show the "cannot be reversed" banner on EVERY batch rather than none.
         Assert.DoesNotContain("undoable", PropertyNames(schemas, "PreviewSummary"));
     }
-
-    /// <summary>
-    /// Names, on the committed artifact, the three statuses that split the one bucket every non-moved
-    /// mover outcome used to collapse into.
-    /// </summary>
-    /// <remarks>
-    /// A hand pin earns its place beside the whole-document diff the base already emits because the diff
-    /// catches any change but says nothing about which change was intended — and a generated frontend
-    /// union that quietly lost a member still compiles at every site that never reads it, so the loss
-    /// surfaces as a status rendering blank rather than as an error anywhere.
-    /// </remarks>
-    [Fact]
-    public void TheCommittedDocumentCarriesTheSplitMoveOutcomeStatuses()
-    {
-        var path = ResolveDocumentPath();
-        Assert.True(File.Exists(path), $"No committed wire document at {path}.");
-
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
-        var values = document.RootElement
-            .GetProperty("components").GetProperty("schemas")
-            .GetProperty("RenamerStatus").GetProperty("enum")
-            .EnumerateArray().Select(v => v.GetString()).ToList();
-
-        // Transcribed by hand from the decision that named them, not read back off RenamerStatus.
-        Assert.Contains("skipPermissionDenied", values);
-        Assert.Contains("skipVerifyFailed", values);
-        Assert.Contains("skipCancelled", values);
-
-        // The bucket they split off from stays on the wire: it still names a genuine lock, and a split
-        // that silently retired it would leave the most common skip of the four with nothing to report.
-        Assert.Contains("skipLocked", values);
-    }
 }

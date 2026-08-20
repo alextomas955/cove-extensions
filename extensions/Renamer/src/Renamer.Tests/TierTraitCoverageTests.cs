@@ -7,12 +7,23 @@ namespace Renamer.Tests;
 [Trait("Tier", "L0")]
 public sealed class TierTraitCoverageTests
 {
-    // This project compiles as two different assemblies. With the `../cove` sibling present it carries
-    // ~92 test classes; on the bare leg CI runs, the cove-referencing sources are Compile-Removed
-    // (see Renamer.Tests.csproj) and 44 remain. A single floor therefore has to clear the SMALLER leg,
-    // measured at 44 — so this is deliberately not "~90 minus a bit". It only ever trips on a mass
-    // deletion, which is itself worth a red build, and it cannot go stale upward.
-    private const int MinimumTestClasses = 40;
+    // This project compiles as two different assemblies: with the `../cove` sibling present it carries
+    // 89 test classes, and on the bare leg CI runs the cove-referencing sources are Compile-Removed
+    // (see Renamer.Tests.csproj), leaving 54 — both measured 2026-08-15 by raising this constant until
+    // the assertion below failed and reading the count out of its own message. A single floor has to
+    // clear the SMALLER leg, so it is derived from 54, not from 89.
+    //
+    // What the floor is FOR: proving discovery is not broken. The guard matches xUnit's attributes by
+    // NAME, so a release that renamed or moved FactAttribute would make discovery match zero classes,
+    // leaving the untagged list below empty for the wrong reason and reporting "no violations" while
+    // inspecting nothing. It is NOT a coverage floor, and reading it as one is the mistake to avoid: an
+    // accidental shrink is caught by comparing a measured bare-leg class count against a recorded one,
+    // whereas this threshold sits below the truth by construction.
+    //
+    // 50 = 54 measured, minus 4 so ordinary attrition does not turn a green build red. Never raise or
+    // lower it reactively when it goes red: a red is either a mass deletion or broken discovery, and
+    // both are worth the build.
+    private const int MinimumTestClasses = 50;
 
     [Fact]
     public void AllTestClassesCarryATierTrait()

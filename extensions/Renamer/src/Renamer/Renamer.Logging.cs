@@ -108,10 +108,10 @@ public sealed partial class Renamer
         Message = "[Renamer] could not migrate or clear the legacy stored undo journal; the settings page may stay unreadable until the next load retries")]
     private partial void LogJournalBlobMigrationFailed(Exception ex);
 
-    // The one-time name→id options conversion rewrites the stored settings IN PLACE and keeps no copy
-    // of the originals, so these lines are the whole forensic trail: what it resolved against, what it
-    // discarded, and why it refused when it did. The converted/dropped pair is written between the
-    // settings write and the stamp write, so its presence is also what says the rewrite happened.
+    // The one-time options conversions rewrite the stored settings IN PLACE and keep no copy of the
+    // originals, so these lines are the whole forensic trail: what they resolved against, what they
+    // discarded or rewrote, and why they refused when they did. Every one is written BEFORE the settings
+    // write, so a write that throws cannot take the record with it.
 
     [LoggerMessage(
         EventId = 1056, Level = LogLevel.Information,
@@ -137,6 +137,23 @@ public sealed partial class Renamer
         EventId = 1062, Level = LogLevel.Warning,
         Message = "[Renamer] options migration: {Count} tag destination rule(s) resolved to an id another rule already routed and were discarded: {Detail}")]
     private partial void LogOptionsMigrationDiscardedDestinations(int count, string detail);
+
+    // A destination rule used to name a typed absolute ROOT; it now names a Cove library path plus a
+    // relative template. The conversion folds the old global folder template into each one and keeps no
+    // copy, so this line is the only record of what each rule was before.
+    [LoggerMessage(
+        EventId = 1066, Level = LogLevel.Information,
+        Message = "[Renamer] options migration: {Count} destination rule(s) rewritten onto a Cove library path: {Detail}")]
+    private partial void LogOptionsMigrationDestinationsRewritten(int count, string detail);
+
+    // The one line naming files that will move somewhere else after this release. A dropped rule's
+    // items follow the DEFAULT destination from now on, which is a behaviour change nothing else
+    // announces at runtime — the rule is gone from the panel, so its absence cannot be read as a loss.
+    [LoggerMessage(
+        EventId = 1067, Level = LogLevel.Warning,
+        Message = "[Renamer] options migration: {Count} destination rule(s) removed because their root lies under no Cove library path; "
+            + "their items now follow the default destination: {Detail}")]
+    private partial void LogOptionsMigrationDestinationsDropped(int count, string detail);
 
     [LoggerMessage(
         EventId = 1058, Level = LogLevel.Warning,
@@ -217,4 +234,14 @@ public sealed partial class Renamer
         EventId = 1064, Level = LogLevel.Information,
         Message = "[Renamer] undo journal migration: moved {Rows} row(s) out of the legacy stored journal and deleted both legacy keys")]
     private partial void LogJournalBlobMigrated(int rows);
+
+    // Said once, at load, because the consequence appears much later and somewhere else: without the
+    // library paths every unrouted folder template plans as SkipUnanchored, and a user reading that
+    // reason alone would look for a fault in their own library rather than in a host registration.
+    [LoggerMessage(
+        EventId = 1065, Level = LogLevel.Warning,
+        Message = "[Renamer] the host supplied no CoveConfiguration, so Renamer cannot read Cove's library paths: "
+            + "items with no destination rule will not honour the folder template (they are reported as unanchored). "
+            + "Renaming in place is unaffected.")]
+    private partial void LogNoCoveConfiguration();
 }

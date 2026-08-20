@@ -6,7 +6,8 @@ namespace Renamer.Tests.Execution.Undo;
 
 /// <summary>
 /// The UNDO-03 restore-target RE-GATE proofs — the undo-direction mirror of
-/// <see cref="CanonicalGuard.ExecutorAllowlistGuardTests"/> + <see cref="CanonicalGuard.CanonicalGuardJunctionTests"/>. The forward
+/// the executor-wired allowlist cases in <see cref="RenamerExecutorIntegrationTests"/> +
+/// <see cref="CanonicalGuard.CanonicalPathGuardTests"/>. The forward
 /// write boundary re-validates the destination folder through <see cref="CanonicalPathGuard.Check"/>
 /// before it touches disk; an UNDO is ALSO a write (NEW→OLD), so the restore target must pass the SAME
 /// gate. The drive layout or the OLD folder may have changed since the move (the allowlist was edited,

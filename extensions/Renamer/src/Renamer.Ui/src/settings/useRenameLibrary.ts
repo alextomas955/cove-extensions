@@ -1,5 +1,5 @@
 /**
- * useRenameLibrary — the "Run for the whole library" job data layer (R9).
+ * useRenameLibrary — the "Run for the whole library" job data layer.
  *
  * Owns the shared "Rename all files" flow the panel button and the Dry Run modal both trigger:
  * enqueue the rename-library job, poll it to completion, and report renamed/skipped counts. Also

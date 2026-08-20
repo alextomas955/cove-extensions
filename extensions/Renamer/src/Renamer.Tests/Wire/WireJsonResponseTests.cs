@@ -18,12 +18,12 @@ namespace Renamer.Tests.Wire;
 /// assertions read the response text rather than a deserialized object: deserializing launders the very
 /// casing under test.
 /// </remarks>
-[Trait("Tier", "L2")]
+[Trait("Tier", "L0")]
 public sealed class WireJsonResponseTests
 {
-    // Transcribed by hand from the committed wire fixtures (Contracts/fixtures/preview-response.json),
-    // never read from the converter or from an enum member at test time: an expectation computed from
-    // the thing it checks agrees with it forever, including while both are wrong.
+    // Transcribed by hand from real serialized bytes, never read from the converter or from an enum
+    // member at test time: an expectation computed from the thing it checks agrees with it forever,
+    // including while both are wrong.
     private const string ConfirmLevelLightOnTheWire = "\"confirmLevel\":\"light\"";
     private const string StatusRenameOnTheWire = "\"status\":\"rename\"";
 
@@ -42,7 +42,8 @@ public sealed class WireJsonResponseTests
                 InFlightPathOverflow: false,
                 ResolvedDestinationRoot: null,
                 MatchedRule: "InPlace",
-                TargetVolume: "/"),
+                TargetVolume: "/",
+                OffLibraryDestination: false),
         ],
         new PreviewSummary(
             TotalCount: 1,

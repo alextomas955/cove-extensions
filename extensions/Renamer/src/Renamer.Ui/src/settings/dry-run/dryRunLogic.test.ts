@@ -49,6 +49,10 @@ const SERVER_BUCKETS: readonly (readonly [string, string])[] = [
   ["skipPermissionDenied", "attention"],
   ["skipVerifyFailed", "attention"],
   ["skipCancelled", "attention"],
+  ["skipUnanchored", "attention"],
+  ["skipRootMissing", "attention"],
+  ["skipNotAllowed", "attention"],
+  ["skipTooLong", "attention"],
 ];
 
 /**
@@ -122,8 +126,8 @@ test("the overflow label carries words, so the badge is never colour alone", () 
 });
 
 test("a row from a wire shape that has no overflow field reads as unflagged, not as flagged", () => {
-  // `/scan-rows` carries this field as of 29-06, so this is no longer about a field the wire lacks —
-  // it is about how a row that arrives without one must read. A missing field is `undefined`, and
+  // Both wire shapes declare this field, so the case is not a wire that lacks one — it is how a row
+  // that arrives without one must read. A missing field is `undefined`, and
   // treating that as truthy would put a red pill on every row of the dry-run table.
   assert.equal(inFlightOverflowLabel({}), null);
   assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: undefined }), null);

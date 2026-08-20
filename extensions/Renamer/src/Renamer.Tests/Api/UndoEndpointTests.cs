@@ -2,10 +2,8 @@ using Cove.Core.Auth;
 using Cove.Core.Entities;
 using Cove.Core.Events;
 using Cove.Data;
-using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Renamer.Contracts;
 using Renamer.Jobs;
 using Renamer.Tests.Execution;
@@ -34,29 +32,9 @@ namespace Renamer.Tests.Api;
 /// state a whole-library run leaves behind, which no other case here reaches because every one of them
 /// first partly undoes or settles a batch.
 /// </summary>
-[Trait("Tier", "L2")]
+[Trait("Tier", "L1")]
 public sealed class UndoEndpointTests
 {
-    /// <summary>
-    /// Wires the extension's captured seams from a DI provider that registers the seeded context as
-    /// the base <c>DbContext</c> (singleton, so the scope resolves the same seeded instance) and the
-    /// given capturing event bus, plus a fresh <see cref="FakeStore"/> for the RevertLog. Mirrors
-    /// <c>RenamerBatchJobTests.BuildExtensionAsync</c>.
-    /// </summary>
-    private static async Task<(global::Renamer.Renamer ext, FakeStore store)> BuildExtensionAsync(CoveContext db, IEventBus bus)
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton<DbContext>(db);
-        services.AddSingleton(bus);
-        var provider = services.BuildServiceProvider();
-
-        var store = new FakeStore();
-        var ext = RenamerFixture.Create();
-        ((IStatefulExtension)ext).SetStore(store);
-        await ext.InitializeAsync(provider); // captures IServiceScopeFactory + IEventBus from DI
-        return (ext, store);
-    }
-
     /// <summary>Seeds the extension's stored options so a renamer renames to "$title".</summary>
     private static Task SeedTitleOptionsAsync(FakeStore store) =>
         new global::Renamer.Options.OptionsStore(store)
@@ -99,7 +77,7 @@ public sealed class UndoEndpointTests
             File.WriteAllText(oldFull, "video-bytes");
 
             var bus = new CapturingEventBus();
-            var (ext, store) = await BuildExtensionAsync(db, bus);
+            var (ext, store) = await ExtensionHarness.CreateWithSharedContextAsync(db, bus);
             await SeedTitleOptionsAsync(store); // → "My Film.mkv"
 
             // Forward renamer via the shared batch core — writes one real batch to the store.
@@ -167,7 +145,7 @@ public sealed class UndoEndpointTests
             File.WriteAllText(oldFull, "image-bytes");
 
             var bus = new CapturingEventBus();
-            var (ext, store) = await BuildExtensionAsync(db, bus);
+            var (ext, store) = await ExtensionHarness.CreateWithSharedContextAsync(db, bus);
             await SeedTitleOptionsAsync(store);
 
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("image", [imageId]), new FakeJobProgress(), default);
@@ -229,7 +207,7 @@ public sealed class UndoEndpointTests
                 originals.Add(Path.Combine(dir.Root, basename));
             }
 
-            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
+            var (ext, store) = await ExtensionHarness.CreateWithSharedContextAsync(db, new CapturingEventBus());
             // One worker: every scope in this fixture resolves the one seeded context.
             await new global::Renamer.Options.OptionsStore(store).SaveAsync(new global::Renamer.Options.RenamerOptions
             {
@@ -325,14 +303,21 @@ public sealed class UndoEndpointTests
             string newFull = Path.Combine(destDir.Root, "My Film.mkv");
             File.WriteAllText(oldFull, "video-bytes");
 
-            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
+            var (ext, store) = await ExtensionHarness.CreateWithSharedContextAsync(
+                db, new CapturingEventBus(), options: null, destPath);
             // Forward: a routed move OFF the source folder onto the dest folder (a relocation, so the
             // undo re-gate applies). Both roots allowed for the forward move.
             await new global::Renamer.Options.OptionsStore(store).SaveAsync(new global::Renamer.Options.RenamerOptions
             {
                 FilenameTemplate = "$title",
                 AllowedRoots = [srcPath, destPath],
-                PathDestinations = [new global::Renamer.Options.PathDestinationRule { Pattern = srcPath, Dest = destPath }],
+                PathDestinations =
+                [
+                    new global::Renamer.Options.PathDestinationRule
+                    {
+                        Pattern = srcPath, Dest = TestSupport.Dests.At(destPath),
+                    },
+                ],
             });
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
             Assert.True(File.Exists(newFull), "forward move landed on dest");
@@ -404,7 +389,7 @@ public sealed class UndoEndpointTests
             File.WriteAllText(comesOld, "comes-bytes");
             File.WriteAllText(blockedOld, "blocked-bytes");
 
-            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
+            var (ext, store) = await ExtensionHarness.CreateWithSharedContextAsync(db, new CapturingEventBus());
             // One worker: every scope in this fixture resolves the one seeded context, and the batch
             // path's default fan-out would have two workers query it at once.
             await new global::Renamer.Options.OptionsStore(store).SaveAsync(new global::Renamer.Options.RenamerOptions
@@ -519,7 +504,7 @@ public sealed class UndoEndpointTests
             File.WriteAllText(blockedOld, "blocked-bytes");
             File.WriteAllText(laterOld, "later-bytes");
 
-            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
+            var (ext, store) = await ExtensionHarness.CreateWithSharedContextAsync(db, new CapturingEventBus());
             // One worker: every scope in this fixture resolves the one seeded context, and the batch
             // path's default fan-out would have two workers query it at once.
             await new global::Renamer.Options.OptionsStore(store).SaveAsync(new global::Renamer.Options.RenamerOptions
@@ -639,7 +624,7 @@ public sealed class UndoEndpointTests
             File.WriteAllText(videoOld, "video-bytes");
             File.WriteAllText(imageOld, "image-bytes");
 
-            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
+            var (ext, store) = await ExtensionHarness.CreateWithSharedContextAsync(db, new CapturingEventBus());
             // One worker: every scope in this fixture resolves the one seeded context.
             await new global::Renamer.Options.OptionsStore(store).SaveAsync(new global::Renamer.Options.RenamerOptions
             {
@@ -765,7 +750,7 @@ public sealed class UndoEndpointTests
             File.WriteAllText(Path.Combine(dir.Root, "raw first.mkv"), "first-bytes");
             File.WriteAllText(Path.Combine(dir.Root, "raw second.mkv"), "second-bytes");
 
-            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
+            var (ext, store) = await ExtensionHarness.CreateWithSharedContextAsync(db, new CapturingEventBus());
             await SeedTitleOptionsAsync(store);
 
             var write = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
@@ -845,7 +830,7 @@ public sealed class UndoEndpointTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (ext, _) = await BuildExtensionAsync(db, new CapturingEventBus());
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, new CapturingEventBus());
 
             var result = await ext.UndoAsync(FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite), default);
 
@@ -873,7 +858,7 @@ public sealed class UndoEndpointTests
             var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film");
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
 
-            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
+            var (ext, store) = await ExtensionHarness.CreateWithSharedContextAsync(db, new CapturingEventBus());
             await SeedTitleOptionsAsync(store);
 
             var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);

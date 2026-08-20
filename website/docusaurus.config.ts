@@ -49,10 +49,10 @@ const config: Config = {
       "classic",
       {
         docs: {
-          routeBasePath: "/", // D-02: docs plugin owns the site root
+          routeBasePath: "/", // the docs plugin owns the site root
           sidebarPath: "./sidebars.ts",
         },
-        blog: false, // D-01: remove the blog plugin entirely
+        blog: false, // no blog plugin
         theme: {
           customCss: "./src/css/custom.css",
         },
@@ -60,7 +60,7 @@ const config: Config = {
     ],
   ],
 
-  // U-36: each extension owns its docs under extensions/<Name>/docs; one plugin-content-docs
+  // Each extension owns its docs under extensions/<Name>/docs; one plugin-content-docs
   // instance per extension sources that folder so there is a single doc source (no site copy to
   // drift from). The preset above keeps the DEFAULT instance id at routeBasePath '/' — giving only
   // these EXTRA instances custom ids is what avoids docusaurus#211 (which trips when EVERY docs
@@ -77,9 +77,9 @@ const config: Config = {
     ],
   ],
 
-  // D-07: offline local search (no Algolia, no network at query time). Registered as a theme;
-  // the classic theme then renders its built-in navbar search box automatically. Audited OK in
-  // 16-UI-SPEC.md (@easyops-cn org, MIT, Docusaurus 3.x-compatible). Stock styling (D-08).
+  // Offline local search (no Algolia, no network at query time). Registered as a theme;
+  // the classic theme then renders its built-in navbar search box automatically. Audited OK:
+  // @easyops-cn org, MIT, Docusaurus 3.x-compatible. Stock styling.
   themes: [
     [
       "@easyops-cn/docusaurus-search-local",

@@ -3,22 +3,23 @@ using Renamer.Execution;
 namespace Renamer.Tests.Contracts;
 
 /// <summary>
-/// Pins what the undo response says about a run that is larger than anyone wants described: the totals
-/// are the real totals, and only <see cref="UndoRunAccumulator.MaxSampleEntries"/> entries are ever
-/// described. No store, no database context, no filesystem — the fold takes nothing but the replayer's
-/// own records, which is why this suite needs no setup, no doubles and no running service.
+/// Pins what an undo run reports about itself: what the response says about a run larger than anyone
+/// wants described, and which reasons for a row stopping retire it for good. No store, no database
+/// context, no filesystem — neither subject touches one, which is why this suite needs no setup, no
+/// doubles and no running service.
 /// </summary>
 /// <remarks>
-/// PLACEMENT IS LOAD-BEARING, and this file is deliberately NOT under <c>Execution/</c>. The
-/// cove-absent continuous-integration leg removes the <c>Execution</c>, <c>Events</c>,
-/// <c>Concurrency</c> and <c>Preview</c> folders wholesale, so a pure suite placed beside the code it
-/// covers would silently stop running exactly on the leg where this repository's coverage is thinnest.
-/// <c>Contracts/</c> is covered by no <c>Compile Remove</c> entry. Do not "tidy" this file next to
-/// <c>UndoRunAccumulator.cs</c>.
+/// PLACEMENT IS LOAD-BEARING, and this file is deliberately NOT under <c>Execution/</c>. The cove-absent
+/// continuous-integration leg removes cove-dependent sources from those folders FILE BY FILE, so whether
+/// a pure suite placed beside the code it covers keeps running there depends on a <c>Compile Remove</c>
+/// entry nobody adds deliberately for a test that needs none. <c>Contracts/</c> is covered by no such
+/// entry at all, which is the guarantee. Do not "tidy" this file next to <c>UndoRunAccumulator.cs</c>.
 /// <para>
-/// Every fixture below is a hand-built page result. None is produced by folding one accumulator into
-/// another, which would only prove the fold agrees with itself; the expected totals are written out as
-/// literals so a fold that lost a page fails here instead of agreeing with its own arithmetic.
+/// Every fixture below is a hand-built page result, and every classification is a hand-written table
+/// entry. Nothing here is produced by folding one accumulator into another or read back out of the
+/// classifier, which would only prove each agrees with itself; the expected totals and classifications
+/// are written out as literals so a fold that lost a page, or a reason that silently changed meaning,
+/// fails here instead of agreeing with its own arithmetic.
 /// </para>
 /// </remarks>
 [Trait("Tier", "L0")]
@@ -192,5 +193,61 @@ public sealed class UndoRunAccumulatorTests
         // problem count stated with nothing to explain it, which is the one value of this constant
         // that would break a caller rather than only narrow it.
         Assert.True(UndoRunAccumulator.MaxSampleEntries >= 1);
+    }
+
+    /// <summary>
+    /// Every stop reason and the classification it was deliberately given: true is terminal — the row is
+    /// retired as unrestorable — and false stays pending to be retried. Transcribed by hand from the
+    /// decision, never generated from the enum.
+    /// </summary>
+    /// <remarks>
+    /// The pairing with <see cref="EveryMemberOfTheTypeAppearsInTheTable_SoAnUnclassifiedOneFailsRatherThanDefaults"/>
+    /// is the point: a member added later without a deliberate entry here fails the suite instead of
+    /// quietly inheriting whatever the classifier happens to return for it.
+    /// </remarks>
+    public static TheoryData<UndoStopReason, bool> EveryStopReason => new()
+    {
+        { UndoStopReason.UnexpectedError, false },
+        { UndoStopReason.FileNoLongerInLibrary, true },
+        { UndoStopReason.RestoreTargetRejectedByAllowlist, false },
+        { UndoStopReason.OriginalDirectoryUnavailable, false },
+        { UndoStopReason.OriginalLocationOccupied, false },
+        { UndoStopReason.ReverseMoveLockedOrTargetExists, false },
+        { UndoStopReason.ReverseMovePermissionDenied, false },
+        { UndoStopReason.ReverseMoveVerifyFailed, false },
+        { UndoStopReason.ReverseMoveCancelled, false },
+        { UndoStopReason.RestoredPathMismatch, false },
+        { UndoStopReason.DatabaseSaveFailed, false },
+    };
+
+    [Theory]
+    [MemberData(nameof(EveryStopReason))]
+    public void EachStopReason_ClassifiesAsTheTableSays(UndoStopReason reason, bool terminal) =>
+        Assert.Equal(terminal, UndoTerminalClassifier.IsTerminal(reason));
+
+    [Fact]
+    public void EveryMemberOfTheTypeAppearsInTheTable_SoAnUnclassifiedOneFailsRatherThanDefaults()
+    {
+        var classified = EveryStopReason.Select(row => (UndoStopReason)row[0]!).ToHashSet();
+
+        Assert.Equal(Enum.GetValues<UndoStopReason>().ToHashSet(), classified);
+    }
+
+    [Fact]
+    public void ExactlyOneReasonIsTerminal_AndItIsTheFileLeavingTheLibrary()
+    {
+        // The asymmetry IS the safety property: a reason wrongly called terminal retires the row that
+        // holds the user's only route back to their file, while a reason wrongly called retryable costs
+        // one row that the retention window sweeps anyway.
+        var terminal = Enum.GetValues<UndoStopReason>().Where(UndoTerminalClassifier.IsTerminal);
+
+        Assert.Equal([UndoStopReason.FileNoLongerInLibrary], terminal);
+    }
+
+    [Fact]
+    public void TheDefaultValue_IsRetryable_SoAnUnsetReasonNeverRetiresARow()
+    {
+        // A reason nobody assigned must not be the one that deletes a row for good.
+        Assert.False(UndoTerminalClassifier.IsTerminal(default));
     }
 }

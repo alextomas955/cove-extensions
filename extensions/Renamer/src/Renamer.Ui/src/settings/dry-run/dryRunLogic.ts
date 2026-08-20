@@ -213,12 +213,8 @@ export function etaFromSamples(samples: readonly ProgressSample[]): number | nul
   const p = latest.progress;
   if (p <= 0 || p >= 1) return null;
 
-  // Fold each consecutive pair's instantaneous rate into the EWMA. The FIRST rate merely SEEDS the
-  // average (nothing to blend with yet), so it carries any cold-start/first-poll noise unsmoothed —
-  // showing an ETA off that single seed is what flashes a wrong "~2m" for one poll. So we withhold
-  // the estimate until at least ETA_MIN_RATES rates have folded in (the seed + one more), i.e. the
-  // EWMA has actually smoothed. This is the standard "don't show a low-confidence ETA yet" rule that
-  // curl (`--:--`) and tqdm (`?`) use — a display-confidence gate, NOT discarding data from the math.
+  // Fold each consecutive pair's instantaneous rate into the EWMA, counting the rates so the
+  // display-confidence gate {@link ETA_MIN_RATES} describes can be applied at the end.
   let smoothedRate: number | null = null;
   let rateCount = 0;
   for (let i = 1; i < samples.length; i++) {

@@ -50,6 +50,7 @@ public sealed partial class Renamer
     private string LastScanRoute => RouteBase + "/last-scan";
     private string ScanRowsRoute => RouteBase + "/scan-rows";
     private string RenamerLibraryRoute => RouteBase + "/renamer-library";
+    private string LibraryPathsRoute => RouteBase + "/library-paths";
 
     /// <summary>
     /// The key a pre-0.2.1 scan wrote one wire row PER FILE to. Retained only so
@@ -175,25 +176,19 @@ public sealed partial class Renamer
                 => RenamerEnqueue(req, principal, jobs))
             .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
 
-        // NB: this endpoint binds the RAW HttpContext (not a typed PreviewSampleRequest) so the
-        // handler can deserialize the body with RenamerOptions.JsonOptions — the host's default
-        // minimal-API JsonSerializerOptions has NO JsonStringEnumConverter, so a body carrying
-        // string enum values (e.g. "case":"Lower") would 400 on typed binding before the handler
-        // ran. Extension code cannot touch host startup (ConfigureHttpJsonOptions), so we parse
-        // the body ourselves with the converter-aware options.
+        // Binds the RAW HttpContext rather than a typed PreviewSampleRequest so the handler can parse
+        // the body with RenamerOptions.JsonOptions (see that member for why typed binding 400s here).
         //
         // .Accepts<> is what puts that body in the wire document, since no parameter declares it. It is
-        // documentation ONLY: it binds nothing, validates nothing, and changes no behavior. So it reads
-        // as a contradiction of the paragraph above and is not one — do not "reconcile" it by binding
-        // the body typed, which is exactly the 400-before-the-handler this shape exists to avoid.
+        // documentation ONLY: it binds nothing, validates nothing, and changes no behavior.
         endpoints.MapPost(PreviewSampleRoute,
             (HttpContext http, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => PreviewSampleAsync(http.Request, principal, ct))
             .Accepts<PreviewSampleRequest>("application/json")
             .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
-        // /undo takes NO request body — it operates on "the last batch", so binding no body avoids
-        // the host's enum-converter 400 trap (see the preview-sample note above); /last-batch is a plain read.
+        // /undo takes NO request body — it operates on "the last batch", so binding no body avoids the
+        // host's enum-converter 400 trap (RenamerOptions.JsonOptions); /last-batch is a plain read.
         endpoints.MapPost(UndoRoute,
             (ICurrentPrincipalAccessor principal, CancellationToken ct) => UndoAsync(principal, ct))
             .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
@@ -222,7 +217,28 @@ public sealed partial class Renamer
         endpoints.MapPost(RenamerLibraryRoute,
             (ICurrentPrincipalAccessor principal, IJobService jobs) => RenamerLibraryEnqueue(principal, jobs))
             .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
+
+        endpoints.MapGet(LibraryPathsRoute,
+            (ICurrentPrincipalAccessor principal) => LibraryPaths(principal))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
     }
+
+    /// <summary>
+    /// Cove's configured library paths — the list every destination root is CHOSEN from, so the
+    /// settings panel offers exactly the roots the planner will accept and no typed path exists to
+    /// drift from them.
+    /// </summary>
+    /// <remarks>
+    /// Reads the host configuration this extension already holds; it opens no scope and touches no
+    /// database, because the answer is in-memory host settings rather than library data. An empty list
+    /// means the host supplied no configuration, which the panel says plainly rather than presenting an
+    /// empty picker as a library with no folders in it.
+    /// </remarks>
+    internal Results<WireJson<LibraryPathsView>, ForbiddenCode> LibraryPaths(
+        ICurrentPrincipalAccessor principal)
+        => HasAnyReadPermission(principal)
+            ? new WireJson<LibraryPathsView>(new LibraryPathsView(LibraryRoots))
+            : new ForbiddenCode();
 
     /// <summary>
     /// The synchronous, read-only dry-run: runs the planner over each requested
@@ -253,8 +269,8 @@ public sealed partial class Renamer
             return new BadRequestCode("TOO_MANY_IDS", MaxEntityIdsPerRequest);
         }
 
-        var options = await new OptionsStore(Store).LoadAsync(ct);
-        var port = new CoveRenamerDataPort(db);
+        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+        var port = new CoveRenamerDataPort(db, _coveConfig);
         var planner = new RenamerPlanner(port);
 
         // Build the SAME RouteLookups the batch builds and route through the routing overload,
@@ -290,18 +306,9 @@ public sealed partial class Renamer
         // different limits and disagree.
         var summary = BatchPreview.Summarize(items, sizeByFileId, options.FullPathMax);
 
-        // WireJson<T> writes the response with the extension's own options rather than the host's: the
-        // property names are camelCase AND the RenamerStatus/ConfirmLevel enums are STRINGS, spelled
-        // lowercase-first because the converter camel-cases an enum name exactly as it does a property
-        // name ("rename"/"noOp"/"skipGated"…, "light"/"standard"/"heavy"). The host's default
-        // minimal-API serializer is camelCase but emits NUMERIC enums (status:0), and the frontend's
-        // buildConfirmSummary matches on it.status === "rename" — so under the default every item
-        // reads as a non-renamer and the rename silently never fires, with a valid 200 and no error
-        // anywhere. Extension code cannot touch host startup (ConfigureHttpJsonOptions) to fix that
-        // globally, and the framework results that CAN take per-endpoint options describe no response
-        // schema; WireJson<T> is the type that does both. (RenamerOptions.JsonOptions is a different
-        // instance for a different job — PascalCase + tolerant-read for the options round-trip, wrong
-        // casing for a response.) The response is { items, summary }, and both halves ride the one
+        // WireJson<T> writes the response with the extension's own options (CoveJsonOptions.
+        // WebWithEnumStrings) rather than the host's, so status arrives as "rename"/"noOp"/… and the
+        // UI's match on it holds. The response is { items, summary }, and both halves ride the one
         // options instance, so the per-item array keeps its exact shape. The domain plan items are
         // projected onto PreviewItemView (the wire type) at this boundary.
         return new WireJson<PreviewResponse>(
@@ -434,9 +441,9 @@ public sealed partial class Renamer
         // unauthorized or no-op request still short-circuits without the load), mirroring PreviewAsync.
         // The undo RE-GATES each restore target against options.AllowedRoots — the same write boundary
         // the forward move used — so a restore can never land outside the allowed roots.
-        var options = await new OptionsStore(Store).LoadAsync(ct);
+        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
 
-        var replayer = new UndoReplayer(new CoveRenamerDataPort(db), EventBus, new DiskMover(),
+        var replayer = new UndoReplayer(new CoveRenamerDataPort(db, _coveConfig), EventBus, new DiskMover(),
             cross: new CrossVolumeMover(), allowedRoots: options.AllowedRoots);
 
         // Folded page by page rather than concatenated: a batch reaches library size, so keeping every
@@ -774,13 +781,13 @@ public sealed partial class Renamer
             cursor = new ScanCursor(cursorKind, Math.Max(body.AfterEntityId ?? 0, 0));
         }
 
-        var options = TryParseOptionsOverride(body?.Options) ?? await new OptionsStore(Store).LoadAsync(ct);
+        var options = TryParseOptionsOverride(body?.Options) ?? await new OptionsStore(Store, _log).LoadAsync(ct);
         var lookups = BuildLookups(options);
         var readableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
 
         await using var scope = ScopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-        var port = new CoveRenamerDataPort(db);
+        var port = new CoveRenamerDataPort(db, _coveConfig);
         var pager = new ScanRowPager(new RenamerPlanner(port), port);
 
         var page = await pager.PageAsync(
@@ -795,9 +802,9 @@ public sealed partial class Renamer
     /// </summary>
     /// <param name="readableKinds">
     /// The kinds the enqueuing principal held read permission for, captured at enqueue time — the job
-    /// runs detached from the original request, so this is the only way the per-kind skip (Pitfall 2:
-    /// a partial-permission caller's scan must omit a kind they cannot read, never 403 the whole job)
-    /// reaches the job body.
+    /// runs detached from the original request, so this is the only way the per-kind skip reaches the
+    /// job body: a partial-permission caller's scan must omit a kind they cannot read, never 403 the
+    /// whole job.
     /// </param>
     /// <param name="overrideOptions">
     /// The caller's current options for a dry run on unsaved edits, or null to scan the saved options.
@@ -811,7 +818,7 @@ public sealed partial class Renamer
     {
         // A dry run previews the caller's CURRENT (possibly unsaved) options when they were sent;
         // otherwise it scans the saved options — the original behavior.
-        var options = overrideOptions ?? await new OptionsStore(Store).LoadAsync(ct);
+        var options = overrideOptions ?? await new OptionsStore(Store, _log).LoadAsync(ct);
 
         // The widest of the elevated bodies, because RunScanCoreAsync takes a PORT rather than a
         // service provider — deliberately, so its boundedness is provable over a fake — and so there is
@@ -820,7 +827,7 @@ public sealed partial class Renamer
         await Cove.Extensions.Shared.RunAsSystem.RunInSystemScopeAsync(ScopeFactory, services =>
         {
             var db = services.GetRequiredService<DbContext>();
-            return RunScanCoreAsync(new CoveRenamerDataPort(db), readableKinds, options, progress, ct);
+            return RunScanCoreAsync(new CoveRenamerDataPort(db, _coveConfig), readableKinds, options, progress, ct);
         });
     }
 
@@ -853,10 +860,9 @@ public sealed partial class Renamer
         var planner = new RenamerPlanner(port);
         var aggregator = new ScanAggregator(options.FullPathMax);
 
-        // Load every kind's ids up front so the TOTAL is known before planning — the scan previously
-        // reported only a single Report(1.0) at the end, so the job jumped 0%→100% with no intermediate
-        // feedback. A denominator lets each planned entity advance the bar. The id-only queries are cheap
-        // (they were already run one-per-kind below; this just hoists them so the total is available).
+        // Load every kind's ids up front so the TOTAL is known before planning: without a denominator
+        // the job can only report a single 1.0 at the end and jumps 0%→100% with no feedback. The
+        // id-only queries are cheap, and each kind needs its list below regardless.
         var idsByKind = new List<(RenamerFileKind Kind, IReadOnlyList<int> Ids)>(readableKinds.Count);
         foreach (var kind in readableKinds)
         {
@@ -880,10 +886,10 @@ public sealed partial class Renamer
         int done = 0;
         foreach (var (kind, ids) in idsByKind)
         {
-            // The scan previously issued one heavy multi-Include query per entity (100K entities = 100K
-            // sequential round-trips — the scan bottleneck). Batch-load instead, one chunk at a time:
-            // the loaded entities AND their file-size map are released with each chunk, so neither the
-            // graphs nor the sizes are ever held for the whole library. The chunk size is the port's own
+            // Batch-load one chunk at a time rather than a heavy multi-Include query per entity, which
+            // costs one sequential round-trip per entity across the whole library. The loaded entities
+            // AND their file-size map are released with each chunk, so neither the graphs nor the
+            // sizes are ever held for the whole library. The chunk size is the port's own
             // single decision. Each chunk's entities are re-ordered by the (ascending) id list because
             // the batch load returns DB order, preserving the per-id order and the progress cadence.
             foreach (var chunk in ids.Chunk(CoveRenamerDataPort.LoadChunkSize))
@@ -984,7 +990,7 @@ public sealed partial class Renamer
                 services =>
                 {
                     var db = services.GetRequiredService<DbContext>();
-                    return new CoveRenamerDataPort(db).LoadAllEntityIdsAsync(kind, ct);
+                    return new CoveRenamerDataPort(db, _coveConfig).LoadAllEntityIdsAsync(kind, ct);
                 });
 
             if (ids.Count == 0)
@@ -998,7 +1004,7 @@ public sealed partial class Renamer
             await RunRenamerBatchAsync(parameters, progress, ct);
         }
 
-        progress.Report(1d, "Library renamer complete.");
+        progress.Report(1d, "Library rename complete.");
     }
 
     /// <summary>
@@ -1022,11 +1028,9 @@ public sealed partial class Renamer
     /// Enforces <c>videos.read</c> in-handler BEFORE any body read or engine work (minimal-API
     /// <c>[RequiresPermission]</c> is inert — mirrors <see cref="PreviewAsync"/>).
     /// <para>
-    /// The body is deserialized with <see cref="RenamerOptions.JsonOptions"/> (case-insensitive +
-    /// <c>JsonStringEnumConverter</c>) rather than the host's default minimal-API options, which lack
-    /// the enum converter — so a panel body carrying string enum values (<c>"case":"Lower"</c>,
-    /// <c>"onOverflow":"KeepFirst"</c>, <c>"sort":"NameAsc"</c>) deserializes instead of 400ing. Empty
-    /// or <c>null</c>-Options body → safe defaults; MALFORMED JSON → 400.
+    /// The body is deserialized with <see cref="RenamerOptions.JsonOptions"/> (see that member for why
+    /// the host's default options cannot bind it). Empty or <c>null</c>-Options body → safe defaults;
+    /// MALFORMED JSON → 400.
     /// </para>
     /// </summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
@@ -1064,8 +1068,6 @@ public sealed partial class Renamer
             PreviewSampleRequest? req;
             try
             {
-                // Converter-aware parse: case-insensitive props + JsonStringEnumConverter, so a body
-                // carrying string enum values deserializes instead of 400ing on the host's default opts.
                 req = JsonSerializer.Deserialize<PreviewSampleRequest>(body, RenamerOptions.JsonOptions);
             }
             catch (JsonException)

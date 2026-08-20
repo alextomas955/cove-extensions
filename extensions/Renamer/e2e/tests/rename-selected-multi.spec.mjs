@@ -64,6 +64,14 @@ test(
     }
     const originalPathById = new Map(videos.map((v) => [v.id, v.files[0].path]));
 
+    // A title each, because Cove leaves a scanned item's Title null on purpose and the template above
+    // renders $title behind a required-field gate — so without one every card would be a gated skip and
+    // the count below would read as a multi-select failure rather than as the missing metadata it is.
+    for (const [i, video] of videos.entries()) {
+      const update = await api.put(`/api/videos/${video.id}`, { Title: `Multi ${stamp} ${i}` });
+      expect(update.ok, `setting the title returned ${update.status}: ${update.text}`).toBe(true);
+    }
+
     const videosPage = new RenamerVideosPage(page, baseUrl);
     await videosPage.goto();
 

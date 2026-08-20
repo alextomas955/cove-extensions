@@ -21,7 +21,9 @@ namespace Renamer.Tests.Events;
 /// entry points are the load-time journal assertion, the stored-journal migration, the stored-options
 /// conversion (covered by <c>OptionsMigrationInitializeTests</c>), the shared batch core's three
 /// elevated spans — its planning read, its destination-folder pre-create and its per-worker executor —
-/// the auto-renamer hook (covered by <see cref="AutoRenamerElevationTests"/>), and the two job bodies in
+/// the auto-renamer hook (covered by
+/// <see cref="AutoRenamerHookTests.TheHooksReads_ExecuteUnderSystem_AndLeaveTheCallersPrincipalBehindThem"/>),
+/// and the two job bodies in
 /// <c>Renamer.Api.cs</c>. Adding a further span inside one of those bodies needs no case here: the case
 /// for that body already asserts over EVERY command it ran.
 /// <para>
@@ -152,13 +154,15 @@ public sealed class DetachedElevationTests
         // command at all; an in-place rename skips it entirely.
         var options = TitleOnlyOptions() with
         {
-            FolderTemplate = "sorted",
             AllowedRoots = [folderPath],
             PathDestinations =
-                [new PathDestinationRule { Pattern = folderPath, Dest = folderPath, IsRegex = false }],
+                [new PathDestinationRule
+                {
+                    Pattern = folderPath, Dest = Dests.At(folderPath, "sorted"), IsRegex = false,
+                }],
         };
 
-        var (ext, _) = await LoadedExtensionAsync(library, options);
+        var (ext, _) = await LoadedExtensionAsync(library, options, folderPath);
 
         await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
 
@@ -288,13 +292,13 @@ public sealed class DetachedElevationTests
     /// and the recording cleared, so what a case asserts on is its own exercise and not the load.
     /// </summary>
     private static async Task<(global::Renamer.Renamer ext, FakeStore store)> LoadedExtensionAsync(
-        Library library, RenamerOptions options)
+        Library library, RenamerOptions options, params string[] libraryRoots)
     {
         var store = new FakeStore();
         await new OptionsStore(store).SaveAsync(options);
         var ext = RenamerFixture.Create();
         ((IStatefulExtension)ext).SetStore(store);
-        await ext.InitializeAsync(library.BuildProvider());
+        await ext.InitializeAsync(library.BuildProvider(log: null, libraryRoots));
 
         library.Principals.Set(CovePrincipal.Anonymous());
         library.CommandsExecuted.Clear();

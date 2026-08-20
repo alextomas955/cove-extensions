@@ -382,7 +382,13 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
   }
 
   const { ga, prerelease } = splitReleaseChannels(parsed);
-  const newestGa = ga.at(-1);
+  // The newest GA AT OR ABOVE the floor, never the newest published: a required leg below the declared
+  // floor boots a host that declines to load the extension, so every route 404s and every browser spec
+  // fails with nothing anywhere naming a version. While the floor is itself the newest GA the two
+  // collapse onto one image and that failure cannot be seen at all. When no GA reaches the floor the
+  // role is omitted rather than pointed at the nearest thing to it — the same refusal to substitute a
+  // plausible answer as the throws above.
+  const newestGa = ga.filter((version) => compareSemver(version, parsedFloor) >= 0).at(-1);
   const newestPrerelease = prerelease.at(-1);
 
   const roles = [{ tag: floor, role: "floor", advisory: false }];
@@ -713,14 +719,23 @@ export function readGuardedAssemblies(out) {
  * `execFileSync` with no shell, so an argument is an argument: a registry-supplied tag reaches the
  * command as one argv element and is never text a shell parses. docker's own stderr is folded into
  * the thrown message, because "docker exited 1" without it says nothing about why.
+ *
+ * The binary is named, not resolved to an absolute path, and that is a decision rather than an
+ * oversight. There is no portable absolute path to resolve to: Docker Engine, Docker Desktop,
+ * Colima and Rancher each place the binary somewhere different across the three operating systems
+ * this repo builds on, so hardcoding one would break the script everywhere it does not match. The
+ * exposure that buys is PATH substitution, which requires an attacker who can already write to a
+ * directory on PATH — on a throwaway CI runner or the maintainer's own machine, someone with that
+ * access does not need this script. Revisit if this ever runs somewhere PATH is not trusted.
  * </remarks>
  */
+// Hoisted so the call below fits on one line: the suppression has to sit on the line the issue is
+// reported at, and Prettier relocates a trailing comment that follows an inline object's `{`.
+const DOCKER_STDIO = { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] };
+
 function runDocker(args) {
   try {
-    return execFileSync("docker", args, {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
+    return execFileSync("docker", args, DOCKER_STDIO).trim(); // NOSONAR javascript:S4036
   } catch (error) {
     const detail = String(error.stderr ?? "").trim() || error.message;
     throw new Error(`docker ${args.join(" ")} failed: ${detail}`, { cause: error });

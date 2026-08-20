@@ -1,14 +1,21 @@
 /**
  * Bridges the number-keyed `StudioDestinations` field onto the string-keyed `KeyValueMapEditor`: the
  * key cell is a single-select entity field over the picked studio's stable id, the value cell is the
- * destination-path text input. Reuses both primitives verbatim — the only new logic is the numeric-key
+ * shared destination editor. Reuses both primitives verbatim — the only new logic is the numeric-key
  * coercion, which lives in options.ts beside the load-path coercion it has to agree with.
  */
 import { EntityReferenceValue } from "@cove/runtime/components";
 
-import { KeyValueMapEditor, TextInput, PathShapeHint } from "@cove-extensions/ui-shared";
+import { KeyValueMapEditor } from "@cove-extensions/ui-shared";
 import { EntitySelectField } from "./EntitySelectField";
-import { toStringKeyed, fromStringKeyed } from "./options";
+import { DestinationField } from "./DestinationField";
+import {
+  toStringKeyed,
+  fromStringKeyed,
+  newDestination,
+  type Destination,
+  type LibraryPathsState,
+} from "./options";
 
 /**
  * The studio destination-rule editor. Accepts/emits the backend `Record<number, string>`; internally
@@ -23,13 +30,16 @@ import { toStringKeyed, fromStringKeyed } from "./options";
 export function StudioDestinationsEditor({
   map,
   onChange,
+  library,
 }: {
-  map: Record<number, string>;
-  onChange: (map: Record<number, string>) => void;
+  map: Record<number, Destination>;
+  onChange: (map: Record<number, Destination>) => void;
+  library: LibraryPathsState;
 }) {
   return (
     <KeyValueMapEditor
       map={toStringKeyed(map)}
+      emptyValue={newDestination(library.paths)}
       onChange={(next) => {
         onChange(fromStringKeyed(next));
       }}
@@ -37,10 +47,7 @@ export function StudioDestinationsEditor({
         <StudioKeyCell draftKey={draftKey} setDraftKey={setDraftKey} existingKeys={existingKeys} />
       )}
       renderValue={(value, setValue) => (
-        <>
-          <TextInput value={value} onChange={setValue} placeholder="Destination root" />
-          <PathShapeHint value={value} />
-        </>
+        <DestinationField value={value} onChange={setValue} library={library} label="Folder" />
       )}
       renderKeyLabel={(key) => <EntityReferenceValue entityType="studio" value={Number(key)} />}
       addLabel="Add studio rule"

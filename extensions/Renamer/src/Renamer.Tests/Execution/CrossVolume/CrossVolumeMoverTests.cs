@@ -249,6 +249,177 @@ public sealed class CrossVolumeMoverTests
         }
     }
 
+    // ── verify-failure data-loss proofs ───────────────────────────────────────
+    //
+    // When the destination copy is corrupted (a flipped byte) or torn (truncated) before verify, the
+    // verify FAILS, the SOURCE survives with its original bytes, and the suspect destination and
+    // in-flight copy are gone — an interrupted/corrupted transfer never loses the original. The bit-flip
+    // case proves the content-hash half of verify; the truncation case proves the size half. Both run
+    // entirely in a TempDir — no second physical drive (a real two-drive run is a manual cross-platform
+    // check, deliberately NOT faked here).
+
+    [Fact]
+    public async Task BitFlipDestination_VerifyFails_SourceSurvives_DestDeleted()
+    {
+        using var dir = new TempDir();
+        const string original = "the real bytes that must survive";
+        var src = dir.Touch("clip.mkv", original);
+        var dest = Path.Combine(dir.Root, "moved", "clip.mkv");
+        string? inFlight = null;
+
+        // Fault seam: flip exactly one byte of the in-flight copy AFTER copy but BEFORE verify. The size
+        // is unchanged, so this can only be caught by the content hash (not the size check). The seam
+        // also hands over the minted path, which is how the leftover assertion below knows it.
+        var mover = new CrossVolumeMover((path, _) =>
+        {
+            inFlight = path;
+            var bytes = File.ReadAllBytes(path);
+            Assert.NotEmpty(bytes);
+            bytes[0] ^= 0xFF; // flip one byte; length preserved
+            File.WriteAllBytes(path, bytes);
+            return Task.CompletedTask;
+        });
+
+        var result = await mover.MoveAsync(src, dest, sidecars: null, CancellationToken.None);
+
+        Assert.False(result.Moved);
+        Assert.Equal(MoveOutcome.VerifyFailed, result.Outcome);
+        Assert.True(File.Exists(src), "source MUST survive a failed verify");
+        Assert.Equal(original, File.ReadAllText(src));
+        Assert.False(File.Exists(dest), "the suspect destination must be deleted");
+        Assert.NotNull(inFlight);
+        Assert.False(File.Exists(inFlight), "no in-flight copy left behind");
+    }
+
+    [Fact]
+    public async Task TruncatedDestination_VerifyFails_SourceSurvives_DestDeleted()
+    {
+        using var dir = new TempDir();
+        const string original = "the real bytes that must survive a torn write";
+        var src = dir.Touch("clip.mkv", original);
+        var dest = Path.Combine(dir.Root, "moved", "clip.mkv");
+        string? inFlight = null;
+
+        // Fault seam: truncate the in-flight copy to a SHORTER length (a torn/short write). This is
+        // caught by the size half of verify independently of the hash.
+        var mover = new CrossVolumeMover((path, _) =>
+        {
+            inFlight = path;
+            var bytes = File.ReadAllBytes(path);
+            Assert.True(bytes.Length > 4, "test fixture must be longer than the truncation point");
+            File.WriteAllBytes(path, bytes[..4]); // shorter than the source
+            return Task.CompletedTask;
+        });
+
+        var result = await mover.MoveAsync(src, dest, sidecars: null, CancellationToken.None);
+
+        Assert.False(result.Moved);
+        Assert.Equal(MoveOutcome.VerifyFailed, result.Outcome);
+        Assert.True(File.Exists(src), "source MUST survive a truncated-dest verify failure");
+        Assert.Equal(original, File.ReadAllText(src));
+        Assert.False(File.Exists(dest), "the suspect (short) destination must be deleted");
+        Assert.NotNull(inFlight);
+        Assert.False(File.Exists(inFlight), "no in-flight copy left behind");
+    }
+
+    // ── temp-file ownership ───────────────────────────────────────────────────
+    //
+    // The regression for the silent data loss this design removed: the mover used to derive one fixed,
+    // guessable in-flight path from the destination and delete it before every copy, so a user's own
+    // file sitting at that name was destroyed without a word.
+    //
+    // PROPERTY PINNED: a file already present in the destination directory is untouched by a
+    // cross-volume move, whether the move succeeds or its verify fails. The mover deletes only paths it
+    // minted inside that same call. Be honest about what a random name lets a test assert: because the
+    // in-flight name is minted per call from a cryptographic random source, no fixed path can be
+    // pre-planted to collide with the next one — so these cases cannot demonstrate a near-miss and do
+    // not pretend to. The planted files are named in the SHAPE a minted in-flight file takes, so they
+    // would have failed loudly against the fixed-suffix code this replaced.
+
+    private const string UserContent = "a user's own file, valid data the mover has no claim on";
+
+    [Fact]
+    public async Task UserFileInDestinationDirectory_SurvivesASuccessfulMove_Intact()
+    {
+        using var dir = new TempDir();
+        var src = dir.Touch("clip.mkv", "the bytes being moved");
+        var dest = Path.Combine(dir.Root, "moved", "Renamed.mkv");
+
+        // Two files the user owns, both in the destination directory, both shaped like an in-flight
+        // copy: one hung off the exact final path the move targets, one off a different final name.
+        var plantedOnTarget = dir.Touch("moved/Renamed.mkv.rnm0cf1c5d4", UserContent);
+        var plantedElsewhere = dir.Touch("moved/Holiday.mkv.rnmc15381a0", UserContent);
+
+        var minted = new List<string>();
+        var mover = new CrossVolumeMover(Recorder(minted));
+
+        var result = await mover.MoveAsync(src, dest, sidecars: null, CancellationToken.None);
+
+        Assert.True(result.Moved);
+        Assert.Equal("the bytes being moved", File.ReadAllText(dest));
+
+        AssertUserFilesIntact(plantedOnTarget, plantedElsewhere);
+        AssertOnlyMintedPathsWereRemoved(minted, plantedOnTarget, plantedElsewhere);
+    }
+
+    [Fact]
+    public async Task UserFileInDestinationDirectory_SurvivesAVerifyFailure_WhileOnlyTheMintedCopyIsRemoved()
+    {
+        using var dir = new TempDir();
+        const string original = "the bytes that must survive a failed verify";
+        var src = dir.Touch("clip.mkv", original);
+        var dest = Path.Combine(dir.Root, "moved", "Renamed.mkv");
+
+        var plantedOnTarget = dir.Touch("moved/Renamed.mkv.rnm0cf1c5d4", UserContent);
+        var plantedElsewhere = dir.Touch("moved/Holiday.mkv.rnmc15381a0", UserContent);
+
+        // Corrupt the in-flight copy between copy and verify, so the failure arm — the one that DOES
+        // delete — runs. It must reach the minted path and nothing else.
+        var minted = new List<string>();
+        var mover = new CrossVolumeMover((inFlight, _) =>
+        {
+            minted.Add(inFlight);
+            var bytes = File.ReadAllBytes(inFlight);
+            bytes[0] ^= 0xFF;
+            File.WriteAllBytes(inFlight, bytes);
+            return Task.CompletedTask;
+        });
+
+        var result = await mover.MoveAsync(src, dest, sidecars: null, CancellationToken.None);
+
+        Assert.False(result.Moved);
+        Assert.Equal(MoveOutcome.VerifyFailed, result.Outcome);
+        Assert.True(File.Exists(src), "the source must survive a failed verify");
+        Assert.Equal(original, File.ReadAllText(src));
+        Assert.False(File.Exists(dest), "the suspect destination must not be promoted");
+
+        AssertUserFilesIntact(plantedOnTarget, plantedElsewhere);
+        AssertOnlyMintedPathsWereRemoved(minted, plantedOnTarget, plantedElsewhere);
+    }
+
+    private static void AssertUserFilesIntact(params string[] planted)
+    {
+        foreach (var path in planted)
+        {
+            Assert.True(File.Exists(path), $"the mover deleted a file it did not create: {path}");
+            Assert.Equal(UserContent, File.ReadAllText(path));
+        }
+    }
+
+    /// <summary>
+    /// The other half of the ownership claim: what the mover DID mint is gone, so the planted files
+    /// surviving is not merely the mover having deleted nothing at all.
+    /// </summary>
+    private static void AssertOnlyMintedPathsWereRemoved(List<string> minted, params string[] planted)
+    {
+        Assert.NotEmpty(minted); // the seam must have fired, or the loop below asserts nothing
+        foreach (var path in minted)
+        {
+            Assert.DoesNotContain(path, planted);
+            Assert.False(File.Exists(path), $"the in-flight copy the mover minted must be gone: {path}");
+        }
+    }
+
     /// <summary>
     /// A post-copy seam that only records the path production minted, leaving the copy untouched — the
     /// mover's real behaviour, plus the observation the test needs.

@@ -54,8 +54,17 @@ public sealed class ParallelBatchTests
     /// log line IS the artifact — so a test that asserts WHY an item was skipped has to read it.
     /// Null leaves the extension on its NullLogger default, exactly as the other cases here run.
     /// </param>
+    /// <param name="libraryRoots">
+    /// Registered as Cove's configured library paths when any are named — the list a destination root is
+    /// chosen from and re-checked against. Omitted, no <c>CoveConfiguration</c> is registered at all; see
+    /// <see cref="TestSupport.Library.LibraryConfig"/> for why.
+    /// </param>
     private static async Task<(global::Renamer.Renamer ext, ConcurrentFakeStore store, CapturingEventBus bus)>
-        BuildAsync(SharedCacheSqlite shared, RenamerOptions options, ConcurrentQueue<string>? logSink = null)
+        BuildAsync(
+            SharedCacheSqlite shared,
+            RenamerOptions options,
+            ConcurrentQueue<string>? logSink = null,
+            params string[] libraryRoots)
     {
         var services = new ServiceCollection();
         services.AddScoped<DbContext>(_ => shared.NewContext());
@@ -64,6 +73,11 @@ public sealed class ParallelBatchTests
         if (logSink is not null)
         {
             services.AddSingleton<ILogger<global::Renamer.Renamer>>(new CapturingLogger<global::Renamer.Renamer>(logSink));
+        }
+
+        if (libraryRoots.Length > 0)
+        {
+            services.AddSingleton(Library.LibraryConfig(libraryRoots));
         }
 
         var provider = services.BuildServiceProvider();
@@ -286,13 +300,15 @@ public sealed class ParallelBatchTests
             var options = new RenamerOptions
             {
                 FilenameTemplate = "$title",
-                FolderTemplate = "Films",
                 AllowedRoots = [srcPathFwd, destRootFwd],
                 PathDestinations =
-                    [new PathDestinationRule { Pattern = srcPathFwd, Dest = destRootFwd, IsRegex = false }],
+                    [new PathDestinationRule
+                    {
+                        Pattern = srcPathFwd, Dest = Dests.At(destRootFwd, "Films"), IsRegex = false,
+                    }],
                 FreeSpaceHeadroomBytes = 0,
             };
-            var (ext, _, _) = await BuildAsync(shared, options);
+            var (ext, _, _) = await BuildAsync(shared, options, libraryRoots: destRootFwd);
 
             // Stateful TOCTOU probe: the FIRST reading (PHASE A up-front check) reports ample free space
             // so the batch is accepted; the SECOND reading (PHASE B in-flight re-check, just before the
@@ -347,15 +363,17 @@ public sealed class ParallelBatchTests
             var options = new RenamerOptions
             {
                 FilenameTemplate = "$title",
-                FolderTemplate = "Films",
                 AllowedRoots = [srcPathFwd, destRootFwd],
                 PathDestinations =
-                    [new PathDestinationRule { Pattern = srcPathFwd, Dest = destRootFwd, IsRegex = false }],
+                    [new PathDestinationRule
+                    {
+                        Pattern = srcPathFwd, Dest = Dests.At(destRootFwd, "Films"), IsRegex = false,
+                    }],
                 // Zero headroom, so the refusal comes from the shortfall itself rather than from
                 // headroom arithmetic that would refuse even an ample volume.
                 FreeSpaceHeadroomBytes = 0,
             };
-            var (ext, _, _) = await BuildAsync(shared, options);
+            var (ext, _, _) = await BuildAsync(shared, options, libraryRoots: destRootFwd);
 
             var progress = new FakeJobProgress();
             // CONSTANT starvation, unlike the in-flight test's stateful probe: every reading reports one
@@ -422,17 +440,19 @@ public sealed class ParallelBatchTests
             var options = new RenamerOptions
             {
                 FilenameTemplate = "$title",
-                FolderTemplate = "Films",
                 AllowedRoots = [srcPathFwd, libraryFwd],
                 PathDestinations =
-                    [new PathDestinationRule { Pattern = srcPathFwd, Dest = libraryFwd, IsRegex = false }],
+                    [new PathDestinationRule
+                    {
+                        Pattern = srcPathFwd, Dest = Dests.At(libraryFwd, "Films"), IsRegex = false,
+                    }],
             };
 
             // Source and destination share a path root, so the free-space guard excludes this move and
             // the real DriveInfo probe cannot refuse the batch — the ONLY refusal on this run is the
             // allowlist one under test.
             var log = new ConcurrentQueue<string>();
-            var (ext, _, _) = await BuildAsync(shared, options, log);
+            var (ext, _, _) = await BuildAsync(shared, options, log, libraryFwd);
 
             var progress = new FakeJobProgress();
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), progress, default);

@@ -1,8 +1,9 @@
 namespace Renamer.Execution;
 
 /// <summary>
-/// The pure path string math the planner and the execution slice share: slash normalization, the
-/// directory/basename split, native-separator conversion, and the OS-aware path-equality rule.
+/// The pure path string math the engine, the planner and the execution slice share: slash
+/// normalization, the directory/basename split, native-separator conversion, and the OS-aware
+/// path-equality rule.
 /// </summary>
 /// <remarks>
 /// One home because every site deciding whether two paths name the same FILE must apply one case
@@ -56,10 +57,7 @@ internal static class PathOps
     /// </summary>
     /// <remarks>
     /// Normalization happens HERE rather than at a call site, so the result is canonical whichever
-    /// separator either part arrived with and the operation cannot be called wrongly. The three
-    /// private copies this replaced each relied on a different part of that contract — one normalized
-    /// its folder argument, one trimmed only the forward slash, one guarded neither empty part — and
-    /// every former caller now gets the superset of all three.
+    /// separator either part arrived with and the operation cannot be called wrongly.
     /// </remarks>
     internal static string JoinPath(string a, string b)
     {
@@ -108,7 +106,7 @@ internal static class PathOps
     /// Ordinal (under-permissive: the suffix bug survives on that mount). Closing the gap needs a
     /// per-volume probe rather than an OS test; the cross-file no-clobber guarantee does not
     /// depend on it, and is pinned independently by
-    /// <c>CaseOnlyRenamerTests.DifferentFileAtCaseVariantName_StillCollides_NoClobber</c>.
+    /// <c>CollisionAndRollbackTests.DifferentFileAtCaseVariantName_StillCollides_NoClobber</c>.
     /// </para>
     /// A null <paramref name="a"/> compares as the empty string; this never throws.
     /// </remarks>

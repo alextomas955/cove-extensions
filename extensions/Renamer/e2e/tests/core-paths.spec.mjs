@@ -91,6 +91,12 @@ test("dry-run preview matches the template and touches neither disk nor the DB r
   const video = await seedVideo({ container: harness.container, baseUrl });
   const originalPath = video.files[0].path;
 
+  // A title, because Cove leaves a scanned item's Title null on purpose and the shipped template
+  // renders $title behind a required-field gate — so without one the item below is a gated skip and
+  // this spec would assert nothing about the preview it is named for.
+  const setTitle = await api.put(`/api/videos/${video.id}`, { Title: `Preview ${Date.now()}` });
+  expect(setTitle.ok).toBe(true);
+
   // /preview has no UI trigger of its own (it's what "Rename selected" calls internally before
   // showing its confirm() dialog) — the API is the only way to exercise it in isolation, without
   // also triggering the actual mutation the UI action performs. This one test stays API-driven.

@@ -4,16 +4,18 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <EnableDynamicLoading>true</EnableDynamicLoading>
-    <!-- The single declared host floor, from which the SDK package version derives. 1.1.0 is where
-         the host commit that introduced the `@cove/runtime/api` runtime module first ships, measured
-         against the released image — the floor follows the capability the extensions actually use, it
-         is not a number picked to look current. Declaration order here is load-bearing, and nothing
-         guards it: MSBuild evaluates properties top to bottom, so reversing these two lines expands
-         $(CoveMinVersion) before it holds a value and every Cove package reference silently takes an
-         empty version. No companion property is declared for
+    <!-- The single declared host floor, from which the SDK package version derives. 1.3.0-rc.2 is the
+         release Renamer's declared floor targets, and the capability behind that floor is the host
+         publishing entity events for bulk mutations (Cove commit ca14830, 2026-08-02), without which a
+         multi-item edit renames one item and stays silent about the rest — the floor follows the
+         capability the extensions actually use, it is not a number picked to look current. It is a
+         pre-release floor, honestly: no generally-available Cove satisfies it today. Declaration order
+         here is load-bearing, and nothing guards it: MSBuild evaluates properties top to bottom, so
+         reversing these two lines expands $(CoveMinVersion) before it holds a value and every Cove
+         package reference silently takes an empty version. No companion property is declared for
          Cove.Core, deliberately: it is never a PackageReference in this repo (it arrives transitively
          through Cove.Sdk), so such a value would have no consumer. -->
-    <CoveMinVersion Condition="'$(CoveMinVersion)' == ''">1.1.0</CoveMinVersion>
+    <CoveMinVersion Condition="'$(CoveMinVersion)' == ''">1.3.0-rc.2</CoveMinVersion>
     <CoveSdkVersion Condition="'$(CoveSdkVersion)' == ''">$(CoveMinVersion)</CoveSdkVersion>
 
     <!-- Which released Cove the CI safety leg compiles and runs against. Deliberately SEPARATE from
@@ -56,7 +58,7 @@
          existing setup changes.
       5. Otherwise `none`: published NuGet packages, the clean-clone path.
 
-    Explicitness is captured BEFORE any defaulting because D-06 turns on how a value ARRIVED, not on
+    Explicitness is captured BEFORE any defaulting because the choice turns on how a value ARRIVED, not on
     whether a path happens to exist: absence is a legitimate state for auto-detection and an error for
     explicit configuration. The failure arms themselves live in Directory.Build.targets, where a
     target can report and stop the build; a PropertyGroup can only compute.

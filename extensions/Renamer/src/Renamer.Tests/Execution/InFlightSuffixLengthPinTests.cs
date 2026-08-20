@@ -9,8 +9,8 @@ namespace Renamer.Tests.Execution;
 /// <remarks>
 /// Two sides that must not drift. The preview's in-flight overflow warning derives its band from
 /// <see cref="CrossVolumeMover.InFlightSuffixLength"/>, while the cost the executor really pays is
-/// whatever the minter appends. The minted segment has already been narrowed once — phase 26's D-04
-/// replaced a 16-character fixed suffix with <c>".rnm"</c> plus 8 hexadecimal characters — so a further
+/// whatever the minter appends. The minted segment has already been narrowed once — a 16-character
+/// fixed suffix became <c>".rnm"</c> plus 8 hexadecimal characters — so a further
 /// narrowing is a live possibility rather than a hypothetical, and it would leave the warning firing on a
 /// band that no longer overruns. A warning on a correct plan is worse than the silence it replaced,
 /// because a user who is told to shorten a name that already fits learns to ignore the warning.
@@ -24,11 +24,6 @@ namespace Renamer.Tests.Execution;
 [Trait("Tier", "L0")]
 public sealed class InFlightSuffixLengthPinTests
 {
-    // Twelve: ".rnm" (4 characters) plus 8 hexadecimal characters. Transcribed by hand from
-    // CrossVolumeMover's own two constants and deliberately NOT computed from them — an expectation
-    // derived from the declaration it checks agrees with it however far both drift from what is minted.
-    private const int ExpectedSuffixLength = 12;
-
     private const string FinalFull = "/dest/Film.mkv";
 
     [Fact]
@@ -42,11 +37,11 @@ public sealed class InFlightSuffixLengthPinTests
         Assert.Equal(CrossVolumeMover.InFlightSuffixLength, minted.Length - FinalFull.Length);
     }
 
-    [Fact]
-    public void TheDeclaredLength_IsTwelveCharacters()
-    {
-        Assert.Equal(ExpectedSuffixLength, CrossVolumeMover.InFlightSuffixLength);
-    }
+    // A third case used to assert the declared length equals a hand-written 12. It was an
+    // internal-constant pin — a number checked against a copy of itself, with no second component
+    // involved — so it could only ever fail on a deliberate edit to the declaration, which is not a
+    // defect class. The two cases here are cross-component and stay: one holds the MINTER and the
+    // declaration to each other, the other holds the mint to being genuinely variable.
 
     [Fact]
     public void TwoMintsDifferInTheirTail_SoTheLengthAboveIsNotThatOfAFixedSuffix()

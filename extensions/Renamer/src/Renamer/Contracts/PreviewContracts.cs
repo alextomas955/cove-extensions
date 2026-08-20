@@ -24,14 +24,18 @@ namespace Renamer.Contracts;
 /// UI badge signal: true iff this item crosses volumes and its in-flight copy would overrun the path
 /// budget, so the move the user is approving cannot complete even though the planned path fits.
 /// </param>
-/// <param name="ResolvedDestinationRoot">The routed destination-root template, or null for a source-confine/in-place item.</param>
+/// <param name="ResolvedDestinationRoot">The Cove library path this item was measured from, or null when it does not move. See <see cref="RenamerPlanItem.ResolvedDestinationRoot"/>.</param>
 /// <param name="MatchedRule">
-/// The resolver's matched-rule label for preview/log (<c>"Studio:42(direct)"</c>, <c>"InPlace"</c>, …),
+/// The resolver's matched-rule label for preview/log (<c>"Studio:42(direct)"</c>, <c>"Default"</c>, …),
 /// or <c>""</c> for an item the resolver never routed — a skip or a no-op.
 /// </param>
 /// <param name="TargetVolume">
-/// The destination volume of the resolved absolute target, or <c>""</c> when the item is not a routed
-/// move.
+/// The destination volume of the resolved absolute target, set only where the destination chose its
+/// own library root and so can be on another drive; <c>""</c> otherwise.
+/// </param>
+/// <param name="OffLibraryDestination">
+/// UI badge signal: true iff this item will act and lands outside every Cove library path. See
+/// <see cref="RenamerPlanItem.OffLibraryDestination"/>.
 /// </param>
 public sealed record PreviewItemView(
     int FileId,
@@ -46,7 +50,8 @@ public sealed record PreviewItemView(
     bool InFlightPathOverflow,
     string? ResolvedDestinationRoot,
     string MatchedRule,
-    string TargetVolume)
+    string TargetVolume,
+    bool OffLibraryDestination)
 {
     /// <summary>Projects a planned <paramref name="item"/> onto its wire shape.</summary>
     /// <param name="item">The planned item to project.</param>
@@ -69,16 +74,16 @@ public sealed record PreviewItemView(
         inFlightPathOverflow,
         item.ResolvedDestinationRoot,
         item.MatchedRule,
-        item.TargetVolume);
+        item.TargetVolume,
+        item.OffLibraryDestination);
 }
 
 /// <summary>
 /// The <c>/preview</c> response body: the per-item plan PLUS the whole-batch blast-radius
 /// summary. Carries batch-level aggregates (count, same/cross split, per-volume bytes, the scaled
 /// confirm level) without losing the per-item array contract the UI matches on (<c>status === "rename"</c>).
-/// Both halves ride the same camelCase + string-enum serializer, so <see cref="Items"/> keeps its exact
-/// wire shape and <see cref="PreviewSummary.ConfirmLevel"/> serializes as "light"/"standard"/"heavy" —
-/// lowercase-first, because the converter camel-cases the enum NAME just as it does a property name.
+/// Both halves ride the SAME serializer options, so <see cref="Items"/> keeps its exact wire shape and
+/// the two cannot disagree about an enum's spelling.
 /// </summary>
 /// <param name="Items">One <see cref="PreviewItemView"/> per physical file of the selection, in plan order.</param>
 /// <param name="Summary">The whole-batch blast radius computed over the acting items.</param>
@@ -220,12 +225,9 @@ public sealed record JobEnqueued(string JobId);
 public static class PreviewContracts
 {
     /// <summary>
-    /// Response-serialization options for the preview/scan/picker endpoints: camelCase to match the
-    /// host's wire convention (and the UI's field names) plus a string-enum converter so
-    /// <c>status</c> serializes as the string the UI matches (<c>"rename"</c>/<c>"noOp"</c>/…, the
-    /// enum name camel-cased). The host's default minimal-API serializer emits NUMERIC enums, which the
-    /// frontend's <c>buildConfirmSummary</c> would read as a non-renamer — so the extension serializes
-    /// here.
+    /// Response-serialization options for the preview/scan/picker endpoints — the shared
+    /// camelCase + string-enum policy (see <see cref="CoveJsonOptions.WebWithEnumStrings"/>), so
+    /// <c>status</c> serializes as the string the UI matches (<c>"rename"</c>/<c>"noOp"</c>/…).
     /// <para>
     /// This instance has a second job: the wire-document emit copies its members into the emitting
     /// host's JSON options, so the schema's property casing and enum spelling are a consequence of the

@@ -1,4 +1,5 @@
 using System.Text;
+using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
 
@@ -46,9 +47,9 @@ public static class Tokens
 /// <c>/</c> is stripped; folder split on <c>/</c>, each piece cleaned, rejoined with <c>/</c>);
 /// (5) resolve the extension (never duplicated); (6) <see cref="LengthReducer.Fit"/>.
 ///
-/// 100% pure: no <c>Path</c>/<c>File</c>/DB calls. Path-traversal confinement (<c>..</c>,
-/// absolute paths) is deliberately the executor's job, not the engine's — the engine never
-/// sees the library root.
+/// 100% pure: no <c>Path</c>/<c>File</c>/DB calls. Deciding whether a destination is PERMITTED —
+/// traversal, containment, the absolute budget — is deliberately the confinement gate's job, not the
+/// engine's, and the engine never sees the library root.
 /// </summary>
 public static class TemplateEngine
 {
@@ -265,6 +266,15 @@ public static class TemplateEngine
     /// "Nikki [368p]" plus a template that appends <c>{ [$resolution]}</c> (which now renders "368p")
     /// would otherwise yield "Nikki [368p] [368p]" — matching ONLY the five fixed labels missed the
     /// sub-480 tag and left it to double. Matching any bracketed numeric-p (or 4k) suffix de-dupes it.
+    /// <para>
+    /// It de-doubles a STORED title, which is a job of its own and the reason this survives the fixed
+    /// point work: it also used to be the single reason <c>$title{ [$resolution]}</c> was the one
+    /// shipped template that converged, and recording the derived title makes every template converge
+    /// without it. The two roles are indistinguishable to a convergence test — both end in a stable
+    /// name — so measure the other one instead: for a title-less file already called
+    /// "My Film [1080p].mp4", this is what makes the rename a no-op rather than a rewrite to
+    /// "My Film [1080p] [1080p].mp4".
+    /// </para>
     /// </remarks>
     private static string StripTrailingResolutionTag(string value)
     {
@@ -385,8 +395,18 @@ public static class TemplateEngine
     /// <summary>
     /// Renders the folder template: emits the raw text, applies transforms, then splits on
     /// <c>/</c>, cleans each segment, drops empties, and rejoins with <c>/</c> — keeping <c>/</c>
-    /// only as the path separator. An empty template → empty (no folder move).
+    /// only as the path separator. An empty template → empty. The result is ALWAYS relative: it is
+    /// rendered under a destination root the user chose from Cove's own library paths, and the
+    /// per-segment sanitizer strips <c>:</c> and edge dots, so no template can name a location of its
+    /// own or traverse out of the root it is placed under.
     /// </summary>
+    /// <remarks>
+    /// The separator reading is taken from the TEMPLATE and never from the rendered output, which is
+    /// what stops a piece of metadata choosing a directory: a studio named <c>Acme/Sub</c> renders as
+    /// one ordinary segment. A <c>\</c> in the template is read as <c>/</c> is, because the template is
+    /// a path expression and a Windows user types <c>videos\$studio</c>; left as an illegal character
+    /// the sanitizer would delete it and mash those two levels into one folder name.
+    /// </remarks>
     private static string RenderFolder(
         string template,
         IReadOnlyDictionary<string, string> resolved,
@@ -398,7 +418,8 @@ public static class TemplateEngine
             return string.Empty;
         }
 
-        string raw = RenderRaw(template, resolved, suppressExt: false, logUnbalanced);
+        string raw = RenderRaw(
+            PathOps.NormalizeSlash(template), resolved, suppressExt: false, logUnbalanced);
         raw = ApplyTransforms(raw, options);
 
         var cleaned = raw

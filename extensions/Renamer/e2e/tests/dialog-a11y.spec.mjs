@@ -1,6 +1,6 @@
 // Accessibility regression for the hand-rolled DIALOG-mode overlay (shared/ui-shared `useOverlayKeys`,
 // `nav:"dialog"`) AS WIRED into Renamer's `common/Dialog` (the DryRunModal shell) — recreating the a11y
-// proof that 53-03 ran but never committed. It drives the real primitive; it does NOT rebuild the trap.
+// proof that was once run but never committed. It drives the real primitive; it does NOT rebuild the trap.
 //
 // Dialog mode's contract (distinct from menu mode): a Tab focus-trap that WRAPS first<->last, Escape-to-cancel,
 // focus restored to the opener on close, and — the induced-failure backstop — cancels SUSPENDED while an

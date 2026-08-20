@@ -1,3 +1,4 @@
+using Renamer.Execution;
 using Renamer.Planner;
 
 namespace Renamer.Tests.TestSupport;
@@ -18,6 +19,29 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     private int _nextFolderId = 1000;
 
     private readonly Dictionary<RenamerFileKind, List<int>> _allIds = new();
+
+    private readonly List<string> _libraryRoots = new();
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Empty until a test seeds one, deliberately: an unrouted folder template needs a library path to
+    /// anchor on, so a fixture that forgets to declare one gets a stated <c>SkipUnanchored</c> rather
+    /// than a plausible-looking destination the fake invented on its behalf.
+    /// </remarks>
+    public IReadOnlyList<string> LibraryRoots => _libraryRoots;
+
+    /// <summary>Declares <paramref name="path"/> one of Cove's configured library paths.</summary>
+    /// <remarks>
+    /// Stored in the canonical spelling rather than as written, so this fake and the real port agree by
+    /// construction rather than by every fixture happening to write a canonical root — which they do
+    /// not: on a Windows run most of these fixtures name a drive path with backslashes. The rule, the
+    /// sentinel guard below and the reasoning for both belong to <c>CoveRenamerDataPort.Canonical</c>.
+    /// </remarks>
+    public void SeedLibraryRoot(string path)
+    {
+        string canonical = PathOps.NormalizeSlash(path).TrimEnd('/');
+        _libraryRoots.Add(canonical.Length == 0 ? "/" : canonical);
+    }
 
     /// <summary>Seeds a loadable entity (returned by <see cref="LoadEntityAsync"/>).</summary>
     public void SeedEntity(RenamerEntity entity) => _entities[(entity.Kind, entity.EntityId)] = entity;

@@ -2,12 +2,14 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
+using static global::Renamer.Execution.PathOps;
+
 namespace Renamer.Options;
 
 /// <summary>
-/// The one-time conversion of a stored options blob from the NAME-keyed shape shipped before the
-/// identity migration to the id-keyed shape <see cref="RenamerOptions"/> now declares, plus the schema
-/// stamp that keeps it one-time.
+/// The one-time conversions of a stored options blob into the shape <see cref="RenamerOptions"/> now
+/// declares — NAME-keyed rules to id-keyed ones, and a typed destination ROOT to a Cove library path
+/// plus a relative template — plus the schema stamp that keeps them one-time.
 /// </summary>
 /// <remarks>
 /// Works on the raw JSON rather than on <see cref="RenamerOptions"/>, for two reasons a typed converter
@@ -26,8 +28,32 @@ public static class OptionsMigration
     /// <summary>The store key holding the options-schema stamp that makes the conversion one-time.</summary>
     public const string SchemaKey = "options.schema";
 
-    /// <summary>The stamp value written once the stored blob is id-keyed.</summary>
-    public const string CurrentSchema = "2";
+    /// <summary>
+    /// The stamp value written once the stored blob is id-keyed AND its destination rules name a Cove
+    /// library path plus a relative template.
+    /// </summary>
+    /// <remarks>
+    /// <c>"3"</c> adds the destination conversion to the <c>"2"</c> id-keying. The two ride one stamp
+    /// because a blob is either current or it is not, and a second stamp would be a second thing to keep
+    /// in step; the seam runs whichever halves the blob still needs, each recognizing its own input.
+    /// <para>
+    /// RETIREMENT CONDITION for the destination half, written here because this is the one moment
+    /// anyone knows what it is: it can be deleted once no installed store can still hold a schema-2
+    /// blob — that is, once the release carrying this conversion has been out long enough that an
+    /// upgrade path skipping it is unsupported. There is no date, and inventing one would be worse than
+    /// the condition; what is knowable is the test, which is that <c>ConvertDestinationsToRoots</c> can
+    /// find no site (every stored destination is already an object rather than a string). Deleting it
+    /// early costs a user their whole routing configuration silently, since an unconverted string value
+    /// deserializes to nothing.
+    /// </para>
+    /// <para>
+    /// The name→id half has its OWN condition and reaches it earlier: it goes once no store can still
+    /// hold a name-keyed blob, which is a strictly older release than the one this stamp adds. One stamp
+    /// covering both is deliberate and does not make them retire together — read each half's condition
+    /// before deleting either, and expect to delete them in separate releases.
+    /// </para>
+    /// </remarks>
+    public const string CurrentSchema = "3";
 
     private const string PerformersGroup = "Performers";
     private const string TagsGroup = "Tags";
@@ -38,6 +64,11 @@ public static class OptionsMigration
     private const string LegacyExcludeTags = "ExcludeTags";
     private const string ExcludeTagIds = "ExcludeTagIds";
     private const string TagDestinations = "TagDestinations";
+    private const string StudioDestinations = "StudioDestinations";
+    private const string PathDestinations = "PathDestinations";
+    private const string UnorganizedDestination = "UnorganizedDestination";
+    private const string FolderTemplate = "FolderTemplate";
+    private const string PathRuleDest = "Dest";
 
     /// <summary>
     /// How many stored names in each half still have to be resolved against a live entity table.
@@ -132,6 +163,246 @@ public static class OptionsMigration
         return new Conversion(
             root.ToJsonString(), trail.Dropped, trail.Collapsed, trail.DiscardedDestinations);
     }
+
+    /// <summary>One destination rule rewritten from a typed root into a library root + relative template.</summary>
+    /// <param name="Rule">Which rule, for the log: the field and its key or index.</param>
+    /// <param name="From">The value as stored — a typed absolute destination root.</param>
+    /// <param name="ToRoot">The Cove library path the stored root turned out to live under.</param>
+    /// <param name="ToTemplate">The relative template written under it — the remainder plus the old global folder template.</param>
+    public sealed record RewrittenDestination(string Rule, string From, string ToRoot, string ToTemplate);
+
+    /// <summary>One destination rule removed because its stored root lies under no Cove library path.</summary>
+    /// <param name="Rule">Which rule, for the log: the field and its key or index.</param>
+    /// <param name="Stored">The stored root that could not be placed.</param>
+    public sealed record DroppedDestination(string Rule, string Stored);
+
+    /// <summary>The destination conversion's result: the blob, what it rewrote, and what it removed.</summary>
+    /// <param name="Json">The converted blob, or the input unchanged when nothing was done.</param>
+    /// <param name="Rewritten">Every rule whose stored root was placed under a library path.</param>
+    /// <param name="Dropped">Every rule removed for lying under no library path.</param>
+    /// <param name="Deferred">
+    /// True when there was work to do and no library paths to do it against, so NOTHING was changed and
+    /// the caller must not stamp. Distinguished from "no work" because the two look identical in the
+    /// blob and differ completely in consequence: converting against an empty list would drop every
+    /// rule the user has.
+    /// </param>
+    /// <param name="RemovedEmptyRoutes">
+    /// How many stored destinations were REMOVED rather than rewritten, because the field spells "there
+    /// is no route" as the absent member and the blob still holds the empty value that used to spell it.
+    /// Counted rather than listed, and deliberately not logged: nothing about the user's routing changes,
+    /// so there is nothing to tell them — but the blob did change, and a caller that reads only
+    /// <see cref="Rewritten"/> and <see cref="Dropped"/> would leave a value the current model cannot
+    /// bind sitting in the store.
+    /// </param>
+    public sealed record DestinationConversion(
+        string Json,
+        IReadOnlyList<RewrittenDestination> Rewritten,
+        IReadOnlyList<DroppedDestination> Dropped,
+        bool Deferred,
+        int RemovedEmptyRoutes = 0)
+    {
+        /// <summary>True iff the blob was altered, so it is worth writing back.</summary>
+        public bool Changed => Rewritten.Count > 0 || Dropped.Count > 0 || RemovedEmptyRoutes > 0;
+    }
+
+    /// <summary>
+    /// Rewrites every destination rule in <paramref name="json"/> from a typed absolute ROOT into the
+    /// one shape a destination now has: a root CHOSEN from <paramref name="libraryRoots"/>, plus the
+    /// relative template rendered under it.
+    /// </summary>
+    /// <remarks>
+    /// Behaviour-preserving, and mechanically so rather than by judgement: a matched rule used to land
+    /// an item at <c>root</c> with the global folder template rendered underneath, so the same
+    /// destination is <c>(the library path containing root)</c> plus <c>(the rest of root)/(that same
+    /// template)</c>. A rule storing <c>I:/Downloads/P/videos</c> under library path
+    /// <c>I:/Downloads/P</c> with a <c>$studio</c> template becomes root <c>I:/Downloads/P</c>,
+    /// template <c>videos/$studio</c> — the identical folder, so nothing moves on the first run after
+    /// the conversion.
+    /// <para>
+    /// A stored root under NO library path is DROPPED, by owner decision: there is no root to choose
+    /// for it, and inventing one would relocate files. Its items follow the default destination
+    /// afterwards, which is a behaviour change and is why every drop is logged and the CHANGELOG says
+    /// so.
+    /// </para>
+    /// <para>
+    /// The global folder template is left exactly as stored, and no root is written beside it. That is
+    /// the whole of the default's conversion: <c>FolderRoot</c>'s own default is "the file's own
+    /// library path", which is what a relative template has always been measured from, so the absent
+    /// key already means the right thing and writing one would only be a chance to write it wrongly.
+    /// </para>
+    /// </remarks>
+    /// <param name="json">The stored blob, id-keyed (run after <see cref="Convert"/>).</param>
+    /// <param name="libraryRoots">Cove's configured library paths, the only roots a destination may choose.</param>
+    public static DestinationConversion ConvertDestinationsToRoots(
+        string json, IReadOnlyList<string> libraryRoots)
+    {
+        var root = TryParse(json);
+        if (root is null)
+        {
+            return new DestinationConversion(json, [], [], Deferred: false);
+        }
+
+        string folderTemplate = ReadString(root, FolderTemplate) ?? string.Empty;
+        var sites = CollectDestinationSites(root);
+        if (sites.Count == 0)
+        {
+            return new DestinationConversion(json, [], [], Deferred: false);
+        }
+
+        // Nothing to choose a root FROM. Refusing here is the same safety argument the name-to-id half
+        // makes about an empty library read: an empty list is indistinguishable from "the host has not
+        // told us yet", and converting against it would drop every rule the user has.
+        if (libraryRoots.Count == 0)
+        {
+            return new DestinationConversion(json, [], [], Deferred: true);
+        }
+
+        var rewritten = new List<RewrittenDestination>();
+        var dropped = new List<DroppedDestination>();
+        int removedEmptyRoutes = 0;
+
+        foreach (var site in sites)
+        {
+            string stored = site.Stored;
+
+            if (stored.Length == 0)
+            {
+                // Two different questions share the empty string, and only the site knows which one it
+                // is answering — see DestinationSite.EmptyIsNoRoute.
+                if (site.EmptyIsNoRoute)
+                {
+                    site.Drop();
+                    removedEmptyRoutes++;
+                    continue;
+                }
+
+                // A rule storing no root at all named no destination of its own; it rendered the global
+                // folder template under the file's own place. "The file's own library path" is that same
+                // arrangement, so it converts without needing a root and cannot be dropped.
+                site.Write(string.Empty, folderTemplate);
+                rewritten.Add(new RewrittenDestination(site.Rule, stored, string.Empty, folderTemplate));
+                continue;
+            }
+
+            string? containing = Planner.PathConfinement.ContainingRoot(stored, libraryRoots);
+            if (containing is null)
+            {
+                site.Drop();
+                dropped.Add(new DroppedDestination(site.Rule, stored));
+                continue;
+            }
+
+            string remainder = NormalizeSlash(stored).TrimEnd('/')[containing.Length..].Trim('/');
+            string template = JoinPath(remainder, folderTemplate);
+            site.Write(containing, template);
+            rewritten.Add(new RewrittenDestination(site.Rule, stored, containing, template));
+        }
+
+        return new DestinationConversion(
+            root.ToJsonString(), rewritten, dropped, Deferred: false, removedEmptyRoutes);
+    }
+
+    /// <summary>
+    /// One stored destination the conversion has to rewrite: its label for the log, the root as stored,
+    /// and the two edits — replace with a root/template pair, or remove the rule entirely.
+    /// </summary>
+    /// <remarks>
+    /// A site rather than four near-identical loops, because the four fields differ only in how a value
+    /// is reached (a map entry, an array element's member, a top-level member) while the DECISION about
+    /// it is one rule. Splitting them would be four places for that rule to drift.
+    /// <para>
+    /// <c>EmptyIsNoRoute</c> is true for the one field where an empty stored value means "there is no
+    /// route at all" rather than "this rule names no root of its own". The current model spells the first
+    /// as the ABSENT member, so such a site is REMOVED rather than converted: a bare JSON string cannot
+    /// bind to <see cref="Destination"/>, and leaving one in place makes the WHOLE stored blob
+    /// unreadable — the options store answers a failed bind with defaults, so every setting the user
+    /// configured silently reads as unset. Converting it instead would be the mirror failure, turning
+    /// "unorganized items are not routed" into a route.
+    /// </para>
+    /// </remarks>
+    private sealed record DestinationSite(
+        string Rule,
+        string Stored,
+        Action<string, string> Write,
+        Action Drop,
+        bool EmptyIsNoRoute = false);
+
+    /// <summary>Every stored destination in the blob, skipping anything that is not a JSON string.</summary>
+    private static List<DestinationSite> CollectDestinationSites(JsonObject root)
+    {
+        var sites = new List<DestinationSite>();
+
+        foreach (string mapName in new[] { StudioDestinations, TagDestinations })
+        {
+            if (Find(root, mapName)?.Value is not JsonObject map)
+            {
+                continue;
+            }
+
+            foreach (string key in map.Select(entry => entry.Key).ToList())
+            {
+                if (map[key] is not JsonValue value || !value.TryGetValue(out string? stored))
+                {
+                    continue;
+                }
+
+                string mapKey = key;
+                sites.Add(new DestinationSite(
+                    $"{mapName}[{mapKey}]",
+                    stored,
+                    (r, t) => map[mapKey] = Pair(r, t),
+                    () => map.Remove(mapKey)));
+            }
+        }
+
+        if (Find(root, PathDestinations)?.Value is JsonArray rules)
+        {
+            // Walked in REVERSE so a drop removing an element never shifts an index a later site closed
+            // over — the one ordering fact in here that a reader cannot get from the loop shape.
+            for (int i = rules.Count - 1; i >= 0; i--)
+            {
+                if (rules[i] is not JsonObject rule
+                    || Find(rule, PathRuleDest) is not { Value: JsonValue destValue } destEntry
+                    || !destValue.TryGetValue(out string? stored))
+                {
+                    continue;
+                }
+
+                int index = i;
+                string member = destEntry.Key;
+                sites.Add(new DestinationSite(
+                    $"{PathDestinations}[{index}]",
+                    stored,
+                    (r, t) => rule[member] = Pair(r, t),
+                    () => rules.RemoveAt(index)));
+            }
+        }
+
+        if (Find(root, UnorganizedDestination) is { Value: JsonValue unorganizedValue } unorganizedEntry
+            && unorganizedValue.TryGetValue(out string? unorganized))
+        {
+            string member = unorganizedEntry.Key;
+            sites.Add(new DestinationSite(
+                UnorganizedDestination,
+                unorganized,
+                (r, t) => root[member] = Pair(r, t),
+                () => root.Remove(member),
+                EmptyIsNoRoute: true));
+        }
+
+        return sites;
+    }
+
+    /// <summary>The stored form of a destination: the pair the current model deserializes.</summary>
+    private static JsonObject Pair(string root, string template) => new()
+    {
+        ["Root"] = JsonValue.Create(root),
+        ["Template"] = JsonValue.Create(template),
+    };
+
+    /// <summary>Reads a string-valued member by name (case-insensitively), or null when absent or not a string.</summary>
+    private static string? ReadString(JsonObject owner, string name)
+        => Find(owner, name)?.Value is JsonValue value && value.TryGetValue(out string? s) ? s : null;
 
     /// <summary>Everything the conversion discarded or narrowed, accumulated across every field.</summary>
     private sealed class Trail

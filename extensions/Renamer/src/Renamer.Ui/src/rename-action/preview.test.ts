@@ -2,9 +2,9 @@
  * Behavior contract for the pure bulk-rename confirm builder.
  *
  * The claim under test is the one a user acts on: the confirm shown BEFORE a rename touches disk
- * states what will change and what it costs to change one's mind. It used to qualify that last part
- * against a server flag that went false past a file-count ceiling; there is no ceiling now, so the
- * promise is unconditional and these cases are what would catch a qualification creeping back.
+ * states what will change and what it costs to change one's mind. That second part is unconditional
+ * — no file count makes a rename unrecordable — and these cases are what would catch a size-based
+ * qualification creeping back into the copy.
  */
 import { test } from "vitest";
 import assert from "node:assert/strict";
@@ -26,6 +26,7 @@ const RENAME_ITEM: PreviewItemView = {
   resolvedDestinationRoot: null,
   matchedRule: "InPlace",
   targetVolume: "/",
+  offLibraryDestination: false,
 };
 
 function summary(overrides: Partial<PreviewSummary> = {}): PreviewSummary {

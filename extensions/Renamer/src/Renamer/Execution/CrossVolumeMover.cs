@@ -277,19 +277,15 @@ public sealed class CrossVolumeMover
                 return (false, MoveOutcome.LockedOrExists, $"final exists or locked: {ex.Message}");
             }
 
-            // (4) Delete the source ONLY after the promote succeeds (delete-last). The source was the
-            // durable fallback until now; a crash before here leaves the intact source, after here the
-            // verified final.
+            // (4) Delete the source ONLY after the promote succeeds (delete-last).
             System.IO.File.Delete(srcFull);
             return (true, MoveOutcome.Moved, null);
         }
         catch (OperationCanceledException)
         {
             // A cancelled token throws OperationCanceledException out of the Read/WriteAsync loop.
-            // Honor classify-not-throw (the executor relies on the mover NEVER throwing out, like the
-            // synchronous DiskMover): remove the in-flight copy so a cancel leaves no leaked,
-            // unverified copy, and return a classified Cancelled skip. The source is untouched — the
-            // delete only runs after a verified promote, which a cancel never reaches.
+            // Remove the in-flight copy so a cancel leaves no leaked, unverified copy. The source is
+            // untouched — the delete only runs after a verified promote, which a cancel never reaches.
             TryDelete(inFlightFull);
             return (false, MoveOutcome.Cancelled, "cancelled");
         }
@@ -319,8 +315,7 @@ public sealed class CrossVolumeMover
     /// deleted. A counter, a process id or a timestamp would each be guessable and would put the "is
     /// this file mine?" adjudication back — the question this design exists to remove.
     ///
-    /// The appended segment is 12 characters against the 16 the fixed suffix it replaced cost. That
-    /// direction matters: the planner budgets only the FINAL path against
+    /// The segment is kept short deliberately: the planner budgets only the FINAL path against
     /// <c>RenamerOptions.FullPathMax</c>, so the in-flight path is unbudgeted, and a longer name would
     /// widen a gap that is already there.
     ///

@@ -25,6 +25,10 @@ Every module is exactly one of six kinds:
 Classify a file by what it _is_, then place it by its tier's convention. Modules depend downward
 (toward models) and sideways onto shared code — never upward, and never across sibling features.
 
+On the frontend, lint enforces the last part rather than leaving it to review: importing a sibling
+feature slice is an error, and the route between two features is `common/` or the extension entry.
+Nothing needs configuring per extension — the rule finds each UI bundle through `catalog.json`.
+
 ## Structure each tier to its own idiom
 
 The backend and the frontend are separate build artifacts that talk over an HTTP wire. Their honest
@@ -134,6 +138,14 @@ comment.
 
 Tag every backend test with a tier trait — pure-logic, host-double, in-process endpoint, or
 containerized end-to-end — and mirror the source folders so a test is easy to find from its subject.
+
+The in-process endpoint tier (`Tier=L2`) covers a suite that builds a real ASP.NET host and exercises
+the endpoint pipeline through it: it sends requests to mapped routes, or reads back what route
+registration produced. A suite that calls a handler as a plain method belongs to the host-double tier
+however endpoint-shaped its subject, and so does one that executes a result against a
+`DefaultHttpContext` — that context is an ordinary object and needs no host. The trait is a
+class-level fact, so a class takes the tier of the strongest dependency any of its cases needs.
+
 The lightweight "bare" CI leg is a compile-and-pure-logic smoke test; the containerized end-to-end job
 is the real safety gate. Only checks a CI workflow runs are blocking merge gates — an entry in the
 local hook runner is advice a contributor can skip, so wire a check you need enforced into a workflow.

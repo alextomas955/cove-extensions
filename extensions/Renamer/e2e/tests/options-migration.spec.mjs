@@ -2,7 +2,7 @@
 // a real containerized Cove that is STARTED ON TOP of a stored legacy blob, with the outcome read off
 // the settings panel a user would open.
 //
-// Why this exists when 21-07 already covers the conversion with 34 backend tests: every one of those
+// Why this exists when the backend suite already covers the conversion with 34 tests: every one of those
 // hands a hand-written blob to `OptionsMigration.Scan`/`Convert` or to the initialize seam directly,
 // and none of them starts a host. So none can answer the question a user actually has — "do my
 // settings survive the upgrade?" — because the answer depends on three things those tiers replace
@@ -10,7 +10,7 @@
 //
 //   1. that the host runs `InitializeAsync` (and therefore the conversion) before it serves the panel;
 //   2. that the elevated library read returns real rows through Cove's own authorization filters,
-//      which exist only under Npgsql and so are absent from the SQLite L1 tier (21-07's D11);
+//      which exist only under Npgsql and so are absent from the SQLite L1 tier;
 //   3. that the panel then RENDERS the converted ids as entity names rather than as numbers, empty
 //      fields, or the host's "Loading tag..." placeholder.
 //
@@ -19,8 +19,7 @@
 // What it is NOT: a test against data a real installation accumulated. The blob below is written by
 // this test, so it is realistic by construction rather than by history — six migrated fields in their
 // name-keyed form, both groups carrying the empty-array shape a real install always emitted, and
-// three unrelated fields whose survival is the preservation proof. The residue that leaves is stated
-// in 21-12-SUMMARY.md.
+// three unrelated fields whose survival is the preservation proof.
 import {
   test as base,
   expect,
@@ -92,11 +91,11 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   // ── The library the stored NAMES will be resolved against ───────────────────────────────────────
   const names = {
     tagKeep: `Qzmig Keep Tag ${stamp}`,
-    // Two tags differing ONLY by letter case. Created in this order deliberately: the converter keeps
-    // the LOWEST id so the choice is decided by the data rather than by the order rows came back in,
-    // and Postgres hands out ascending ids, so `caseFirst` is the predictable survivor.
-    caseFirst: `qzmig case tag ${stamp}`,
-    caseSecond: `QZMIG CASE TAG ${stamp}`,
+    // Two performers differing ONLY by letter case. Created in this order deliberately: the converter
+    // keeps the LOWEST id so the choice is decided by the data rather than by the order rows came back
+    // in, and Postgres hands out ascending ids, so `caseFirst` is the predictable survivor.
+    caseFirst: `qzmig case performer ${stamp}`,
+    caseSecond: `QZMIG CASE PERFORMER ${stamp}`,
     tagRoute: `Qzmig Route Tag ${stamp}`,
     tagExclude: `Qzmig Exclude Tag ${stamp}`,
     performerKeep: `Qzmig Keep Performer ${stamp}`,
@@ -107,11 +106,11 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   const vanishedTag = `Qzmig Vanished Tag ${stamp}`;
 
   const ids = {};
-  for (const key of ["tagKeep", "caseFirst", "caseSecond", "tagRoute", "tagExclude"]) {
+  for (const key of ["tagKeep", "tagRoute", "tagExclude"]) {
     const created = await seedApi.post("/api/tags", { name: names[key] });
     expect(
       created.ok,
-      `POST /api/tags "${names[key]}" answered ${created.status}: ${created.text} — a 409 here means this host folds tag names by case, which would make the case-collapse assertion below unreachable rather than merely failing`,
+      `POST /api/tags "${names[key]}" answered ${created.status}: ${created.text}`,
     ).toBe(true);
     ids[key] = created.json.id;
   }
@@ -123,9 +122,23 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     ).toBe(true);
     ids[key] = created.json.id;
   }
+  // Each spelling carries its OWN disambiguation, which is what lets a 1.3 host hold both: a
+  // performer's identity is the name key paired with the disambiguation key, so one name covers
+  // several ids only where those disambiguations differ.
+  for (const key of ["caseFirst", "caseSecond"]) {
+    const created = await seedApi.post("/api/performers", {
+      name: names[key],
+      disambiguation: `${key} ${stamp}`,
+    });
+    expect(
+      created.ok,
+      `POST /api/performers "${names[key]}" answered ${created.status}: ${created.text} — a 409 here means this host folds performer names by case even with distinct disambiguations, which would make the case-collapse assertion below unreachable rather than merely failing`,
+    ).toBe(true);
+    ids[key] = created.json.id;
+  }
   expect(
     ids.caseFirst < ids.caseSecond,
-    `the case-variant tags were created as ${ids.caseFirst} and ${ids.caseSecond} — not ascending, so the collapse below has no predictable survivor`,
+    `the case-variant performers were created as ${ids.caseFirst} and ${ids.caseSecond} — not ascending, so the collapse below has no predictable survivor`,
   ).toBe(true);
 
   // ── The blob a pre-migration install left behind ────────────────────────────────────────────────
@@ -139,8 +152,11 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     FilenameTemplate: "$title - $performers [$tags]",
     AllowedRoots: ["/data"],
     PathDestinations: [{ Pattern: "/data/legacy", Dest: "/data/archive", IsRegex: false }],
-    Performers: { Whitelist: [names.performerKeep], Blacklist: [names.performerBlock] },
-    Tags: { Whitelist: [names.tagKeep, names.caseFirst, names.caseSecond], Blacklist: [] },
+    Performers: {
+      Whitelist: [names.performerKeep, names.caseFirst, names.caseSecond],
+      Blacklist: [names.performerBlock],
+    },
+    Tags: { Whitelist: [names.tagKeep], Blacklist: [] },
     ExcludeTags: [names.tagExclude, vanishedTag],
     TagDestinations: { [names.tagRoute]: "/data/routed" },
   };
@@ -183,30 +199,35 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     `the tag whitelist rule stored as the name "${names.tagKeep}" is not on the panel as a chip carrying that name`,
   ).toBeVisible({ timeout: 15_000 });
   await expect(
-    tagWhitelist.getByRole("button", { name: `Remove ${names.caseFirst}`, exact: true }),
-    "the surviving half of the case-variant pair must be the LOWEST id, whose name is the first-created spelling",
-  ).toBeVisible();
-  await expect(
-    tagWhitelist.getByRole("button", { name: `Remove ${names.caseSecond}`, exact: true }),
-    "both case variants survived as separate chips — the two stored names resolve to one id, so this rule now covers one tag where it covered two, and that narrowing is what the changelog discloses",
-  ).toHaveCount(0);
-  await expect(
     tagWhitelist.getByRole("button", { name: /^Remove / }),
-    "three stored names must land as exactly two chips: the keep tag, plus one survivor of the case-variant pair",
-  ).toHaveCount(2);
+    "the one stored tag whitelist name must land as exactly one chip",
+  ).toHaveCount(1);
   await expect(
     field(tagsCard, "Blacklist").getByRole("button", { name: /^Remove / }),
     "the empty legacy Blacklist a real install always emitted must convert to an empty id list — not to a chip, and not by stranding the whole conversion on a half it had nothing to resolve",
   ).toHaveCount(0);
 
   const performersCard = groupCard(page, "Performers");
+  const performerWhitelist = field(performersCard, "Whitelist");
   await expect(
-    field(performersCard, "Whitelist").getByRole("button", {
+    performerWhitelist.getByRole("button", {
       name: `Remove ${names.performerKeep}`,
       exact: true,
     }),
     "the performer whitelist rule did not survive as a named chip",
   ).toBeVisible();
+  await expect(
+    performerWhitelist.getByRole("button", { name: `Remove ${names.caseFirst}`, exact: true }),
+    "the surviving half of the case-variant pair must be the LOWEST id, whose name is the first-created spelling",
+  ).toBeVisible();
+  await expect(
+    performerWhitelist.getByRole("button", { name: `Remove ${names.caseSecond}`, exact: true }),
+    "both case variants survived as separate chips — the two stored names resolve to one id, so this rule now covers one performer where it covered two, and that narrowing is what the changelog discloses",
+  ).toHaveCount(0);
+  await expect(
+    performerWhitelist.getByRole("button", { name: /^Remove / }),
+    "three stored names must land as exactly two chips: the keep performer, plus one survivor of the case-variant pair",
+  ).toHaveCount(2);
   await expect(
     field(performersCard, "Blacklist").getByRole("button", {
       name: `Remove ${names.performerBlock}`,
@@ -245,10 +266,20 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     tagDestinations.getByText(names.tagRoute, { exact: true }),
     "the destination row shows its opaque id rather than the tag name the host resolves it to",
   ).toBeVisible();
+  // A stored destination is not carried across as the path that was typed: the conversion SPLITS it
+  // into the Cove library path containing it plus the remainder, rendered as a folder template under
+  // that root — so "/data/routed" arrives as root "/data" + folder "routed", naming the same folder.
+  // Both halves are asserted because either one alone reads as a pass while the other is empty, and
+  // both are written as literals rather than sliced off the fixture, so a change to the split rule
+  // fails here instead of being re-derived into agreement with itself.
   await expect(
-    tagDestinations.getByRole("textbox").first(),
+    field(tagDestinations, "Under").getByRole("combobox"),
+    "the converted destination is not anchored on the library path that contained the stored one",
+  ).toHaveValue("/data");
+  await expect(
+    field(tagDestinations, "Folder").getByRole("textbox"),
     "the destination the rule routed to did not survive the re-key",
-  ).toHaveValue("/data/routed");
+  ).toHaveValue("routed");
 
   // ── Fields the conversion does not model are untouched ──────────────────────────────────────────
   await expect(
@@ -264,10 +295,16 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     field(advancedRouting, "Source path").getByRole("textbox"),
     "the stored source-path rule did not survive the conversion",
   ).toHaveValue("/data/legacy");
+  // Same split as the per-tag rule above: "/data/archive" is stored under the "/data" library path,
+  // so it converts to that root with "archive" as the folder rendered beneath it.
   await expect(
-    field(advancedRouting, "Destination root").getByRole("textbox"),
+    field(advancedRouting, "Under").getByRole("combobox"),
+    "the source-path rule's destination is not anchored on the library path that contained it",
+  ).toHaveValue("/data");
+  await expect(
+    field(advancedRouting, "Folder").getByRole("textbox"),
     "the source-path rule survived but its destination did not, so the row is preserved in name only",
-  ).toHaveValue("/data/archive");
+  ).toHaveValue("archive");
 
   expect(errors, `the settings surface raised page errors: ${errors.join("; ")}`).toEqual([]);
 });
