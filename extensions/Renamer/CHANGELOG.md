@@ -23,6 +23,56 @@ User-facing changes, newest first.
   access token — or your share token and password on a share link — and retries once when an access
   token has expired. What changes for you: a settings page left open long enough for your access token
   to lapse no longer fails the next save or dry run; it renews and carries on.
+- **Undo now brings back subtitles and captions, not just the media file.** A rename moves a
+  same-name neighbour — a `.srt` subtitle, say — along with the video, and rewrites the caption
+  filenames Cove stores for it. Undo used to move only the video back, leaving both under the names
+  the rename gave them. They now come back with it, to their original names and locations. Worth
+  knowing if you relied on the old behaviour: an undo you ran before this upgrade left those
+  companion files behind, and they are still where that rename put them. Where one cannot come back
+  — something already sits in its old slot — the media file is restored anyway and the message names
+  the file that stayed behind, because clearing that slot is yours to do.
+- **Undo is kept for seven days, and several renames can be waiting at once.** Only the most recent
+  rename used to be kept, so starting another one discarded it. The case that bit hardest was silent:
+  with _Auto-rename on update_ turned on, one background rename of a single edited item threw away
+  the undo of the deliberate rename you had run minutes earlier, and nothing said so. Each rename now
+  keeps its own record for seven days, and the undo panel shows the date the one it is offering stops
+  being available. A rename expires as a whole — when its seven days are up, everything it still
+  holds goes with it, including any part you had not restored yet.
+- **No rename is too large to undo.** A rename of more than 5,000 files was not recorded at all,
+  which put a whole-library rename beyond undo. That ceiling is gone, and so are the warnings that
+  announced it in the rename confirmation and the dry-run footer.
+- **An undo that stopped part-way can now be retried.** A locked file, an unmounted drive or
+  something already sitting in a file's old slot stops that file coming back. Undo restored the rest
+  and then spent the whole record, so the files it had not reached were beyond recovery. It now
+  restores what it can and leaves the rest waiting: clear the cause, press Undo again, and the second
+  run acts only on what is left. The panel states where it got to and until when, in the shape
+  _12 of 500 restored · 488 remaining · undo available until August 18, 2026_. One case is genuinely
+  final rather than worth retrying: a file that is no longer in your library cannot be restored, and
+  those are counted apart.
+- **A rename you only partly undid no longer vanishes from the panel.** Anything that started a newer
+  rename — including a single background _Auto-rename on update_ edit — took the panel over, and once
+  that newer one had been put back the panel read _No rename to undo._ while your own files were still
+  waiting. They were never lost, but there was no way to reach them before their seven days ran out.
+  The panel and the button now reach the most recent rename that still has files to put back, so your
+  remainder comes back to the panel and **Undo last rename** acts on it. When two renames are waiting,
+  the newer one is offered first.
+- **An undo left pending from before this upgrade is carried over — once.** Whatever your previous
+  version still had waiting is moved into the new record the first time this version loads, keeping
+  its original date so it keeps its real age, and the old record is then cleared. It is a one-time
+  step, not a recurring one, and nothing pending is lost. Undo also now survives an update or a
+  reinstall of Renamer, because the record lives in Cove's database rather than in the extension's
+  own folder.
+- **A destination folder directly inside a drive or volume root now works.** On Windows, with
+  _Allowed roots_ set, a destination such as `D:\Films` was refused whenever the folder did not exist
+  yet — the item was skipped as blocked, with no explanation you could act on. It is accepted now,
+  for both a rename and an undo.
+- **A cross-drive move can no longer delete a file of your own.** While copying a file to another
+  drive, Renamer wrote it under a fixed working name first — and deleted anything already at that
+  name before starting, which could be your file. The working name is now unguessable and made fresh
+  for each copy, and nothing is deleted before the copy. One consequence to know: if the machine
+  loses power mid-copy, a stray file may be left in the destination folder, named after the file
+  being moved with `.rnm` and eight characters added. It is inert and you can delete it; Renamer will
+  not, because it never removes a file it did not create.
 - **Tag and performer rules now follow the item, not its name.** Whitelists, blacklists, _Exclude by
   tag_ and _Per-tag destinations_ used to be stored as the tag's or performer's **name**, so renaming
   one in Cove quietly broke every rule pointing at it. They now store Cove's own stable id for that

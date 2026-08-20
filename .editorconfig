@@ -86,6 +86,20 @@ dotnet_naming_style.underscore_camel_style.required_prefix = _
 
 # ---------- Analyzer category tuning (strict-but-not-pedantic) ----------
 [*.cs]
+# Dead code must block a merge, not whisper. These three rules DO run in a command-line build (with
+# EnforceCodeStyleInBuild, set in Directory.Build.props) but ship at SUGGESTION severity, which
+# TreatWarningsAsErrors never sees — so an unused private member or parameter was invisible to CI
+# while looking covered. Escalated to error so the build itself refuses it.
+#   IDE0051 unused private method / field / property / event
+#   IDE0052 unread private member
+#   IDE0060 unused parameter
+# Note the scoping: these MUST live under a [*.cs] section. Appended to the end of this file they
+# would land in the last, narrower section and silently apply to almost nothing — which is exactly
+# how their absence was first mis-measured.
+dotnet_diagnostic.IDE0051.severity = error
+dotnet_diagnostic.IDE0052.severity = error
+dotnet_diagnostic.IDE0060.severity = error
+
 # CA1062 (validate public args) is noisy for an internal-ish extension; keep as suggestion.
 dotnet_diagnostic.CA1062.severity = suggestion
 # CA1031 (do not catch general Exception) — the disk-mover/undo paths intentionally do; suggestion.

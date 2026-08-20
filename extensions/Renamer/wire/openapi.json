@@ -449,6 +449,8 @@
         "required": [
           "hasBatch",
           "count",
+          "remainingCount",
+          "unrestorableCount",
           "writtenAtUtcTicks",
           "consumed"
         ],
@@ -458,6 +460,14 @@
             "type": "boolean"
           },
           "count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "remainingCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unrestorableCount": {
             "type": "integer",
             "format": "int32"
           },
@@ -676,8 +686,7 @@
           "crossVolumeCount",
           "crossVolumeBytes",
           "volumePairs",
-          "confirmLevel",
-          "undoable"
+          "confirmLevel"
         ],
         "type": "object",
         "properties": {
@@ -705,9 +714,6 @@
           },
           "confirmLevel": {
             "$ref": "#/components/schemas/ConfirmLevel"
-          },
-          "undoable": {
-            "type": "boolean"
           }
         }
       },
@@ -1194,11 +1200,31 @@
           }
         }
       },
+      "UndoEntryWarning": {
+        "required": [
+          "fileId",
+          "detail"
+        ],
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
       "UndoResult": {
         "required": [
           "undone",
-          "failed",
-          "skipped"
+          "failedCount",
+          "failedSample",
+          "skippedCount",
+          "skippedSample",
+          "warningCount",
+          "warningSample"
         ],
         "type": "object",
         "properties": {
@@ -1206,16 +1232,34 @@
             "type": "integer",
             "format": "int32"
           },
-          "failed": {
+          "failedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failedSample": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/UndoEntryError"
             }
           },
-          "skipped": {
+          "skippedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "skippedSample": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/UndoEntryError"
+            }
+          },
+          "warningCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "warningSample": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UndoEntryWarning"
             }
           }
         }

@@ -1,12 +1,9 @@
-using System.Data.Common;
 using Cove.Core.Auth;
 using Cove.Core.Entities;
 using Cove.Data;
 using Cove.Extensions.Shared;
 using Cove.Plugins;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Renamer.Execution;
@@ -69,10 +66,10 @@ public sealed class OptionsMigrationInitializeTests
         var store = await NewLegacyStoreAsync();
         int setsBefore = store.SetCallCount;
 
-        // No DbContext registration at all, so resolving one throws — the failure path.
-        var services = new ServiceCollection();
-        services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
-        await InitializeAsync(store, services.BuildServiceProvider());
+        // A database with the undo journal and no library tables, so the load completes and the
+        // conversion's own read is the thing that throws — the failure path.
+        await using var db = await JournalOnlyDatabase.CreateAsync();
+        await InitializeAsync(store, db.BuildProvider());
 
         Assert.Equal(setsBefore, store.SetCallCount);
         await AssertStillLegacyAsync(store);
@@ -199,28 +196,26 @@ public sealed class OptionsMigrationInitializeTests
         await store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema);
         store.GetKeys.Clear();
 
-        // No DbContext registered: a stamp that failed to short-circuit would reach for one and throw.
-        var services = new ServiceCollection();
-        services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
-        await InitializeAsync(store, services.BuildServiceProvider());
+        // No library tables: a stamp that failed to short-circuit would read one and throw.
+        await using var db = await JournalOnlyDatabase.CreateAsync();
+        await InitializeAsync(store, db.BuildProvider());
 
         Assert.DoesNotContain(ExtensionOptionsStore<RenamerOptions>.Key, store.GetKeys);
     }
 
     [Fact]
-    public async Task AStoreThatIsAlreadyIdKeyed_IsNotTouched_AndNeedsNoDatabase()
+    public async Task AStoreThatIsAlreadyIdKeyed_IsNotTouched_AndNeedsNoLibraryRead()
     {
-        // A fresh install already stores ids. It must not pay for a database read, and — the dangerous
+        // A fresh install already stores ids. It must not pay for a library read, and — the dangerous
         // half — its int-spelled TagDestinations keys must never be re-read as tag NAMES.
         var store = await NewStoreAsync();
         await new OptionsStore(store).SaveAsync(
             new RenamerOptions { TagDestinations = { [9] = "/media/anime" }, ExcludeTagIds = { 15 } });
         int setsBefore = store.SetCallCount;
 
-        // No DbContext registered: reaching for one at all would throw and be logged as a failure.
-        var services = new ServiceCollection();
-        services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
-        await InitializeAsync(store, services.BuildServiceProvider());
+        // No library tables: reading one at all would throw and be logged as a failure.
+        await using var db = await JournalOnlyDatabase.CreateAsync();
+        await InitializeAsync(store, db.BuildProvider());
 
         Assert.Equal(setsBefore, store.SetCallCount);
         var options = await LoadOptionsAsync(store);
@@ -339,82 +334,5 @@ public sealed class OptionsMigrationInitializeTests
         var ext = RenamerFixture.Create();
         ((IStatefulExtension)ext).SetStore(store);
         await ext.InitializeAsync(provider);
-    }
-
-    /// <summary>
-    /// A throwaway SQLite-backed Cove database, the principal its contexts read, and a record of which
-    /// principal was in effect for each SQL command they ran.
-    /// </summary>
-    private sealed class Library : IAsyncDisposable
-    {
-        private readonly SqliteConnection _conn;
-
-        private Library(SqliteConnection conn) => _conn = conn;
-
-        public FakePrincipalAccessor Principals { get; } = new();
-
-        /// <summary>The principal kind in effect at each executed command, oldest first.</summary>
-        public List<PrincipalKind?> PrincipalPerCommand { get; } = [];
-
-        public static async Task<Library> CreateAsync()
-        {
-            var conn = new SqliteConnection("Data Source=:memory:");
-            await conn.OpenAsync();
-            var library = new Library(conn);
-            await using var seed = library.NewContext();
-            await seed.Database.EnsureCreatedAsync();
-            return library;
-        }
-
-        public CoveContext NewContext() =>
-            new(
-                new DbContextOptionsBuilder<CoveContext>()
-                    .UseSqlite(_conn)
-                    .AddInterceptors(new PrincipalRecorder(Principals, PrincipalPerCommand))
-                    .Options,
-                Principals);
-
-        public async Task SeedAsync(string[] tags, string[] performers)
-        {
-            await using var db = NewContext();
-            db.Set<Tag>().AddRange(tags.Select(name => new Tag { Name = name }));
-            db.Set<Performer>().AddRange(performers.Select(name => new Performer { Name = name }));
-            await db.SaveChangesAsync();
-        }
-
-        public ServiceProvider BuildProvider(ILogger<global::Renamer.Renamer>? log = null)
-        {
-            var services = new ServiceCollection();
-            services.AddSingleton<ICurrentPrincipalAccessor>(Principals);
-            services.AddScoped<DbContext>(_ => NewContext());
-            services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
-            if (log is not null)
-            {
-                services.AddSingleton(log);
-            }
-
-            return services.BuildServiceProvider();
-        }
-
-        public ValueTask DisposeAsync() => _conn.DisposeAsync();
-    }
-
-    /// <summary>
-    /// Records the ambient principal at the moment a command actually executes — the instant Cove's
-    /// authorization filters consult it, and therefore the only point at which "this read ran elevated"
-    /// is a fact rather than an inference about where a call happens to sit in the source.
-    /// </summary>
-    private sealed class PrincipalRecorder(ICurrentPrincipalAccessor principals, List<PrincipalKind?> sink)
-        : DbCommandInterceptor
-    {
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command,
-            CommandEventData eventData,
-            InterceptionResult<DbDataReader> result,
-            CancellationToken cancellationToken = default)
-        {
-            sink.Add(principals.Current?.Kind);
-            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
-        }
     }
 }

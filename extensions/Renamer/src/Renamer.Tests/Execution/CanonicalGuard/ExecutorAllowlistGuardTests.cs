@@ -88,7 +88,7 @@ public sealed class ExecutorAllowlistGuardTests
 
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
-            var executor = new RenamerExecutor(port, bus, new RevertLog(new FakeStore()), new DiskMover());
+            var executor = new RenamerExecutor(port, bus, new FakeRevertJournal(), "run-test", new DiskMover());
             var options = new RenamerOptions { AllowedRoots = [allowed.Replace('\\', '/')] };
 
             int foldersBefore = await db.Set<Folder>().CountAsync();
@@ -151,7 +151,7 @@ public sealed class ExecutorAllowlistGuardTests
 
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
-            var executor = new RenamerExecutor(port, bus, new RevertLog(new FakeStore()), new DiskMover());
+            var executor = new RenamerExecutor(port, bus, new FakeRevertJournal(), "run-test", new DiskMover());
             var options = new RenamerOptions { AllowedRoots = [allowed.Replace('\\', '/')] };
 
             var result = await executor.ExecuteAsync(plan, options, default);

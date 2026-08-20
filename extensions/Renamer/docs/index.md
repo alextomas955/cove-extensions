@@ -6,8 +6,7 @@ slug: /
 
 Renamer bulk-renames — and optionally relocates — library items from configurable metadata
 templates. It updates the file on disk and its Cove database record together, previews every
-change before touching disk, and can undo the last batch — up to a size limit it states before the
-rename runs.
+change before touching disk, and can undo the last rename.
 
 ## In this section
 

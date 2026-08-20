@@ -635,15 +635,6 @@ export function DryRunModal({
         </div>
       ) : null}
 
-      {/* Stated before the button that starts the run, not after it: the server has already decided
-          this batch is too large to journal, so undo will not be offered once it has finished. */}
-      {summary && !summary.blastRadius.undoable && counts && counts.willChange > 0 ? (
-        <p className="mt-6 text-sm text-secondary">
-          This rename is too large to record an undo — it cannot be reversed. The rows above are the
-          check that matters.
-        </p>
-      ) : null}
-
       <div className="mt-6 flex justify-end gap-3">
         <Button variant="ghost" onClick={onClose} disabled={renaming}>
           Close

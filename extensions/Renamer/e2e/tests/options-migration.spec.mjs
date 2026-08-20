@@ -21,7 +21,12 @@
 // name-keyed form, both groups carrying the empty-array shape a real install always emitted, and
 // three unrelated fields whose survival is the preservation proof. The residue that leaves is stated
 // in 21-12-SUMMARY.md.
-import { test as base, expect, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
+import {
+  test as base,
+  expect,
+  createApiClient,
+  RENAMER_EXTENSION,
+} from "../lib/renamer-fixtures.mjs";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
@@ -70,29 +75,6 @@ function field(scope, label) {
   return scope.locator("label").filter({ hasText: label }).first();
 }
 
-function apiFor(baseUrl) {
-  async function callApi(method, path, body) {
-    const res = await fetch(`${baseUrl}${path}`, {
-      method,
-      headers: body ? { "Content-Type": "application/json" } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const text = await res.text();
-    let json;
-    try {
-      json = text ? JSON.parse(text) : undefined;
-    } catch {
-      json = undefined;
-    }
-    return { status: res.status, ok: res.ok, json, text };
-  }
-  return {
-    get: (p) => callApi("GET", p),
-    post: (p, b) => callApi("POST", p, b),
-    put: (p, b) => callApi("PUT", p, b),
-  };
-}
-
 test("a legacy blob stored before the host starts converts at initialize, and the panel renders the surviving rules as entity names", async ({
   page,
   migrationHarness,
@@ -105,7 +87,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   page.on("pageerror", (err) => errors.push(err.message));
 
   const stamp = Date.now();
-  const seedApi = apiFor(migrationHarness.baseUrl);
+  const seedApi = createApiClient(migrationHarness.baseUrl, migrationHarness.token);
 
   // ── The library the stored NAMES will be resolved against ───────────────────────────────────────
   const names = {

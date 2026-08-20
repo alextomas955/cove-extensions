@@ -42,6 +42,12 @@ also requires an entry under [Allowed roots](#destination-routing).
 | --------------------- | ------------------------------------------------------------------------------------------- | ------- |
 | Auto-rename on update | Re-rename an item automatically when Cove raises a `video.updated` / `image.updated` event. | Off     |
 
+Auto-rename can only act on an event Cove actually raises. On **Cove 1.1.0 and earlier, editing
+several items at once does not raise those events at all** — the host saves the rows and stays
+silent, so nothing is renamed, and no error appears anywhere. Editing one item at a time still
+works, and so do **Dry run** and **Rename all files**, which do not depend on events. Cove fixed
+this after 1.1.0; on a newer host a multi-item edit renames every item it selected.
+
 This section also holds the **Dry run** and **Rename all files** actions (see the
 [User guide](./guide#preview-with-a-dry-run)). Those run a rename; they aren't saved settings.
 
@@ -82,11 +88,11 @@ order of the cards below in the UI is for convenience and does not change this p
 
 ### Default & unorganized destinations
 
-| Setting                                             | What it does                                                                                                                                                                                            | Default   |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| Default destination                                 | The root folder for an item that matched no other rule. Honored **only** when _Relocate unmatched items_ is on.                                                                                         | _(blank)_ |
-| Unorganized destination                             | The route for items whose _Organized_ flag is off (resolved before tag/studio/path). Overrides _Only rename organized items_ for those items.                                                           | _(blank)_ |
-| Relocate unmatched items to the default destination | Hard gate for default-relocate. Ships **off** — it has whole-library reach, which is more files than undo records, so the [dry run](./guide#preview-with-a-dry-run) is the check before you turn it on. | Off       |
+| Setting                                             | What it does                                                                                                                                                     | Default   |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| Default destination                                 | The root folder for an item that matched no other rule. Honored **only** when _Relocate unmatched items_ is on.                                                  | _(blank)_ |
+| Unorganized destination                             | The route for items whose _Organized_ flag is off (resolved before tag/studio/path). Overrides _Only rename organized items_ for those items.                    | _(blank)_ |
+| Relocate unmatched items to the default destination | Hard gate for default-relocate. Ships **off** — it has whole-library reach, so the [dry run](./guide#preview-with-a-dry-run) is the check before you turn it on. | Off       |
 
 ### Per-studio and per-tag destinations
 
@@ -104,10 +110,10 @@ order of the cards below in the UI is for convenience and does not change this p
 
 ### Sidecar files and empty folders
 
-| Setting                                              | What it does                                                                                                  | Default   |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------- |
-| Also move sidecar files with these extensions        | Extensions whose same-name neighbor file moves alongside the primary (e.g. `srt` for subtitles).              | _(empty)_ |
-| Delete the source folder when a move leaves it empty | After a move empties the source folder, delete it (only-if-empty, non-recursive). Undo will not re-create it. | Off       |
+| Setting                                              | What it does                                                                                                                                                       | Default   |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
+| Also move sidecar files with these extensions        | Extensions whose same-name neighbor file moves alongside the primary (e.g. `srt` for subtitles). An [undo](./guide#undo-the-last-rename) brings them back with it. | _(empty)_ |
+| Delete the source folder when a move leaves it empty | After a move empties the source folder, delete it (only-if-empty, non-recursive). Undo will not re-create it.                                                      | Off       |
 
 ## Advanced
 

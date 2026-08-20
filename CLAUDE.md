@@ -109,8 +109,11 @@ seam or vocabulary has to be named exactly to be actionable.
   a reconcile) it may be O(library) in _time_, but its output must still be O(1) in size. This has
   already happened here: a per-file collection persisted to the host's extension store grew large
   enough to fail that extension's entire settings page, survive reinstall, and require SQL to remove.
-  Where a journal must persist at all, it stays bounded through the shared `SingleWriterBlobStore<T>`
-  (`RevertLog` is the worked example) rather than a hand-rolled writer.
+  Where a journal must persist at all, persist it as **rows in a table the extension owns**, bounded by
+  a retention window rather than by a row cap, and never as one growing value under a store key. The
+  undo journal is the worked example: a value under one key put every writer into a read-modify-write
+  race and made "how much history is kept" a number someone had to choose, where a row insert is atomic
+  and a whole batch either falls inside the window or is gone.
 - **Two correctness invariants whose failure is silent.** Background database reads run as System
   through one `RunAsSystemAsync` seam — under an Anonymous principal Cove's authorization filters
   return zero rows with no error, so an empty result is the symptom of getting this wrong rather than

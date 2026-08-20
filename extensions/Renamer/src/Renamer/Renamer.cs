@@ -66,6 +66,11 @@ public sealed partial class Renamer : FullExtensionBase
         // NullLogger default when the host supplies none.
         _log = services.GetService<ILogger<Renamer>>() ?? _log;
 
+        // The first thing this method does with the database, and it stays first: the host has
+        // already had its chance to apply this extension's schema migration on every load path
+        // (boot, runtime install, enable), so by here the journal either exists or never will.
+        await AssertJournalIsReachableAsync(ct);
+
         // Deleted UNCONDITIONALLY, and never read. A pre-0.2.1 whole-library scan wrote one wire row per
         // file to this key, so on a large library its value reaches hundreds of megabytes; Cove's bulk
         // extension-data read serializes every value an extension owns into one response, so a single
@@ -84,24 +89,24 @@ public sealed partial class Renamer : FullExtensionBase
             LogLegacyScanPurgeFailed(ex);
         }
 
-        // ONE-TIME journal discard: before the row cap the undo journal also grew one line per renamed
-        // file with no bound, so an earlier version's value can be as unreadable as the scan result.
-        // Unlike that one this is NOT unconditional — Cove reloads on every deploy, restart and reboot,
-        // and purging each time would take the user's undo with it. The condition rides a separate
-        // few-byte stamp, so the journal itself is still never read.
+        // ONE-TIME journal migration: an installation upgrading into the table-backed journal still
+        // carries its undo under the two legacy store keys, so a code change alone would silently throw
+        // that undo away. This moves it into the table and then deletes both keys — which also stops an
+        // oversized leftover being served by the bulk extension-data read, with no SQL.
+        //
+        // Safe HERE, after the assertion above: the host applies this extension's schema migration
+        // BEFORE InitializeAsync on all three lifecycle paths (boot, runtime install, enable), so the
+        // table already exists. There is no marker to check first — deleting the source keys IS the
+        // marker, so a second load finds nothing and does nothing.
         try
         {
-            if (await Store.GetAsync(RevertLog.SchemaKey, ct) != RevertLog.CurrentSchema)
-            {
-                await Store.DeleteAsync(RevertLog.Key, ct);
-                await Store.SetAsync(RevertLog.SchemaKey, RevertLog.CurrentSchema, ct);
-            }
+            await MigrateStoredJournalAsync(ct);
         }
         catch (Exception ex)
         {
-            // A failed stamp write only costs one more discard on the next load, so this is reported
-            // and stepped over rather than blocking the load.
-            LogRevertLogPurgeFailed(ex);
+            // Reported and stepped over rather than blocking the load: an install that refuses to come
+            // up because a legacy cleanup failed leaves the user worse off than the leftover did.
+            LogJournalBlobMigrationFailed(ex);
         }
 
         // ONE-TIME name→id options conversion. A blob written before the identity migration keys its
@@ -122,6 +127,71 @@ public sealed partial class Renamer : FullExtensionBase
         }
 
         await base.InitializeAsync(services, ct);
+    }
+
+    /// <summary>The journal table whose absence must stop this extension loading.</summary>
+    private const string JournalBatchTable = "renamer_revert_batches";
+
+    /// <summary>Refuses to load when the undo journal cannot be read.</summary>
+    /// <remarks>
+    /// Why the extension checks this itself rather than leaving it to the host: the host applies an
+    /// extension's migrations, and on a failure it logs, stops applying, and loads the extension
+    /// anyway. So a migration that never landed is one log line, after which every rename would move
+    /// a file with no record of where it came from — a loss of undo that looks exactly like a working
+    /// install. A throw out of this method is the opposite kind of failure: the host catches it per
+    /// extension and disables THIS extension while the rest of it keeps running, which nobody can
+    /// mistake for success.
+    /// <para>
+    /// It deliberately does not create the table. The host owns applying and receipting migrations,
+    /// and a bootstrap here would write no receipt and duplicate the retry semantics the host already
+    /// implements.
+    /// </para>
+    /// </remarks>
+    private async Task AssertJournalIsReachableAsync(CancellationToken ct)
+    {
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<DbContext>();
+
+            // A load-time read has no ambient principal, so it goes through the one elevation seam
+            // like every other background read here — a filtered read that returns nothing is the
+            // failure mode this whole check exists to make impossible to mistake for success.
+            await RunAsSystem.RunAsSystemAsync(
+                scope.ServiceProvider,
+                () => db.Set<RevertBatchEntity>().AsNoTracking().AnyAsync(ct));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogJournalUnreachable(ex, JournalBatchTable);
+            throw new InvalidOperationException(
+                $"The undo journal table '{JournalBatchTable}' could not be read, so a rename would "
+                    + "move files with no record of where they came from and no way to undo it. The "
+                    + "extension refuses to load rather than rename unjournalled.",
+                ex);
+        }
+    }
+
+    /// <summary>Moves the legacy stored journal into the journal table exactly once, then clears it.</summary>
+    /// <remarks>
+    /// Elevated, like every other background database body here: the principal flows by async context
+    /// rather than by DI scope, and this extension's own elevation suite asserts that every command run
+    /// during the load carries the System principal.
+    /// </remarks>
+    private async Task MigrateStoredJournalAsync(CancellationToken ct)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<DbContext>();
+        using var journal = new CoveRevertJournal(db);
+
+        int moved = await RunAsSystem.RunAsSystemAsync(
+            scope.ServiceProvider,
+            () => JournalBlobMigration.RunAsync(Store, journal, DateTime.UtcNow, ct));
+
+        if (moved > 0)
+        {
+            LogJournalBlobMigrated(moved);
+        }
     }
 
     /// <summary>The id/name pairs a stored rule name is resolved against.</summary>
@@ -314,9 +384,10 @@ public sealed partial class Renamer : FullExtensionBase
     /// worker opens its OWN scope and resolves its OWN <see cref="DbContext"/> — a <c>DbContext</c> is
     /// not thread-safe and Cove disables EF's thread-safety checks, so a shared context would corrupt
     /// silently; per-worker scopes make isolation structural. The ONE shared object is the
-    /// <see cref="RevertLog"/>, whose appends are serialized (it is a read-modify-write on a single
-    /// blob) so the undo record never tears under parallel workers. Bad/empty/unsupported input is a
-    /// clean no-op that still reports the final <c>1.0</c> — never throws on untrusted job parameters.
+    /// <see cref="CoveRevertJournal"/>, which is shared because it mints each row's sequence number,
+    /// and which therefore owns its own scope and serializes its own writes. Bad/empty/unsupported
+    /// input is a clean no-op that still reports the final <c>1.0</c> — never throws on untrusted job
+    /// parameters.
     /// </summary>
     /// <param name="parameters">The host's string-only job parameter map (entity type + id list).</param>
     /// <param name="progress">The job-progress sink reported during PHASE B and a final <c>1.0</c>.</param>
@@ -372,15 +443,12 @@ public sealed partial class Renamer : FullExtensionBase
 
         // One action click = one selection = one /renamer = one job = one batch, all one kind.
         // Mint a fresh runId AFTER the kind/ids validation passed (so the early no-op return above
-        // opens no batch). The batch HEADER is NOT written yet: a header written before PHASE A knows
-        // whether anything acts would leave an EMPTY open batch that ReadLastOpenBatchAsync returns as
-        // "the last open batch", shadowing a genuinely-replayable earlier batch from /undo.
-        // We defer BeginBatchAsync until PHASE A has produced at least one acting unit AND the batch
-        // cleared the free-space refusal, so an all-skip or refused batch opens no header at all. The
-        // same runId + RevertLog is then passed into EVERY worker's executor so every per-success
-        // AppendAsync row accumulates under this single open batch.
+        // opens no batch). The batch is NOT opened yet: a batch opened before PHASE A knows whether
+        // anything acts would leave an EMPTY batch behind. We defer BeginBatchAsync until PHASE A has
+        // produced at least one acting unit AND the batch cleared the free-space refusal, so an
+        // all-skip or refused batch opens nothing at all. The same runId + journal is then passed into
+        // EVERY worker's executor so every per-success AppendAsync row accumulates under this one batch.
         var runId = Guid.NewGuid().ToString("N");
-        var revertLog = new RevertLog(Store);
 
         LogBatchStarted(runId, kind, ids.Length);
 
@@ -471,7 +539,7 @@ public sealed partial class Renamer : FullExtensionBase
         // UP-FRONT free-space refusal: sum the projected cross-volume bytes per destination volume and
         // refuse the whole batch before touching disk if a volume would not fit. Same-volume moves are
         // excluded from the sum by the guard. This runs BEFORE BeginBatchAsync, so a refused batch
-        // opens no RevertLog header (and can never shadow a prior replayable batch).
+        // opens no batch at all.
         var moves = acting.Select(u => u.Move).ToList();
         var shortfall = FreeSpaceGuard.Shortfall(moves, options.FreeSpaceHeadroomBytes, freeSpaceProbe);
         if (shortfall.Count > 0)
@@ -483,8 +551,7 @@ public sealed partial class Renamer : FullExtensionBase
             return;
         }
 
-        // Nothing acts → open NO batch header (an empty open header would shadow the previous
-        // replayable batch from /undo). Report the final 1.0 and return as a clean no-op.
+        // Nothing acts → open NO batch. Report the final 1.0 and return as a clean no-op.
         if (acting.Count == 0)
         {
             LogBatchDone(runId, 0, 0, 0);
@@ -492,22 +559,26 @@ public sealed partial class Renamer : FullExtensionBase
             return;
         }
 
-        // Now — and only now — open exactly one batch header: PHASE A produced acting work and the
-        // batch fits. A later ReadLastOpenBatchAsync returns the whole run as one batch with its kind,
-        // which /undo replays. The header is written ONCE here, single-threaded, never per worker.
+        // The journal gets its OWN scope, and therefore its own DbContext, for the whole batch: it is
+        // the one object every parallel worker shares (it mints each row's sequence number), and the
+        // per-worker contexts are exactly what must not be shared. It serializes its own writes; the
+        // rename work those writes follow stays parallel.
         //
-        // OVER THE ROW CAP → journal NOTHING. The decision lands here because acting.Count is the FILE
-        // count (one unit per acting file); the id array counts entities. Suppressing takes the whole
-        // batch out rather than recording part of it — half-restorable is worse than clearly not.
-        if (RevertLog.ExceedsCap(acting.Count))
-        {
-            await revertLog.SuppressAsync(ct);
-            LogBatchNotJournalled(runId, acting.Count, RevertLog.MaxJournalledFiles);
-        }
-        else
-        {
-            await revertLog.BeginBatchAsync(runId, kind, ct);
-        }
+        // This scope is NOT elevated, unlike every scope that reads Cove's own entities. The reason it
+        // needs no elevation is that the journal's two tables are extension-owned and carry none of
+        // Cove's per-principal query filters — which is a measured fact, not an assumption: the
+        // journal's own suite appends and reads those rows through a real CoveContext under no
+        // principal at all. There is nothing here for System to unlock.
+        await using var journalScope = ScopeFactory.CreateAsyncScope();
+        using var journal = new CoveRevertJournal(journalScope.ServiceProvider.GetRequiredService<DbContext>());
+
+        // Now — and only now — open exactly one batch: PHASE A produced acting work and the batch fits.
+        // A later ReadUndoTargetAsync names this run while it still has pending rows, and /undo pages
+        // those rows back out of it. Opened ONCE here, single-threaded, never per worker. There is no
+        // file-count ceiling: rows are appended one at a time and read back a page at a time, so a
+        // rename of any size is journalled in full and undone in full without either side holding the
+        // whole of it in memory.
+        await journal.BeginBatchAsync(runId, kind, DateTime.UtcNow, ct);
 
         // Marks the PHASE A → PHASE B boundary in the log: PHASE B's percentage now advances per
         // completed file, so a later stall is legible as "stuck partway through {Acting}", not silence.
@@ -557,7 +628,7 @@ public sealed partial class Renamer : FullExtensionBase
                 return;
             }
 
-            // OWN scope per worker → OWN DbContext → OWN port + executor. The shared revertLog is
+            // OWN scope per worker → OWN DbContext → OWN port + executor. The shared journal is
             // passed in (its appends are serialized). The executor classifies-not-throws, so a per-item
             // fault is a skip/failure recorded below — only a genuine cancellation propagates. The
             // pre-resolved folderIdByPath is handed in so the executor reads each Move's destination
@@ -573,7 +644,8 @@ public sealed partial class Renamer : FullExtensionBase
 
             await using var scope = ScopeFactory.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-            var exec = new RenamerExecutor(new CoveRenamerDataPort(db), EventBus, revertLog, new DiskMover());
+            var exec = new RenamerExecutor(
+                new CoveRenamerDataPort(db), EventBus, journal, runId, new DiskMover());
 
             var result = await RunAsSystem.RunAsSystemAsync(
                 scope.ServiceProvider, () => exec.ExecuteAsync(unit.Plan, options, folderIdByPath, token));

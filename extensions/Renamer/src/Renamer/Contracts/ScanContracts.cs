@@ -154,17 +154,13 @@ public sealed record ScanSummaryView(
 
         int crossCount = kinds.Sum(k => k.BlastRadius.CrossVolumeCount);
         long crossBytes = kinds.Sum(k => k.BlastRadius.CrossVolumeBytes);
-        // Undoable is an UPPER BOUND here: a whole-library run renames one batch PER KIND, so a
-        // mixed-kind library can read "not undoable" while its largest single kind still fits.
-        // Over-warning ahead of a destructive run is the safe direction.
         var blastRadius = new PreviewSummary(
             TotalCount: kinds.Sum(k => k.BlastRadius.TotalCount),
             SameVolumeCount: kinds.Sum(k => k.BlastRadius.SameVolumeCount),
             CrossVolumeCount: crossCount,
             CrossVolumeBytes: crossBytes,
             VolumePairs: merged,
-            ConfirmLevel: BatchPreview.ClassifyConfirm(crossCount, crossBytes, merged),
-            Undoable: kinds.All(k => k.BlastRadius.Undoable));
+            ConfirmLevel: BatchPreview.ClassifyConfirm(crossCount, crossBytes, merged));
 
         int Bucket(ScanBucketKind bucket) => statusCounts
             .Where(c => ScanBucket.Of(c.Status) == bucket)

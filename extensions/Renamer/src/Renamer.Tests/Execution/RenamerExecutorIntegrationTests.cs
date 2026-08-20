@@ -39,8 +39,8 @@ public sealed class RenamerExecutorIntegrationTests
 
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
-            var revertLog = new RevertLog(new FakeStore());
-            var executor = new RenamerExecutor(port, bus, revertLog, new DiskMover());
+            var journal = new FakeRevertJournal();
+            var executor = new RenamerExecutor(port, bus, journal, "run-test", new DiskMover());
 
             var options = new RenamerOptions { FilenameTemplate = "$title" }; // → "My Film.mkv"
 
@@ -59,12 +59,12 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Equal("My Film.mkv", basename);
             Assert.Equal(folderPath + "/My Film.mkv", path);
 
-            // Result buckets: one renamed, none skipped/failed; revert-log row written.
+            // Result buckets: one renamed, none skipped/failed; one journal row written.
             var renamedItem = Assert.Single(result.Renamed);
             Assert.Equal(RenamerStatus.Renamer, renamedItem.Status);
             Assert.Empty(result.Failed);
             Assert.Empty(result.Skipped);
-            var revert = Assert.Single(result.RevertLog);
+            var revert = Assert.Single(journal.Rows);
             Assert.Equal(fileId, revert.FileId);
             Assert.EndsWith("raw clip.mkv", revert.OldPath);
 
@@ -111,7 +111,7 @@ public sealed class RenamerExecutorIntegrationTests
                 .PlanAsync(RenamerFileKind.Video, videoId, options, default);
 
             var executor = new RenamerExecutor(
-                new CancelOnSaveDataPort(db), new CapturingEventBus(), new RevertLog(new FakeStore()), new DiskMover());
+                new CancelOnSaveDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
 
             // The cancel flows out as cancellation (the batch ends), never a Failed row.
             await Assert.ThrowsAsync<OperationCanceledException>(() => executor.ExecuteAsync(plan, options, default));
@@ -149,8 +149,8 @@ public sealed class RenamerExecutorIntegrationTests
 
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
-            var revertLog = new RevertLog(new FakeStore());
-            var executor = new RenamerExecutor(port, bus, revertLog, new DiskMover());
+            var journal = new FakeRevertJournal();
+            var executor = new RenamerExecutor(port, bus, journal, "run-test", new DiskMover());
 
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
@@ -162,10 +162,10 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Equal(RenamerStatus.SkipMissingSource, skippedItem.Status);
             Assert.Contains("missing", skippedItem.Reason);
 
-            // A missing source is a safe no-op skip: nothing moved/failed, no revert-log, no event.
+            // A missing source is a safe no-op skip: nothing moved/failed, no journal row, no event.
             Assert.Empty(result.Renamed);
             Assert.Empty(result.Failed);
-            Assert.Empty(result.RevertLog);
+            Assert.Empty(journal.Rows);
             Assert.Empty(bus.Published);
         }
         finally
@@ -181,15 +181,15 @@ public sealed class RenamerExecutorIntegrationTests
     /// SUBST-mapped second root (a distinct <see cref="Path.GetPathRoot(string)"/> on the same physical
     /// volume — no second drive). Assert the cross move executed end-to-end: the source is gone, the
     /// destination exists with the original content, the DB Basename + ParentFolderId + recomputed Path
-    /// are updated, a revert-log row is written, and one VideoUpdated event fired.
+    /// are updated, a journal row is written, and one VideoUpdated event fired.
     /// </summary>
     [SkippableFact]
     public async Task CrossVolumeBranch_HappyMove_UsesCrossMover_DiskAndDbUpdated()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
+        Skip.IfNot(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var src = new TempDir();
-        using var dst = new SubstDrive();
+        using var dst = new SecondVolume();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
@@ -208,9 +208,14 @@ public sealed class RenamerExecutorIntegrationTests
 
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
-            var revertLog = new RevertLog(new FakeStore());
-            // Inject a real CrossVolumeMover (the production mover) so the cross branch runs end-to-end.
-            var executor = new RenamerExecutor(port, bus, revertLog, new DiskMover(), new CrossVolumeMover());
+            var journal = new FakeRevertJournal();
+            // Inject a real CrossVolumeMover (the production mover) so the cross branch runs end-to-end,
+            // with the post-copy seam recording the in-flight name it mints. That name is unguessable, so
+            // recording it is the only way the leftover assertion below can name the right path instead
+            // of a path this test made up.
+            var minted = new List<string>();
+            var executor = new RenamerExecutor(
+                port, bus, journal, "run-test", new DiskMover(), new CrossVolumeMover(Recorder(minted)));
 
             // Explicit MOVE plan: source on the temp drive, target folder on the subst drive.
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
@@ -221,19 +226,19 @@ public sealed class RenamerExecutorIntegrationTests
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
-            // Disk: dest present with original content, source gone, no .partial left behind.
+            // Disk: dest present with original content, source gone, no in-flight copy left behind.
             string newOnDisk = Path.Combine(dst.Root, "My Film.mkv");
             Assert.True(File.Exists(newOnDisk), "cross-moved file must exist at the dest root");
             Assert.Equal("cross-bytes", File.ReadAllText(newOnDisk));
             Assert.False(File.Exists(oldFull), "source must be deleted (delete-source-last) after a verified cross move");
-            Assert.False(File.Exists(newOnDisk + ".renamer-partial"), "no leftover .partial");
+            AssertMintedPathsGone(minted);
 
-            // Result buckets: one moved, none skipped/failed; revert-log row written.
+            // Result buckets: one moved, none skipped/failed; one journal row written.
             var movedItem = Assert.Single(result.Renamed);
             Assert.Equal(RenamerStatus.Move, movedItem.Status);
             Assert.Empty(result.Failed);
             Assert.Empty(result.Skipped);
-            Assert.Single(result.RevertLog);
+            Assert.Single(journal.Rows);
 
             // DB: Basename updated, ParentFolderId moved to the (new) dest folder, recomputed Path matches.
             var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
@@ -262,10 +267,10 @@ public sealed class RenamerExecutorIntegrationTests
     [SkippableFact]
     public async Task CrossVolumeSaveFailure_RollsBackThroughCrossMover_SourceRestored()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
+        Skip.IfNot(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var src = new TempDir();
-        using var dst = new SubstDrive();
+        using var dst = new SecondVolume();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
@@ -298,9 +303,11 @@ public sealed class RenamerExecutorIntegrationTests
                     RenamerStatus.Move, "taken.mkv", dstFolder),
             ]);
 
+            var journal = new FakeRevertJournal();
+            var minted = new List<string>();
             var executor = new RenamerExecutor(
-                new CollisionBlindDataPort(db), new CapturingEventBus(), new RevertLog(new FakeStore()),
-                new DiskMover(), new CrossVolumeMover());
+                new CollisionBlindDataPort(db), new CapturingEventBus(), journal, "run-test",
+                new DiskMover(), new CrossVolumeMover(Recorder(minted)));
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
@@ -309,14 +316,15 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Equal(RenamerStatus.Failed, failedItem.Status);
             Assert.Contains("rolled back", failedItem.Reason);
             Assert.Empty(result.Renamed);
-            Assert.Empty(result.RevertLog);
+            Assert.Empty(journal.Rows);
 
             // (a) the source is RESTORED across the volume (copy-back) with its original content.
             Assert.True(File.Exists(oldA), "cross rollback must copy the file back to its old path");
             Assert.Equal("A-bytes", File.ReadAllText(oldA));
             // and is NOT left on the dest volume.
             Assert.False(File.Exists(newOnDisk), "rolled-back file must not linger at the dest");
-            Assert.False(File.Exists(newOnDisk + ".renamer-partial"), "no leftover .partial after rollback");
+            // Both directions of the cross move minted their own in-flight name; neither may survive.
+            AssertMintedPathsGone(minted);
 
             // (c) the DB row still carries the OLD basename + source folder — disk and DB consistent.
             var (basenameA, pathA) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
@@ -340,10 +348,10 @@ public sealed class RenamerExecutorIntegrationTests
     [SkippableFact]
     public async Task CrossVolumeSaveFailure_RollbackWarnings_Surfaced_NotSilentlyRolledBack()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
+        Skip.IfNot(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var src = new TempDir();
-        using var dst = new SubstDrive();
+        using var dst = new SecondVolume();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
@@ -370,7 +378,7 @@ public sealed class RenamerExecutorIntegrationTests
             // target taken → "rollback target re-occupied" warning) and then throws.
             var port = new ReoccupyOldSlotThenThrowDataPort(db, oldA);
             var executor = new RenamerExecutor(
-                port, new CapturingEventBus(), new RevertLog(new FakeStore()),
+                port, new CapturingEventBus(), new FakeRevertJournal(), "run-test",
                 new DiskMover(), new CrossVolumeMover());
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
@@ -387,6 +395,27 @@ public sealed class RenamerExecutorIntegrationTests
         {
             await db.DisposeAsync();
             await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// A post-copy seam that only records the in-flight path the cross mover minted, leaving the copy
+    /// untouched — the mover's real behaviour, plus the observation the cross cases need.
+    /// </summary>
+    private static Func<string, CancellationToken, Task> Recorder(List<string> minted) =>
+        (inFlight, _) =>
+        {
+            minted.Add(inFlight);
+            return Task.CompletedTask;
+        };
+
+    private static void AssertMintedPathsGone(List<string> minted)
+    {
+        // The seam must actually have fired, or the loop below asserts nothing at all.
+        Assert.NotEmpty(minted);
+        foreach (var path in minted)
+        {
+            Assert.False(File.Exists(path), $"no in-flight copy may be left at {path}");
         }
     }
 

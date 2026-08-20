@@ -1,21 +1,11 @@
 {
   "$schema": "https://raw.githubusercontent.com/kucherenko/jscpd/master/packages/jscpd/schema.json",
+  "//": "gitignore:true already excludes node_modules, bin, obj, dist and .planning — do not re-list them here. Every entry below is TRACKED code deliberately kept out of duplication analysis; anything gitignored is redundant by construction. threshold is compared against the duplicated-LINES percentage, not tokens.",
   "threshold": 5,
   "minTokens": 50,
   "format": ["csharp", "typescript", "tsx", "javascript"],
   "gitignore": true,
-  "ignore": [
-    "**/node_modules/**",
-    "**/bin/**",
-    "**/obj/**",
-    "**/dist/**",
-    "**/vendor/**",
-    "**/*.g.cs",
-    "**/e2e/**",
-    "**/*.test.mjs",
-    "website/**",
-    ".planning/**"
-  ],
+  "ignore": ["**/e2e/**", "**/*.test.mjs", "website/**"],
   "reporters": ["console"],
   "absolute": true
 }

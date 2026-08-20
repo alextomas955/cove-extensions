@@ -10,7 +10,7 @@ namespace Renamer.Execution;
 /// The mutating half of the renamer slice. Consumes a <see cref="RenamerPlan"/> and applies each item
 /// INDEPENDENTLY (one failure never aborts the batch) with the safety spine: execution-time
 /// collision re-check (disk + DB) → disk move FIRST → set Basename/ParentFolderId (+ caption.Filename)
-/// and a single save → assert the recomputed Path matches the on-disk path → revert-log + event; on a
+/// and a single save → assert the recomputed Path matches the on-disk path → journal row + event; on a
 /// post-move save failure, roll the disk back.
 ///
 /// It NEVER assigns <c>BaseFileEntity.Path</c> (that is <c>CoveRenamerDataPort</c>'s job, and it
@@ -21,23 +21,30 @@ public sealed class RenamerExecutor
 {
     private readonly IRenamerDataPort _port;
     private readonly IEventBus _eventBus;
-    private readonly RevertLog _revertLog;
+    private readonly IRevertJournal _journal;
+    private readonly string _runId;
     private readonly DiskMover _disk;
     private readonly CrossVolumeMover _cross;
 
     /// <summary>Bound on the execution-time collision suffix loop before giving up with a skip.</summary>
     private const int MaxSuffixAttempts = 1000;
 
+    // The <paramref name="runId"/> names the batch every journalled row belongs to, and is required
+    // rather than defaulted: a row that names no batch is one the journal can store but never read
+    // back, so an undo would silently find nothing. The caller passes the SAME run id it opened the
+    // batch with.
+    //
     // The optional <paramref name="cross"/> mover is used when a move crosses volumes (different path
-    // roots). It defaults to a fresh CrossVolumeMover() when omitted, so every existing 4-arg
-    // construction site (production wiring + the test suite) stays source-compatible; a test may
-    // inject a fault-seam / recording mover via this parameter.
-    public RenamerExecutor(IRenamerDataPort port, IEventBus eventBus, RevertLog revertLog, DiskMover disk,
-        CrossVolumeMover? cross = null)
+    // roots). It defaults to a fresh CrossVolumeMover() when omitted, so every existing construction
+    // site (production wiring + the test suite) stays source-compatible; a test may inject a
+    // fault-seam / recording mover via this parameter.
+    public RenamerExecutor(IRenamerDataPort port, IEventBus eventBus, IRevertJournal journal, string runId,
+        DiskMover disk, CrossVolumeMover? cross = null)
     {
         _port = port;
         _eventBus = eventBus;
-        _revertLog = revertLog;
+        _journal = journal;
+        _runId = runId;
         _disk = disk;
         _cross = cross ?? new CrossVolumeMover();
     }
@@ -52,14 +59,19 @@ public sealed class RenamerExecutor
 
     /// <summary>
     /// The result of executing a plan: the items that renamed/moved, the items skipped (gated /
-    /// collision / locked / no-op), the items that failed (save threw → disk rolled back), and the
-    /// revert-log rows written for the successes.
+    /// collision / locked / no-op), and the items that failed (save threw → disk rolled back).
     /// </summary>
+    /// <remarks>
+    /// It deliberately carries NO copy of the journalled rows. The journal table is the durable record
+    /// of what can be put back, so a second in-memory list of the same facts could only drift from it —
+    /// and it would have to be thread-safe as well, since one result object is built per worker while
+    /// one journal is shared by all of them. A caller that wants to know what was journalled reads the
+    /// journal.
+    /// </remarks>
     public sealed record RenamerRunResult(
         IReadOnlyList<ItemResult> Renamed,
         IReadOnlyList<ItemResult> Skipped,
-        IReadOnlyList<ItemResult> Failed,
-        IReadOnlyList<RevertLog.RevertEntry> RevertLog);
+        IReadOnlyList<ItemResult> Failed);
 
     /// <summary>
     /// Executes every item of <paramref name="plan"/> independently. Items the planner already
@@ -108,7 +120,7 @@ public sealed class RenamerExecutor
             }
         }
 
-        return new RenamerRunResult(renamed, skipped, failed, _revertLog.Rows);
+        return new RenamerRunResult(renamed, skipped, failed);
     }
 
     private async Task ExecuteItemAsync(
@@ -285,7 +297,7 @@ public sealed class RenamerExecutor
                 // through the SAME mover the move used (and the catch below uses), capturing rollback
                 // warnings so an INCOMPLETE rollback is surfaced rather than falsely claiming "rolled
                 // back" — mirroring the save-throw catch and the UndoReplayer's assertion branch. Do NOT
-                // write a revert-log row or publish an event on this path: the move is being undone, so
+                // write a journal row or publish an event on this path: the move is being undone, so
                 // there is nothing to reindex or to offer /undo.
                 //
                 // WHY this remains a reported inconsistency: the DB save already COMMITTED (the row now
@@ -304,10 +316,21 @@ public sealed class RenamerExecutor
                 return;
             }
 
-            // (8) Success: revert-log row + reindex event. The logged row carries plan.EntityId —
-            //     the SAME value published on the next line — so the logged id and the event id are
-            //     identical by construction (undo reconstructs the exact forward event from the row).
-            await _revertLog.AppendAsync(plan.EntityId, item.FileId, item.OldFullPath, ct);
+            // (8) Success: journal row + reindex event. The row carries plan.EntityId — the SAME value
+            //     published on the next line — so the journalled id and the event id are identical by
+            //     construction (undo reconstructs the exact forward event from the row).
+            //     Seq is passed as 0 because the journal mints it on append.
+            //
+            //     The delta is built from what ACTUALLY moved, never from what was planned, and it is
+            //     RECORDED rather than left to be recomputed at undo time. Two reasons, neither of them
+            //     stylistic: RetargetCaption only rewrites a caption whose name starts with the old
+            //     stem, so the forward transform is not invertible in general; and a caption rename is
+            //     applied only for a sidecar whose file really moved on disk (see the moved-only filter
+            //     above), which is a runtime fact no string arithmetic recovers afterwards. One row and
+            //     one delta at this single append site, so a crash cannot leave the two disagreeing.
+            var delta = BuildRevertDelta(srcFile, movedSidecars, appliedCaptionRenames);
+            await _journal.AppendAsync(
+                new RevertRow(_runId, Seq: 0, plan.EntityId, item.FileId, item.OldFullPath, delta.Serialize()), ct);
             _eventBus.Publish(new EntityEvent(EventTypeFor(plan.Kind), EntityTypeName(plan.Kind), plan.EntityId));
 
             // (9) Opt-in empty-source-folder cleanup, AFTER the save + assertion pass — never before
@@ -399,13 +422,31 @@ public sealed class RenamerExecutor
                     continue;
                 }
 
-                string source = JoinPath(oldDir, srcStem + "." + normExt);
-                if (!System.IO.File.Exists(ToNative(source)))
+                // Case-insensitive matching is the intent, but File.Exists needs the exact bytes on a
+                // case-SENSITIVE filesystem — so a configured "SRT" silently matched nothing against
+                // clip.srt on Linux, while Windows matched it by accident of its filesystem. Linux is
+                // Cove's usual host, so the platform that failed is the one users run.
+                string? source = null;
+                string? matchedExt = null;
+                foreach (string extCasing in ExtensionCasingCandidates(normExt))
+                {
+                    string probe = JoinPath(oldDir, srcStem + "." + extCasing);
+                    if (System.IO.File.Exists(ToNative(probe)))
+                    {
+                        source = probe;
+                        matchedExt = extCasing;
+                        break;
+                    }
+                }
+
+                if (source is null)
                 {
                     continue;
                 }
 
-                string target = JoinPath(targetFolder, newStem + "." + normExt);
+                // The on-disk casing, not the configured casing: a rename must not silently change a
+                // sidecar's extension from .srt to .SRT because that is how the option was typed.
+                string target = JoinPath(targetFolder, newStem + "." + matchedExt);
 
                 // An in-place / case-only renamer leaves source == target; skipping it mirrors the
                 // primary's self-path discipline and avoids a spurious skip-not-clobber warning.
@@ -426,6 +467,83 @@ public sealed class RenamerExecutor
         }
 
         return (plannedSidecars, captionRenames);
+    }
+
+    /// <summary>
+    /// Builds the reverse-replay payload for one journalled file from what the mover and the save
+    /// actually did: the sidecar moves that happened, and each renamed caption's ORIGINAL stored
+    /// filename.
+    /// </summary>
+    /// <remarks>
+    /// The caption's ORIGINAL filename is what goes in, not the new one: the reverse direction needs
+    /// the value it restores TO, and deriving it later would reintroduce the non-invertible transform
+    /// this whole payload exists to avoid. A rename that carried nothing yields
+    /// <see cref="RevertDelta.Empty"/>, which serializes to the journal column's existing empty marker.
+    /// </remarks>
+    private static RevertDelta BuildRevertDelta(
+        RenamerFile? srcFile,
+        IReadOnlyList<(string From, string To)> movedSidecars,
+        List<(int CaptionId, string NewFilename)> appliedCaptionRenames)
+    {
+        if (movedSidecars.Count == 0 && appliedCaptionRenames.Count == 0)
+        {
+            return RevertDelta.Empty;
+        }
+
+        // The names as they stood BEFORE the save rewrote them — the loaded entity is the only place
+        // they still exist by the time this runs.
+        var originalCaptionNames = new Dictionary<int, string>();
+        foreach (var cap in srcFile?.Captions ?? [])
+        {
+            originalCaptionNames[cap.CaptionId] = cap.Filename;
+        }
+
+        var captions = new List<RevertCaptionDelta>(appliedCaptionRenames.Count);
+        foreach (var (captionId, _) in appliedCaptionRenames)
+        {
+            if (originalCaptionNames.TryGetValue(captionId, out var originalFilename))
+            {
+                captions.Add(new RevertCaptionDelta(captionId, originalFilename));
+            }
+        }
+
+        // The movers speak native separators; the journal speaks forward-slash, as every other path it
+        // stores does.
+        return new RevertDelta(
+            [.. movedSidecars.Select(s => new RevertSidecarDelta(NormalizeSlash(s.From), NormalizeSlash(s.To)))],
+            captions);
+    }
+
+    /// <summary>
+    /// The bounded set of extension casings to probe for a sidecar: as configured, then lower, then
+    /// upper, without repeats.
+    /// </summary>
+    /// <remarks>
+    /// Bounded on purpose. True case-insensitive matching on a case-sensitive filesystem needs the
+    /// directory enumerated and names compared, which is O(directory) for EVERY renamed file — and a
+    /// media folder is unbounded input, so that cost is not acceptable here. Three exact probes keep it
+    /// O(1) per sidecar and cover the casings that occur in practice (.srt / .SRT).
+    /// <para>
+    /// LIMIT, stated rather than implied: a mixed-case on-disk extension such as <c>.Srt</c> is matched
+    /// only when the option is typed with that same casing.
+    /// </para>
+    /// </remarks>
+    private static IEnumerable<string> ExtensionCasingCandidates(string ext)
+    {
+        yield return ext;
+
+        string lower = ext.ToLowerInvariant();
+        if (!string.Equals(lower, ext, StringComparison.Ordinal))
+        {
+            yield return lower;
+        }
+
+        string upper = ext.ToUpperInvariant();
+        if (!string.Equals(upper, ext, StringComparison.Ordinal)
+            && !string.Equals(upper, lower, StringComparison.Ordinal))
+        {
+            yield return upper;
+        }
     }
 
     /// <summary>

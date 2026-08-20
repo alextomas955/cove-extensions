@@ -7,9 +7,11 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "format:cs": "dotnet format CoveExtensions.slnx --severity warn --exclude ../cove/",
+    "format:cs:check": "dotnet format CoveExtensions.slnx --verify-no-changes --severity warn --exclude ../cove/",
     "knip": "knip --treat-config-hints-as-errors",
     "syncpack": "syncpack lint",
-    "jscpd": "jscpd .",
+    "jscpd": "jscpd . && jscpd --config .jscpd.tests.json .",
     "prepare": "lefthook install",
     "generate:wire": "node scripts/generate-wire-types.mjs",
     "test": "node --test scripts/*.test.mjs"

@@ -50,7 +50,8 @@ public sealed class RollbackTests
 
             var port = new CollisionBlindDataPort(db);
             var bus = new CapturingEventBus();
-            var executor = new RenamerExecutor(port, bus, new RevertLog(new FakeStore()), new DiskMover());
+            var journal = new FakeRevertJournal();
+            var executor = new RenamerExecutor(port, bus, journal, "run-test", new DiskMover());
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
@@ -60,7 +61,7 @@ public sealed class RollbackTests
             Assert.Equal(RenamerStatus.Failed, failedItem.Status);
             Assert.Contains("rolled back", failedItem.Reason);
             Assert.Empty(result.Renamed);
-            Assert.Empty(result.RevertLog);   // no success row written
+            Assert.Empty(journal.Rows);       // no success row written
             Assert.Empty(bus.Published);      // no event for a failed item
 
             // (a) the file is restored to its ORIGINAL path with original content.
@@ -109,7 +110,7 @@ public sealed class RollbackTests
             ]);
 
             var executor = new RenamerExecutor(
-                new CollisionBlindDataPort(db), new CapturingEventBus(), new RevertLog(new FakeStore()), new DiskMover());
+                new CollisionBlindDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
@@ -163,7 +164,8 @@ public sealed class RollbackTests
             // does NOT match the on-disk destination, tripping the post-save assertion.
             var port = new MismatchedRecomputedPathDataPort(db);
             var bus = new CapturingEventBus();
-            var executor = new RenamerExecutor(port, bus, new RevertLog(new FakeStore()), new DiskMover());
+            var journal = new FakeRevertJournal();
+            var executor = new RenamerExecutor(port, bus, journal, "run-test", new DiskMover());
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
@@ -174,8 +176,8 @@ public sealed class RollbackTests
             Assert.Contains("rolled back", failedItem.Reason);
             Assert.Empty(result.Renamed);
 
-            // (c) no revert-log row and no event for a failed item.
-            Assert.Empty(result.RevertLog);
+            // (c) no journal row and no event for a failed item.
+            Assert.Empty(journal.Rows);
             Assert.Empty(bus.Published);
 
             // (b) the file is rolled back to its OLD path with original content, and NOT at the new path.

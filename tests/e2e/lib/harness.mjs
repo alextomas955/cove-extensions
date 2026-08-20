@@ -47,6 +47,9 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
 
   const started = await environment.up();
   let coveContainer = started.getContainer("cove-1");
+  // Resolved eagerly, like the Cove container above: a service name that no longer matches fails
+  // here, at startup, rather than part-way through whatever assertion first reached for it.
+  const dbContainer = started.getContainer("db-1");
 
   // Remembered by bootstrapOwner so the handle can re-authenticate itself after a restart without
   // the caller having to hold on to the credentials.
@@ -124,6 +127,23 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     /** Runs a command inside the Cove container (e.g. to inspect /data2 for the cross-device test). */
     exec(command) {
       return coveContainer.exec(command);
+    },
+
+    /**
+     * Runs a command inside the DATABASE container — the one way to ask the database itself whether
+     * the host really created an extension's tables, rather than inferring it from the extension
+     * having loaded. Nothing behavioural needs this: a failed extension migration is a host log line
+     * and the load continues, so an extension can be enabled with no table behind it.
+     *
+     * Takes an argv array plus Testcontainers' own exec options, and `opts` is not optional dressing:
+     * passing the statement through `env` is what lets it carry quotes with no escaping rule to get
+     * wrong, and reading the credentials from the container's own environment
+     * (`sh -c 'psql -U "$POSTGRES_USER" …'`) keeps the compose file the one place they are written.
+     * Dropping `opts` here does not fail loudly — psql exits 0 on an empty statement — so a caller
+     * would see a successful query that returned nothing.
+     */
+    execDb(command, opts) {
+      return dbContainer.exec(command, opts);
     },
 
     /**

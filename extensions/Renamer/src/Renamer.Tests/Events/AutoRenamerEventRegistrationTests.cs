@@ -1,0 +1,79 @@
+using Cove.Plugins;
+using Renamer.Tests.TestSupport;
+
+namespace Renamer.Tests.Events;
+
+/// <summary>
+/// Which media kinds the auto-rename hook is registered for — asserted through the public
+/// <see cref="IEventExtension.OnEventAsync"/> seam, since the handler table itself is private.
+/// </summary>
+/// <remarks>
+/// The registered set was previously unpinned in either direction. Nothing proved the IMAGE hook was
+/// wired at all — a typo in the event name would have left image edits silently inert, and only the
+/// video path had coverage. Nothing proved audio/gallery/text stay UNwired either, which is a
+/// deliberate product-scope decision (see <c>Renamer.Events.cs</c>) that a future "add a kind" edit
+/// could reverse without anyone noticing.
+/// <para>
+/// The probe works because <c>AutoRenamerOnUpdate</c> defaults to false: a registered handler reads
+/// the options blob and then returns, while an unregistered event type never reaches any code that
+/// touches the store. So the options key appearing in <see cref="FakeStore.GetKeys"/> is the signal
+/// that a handler ran, and its absence is the signal that none did. No DB, no host, no container —
+/// this asks only "is it wired", which is the part that can silently break.
+/// </para>
+/// </remarks>
+[Trait("Tier", "L1")]
+public sealed class AutoRenamerEventRegistrationTests
+{
+    private const string OptionsKey = "options";
+
+    private static async Task<FakeStore> DispatchAsync(string eventType, string entityType)
+    {
+        var extension = RenamerFixture.Create();
+        var store = new FakeStore();
+        ((IStatefulExtension)extension).SetStore(store);
+
+        await ((IEventExtension)extension).OnEventAsync(
+            new ExtensionEvent(eventType, entityType, EntityId: 1),
+            CancellationToken.None);
+
+        return store;
+    }
+
+    [Theory]
+    [InlineData("video.updated", "video")]
+    [InlineData("image.updated", "image")]
+    public async Task AHookedKindReachesTheHandler(string eventType, string entityType)
+    {
+        var store = await DispatchAsync(eventType, entityType);
+
+        Assert.Contains(OptionsKey, store.GetKeys);
+    }
+
+    // Audio and gallery are renamable through the manual job/API surface but are deliberately NOT
+    // hooked to per-edit events; text is not renamable at all. Adding one here without meaning to
+    // would give every metadata edit of that kind an unconfirmed, unpreviewed rename.
+    [Theory]
+    [InlineData("audio.updated", "audio")]
+    [InlineData("gallery.updated", "gallery")]
+    [InlineData("text.updated", "text")]
+    public async Task AnUnhookedKindReachesNothing(string eventType, string entityType)
+    {
+        var store = await DispatchAsync(eventType, entityType);
+
+        Assert.DoesNotContain(OptionsKey, store.GetKeys);
+    }
+
+    // The hook is scoped to updates. A created/deleted event must not act: rename-on-create would
+    // fight the scanner mid-ingest, and rename-on-delete has nothing left to rename.
+    [Theory]
+    [InlineData("video.created", "video")]
+    [InlineData("video.deleted", "video")]
+    [InlineData("image.created", "image")]
+    [InlineData("image.deleted", "image")]
+    public async Task OnlyUpdatesAreHooked(string eventType, string entityType)
+    {
+        var store = await DispatchAsync(eventType, entityType);
+
+        Assert.DoesNotContain(OptionsKey, store.GetKeys);
+    }
+}

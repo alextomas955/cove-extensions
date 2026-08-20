@@ -140,6 +140,10 @@
     and Events/ are entirely integration, so they are removed wholesale; the rest are named explicitly.
       - Cove.Core-ONLY (auth/events/entities, no CoveContext): ActionDeclarationTests, Api/SettingsManifestTests,
         TestSupport/CapturingEventBus.
+      - TestSupport/CoveDataExtensionScope: registers the extension via CoveContext.SetDataExtensions, which is
+        Cove.Data. TestSupport is removed FILE BY FILE here, not as a folder, so a helper touching a Cove SOURCE
+        type needs its own line or the bare leg fails to compile. Its sibling TestSupport/FakeRevertJournal needs
+        none: it implements a port declared in Renamer's own assembly and names no Cove type.
       - INTEGRATION (real CoveContext via Cove.Data): Execution/*, Events/*,
         Jobs/RenamerBatchJobTests, Api/PreviewEndpointTests, Api/PreviewSampleEndpointTests, Api/EndpointPermissionTests,
         Api/RenamerLibraryEndpointTests, Api/ScanLibraryEndpointTests.
@@ -173,6 +177,9 @@
     <Compile Remove="Concurrency\**\*.cs" />
     <Compile Remove="Preview\**\*.cs" />
     <Compile Remove="TestSupport\CapturingEventBus.cs" />
+    <Compile Remove="TestSupport\CoveDataExtensionScope.cs" />
+    <Compile Remove="TestSupport\JournalOnlyDatabase.cs" />
+    <Compile Remove="TestSupport\Library.cs" />
     <Compile Remove="TestSupport\SharedCacheSqlite.cs" />
   </ItemGroup>
 </Project>

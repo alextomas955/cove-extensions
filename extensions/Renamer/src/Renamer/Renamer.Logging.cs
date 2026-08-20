@@ -105,13 +105,8 @@ public sealed partial class Renamer
 
     [LoggerMessage(
         EventId = 1054, Level = LogLevel.Warning,
-        Message = "[Renamer] could not discard the pre-upgrade undo journal; the settings page may stay unreadable until the next load retries")]
-    private partial void LogRevertLogPurgeFailed(Exception ex);
-
-    [LoggerMessage(
-        EventId = 1055, Level = LogLevel.Information,
-        Message = "[Renamer] batch {RunId}: {Files} file(s) exceeds the {Cap}-file undo cap — this batch is not undoable")]
-    private partial void LogBatchNotJournalled(string runId, int files, int cap);
+        Message = "[Renamer] could not migrate or clear the legacy stored undo journal; the settings page may stay unreadable until the next load retries")]
+    private partial void LogJournalBlobMigrationFailed(Exception ex);
 
     // The one-time name→id options conversion rewrites the stored settings IN PLACE and keeps no copy
     // of the originals, so these lines are the whole forensic trail: what it resolved against, what it
@@ -158,6 +153,13 @@ public sealed partial class Renamer
         Message = "[Renamer] options migration rewrote the stored settings but could not stamp them as converted; the next load re-scans an already-converted blob and changes nothing")]
     private partial void LogOptionsMigrationStampFailed(Exception ex);
 
+    // The extension is about to refuse to load. The throw that follows reaches the host as a disable
+    // with an exception; this line is what names the table in the log the operator is already reading.
+    [LoggerMessage(
+        EventId = 1063, Level = LogLevel.Error,
+        Message = "[Renamer] the undo journal table '{Table}' cannot be read; refusing to load rather than rename unjournalled")]
+    private partial void LogJournalUnreachable(Exception ex, string table);
+
     [LoggerMessage(
         EventId = 1010, Level = LogLevel.Information,
         Message = "[Renamer] undo {RunId}: {Kind} id={EntityId} restored to '{Old}'")]
@@ -177,6 +179,14 @@ public sealed partial class Renamer
         EventId = 1013, Level = LogLevel.Information,
         Message = "[Renamer] undo {RunId} done: {Undone} restored, {Skipped} skipped, {Failed} failed")]
     private partial void LogUndoDone(string runId, int undone, int skipped, int failed);
+
+    // A sidecar that could not go back leaves its entry RESTORED, so nothing in the counted buckets
+    // records it. Without this line a half-restored entry would be silent, and the user would find a
+    // subtitle stranded under the renamed name with nothing anywhere saying why.
+    [LoggerMessage(
+        EventId = 1065, Level = LogLevel.Warning,
+        Message = "[Renamer] undo {RunId}: file id={FileId} restored, but a companion file could not be: {Detail}")]
+    private partial void LogUndoSidecarStranded(string runId, int fileId, string detail);
 
     [LoggerMessage(
         EventId = 1020, Level = LogLevel.Information,
@@ -199,4 +209,12 @@ public sealed partial class Renamer
         EventId = 1030, Level = LogLevel.Warning,
         Message = "[Renamer] routing: skipped invalid source-path regex '{Pattern}': {Reason}")]
     private partial void LogInvalidRouteRegex(string pattern, string reason);
+
+    // The legacy journal migration deletes its own source, so this line is the only lasting trace that
+    // it ran and what it moved. A COUNT and nothing else: the value it read is a list of the user's
+    // file paths, and a log is the wrong place for those.
+    [LoggerMessage(
+        EventId = 1064, Level = LogLevel.Information,
+        Message = "[Renamer] undo journal migration: moved {Rows} row(s) out of the legacy stored journal and deleted both legacy keys")]
+    private partial void LogJournalBlobMigrated(int rows);
 }

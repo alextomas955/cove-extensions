@@ -426,7 +426,7 @@ public sealed class ScanLibraryEndpointTests
         new(kind, Entities: files, Files: files,
             StatusCounts: [.. Enum.GetValues<RenamerStatus>()
                 .Select(s => new global::Renamer.Contracts.ScanStatusCount(s, s == status ? files : 0))],
-            BlastRadius: new PreviewSummary(files, files, 0, 0, [], ConfirmLevel.Light, Undoable: true),
+            BlastRadius: new PreviewSummary(files, files, 0, 0, [], ConfirmLevel.Light),
             VolumePairsTruncated: false);
 
     private static Task StoreSummaryAsync(FakeStore store, params global::Renamer.Contracts.ScanKindSummary[] kinds)
@@ -568,9 +568,10 @@ public sealed class ScanLibraryEndpointTests
     {
         var ext = RenamerFixture.Create();
         ((IStatefulExtension)ext).SetStore(store);
-        var services = new ServiceCollection();
-        services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
-        await ext.InitializeAsync(services.BuildServiceProvider());
+        // A real database, because the load refuses to complete without a readable undo journal.
+        // These cases are about the STORE purges, so the library behind it is left empty.
+        await using var library = await Library.CreateAsync();
+        await ext.InitializeAsync(library.BuildProvider());
         return ext;
     }
 
@@ -605,7 +606,7 @@ public sealed class ScanLibraryEndpointTests
     }
 
     [Fact]
-    public async Task InitializeAsync_WithAPreUpgradeJournal_DiscardsIt_WithoutEverReadingIt()
+    public async Task InitializeAsync_WithAnUnstampedJournal_DiscardsIt_WithoutEverReadingIt()
     {
         var store = new FakeStore();
         await store.SetAsync(RevertLog.Key, "1|11|/lib/a.mkv|/lib/A.mkv");
@@ -613,36 +614,33 @@ public sealed class ScanLibraryEndpointTests
 
         await InitializeWithStoreAsync(store);
 
-        // Reading the journal to decide is the one operation guaranteed to hurt — a pre-cap value can be
-        // hundreds of megabytes, which is the failure being cleared. The stamp answers instead.
+        // Reading a journal written under a shape this code does not parse is the one operation
+        // guaranteed to hurt — a pre-cap value can be hundreds of megabytes, which is the failure being
+        // cleared. The few-byte stamp answers instead, and both keys then go.
         Assert.DoesNotContain(RevertLog.Key, store.GetKeys);
         Assert.Contains(RevertLog.SchemaKey, store.GetKeys);
         Assert.Null(await store.GetAsync(RevertLog.Key));
-        Assert.Equal(RevertLog.CurrentSchema, await store.GetAsync(RevertLog.SchemaKey));
+        Assert.Null(await store.GetAsync(RevertLog.SchemaKey));
     }
 
     [Fact]
-    public async Task InitializeAsync_OnASecondLoad_LeavesTheJournalIntact()
+    public async Task InitializeAsync_ConsumesTheLegacyJournalKeysOnce_AndNeverRecreatesThem()
     {
-        // The discard is ONE-TIME. Cove restarts on every deploy, container restart and host reboot, so
-        // a purge on every load would take the user's undo with it — the capability this bounding exists
-        // to keep. The stamp written by the first load is what stops the second from firing.
+        // The migration is ONE-TIME, and deleting the source keys is what makes it so. Cove restarts on
+        // every deploy, container restart and host reboot, so a load that re-created either key would
+        // put the extension back in the state the settings-page incident came from.
         var store = new FakeStore();
-        await store.SetAsync(RevertLog.Key, "[a pre-upgrade journal]");
-        await InitializeWithStoreAsync(store);
-        Assert.Null(await store.GetAsync(RevertLog.Key));
+        await store.SetAsync(RevertLog.SchemaKey, RevertLog.CurrentSchema);
+        await store.SetAsync(RevertLog.Key, "#batch|R1|638000000000000000|Video|open\n7|70|/lib/raw.mkv");
 
-        var log = new RevertLog(store);
-        await log.BeginBatchAsync("R1", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 7, fileId: 70, oldPath: "/lib/raw.mkv");
-        string journalled = (await store.GetAsync(RevertLog.Key))!;
+        await InitializeWithStoreAsync(store);
+        Assert.DoesNotContain(RevertLog.Key, await store.GetAllAsync());
+        Assert.DoesNotContain(RevertLog.SchemaKey, await store.GetAllAsync());
 
         await InitializeWithStoreAsync(store);
 
-        Assert.Equal(journalled, await store.GetAsync(RevertLog.Key));
-        var batch = await log.ReadLastOpenBatchAsync();
-        Assert.NotNull(batch);
-        Assert.Equal(70, Assert.Single(batch!.Entries).FileId);
+        Assert.DoesNotContain(RevertLog.Key, await store.GetAllAsync());
+        Assert.DoesNotContain(RevertLog.SchemaKey, await store.GetAllAsync());
     }
 
     [Fact]
@@ -655,7 +653,7 @@ public sealed class ScanLibraryEndpointTests
         await InitializeWithStoreAsync(store);
 
         Assert.Null(await store.GetAsync(RevertLog.Key));
-        Assert.Equal(RevertLog.CurrentSchema, await store.GetAsync(RevertLog.SchemaKey));
+        Assert.Null(await store.GetAsync(RevertLog.SchemaKey));
     }
 
     [Fact]

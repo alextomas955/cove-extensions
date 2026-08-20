@@ -45,18 +45,13 @@ public sealed record VolumePairDelta(string From, string To, int Count, long Byt
 /// <param name="CrossVolumeBytes">The summed bytes of the cross-volume moves (same-volume bytes excluded — they consume ~no extra space).</param>
 /// <param name="VolumePairs">One <see cref="VolumePairDelta"/> per (source,destination) volume pair touched by a cross-volume move.</param>
 /// <param name="ConfirmLevel">How loud the confirm must be, derived from the blast radius.</param>
-/// <param name="Undoable">
-/// False past <see cref="RevertLog.MaxJournalledFiles"/>: the batch will not be journalled. Carried on
-/// the preview because the user has to learn it BEFORE the rename runs.
-/// </param>
 public sealed record PreviewSummary(
     int TotalCount,
     int SameVolumeCount,
     int CrossVolumeCount,
     long CrossVolumeBytes,
     IReadOnlyList<VolumePairDelta> VolumePairs,
-    ConfirmLevel ConfirmLevel,
-    bool Undoable);
+    ConfirmLevel ConfirmLevel);
 
 /// <summary>
 /// Pure whole-batch blast-radius aggregate over a planned <see cref="RenamerPlanItem"/> set — the
@@ -138,8 +133,7 @@ public static class BatchPreview
         var level = ClassifyConfirm(crossCount, crossBytes, volumePairs);
 
         return new PreviewSummary(
-            totalCount, sameCount, crossCount, crossBytes, volumePairs, level,
-            Undoable: !RevertLog.ExceedsCap(totalCount));
+            totalCount, sameCount, crossCount, crossBytes, volumePairs, level);
     }
 
     /// <remarks>

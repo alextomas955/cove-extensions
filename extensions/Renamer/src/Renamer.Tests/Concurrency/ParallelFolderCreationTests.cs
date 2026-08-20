@@ -103,10 +103,11 @@ public sealed class ParallelFolderCreationTests
             }
             Assert.Equal(1d, progress.LastPercent);
 
-            // The RevertLog recorded one row per moved file under one batch (no torn/lost append).
-            var batch = await new RevertLog(store).ReadLastOpenBatchAsync();
+            // The journal recorded one row per moved file under one batch (no torn/lost append).
+            await using var readDb = shared.NewContext();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(new CoveRevertJournal(readDb));
             Assert.NotNull(batch);
-            Assert.Equal(k, batch!.Entries.Count);
+            Assert.Equal(k, batch!.Rows.Count);
         }
         finally
         {

@@ -64,8 +64,7 @@
           "bytes": 4096
         }
       ],
-      "confirmLevel": "standard",
-      "undoable": true
+      "confirmLevel": "standard"
     },
     "volumePairsTruncated": false,
     "completedAtUtcTicks": 638000000000000000,
@@ -138,8 +137,7 @@
           "bytes": 4096
         }
       ],
-      "confirmLevel": "standard",
-      "undoable": true
+      "confirmLevel": "standard"
     },
     "volumePairsTruncated": true,
     "completedAtUtcTicks": 638000000000000000,
@@ -205,8 +203,7 @@
       "crossVolumeCount": 0,
       "crossVolumeBytes": 0,
       "volumePairs": [],
-      "confirmLevel": "light",
-      "undoable": true
+      "confirmLevel": "light"
     },
     "volumePairsTruncated": false,
     "completedAtUtcTicks": 638000000000000000,

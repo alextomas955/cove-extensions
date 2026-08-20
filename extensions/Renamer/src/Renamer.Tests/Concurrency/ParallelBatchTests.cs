@@ -12,13 +12,13 @@ namespace Renamer.Tests.Concurrency;
 
 /// <summary>
 /// Parallel-batch correctness under the two-phase rewrite. Proves: every acting item
-/// renames and the shared RevertLog blob holds exactly one well-formed row per success (no torn/lost
+/// renames and the shared journal holds exactly one well-formed row per success (no torn/lost
 /// append under real parallel workers); a per-item fault is an isolated skip while the rest succeed
 /// and the batch still reports the final <c>1.0</c> (classify-not-throw under parallelism); a
 /// same-volume-only batch runs despite a tiny free-space probe (same-volume is excluded from the
 /// free-space sum); and an in-flight free-space drop skips a cross-volume item gracefully. Cove
 /// disables EF thread-safety checks, so every assertion is on observable outcomes (files, DB rows,
-/// the parsed RevertLog blob) — never on an EF exception. The store is a thread-safe
+/// journal rows) — never on an EF exception. The store is a thread-safe
 /// <see cref="ConcurrentFakeStore"/> so it is not a confounder.
 /// </summary>
 [Trait("Tier", "L1")]
@@ -67,7 +67,7 @@ public sealed class ParallelBatchTests
                 File.WriteAllText(Path.Combine(dir.Root, $"raw {i}.mkv"), $"bytes-{i}");
             }
 
-            var (ext, store, _) = await BuildAsync(shared, new RenamerOptions { FilenameTemplate = "$title" });
+            var (ext, _, _) = await BuildAsync(shared, new RenamerOptions { FilenameTemplate = "$title" });
             var progress = new FakeJobProgress();
 
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
@@ -79,13 +79,16 @@ public sealed class ParallelBatchTests
                 Assert.False(File.Exists(Path.Combine(dir.Root, $"raw {i}.mkv")), $"raw {i}.mkv lingered");
             }
 
-            // The shared RevertLog blob (read fresh from the store) holds exactly K well-formed rows.
-            var log = new RevertLog(store);
-            var batch = await log.ReadLastOpenBatchAsync();
+            // The shared journal (read fresh over its own context) holds exactly K well-formed rows,
+            // each with the distinct sequence number that half-identifies it — a lost or torn append
+            // under real parallel workers would show up as a short count or a repeated key.
+            await using var readDb = shared.NewContext();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(new CoveRevertJournal(readDb));
             Assert.NotNull(batch);
-            Assert.Equal(k, batch!.Entries.Count);
-            Assert.Equal(k, batch.Entries.Select(e => e.FileId).Distinct().Count());
-            Assert.All(batch.Entries, e =>
+            Assert.Equal(k, batch!.Rows.Count);
+            Assert.Equal(k, batch.Rows.Select(e => e.FileId).Distinct().Count());
+            Assert.Equal(k, batch.Rows.Select(e => e.Seq).Distinct().Count());
+            Assert.All(batch.Rows, e =>
             {
                 Assert.NotEqual(0, e.FileId);
                 Assert.False(string.IsNullOrEmpty(e.OldPath));
@@ -215,16 +218,13 @@ public sealed class ParallelBatchTests
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task InFlightFreeSpaceDrop_SkipsCrossVolumeItemGracefully()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return; // subst gives a distinct path root (NOT a real second drive) on Windows only.
-        }
+        Skip.IfNot(SecondVolume.IsAvailable, SecondVolume.UnavailableReason);
 
         using var dir = new TempDir();
-        using var drive = new SubstDrive(); // a distinct path root that backs the same physical volume.
+        using var drive = new SecondVolume(); // a distinct path root that backs the same physical volume.
         var shared = await SharedCacheSqlite.CreateAsync();
         try
         {
@@ -234,8 +234,18 @@ public sealed class ParallelBatchTests
             string destRootFwd = drive.Root.Replace('\\', '/'); // e.g. "P:/"
 
             await using var seedDb = shared.NewContext();
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(seedDb, srcPathFwd, "raw.mkv", "My Film");
+            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(seedDb, srcPathFwd, "raw.mkv", "My Film");
             File.WriteAllText(Path.Combine(srcFolder, "raw.mkv"), "bytes");
+
+            // The guard's Needed is the DB's RECORDED size, never the file on disk, and a seeded row
+            // defaults to Size 0 - which makes Needed 0 and `Needed > Available` unsatisfiable for any
+            // probe value whatsoever. So without a real size here the in-flight check is a no-op and
+            // this test proves nothing. Measured, which is how it was found: it passed on Windows only
+            // because the destination was refused for an unrelated reason, and the moment it ran on
+            // Linux the file moved. A test whose premise cannot hold is worse than no test.
+            var fileRow = await seedDb.Set<Cove.Core.Entities.VideoFile>().FirstAsync(f => f.Id == fileId);
+            fileRow.Size = 4096;
+            await seedDb.SaveChangesAsync();
 
             // Route the item across volumes (src on the temp drive → dest on the subst drive root), so
             // the partition classifies it cross-volume and the worker runs the in-flight Shortfall.

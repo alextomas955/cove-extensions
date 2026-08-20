@@ -12,7 +12,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,10 +35,12 @@ function validManifest(id, overrides = {}) {
 }
 
 // A fully-valid catalog entry baseline (mirrors extensions/catalog.json's real Renamer entry:
-// name, id, path, tagPrefix ending in "/", manifestPath, projectPath). manifestOnly:true (with
-// a valid manifest kind, set in validManifest) avoids needing a real .csproj fixture file for
-// every case — the validator skips the projectPath existence check entirely when manifestOnly
-// is true. Callers override individual fields to create exactly one malformation.
+// name, id, path, tagPrefix ending in "/", manifestPath). That mirrored list is not prose to be
+// trusted — the drift check at the end of this file asserts it against the real entry.
+//
+// manifestOnly:true (with a valid manifest kind, set in validManifest) avoids needing a real .csproj
+// fixture file for every case — the validator skips the projectPath existence check entirely when
+// manifestOnly is true. Callers override individual fields to create exactly one malformation.
 function validEntry(id, dirName, overrides = {}) {
   return {
     name: id,
@@ -674,5 +676,68 @@ test("non-semver extension.json minCoveVersion produces a non-zero exit and the 
     assert.match(stderr, /must be a semantic version/);
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// ── The fixtures themselves, checked against reality ─────────────────────────────────────────────
+//
+// Every case above is written against `validEntry`/`validManifest` — hand-written mirrors of the real
+// Renamer catalog entry and manifest. A hand-mirrored value with no mechanical check drifts, and the
+// drift is silent in the worst way: when a field leaves the real shape, all 24 cases keep passing
+// while exercising a shape that no longer exists.
+//
+// This does NOT re-run the validator against the real repo; CI already does that
+// (.github/workflows/build.yml, the required `validate` job), and a second copy of an existing gate
+// would rot rather than protect. What CI cannot say is whether these fixtures still describe what it
+// validates. That is the gap here.
+//
+// Catalog-driven, so a second extension needs no edit: every entry is checked, and an empty catalog
+// is a hard failure rather than a vacuous pass.
+
+// Fields the fixtures add deliberately, which are absent from the real shape by design. `manifestOnly`
+// makes the validator skip the projectPath existence check so a case needs no .csproj on disk, and
+// `kind` is what it pairs with. Both are documented at their baseline above. Anything else appearing
+// here means a fixture is modelling a field reality does not have.
+const FIXTURE_ONLY_ENTRY_FIELDS = new Set(["manifestOnly"]);
+const FIXTURE_ONLY_MANIFEST_FIELDS = new Set(["kind"]);
+
+test("the hand-mirrored fixture baselines still describe the real catalog and manifest shape", () => {
+  const repoRoot = path.join(here, "..");
+  const catalog = JSON.parse(
+    readFileSync(path.join(repoRoot, "extensions", "catalog.json"), "utf8"),
+  );
+  const entries = catalog.extensions ?? [];
+
+  assert.ok(
+    entries.length > 0,
+    "extensions/catalog.json declares no extensions — this check inspected nothing, which is a failure, not a pass",
+  );
+
+  const baselineEntryFields = Object.keys(validEntry("com.example.foo", "Foo")).filter(
+    (field) => !FIXTURE_ONLY_ENTRY_FIELDS.has(field),
+  );
+  const baselineManifestFields = Object.keys(validManifest("com.example.foo")).filter(
+    (field) => !FIXTURE_ONLY_MANIFEST_FIELDS.has(field),
+  );
+
+  for (const entry of entries) {
+    for (const field of baselineEntryFields) {
+      assert.ok(
+        field in entry,
+        `validEntry models catalog field "${field}", which the real entry "${entry.id}" does not have — ` +
+          `the fixtures describe a shape that no longer exists, so the cases above prove nothing about it`,
+      );
+    }
+
+    // The manifest is reached through the entry's own manifestPath rather than a second hardcoded
+    // path, so this check cannot itself become a stale mirror of where the manifest lives.
+    const manifest = JSON.parse(readFileSync(path.join(repoRoot, entry.manifestPath), "utf8"));
+    for (const field of baselineManifestFields) {
+      assert.ok(
+        field in manifest,
+        `validManifest models manifest field "${field}", which ${entry.manifestPath} does not have — ` +
+          `same drift, on the manifest side`,
+      );
+    }
   }
 });

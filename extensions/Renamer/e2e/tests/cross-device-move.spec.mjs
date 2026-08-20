@@ -2,22 +2,23 @@
 // filesystem from the container's root, unlike two named volumes, which land on the same backing
 // device in Docker Desktop). A move from /data into /data2 raises a real EXDEV at the kernel level.
 //
-// IMPORTANT — what this test does and does NOT prove: Renamer's own same-vs-cross-VOLUME
-// classification (VolumeClassifier.SameVolume) is Path.GetPathRoot()-based, which always returns
-// "/" for every path on Linux (POSIX has no drive letters). So Renamer's code still classifies
-// this move as "same volume" and routes it through the fast DiskMover.Move path (File.Move), NOT
-// through CrossVolumeMover's verified copy->delete path — that path is only reachable on Windows,
-// where GetPathRoot returns distinct drive letters. See CrossVolumeMoverTests.cs in the existing
-// xUnit suite for coverage of that path.
+// STALE CLAIM REMOVED (2026-08-10). This header used to say the classification was
+// Path.GetPathRoot()-based, that a /data -> /data2 move was therefore treated as SAME volume, and that
+// CrossVolumeMover was reachable only on Windows. All three became false on 2026-07-28, when v0.3.0
+// made VolumeClassifier mount-aware; that commit only re-indented this comment. Measured in a Linux
+// container on .NET 10: DriveInfo.GetDrives() enumerates the container's mounts, VolumeKey("/data/x")
+// is "/" and VolumeKey("/data2/x") is "/data2", so the pair classifies CROSS-volume and
+// CrossVolumeMover is reachable here.
 //
-// What IS being verified here: DiskMover.Move's `catch (IOException ex)` already catches the real
-// EXDEV .NET raises for a cross-device File.Move on Linux (.NET's File.Move surfaces EXDEV as a
-// plain IOException, same type as "destination exists" / "source locked") — so the move fails
-// SAFELY (reported as a skip, not a crash, not a partial/corrupted state) even though the
-// reported reason ("locked or target exists") is misleading for this specific cause. This test
-// locks in that safety property and documents the misleading-message gap as a known finding for
-// Renamer's own backlog (a message-text fix is a Renamer source change, out of scope for this
-// E2E-infrastructure task).
+// Note WHY a false claim survived two weeks in the test meant to guard the behaviour: the assertion
+// below branches on the outcome and passes either way, so nothing could ever contradict the comment. A
+// test that accepts every result cannot correct the prose above it.
+//
+// What this still verifies: the move is non-destructive — the DB path and the disk agree afterwards, so
+// there is no data loss whichever mover ran. What it does NOT yet verify is WHICH mover ran. Making it
+// assert the single correct outcome needs one live run first, because /data2 is a small tmpfs and the
+// free-space preflight now applies to the cross-volume path, so a legitimate refusal and a defect look
+// alike until measured. Deliberately left as the next change rather than guessed at here.
 import { test, expect, seedVideo, pollJob } from "../lib/renamer-fixtures.mjs";
 
 const EXTENSION_ID = "com.alextomas955.renamer";
