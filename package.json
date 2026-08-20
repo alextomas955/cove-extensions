@@ -7,11 +7,17 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "knip": "knip",
+    "knip": "knip --treat-config-hints-as-errors",
     "syncpack": "syncpack lint",
     "jscpd": "jscpd .",
     "prepare": "lefthook install",
+    "generate:wire": "node scripts/generate-wire-types.mjs",
     "test": "node --test scripts/*.test.mjs"
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -26,6 +32,7 @@
     "jscpd": "5.0.14",
     "knip": "6.29.0",
     "lefthook": "2.1.10",
+    "openapi-typescript": "7.13.0",
     "prettier": "3.9.6",
     "syncpack": "15.3.2",
     "typescript": "6.0.3",

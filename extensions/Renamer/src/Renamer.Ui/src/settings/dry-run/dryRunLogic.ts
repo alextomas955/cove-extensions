@@ -85,6 +85,10 @@ export function summaryCounts(summary: {
  * Cove's asset detail-route segment for each scan kind. Enumerated (not `kind.toLowerCase()`) so an
  * unexpected kind falls through to `null` rather than fabricating a wrong URL — the href is derived
  * from this fixed map and the numeric id ONLY, never from a path or basename.
+ *
+ * The wire's kind union has a fourth member, `gallery`, and its absence here is deliberate: the scan
+ * walks only the three renamable kinds, so no row can carry it, and a segment invented for one would
+ * be a guessed URL. An unlinked row is the right answer if that ever changes.
  */
 const KIND_SEGMENT: Record<string, string | undefined> = {
   video: "video",

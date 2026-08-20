@@ -57,6 +57,8 @@ export default tseslint.config(
     ignores: [
       "**/node_modules/**",
       "**/dist/**",
+      // Generated from the committed wire document; still a program input, just not lint's subject.
+      "**/src/wire/**",
       "**/bin/**",
       "**/obj/**",
       "**/artifacts/**",
@@ -255,6 +257,16 @@ export default tseslint.config(
           capture: ["extension", "ui"],
           stopMatching: true,
         },
+        // The generated wire module is a data shape, not a feature: it is derived from the extension's
+        // own OpenAPI document, carries type-only declarations and imports nothing. Every layer may
+        // depend downward onto it, so classifying it as a sibling slice would forbid exactly the
+        // import it exists for. stopMatching keeps the slice glob below off it, as it does for common/.
+        {
+          type: "wire",
+          pattern: "extensions/*/src/*.Ui/src/wire",
+          capture: ["extension", "ui"],
+          stopMatching: true,
+        },
         {
           type: "slice",
           pattern: "extensions/*/src/*.Ui/src/*",
@@ -273,12 +285,12 @@ export default tseslint.config(
           policies: [
             {
               from: { element: { type: "common" } },
-              allow: { to: { element: { types: { anyOf: ["common", "shared"] } } } },
+              allow: { to: { element: { types: { anyOf: ["common", "shared", "wire"] } } } },
             },
             // A feature slice may reach common/ and the shared package, but NOT a sibling slice.
             {
               from: { element: { type: "slice" } },
-              allow: { to: { element: { types: { anyOf: ["common", "shared"] } } } },
+              allow: { to: { element: { types: { anyOf: ["common", "shared", "wire"] } } } },
             },
             {
               from: { element: { type: "shared" } },

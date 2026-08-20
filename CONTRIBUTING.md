@@ -13,6 +13,15 @@ From the repo root:
 dotnet build CoveExtensions.slnx
 ```
 
+An extension's frontend needs its wire types generated first — they are derived from the committed
+OpenAPI document and gitignored, so a fresh clone has none and `npm run verify` fails on a missing
+module. From the repo root, before any per-extension frontend command:
+
+```sh
+npm ci --no-workspaces
+npm run generate:wire
+```
+
 Each extension has its own build/test/verify commands — see that extension's own README
 ([`extensions/Renamer/README.md`](extensions/Renamer/README.md)) and
 [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) for what a PR is expected to

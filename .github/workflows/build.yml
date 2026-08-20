@@ -190,6 +190,28 @@ jobs:
         env:
           TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
 
+      # AFTER the unit tier, because the emit test inside it is what WROTE this file; running before it
+      # would diff whatever the checkout happened to carry. The document is derived from the endpoint
+      # registrations, so a difference here means a handler and the committed wire contract disagree —
+      # which is the one thing a consumer of the generated types cannot see for itself.
+      - name: Verify the wire document is current
+        if: ${{ !matrix.extension.manifestOnly && matrix.extension.wireDocumentPath != '' }}
+        shell: bash
+        run: |
+          # Fail closed: a declared document that is missing or empty means the emit never ran, and an
+          # unchanged-because-absent file would otherwise read exactly like an unchanged-because-correct one.
+          if [[ ! -s "$WIRE_DOC" ]]; then
+            echo "::error::$WIRE_DOC is declared in catalog.json but is missing or empty — the emit test did not write it."
+            exit 1
+          fi
+          if ! git diff --exit-code -- "$WIRE_DOC"; then
+            echo "::error::$WIRE_DOC changed — the handler signatures and the committed wire document disagree. Re-run the document-emitting test and commit the result."
+            exit 1
+          fi
+          echo "Wire document is current: $WIRE_DOC"
+        env:
+          WIRE_DOC: ${{ matrix.extension.wireDocumentPath }}
+
       # Publishes to a throwaway directory, NOT the package directory: the package receives only what
       # the assemble step below copies into it, so nothing the build happens to emit alongside the
       # shipped files can reach a release without being declared.
@@ -213,6 +235,23 @@ jobs:
         if: ${{ matrix.extension.uiPath != '' }}
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm ci
+
+      # The UI's wire types are generated from the committed OpenAPI document and are gitignored, so a
+      # fresh checkout carries none and the typecheck below would fail on a module that does not exist.
+      # The generator is a repo-ROOT devDependency and the frontend install above is scoped to the
+      # extension's UI directory, so the root has to be installed too. --no-workspaces keeps that to the
+      # root's own tooling: a plain root install would also pull in the browser-driven end-to-end
+      # harness workspace, which this job never uses. Both steps carry the generate step's condition so
+      # an entry declaring no wire document pays for neither.
+      - name: Install root tooling (wire-type generator)
+        if: ${{ matrix.extension.uiPath != '' && matrix.extension.wireDocumentPath != '' }}
+        run: npm ci --no-workspaces
+
+      - name: Generate wire types
+        if: ${{ matrix.extension.uiPath != '' && matrix.extension.wireDocumentPath != '' }}
+        run: node scripts/generate-wire-types.mjs --extension "$EXTENSION_ID"
+        env:
+          EXTENSION_ID: ${{ matrix.extension.id }}
 
       - name: Verify frontend (typecheck + format:check + test)
         if: ${{ matrix.extension.uiPath != '' }}

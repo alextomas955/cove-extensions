@@ -1,140 +1,73 @@
 /**
- * TS mirror of `src/Renamer/Options/RenamerOptions.cs`.
+ * The settings panel's view of `src/Renamer/Options/RenamerOptions.cs`.
  *
- * Property names are PascalCase to match the C# property spelling exactly; the C# side
- * deserializes with `PropertyNameCaseInsensitive = true`, so casing is forgiving, but
- * mirroring the C# spelling keeps the contract self-documenting. The three enums serialize
- * as STRINGS (C# `JsonStringEnumConverter`) — the value spelling ("None", "DropAll", …) is
- * the wire value, so these are string-union types here.
+ * The shapes below are a mechanical re-casing of the generated wire contract rather than a hand
+ * transcription of it: `Pascal<>` derives each one from `../wire/api`, so a change to the C# record
+ * reaches this panel through the committed document. Per-member documentation lives on the C#
+ * records they derive from, which state each rule more fully than a mirrored copy could.
+ *
+ * The PascalCase spelling is retained because it is the spelling of the PERSISTED options blob on
+ * every existing installation, not because it documents anything: `MODELED_KEYS` is built from
+ * `DEFAULT_OPTIONS`' runtime keys, and the C# `OptionsStore` writes the same PascalCase. Re-casing
+ * here would make every stored key look unmodeled and carry it through beside a new camelCase twin,
+ * and would leave the two writers disagreeing about the blob's spelling forever. The enums
+ * serialize as STRINGS (C# `JsonStringEnumConverter`), so their VALUES are re-cased too — "None",
+ * "DropAll" and the rest are wire values in their own right.
  *
  * DEFAULT_OPTIONS reproduces the C# record's default initializers verbatim, so a first-run
  * panel (no stored "options" blob) shows the same defaults the backend would apply.
  */
-
-/** Optional case transform applied to a rendered name. C# enum: `CaseTransform`. */
-export type CaseTransform = "None" | "Lower" | "Title";
-
-/** What to do when a multi-value field exceeds its max count. C# enum: `OverflowPolicy`. */
-export type OverflowPolicy = "DropAll" | "KeepFirst";
+import type * as Wire from "../wire/api";
 
 /**
- * Sort order for a multi-value field's items. C# enum: `SortOrder`.
- * `IdAsc`/`FavoriteFirst` are performer-only (tags fall back to name ordering for them).
+ * Re-cases a generated wire shape into the persisted PascalCase spelling: object keys and
+ * string-enum literals are capitalized, a free-form `string` is left alone, numbers, booleans,
+ * `null` and `undefined` pass through unchanged, and an array's element type is mapped. `-?` drops
+ * the optional markers the generator emits for a C# property with a default initializer, which the
+ * panel always supplies from {@link DEFAULT_OPTIONS}.
  */
-export type SortOrder = "NameAsc" | "None" | "IdAsc" | "FavoriteFirst";
+type Pascal<T> = T extends string
+  ? string extends T
+    ? T
+    : Capitalize<T>
+  : T extends number | boolean | null | undefined
+    ? T
+    : T extends readonly (infer E)[]
+      ? Pascal<E>[]
+      : { [K in keyof T as K extends string ? Capitalize<K> : K]-?: Pascal<T[K]> };
 
-/** Per-field controls for a multi-value token (performers, tags). Mirrors C# `MultiValueOptions`. */
-export interface MultiValueOptions {
-  /** String inserted between joined items. */
-  Separator: string;
-  /** Maximum items to emit; 0 = unlimited. */
-  MaxCount: number;
-  /** Behavior when MaxCount is exceeded. */
-  OnOverflow: OverflowPolicy;
-  /** Sort applied before joining. */
-  Sort: SortOrder;
-  /**
-   * If non-empty, only items whose STABLE id is listed survive. Keyed on the id — never the name — so
-   * renaming a performer or tag in Cove cannot orphan the rule. The rendered token still emits NAMES;
-   * the id only decides who survives.
-   */
-  WhitelistIds: number[];
-  /** If non-empty, items whose STABLE id is listed are removed. Keyed exactly like `WhitelistIds`. */
-  BlacklistIds: number[];
-  /** Performer-only: genders dropped before the max-count limit (case-insensitive). */
-  IgnoreGenders: string[];
-  /** Performer-only: preferred gender ordering, most-preferred first (case-insensitive). */
-  GenderOrder: string[];
-}
+export type CaseTransform = Pascal<Wire.CaseTransform>;
+export type OverflowPolicy = Pascal<Wire.OverflowPolicy>;
+export type SortOrder = Pascal<Wire.SortOrder>;
+export type MultiValueOptions = Pascal<Wire.MultiValueOptions>;
+export type PathDestinationRule = Pascal<Wire.PathDestinationRule>;
+export type ExcludeRule = Pascal<Wire.ExcludeRule>;
+export type FieldReplaceRule = Pascal<Wire.FieldReplaceRule>;
 
-/** One source-path → destination routing rule. Mirrors C# `PathDestinationRule`. */
-export interface PathDestinationRule {
-  /** Exact source path, or a regex when `IsRegex` is true. */
-  Pattern: string;
-  /** Absolute destination-root template the matched item routes to. */
-  Dest: string;
-  /** When true, `Pattern` is interpreted as a regex; otherwise an exact match. */
-  IsRegex: boolean;
-}
+/**
+ * All rename settings this panel edits, derived from the contract with two deliberate departures.
+ *
+ * `FreeSpaceHeadroomBytes` is omitted: it is the one C# knob the panel never edits, and leaving it
+ * out keeps it out of `MODELED_KEYS`, which is what lets {@link extractUnmodeledFields} carry a
+ * stored value through a load → save round trip untouched instead of {@link normalizeOptions}
+ * consuming and dropping it. Modeling it here would start writing it and move a persisted byte.
+ *
+ * The three `Enable*` gates have no C# counterpart at all — they are panel state that rides along
+ * in the same stored blob, which the backend ignores as an unknown property. They cannot be derived
+ * because the contract does not describe them.
+ *
+ * `StudioDestinations`/`TagDestinations` derive to a string-keyed index signature, because a
+ * `Dictionary<int, string>` generates as one and JSON object keys are strings either way. Their
+ * keys are still stable entity ids and never names — a rename in Cove must not orphan a rule or
+ * split one entity across two destination trees — and the coercions on both sides of this module
+ * (`numKeyStringMap` here, `fromStringKeyed` in the editors) are what keep them integral.
+ */
+type DerivedOptions = Omit<Pascal<Wire.RenamerOptions>, "FreeSpaceHeadroomBytes">;
 
-/** One source-path exclude rule (carries no destination). Mirrors C# `ExcludeRule`. */
-export interface ExcludeRule {
-  /** Exact source path, or a regex when `IsRegex` is true. */
-  Pattern: string;
-  /** When true, `Pattern` is interpreted as a regex; otherwise an exact match. */
-  IsRegex: boolean;
-}
-
-/** One per-token literal find/replace rule. Mirrors C# `FieldReplaceRule`. */
-export interface FieldReplaceRule {
-  /** Canonical token name (case-insensitive) whose value this rule rewrites. */
-  TargetToken: string;
-  /** Literal substring to find (NOT a regex). An empty find is a no-op. */
-  Find: string;
-  /** Literal replacement substring. */
-  Replace: string;
-}
-
-/** All rename settings. Mirrors C# `RenamerOptions`. */
-export interface RenamerOptions {
-  FilenameTemplate: string;
-  FolderTemplate: string;
-  DateFormat: string;
-  DurationFormat: string;
-  Performers: MultiValueOptions;
-  Tags: MultiValueOptions;
-  IllegalReplacement: string;
-  SpaceReplacement: string;
-  /** Literal characters dropped from the name outright, ahead of illegal/space handling. */
-  RemoveCharacters: string;
-  Case: CaseTransform;
-  AsciiTransliterate: boolean;
-  NormalizePunctuation: boolean;
-  FilenameMax: number;
-  FullPathMax: number;
-  /** Simultaneous cross-drive transfers per source→destination disk pair. */
-  CrossVolumeConcurrency: number;
-  /** Simultaneous same-drive renames in a batch. */
-  SameVolumeConcurrency: number;
-  DropOrder: string[];
-  OnlyOrganized: boolean;
-  /** Use the basename (without extension) as $title when an item has none. */
-  FilenameAsTitle: boolean;
-  RequiredFields: string[];
-  DuplicateSuffixFormat: string;
-  AutoRenamerOnUpdate: boolean;
-
-  // Routing maps — stable entity id → destination-root template. Both key on the id and never on the
-  // name, so a rename in Cove cannot orphan a rule or split one entity across two destination trees.
-  StudioDestinations: Record<number, string>;
-  TagDestinations: Record<number, string>;
-  // Source-path routing rules, in user order.
-  PathDestinations: PathDestinationRule[];
-  // Excludes (evaluated first): stable tag ids, stable studio ids, and source-path rules.
-  ExcludeTagIds: number[];
-  ExcludeStudioIds: number[];
-  ExcludePaths: ExcludeRule[];
-  // The roots a rename may write into; default-relocate + unorganized destinations and their gate.
-  AllowedRoots: string[];
-  // Extra sidecar extensions whose same-basename file moves with the primary (supplementing the
-  // DB-tracked captions); a target that already exists is skipped, never overwritten.
-  AssociatedExtensions: string[];
-  DefaultDestination: string;
-  UnorganizedDestination: string;
-  EnableDefaultRelocate: boolean;
+export interface RenamerOptions extends DerivedOptions {
   EnableStudioDestinations: boolean;
   EnableTagDestinations: boolean;
   EnableAdvancedRouting: boolean;
-  /** Delete the source folder after a move, but only when the move leaves it completely empty. */
-  RemoveEmptyFolder: boolean;
-  // Field-rewrite shaping applied before the template renders.
-  SqueezeStudioNames: boolean;
-  FieldReplacers: FieldReplaceRule[];
-  StripLeadingArticles: boolean;
-  Articles: string[];
-  // Folder/title de-duplication.
-  PreventTitlePerformer: boolean;
-  PreventConsecutiveSegments: boolean;
 }
 
 /**
@@ -461,6 +394,12 @@ export function hasUnmigratedNameRules(raw: unknown): boolean {
  * Rebuild a fully-canonical {@link RenamerOptions} from an untrusted/legacy blob, reading only the known
  * PascalCase keys and dropping everything else (including stale camelCase duplicates). Returns
  * cloneDefaults() when `raw` is null/not-an-object.
+ *
+ * The PascalCase reads here are not redundant with the derived types above. {@link RenamerOptions} is
+ * derived from a camelCase source, but the SPELLING it derives to is the stored blob's, and this is
+ * the only place that fact is enforced against untrusted data — a camelCase read added "to match the
+ * generated source" would let a legacy blob's stale duplicate back in and re-create the dual-source
+ * preview bug this function exists to fix.
  */
 export function normalizeOptions(raw: unknown): RenamerOptions {
   if (!raw || typeof raw !== "object") return cloneDefaults();

@@ -246,12 +246,14 @@ public sealed record ScanCursor(RenamerFileKind Kind, int AfterEntityId);
 /// <param name="Rows">The rows of this page, in walk order.</param>
 /// <param name="Next">
 /// Where to resume, or null once the walk has observed the end of the last readable kind. A non-null
-/// cursor means "there may be more" — the following request is what proves it either way.
+/// cursor means "there may be more" — the following request is what proves it either way, so a final
+/// empty page is normal rather than an error.
 /// </param>
 /// <param name="EntitiesExamined">Entities planned to fill this page, whether or not their rows survived the filters.</param>
 /// <param name="BudgetExhausted">
 /// True iff the request hit its per-request entity budget before filling the page — the honest signal
 /// that more of the library is unexamined, which a narrow filter over a large library hits routinely.
+/// It NEVER means there are no more results.
 /// </param>
 public sealed record ScanRowsPage(
     IReadOnlyList<ScanRow> Rows,
@@ -266,7 +268,9 @@ public sealed record ScanRowsPage(
 /// Bound typed rather than parsed from the raw <c>HttpContext</c> (the treatment <c>/preview-sample</c>
 /// needs) because every member is a string or an int — the host's minimal-API serializer lacks a
 /// string-enum converter, so only a body carrying a bare enum value would fail typed binding. The
-/// options blob travels as a string for exactly that reason, as it does on <c>/scan-library</c>.
+/// options blob travels as a string for exactly that reason, as it does on <c>/scan-library</c>;
+/// retyping it to <c>RenamerOptions</c> would put its enum members back through that converter-less
+/// binder, whatever the generated wire type for it looks like.
 /// </remarks>
 /// <param name="Options">The caller's current options as a PascalCase JSON blob, or null to plan with the saved options.</param>
 /// <param name="Kind">The cursor's kind (<c>video</c>/<c>image</c>/<c>audio</c>), or null to start at the first readable kind.</param>

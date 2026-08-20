@@ -8,11 +8,16 @@
 
 name: Deploy docs site to GitHub Pages
 
+# Paths mirror docs-build.yml: the site sources each extension's own `docs/` folder and a page there
+# may import a file from the extension root, so `website/**` alone would leave an extension's docs
+# edit undeployed as well as unchecked. Keep the two lists in step.
 on:
   push:
     branches: [main]
     paths:
       - "website/**"
+      - "extensions/*/docs/**"
+      - "extensions/*/CHANGELOG.md"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 

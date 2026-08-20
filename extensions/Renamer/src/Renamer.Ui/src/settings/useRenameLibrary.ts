@@ -10,7 +10,7 @@
 import { useCallback, useState } from "react";
 import { requestJson, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type { ScanSummaryResponse } from "../contracts";
+import type { JobEnqueued, ScanSummaryView } from "../wire/api";
 import { summaryCounts, type DryRunCounts } from "./dry-run/dryRunLogic";
 import { api } from "../common/lib/extension";
 
@@ -32,6 +32,10 @@ interface RenameProgress {
  * host's minimal-API JSON options apply JsonStringEnumConverter(JsonNamingPolicy.CamelCase),
  * which lowercases the leading character of the JobStatus enum's PascalCase member names
  * (Completed -> "completed") — the status strings here must be camelCase, not PascalCase.
+ *
+ * This is the one response shape in the panel still declared by hand, deliberately: `/jobs/{id}` is
+ * the HOST's endpoint, so it is absent from the extension's OpenAPI document and no generated type
+ * for it can exist. Anything the extension itself serves is read from `../wire/api` instead.
  */
 function pollJobToCompletion(
   jobId: string,
@@ -110,14 +114,14 @@ export function useRenameLibrary(): UseRenameLibrary {
     try {
       let counts = scanCounts;
       if (!counts) {
-        const { jobId: scanJobId } = await requestJson<{ jobId: string }>(api("scan-library"), {
+        const { jobId: scanJobId } = await requestJson<JobEnqueued>(api("scan-library"), {
           method: "POST",
         });
         await pollJobToCompletion(scanJobId);
-        counts = summaryCounts(await requestJson<ScanSummaryResponse>(api("last-scan")));
+        counts = summaryCounts(await requestJson<ScanSummaryView>(api("last-scan")));
       }
 
-      const { jobId } = await requestJson<{ jobId: string }>(RENAME_LIBRARY_PATH, {
+      const { jobId } = await requestJson<JobEnqueued>(RENAME_LIBRARY_PATH, {
         method: "POST",
       });
       await pollJobToCompletion(jobId, (p) => {

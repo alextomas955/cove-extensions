@@ -1,10 +1,12 @@
-using System.Text.Json;
+using System.Text;
 using Cove.Core.Auth;
-using Microsoft.AspNetCore.Http.HttpResults;
+using Cove.Extensions.Shared;
+using Microsoft.AspNetCore.Http;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
+using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Preview;
 
@@ -12,7 +14,7 @@ namespace Renamer.Tests.Preview;
 /// Whole-batch wire shape: <c>/preview</c> now answers an object
 /// <c>{ items, summary }</c> (was a bare array). This pins the load-bearing serialization contract:
 /// each per-item object stays camelCase with <c>status</c> the STRING (so the UI's
-/// <c>status === "Renamer"</c> match survives) AND carries its routing fields; the additive summary
+/// <c>status === "renamer"</c> match survives) AND carries its routing fields; the additive summary
 /// serializes camelCase with <c>confirmLevel</c> the STRING and <c>volumePairs</c> as
 /// <c>{ from, to, count, bytes }</c>. The handler is exercised as a plain method (no HTTP host) over a
 /// real SQLite <c>CoveContext</c>, and zero mutation is re-asserted.
@@ -32,6 +34,16 @@ public sealed class PreviewWholeBatchTests
         await new OptionsStore(store).SaveAsync(options);
         ((Cove.Plugins.IStatefulExtension)ext).SetStore(store);
         return ext;
+    }
+
+    /// <summary>Executes a result against a real response body and returns what it wrote, as UTF-8 text.</summary>
+    private static async Task<string> BodyOfAsync(IResult result)
+    {
+        var ctx = new DefaultHttpContext();
+        var body = new MemoryStream();
+        ctx.Response.Body = body;
+        await result.ExecuteAsync(ctx);
+        return Encoding.UTF8.GetString(body.ToArray());
     }
 
     [SkippableFact]
@@ -68,7 +80,7 @@ public sealed class PreviewWholeBatchTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Contracts.PreviewResponse>>(result);
+            var ok = Assert.IsType<WireJson<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var response = ok.Value!;
 
             // Per-item contract preserved + routing fields present.
@@ -85,9 +97,10 @@ public sealed class PreviewWholeBatchTests
             Assert.Equal(1, pair.Count);
 
             // WIRE-SHAPE regression: the bytes the UI reads MUST be camelCase with `status` and
-            // `confirmLevel` the camelCase STRING — NOT PascalCase, NOT a numeric enum. Serialize with
-            // the handler's own options.
-            var json = JsonSerializer.Serialize(response, ok.JsonSerializerOptions);
+            // `confirmLevel` the camelCase STRING — NOT PascalCase, NOT a numeric enum. Read what the
+            // result WRITES rather than re-serializing its value, so a test naming its own options
+            // instance cannot agree with itself while the response says something else.
+            var json = await BodyOfAsync(Unwrap(result));
             Assert.Contains("\"items\":", json);
             Assert.Contains("\"summary\":", json);
             Assert.Contains("\"status\":\"move\"", json);
@@ -143,7 +156,7 @@ public sealed class PreviewWholeBatchTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Contracts.PreviewResponse>>(result);
+            var ok = Assert.IsType<WireJson<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var response = ok.Value!;
 
             // The excluded item APPEARS in the preview (not dropped), with SkipExcluded + its reason.
@@ -156,8 +169,9 @@ public sealed class PreviewWholeBatchTests
             // Non-acting skip: zero Renamer/Move counted in the blast-radius summary.
             Assert.Equal(0, response.Summary.TotalCount);
 
-            // The status survives serialization as the camelCase STRING the UI matches on.
-            var json = JsonSerializer.Serialize(response, ok.JsonSerializerOptions);
+            // The status survives serialization as the camelCase STRING the UI matches on, read off the
+            // bytes the result writes.
+            var json = await BodyOfAsync(Unwrap(result));
             Assert.Contains("\"status\":\"skipExcluded\"", json);
 
             // Zero mutation.
@@ -192,7 +206,7 @@ public sealed class PreviewWholeBatchTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Contracts.PreviewResponse>>(result);
+            var ok = Assert.IsType<WireJson<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var response = ok.Value!;
 
             Assert.Equal(1, response.Summary.TotalCount);

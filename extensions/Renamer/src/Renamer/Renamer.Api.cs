@@ -1,10 +1,12 @@
 using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
+using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Cove.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -140,11 +142,17 @@ public sealed partial class Renamer
             showInTaskList: true);
 
     /// <summary>
-    /// Maps the POST endpoints. Each lambda IMMEDIATELY delegates to an extracted instance
-    /// method so the logic is unit-testable without an HTTP host — <c>WebApplicationFactory</c> can't
-    /// mount extension routes, so we test the extracted methods directly. The host resolves the lambda
-    /// parameters from the request scope; <c>ICurrentPrincipalAccessor</c> is populated by the host's
-    /// CurrentPrincipalMiddleware.
+    /// Maps the endpoints. Each lambda IMMEDIATELY delegates to an extracted instance method, so a
+    /// handler can be driven as a plain method while an in-process host still covers the real
+    /// transport. The host resolves the lambda parameters from the request scope;
+    /// <c>ICurrentPrincipalAccessor</c> is populated by the host's CurrentPrincipalMiddleware.
+    /// <para>
+    /// A handler's DECLARED return type is where its response contract lives: each arm of its
+    /// <c>Results&lt;…&gt;</c> union publishes a status code and a payload schema into the wire
+    /// document, so a payload that does not match the declaration is a compile error rather than a
+    /// document describing a shape nothing returns. Nothing is chained onto a registration to restate
+    /// that; the one chained call below describes a body no parameter binds.
+    /// </para>
     /// </summary>
     public override void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
@@ -162,9 +170,15 @@ public sealed partial class Renamer
         // string enum values (e.g. "case":"Lower") would 400 on typed binding before the handler
         // ran. Extension code cannot touch host startup (ConfigureHttpJsonOptions), so we parse
         // the body ourselves with the converter-aware options.
+        //
+        // .Accepts<> is what puts that body in the wire document, since no parameter declares it. It is
+        // documentation ONLY: it binds nothing, validates nothing, and changes no behavior. So it reads
+        // as a contradiction of the paragraph above and is not one — do not "reconcile" it by binding
+        // the body typed, which is exactly the 400-before-the-handler this shape exists to avoid.
         endpoints.MapPost(PreviewSampleRoute,
             (HttpContext http, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => PreviewSampleAsync(http.Request, principal, ct));
+                => PreviewSampleAsync(http.Request, principal, ct))
+            .Accepts<PreviewSampleRequest>("application/json");
 
         // /undo takes NO request body — it operates on "the last batch", so binding no body avoids
         // the host's enum-converter 400 trap (see the preview-sample note above); /last-batch is a plain read.
@@ -195,7 +209,7 @@ public sealed partial class Renamer
     /// mutation. Enforces <c>videos.read</c> in-handler because the host's <c>[RequiresPermission]</c>
     /// filter is MVC-only and inert on minimal-API endpoints.
     /// </summary>
-    internal async Task<IResult> PreviewAsync(
+    internal async Task<Results<WireJson<PreviewResponse>, BadRequestCode, ForbiddenCode>> PreviewAsync(
         RenamerRequest req, DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         // Resolve the kind FIRST so the permission check below gates on the request's own entity kind
@@ -203,7 +217,7 @@ public sealed partial class Renamer
         // before the auth check leaks nothing — it carries no ids and reads no data either way.
         if (!TryParseKind(req.EntityType, out var kind))
         {
-            return Results.BadRequest(new { code = "UNSUPPORTED_ENTITY_TYPE" });
+            return new BadRequestCode("UNSUPPORTED_ENTITY_TYPE");
         }
 
         var (readPermission, _) = PermissionsFor(kind);
@@ -215,7 +229,7 @@ public sealed partial class Renamer
         // Reject an oversized id array before any per-id DB work (see MaxEntityIdsPerRequest).
         if (req.EntityIds.Length > MaxEntityIdsPerRequest)
         {
-            return Results.BadRequest(new { code = "TOO_MANY_IDS", max = MaxEntityIdsPerRequest });
+            return new BadRequestCode("TOO_MANY_IDS", MaxEntityIdsPerRequest);
         }
 
         var options = await new OptionsStore(Store).LoadAsync(ct);
@@ -251,19 +265,22 @@ public sealed partial class Renamer
         // The whole-batch blast radius: a pure aggregate over the acting items + their sizes.
         var summary = BatchPreview.Summarize(items, sizeByFileId);
 
-        // Serialize explicitly with PreviewResponseJsonOptions so the wire shape matches what the UI
-        // bundle reads: camelCase property names AND the RenamerStatus/ConfirmLevel enums as STRINGS
-        // ("Renamer"/"NoOp"/"SkipGated"…, "Light"/"Standard"/"Heavy"). The host's default minimal-API
-        // serializer is camelCase but emits NUMERIC enums (status:0) — the frontend's
-        // buildConfirmSummary matches on it.status === "Renamer", so a numeric enum reads as a
-        // non-renamer and the renamer would silently never fire. Extension code cannot touch host
-        // startup (ConfigureHttpJsonOptions), so we serialize here. (RenamerOptions.JsonOptions is
-        // PascalCase + tolerant-read for the options round-trip — wrong casing for a response — hence
-        // this dedicated instance.) The response is { items, summary }; the per-item array keeps its
-        // exact camelCase string-enum shape because both halves ride this SAME options instance. The
-        // domain plan items are projected onto PreviewItemView (the wire type) at this boundary.
-        return Results.Json(
-            new PreviewResponse([.. items.Select(PreviewItemView.From)], summary), PreviewResponseJsonOptions);
+        // WireJson<T> writes the response with the extension's own options rather than the host's: the
+        // property names are camelCase AND the RenamerStatus/ConfirmLevel enums are STRINGS, spelled
+        // lowercase-first because the converter camel-cases an enum name exactly as it does a property
+        // name ("renamer"/"noOp"/"skipGated"…, "light"/"standard"/"heavy"). The host's default
+        // minimal-API serializer is camelCase but emits NUMERIC enums (status:0), and the frontend's
+        // buildConfirmSummary matches on it.status === "renamer" — so under the default every item
+        // reads as a non-renamer and the rename silently never fires, with a valid 200 and no error
+        // anywhere. Extension code cannot touch host startup (ConfigureHttpJsonOptions) to fix that
+        // globally, and the framework results that CAN take per-endpoint options describe no response
+        // schema; WireJson<T> is the type that does both. (RenamerOptions.JsonOptions is a different
+        // instance for a different job — PascalCase + tolerant-read for the options round-trip, wrong
+        // casing for a response.) The response is { items, summary }, and both halves ride the one
+        // options instance, so the per-item array keeps its exact shape. The domain plan items are
+        // projected onto PreviewItemView (the wire type) at this boundary.
+        return new WireJson<PreviewResponse>(
+            new PreviewResponse([.. items.Select(PreviewItemView.From)], summary));
     }
 
     /// <summary>
@@ -273,12 +290,13 @@ public sealed partial class Renamer
     /// <c>videos.write</c> in-handler (the host permission filter is inert on minimal-API endpoints)
     /// — and crucially returns 403 BEFORE any enqueue.
     /// </summary>
-    internal IResult RenamerEnqueue(RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs)
+    internal Results<Accepted<JobEnqueued>, BadRequestCode, ForbiddenCode> RenamerEnqueue(
+        RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         // Kind first so the write check gates on the request's own kind (videos/images/audios.write).
         if (!TryParseKind(req.EntityType, out var kind))
         {
-            return Results.BadRequest(new { code = "UNSUPPORTED_ENTITY_TYPE" });
+            return new BadRequestCode("UNSUPPORTED_ENTITY_TYPE");
         }
 
         var (_, writePermission) = PermissionsFor(kind);
@@ -290,7 +308,7 @@ public sealed partial class Renamer
         // Reject an oversized id array before encoding/enqueuing the job (see MaxEntityIdsPerRequest).
         if (req.EntityIds.Length > MaxEntityIdsPerRequest)
         {
-            return Results.BadRequest(new { code = "TOO_MANY_IDS", max = MaxEntityIdsPerRequest });
+            return new BadRequestCode("TOO_MANY_IDS", MaxEntityIdsPerRequest);
         }
 
         var parameters = RenamerJob.Encode(req.EntityType, req.EntityIds);
@@ -304,7 +322,7 @@ public sealed partial class Renamer
             (coreProgress, ct) => RunRenamerBatchAsync(parameters, new HostProgress(coreProgress), ct),
             exclusive: true);
 
-        return Results.Accepted(value: new { jobId });
+        return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));
     }
 
     /// <summary>
@@ -323,7 +341,8 @@ public sealed partial class Renamer
     /// log, or already-consumed) is a clean <c>{undone:0}</c> no-op.
     /// </para>
     /// </summary>
-    internal async Task<IResult> UndoAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
+    internal async Task<Results<WireJson<UndoResult>, ForbiddenCode>> UndoAsync(
+        ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         // 403 FIRST for a caller holding NO renamer-write permission of any kind — before any RevertLog
         // read or disk touch, so an unauthorized caller cannot even learn whether a batch exists. The
@@ -335,7 +354,7 @@ public sealed partial class Renamer
                 || principal.Current.Has(Permissions.AudiosWrite));
         if (!canWriteAny)
         {
-            return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
+            return new ForbiddenCode();
         }
 
         var revertLog = new RevertLog(Store);
@@ -350,7 +369,7 @@ public sealed partial class Renamer
         // can never turn the `summary.Value.RunId` dereferences below into a runtime NRE.
         if (batch is null || batch.Entries.Count == 0 || summary is null)
         {
-            return Results.Ok(new UndoResult(0, [], []));
+            return new WireJson<UndoResult>(new UndoResult(0, [], []));
         }
 
         // Re-gate on the WRITE permission of the kind that was actually renamed (the batch header
@@ -391,7 +410,7 @@ public sealed partial class Renamer
             await revertLog.MarkLastBatchConsumedAsync(summary.Value.RunId, ct);
         }
 
-        return Results.Ok(new UndoResult(
+        return new WireJson<UndoResult>(new UndoResult(
             run.Undone,
             [.. run.Failed.Select(f => new UndoEntryError(f.FileId, f.OldPath, f.NewPath, f.Reason))],
             [.. run.Skipped.Select(s => new UndoEntryError(s.FileId, s.OldPath, s.NewPath, s.Reason))]));
@@ -447,7 +466,8 @@ public sealed partial class Renamer
     /// in-handler (403-first; minimal-API <c>[RequiresPermission]</c> is inert). An empty log
     /// returns <see cref="LastBatchSummary"/> with <c>HasBatch:false</c>.
     /// </summary>
-    internal async Task<IResult> LastBatchAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
+    internal async Task<Results<WireJson<LastBatchSummary>, ForbiddenCode>> LastBatchAsync(
+        ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         // This is the undo panel's paths-free "is there a batch to undo?" probe (count + timestamp +
         // consumed flag only — no paths). A user who can renamer ANY kind may see it, so gate on holding
@@ -459,11 +479,11 @@ public sealed partial class Renamer
                 || principal.Current.Has(Permissions.AudiosRead));
         if (!canReadAny)
         {
-            return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
+            return new ForbiddenCode();
         }
 
         var summary = await new RevertLog(Store).ReadLastBatchSummaryAsync(ct);
-        return Results.Ok(new LastBatchSummary(
+        return new WireJson<LastBatchSummary>(new LastBatchSummary(
             HasBatch: summary is not null,
             Count: summary?.Count ?? 0,
             WrittenAtUtcTicks: summary?.WrittenAtUtcTicks ?? 0,
@@ -505,11 +525,12 @@ public sealed partial class Renamer
     /// "the last batch") rather than a per-jobId key, since the id <c>Enqueue</c> mints is not available
     /// to the job body before <c>Enqueue</c> returns.
     /// </summary>
-    internal IResult ScanLibraryEnqueue(ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs)
+    internal Results<Accepted<JobEnqueued>, ForbiddenCode> ScanLibraryEnqueue(
+        ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         if (!HasAnyReadPermission(principal))
         {
-            return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
+            return new ForbiddenCode();
         }
 
         // Dry-run-on-unsaved-edits: when the caller sends its current options blob, parse it with the
@@ -527,7 +548,7 @@ public sealed partial class Renamer
             (coreProgress, ct) => RunScanLibraryJobAsync(readableKinds, overrideOptions, new HostProgress(coreProgress), ct),
             exclusive: true);
 
-        return Results.Accepted(value: new { jobId });
+        return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));
     }
 
     /// <summary>
@@ -574,17 +595,18 @@ public sealed partial class Renamer
     /// future version costs the user one dry run and not a 500.
     /// </para>
     /// </summary>
-    internal async Task<IResult> ScanLibraryResultAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
+    internal async Task<Results<WireJson<ScanSummaryView>, NotFound, ForbiddenCode>> ScanLibraryResultAsync(
+        ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         if (!HasAnyReadPermission(principal))
         {
-            return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
+            return new ForbiddenCode();
         }
 
         var json = await Store.GetAsync(LastScanSummaryKey, ct);
         if (string.IsNullOrEmpty(json))
         {
-            return Results.NotFound();
+            return TypedResults.NotFound();
         }
 
         ScanSummary? summary;
@@ -594,16 +616,16 @@ public sealed partial class Renamer
         }
         catch (JsonException)
         {
-            return Results.NotFound();
+            return TypedResults.NotFound();
         }
 
         if (summary is null || summary.SchemaVersion != ScanSummary.CurrentSchemaVersion)
         {
-            return Results.NotFound();
+            return TypedResults.NotFound();
         }
 
         var readableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
-        return Results.Json(ScanSummaryView.From(summary, readableKinds), PreviewResponseJsonOptions);
+        return new WireJson<ScanSummaryView>(ScanSummaryView.From(summary, readableKinds));
     }
 
     /// <summary>
@@ -620,17 +642,17 @@ public sealed partial class Renamer
     /// <param name="body">Cursor, page size and filters; null means "the first page, unfiltered".</param>
     /// <param name="principal">The calling principal, gated and used to pick the readable kinds.</param>
     /// <param name="ct">Cancellation token.</param>
-    internal async Task<IResult> ScanRowsAsync(
+    internal async Task<Results<WireJson<ScanRowsPage>, BadRequestCode, ForbiddenCode>> ScanRowsAsync(
         ScanRowsRequest? body, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         if (!HasAnyReadPermission(principal))
         {
-            return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
+            return new ForbiddenCode();
         }
 
         if (!ScanBucket.TryParse(body?.Bucket, out var bucket))
         {
-            return Results.BadRequest(new { code = "UNSUPPORTED_BUCKET" });
+            return new BadRequestCode("UNSUPPORTED_BUCKET");
         }
 
         ScanCursor? cursor = null;
@@ -638,7 +660,7 @@ public sealed partial class Renamer
         {
             if (!TryParseKind(body.Kind, out var cursorKind))
             {
-                return Results.BadRequest(new { code = "UNSUPPORTED_ENTITY_TYPE" });
+                return new BadRequestCode("UNSUPPORTED_ENTITY_TYPE");
             }
 
             cursor = new ScanCursor(cursorKind, Math.Max(body.AfterEntityId ?? 0, 0));
@@ -656,7 +678,7 @@ public sealed partial class Renamer
         var page = await pager.PageAsync(
             readableKinds, cursor, body?.Take ?? 0, body?.Query, bucket, options, lookups, ct);
 
-        return Results.Json(page, PreviewResponseJsonOptions);
+        return new WireJson<ScanRowsPage>(page);
     }
 
     /// <summary>
@@ -806,11 +828,12 @@ public sealed partial class Renamer
     /// the principal's held write kinds into the job closure (the job runs detached from the request, so
     /// it cannot re-resolve <see cref="ICurrentPrincipalAccessor"/> itself).
     /// </summary>
-    internal IResult RenamerLibraryEnqueue(ICurrentPrincipalAccessor principal, IJobService jobs)
+    internal Results<Accepted<JobEnqueued>, ForbiddenCode> RenamerLibraryEnqueue(
+        ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         if (!HasAnyWritePermission(principal))
         {
-            return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
+            return new ForbiddenCode();
         }
 
         var writableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Write)).ToArray();
@@ -821,7 +844,7 @@ public sealed partial class Renamer
             (coreProgress, ct) => RunRenamerLibraryJobAsync(writableKinds, new HostProgress(coreProgress), ct),
             exclusive: true);
 
-        return Results.Accepted(value: new { jobId });
+        return TypedResults.Accepted((string?)null, new JobEnqueued(jobId));
     }
 
     /// <summary>
@@ -904,8 +927,8 @@ public sealed partial class Renamer
             "(PreviewAsync/RenamerEnqueue/UndoAsync/LastBatchAsync) and the test call sites that invoke " +
             "it through an extension instance; making it static would churn those call sites without " +
             "any behavior change.")]
-    internal async Task<IResult> PreviewSampleAsync(
-        HttpRequest httpReq, ICurrentPrincipalAccessor principal, CancellationToken ct)
+    internal async Task<Results<WireJson<IReadOnlyList<PreviewSampleResult>>, BadRequestCode, ForbiddenCode>>
+        PreviewSampleAsync(HttpRequest httpReq, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         // Enforce permission BEFORE touching the body — never read/parse for an unauthorized caller.
         // The sample preview is a pure template render over fixed Video/Image/Audio samples (no DB, no
@@ -916,7 +939,7 @@ public sealed partial class Renamer
                 || principal.Current.Has(Permissions.AudiosRead));
         if (!canReadAny)
         {
-            return Results.Json(new { code = "FORBIDDEN" }, statusCode: 403);
+            return new ForbiddenCode();
         }
 
         // Read the body to a string first so we can distinguish "no content" (→ defaults) from
@@ -944,7 +967,7 @@ public sealed partial class Renamer
             }
             catch (JsonException)
             {
-                return Results.BadRequest(new { code = "INVALID_BODY" });
+                return new BadRequestCode("INVALID_BODY");
             }
 
             // Null Options (e.g. {"Options":null} or {}) → defaults; unknown JSON props ignored on parse.
@@ -957,7 +980,7 @@ public sealed partial class Renamer
             .Select(sample => RenderSample(sample, options))
             .ToList();
 
-        return Results.Ok(results);
+        return new WireJson<IReadOnlyList<PreviewSampleResult>>(results);
     }
 
     /// <summary>

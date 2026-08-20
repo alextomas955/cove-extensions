@@ -5,6 +5,7 @@
 
 # Build and generated output.
 **/dist/
+**/src/wire/
 **/.docusaurus/
 **/.cache-loader/
 
@@ -24,3 +25,10 @@
 
 # Tracked, so no ignore file excludes it, and rewriting it produces a diff no one reads.
 **/package-lock.json
+
+# Derived JSON that a test writes verbatim and then compares byte-for-byte. The emitting code owns
+# these bytes, so reformatting one does not produce a diff a reader acts on — it makes the comparison
+# report a difference on every run, which is a permanently red gate rather than a formatting nit. A
+# trailing newline added here is exactly how the wire-snapshot fixtures went red and stayed red.
+**/Contracts/fixtures/*.json
+**/wire/openapi.json

@@ -81,21 +81,24 @@ seam or vocabulary has to be named exactly to be actionable.
   the most common way the two-level-shared rule gets violated.
 - **Models live with their behavior.** Do not strip behavior out into a data-only "models layer" (the
   anemic-domain anti-pattern); only wire contracts get a home of their own.
-- **A hand-declared wire type is an unverified assumption.** The wire is all-camelCase, properties and
-  enum values alike, and the host serializer binds incoming properties case-insensitively, so there is
-  one casing convention on the wire and not a separate request casing. A response interface that
-  declares the wrong casing still type-checks — the compiler trusts the declaration — and then every
-  field reads `undefined` at runtime with no error anywhere. That has shipped here. Whether the answer
-  is generation, validation at the fetch boundary, or something else is an open question; what is
-  settled is that "it type-checks" proves nothing about the wire. One mechanical check does exist and
-  must not be lost: a test that pins each wire value against the server's own spelling, transcribed by
-  hand rather than derived from the code under test, so drift fails loudly instead of reading
-  `undefined`. An expectation computed from the module it checks agrees with itself forever.
+- **A hand-declared wire type is an unverified assumption.** A TypeScript declaration is checked by the
+  compiler against itself and never against the server, so a wrong one still type-checks and every field
+  then reads `undefined` at runtime with no error anywhere. That has shipped here. "It type-checks"
+  therefore proves nothing about the wire — and neither does a test whose expectation was computed from
+  the module it checks, which agrees with itself forever. Only an expectation the server owns proves
+  anything: a type the server itself produces, so no hand-written one exists to be wrong, or failing that
+  a pin transcribed by hand from the server's own spelling, so drift fails loudly instead of reading
+  `undefined`. Prefer the first — an error made impossible beats an error detected afterward — and keep
+  the second wherever the first would only be checking itself.
 - **A `*Logic.ts` module imports nothing but its relative siblings.** That is what keeps the L0 tier
-  worth having — pure, mock-free, deterministic, runnable with no environment — and it is why those
-  modules are the cheapest place in the codebase to pin a contract. The rule once held only as a side
-  effect of a test runner that compiled each module alone in a temp dir, where a runtime import simply
-  failed to resolve; that runner is gone, and the constraint is now stated directly as a
+  worth having — pure, mock-free, deterministic, runnable with no environment — so a test of one needs
+  no setup, no doubles and no running service. What purity does **not** buy is drift detection, and
+  conflating the two is worth guarding against: a pinned contract catches drift because its expectation
+  was transcribed by hand instead of derived from the module under test, which is a property of how the
+  expectation was written and holds wherever the pin lives. A pin inside a pure module that computes its
+  expectation from that module is exactly as blind as one anywhere else. The import rule once held only
+  as a side effect of a test runner that compiled each module alone in a temp dir, where a runtime import
+  simply failed to resolve; that runner is gone, and the constraint is now stated directly as a
   `no-restricted-imports` rule in `eslint.config.mjs`. Prefer that shape generally: a structural
   guarantee that fails at lint time beats one that depends on how the suite happens to run.
 - **Nothing may be O(library).** Libraries here reach millions of files, so treat library size as

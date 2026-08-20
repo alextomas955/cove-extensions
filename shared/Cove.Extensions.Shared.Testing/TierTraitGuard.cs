@@ -8,8 +8,9 @@ namespace Cove.Extensions.Shared.Testing;
 /// </summary>
 /// <remarks>
 /// A <c>--filter "Tier=Lx"</c> selection silently omits a class with no Tier trait; this guard is the
-/// enforcement point for that invariant. Traits are read by attribute type name to keep an xUnit
-/// package reference out of this shared assembly.
+/// enforcement point for that invariant. Traits are read by attribute type NAME rather than by type
+/// identity, so the guard keeps working across an xUnit major version that moves or renames the
+/// attribute's assembly — a guard that fails to load is one that reports nothing.
 /// </remarks>
 public static class TierTraitGuard
 {

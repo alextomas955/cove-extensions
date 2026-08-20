@@ -2,7 +2,7 @@
 // Forked on: 2026-07-01
 // Upstream diff base: https://github.com/yourcove/multi-extension-repo-template/blob/main/scripts/validate-extension-repo.mjs
 //
-// Four behavioral differences from upstream.
+// Six behavioral differences from upstream.
 //
 // 1. This fork reads the additive projectPath/manifestPath catalog fields (when present on a
 // catalog entry) instead of unconditionally deriving {path}/{name}.csproj and {path}/extension.json
@@ -30,6 +30,24 @@
 // on disk (see matrixPathFields below). Upstream's catalog declares no such fields, so it has
 // nothing to check; here a typo in one is otherwise caught only late and cryptically inside a
 // matrix leg, as an `npm ci` in a directory that is not there or a dotnet restore several steps in.
+//
+// 5. This fork asserts that every C# project the catalog implies is declared in CoveExtensions.slnx.
+// The formatting and analyzer gates take their entire subject list from that solution, so a project
+// absent from it is not reported as unformatted or non-compliant — it is never compiled, and the
+// gate reports success over a smaller set than the reader believes. That is a silent loss of
+// coverage for every extension after the first, and the only kind of failure this repository treats
+// as worse than a red gate. Detection rather than generation is deliberate: generating the solution
+// from the catalog would reintroduce a checked-in generated artifact and its drift risk, and
+// pointing the gates at a glob instead would change what actually gets compiled. Asserting
+// membership changes neither, and costs one named error instead of a hole. The assertion runs one
+// way only — the solution may hold projects the catalog does not describe, as shared libraries are.
+//
+// 6. This fork requires a wireDocumentPath on any entry that declares both a UI and a test project.
+// Upstream has no wire-document mechanism to require. Here the whole point of that mechanism is that
+// a hand-declared TypeScript wire type type-checks while reading undefined at runtime, so an
+// extension that acquires a UI without acquiring the derived document loses the only check that would
+// have caught it — and loses it silently, because the CI step reads this very field to decide whether
+// to run. Requiring the declaration is what makes the omission speak.
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -43,6 +61,8 @@ import process from "node:process";
 const root = path.resolve(import.meta.dirname, "..");
 const catalogPath = path.join(root, "extensions", "catalog.json");
 const buildPropsPath = path.join(root, "Directory.Build.props");
+const solutionFileName = "CoveExtensions.slnx";
+const solutionPath = path.join(root, solutionFileName);
 const errors = [];
 
 function readJson(filePath) {
@@ -68,6 +88,27 @@ function readMsBuildProperties(filePath) {
   }
 
   return props;
+}
+
+// Returns both counts so the caller can tell "the solution declares no projects" from "the path
+// attribute stopped being readable". The two are indistinguishable by the extracted set alone, and
+// the second silently confirms every membership.
+function readSolutionProjects(filePath) {
+  const content = fs.readFileSync(filePath, "utf8");
+  const elements = content.match(/<Project\b[^>]*>/g) ?? [];
+  const paths = [];
+  for (const element of elements) {
+    const match = element.match(/\bPath\s*=\s*"([^"]*)"/);
+    if (match) paths.push(match[1]);
+  }
+  return { elementCount: elements.length, paths };
+}
+
+// A solution authored on Windows and a catalog written with forward slashes describe the same file.
+// Case is deliberately left alone: a case mismatch breaks the Linux build, so it must not compare
+// equal on either platform.
+function normalizeSeparators(value) {
+  return value.replaceAll("\\", "/");
 }
 
 function parseVersion(value) {
@@ -169,10 +210,26 @@ let floorComparisons = 0;
 // The catalog's optional path fields, as consumed by .github/workflows/build.yml — every
 // `matrix.extension.*` value there that names a location on disk and is not already covered by a
 // check above (path, manifestPath and projectPath are). e2eProject is excluded deliberately: it is
-// a Playwright project name, not a path. Each of these is optional, so an entry declaring none is
-// valid; only a declared one is required to exist.
-const matrixPathFields = ["testProjectPath", "uiPath", "e2ePath", "e2eNodeTestsPath"];
+// a Playwright project name, not a path. Each of these is optional to DECLARE, so an entry declaring
+// none is valid and only a declared one is required to exist — with one exception, checked separately
+// below: wireDocumentPath stops being optional once an entry has both halves the wire mechanism needs.
+const matrixPathFields = [
+  "testProjectPath",
+  "uiPath",
+  "e2ePath",
+  "e2eNodeTestsPath",
+  "wireDocumentPath",
+];
 let declaredPathChecks = 0;
+
+// Counts the entries the wire-document requirement actually had a subject on. Without it a catalog
+// where no entry qualifies is indistinguishable from one where every entry was checked, which is the
+// shape that lets the second extension slip through unexamined.
+let wireDocumentSubjects = 0;
+
+// Every C# project the catalog implies, as {id, field, value}, gathered across all entries so the
+// solution is read once rather than per entry.
+const impliedProjects = [];
 
 const ids = new Set();
 const tagPrefixes = new Set();
@@ -212,6 +269,36 @@ for (const entry of entries) {
     if (!fs.existsSync(path.join(root, entry[field]))) {
       errors.push(`${entry.id}: ${field} does not exist: ${entry[field]}`);
     }
+  }
+
+  // An entry with both a UI and a test project has everything the wire-document mechanism needs: a
+  // TypeScript consumer that can silently read the wrong shape, and a test tier that can emit the
+  // document describing the right one. Omitting the field there is a lost gate, not an opt-out, and it
+  // is lost quietly — the CI step keyed on this value simply does not run. Name the field: "no wire
+  // document" says nothing about which of the catalog's many optional strings is missing.
+  if (entry.uiPath && entry.testProjectPath) {
+    wireDocumentSubjects++;
+    if (!entry.wireDocumentPath) {
+      errors.push(
+        `${entry.id}: declares uiPath and testProjectPath but no wireDocumentPath, so its wire document is never emitted or diffed`,
+      );
+    }
+  }
+
+  // Same reasoning as the loop above: an entry that short-circuits below still declares projects the
+  // C# gates would have to compile, and a solution gap is worth reporting alongside whatever else is
+  // wrong with the entry.
+  if (entry.projectPath) {
+    impliedProjects.push({ id: entry.id, field: "projectPath", value: entry.projectPath });
+  } else if (!isManifestOnly && entry.path && entry.name) {
+    impliedProjects.push({
+      id: entry.id,
+      field: "projectPath (by convention)",
+      value: path.posix.join(entry.path, `${entry.name}.csproj`),
+    });
+  }
+  if (entry.testProjectPath) {
+    impliedProjects.push({ id: entry.id, field: "testProjectPath", value: entry.testProjectPath });
   }
 
   if (!fs.existsSync(extensionDir)) {
@@ -262,6 +349,33 @@ for (const entry of entries) {
   validateSettings(entry.id, manifest);
 }
 
+let solutionMemberships = 0;
+if (impliedProjects.length > 0) {
+  if (!fs.existsSync(solutionPath)) {
+    errors.push(
+      `${solutionFileName} is missing, so ${impliedProjects.length} catalog-implied C# project(s) cannot be checked`,
+    );
+  } else {
+    const { elementCount, paths } = readSolutionProjects(solutionPath);
+    if (elementCount !== paths.length) {
+      errors.push(
+        `${solutionFileName}: found ${elementCount} project element(s) but read ${paths.length} path(s) from them`,
+      );
+    } else {
+      const declared = new Set(paths.map(normalizeSeparators));
+      for (const project of impliedProjects) {
+        if (declared.has(normalizeSeparators(project.value))) {
+          solutionMemberships++;
+        } else {
+          errors.push(
+            `${project.id}: ${project.field} ${project.value} is not declared in ${solutionFileName}`,
+          );
+        }
+      }
+    }
+  }
+}
+
 if (errors.length > 0) {
   for (const error of errors) console.error(`ERROR: ${error}`);
   process.exit(1);
@@ -273,6 +387,12 @@ const floorReport = coveMinVersion
 const pathReport = declaredPathChecks
   ? `confirmed ${declaredPathChecks} declared catalog path(s) exist`
   : "no entry declared an optional catalog path, so none were checked";
+const solutionReport = impliedProjects.length
+  ? `confirmed ${solutionMemberships} project membership(s) in ${solutionFileName}`
+  : "no catalog entry implied a C# project, so no solution membership was checked";
+const wireDocumentReport = wireDocumentSubjects
+  ? `required a wireDocumentPath on ${wireDocumentSubjects} entr(y|ies) declaring both a UI and a test project`
+  : "no entry declared both a UI and a test project, so no wire document was required";
 console.log(
-  `Validated ${entries.length} extension catalog entries (${floorReport}; ${pathReport}).`,
+  `Validated ${entries.length} extension catalog entries (${floorReport}; ${pathReport}; ${solutionReport}; ${wireDocumentReport}).`,
 );

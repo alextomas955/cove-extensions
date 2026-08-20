@@ -13,9 +13,12 @@ public static class CoveJsonOptions
     /// </summary>
     /// <remarks>
     /// The converter carries <see cref="JsonNamingPolicy.CamelCase"/>, so enum VALUES emit camelCase
-    /// (e.g. <c>needsReview</c>) to match the all-camelCase wire — the C# enum members keep their PascalCase
-    /// identifiers; only the wire string is re-cased. A type-level converter declared on an enum itself
-    /// still takes precedence, so that enum's own casing is unaffected.
+    /// (e.g. <c>needsReview</c>) to match the camelCase property names of the same responses — the C#
+    /// enum members keep their PascalCase identifiers; only the wire string is re-cased. This governs
+    /// what an extension WRITES as a response, and nothing else: a request body an extension parses for
+    /// itself answers to whatever options that parse names, which is how a PascalCase blob can travel
+    /// over the same wire. A type-level converter declared on an enum itself still takes precedence, so
+    /// that enum's own casing is unaffected.
     /// Returns a NEW instance per call so each caller keeps its own (independently frozen-on-first-use)
     /// options object, exactly as separate inline initializers did.
     /// </remarks>

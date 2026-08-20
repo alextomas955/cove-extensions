@@ -26,7 +26,7 @@ import { Dialog, ErrorBox } from "../../common/ui/Dialog";
 import { Button, ProgressBar, Spinner } from "@cove-extensions/ui-shared";
 import { WarningBadges } from "./WarningBadge";
 import { api } from "../../common/lib/extension";
-import type { ScanSummaryResponse } from "../../contracts";
+import type { JobEnqueued, ScanSummaryView } from "../../wire/api";
 import type { RenamerOptions } from "../options";
 import { useScanRows } from "./useScanRows";
 import {
@@ -79,6 +79,10 @@ const COLUMNS = ["Type", "Current name", "New name", "Destination"] as const;
  * JSON options apply `JsonStringEnumConverter(JsonNamingPolicy.CamelCase)`, which lowercases the
  * leading character of the C# `JobStatus` enum's PascalCase member names (`Completed` → `"completed"`),
  * not just the field names — so the string values here must be camelCase too, not just `status` itself.
+ *
+ * Declared by hand deliberately: `/jobs/{id}` is the HOST's endpoint, absent from the extension's
+ * OpenAPI document, so no generated type for it can exist. The extension's own responses come from
+ * `../../wire/api`.
  */
 interface JobInfo {
   id: string;
@@ -199,7 +203,7 @@ export function DryRunModal({
   renameProgress?: { progress: number; subTask?: string | null; etaSeconds?: number | null } | null;
 }) {
   const [scanJobId, setScanJobId] = useState<string | null>(null);
-  const [summary, setSummary] = useState<ScanSummaryResponse | null>(null);
+  const [summary, setSummary] = useState<ScanSummaryView | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [filter, setFilter] = useState<DryRunFilter>("all");
   const [search, setSearch] = useState("");
@@ -239,7 +243,7 @@ export function DryRunModal({
     // computes a bogus slow rate → a brief "~2m"/"~2h" flash before it self-corrects).
     scanSamples.current = [];
     scanMaxPercent.current = 0;
-    requestJson<{ jobId: string }>(SCAN_LIBRARY_PATH, {
+    requestJson<JobEnqueued>(SCAN_LIBRARY_PATH, {
       method: "POST",
       body: JSON.stringify({ Options: scanOptionsBlob }),
     })
@@ -259,7 +263,7 @@ export function DryRunModal({
         setScanError(job.error ?? "the scan job did not complete");
         return;
       }
-      requestJson<ScanSummaryResponse>(LAST_SCAN_PATH)
+      requestJson<ScanSummaryView>(LAST_SCAN_PATH)
         .then((res) => {
           setSummary(res);
         })
