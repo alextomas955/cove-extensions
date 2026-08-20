@@ -140,11 +140,40 @@ public sealed class RenamerPlanner
         // to the default.
         var effective = options with { FolderTemplate = destination.Template };
 
+        // The destination paths this plan has already handed out. The suffix loop consults it as well as
+        // the destination folder's rows, because two files of one entity can render the SAME name and a
+        // row check cannot see a sibling of the plan being built — least of all for a destination folder
+        // that does not exist yet, where there are no rows to read at all.
+        //
+        // Cost: at most one path per file of the entity being planned, and one hash lookup per candidate,
+        // so the addition is bounded by this entity's own file count. Nothing here reads the destination
+        // folder's contents, lists a directory or issues a query per attempt — this must not become a cost
+        // that grows with the library.
+        //
+        // Membership follows the platform's own case rule, because what it decides is whether two planned
+        // paths name ONE file on disk. That rule is stated at PathOps.PathsEqual and is reused from the
+        // resolver's comparer here rather than restated.
+        var claimedTargets = new HashSet<string>(DestinationResolver.SourcePathComparer);
+
         var items = new List<RenamerPlanItem>(entity.Files.Count);
         foreach (var file in entity.Files)         // process every file, never just the first.
         {
             ct.ThrowIfCancellationRequested();
-            items.Add(await PlanFileAsync(entity, file, effective, route, destination, derivedTitle, ct));
+            var item = await PlanFileAsync(
+                entity, file, effective, route, destination, derivedTitle, claimedTargets, ct);
+            items.Add(item);
+
+            // This loop is the set's only writer and the callee only reads it — a callee mutating shared
+            // state would put two owners on one collection inside a method that returns early from a
+            // dozen branches.
+            //
+            // Claimed only for an item that PLACES the file somewhere. A no-op or a skip leaves the file
+            // where its own row already records it, so the port's row check sees it; and the one case that
+            // check is skipped is a folder holding no rows at all, which no already-placed file is in.
+            if (item.Status is RenamerStatus.Rename or RenamerStatus.Move)
+            {
+                claimedTargets.Add(item.NewFullPath);
+            }
         }
 
         return new RenamerPlan(entity.EntityId, entity.Kind, items);
@@ -207,9 +236,16 @@ public sealed class RenamerPlanner
     }
 
     /// <summary>Classifies a single file: render → anchor → confine → collision → status.</summary>
+    /// <remarks>
+    /// <paramref name="claimedTargets"/> is the caller's set of destination paths already handed out in
+    /// this same plan, and this method only READS it. Declaring it <c>IReadOnlySet&lt;string&gt;</c> to
+    /// make that a property of the type is refused by CA1859 (warning-as-error here), so the single
+    /// writer is a rule stated at both ends rather than one the compiler holds.
+    /// </remarks>
     private async Task<RenamerPlanItem> PlanFileAsync(
         RenamerEntity entity, RenamerFile file, RenamerOptions options, RouteResult route,
-        Destination destination, string? derivedTitle, CancellationToken ct)
+        Destination destination, string? derivedTitle, HashSet<string> claimedTargets,
+        CancellationToken ct)
     {
         string oldFullPath = JoinPath(file.ParentFolderPath, file.Basename);
 
@@ -310,20 +346,27 @@ public sealed class RenamerPlanner
         }
 
         // (4) Collision (plan side, NO mutation): resolve the target folder id and apply the
-        //     suffix loop until the port reports free, or SkipCollision when exhausted.
+        //     suffix loop until the name is free, or SkipCollision when exhausted.
         //     For a move, resolve the destination folder id READ-ONLY (never create it during a
         //     dry run — that was the preview-mutation bug). A null id means the destination folder
-        //     does not exist yet, so it holds no file rows and no name can collide: the candidate is
-        //     free as-is. The executor's PHASE A is the single site that actually creates the folder
-        //     when a renamer is performed. An in-place renamer keeps the file's own parent folder id.
+        //     does not exist yet, so it holds no file rows and no name can collide WITH AN EXISTING
+        //     FILE — a sibling of this same plan is not a row, which is why the claim check below is
+        //     not gated on this id. The executor's PHASE A is the single site that actually creates the
+        //     folder when a renamer is performed. An in-place renamer keeps the file's own parent folder id.
         int? targetFolderId = isMove
             ? await _port.TryGetFolderIdAsync(relTargetFolder, ct)
             : file.ParentFolderId;
 
+        // A candidate is taken by a path this plan has already handed out exactly as it is by an existing
+        // row. The in-memory test runs FIRST so a claimed candidate costs no database round trip, and it
+        // compares the whole candidate PATH rather than the basename: routing is resolved once per entity
+        // so the moving files share a target folder, but a non-moving file keeps its own, and a whole-path
+        // comparison cannot be wrong about which folder a claim was made in.
         string candidate = newBasename;
         int attempt = 0;
-        while (targetFolderId is int folderId
-            && await _port.CollisionExistsAsync(folderId, candidate, file.FileId, ct))
+        while (claimedTargets.Contains(JoinPath(relTargetFolder, candidate))
+            || (targetFolderId is int folderId
+                && await _port.CollisionExistsAsync(folderId, candidate, file.FileId, ct)))
         {
             attempt++;
             if (attempt > MaxSuffixAttempts)
@@ -361,6 +404,28 @@ public sealed class RenamerPlanner
         }
 
         string newFullPath = JoinPath(relTargetFolder, candidate);
+
+        // (3c) NoOp AGAIN, now against the SETTLED candidate. The check at (3) ran on the RENDERED name,
+        //      before the loop above; the loop then lengthens that name to free a slot a sibling holds,
+        //      and the first free candidate it reaches can be the very name this file already carries. So
+        //      an item that changes nothing arrives here looking like an act — and an act is executed and
+        //      SAVED. On the auto-rename path the save is what makes the host re-raise the update event,
+        //      which re-plans this item and saves it again: the classification is what ends that, because
+        //      a non-acting item is never executed at all. Same structural argument as the budget re-check
+        //      just above — a verdict reached before the loop cannot stand for one after it.
+        //
+        //      Ordinal, like the check at (3) and NOT via PathsEqual: both parts went through JoinPath so
+        //      separators are exact, and the case rule that helper owns is deliberately not applied here,
+        //      because a target differing from the source by case alone is a rename the user asked for and
+        //      suppressing it would silently refuse a case correction.
+        if (string.Equals(newFullPath, oldFullPath, StringComparison.Ordinal))
+        {
+            return new RenamerPlanItem(
+                file.FileId, oldFullPath, oldFullPath, RenamerStatus.NoOp,
+                file.Basename, relTargetFolder,
+                "no-op: the name this file would take is in use by another file in this folder, and the "
+                    + "next free numbered name is the one this file already has");
+        }
 
         // UI badge signals (set only on the final Renamer/Move item; skip/no-op paths keep the
         // defaults). Suffixed iff the collision loop appended a number; Sanitized via the SAME engine

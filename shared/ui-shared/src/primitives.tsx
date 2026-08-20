@@ -43,7 +43,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useId, useRef, useState, useEffect } from "react";
 import { Loader2, X, ChevronUp, ChevronDown } from "lucide-react";
-import { isRegexValid, isAbsolutePathShape } from "./primitivesLogic";
+import { isRegexValid, isAbsolutePathShape, listEditors, swapped } from "./primitivesLogic";
 import { availableOptions, type ValueOption } from "./entityPickerLogic";
 
 /**
@@ -522,16 +522,6 @@ export function Toggle({
  * stale. Doing it once here means the bound is established in one place instead of being re-assumed
  * at each call site.
  */
-function swapped<T>(list: readonly T[], i: number, j: number): T[] {
-  const next = [...list];
-  const a = next[i];
-  const b = next[j];
-  if (a === undefined || b === undefined) return next;
-  next[i] = b;
-  next[j] = a;
-  return next;
-}
-
 /**
  * String-list editor: chips above an add-on-Enter input. Used for Whitelist / Blacklist /
  * RequiredFields / DropOrder. DropOrder additionally gets up/down reordering (`ordered`).
@@ -563,15 +553,7 @@ export function TagListInput({
     input.value = "";
   }
 
-  function remove(i: number) {
-    onChange(values.filter((_, idx) => idx !== i));
-  }
-
-  function move(i: number, dir: -1 | 1) {
-    const j = i + dir;
-    if (j < 0 || j >= values.length) return;
-    onChange(swapped(values, i, j));
-  }
+  const { move, remove } = listEditors(values, onChange);
 
   return (
     <div>
@@ -736,14 +718,7 @@ export function OrderedPickToAdd({
   const labelOf = (value: string) => options.find((o) => o.value === value)?.label ?? value;
   const offerable = availableOptions(options, values);
 
-  function move(i: number, dir: -1 | 1) {
-    const j = i + dir;
-    if (j < 0 || j >= values.length) return;
-    onChange(swapped(values, i, j));
-  }
-  function remove(i: number) {
-    onChange(values.filter((_, idx) => idx !== i));
-  }
+  const { move, remove } = listEditors(values, onChange);
 
   return (
     <div>

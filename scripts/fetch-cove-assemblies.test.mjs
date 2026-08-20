@@ -19,6 +19,7 @@ import {
   compareSemver,
   main,
   parseMsBuildProperties,
+  imageAtLeastVersion,
   parseSemver,
   readCoveImageReference,
   readExtensionFloors,
@@ -131,6 +132,29 @@ test("the strict-semver regex is the whole filter: every non-semver tag spelling
     prerelease: [],
   });
   assert.deepEqual(parseSemver("1.3.0-rc.2").prerelease, ["rc", "2"]);
+});
+
+test("a host-capability floor is compared, not enumerated: only tags below it read as lacking it", () => {
+  const image = (tag) => `ghcr.io/yourcove/cove-app:${tag}`;
+  // Cove publishes per-entity events for bulk mutations from 1.2.0 (issue #108).
+  for (const tag of ["1.0.0", "1.1.0", "1.1.1", "0.9.0"])
+    assert.equal(imageAtLeastVersion(image(tag), "1.2.0"), false, tag);
+  for (const tag of ["1.2.0", "1.3.0", "1.10.0", "2.0.0"])
+    assert.equal(imageAtLeastVersion(image(tag), "1.2.0"), true, tag);
+
+  // A tag that is no version at all tracks ahead of the last release, so it counts as capable.
+  for (const tag of ["nightly", "latest"])
+    assert.equal(imageAtLeastVersion(image(tag), "1.2.0"), true, tag);
+
+  // A prerelease sorts below its own release, so it reads as lacking the capability. That is a skip,
+  // never a false failure, which is the direction to err in.
+  assert.equal(imageAtLeastVersion(image("1.2.0-rc.1"), "1.2.0"), false);
+
+  // The tag is the last colon-separated component, so a registry port is not mistaken for one.
+  assert.equal(imageAtLeastVersion("localhost:5000/cove-app:1.0.0", "1.2.0"), false);
+
+  // A floor that is not strict semver would silently admit everything, so it throws instead.
+  assert.throws(() => imageAtLeastVersion(image("1.2.0"), "nightly"), /strict X\.Y\.Z floor/);
 });
 
 test("ranking follows semver precedence, including the three pre-release rules", () => {
@@ -639,4 +663,30 @@ test("--tag together with --resolve-tags is refused: two modes, one argument", a
 
 test("an unrecognised argument is refused with the usage line rather than ignored", async () => {
   await assert.rejects(() => main(["--not-an-argument"]), /Unrecognised argument/);
+});
+
+// The extraction empties its target recursively, so an --out that CONTAINS the repository deletes the
+// working tree. Driven through main for the reason the section header states, and the repo root is
+// derived the way the script derives it rather than written down, so this cannot pass by naming a
+// directory that is not the one the guard compares against.
+//
+// Every target is absolute: `--out .` is the realistic typo, but it resolves against the runner's
+// working directory, so asserting on it would pass or fail for a reason that is not this guard. The
+// case-varied forms are here because Windows hands a drive letter over in either case and a
+// case-sensitive prefix comparison lets the destructive path straight through.
+test("--out is refused when it is the repository or an ancestor of it", async () => {
+  const repoRoot = path.resolve(import.meta.dirname, "..");
+  const targets = [repoRoot, path.dirname(repoRoot), path.parse(repoRoot).root];
+
+  if (process.platform === "win32") {
+    targets.push(repoRoot.toLowerCase(), repoRoot.toUpperCase());
+  }
+
+  for (const target of targets) {
+    await assert.rejects(
+      () => main(["--out", target]),
+      /Refusing to delete the working tree/,
+      `--out '${target}' reaches a recursive delete of the repository`,
+    );
+  }
 });

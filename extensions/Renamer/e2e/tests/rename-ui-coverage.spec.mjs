@@ -39,7 +39,7 @@ const RENAMER_ID = "com.alextomas955.renamer";
  * fields on this page share the placeholder `Search tags…`, so a page-wide locator would be
  * ambiguous; the card title is the only unique anchor a user can also see.
  *
- * The hop count is read off `GroupCard` in this repo's own `shared/cove-extensions-ui` — heading →
+ * The hop count is read off `GroupCard` in this repo's own `shared/ui-shared` — heading →
  * title box → header row → card root — rather than matched on a class, which would silently follow a
  * restyle onto the wrong element instead of failing. A by-role locator would be better still and
  * there is none to reach for: `GroupCard` renders a bare `div` carrying no role, landmark or

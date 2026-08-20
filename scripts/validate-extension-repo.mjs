@@ -121,7 +121,7 @@ function normalizeSeparators(value) {
 
 function parseVersion(value) {
   if (typeof value !== "string") return null;
-  const match = value.match(/^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(value);
   if (!match) return null;
   return match.slice(1).map((part) => Number.parseInt(part, 10));
 }
@@ -162,10 +162,10 @@ function validateExternalDependencies(extensionId, manifest) {
   for (const dependency of manifest.externalDependencies) {
     if (!dependency?.id) errors.push(`${extensionId}: external dependency missing id`);
     if (!dependency?.name) errors.push(`${extensionId}: external dependency missing name`);
-    if (Object.prototype.hasOwnProperty.call(dependency, "optional")) {
+    if (Object.hasOwn(dependency, "optional")) {
       errors.push(`${extensionId}: external dependency uses legacy optional; use required`);
     }
-    if (Object.prototype.hasOwnProperty.call(dependency, "settingsKey")) {
+    if (Object.hasOwn(dependency, "settingsKey")) {
       errors.push(
         `${extensionId}: external dependency uses legacy settingsKey; use configurationKeys`,
       );
@@ -185,18 +185,18 @@ function validateSettings(extensionId, manifest) {
 
   for (const setting of manifest.settings) {
     if (!setting?.name) errors.push(`${extensionId}: setting missing name`);
-    if (Object.prototype.hasOwnProperty.call(setting, "key")) {
+    if (Object.hasOwn(setting, "key")) {
       errors.push(`${extensionId}: setting uses legacy key; use name`);
     }
-    if (Object.prototype.hasOwnProperty.call(setting, "label")) {
+    if (Object.hasOwn(setting, "label")) {
       errors.push(`${extensionId}: setting uses legacy label; use displayName`);
     }
-    if (Object.prototype.hasOwnProperty.call(setting, "defaultValue")) {
+    if (Object.hasOwn(setting, "defaultValue")) {
       errors.push(
         `${extensionId}: setting uses legacy defaultValue; remove it from extension.json`,
       );
     }
-    if (Object.prototype.hasOwnProperty.call(setting, "scope")) {
+    if (Object.hasOwn(setting, "scope")) {
       errors.push(`${extensionId}: setting uses legacy scope; remove it from extension.json`);
     }
   }

@@ -2,22 +2,6 @@
 
 User-facing changes, newest first.
 
-## 0.4.1 — The dry run finishes by itself, and a numbered name cannot outgrow your path limit
-
-- **Dry run → Will change now loads every matching row on its own.** It used to stop after a handful —
-  6 of 102 on a 7,459-item library — and clicking **Load more** often added one row or none at all, so
-  reaching the end took a dozen clicks or more. The cause was that Cove's scan answers in fixed
-  chunks of work rather than of rows, so a chunk containing no matches is a normal answer meaning
-  "keep asking", and the list treated it as the end. It now keeps asking until it has filled the view,
-  and the footer tells you how much of the library has been checked instead of asking you to scroll a
-  list with nothing in it to scroll. The narrower your filter, the more this was costing you.
-- **A file whose name has to be numbered can no longer be written past your path-length limit.** When
-  the target name is already taken, Renamer appends a number — and that happened _after_ the path
-  length was checked, so an item sitting at your configured limit was renamed to a path longer than
-  the limit allows. The length is now re-checked once the final name is settled, both while previewing
-  and while running, and such an item is skipped as too long rather than written. If you have never
-  lowered the path-length setting you are very unlikely to have hit this.
-
 ## 0.4.0 — Destinations you pick, not paths you type
 
 **Needs Cove 1.3.0.** An older host does not load Renamer at all — no Rename tab under Settings →
@@ -52,6 +36,12 @@ once, including files that no rule of yours matches.
   was — `/media/library/2024/incoming/batch7/clip.mp4` with a template of `$performers` becomes
   `/media/library/Ann Miller/clip.mp4`, and stays there on every later run. To keep an intermediate
   level, put it in the template — `videos/$performers` rather than `$performers`.
+- **An item holding more than one file is no longer renamed over and over without stopping.** With
+  **Rename on update** switched on, editing such an item could start a rename that never finished:
+  every pass wrote to your disk and to Cove's database, and it kept going until you restarted Cove. It
+  now stops by itself. Nothing was lost when this happened, and your files came out correctly named —
+  but it could run for as long as the host stayed up, so if you have **Rename on update** on and any
+  item with two or more files, this is the reason to take this update.
 - **Undo is much harder to lose.** It keeps **seven days** instead of only the most recent rename, so
   a background _Auto-rename on update_ can no longer silently discard the undo of the rename you ran
   minutes earlier; several renames can be waiting at once, and the panel offers the most recent one
@@ -73,6 +63,12 @@ once, including files that no rule of yours matches.
   One consequence: if the machine loses power mid-copy, an inert leftover named after the file with
   `.rnm` and eight characters added may remain, and you can delete it. Renamer will not, because it
   never removes a file it did not create.
+- **A file whose name has to be numbered can no longer be written past your path-length limit.** When
+  the target name is already taken, Renamer appends a number — and that happened _after_ the path
+  length was checked, so an item sitting at your configured limit was renamed to a path longer than
+  the limit allows. The length is now re-checked once the final name is settled, both while previewing
+  and while running, and such an item is skipped as too long rather than written. If you have never
+  lowered the path-length setting you are very unlikely to have hit this.
 - **_Use filename as title when none is set_ now saves the title, and ships off.** When an item has no
   title, Renamer works one out from the filename and now **stores it on the item**. That is what stops
   the name growing: the old behaviour re-read the title out of the filename on every run, so a template
@@ -98,6 +94,19 @@ once, including files that no rule of yours matches.
   that is no longer one of Cove's library paths, and a file that sits outside every library path.
   Worth knowing for the first: **renaming a library path in Cove reads as removing it**, so a rule
   pointed at the old name skips until you re-pick it.
+- **Dry run → Will change now loads every matching row on its own.** It used to stop after a handful —
+  6 of 102 on a 7,459-item library — and clicking **Load more** often added one row or none at all, so
+  reaching the end took a dozen clicks or more. The cause was that Cove's scan answers in fixed
+  chunks of work rather than of rows, so a chunk containing no matches is a normal answer meaning
+  "keep asking", and the list treated it as the end. It now keeps asking until it has filled the view,
+  and the footer tells you how much of the library has been checked instead of asking you to scroll a
+  list with nothing in it to scroll. The narrower your filter, the more this was costing you.
+- **A dry run over an item holding several files now shows each file at the name it will really get.**
+  It used to show every one of them heading for the same destination name, and the run then quietly
+  numbered all but the first — so the preview you approved did not describe what happened, and none of
+  those rows was marked as numbered. Each file is now shown at its own name, numbered where the name
+  before it is taken. Your files came out correctly named either way; what changes is that you can now
+  see it before you agree to it.
 - **Renamer now states that it renames audio, which it has been doing all along.** The manifest and
   docs described video and image only, so the Extensions list understated both what Renamer touches and
   the permissions it asks for — which is what you read before granting it access. It now declares all

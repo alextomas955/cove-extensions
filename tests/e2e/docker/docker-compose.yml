@@ -93,4 +93,28 @@ services:
       # .NET 10: DriveInfo.GetDrives() enumerates this container's mounts, so /data keys to "/" and
       # /data2 keys to "/data2" and the pair classifies CROSS-volume. So this mount now does exercise
       # the verified copy path, which is more than it was originally built for.
+      #
+      # OWNERSHIP, stated here because it decides whether anything can write into this mount at all, and
+      # because the only prior account of it lived inside the one spec that works around it.
+      #
+      # The mount is root-owned throughout, and its permissions are NOT constant across the container's
+      # life. On first bring-up it arrives world-writable with the sticky bit, so the image's own
+      # non-root process can create files in it with no handover. A container restart resets it to
+      # root-owned with no world write, and a write by that same non-root user is then DENIED.
+      #
+      # Docker's restart is what changes it; nothing inside the container can, because a root-owned mode
+      # is not the image user's to alter. That is why two readings taken at different points both stand:
+      # a world-writable one and a non-writable one describe this same declaration in two different
+      # states, and neither refutes the other.
+      #
+      # Which state a spec meets follows from the harness, not from this file: every spec reaches this
+      # container through `installExtension`, which restarts it before the spec's first line runs. So the
+      # state under test is always the post-restart one, and a spec that writes into /data2 must hand the
+      # mount over itself first — which is what extensions/Renamer/e2e/tests/cross-device-move.spec.mjs
+      # does, and why the refusal its first phase builds on is sound rather than stale.
+      #
+      # Established through the harness itself — `startHarness()` plus `handle.restart()` — because that
+      # is the route the specs take. A bare `docker compose` bring-up observes only the first state, and
+      # reasoning from it to the specs is the inference that put a wrong ownership fact here before: the
+      # variable is the restart, not the compose file.
       - /data2

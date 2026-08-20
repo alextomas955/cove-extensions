@@ -9,8 +9,8 @@
     {
       "version": "0.4.0",
       "downloadUrl": "https://github.com/alextomas955/cove-extensions/releases/download/renamer/v0.4.0/com.alextomas955.renamer-0.4.0.zip",
-      "minCoveVersion": "1.3.0-rc.2",
-      "changelog": "Every destination is now a library path you pick from Cove's own list, plus a folder template made under it \u2014 you no longer type a path for one. A folder template is measured from that root rather than from wherever the file sits at the time, so running a rename twice no longer buries the file one directory deeper each run. Preview a dry run before your first rename after upgrading: an item no rule matches can move once. Requires Cove 1.3.0-rc.2."
+      "minCoveVersion": "1.3.0",
+      "changelog": "Every destination is now a library path you pick from Cove's own list, plus a folder template made under it \u2014 you no longer type a path for one. A folder template is measured from that root rather than from wherever the file sits at the time, so running a rename twice no longer buries the file one directory deeper each run. Preview a dry run before your first rename after upgrading: an item no rule matches can move once. Requires Cove 1.3.0."
     },
     {
       "version": "0.3.0",

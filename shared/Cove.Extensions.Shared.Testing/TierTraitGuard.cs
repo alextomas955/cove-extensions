@@ -68,11 +68,30 @@ public static class TierTraitGuard
     }
 
     private static bool IsTestClass(Type type) =>
-        type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+        type.GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .Any(m => m.CustomAttributes.Any(a => IsFactLike(a.AttributeType)));
 
-    // [Theory], [SkippableFact] and [SkippableTheory] all derive from Xunit.FactAttribute, so walking
-    // the base chain by name catches every discoverable test method without an xUnit type reference.
+    // TWO DIFFERENT base chains are walked in this region, and conflating them is how this guard came to
+    // have a hole.
+    //
+    // IsTestClass above walks the CLASS chain, and BindingFlags governs it: GetMethods returns a class's
+    // INHERITED public instance methods unless DeclaredOnly is passed. Passing it — as this did until
+    // 2026-08-17 — hides a class whose only fact-like methods are declared on a base, while xUnit still
+    // discovers and runs it. Such a class could carry no Tier trait, be omitted from every
+    // --filter "Tier=Lx" selection, and never once appear in Untagged, so the guard would report "no
+    // violations" about a class it never looked at. Renamer.Tests' TierTraitCoverageTests holds the
+    // fixture that observes this and the assertion that fails if the flag comes back.
+    //
+    // Dropping the flag does not widen the match beyond test methods: the public instance methods a
+    // class inherits for free are System.Object's, and none of them carries a fact-like attribute.
+    // Duplicates in the returned set are possible (a method hidden with `new` is reported once per
+    // declaring type) and immaterial, since Any folds the set to one bool.
+    //
+    // IsFactLike below walks the ATTRIBUTE chain, which no BindingFlags reaches: [Theory],
+    // [SkippableFact] and [SkippableTheory] all derive from Xunit.FactAttribute, so matching by name
+    // catches every discoverable test method without an xUnit type reference. That walk was always here,
+    // and it is the reason a reader can look at this pair and wrongly conclude the class-chain hole was
+    // already closed.
     private static bool IsFactLike(Type? attributeType)
     {
         for (var t = attributeType; t is not null; t = t.BaseType)

@@ -36,7 +36,8 @@ namespace Renamer.Tests.Planner;
 /// <c>candidate</c> before the mutation is built, so on the suffixed path the executor commits a
 /// basename this model never produces — and that is precisely the path where the next plan's input
 /// differs by a decoration the loop could re-consume. A collision axis is deliberately NOT added; it
-/// multiplies the matrix, and what is wanted here is that the limit is stated rather than covered. The
+/// multiplies the matrix, and what is wanted here is that the limit is stated rather than covered — that
+/// path's own fixed point is pinned in <see cref="CollisionTests"/> instead. The
 /// smaller asymmetry is the title: the write is conditional TWICE — the executor emits it only when
 /// the plan-time <c>DerivedTitle</c> is non-empty, and <c>CoveRenamerDataPort.ApplyDerivedTitleAsync</c>
 /// writes it only when the TRACKED row's title is still empty at save time, because a person can type

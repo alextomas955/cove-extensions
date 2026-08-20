@@ -71,12 +71,12 @@ const DATE_FORMAT_OPTIONS: readonly ExampleOption[] = [
 // Common DurationFormat options; the example column uses the reference duration 1h 23m 45s.
 // Values carry the engine's literal backslash escapes exactly (TS "hh\\-mm\\-ss" = literal hh\-mm\-ss).
 const DURATION_FORMAT_OPTIONS: readonly ExampleOption[] = [
-  { value: "hh\\-mm\\-ss", example: "01-23-45" },
-  { value: "hh\\.mm\\.ss", example: "01.23.45" },
+  { value: String.raw`hh\-mm\-ss`, example: "01-23-45" },
+  { value: String.raw`hh\.mm\.ss`, example: "01.23.45" },
   // "23-45", not "83-45": mm is the minutes COMPONENT of the duration, and .NET has no total-minutes
   // specifier. MetadataProjectorTests pins all three of these renderings server-side, where the
   // formatting actually happens — an example computed here could only agree with itself.
-  { value: "mm\\-ss", example: "23-45" },
+  { value: String.raw`mm\-ss`, example: "23-45" },
 ];
 
 // Common separators; each label makes the literal whitespace visible.

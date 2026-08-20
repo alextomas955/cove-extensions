@@ -50,8 +50,8 @@ public sealed class MetadataProjectorTests
         // time (NormalizeExt) — see the end-to-end test asserting result.Ext == ".mkv".
         Assert.Equal("mkv", tokens[Tokens.Ext]);
 
-        Assert.Equal(new[] { "Bob", "Ann" }, multi[Tokens.Performers]);
-        Assert.Equal(new[] { "hd", "fav" }, multi[Tokens.Tags]);
+        Assert.Equal(["Bob", "Ann"], multi[Tokens.Performers]);
+        Assert.Equal(["hd", "fav"], multi[Tokens.Tags]);
     }
 
     [Fact]

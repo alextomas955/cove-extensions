@@ -282,7 +282,7 @@ export const DEFAULT_OPTIONS: RenamerOptions = {
   FolderRoot: "",
   DateFormat: "yyyy-MM-dd",
   // C# verbatim string @"hh\-mm\-ss" → the literal value contains single backslashes.
-  DurationFormat: "hh\\-mm\\-ss",
+  DurationFormat: String.raw`hh\-mm\-ss`,
   Performers: {
     Separator: " ",
     MaxCount: 0,
