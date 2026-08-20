@@ -165,7 +165,10 @@ function runGate(gate, pkgRoot) {
       );
       for (const [name, target] of Object.entries(aliasTargets)) {
         patched = patched.replaceAll(`from "${name}"`, () => {
-          let rel = path.relative(path.dirname(emittedPath), target);
+          // An ESM specifier is POSIX-separated on every platform. path.relative returns the OS
+          // separator, and a Windows backslash inside the emitted source is consumed as a string
+          // escape — `\s` becomes `s` — so the specifier silently loses every separator.
+          let rel = path.relative(path.dirname(emittedPath), target).split(path.sep).join("/");
           if (!rel.startsWith(".")) rel = `./${rel}`;
           return `from "${rel}"`;
         });
