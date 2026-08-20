@@ -11,10 +11,17 @@
 
 name: CodeQL
 
+# Analysis runs on proposals, on what lands, and on a clock. The pull-request leg is the one that
+# pays: a finding it reports can still be edited out of an unmerged branch, where the same finding
+# on `main` costs a follow-up commit and stays in history either way. It is kept even though this
+# repo is single-maintainer, because analysing a proposal mostly catches the author's own mistakes
+# rather than a hostile fork's — and because the leg is free, runs in parallel and gates nothing
+# else, so there is no saving to weigh against it. The push leg then covers anything reaching `main`
+# by another route, and the weekly cron re-analyses unchanged code against updated queries.
 on:
-  push:
-    branches: [main]
   pull_request:
+    branches: [main]
+  push:
     branches: [main]
   schedule:
     # Weekly, so analysis runs even when no new commits land.
