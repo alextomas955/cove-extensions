@@ -2,45 +2,35 @@
   "gates": [
     {
       "name": "options-roundtrip",
-      "modules": [
-        "src/settings/options.ts"
-      ],
+      "modules": ["src/settings/options.ts"],
       "test": "scripts/options-roundtrip.test.mjs",
       "envVar": "OPTIONS_MODULE",
       "tmpPrefix": "rename-options-"
     },
     {
       "name": "primitives-logic",
-      "modules": [
-        "@shared/primitivesLogic.ts"
-      ],
+      "modules": ["@shared/primitivesLogic.ts"],
       "test": "scripts/primitives-logic.test.mjs",
       "envVar": "PRIMITIVES_LOGIC_MODULE",
       "tmpPrefix": "rename-primitives-"
     },
     {
       "name": "entity-picker-logic",
-      "modules": [
-        "src/settings/studioFilterLogic.ts"
-      ],
+      "modules": ["src/settings/studioFilterLogic.ts"],
       "test": "scripts/entity-picker-logic.test.mjs",
       "envVar": "PICKER_LOGIC_MODULE",
       "tmpPrefix": "rename-entity-picker-"
     },
     {
       "name": "studio-map",
-      "modules": [
-        "src/settings/studioMapLogic.ts"
-      ],
+      "modules": ["src/settings/studioMapLogic.ts"],
       "test": "scripts/studio-map.test.mjs",
       "envVar": "STUDIO_MAP_MODULE",
       "tmpPrefix": "rename-studio-map-"
     },
     {
       "name": "dry-run-logic",
-      "modules": [
-        "src/settings/dry-run/dryRunLogic.ts"
-      ],
+      "modules": ["src/settings/dry-run/dryRunLogic.ts"],
       "test": "scripts/dry-run-logic.test.mjs",
       "envVar": "DRY_RUN_LOGIC_MODULE",
       "tmpPrefix": "rename-dry-run-"
@@ -66,10 +56,7 @@
     },
     {
       "name": "preview-confirm",
-      "modules": [
-        "src/common/lib/preview.ts",
-        "src/contracts.ts"
-      ],
+      "modules": ["src/common/lib/preview.ts", "src/contracts.ts"],
       "test": "scripts/preview-confirm.test.mjs",
       "envVar": "PREVIEW_CONFIRM_MODULE",
       "tmpPrefix": "rename-preview-confirm-"

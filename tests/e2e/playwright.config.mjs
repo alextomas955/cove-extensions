@@ -1,6 +1,6 @@
-import { defineConfig, devices } from '@playwright/test';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { defineConfig, devices } from "@playwright/test";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -33,11 +33,11 @@ export default defineConfig({
   workers: process.env.CI ? 2 : 4,
   retries: process.env.CI ? 2 : 0,
   timeout: 180_000,
-  reporter: [['list']],
+  reporter: [["list"]],
   use: {
-    trace: process.env.CI ? 'on-first-retry' : 'retain-on-failure',
-    screenshot: 'only-on-failure',
-    ...devices['Desktop Chrome'],
+    trace: process.env.CI ? "on-first-retry" : "retain-on-failure",
+    screenshot: "only-on-failure",
+    ...devices["Desktop Chrome"],
   },
   // One project per extension, each pointing at that extension's co-located tests. `tests/` here
   // (the harness's own dir) holds only `template.spec.mjs` — a COPYABLE starting point, not a live
@@ -47,8 +47,8 @@ export default defineConfig({
   // https://alextomas955.github.io/cove-extensions/contributing/authoring-e2e).
   projects: [
     {
-      name: 'renamer',
-      testDir: join(__dirname, '..', '..', 'extensions', 'Renamer', 'e2e', 'tests'),
+      name: "renamer",
+      testDir: join(__dirname, "..", "..", "extensions", "Renamer", "e2e", "tests"),
     },
   ],
 });

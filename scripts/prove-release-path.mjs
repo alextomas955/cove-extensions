@@ -50,7 +50,9 @@ function spawnAllowed(command, args, options) {
 function run(command, args, options = {}) {
   const result = spawnAllowed(command, args, { stdio: "inherit", ...options });
   if (result.status !== 0) {
-    fail(command + " " + args.join(" ") + " exited " + (result.status ?? "signal " + result.signal));
+    fail(
+      command + " " + args.join(" ") + " exited " + (result.status ?? "signal " + result.signal),
+    );
   }
   return result;
 }
@@ -84,7 +86,10 @@ function resolveEntry(catalog, tag) {
 function assertZipIsolation(zipPath, entry, catalog, denylist) {
   const listed = spawnAllowed("unzip", ["-Z1", zipPath], { encoding: "utf8" });
   if (listed.status !== 0) fail("could not list zip contents");
-  const zipEntries = listed.stdout.split(/\r?\n/).filter(Boolean).map((p) => path.basename(p));
+  const zipEntries = listed.stdout
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((p) => path.basename(p));
 
   const problems = [];
   if (!zipEntries.includes(entry.name + ".dll")) problems.push("missing " + entry.name + ".dll");
@@ -93,9 +98,13 @@ function assertZipIsolation(zipPath, entry, catalog, denylist) {
     .filter((e) => e.id !== entry.id)
     .map((e) => e.name + ".dll")
     .filter((dll) => zipEntries.includes(dll));
-  if (otherExtensionAssemblies.length) problems.push("other extension assembly present: " + otherExtensionAssemblies.join(", "));
-  const leakedHostDlls = zipEntries.filter((f) => f.endsWith(".dll") && denylist.includes(f.slice(0, -".dll".length)));
-  if (leakedHostDlls.length) problems.push("host-provided assembly present: " + leakedHostDlls.join(", "));
+  if (otherExtensionAssemblies.length)
+    problems.push("other extension assembly present: " + otherExtensionAssemblies.join(", "));
+  const leakedHostDlls = zipEntries.filter(
+    (f) => f.endsWith(".dll") && denylist.includes(f.slice(0, -".dll".length)),
+  );
+  if (leakedHostDlls.length)
+    problems.push("host-provided assembly present: " + leakedHostDlls.join(", "));
   if (problems.length) {
     for (const p of problems) console.error("  " + p);
     fail("isolation assertions violated");
@@ -104,10 +113,17 @@ function assertZipIsolation(zipPath, entry, catalog, denylist) {
 
 function main() {
   const tag = process.argv[2];
-  if (!tag) fail("usage: node scripts/prove-release-path.mjs <tagPrefix>v<semver> [--local-cove|--nuget-cove]");
+  if (!tag)
+    fail(
+      "usage: node scripts/prove-release-path.mjs <tagPrefix>v<semver> [--local-cove|--nuget-cove]",
+    );
 
-  const catalog = JSON.parse(fs.readFileSync(path.join(root, "extensions", "catalog.json"), "utf8"));
-  const denylist = JSON.parse(fs.readFileSync(path.join(root, ".github", "DLL_DENYLIST.json"), "utf8"));
+  const catalog = JSON.parse(
+    fs.readFileSync(path.join(root, "extensions", "catalog.json"), "utf8"),
+  );
+  const denylist = JSON.parse(
+    fs.readFileSync(path.join(root, ".github", "DLL_DENYLIST.json"), "utf8"),
+  );
 
   // 1. Resolve the tag to exactly one catalog entry + its semver version.
   const { entry, version } = resolveEntry(catalog, tag);
