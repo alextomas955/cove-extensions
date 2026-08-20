@@ -98,9 +98,7 @@ export function Chip({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={
-        mono ? `${chipClass(selected)} font-mono` : chipClass(selected)
-      }
+      className={mono ? `${chipClass(selected)} font-mono` : chipClass(selected)}
     >
       {children}
     </button>
@@ -128,9 +126,7 @@ export function Field({
         </span>
       ) : null}
       {children}
-      {helper ? (
-        <span className="mt-1 block text-xs text-secondary">{helper}</span>
-      ) : null}
+      {helper ? <span className="mt-1 block text-xs text-secondary">{helper}</span> : null}
     </label>
   );
 }
@@ -265,9 +261,7 @@ export function ExampleSelect({
   // Which <select> option is shown: the matching value, or the Custom… sentinel.
   const selectValue = isCustom ? CUSTOM_SENTINEL : value;
   // Helper-line example: the matched option's reference example, or the live custom string.
-  const helperExample = matched
-    ? `${matched.value} → ${matched.example}`
-    : value;
+  const helperExample = matched ? `${matched.value} → ${matched.example}` : value;
 
   return (
     <div>
@@ -294,17 +288,10 @@ export function ExampleSelect({
       </select>
       {isCustom ? (
         <div className="mt-2">
-          <TextInput
-            value={value}
-            onChange={onChange}
-            placeholder={customPlaceholder}
-            mono
-          />
+          <TextInput value={value} onChange={onChange} placeholder={customPlaceholder} mono />
         </div>
       ) : (
-        <span className="mt-1 block font-mono text-xs text-secondary">
-          {helperExample}
-        </span>
+        <span className="mt-1 block font-mono text-xs text-secondary">{helperExample}</span>
       )}
     </div>
   );
@@ -367,12 +354,7 @@ export function SeparatorChips({
       </div>
       {isCustom ? (
         <div className="mt-2">
-          <TextInput
-            value={value}
-            onChange={onChange}
-            placeholder={customPlaceholder}
-            mono
-          />
+          <TextInput value={value} onChange={onChange} placeholder={customPlaceholder} mono />
         </div>
       ) : null}
     </div>
@@ -458,9 +440,7 @@ export function SegmentedReplace({
             mono
           />
           {replaceHelper ? (
-            <span className="mt-1 block text-xs text-secondary">
-              {replaceHelper}
-            </span>
+            <span className="mt-1 block text-xs text-secondary">{replaceHelper}</span>
           ) : null}
         </div>
       ) : stripHelper ? (
@@ -485,10 +465,7 @@ export function Toggle({
 }) {
   return (
     <div>
-      <label
-        className="flex items-center gap-2 text-sm text-secondary"
-        title={helper}
-      >
+      <label className="flex items-center gap-2 text-sm text-secondary" title={helper}>
         <button
           type="button"
           role="switch"
@@ -725,8 +702,7 @@ export function OrderedPickToAdd({
   onChange: (values: string[]) => void;
   addPrompt: string;
 }) {
-  const labelOf = (value: string) =>
-    options.find((o) => o.value === value)?.label ?? value;
+  const labelOf = (value: string) => options.find((o) => o.value === value)?.label ?? value;
   const offerable = availableOptions(options, values);
 
   function move(i: number, dir: -1 | 1) {
@@ -882,11 +858,7 @@ export function ObjectArrayEditor<T>({
   rows: T[];
   onChange: (rows: T[]) => void;
   makeRow: () => T;
-  renderRow: (
-    row: T,
-    index: number,
-    update: (patch: Partial<T>) => void,
-  ) => ReactNode;
+  renderRow: (row: T, index: number, update: (patch: Partial<T>) => void) => ReactNode;
   addLabel: string;
   ordered?: boolean;
 }) {
@@ -1041,9 +1013,7 @@ export function KeyValueMapEditor({
   }
 
   function remove(key: string) {
-    onChange(
-      Object.fromEntries(Object.entries(map).filter(([k]) => k !== key)),
-    );
+    onChange(Object.fromEntries(Object.entries(map).filter(([k]) => k !== key)));
   }
 
   function add() {
@@ -1085,22 +1055,13 @@ export function KeyValueMapEditor({
         </div>
       ))}
       <div className="flex items-start gap-2 rounded-xl border border-border bg-card p-3">
-        <span className="min-w-0 flex-1">
-          {renderKey(draftKey, setDraftKey, keys)}
-        </span>
-        <span className="min-w-0 flex-1">
-          {renderValue(draftValue, setDraftValue)}
-        </span>
-        <Button
-          onClick={add}
-          disabled={draftKey.trim().length === 0 || duplicate}
-        >
+        <span className="min-w-0 flex-1">{renderKey(draftKey, setDraftKey, keys)}</span>
+        <span className="min-w-0 flex-1">{renderValue(draftValue, setDraftValue)}</span>
+        <Button onClick={add} disabled={draftKey.trim().length === 0 || duplicate}>
           {addLabel}
         </Button>
       </div>
-      {duplicate ? (
-        <StatusText kind="error">That key already has a value.</StatusText>
-      ) : null}
+      {duplicate ? <StatusText kind="error">That key already has a value.</StatusText> : null}
     </div>
   );
 }
@@ -1112,19 +1073,11 @@ export function KeyValueMapEditor({
  * browser-vs-.NET caveat applies: this flags obvious JS parse errors, not full .NET parity, so a
  * clean result is not a promise the engine will accept the pattern.
  */
-export function RegexValidity({
-  pattern,
-  isRegex,
-}: {
-  pattern: string;
-  isRegex: boolean;
-}) {
+export function RegexValidity({ pattern, isRegex }: { pattern: string; isRegex: boolean }) {
   if (!isRegex) return null;
   const result = isRegexValid(pattern);
   if (result.valid) return null;
-  return (
-    <StatusText kind="error">Invalid pattern: {result.message}</StatusText>
-  );
+  return <StatusText kind="error">Invalid pattern: {result.message}</StatusText>;
 }
 
 /**
@@ -1135,9 +1088,7 @@ export function RegexValidity({
 export function PathShapeHint({ value }: { value: string }) {
   if (value.trim().length === 0) return null;
   if (isAbsolutePathShape(value)) return null;
-  return (
-    <StatusText kind="warning">Doesn't look like an absolute path.</StatusText>
-  );
+  return <StatusText kind="warning">Doesn't look like an absolute path.</StatusText>;
 }
 
 /** One of the five field groups. Matches Cove sub-card styling. */
@@ -1178,20 +1129,11 @@ export function GroupCard({
  * label monospaced (the `$token` case); the plain case is the short uppercase tag. Host-compiled
  * classes only.
  */
-export function Badge({
-  children,
-  mono = false,
-}: {
-  children: ReactNode;
-  mono?: boolean;
-}) {
-  const base =
-    "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold";
+export function Badge({ children, mono = false }: { children: ReactNode; mono?: boolean }) {
+  const base = "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold";
   const color = "border border-accent/40 bg-accent/15 text-accent";
   return (
-    <span
-      className={`${base} ${color} ${mono ? "font-mono" : "uppercase tracking-wider"}`}
-    >
+    <span className={`${base} ${color} ${mono ? "font-mono" : "uppercase tracking-wider"}`}>
       {children}
     </span>
   );
@@ -1210,31 +1152,29 @@ const tint = (variable: string, percent: number) =>
 // utilities it never emits, so inlining from those variables keeps the pills following the host
 // theme instead of freezing a literal. A consumer whose text colour rides on inner spans still
 // overrides the `text-*` class, as before.
-const STATUS_PILL_VARIANT: Record<
-  StatusPillVariant,
-  { className: string; style?: CSSProperties }
-> = {
-  accent: { className: "border-accent/40 bg-accent/10 text-accent" },
-  amber: {
-    className: "text-amber-400",
-    style: {
-      borderColor: tint("--color-amber-400", 40),
-      backgroundColor: tint("--color-amber-400", 10),
+const STATUS_PILL_VARIANT: Record<StatusPillVariant, { className: string; style?: CSSProperties }> =
+  {
+    accent: { className: "border-accent/40 bg-accent/10 text-accent" },
+    amber: {
+      className: "text-amber-400",
+      style: {
+        borderColor: tint("--color-amber-400", 40),
+        backgroundColor: tint("--color-amber-400", 10),
+      },
     },
-  },
-  red: {
-    className: "border-red-700/50 text-red-400",
-    style: { backgroundColor: tint("--color-red-950", 40) },
-  },
-  green: {
-    className: "text-green-400",
-    style: {
-      borderColor: tint("--color-green-500", 40),
-      backgroundColor: tint("--color-green-500", 10),
+    red: {
+      className: "border-red-700/50 text-red-400",
+      style: { backgroundColor: tint("--color-red-950", 40) },
     },
-  },
-  gray: { className: "border-border bg-card text-muted" },
-};
+    green: {
+      className: "text-green-400",
+      style: {
+        borderColor: tint("--color-green-500", 40),
+        backgroundColor: tint("--color-green-500", 10),
+      },
+    },
+    gray: { className: "border-border bg-card text-muted" },
+  };
 
 /**
  * A status-tinted pill — the badge family the single-accent `$token` {@link Badge} does not cover.
@@ -1305,14 +1245,8 @@ export function SectionCard({
           <div className="flex min-w-0 items-start gap-3">
             {badge ? <span className="mt-0.5 shrink-0">{badge}</span> : null}
             <div className="min-w-0">
-              {title ? (
-                <h3 className="text-base font-semibold text-foreground">
-                  {title}
-                </h3>
-              ) : null}
-              {description ? (
-                <p className="mt-1 text-sm text-secondary">{description}</p>
-              ) : null}
+              {title ? <h3 className="text-base font-semibold text-foreground">{title}</h3> : null}
+              {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
             </div>
           </div>
           {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
@@ -1342,9 +1276,7 @@ export function Subsection({
     <div className="space-y-4">
       <div>
         <h4 className="text-sm font-semibold text-foreground">{title}</h4>
-        {description ? (
-          <p className="mt-1 text-sm text-secondary">{description}</p>
-        ) : null}
+        {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
       </div>
       {children}
     </div>
@@ -1375,23 +1307,14 @@ export function ToggleHeaderCard({
       <div className="flex items-center gap-3 px-4 py-3">
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold text-foreground">{title}</h3>
-          {description ? (
-            <p className="mt-1 text-sm text-secondary">{description}</p>
-          ) : null}
+          {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
         </div>
         <div className="shrink-0">
-          <Toggle
-            label=""
-            ariaLabel={`Enable ${title}`}
-            checked={enabled}
-            onChange={onToggle}
-          />
+          <Toggle label="" ariaLabel={`Enable ${title}`} checked={enabled} onChange={onToggle} />
         </div>
       </div>
       {enabled ? (
-        <div className="space-y-4 border-t border-border px-4 pb-4 pt-4">
-          {children}
-        </div>
+        <div className="space-y-4 border-t border-border px-4 pb-4 pt-4">{children}</div>
       ) : null}
     </section>
   );
@@ -1426,13 +1349,9 @@ export function CollapsibleSection({
         className="flex w-full items-center justify-between gap-4 bg-card px-4 py-3 text-left transition-colors hover:bg-card-hover"
       >
         <span className="min-w-0">
-          <span className="block text-sm font-medium text-foreground">
-            {title}
-          </span>
+          <span className="block text-sm font-medium text-foreground">{title}</span>
           {summary ? (
-            <span className="mt-1 block truncate text-xs text-muted">
-              {summary}
-            </span>
+            <span className="mt-1 block truncate text-xs text-muted">{summary}</span>
           ) : null}
         </span>
         {open ? (
@@ -1441,11 +1360,7 @@ export function CollapsibleSection({
           <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
         )}
       </button>
-      {open ? (
-        <div className="space-y-4 border-t border-border px-4 py-3">
-          {children}
-        </div>
-      ) : null}
+      {open ? <div className="space-y-4 border-t border-border px-4 py-3">{children}</div> : null}
     </div>
   );
 }
@@ -1466,12 +1381,7 @@ export function Button({
       ? "inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-secondary hover:border-accent/50 hover:bg-card-hover hover:text-foreground disabled:opacity-60"
       : "inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-60";
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={className}
-    >
+    <button type="button" onClick={onClick} disabled={disabled} className={className}>
       {children}
     </button>
   );
@@ -1479,13 +1389,7 @@ export function Button({
 
 export type StatusKind = "success" | "error" | "muted" | "warning";
 
-export function StatusText({
-  kind,
-  children,
-}: {
-  kind: StatusKind;
-  children: ReactNode;
-}) {
+export function StatusText({ kind, children }: { kind: StatusKind; children: ReactNode }) {
   const cls =
     kind === "success"
       ? "text-green-400"
@@ -1510,13 +1414,7 @@ export function Spinner() {
  * only, so no CSS ships. Determinate carries `role="progressbar"` + `aria-valuenow/min/max`;
  * indeterminate carries `aria-busy` instead, with a full-width pulsing fill.
  */
-export function ProgressBar({
-  percent,
-  label,
-}: {
-  percent?: number;
-  label?: string;
-}) {
+export function ProgressBar({ percent, label }: { percent?: number; label?: string }) {
   const determinate = percent !== undefined;
   return (
     <div

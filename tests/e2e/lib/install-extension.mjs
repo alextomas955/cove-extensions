@@ -7,20 +7,20 @@
 //     (re)start to be discovered (mirrors Cove's own bind-mount install method, minus the mount).
 //   - installViaUrl: POST /api/extensions/install-from-url against a running, already-healthy
 //     instance — hot-installs with no restart, exercising the real install API surface.
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { stageExtension } from './stage-extension.mjs';
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { stageExtension } from "./stage-extension.mjs";
 
 export async function installViaContainerCopy({ container, repoRoot, publishDir, manifestPath }) {
-  const stagingRoot = mkdtempSync(join(tmpdir(), 'cove-e2e-stage-'));
+  const stagingRoot = mkdtempSync(join(tmpdir(), "cove-e2e-stage-"));
   try {
     const { id, path } = stageExtension({ repoRoot, publishDir, manifestPath, stagingRoot });
     const target = `/config/extensions/${id}`;
 
-    await container.exec(['mkdir', '-p', target]);
+    await container.exec(["mkdir", "-p", target]);
     await container.copyDirectoriesToContainer([{ source: path, target }]);
-    await container.exec(['chown', '-R', 'cove:cove', target], { user: 'root' });
+    await container.exec(["chown", "-R", "cove:cove", target], { user: "root" });
 
     return { id };
   } finally {
@@ -30,13 +30,15 @@ export async function installViaContainerCopy({ container, repoRoot, publishDir,
 
 export async function installViaUrl({ baseUrl, zipUrl }) {
   const res = await fetch(`${baseUrl}/api/extensions/install-from-url`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url: zipUrl }),
   });
   if (!res.ok) {
-    const body = await res.text().catch(() => '<unreadable body>');
-    throw new Error(`installViaUrl: POST /api/extensions/install-from-url failed (${res.status}): ${body}`);
+    const body = await res.text().catch(() => "<unreadable body>");
+    throw new Error(
+      `installViaUrl: POST /api/extensions/install-from-url failed (${res.status}): ${body}`,
+    );
   }
   return res.json();
 }

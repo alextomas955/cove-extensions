@@ -17,7 +17,7 @@ on:
   pull_request:
   schedule:
     # Weekly, so analysis runs even when no new commits land.
-    - cron: '23 4 * * 1'
+    - cron: "23 4 * * 1"
 
 permissions:
   contents: read
@@ -45,7 +45,7 @@ jobs:
         if: matrix.language == 'csharp'
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: "10.0.x"
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4

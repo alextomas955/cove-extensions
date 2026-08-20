@@ -1,9 +1,9 @@
 ---
 name: Feature request
 about: Suggest an idea for an extension in this repo
-title: ''
+title: ""
 labels: enhancement
-assignees: ''
+assignees: ""
 ---
 
 ## Which extension

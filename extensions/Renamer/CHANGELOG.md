@@ -23,8 +23,8 @@ User-facing changes, newest first.
   access token — or your share token and password on a share link — and retries once when an access
   token has expired. What changes for you: a settings page left open long enough for your access token
   to lapse no longer fails the next save or dry run; it renews and carries on.
-- **Tag and performer rules now follow the item, not its name.** Whitelists, blacklists, *Exclude by
-  tag* and *Per-tag destinations* used to be stored as the tag's or performer's **name**, so renaming
+- **Tag and performer rules now follow the item, not its name.** Whitelists, blacklists, _Exclude by
+  tag_ and _Per-tag destinations_ used to be stored as the tag's or performer's **name**, so renaming
   one in Cove quietly broke every rule pointing at it. They now store Cove's own stable id for that
   item, and a rename no longer breaks anything. **Your existing settings convert automatically** the
   first time the Rename settings page loads after this upgrade — there is nothing to re-enter. Three
@@ -37,7 +37,7 @@ User-facing changes, newest first.
 - **The tag, performer and studio fields now search your library as you type.** They used to list
   everything the moment you clicked into them, which is what made them slow on a large library. Type
   at least one character to see matches; an empty field shows nothing.
-- **A failed search now reads the same as a search with no matches.** Both show *No tags found*. If a
+- **A failed search now reads the same as a search with no matches.** Both show _No tags found_. If a
   value you know exists does not appear, change the search text and try again — there is no separate
   message to tell a lookup that failed from a lookup that genuinely found nothing.
 

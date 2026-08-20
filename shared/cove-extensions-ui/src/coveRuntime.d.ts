@@ -27,10 +27,7 @@ declare module "@cove/runtime/api" {
    * signature. Resolves for any HTTP status, so a caller must check `Response.ok` itself.
    * Host-provided at Cove >= 1.1.0.
    */
-  export function extensionFetch(
-    input: string,
-    init?: RequestInit,
-  ): Promise<Response>;
+  export function extensionFetch(input: string, init?: RequestInit): Promise<Response>;
 }
 
 // The host barrel behind this specifier exports roughly sixty values; declaring one without a

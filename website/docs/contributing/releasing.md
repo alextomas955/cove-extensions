@@ -69,7 +69,7 @@ That is the only place you edit it; the loaded assembly reads it from the shippe
 
 The `minCoveVersion` in a registry manifest's `versions[]` row is a different thing that happens to
 share a name. Each row describes an immutable zip a user can still download, and its floor is the
-floor *that* artifact needs — not a copy of the source tree's current one. So a raised floor reaches
+floor _that_ artifact needs — not a copy of the source tree's current one. So a raised floor reaches
 the registry by prepending a new row for the release you are cutting, never by editing an existing
 row: a row claiming a higher floor than its zip actually needs both misdescribes that file and locks
 out users for whom it works.

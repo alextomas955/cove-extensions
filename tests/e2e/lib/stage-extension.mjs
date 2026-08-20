@@ -5,9 +5,9 @@
 // local dev deploy run, so what a test installs is the declared package rather than an approximation
 // of it — a file that would not ship cannot reach a passing test, and one that must ship cannot be
 // missing from it.
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { assemblePackage } from '../../../scripts/assemble-package-core.mjs';
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { assemblePackage } from "../../../scripts/assemble-package-core.mjs";
 
 export function stageExtension({ repoRoot, publishDir, manifestPath, stagingRoot }) {
   if (!existsSync(publishDir)) {
@@ -17,7 +17,7 @@ export function stageExtension({ repoRoot, publishDir, manifestPath, stagingRoot
     throw new Error(`stageExtension: manifestPath does not exist: ${manifestPath}`);
   }
 
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   if (!manifest.id) {
     throw new Error(`stageExtension: manifest at ${manifestPath} has no "id" field`);
   }
@@ -34,7 +34,9 @@ export function stageExtension({ repoRoot, publishDir, manifestPath, stagingRoot
     version: manifest.version,
   });
   if (!result.ok) {
-    throw new Error(`stageExtension: assembling ${manifest.id} failed: ${result.failures.join('; ')}`);
+    throw new Error(
+      `stageExtension: assembling ${manifest.id} failed: ${result.failures.join("; ")}`,
+    );
   }
 
   return { id: manifest.id, path: target };

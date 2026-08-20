@@ -2,11 +2,7 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
 
-import {
-  isRegexValid,
-  isAbsolutePathShape,
-  extensionShapeAdvisory,
-} from "./primitivesLogic";
+import { isRegexValid, isAbsolutePathShape, extensionShapeAdvisory } from "./primitivesLogic";
 
 test("a well-formed pattern is valid", () => {
   assert.deepEqual(isRegexValid("^C:/in/.*$"), { valid: true });

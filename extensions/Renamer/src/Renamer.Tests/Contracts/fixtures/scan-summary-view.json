@@ -69,9 +69,7 @@
     },
     "volumePairsTruncated": false,
     "completedAtUtcTicks": 638000000000000000,
-    "kinds": [
-      "video"
-    ]
+    "kinds": ["video"]
   },
   "truncatedPairs": {
     "totalFiles": 2,
@@ -143,9 +141,7 @@
     },
     "volumePairsTruncated": true,
     "completedAtUtcTicks": 638000000000000000,
-    "kinds": [
-      "image"
-    ]
+    "kinds": ["image"]
   },
   "noReadableKind": {
     "totalFiles": 0,

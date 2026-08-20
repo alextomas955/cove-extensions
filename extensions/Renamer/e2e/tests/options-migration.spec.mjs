@@ -21,11 +21,11 @@
 // name-keyed form, both groups carrying the empty-array shape a real install always emitted, and
 // three unrelated fields whose survival is the preservation proof. The residue that leaves is stated
 // in 21-12-SUMMARY.md.
-import { test as base, expect, RENAMER_EXTENSION } from '../lib/renamer-fixtures.mjs';
-import { startHarness } from '@cove-extensions/e2e/harness';
-import { RenamerSettingsPage } from '../lib/pages/renamer-settings-page.mjs';
+import { test as base, expect, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
+import { startHarness } from "@cove-extensions/e2e/harness";
+import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
-const RENAMER_ID = 'com.alextomas955.renamer';
+const RENAMER_ID = "com.alextomas955.renamer";
 
 const test = base.extend({
   // Its own Cove instance, for a reason stronger than data isolation: this test RESTARTS the host.
@@ -43,7 +43,7 @@ const test = base.extend({
       await use(instance);
       await instance.stop();
     },
-    { scope: 'test' },
+    { scope: "test" },
   ],
 });
 
@@ -53,12 +53,12 @@ const test = base.extend({
  * restyle onto the wrong element instead of failing. Same shape as `rename-ui-coverage.spec.mjs`'s.
  */
 function groupCard(page, title) {
-  return page.getByRole('heading', { name: title, exact: true }).locator('xpath=../../..');
+  return page.getByRole("heading", { name: title, exact: true }).locator("xpath=../../..");
 }
 
 /** The root `<section>` of a `ToggleHeaderCard`, whose header nests its heading exactly as deeply. */
 function toggleCard(page, title) {
-  return page.getByRole('heading', { name: title, exact: true }).locator('xpath=../../..');
+  return page.getByRole("heading", { name: title, exact: true }).locator("xpath=../../..");
 }
 
 /**
@@ -67,14 +67,14 @@ function toggleCard(page, title) {
  * `<label>` whose first span is the field name, which is the narrowest scope that can.
  */
 function field(scope, label) {
-  return scope.locator('label').filter({ hasText: label }).first();
+  return scope.locator("label").filter({ hasText: label }).first();
 }
 
 function apiFor(baseUrl) {
   async function callApi(method, path, body) {
     const res = await fetch(`${baseUrl}${path}`, {
       method,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     });
     const text = await res.text();
@@ -87,13 +87,13 @@ function apiFor(baseUrl) {
     return { status: res.status, ok: res.ok, json, text };
   }
   return {
-    get: (p) => callApi('GET', p),
-    post: (p, b) => callApi('POST', p, b),
-    put: (p, b) => callApi('PUT', p, b),
+    get: (p) => callApi("GET", p),
+    post: (p, b) => callApi("POST", p, b),
+    put: (p, b) => callApi("PUT", p, b),
   };
 }
 
-test('a legacy blob stored before the host starts converts at initialize, and the panel renders the surviving rules as entity names', async ({
+test("a legacy blob stored before the host starts converts at initialize, and the panel renders the surviving rules as entity names", async ({
   page,
   migrationHarness,
 }) => {
@@ -102,7 +102,7 @@ test('a legacy blob stored before the host starts converts at initialize, and th
   test.setTimeout(360_000);
 
   const errors = [];
-  page.on('pageerror', (err) => errors.push(err.message));
+  page.on("pageerror", (err) => errors.push(err.message));
 
   const stamp = Date.now();
   const seedApi = apiFor(migrationHarness.baseUrl);
@@ -125,17 +125,20 @@ test('a legacy blob stored before the host starts converts at initialize, and th
   const vanishedTag = `Qzmig Vanished Tag ${stamp}`;
 
   const ids = {};
-  for (const key of ['tagKeep', 'caseFirst', 'caseSecond', 'tagRoute', 'tagExclude']) {
-    const created = await seedApi.post('/api/tags', { name: names[key] });
+  for (const key of ["tagKeep", "caseFirst", "caseSecond", "tagRoute", "tagExclude"]) {
+    const created = await seedApi.post("/api/tags", { name: names[key] });
     expect(
       created.ok,
       `POST /api/tags "${names[key]}" answered ${created.status}: ${created.text} — a 409 here means this host folds tag names by case, which would make the case-collapse assertion below unreachable rather than merely failing`,
     ).toBe(true);
     ids[key] = created.json.id;
   }
-  for (const key of ['performerKeep', 'performerBlock']) {
-    const created = await seedApi.post('/api/performers', { name: names[key] });
-    expect(created.ok, `POST /api/performers "${names[key]}" answered ${created.status}: ${created.text}`).toBe(true);
+  for (const key of ["performerKeep", "performerBlock"]) {
+    const created = await seedApi.post("/api/performers", { name: names[key] });
+    expect(
+      created.ok,
+      `POST /api/performers "${names[key]}" answered ${created.status}: ${created.text}`,
+    ).toBe(true);
     ids[key] = created.json.id;
   }
   expect(
@@ -151,20 +154,23 @@ test('a legacy blob stored before the host starts converts at initialize, and th
   // only for tokens the template uses — which makes it an unrelated-field check and a precondition at
   // once.
   const legacyBlob = {
-    FilenameTemplate: '$title - $performers [$tags]',
-    AllowedRoots: ['/data'],
-    PathDestinations: [{ Pattern: '/data/legacy', Dest: '/data/archive', IsRegex: false }],
+    FilenameTemplate: "$title - $performers [$tags]",
+    AllowedRoots: ["/data"],
+    PathDestinations: [{ Pattern: "/data/legacy", Dest: "/data/archive", IsRegex: false }],
     Performers: { Whitelist: [names.performerKeep], Blacklist: [names.performerBlock] },
     Tags: { Whitelist: [names.tagKeep, names.caseFirst, names.caseSecond], Blacklist: [] },
     ExcludeTags: [names.tagExclude, vanishedTag],
-    TagDestinations: { [names.tagRoute]: '/data/routed' },
+    TagDestinations: { [names.tagRoute]: "/data/routed" },
   };
   // Single JSON.stringify: the [FromBody] string binder wants exactly one JSON string literal.
   const seeded = await seedApi.put(
     `/api/extensions/${RENAMER_ID}/data/options`,
     JSON.stringify(legacyBlob),
   );
-  expect(seeded.ok, `seeding the legacy options blob answered ${seeded.status}: ${seeded.text}`).toBe(true);
+  expect(
+    seeded.ok,
+    `seeding the legacy options blob answered ${seeded.status}: ${seeded.text}`,
+  ).toBe(true);
 
   // ── Start the host over on top of it ────────────────────────────────────────────────────────────
   // The conversion runs at InitializeAsync and nowhere else, so there is no way to reach it while the
@@ -182,96 +188,104 @@ test('a legacy blob stored before the host starts converts at initialize, and th
     await settings.goto();
     await expect(settings.filenameTemplateInput).toBeVisible({ timeout: 15_000 });
     await expect(
-      page.getByText('still stored by name', { exact: false }),
-      'the panel still refuses to save because the stored rules are name-keyed — the initialize-time conversion did not run, or ran and refused to write',
+      page.getByText("still stored by name", { exact: false }),
+      "the panel still refuses to save because the stored rules are name-keyed — the initialize-time conversion did not run, or ran and refused to write",
     ).toHaveCount(0);
   }).toPass({ timeout: 120_000 });
 
   // ── The surviving rules render as entity NAMES ──────────────────────────────────────────────────
-  const tagsCard = groupCard(page, 'Tags');
-  const tagWhitelist = field(tagsCard, 'Whitelist');
+  const tagsCard = groupCard(page, "Tags");
+  const tagWhitelist = field(tagsCard, "Whitelist");
   await expect(
-    tagWhitelist.getByRole('button', { name: `Remove ${names.tagKeep}`, exact: true }),
+    tagWhitelist.getByRole("button", { name: `Remove ${names.tagKeep}`, exact: true }),
     `the tag whitelist rule stored as the name "${names.tagKeep}" is not on the panel as a chip carrying that name`,
   ).toBeVisible({ timeout: 15_000 });
   await expect(
-    tagWhitelist.getByRole('button', { name: `Remove ${names.caseFirst}`, exact: true }),
-    'the surviving half of the case-variant pair must be the LOWEST id, whose name is the first-created spelling',
+    tagWhitelist.getByRole("button", { name: `Remove ${names.caseFirst}`, exact: true }),
+    "the surviving half of the case-variant pair must be the LOWEST id, whose name is the first-created spelling",
   ).toBeVisible();
   await expect(
-    tagWhitelist.getByRole('button', { name: `Remove ${names.caseSecond}`, exact: true }),
-    'both case variants survived as separate chips — the two stored names resolve to one id, so this rule now covers one tag where it covered two, and that narrowing is what the changelog discloses',
+    tagWhitelist.getByRole("button", { name: `Remove ${names.caseSecond}`, exact: true }),
+    "both case variants survived as separate chips — the two stored names resolve to one id, so this rule now covers one tag where it covered two, and that narrowing is what the changelog discloses",
   ).toHaveCount(0);
   await expect(
-    tagWhitelist.getByRole('button', { name: /^Remove / }),
-    'three stored names must land as exactly two chips: the keep tag, plus one survivor of the case-variant pair',
+    tagWhitelist.getByRole("button", { name: /^Remove / }),
+    "three stored names must land as exactly two chips: the keep tag, plus one survivor of the case-variant pair",
   ).toHaveCount(2);
   await expect(
-    field(tagsCard, 'Blacklist').getByRole('button', { name: /^Remove / }),
-    'the empty legacy Blacklist a real install always emitted must convert to an empty id list — not to a chip, and not by stranding the whole conversion on a half it had nothing to resolve',
+    field(tagsCard, "Blacklist").getByRole("button", { name: /^Remove / }),
+    "the empty legacy Blacklist a real install always emitted must convert to an empty id list — not to a chip, and not by stranding the whole conversion on a half it had nothing to resolve",
   ).toHaveCount(0);
 
-  const performersCard = groupCard(page, 'Performers');
+  const performersCard = groupCard(page, "Performers");
   await expect(
-    field(performersCard, 'Whitelist').getByRole('button', { name: `Remove ${names.performerKeep}`, exact: true }),
-    'the performer whitelist rule did not survive as a named chip',
+    field(performersCard, "Whitelist").getByRole("button", {
+      name: `Remove ${names.performerKeep}`,
+      exact: true,
+    }),
+    "the performer whitelist rule did not survive as a named chip",
   ).toBeVisible();
   await expect(
-    field(performersCard, 'Blacklist').getByRole('button', { name: `Remove ${names.performerBlock}`, exact: true }),
-    'the performer blacklist rule did not survive as a named chip — the two groups convert independently, so a whitelist that landed says nothing about a blacklist that did not',
+    field(performersCard, "Blacklist").getByRole("button", {
+      name: `Remove ${names.performerBlock}`,
+      exact: true,
+    }),
+    "the performer blacklist rule did not survive as a named chip — the two groups convert independently, so a whitelist that landed says nothing about a blacklist that did not",
   ).toBeVisible();
 
   // ── The unresolvable name is gone ───────────────────────────────────────────────────────────────
-  await page.getByRole('button', { name: /^Excludes/ }).click();
-  const excludeTagCard = groupCard(page, 'Exclude by tag');
+  await page.getByRole("button", { name: /^Excludes/ }).click();
+  const excludeTagCard = groupCard(page, "Exclude by tag");
   await expect(
-    excludeTagCard.getByRole('button', { name: `Remove ${names.tagExclude}`, exact: true }),
+    excludeTagCard.getByRole("button", { name: `Remove ${names.tagExclude}`, exact: true }),
     'the exclusion that DID resolve is missing, so nothing below distinguishes "the vanished name was dropped" from "the whole field was emptied"',
   ).toBeVisible({ timeout: 15_000 });
   await expect(
-    excludeTagCard.getByRole('button', { name: /^Remove / }),
-    'the exclusion list holds more than the one rule that could resolve — a name matching nothing in the library must be dropped, because it could never have matched anything',
+    excludeTagCard.getByRole("button", { name: /^Remove / }),
+    "the exclusion list holds more than the one rule that could resolve — a name matching nothing in the library must be dropped, because it could never have matched anything",
   ).toHaveCount(1);
   const excludeText = await excludeTagCard.innerText();
-  expect(excludeText, `the dropped name "${vanishedTag}" is still on the panel`).not.toContain(vanishedTag);
+  expect(excludeText, `the dropped name "${vanishedTag}" is still on the panel`).not.toContain(
+    vanishedTag,
+  );
   expect(
     excludeText,
-    'a chip is stuck on the host loading placeholder, which is what an id resolving to no entity looks like — the conversion wrote an id the library does not have',
-  ).not.toContain('Loading tag...');
+    "a chip is stuck on the host loading placeholder, which is what an id resolving to no entity looks like — the conversion wrote an id the library does not have",
+  ).not.toContain("Loading tag...");
 
   // ── The name-keyed destination map re-keyed to ids, and reads back as a name ────────────────────
-  const tagDestinations = toggleCard(page, 'Per-tag destinations');
+  const tagDestinations = toggleCard(page, "Per-tag destinations");
   await expect(
-    tagDestinations.getByRole('button', { name: `Remove ${ids.tagRoute}`, exact: true }),
-    'the committed per-tag destination row is gone — its map key did not survive re-keying from the tag name to that tag\'s id',
+    tagDestinations.getByRole("button", { name: `Remove ${ids.tagRoute}`, exact: true }),
+    "the committed per-tag destination row is gone — its map key did not survive re-keying from the tag name to that tag's id",
   ).toHaveCount(1);
   await expect(
     tagDestinations.getByText(names.tagRoute, { exact: true }),
-    'the destination row shows its opaque id rather than the tag name the host resolves it to',
+    "the destination row shows its opaque id rather than the tag name the host resolves it to",
   ).toBeVisible();
   await expect(
-    tagDestinations.getByRole('textbox').first(),
-    'the destination the rule routed to did not survive the re-key',
-  ).toHaveValue('/data/routed');
+    tagDestinations.getByRole("textbox").first(),
+    "the destination the rule routed to did not survive the re-key",
+  ).toHaveValue("/data/routed");
 
   // ── Fields the conversion does not model are untouched ──────────────────────────────────────────
   await expect(
     settings.filenameTemplateInput,
-    'the filename template changed across a conversion that has no business touching it — this is the field a typed converter would have reset to its default, and the whole reason the conversion works on raw JSON',
+    "the filename template changed across a conversion that has no business touching it — this is the field a typed converter would have reset to its default, and the whole reason the conversion works on raw JSON",
   ).toHaveValue(legacyBlob.FilenameTemplate);
-  const advancedRouting = toggleCard(page, 'Advanced routing & safety');
+  const advancedRouting = toggleCard(page, "Advanced routing & safety");
   await expect(
-    advancedRouting.getByRole('button', { name: 'Remove /data', exact: true }),
-    'the stored allowed root did not survive the conversion',
+    advancedRouting.getByRole("button", { name: "Remove /data", exact: true }),
+    "the stored allowed root did not survive the conversion",
   ).toHaveCount(1);
   await expect(
-    field(advancedRouting, 'Source path').getByRole('textbox'),
-    'the stored source-path rule did not survive the conversion',
-  ).toHaveValue('/data/legacy');
+    field(advancedRouting, "Source path").getByRole("textbox"),
+    "the stored source-path rule did not survive the conversion",
+  ).toHaveValue("/data/legacy");
   await expect(
-    field(advancedRouting, 'Destination root').getByRole('textbox'),
-    'the source-path rule survived but its destination did not, so the row is preserved in name only',
-  ).toHaveValue('/data/archive');
+    field(advancedRouting, "Destination root").getByRole("textbox"),
+    "the source-path rule survived but its destination did not, so the row is preserved in name only",
+  ).toHaveValue("/data/archive");
 
-  expect(errors, `the settings surface raised page errors: ${errors.join('; ')}`).toEqual([]);
+  expect(errors, `the settings surface raised page errors: ${errors.join("; ")}`).toEqual([]);
 });

@@ -7,14 +7,14 @@
 // even if the test process is killed (not just on a graceful exit) — a hand-rolled wrapper only
 // cleans up in the success path, leaking containers on a killed run. It also owns port resolution
 // and health-check waiting, removing two hand-written polling loops this file used to have.
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { DockerComposeEnvironment, Wait } from 'testcontainers';
-import { installViaContainerCopy, installViaUrl } from './install-extension.mjs';
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { DockerComposeEnvironment, Wait } from "testcontainers";
+import { installViaContainerCopy, installViaUrl } from "./install-extension.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const COMPOSE_DIR = join(__dirname, '..', 'docker');
-const COMPOSE_FILE = 'docker-compose.yml';
+const COMPOSE_DIR = join(__dirname, "..", "docker");
+const COMPOSE_FILE = "docker-compose.yml";
 
 // Shared-runner container cold-start is measurably slower than a dedicated dev machine's Docker
 // Desktop — widen the default startup budget in CI rather than tuning it tight against local timing.
@@ -37,8 +37,8 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     // leaving whatever it infers from the image in force. It infers a health-check strategy here
     // anyway, so stating it is what makes that a decision rather than a coincidence — and the
     // strategy chosen now is also the one restart() reuses, where the difference is load-bearing.
-    .withWaitStrategy('cove-1', Wait.forHealthCheck())
-    .withWaitStrategy('db-1', Wait.forHealthCheck());
+    .withWaitStrategy("cove-1", Wait.forHealthCheck())
+    .withWaitStrategy("db-1", Wait.forHealthCheck());
 
   const composeEnv = { ...(image ? { COVE_E2E_IMAGE: image } : {}), ...env };
   if (Object.keys(composeEnv).length > 0) {
@@ -46,7 +46,7 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
   }
 
   const started = await environment.up();
-  let coveContainer = started.getContainer('cove-1');
+  let coveContainer = started.getContainer("cove-1");
 
   // Remembered by bootstrapOwner so the handle can re-authenticate itself after a restart without
   // the caller having to hold on to the credentials.
@@ -71,7 +71,12 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     },
 
     async installExtension({ repoRoot, publishDir, manifestPath }) {
-      const result = await installViaContainerCopy({ container: coveContainer, repoRoot, publishDir, manifestPath });
+      const result = await installViaContainerCopy({
+        container: coveContainer,
+        repoRoot,
+        publishDir,
+        manifestPath,
+      });
       await handle.restart();
       await waitForExtensionEnabled(handle.baseUrl, result.id, { timeoutMs, token: handle.token });
       return result;
@@ -110,7 +115,9 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
 
     async installExtensionFromUrl(zipUrl) {
       const result = await installViaUrl({ baseUrl: handle.baseUrl, zipUrl });
-      await waitForExtensionEnabled(handle.baseUrl, result.id ?? result.manifest?.id, { timeoutMs });
+      await waitForExtensionEnabled(handle.baseUrl, result.id ?? result.manifest?.id, {
+        timeoutMs,
+      });
       return result;
     },
 
@@ -130,18 +137,20 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
      * wizard until an owner is created via `POST /api/auth/bootstrap-owner`. Every extension's
      * browser-driven E2E test needs this, so it lives here rather than being copy-pasted per test.
      */
-    async bootstrapOwner({ username = 'e2e-owner', password = 'E2eTestPassword123!' } = {}) {
+    async bootstrapOwner({ username = "e2e-owner", password = "E2eTestPassword123!" } = {}) {
       const res = await fetch(`${handle.baseUrl}/api/auth/bootstrap-owner`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
       if (!res.ok) {
-        const body = await res.text().catch(() => '<unreadable body>');
-        throw new Error(`bootstrapOwner: POST /api/auth/bootstrap-owner failed (${res.status}): ${body}`);
+        const body = await res.text().catch(() => "<unreadable body>");
+        throw new Error(
+          `bootstrapOwner: POST /api/auth/bootstrap-owner failed (${res.status}): ${body}`,
+        );
       }
       credentials = { username, password };
-      return takeToken(await res.json(), 'bootstrapOwner');
+      return takeToken(await res.json(), "bootstrapOwner");
     },
 
     /**
@@ -150,19 +159,19 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
      */
     async login({ username, password } = credentials ?? {}) {
       if (!username || !password) {
-        throw new Error('login: no credentials — call bootstrapOwner() first, or pass them here');
+        throw new Error("login: no credentials — call bootstrapOwner() first, or pass them here");
       }
       const res = await fetch(`${handle.baseUrl}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
       if (!res.ok) {
-        const body = await res.text().catch(() => '<unreadable body>');
+        const body = await res.text().catch(() => "<unreadable body>");
         throw new Error(`login: POST /api/auth/login failed (${res.status}): ${body}`);
       }
       credentials = { username, password };
-      return takeToken(await res.json(), 'login');
+      return takeToken(await res.json(), "login");
     },
 
     async stop() {
@@ -175,9 +184,9 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
   // would go red for a broken fixture rather than for the behavior it means to prove. Asserted here,
   // at the one place either response's field name is spelled, so that failure names itself.
   function takeToken(response, source) {
-    if (typeof response?.token !== 'string' || response.token.length === 0) {
+    if (typeof response?.token !== "string" || response.token.length === 0) {
       throw new Error(
-        `${source}: response carried no usable token (top-level keys: ${Object.keys(response ?? {}).join(', ') || '<none>'})`
+        `${source}: response carried no usable token (top-level keys: ${Object.keys(response ?? {}).join(", ") || "<none>"})`,
       );
     }
     handle.token = response.token;
@@ -216,9 +225,11 @@ async function waitForHostReachable(baseUrl, { timeoutMs, intervalMs = 500 }) {
   }
   const attemptTimeoutMs = Math.min(intervalMs * 4, 5_000);
   const deadline = Date.now() + timeoutMs;
-  let lastError = 'never attempted';
+  let lastError = "never attempted";
   while (Date.now() < deadline) {
-    const res = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(attemptTimeoutMs) }).catch((err) => {
+    const res = await fetch(`${baseUrl}/health`, {
+      signal: AbortSignal.timeout(attemptTimeoutMs),
+    }).catch((err) => {
       lastError = err?.message ?? String(err);
       return null;
     });
@@ -226,7 +237,7 @@ async function waitForHostReachable(baseUrl, { timeoutMs, intervalMs = 500 }) {
     await new Promise((r) => setTimeout(r, intervalMs));
   }
   throw new Error(
-    `waitForHostReachable: ${baseUrl}/health did not answer from the host within ${timeoutMs}ms (last error: ${lastError})`
+    `waitForHostReachable: ${baseUrl}/health did not answer from the host within ${timeoutMs}ms (last error: ${lastError})`,
   );
 }
 
@@ -239,13 +250,19 @@ async function waitForHostReachable(baseUrl, { timeoutMs, intervalMs = 500 }) {
 // bounded for — the container's port proxy is accepting connections the app is not yet answering.
 // The bound covers reading the body too, not just the headers: an abort landing mid-read rejects,
 // and a rejection escaping the loop would fail the suite blaming the abort rather than the wait.
-async function waitForExtensionEnabled(baseUrl, extensionId, { timeoutMs, intervalMs = 1000, token }) {
+async function waitForExtensionEnabled(
+  baseUrl,
+  extensionId,
+  { timeoutMs, intervalMs = 1000, token },
+) {
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    throw new Error(`waitForExtensionEnabled: timeoutMs must be a positive number, got ${timeoutMs}`);
+    throw new Error(
+      `waitForExtensionEnabled: timeoutMs must be a positive number, got ${timeoutMs}`,
+    );
   }
   const attemptTimeoutMs = Math.min(intervalMs * 4, 5_000);
   const deadline = Date.now() + timeoutMs;
-  let lastPoll = 'never attempted';
+  let lastPoll = "never attempted";
   while (Date.now() < deadline) {
     const match = await fetch(`${baseUrl}/api/extensions`, {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -257,7 +274,7 @@ async function waitForExtensionEnabled(baseUrl, extensionId, { timeoutMs, interv
           return null;
         }
         const found = (await res.json()).find((e) => e.id === extensionId) ?? null;
-        lastPoll = found ? `present, enabled=${found.enabled}` : 'not present in the list';
+        lastPoll = found ? `present, enabled=${found.enabled}` : "not present in the list";
         return found;
       })
       .catch((err) => {
@@ -268,6 +285,6 @@ async function waitForExtensionEnabled(baseUrl, extensionId, { timeoutMs, interv
     await new Promise((r) => setTimeout(r, intervalMs));
   }
   throw new Error(
-    `waitForExtensionEnabled: extension "${extensionId}" was not found/enabled within ${timeoutMs}ms at ${baseUrl}/api/extensions (last poll: ${lastPoll})`
+    `waitForExtensionEnabled: extension "${extensionId}" was not found/enabled within ${timeoutMs}ms at ${baseUrl}/api/extensions (last poll: ${lastPoll})`,
   );
 }

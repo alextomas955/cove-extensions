@@ -17,21 +17,21 @@
 // whose @source contamination would mask the whole point: on a released host the extension gets
 // only the classes Cove's own prebuilt bundle emits, so an inline style is the only thing that
 // makes these render for an end user.
-import { test, expect, seedVideo } from '../lib/renamer-fixtures.mjs';
-import { RenamerSettingsPage } from '../lib/pages/renamer-settings-page.mjs';
+import { test, expect, seedVideo } from "../lib/renamer-fixtures.mjs";
+import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 
-const RENAMER_ID = 'com.alextomas955.renamer';
+const RENAMER_ID = "com.alextomas955.renamer";
 
 // The five theme variables the panel's inline colours are built from. Each is defined by the host
 // even though the matching Tailwind utility is not emitted — that gap is the whole reason these
 // styles are inline, and it is also why the variables deserve their own assertion: an inline style
 // naming a variable the host stopped defining fails silently, exactly like the classes did.
 const THEME_COLOR_VARS = [
-  '--color-amber-400',
-  '--color-red-400',
-  '--color-red-950',
-  '--color-green-500',
-  '--color-border',
+  "--color-amber-400",
+  "--color-red-400",
+  "--color-red-950",
+  "--color-green-500",
+  "--color-border",
 ];
 
 /**
@@ -44,14 +44,14 @@ const THEME_COLOR_VARS = [
  */
 function resolveColor(page, expression) {
   return page.evaluate((expr) => {
-    const probe = document.createElement('span');
+    const probe = document.createElement("span");
     probe.style.color = expr;
     document.body.appendChild(probe);
     const computed = getComputedStyle(probe).color;
     probe.remove();
 
-    const ctx = document.createElement('canvas').getContext('2d');
-    ctx.fillStyle = 'rgba(0, 0, 0, 0)';
+    const ctx = document.createElement("canvas").getContext("2d");
+    ctx.fillStyle = "rgba(0, 0, 0, 0)";
     ctx.fillStyle = computed;
     ctx.fillRect(0, 0, 1, 1);
     return { computed, alpha: ctx.getImageData(0, 0, 1, 1).data[3] };
@@ -66,7 +66,7 @@ function expectVisible({ computed, alpha }, what) {
 /** One synthetic dry-run row, so a status the real library cannot be coaxed into still renders. */
 function scanRow(fileId, status) {
   return {
-    kind: 'video',
+    kind: "video",
     entityId: fileId,
     fileId,
     oldFullPath: `/data/old-${fileId}.mp4`,
@@ -78,16 +78,21 @@ function scanRow(fileId, status) {
   };
 }
 
-test('the extension declares no cssBundle (ships zero CSS — cannot leak onto host pages)', async ({ api }) => {
-  const { json } = await api.get('/api/extensions');
-  const renamer = json.find((e) => e.id === 'com.alextomas955.renamer');
+test("the extension declares no cssBundle (ships zero CSS — cannot leak onto host pages)", async ({
+  api,
+}) => {
+  const { json } = await api.get("/api/extensions");
+  const renamer = json.find((e) => e.id === "com.alextomas955.renamer");
   expect(renamer).toBeTruthy();
   // The combined extension stylesheet must NOT import a Renamer bundle.
-  const { text } = await api.get('/api/extensions/bundles/ui.css').catch(() => ({ text: '' }));
-  expect(text).not.toContain('renamer');
+  const { text } = await api.get("/api/extensions/bundles/ui.css").catch(() => ({ text: "" }));
+  expect(text).not.toContain("renamer");
 });
 
-test('host-absent utilities render via inline styles on a released host', async ({ page, baseUrl }) => {
+test("host-absent utilities render via inline styles on a released host", async ({
+  page,
+  baseUrl,
+}) => {
   const settings = new RenamerSettingsPage(page, baseUrl);
   await settings.goto();
 
@@ -97,18 +102,18 @@ test('host-absent utilities render via inline styles on a released host', async 
   await expect(knob).toBeVisible({ timeout: 15_000 });
   const knobTransformBefore = await knob.evaluate((el) => getComputedStyle(el).transform);
   // toggle its parent switch
-  await knob.evaluate((el) => el.closest('button')?.click());
+  await knob.evaluate((el) => el.closest("button")?.click());
   await page.waitForTimeout(300);
   const knobTransformAfter = await knob.evaluate((el) => getComputedStyle(el).transform);
   expect(
     knobTransformBefore,
-    'knob transform must differ between off/on (inline translateX must apply)',
+    "knob transform must differ between off/on (inline translateX must apply)",
   ).not.toBe(knobTransformAfter);
   // and both must be a real matrix translate, not "none"
-  expect(knobTransformAfter).not.toBe('none');
+  expect(knobTransformAfter).not.toBe("none");
 });
 
-test('every theme colour variable the inline styles name is defined by the host', async ({
+test("every theme colour variable the inline styles name is defined by the host", async ({
   page,
   baseUrl,
 }) => {
@@ -119,24 +124,27 @@ test('every theme colour variable the inline styles name is defined by the host'
   const defined = await page.evaluate(
     (names) =>
       Object.fromEntries(
-        names.map((n) => [n, getComputedStyle(document.documentElement).getPropertyValue(n).trim()]),
+        names.map((n) => [
+          n,
+          getComputedStyle(document.documentElement).getPropertyValue(n).trim(),
+        ]),
       ),
     THEME_COLOR_VARS,
   );
   for (const name of THEME_COLOR_VARS) {
-    expect(defined[name], `${name} must be defined by the host theme`).not.toBe('');
+    expect(defined[name], `${name} must be defined by the host theme`).not.toBe("");
   }
   expectVisible(
-    await resolveColor(page, 'color-mix(in oklab, var(--color-green-500) 40%, transparent)'),
-    'the green pill border tint',
+    await resolveColor(page, "color-mix(in oklab, var(--color-green-500) 40%, transparent)"),
+    "the green pill border tint",
   );
   expectVisible(
-    await resolveColor(page, 'color-mix(in oklab, var(--color-green-500) 10%, transparent)'),
-    'the green pill fill tint',
+    await resolveColor(page, "color-mix(in oklab, var(--color-green-500) 10%, transparent)"),
+    "the green pill fill tint",
   );
 });
 
-test('status pills render their amber and red tints from the host theme', async ({
+test("status pills render their amber and red tints from the host theme", async ({
   page,
   harness,
   baseUrl,
@@ -151,9 +159,9 @@ test('status pills render their amber and red tints from the host theme', async 
   await page.route(`**/api/extensions/${RENAMER_ID}/scan-rows`, (route) =>
     route.fulfill({
       status: 200,
-      contentType: 'application/json',
+      contentType: "application/json",
       body: JSON.stringify({
-        rows: [scanRow(1, 'skipGated'), scanRow(2, 'failed')],
+        rows: [scanRow(1, "skipGated"), scanRow(2, "failed")],
         next: null,
         entitiesExamined: 2,
         budgetExhausted: false,
@@ -163,11 +171,11 @@ test('status pills render their amber and red tints from the host theme', async 
 
   const settings = new RenamerSettingsPage(page, baseUrl);
   await settings.goto();
-  await settings.setFilenameTemplate('$title');
+  await settings.setFilenameTemplate("$title");
   await settings.openDryRun();
 
-  const amber = page.getByText('Skipped — needs a required field').locator('xpath=..');
-  const red = page.getByText('Failed — rolled back').locator('xpath=..');
+  const amber = page.getByText("Skipped — needs a required field").locator("xpath=..");
+  const red = page.getByText("Failed — rolled back").locator("xpath=..");
   await expect(amber).toBeVisible({ timeout: 90_000 });
   await expect(red).toBeVisible();
 
@@ -176,52 +184,58 @@ test('status pills render their amber and red tints from the host theme', async 
   const [amberBorder, amberFill, redFill] = await Promise.all([
     amberTint(40),
     amberTint(10),
-    resolveColor(page, 'color-mix(in oklab, var(--color-red-950) 40%, transparent)'),
+    resolveColor(page, "color-mix(in oklab, var(--color-red-950) 40%, transparent)"),
   ]);
-  expectVisible(amberBorder, 'the amber pill border tint');
-  expectVisible(amberFill, 'the amber pill fill tint');
-  expectVisible(redFill, 'the red pill fill tint');
+  expectVisible(amberBorder, "the amber pill border tint");
+  expectVisible(amberFill, "the amber pill fill tint");
+  expectVisible(redFill, "the red pill fill tint");
 
   const style = (locator, property) =>
     locator.evaluate((el, prop) => getComputedStyle(el)[prop], property);
-  expect(await style(amber, 'borderTopColor'), 'amber pill border').toBe(amberBorder.computed);
-  expect(await style(amber, 'backgroundColor'), 'amber pill fill').toBe(amberFill.computed);
-  expect(await style(red, 'backgroundColor'), 'red pill fill').toBe(redFill.computed);
+  expect(await style(amber, "borderTopColor"), "amber pill border").toBe(amberBorder.computed);
+  expect(await style(amber, "backgroundColor"), "amber pill fill").toBe(amberFill.computed);
+  expect(await style(red, "backgroundColor"), "red pill fill").toBe(redFill.computed);
 });
 
-test('the save bar dot turns red when a save fails', async ({ page, baseUrl }) => {
+test("the save bar dot turns red when a save fails", async ({ page, baseUrl }) => {
   await page.route(`**/api/extensions/${RENAMER_ID}/data/options`, (route) =>
-    route.request().method() === 'PUT'
-      ? route.fulfill({ status: 500, contentType: 'text/plain', body: 'save refused' })
+    route.request().method() === "PUT"
+      ? route.fulfill({ status: 500, contentType: "text/plain", body: "save refused" })
       : route.continue(),
   );
 
   const settings = new RenamerSettingsPage(page, baseUrl);
   await settings.goto();
-  await settings.setFilenameTemplate('$title');
+  await settings.setFilenameTemplate("$title");
   await expect(settings.unsavedChangesIndicator).toBeVisible({ timeout: 15_000 });
 
-  const dot = page.locator('span.h-2.w-2.rounded-full').first();
+  const dot = page.locator("span.h-2.w-2.rounded-full").first();
   await settings.saveChangesButton.click();
   await expect(page.getByText(/Couldn't save settings/)).toBeVisible({ timeout: 15_000 });
 
-  const want = await resolveColor(page, 'var(--color-red-400)');
-  expectVisible(want, 'the host red-400');
-  expect(await dot.evaluate((el) => getComputedStyle(el).backgroundColor), 'save-error dot').toBe(
+  const want = await resolveColor(page, "var(--color-red-400)");
+  expectVisible(want, "the host red-400");
+  expect(await dot.evaluate((el) => getComputedStyle(el).backgroundColor), "save-error dot").toBe(
     want.computed,
   );
 });
 
-test('host account page is unaffected by the extension (no CSS leak)', async ({ page, baseUrl }) => {
+test("host account page is unaffected by the extension (no CSS leak)", async ({
+  page,
+  baseUrl,
+}) => {
   // The page that regressed when the extension shipped an unscoped .flex-col. With no extension CSS
   // it must render its native responsive layout: the account row is flex-row at a desktop width.
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`${baseUrl}/settings/my/account`);
-  const logout = page.getByRole('button', { name: /log ?out/i }).first();
+  const logout = page.getByRole("button", { name: /log ?out/i }).first();
   await expect(logout).toBeVisible({ timeout: 15_000 });
   const rowFlexDir = await logout.evaluate((btn) => {
     const row = btn.parentElement;
-    return row ? getComputedStyle(row).flexDirection : 'no-row';
+    return row ? getComputedStyle(row).flexDirection : "no-row";
   });
-  expect(rowFlexDir, 'host account row must be flex-row at 1280px (no extension .flex-col leak)').toBe('row');
+  expect(
+    rowFlexDir,
+    "host account row must be flex-row at 1280px (no extension .flex-col leak)",
+  ).toBe("row");
 });

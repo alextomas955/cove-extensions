@@ -68,9 +68,7 @@ export function useOverlayKeys(
   // Focus the first target on open; on dialog cleanup, restore focus to whoever opened it. Runs once
   // per open (empty deps): re-running on an option change would steal focus back mid-interaction.
   useLayoutEffect(() => {
-    const opener = restoreFocus
-      ? (document.activeElement as HTMLElement | null)
-      : null;
+    const opener = restoreFocus ? (document.activeElement as HTMLElement | null) : null;
     const sel = nav === "menu" ? itemSelector : FOCUSABLE;
     ref.current?.querySelector<HTMLElement>(sel)?.focus();
     return () => {
@@ -83,9 +81,7 @@ export function useOverlayKeys(
     const capture = nav === "menu";
 
     function menuItems(): HTMLElement[] {
-      return Array.from(
-        ref.current?.querySelectorAll<HTMLElement>(itemSelector) ?? [],
-      );
+      return Array.from(ref.current?.querySelectorAll<HTMLElement>(itemSelector) ?? []);
     }
 
     function onKeyDown(e: KeyboardEvent) {

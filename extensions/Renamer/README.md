@@ -21,13 +21,13 @@ The rest of this file is for contributors working on the extension itself.
 
 ## Layout
 
-| Path | Role |
-| ---- | ---- |
-| `src/Renamer/` | The extension class library (`IExtension`) — engine, planner, executor, API endpoints. |
-| `src/Renamer.Ui/` | The settings/preview panel bundle (React/TypeScript → `dist/index.mjs`). |
-| `src/Renamer.Tests/` | Unit + concurrency tests. |
-| `e2e/` | This extension's Playwright suite (run through the shared `tests/e2e` harness). |
-| `extensions/com.alextomas955.renamer.json` | The registry manifest for this extension. |
+| Path                                       | Role                                                                                   |
+| ------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `src/Renamer/`                             | The extension class library (`IExtension`) — engine, planner, executor, API endpoints. |
+| `src/Renamer.Ui/`                          | The settings/preview panel bundle (React/TypeScript → `dist/index.mjs`).               |
+| `src/Renamer.Tests/`                       | Unit + concurrency tests.                                                              |
+| `e2e/`                                     | This extension's Playwright suite (run through the shared `tests/e2e` harness).        |
+| `extensions/com.alextomas955.renamer.json` | The registry manifest for this extension.                                              |
 
 ## Build and test
 

@@ -3,13 +3,13 @@
 // the shared helpers so individual test files stay focused on behavior, not plumbing. Imports the
 // harness BY PACKAGE NAME via npm workspaces — a second, separate @playwright/test install under this
 // directory would break Playwright's module singleton, so this must never declare its own.
-import { test as baseTest, expect } from '@cove-extensions/e2e';
-import { seedVideo } from '@cove-extensions/e2e/seed-media';
-import { pollJob, pollUntil } from '@cove-extensions/e2e/poll';
-import { resolveExtensionPaths } from '@cove-extensions/e2e/resolve-extension';
+import { test as baseTest, expect } from "@cove-extensions/e2e";
+import { seedVideo } from "@cove-extensions/e2e/seed-media";
+import { pollJob, pollUntil } from "@cove-extensions/e2e/poll";
+import { resolveExtensionPaths } from "@cove-extensions/e2e/resolve-extension";
 
 export const RENAMER_EXTENSION = resolveExtensionPaths(import.meta.url, {
-  srcProject: 'Renamer',
+  srcProject: "Renamer",
 });
 
 export const test = baseTest.extend({

@@ -43,7 +43,9 @@ const QUOTE = String.fromCodePoint(34);
 //     so a share marker without that anchor matches every escaped drive path and stops being a
 //     separate class at all.
 const WINDOWS_DRIVE_ROOT = new RegExp(BACKSLASH + "b[A-Za-z]:[/" + BACKSLASH + BACKSLASH + "]");
-const UNC_SHARE_ROOT = new RegExp("(?<![^" + QUOTE + BACKSLASH + "s])" + BACKSLASH + BACKSLASH + "{2,}[A-Za-z0-9_.-]");
+const UNC_SHARE_ROOT = new RegExp(
+  "(?<![^" + QUOTE + BACKSLASH + "s])" + BACKSLASH + BACKSLASH + "{2,}[A-Za-z0-9_.-]",
+);
 const UNIX_HOME_PREFIXES = ["/" + "home" + "/", "/" + "Users" + "/"];
 
 // Each class is labelled so a refusal says which one fired. Two markers rather than one widened
@@ -52,7 +54,10 @@ const UNIX_HOME_PREFIXES = ["/" + "home" + "/", "/" + "Users" + "/"];
 const ABSOLUTE_PATH_MARKERS = [
   { label: "drive root", hits: (line) => WINDOWS_DRIVE_ROOT.test(line) },
   { label: "network share", hits: (line) => UNC_SHARE_ROOT.test(line) },
-  { label: "unix home", hits: (line) => UNIX_HOME_PREFIXES.some((prefix) => line.includes(prefix)) },
+  {
+    label: "unix home",
+    hits: (line) => UNIX_HOME_PREFIXES.some((prefix) => line.includes(prefix)),
+  },
 ];
 
 // A declared artifact name is a bare filename that lands at the package root, so an absolute path,
@@ -71,10 +76,17 @@ const MANIFEST_BY_CONVENTION = "extension.json";
 // be there. Generic by construction: a name specific to any extension in this repository does not
 // belong here, or the packer stops being catalog-driven.
 const REPO_ROOT_FALLBACK_NAMES = [
-  "LICENSE", "LICENSE.md", "LICENSE.txt",
-  "LICENCE", "LICENCE.md", "LICENCE.txt",
-  "COPYING", "COPYING.LESSER",
-  "NOTICE", "NOTICE.md", "NOTICE.txt",
+  "LICENSE",
+  "LICENSE.md",
+  "LICENSE.txt",
+  "LICENCE",
+  "LICENCE.md",
+  "LICENCE.txt",
+  "COPYING",
+  "COPYING.LESSER",
+  "NOTICE",
+  "NOTICE.md",
+  "NOTICE.txt",
 ];
 
 // The manifest fields whose value the host resolves as a file inside the installed package, in the
@@ -92,13 +104,22 @@ function resolveEntry(catalog, idOrName) {
 
 function checkArtifactName(name, failures) {
   if (typeof name !== "string" || name === "") {
-    failures.push("INVALID: artifacts entry must be a non-empty string, found: " + JSON.stringify(name));
+    failures.push(
+      "INVALID: artifacts entry must be a non-empty string, found: " + JSON.stringify(name),
+    );
     return false;
   }
 
   const segments = name.split(PATH_SEPARATORS);
-  if (PATH_ESCAPE_PREFIX.test(name) || segments.length > 1 || segments.includes("..") || name === ".") {
-    failures.push("ESCAPE: artifacts entry must be a bare filename with no path separator, found: " + name);
+  if (
+    PATH_ESCAPE_PREFIX.test(name) ||
+    segments.length > 1 ||
+    segments.includes("..") ||
+    name === "."
+  ) {
+    failures.push(
+      "ESCAPE: artifacts entry must be a bare filename with no path separator, found: " + name,
+    );
     return false;
   }
 
@@ -115,7 +136,14 @@ function checkNoAbsolutePath(name, text, failures) {
     const marker = ABSOLUTE_PATH_MARKERS.find((candidate) => candidate.hits(line));
     if (marker) {
       failures.push(
-        "LEAK: absolute path (" + marker.label + ") found in shipped json: " + name + ":" + (index + 1) + ": " + line.trim(),
+        "LEAK: absolute path (" +
+          marker.label +
+          ") found in shipped json: " +
+          name +
+          ":" +
+          (index + 1) +
+          ": " +
+          line.trim(),
       );
     }
   });
@@ -132,7 +160,9 @@ function checkNoAbsolutePath(name, text, failures) {
 function checkDeclarationIsLoadable(sourceManifest, manifestName, names, failures) {
   if (!names.includes(manifestName)) {
     failures.push(
-      "UNLOADABLE: artifacts does not declare " + manifestName + " — a package with no load manifest cannot be installed.",
+      "UNLOADABLE: artifacts does not declare " +
+        manifestName +
+        " — a package with no load manifest cannot be installed.",
     );
   }
 
@@ -141,7 +171,11 @@ function checkDeclarationIsLoadable(sourceManifest, manifestName, names, failure
     if (typeof value !== "string" || value === "") continue;
     if (!names.includes(value)) {
       failures.push(
-        "UNLOADABLE: the source manifest's " + field + " names " + value + ", which artifacts does not declare.",
+        "UNLOADABLE: the source manifest's " +
+          field +
+          " names " +
+          value +
+          ", which artifacts does not declare.",
       );
     }
   }
@@ -201,7 +235,8 @@ function protectedPaths(absoluteRoot, absolutePublishDir, entry, manifestSource)
     { label: "the extension source directory", target: path.join(absoluteRoot, entry.path) },
     { label: "the source manifest", target: manifestSource },
   ];
-  if (entry.uiPath) declared.push({ label: "the UI directory", target: path.join(absoluteRoot, entry.uiPath) });
+  if (entry.uiPath)
+    declared.push({ label: "the UI directory", target: path.join(absoluteRoot, entry.uiPath) });
 
   return declared.map((item) => ({ ...item, key: canonicalPathKey(item.target) }));
 }
@@ -229,15 +264,19 @@ function emptyPackageDir(packageDir, failures) {
   const foreign = leftovers.find((leftover) => !leftover.isFile());
   if (foreign) {
     failures.push(
-      "INVALID: package directory holds " + foreign.name + ", which is not a regular file and cannot be " +
-        "something this packer wrote — refusing to empty " + packageDir,
+      "INVALID: package directory holds " +
+        foreign.name +
+        ", which is not a regular file and cannot be " +
+        "something this packer wrote — refusing to empty " +
+        packageDir,
     );
     return false;
   }
 
   // force tolerates a file that vanished between the enumeration and the unlink; recursive is absent
   // deliberately, and the case above is why it can be.
-  for (const leftover of leftovers) fs.rmSync(path.join(packageDir, leftover.name), { force: true });
+  for (const leftover of leftovers)
+    fs.rmSync(path.join(packageDir, leftover.name), { force: true });
   return true;
 }
 
@@ -287,11 +326,19 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
   // no narrower field to fall back to and no set to infer.
   const declared = entry.artifacts;
   if (declared == null) {
-    failures.push("MISSING: catalog entry " + entry.id + " declares no artifacts array — the shipped file set must be declared.");
+    failures.push(
+      "MISSING: catalog entry " +
+        entry.id +
+        " declares no artifacts array — the shipped file set must be declared.",
+    );
     return done();
   }
   if (!Array.isArray(declared) || declared.length === 0) {
-    failures.push("INVALID: catalog entry " + entry.id + " declares an empty artifacts array — an assemble that copies nothing inspected nothing.");
+    failures.push(
+      "INVALID: catalog entry " +
+        entry.id +
+        " declares an empty artifacts array — an assemble that copies nothing inspected nothing.",
+    );
     return done();
   }
 
@@ -322,15 +369,20 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
   const manifestName = path.basename(manifestSource);
 
   const packageDirKey = canonicalPathKey(absolutePackageDir);
-  const collision = protectedPaths(absoluteRoot, absolutePublishDir, entry, manifestSource).find((item) =>
-    isSameOrContains(packageDirKey, item.key),
+  const collision = protectedPaths(absoluteRoot, absolutePublishDir, entry, manifestSource).find(
+    (item) => isSameOrContains(packageDirKey, item.key),
   );
   if (collision) {
     // Only the first collision is named: the refusal is binary, and a package directory wide enough
     // to swallow one protected path usually swallows several, which lengthens the message without
     // changing what the caller must do.
     failures.push(
-      "INVALID: packageDir is or contains " + collision.label + " (" + collision.target + "): " + absolutePackageDir,
+      "INVALID: packageDir is or contains " +
+        collision.label +
+        " (" +
+        collision.target +
+        "): " +
+        absolutePackageDir,
     );
     return done();
   }
@@ -340,11 +392,18 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
     try {
       sourceManifest = readJson(manifestSource);
     } catch (error) {
-      failures.push("INVALID: source manifest " + path.relative(absoluteRoot, manifestSource) + " is not parseable json: " + error.message);
+      failures.push(
+        "INVALID: source manifest " +
+          path.relative(absoluteRoot, manifestSource) +
+          " is not parseable json: " +
+          error.message,
+      );
       return done();
     }
   } else {
-    failures.push("MISSING: source manifest is absent: " + path.relative(absoluteRoot, manifestSource));
+    failures.push(
+      "MISSING: source manifest is absent: " + path.relative(absoluteRoot, manifestSource),
+    );
     return done();
   }
 
@@ -380,14 +439,22 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
   for (const name of names) {
     const { source, root: sourceRoot, searched } = resolveArtifactSource(name);
     if (source == null) {
-      const roots = searched.map((candidate) => path.relative(absoluteRoot, candidate.source) || candidate.source);
-      failures.push("MISSING: declared artifact " + name + " was not found in any source root: " + roots.join(", "));
+      const roots = searched.map(
+        (candidate) => path.relative(absoluteRoot, candidate.source) || candidate.source,
+      );
+      failures.push(
+        "MISSING: declared artifact " +
+          name +
+          " was not found in any source root: " +
+          roots.join(", "),
+      );
       continue;
     }
 
     // The version is assigned as given: no semver parse, no coercion, so a placeholder such as a
     // triple zero survives into the package exactly as the caller spelled it.
-    const text = name === manifestName ? JSON.stringify({ ...sourceManifest, version }, null, 2) + "\n" : null;
+    const text =
+      name === manifestName ? JSON.stringify({ ...sourceManifest, version }, null, 2) + "\n" : null;
     staged.push({ name, source, root: sourceRoot, text });
   }
 
@@ -413,12 +480,18 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
       // directory bearing a declared name, a locked destination, a full disk. The loop stops rather
       // than carrying on: a run that failed one write and wrote the rest would print a count for a
       // package that is not there, which is the shape the count exists to prevent.
-      failures.push("WRITE: " + item.name + " could not be written to " + destination + ": " + error.message);
+      failures.push(
+        "WRITE: " + item.name + " could not be written to " + destination + ": " + error.message,
+      );
       break;
     }
     // Recorded at the point of the write, so the reported count is what landed rather than what was
     // declared.
-    copied.push({ name: item.name, source: path.relative(absoluteRoot, item.source), root: item.root });
+    copied.push({
+      name: item.name,
+      source: path.relative(absoluteRoot, item.source),
+      root: item.root,
+    });
   }
 
   return done();
@@ -433,7 +506,9 @@ const ALL_FLAGS = [...REQUIRED_FLAGS, "--root"];
 
 function usage() {
   console.error(
-    "Usage: node scripts/assemble-package.mjs " + REQUIRED_FLAGS.map((flag) => flag + " <value>").join(" ") + " [--root <dir>]",
+    "Usage: node scripts/assemble-package.mjs " +
+      REQUIRED_FLAGS.map((flag) => flag + " <value>").join(" ") +
+      " [--root <dir>]",
   );
 }
 
@@ -471,9 +546,17 @@ export function main(argv) {
   }
 
   console.log(
-    "Assembled " + options.get("--extension") + " " + options.get("--version") + " into " +
-      path.relative(root, path.resolve(options.get("--package-dir"))) + " — " + result.copied.length + " file(s):",
+    "Assembled " +
+      options.get("--extension") +
+      " " +
+      options.get("--version") +
+      " into " +
+      path.relative(root, path.resolve(options.get("--package-dir"))) +
+      " — " +
+      result.copied.length +
+      " file(s):",
   );
-  for (const file of result.copied) console.log("  " + file.name + "  <- " + file.root + ": " + file.source);
+  for (const file of result.copied)
+    console.log("  " + file.name + "  <- " + file.root + ": " + file.source);
   return 0;
 }

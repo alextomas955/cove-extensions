@@ -48,27 +48,14 @@ const HOST_EXTERNALS = [
  * source alias, the host import-map externals, and the `index.mjs` output the manifest's `jsBundle`
  * points at. The two per-extension configs were byte-identical, so they now call this factory.
  */
-export function createExtensionViteConfig(
-  options: ExtensionViteOptions,
-): UserConfig {
-  const {
-    packageDir,
-    entry = "src/index.ts",
-    extraExternals = [],
-    reactPlugin,
-  } = options;
+export function createExtensionViteConfig(options: ExtensionViteOptions): UserConfig {
+  const { packageDir, entry = "src/index.ts", extraExternals = [], reactPlugin } = options;
   // Anchored on the factory's own location so no consumer restates the relative climb to shared/.
   const factoryDir = path.dirname(fileURLToPath(import.meta.url));
   const sharedSrcIndex = path.resolve(factoryDir, "../src/index.ts");
   const sharedSrcPostAction = path.resolve(factoryDir, "../src/postAction.ts");
-  const sharedSrcExtensionRequest = path.resolve(
-    factoryDir,
-    "../src/extensionRequest.ts",
-  );
-  const sharedSrcExtensionStore = path.resolve(
-    factoryDir,
-    "../src/extensionStore.ts",
-  );
+  const sharedSrcExtensionRequest = path.resolve(factoryDir, "../src/extensionRequest.ts");
+  const sharedSrcExtensionStore = path.resolve(factoryDir, "../src/extensionStore.ts");
   // The SDK is vendored per-UI (this package has no node_modules), so its bare specifier will not
   // resolve from the aliased shared source unless it is pinned to the consuming UI's own copy.
   const sdkDir = path.resolve(packageDir, "node_modules/@cove/extension-sdk");
@@ -82,8 +69,7 @@ export function createExtensionViteConfig(
       // barrel entry or the barrel would match it first.
       alias: {
         "@cove-extensions/ui-shared/postAction": sharedSrcPostAction,
-        "@cove-extensions/ui-shared/extensionRequest":
-          sharedSrcExtensionRequest,
+        "@cove-extensions/ui-shared/extensionRequest": sharedSrcExtensionRequest,
         "@cove-extensions/ui-shared/extensionStore": sharedSrcExtensionStore,
         "@cove-extensions/ui-shared": sharedSrcIndex,
         "@cove/extension-sdk": sdkDir,

@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # Extension authoring patterns
 
-This page explains how an extension in this repo is *shaped* — the folder conventions, the wire
+This page explains how an extension in this repo is _shaped_ — the folder conventions, the wire
 contract, and the correctness rules every extension shares. It is the reasoning behind the terse rules
 in the repo-root `CLAUDE.md`; when you add an extension or reshape one, follow those rules and read here
 for the why.
@@ -13,16 +13,16 @@ for the why.
 
 Every module is exactly one of six kinds:
 
-| Kind | What it is |
-| --- | --- |
-| **Feature** | a capability slice that coordinates one use case end-to-end |
-| **Domain** | pure, deterministic rules — no I/O, unit-testable with zero mocks |
-| **Model** | a data or wire shape |
+| Kind               | What it is                                                          |
+| ------------------ | ------------------------------------------------------------------- |
+| **Feature**        | a capability slice that coordinates one use case end-to-end         |
+| **Domain**         | pure, deterministic rules — no I/O, unit-testable with zero mocks   |
+| **Model**          | a data or wire shape                                                |
 | **Infrastructure** | the only code that touches I/O — HTTP, DB, disk, host store, timers |
-| **UI primitive** | business-agnostic presentation |
-| **Tooling** | runs at commit/CI/build time, never at extension runtime |
+| **UI primitive**   | business-agnostic presentation                                      |
+| **Tooling**        | runs at commit/CI/build time, never at extension runtime            |
 
-Classify a file by what it *is*, then place it by its tier's convention. Modules depend downward
+Classify a file by what it _is_, then place it by its tier's convention. Modules depend downward
 (toward models) and sideways onto shared code — never upward, and never across sibling features.
 
 ## Structure each tier to its own idiom
@@ -49,7 +49,7 @@ you open it only from the settings panel.
 
 ### Name by capability, not by entity
 
-Slice the backend by what the code *does*, never by the entity it touches. There is no `Studio/`,
+Slice the backend by what the code _does_, never by the entity it touches. There is no `Studio/`,
 `Performer/`, or `Scene/` folder — studio and performer monitoring both live in `Monitor/`, scene add
 lives in `Push/`. A folder that projects a scene's status is `SceneStatus/`, never a bare `Scene/` that
 would masquerade as an entity home.
@@ -66,15 +66,15 @@ section its own folder only when it holds more than one file.
 
 "Shared" is reserved for **repo-level, cross-extension** code — the frontend package
 `shared/cove-extensions-ui` and the backend package `shared/Cove.Extensions.Shared`. A module earns a
-place there only by being business-agnostic and reusable by *every* extension unchanged.
+place there only by being business-agnostic and reusable by _every_ extension unchanged.
 
 The frontend package's `src/` is **flat**: `index.ts` sits beside `primitives.tsx`, `primitivesLogic.ts`,
 `actions.ts`, `postAction.ts`, `overlay.ts` and `entityPickerLogic.ts`. That is the suffix-as-kind rule
 applied, not an omission — at this size a `ui/` and `lib/` split would only restate what the filenames
 already say.
 
-Code shared by several features of a *single* extension is not "shared" — it lives in that extension's
-own `common/` folder, which *is* split into `common/ui/` and `common/lib/`. A component carrying one
+Code shared by several features of a _single_ extension is not "shared" — it lives in that extension's
+own `common/` folder, which _is_ split into `common/ui/` and `common/lib/`. A component carrying one
 extension's branding is local, so it belongs in that extension's `common/ui/`, not in the repo-level UI
 package.
 
