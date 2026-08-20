@@ -311,6 +311,45 @@ public sealed class RoutingPlannerTests
         Assert.Empty(port.ApplyAndSaveCalls);
     }
 
+    // These literals are UNCONDITIONAL rather than the OS-switched roots the rest of this file uses, and
+    // that is the whole point of the case. The still-a-library-path test above diverges only on Windows:
+    // Fwd() is the identity wherever the separator is already a forward slash, so on Linux it hands the
+    // membership check both sides in one spelling and the tolerance is never exercised. The leg that gates
+    // a merge runs Linux, so the tolerance had no pin able to block a merge — the divergence, not the
+    // comparison, was what no test could see.
+    //
+    // The divergence has to live on the STORED side because the fake canonicalises what it is seeded with,
+    // mirroring the real port's single-spelling emission. That is also the real-world shape: the endpoint
+    // emits one spelling while an older store still holds Cove's platform spelling. Both values were
+    // transcribed from a running host, where the store held 'I:\Downloads\P' under a rule the one-time
+    // conversion had written as 'I:/Downloads/P'.
+    //
+    // Asserting the STATUS rather than NewFullPath is required, not stylistic. On Linux a
+    // backslash-spelled Windows path is not rooted, so it resolves as a relative segment under the
+    // synthetic anchor and the resulting path string is platform-dependent — while the membership verdict
+    // is not. Asserting the path would re-introduce the OS-dependence this case exists to remove.
+    [Theory]
+    [InlineData(@"I:\Downloads\P")]  // Cove's own platform spelling, as an older store holds it
+    [InlineData("I:/Downloads/P/")]  // the canonical spelling with a trailing separator
+    public async Task ARootStoredInAnotherSpelling_StillNamesItsLibraryPath_OnEveryPlatform(string stored)
+    {
+        const string Configured = "I:/Downloads/P";  // the one spelling the endpoint emits
+
+        var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot(SrcRoot);
+        port.SeedLibraryRoot(Configured);
+        port.SeedEntity(Entity(VideoFile(1, "a.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
+        var planner = new RenamerPlanner(port);
+        var opts = new RenamerOptions { FilenameTemplate = "$title" };
+        var lk = Lookups(studio: new Dictionary<int, Destination> { [42] = Dests.At(stored) });
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
+
+        var item = Assert.Single(plan.Items);
+        Assert.Equal(RenamerStatus.Move, item.Status);
+        Assert.Empty(port.ApplyAndSaveCalls);
+    }
+
     [Fact]
     public async Task ARulesChosenRoot_NowMerelyINSIDEALibraryPath_SkipsLikeAnyOtherMissingRoot()
     {

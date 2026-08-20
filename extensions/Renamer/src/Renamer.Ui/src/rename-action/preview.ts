@@ -82,11 +82,22 @@ const SKIP_CLAUSES: Record<RenamerStatus, SkipClause | null> = {
   skipBlocked: null,
 };
 
-/** Render a byte count as a compact GB string for the blast-radius lines (e.g. "1.5 GB"). */
-function formatGb(bytes: number): string {
-  const gb = bytes / (1024 * 1024 * 1024);
-  // Show one decimal for sub-10 GB so a 1.5 GB move doesn't read as "2 GB"; whole numbers above.
-  return gb >= 10 ? `${Math.round(gb)} GB` : `${gb.toFixed(1)} GB`;
+/**
+ * Render a byte count the way Cove's own UI renders one: scaled across B/KB/MB/GB/TB, one decimal,
+ * trailing zeros dropped.
+ *
+ * The host exports its own `formatFileSize` to extensions through `@cove/runtime/components`, and this
+ * deliberately does NOT import it. That module has no resolution outside a running host, and this file
+ * is pure so its wording can be unit-tested without one; importing it would trade a testable module for
+ * a mocked one. The algorithm below is therefore kept identical to the host's on purpose — if Cove's
+ * changes, this reads differently from the rest of the UI, which is the cost of that choice.
+ */
+function formatSize(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${units[i]}`;
 }
 
 /**
@@ -96,7 +107,7 @@ function formatGb(bytes: number): string {
 function buildBlastLines(summary?: PreviewSummary): string[] {
   return (summary?.volumePairs ?? []).map(
     (p) =>
-      `↪ ${p.count} item${p.count === 1 ? "" : "s"} (${formatGb(p.bytes)}) move from ${p.from} to ${p.to}.`,
+      `↪ ${p.count} item${p.count === 1 ? "" : "s"} (${formatSize(p.bytes)}) move from ${p.from} to ${p.to}.`,
   );
 }
 

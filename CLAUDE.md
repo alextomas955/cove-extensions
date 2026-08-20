@@ -351,6 +351,16 @@ When a change alters an extension's settings, public API or user-facing behavior
 extension's docs in the same change — its own docs, its `README.md` and `CHANGELOG.md` as applicable,
 plus the matching docs-site page. Docs are part of done; do not defer them to a later change.
 
+**A changelog entry is headed with the version it will ship as — never "Unreleased" — and carries
+user impact rather than an inventory of the version.** The version is knowable when the first change
+lands, since semver follows what the change does and not when a tag is pushed, so a placeholder is
+only a second edit someone has to remember at release; forget it and the published changelog says the
+shipped release has not shipped. Refactors, tests, internal renames and tooling do not appear at all,
+because padding an entry with them buries the two lines that mattered; a change with no user-facing
+effect earns a bullet only where a user would still want to know, such as a data-loss fix or a raised
+host floor. The full rule, with the entry-shape guidance, is at
+`website/docs/contributing/releasing.md`.
+
 ## How to write documentation
 
 The docs site (`website/docs/`) follows Diátaxis plus the Google and Microsoft style guides.

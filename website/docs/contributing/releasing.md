@@ -60,6 +60,37 @@ If the registry pull request is opened before the asset exists, the checksum com
 nothing to hash and the pull request fails. Publishing the asset first is what makes the checksum
 step succeed against the real asset bytes.
 
+## Write a changelog entry
+
+Every extension keeps a `CHANGELOG.md` of user-facing changes, newest first, and each registry
+`versions[]` row carries a two-or-three-sentence version of the same thing. Write the entry in the
+change that earns it, not at release time. Two rules govern both.
+
+**Head the entry with the version it will ship as — never "Unreleased".** The version is knowable
+the moment the first change lands, because semver is decided by what the change does and not by when
+somebody pushes a tag. A placeholder heading is a second edit someone has to remember at release,
+and forgetting it publishes a changelog telling users that the release they are reading about has
+not happened. Write `## 0.4.0` from the first bullet, and cutting `renamer/v0.4.0` then needs no
+changelog edit at all.
+
+**An entry says what a user needs to know, not everything the version contains.** A refactor, a new
+test, an internal rename, a dependency bump and a tooling change do not appear — the git history
+already has them, and padding the entry with them buries the two lines that mattered. A change earns
+a bullet when it changes what the user sees, what they must do, or what they can rely on. A change
+with no user-facing effect earns one only when a user would still want to know: a data-loss or
+security fix, a breaking API change, or a raised host floor.
+
+Then, for the entry itself:
+
+- **Lead with what to do before upgrading** whenever anything moves files, converts stored settings
+  or raises the floor. That sentence is why a user opened the changelog.
+- **One bullet per thing the user must act on; fold the rest into themes.** Ten bullets a user reads
+  beat twenty-two they skim. Several fixes to one feature are one bullet.
+- **Say what changed, why it is better, and what it means for the reader** — never which files moved
+  or which internals were touched.
+- **Leave released entries as they shipped.** An entry describes what users actually got at the time,
+  so a later convention applies from the next version forward rather than backwards over history.
+
 ## Raising minCoveVersion
 
 An extension's minimum host version is declared once, in its `extension.json` `minCoveVersion`.

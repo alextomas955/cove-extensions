@@ -168,7 +168,7 @@ public sealed class PlanFixedPointTests
         // matched-rule label is the one fact that separates them, and the planner owns it.
         Assert.NotNull(replay.FirstActing);
         Assert.Equal(
-            routed ? $"Studio:{RoutedStudioId}(direct)" : "Default", replay.FirstActing!.MatchedRule);
+            routed ? $"Studio:{RoutedStudioId}(direct)" : "Default", replay.FirstActing.MatchedRule);
 
         Assert.True(
             replay.How == Settled.FixedPoint && replay.Renames <= 1,
@@ -286,7 +286,7 @@ public sealed class PlanFixedPointTests
         // The rule really fired on pass 1. Without this the whole arm degrades silently into a second
         // copy of the unmatched case — every assertion below still passes, and it measures nothing.
         Assert.NotNull(replay.FirstActing);
-        Assert.Equal("SourcePath:exact", replay.FirstActing!.MatchedRule);
+        Assert.Equal("SourcePath:exact", replay.FirstActing.MatchedRule);
 
         Assert.True(
             replay.How == Settled.FixedPoint,
@@ -300,6 +300,76 @@ public sealed class PlanFixedPointTests
         // The second relocation needs a NON-EMPTY default, which this cell deliberately does not carry,
         // so it is out of this arm's reach rather than absent from the product.
         Assert.Equal(1, replay.Renames);
+    }
+
+    /// <summary>
+    /// The two-relocation composition itself: a rule relocates the item, and a NON-EMPTY default then
+    /// relocates it a second time. It still terminates.
+    /// </summary>
+    /// <remarks>
+    /// The arm above states why it cannot reach this — its default names neither a root nor a template,
+    /// so pass 2 leaves the item where the rule put it. Supplying a configured default is the whole
+    /// difference, and it is the ordinary reading of the two settings rather than a shape invented to
+    /// satisfy an assertion: a path rule that sends one staging folder somewhere specific, plus a
+    /// *Where files go* default for everything else.
+    /// <para>
+    /// <c>Renames == 2</c> is asserted exactly, and the arm above keeps its own <c>== 1</c>. Widening
+    /// either to accommodate the other would let a cell that stopped composing pass as one that
+    /// composed — the same reason the <c>MatchedRule</c> guard is here.
+    /// </para>
+    /// <para>
+    /// WHERE THIS CONVERGES AND THE NEIGHBOUR THAT DOES NOT. Convergence rests on the default's rendered
+    /// folder differing from the rule's key: pass 2 lands the item at <c>SourceRoot/$performers</c>,
+    /// which is no longer exactly <c>SourceRoot</c>, so the source-path-exact rule cannot match a third
+    /// time. Give that same default an EMPTY template and it lands the item back exactly on the rule's
+    /// key, the rule fires again, and the two destinations trade the item forever — measured as still
+    /// moving after every pass this file allows, with no skip to stop it. That configuration is
+    /// self-contradictory (the rule says leave this folder, the default says return to it), but nothing
+    /// refuses it and auto-rename-on-update would act on it indefinitely.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(SourceRoutedMatrix))]
+    public async Task ASourcePathRule_ThenAConfiguredDefault_RelocatesTwice_AndStillReachesNoOp(
+        string presetLabel, string filenameTemplate)
+    {
+        var options = new RenamerOptions
+        {
+            FilenameTemplate = filenameTemplate,
+
+            // The one difference from the arm above: a default that actually moves something.
+            FolderRoot = SourceRoot,
+            FolderTemplate = SubfolderTemplate,
+            FilenameAsTitle = true,
+        };
+
+        var lookups = new RouteLookups(
+            StudioIdToDest: new Dictionary<int, Destination>(),
+            TagIdToDest: new Dictionary<int, Destination>(),
+            PathExactToDest: new Dictionary<string, Destination>(StringComparer.Ordinal)
+            {
+                [SourceRoot] = Dests.At(OtherRoot, SubfolderTemplate),
+            },
+            PathRegexRules: []);
+
+        var replay = await ReplayAsync(options, Seed(titleSet: true), lookups);
+
+        string cell = $"{presetLabel} | rule -> {OtherRoot}/{SubfolderTemplate}"
+            + $" | default -> {SourceRoot}/{SubfolderTemplate}";
+
+        Assert.NotNull(replay.FirstActing);
+        Assert.Equal("SourcePath:exact", replay.FirstActing.MatchedRule);
+
+        Assert.True(
+            replay.How == Settled.FixedPoint,
+            $"{cell}: ended {replay.How} after {replay.Renames} renames"
+                + $"\n  first: {(replay.Renames > 0 ? replay.Trace[0] : "(none)")}"
+                + $"\n  last:  {(replay.Renames > 0 ? replay.Trace[^1] : "(none)")}");
+
+        // Two, and exactly two: the rule's move, then the default reclaiming the item once the rule has
+        // stopped matching. One would mean the default never fired and this cell is measuring the arm
+        // above; three or more would mean the pair had not settled.
+        Assert.Equal(2, replay.Renames);
     }
 
     public static TheoryData<string, string> SourceRoutedMatrix()

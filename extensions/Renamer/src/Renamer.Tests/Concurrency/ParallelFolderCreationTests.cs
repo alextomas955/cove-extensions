@@ -90,7 +90,7 @@ public sealed class ParallelFolderCreationTests
                         Pattern = sourceFolderFwd, Dest = Dests.At(destRootFwd, "sorted"), IsRegex = false,
                     }],
             };
-            var (ext, store, _) = await BuildAsync(shared, options, destRootFwd);
+            var (ext, _, _) = await BuildAsync(shared, options, destRootFwd);
             var progress = new FakeJobProgress();
 
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
@@ -115,7 +115,7 @@ public sealed class ParallelFolderCreationTests
             await using var readDb = shared.NewContext();
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(new CoveRevertJournal(readDb));
             Assert.NotNull(batch);
-            Assert.Equal(k, batch!.Rows.Count);
+            Assert.Equal(k, batch.Rows.Count);
         }
         finally
         {

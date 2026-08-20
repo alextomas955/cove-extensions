@@ -355,7 +355,7 @@ public sealed class EmptySourceFolderCleanerTests
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var replayer = new UndoReplayer(port, new CapturingEventBus(), new DiskMover());
-            var undo = await replayer.RevertAsync(batch!, default);
+            var undo = await replayer.RevertAsync(batch, default);
 
             Assert.Equal(0, undo.Undone);
             var skip = Assert.Single(undo.Skipped);

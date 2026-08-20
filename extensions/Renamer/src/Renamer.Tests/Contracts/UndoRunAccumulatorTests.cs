@@ -228,7 +228,7 @@ public sealed class UndoRunAccumulatorTests
     [Fact]
     public void EveryMemberOfTheTypeAppearsInTheTable_SoAnUnclassifiedOneFailsRatherThanDefaults()
     {
-        var classified = EveryStopReason.Select(row => (UndoStopReason)row[0]!).ToHashSet();
+        var classified = EveryStopReason.Select(row => (UndoStopReason)row[0]).ToHashSet();
 
         Assert.Equal(Enum.GetValues<UndoStopReason>().ToHashSet(), classified);
     }

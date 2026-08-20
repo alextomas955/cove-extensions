@@ -481,12 +481,10 @@ public sealed partial class Renamer
             // The same single call carries both outcomes, which is what keeps row presence and the batch
             // aggregate from drifting apart: the row goes away either way and the flag only chooses
             // which counter moves.
-            foreach (var stopped in run.Failed.Concat(run.Skipped))
+            foreach (var stopped in run.Failed.Concat(run.Skipped)
+                .Where(stopped => UndoTerminalClassifier.IsTerminal(stopped.Stop)))
             {
-                if (UndoTerminalClassifier.IsTerminal(stopped.Stop))
-                {
-                    await journal.DeleteRowAsync(stopped.RunId, stopped.Seq, unrestorable: true, ct);
-                }
+                await journal.DeleteRowAsync(stopped.RunId, stopped.Seq, unrestorable: true, ct);
             }
 
             // The cursor is the LOWEST sequence this page returned, and the next page returns only rows
@@ -1038,6 +1036,10 @@ public sealed partial class Renamer
             "(PreviewAsync/RenamerEnqueue/UndoAsync/LastBatchAsync) and the test call sites that invoke " +
             "it through an extension instance; making it static would churn those call sites without " +
             "any behavior change.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S2325:Methods and properties that don't access instance data should be static",
+        Justification = "Sonar's twin of the CA1822 suppression above; the same reason applies and is " +
+            "not restated. Suppressed rather than fixed because the fix is the call-site churn that " +
+            "reason declines.")]
     internal async Task<Results<WireJson<IReadOnlyList<PreviewSampleResult>>, BadRequestCode, ForbiddenCode>>
         PreviewSampleAsync(HttpRequest httpReq, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {

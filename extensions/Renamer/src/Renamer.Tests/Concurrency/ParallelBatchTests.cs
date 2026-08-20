@@ -133,7 +133,7 @@ public sealed class ParallelBatchTests
             await using var readDb = shared.NewContext();
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(new CoveRevertJournal(readDb));
             Assert.NotNull(batch);
-            Assert.Equal(k, batch!.Rows.Count);
+            Assert.Equal(k, batch.Rows.Count);
             Assert.Equal(k, batch.Rows.Select(e => e.FileId).Distinct().Count());
             Assert.Equal(k, batch.Rows.Select(e => e.Seq).Distinct().Count());
             Assert.All(batch.Rows, e =>

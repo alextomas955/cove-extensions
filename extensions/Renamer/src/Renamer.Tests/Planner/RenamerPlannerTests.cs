@@ -466,7 +466,7 @@ public sealed class RenamerPlannerTests
 
         Assert.Equal(1, port.LoadEntityCallCount);
         Assert.NotNull(entity);
-        var sizeByFileId = entity!.Files.ToDictionary(f => f.FileId, f => f.SizeBytes);
+        var sizeByFileId = entity.Files.ToDictionary(f => f.FileId, f => f.SizeBytes);
         Assert.Equal(1234, sizeByFileId[1]);
         Assert.Equal(5678, sizeByFileId[2]);
         // A file id absent from the map contributes 0 to the free-space sum, exactly as before.

@@ -62,7 +62,7 @@ public sealed class MoveOutcomeStatusTests
         // What this covers that the compiler does not: the build refuses a SWITCH missing a member, but
         // nothing refuses a TEST missing a row. Without this, a member added later would compile only
         // once someone gave it an arm, and then be pinned by nobody.
-        var tabled = EveryNonMovedOutcome.Select(row => (MoveOutcome)row[0]!).ToHashSet();
+        var tabled = EveryNonMovedOutcome.Select(row => (MoveOutcome)row[0]).ToHashSet();
         tabled.Add(MoveOutcome.Moved);
 
         Assert.Equal(Enum.GetValues<MoveOutcome>().ToHashSet(), tabled);

@@ -521,6 +521,47 @@ test("a manifest declaring no stylesheet bundle is not failed for the field it d
   );
 });
 
+// The present half of the pair above. The ui-bundle rule covers BOTH bundle fields, and the assertion
+// is on the RESOLVED ROOT rather than on `ok`: a run that found the stylesheet in the publish directory
+// or beside the manifest would succeed just as happily, and that is exactly the resolution mistake this
+// case exists to pin.
+test("a declared stylesheet bundle resolves from the UI build output", () => {
+  const fixture = fixtureRoot({
+    manifest: { cssBundle: "bundle.css" },
+    artifacts: [...DECLARED, "bundle.css"],
+  });
+  write(
+    fixture.root,
+    "extensions/" + NAME + "/src/" + NAME + ".Ui/dist/bundle.css",
+    ".fixture-root .pb-20 { padding-bottom: 5rem }\n",
+  );
+
+  const r = assemble(fixture);
+
+  assert.equal(r.ok, true, r.failures.join("; "));
+  const copied = r.copied.find((f) => f.name === "bundle.css");
+  assert.ok(copied, "the declared stylesheet was not copied at all");
+  assert.equal(copied.root, "ui-bundle");
+});
+
+test("fails: a declared cssBundle the artifacts array does not carry", () => {
+  const fixture = fixtureRoot({ manifest: { cssBundle: "bundle.css" } });
+  const r = assemble(fixture);
+
+  assert.equal(
+    r.ok,
+    false,
+    "a manifest naming a stylesheet the package does not carry cannot load",
+  );
+  assert.ok(
+    r.failures.some(
+      (f) => f.startsWith("UNLOADABLE:") && f.includes("cssBundle") && f.includes("bundle.css"),
+    ),
+    "expected an UNLOADABLE failure naming both the field and its value, got: " +
+      r.failures.join("; "),
+  );
+});
+
 // The loadability failures are pushed rather than returned, so one run still reports everything wrong
 // with a declaration. The two LEAK cases above are the other half of that cover: they declare a subset
 // carrying no manifest, so a short-circuiting refusal would fire before the scan they exist to exercise.

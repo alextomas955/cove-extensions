@@ -247,18 +247,34 @@ export interface RenamerOptions extends DerivedOptions {
 /**
  * The C# defaults (RenamerOptions.cs):
  *   FilenameTemplate "{$date - }$title{ [$resolution]}", FolderTemplate "", DateFormat "yyyy-MM-dd",
- *   DurationFormat verbatim `hh\-mm\-ss`, Performers.Separator ", ", Tags.Separator " ",
+ *   DurationFormat verbatim `hh\-mm\-ss`, Performers.Separator " ", Tags.Separator " ",
  *   FilenameMax 255, FullPathMax 259, the 9-field DropOrder, RequiredFields ["title"],
  *   DuplicateSuffixFormat " ({n})", Articles ["The","A","An"], PreventConsecutiveSegments true,
  *   FilenameAsTitle off and RemoveEmptyFolder off (both write beyond a name — one records a title on
- *   the item, one deletes a folder — so both stay opt-in), every routing map {} / list [] and every
- *   other flag/string off/empty.
+ *   the item, one deletes a folder — so both stay opt-in), every routing map {} and every routing or
+ *   exclude list [].
+ *
+ * The list stops there, and its silence is not a claim: a default it does not name is not thereby off
+ * or empty — read RenamerOptions.cs for that one. Every value restated here is a second copy that can
+ * fall out of step, so the list stays as short as it can be. The one generalisation it does make —
+ * over the routing maps and the routing and exclude lists — was checked member by member, which is
+ * what the previous catch-all over "every other flag/string" was not.
+ *
+ * Both separators are " " because the shipped default is the RenamerOptions initializer, which
+ * constructs each multi-value field as new() { Separator = " " }. MultiValueOptions declares its own
+ * separator, ", ", which that initializer overrides: read a shipped default off the record's
+ * initializer, never off the class underneath it. The class default is not unreachable, though —
+ * deserializing a partial nested object replaces the field rather than merging into the initializer,
+ * so a caller-supplied blob naming Performers without a Separator gets ", " back.
  *
  * CrossVolumeConcurrency / SameVolumeConcurrency ARE modeled — the Advanced panel edits them, so
  * they belong in DEFAULT_OPTIONS (and therefore MODELED_KEYS + normalizeOptions). FreeSpaceHeadroomBytes
- * is the ONE remaining knob the panel never edits: leaving it out of DEFAULT_OPTIONS keeps it out of
- * MODELED_KEYS, which is what lets extractUnmodeledFields carry a stored value through a load → save
- * round-trip untouched instead of normalizeOptions consuming (and dropping) it.
+ * is the ONE remaining knob the panel never edits; the block above DerivedOptions states in full why
+ * omitting it is what carries a stored value through a load → save round-trip untouched.
+ *
+ * Nothing enforces this mirroring. The generated wire contract carries these property shapes but no
+ * defaults, so a value that drifts from the record shows a new user a wrong default in the panel and
+ * fails no check; emitting the values from the contract is what would remove the copy.
  */
 export const DEFAULT_OPTIONS: RenamerOptions = {
   FilenameTemplate: "{$date - }$title{ [$resolution]}",

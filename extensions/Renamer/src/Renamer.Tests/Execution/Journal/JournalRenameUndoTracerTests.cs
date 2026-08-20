@@ -46,14 +46,14 @@ public sealed class JournalRenameUndoTracerTests
 
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
-            Assert.Equal(pastTheOldCeiling, batch!.Rows.Count);
+            Assert.Equal(pastTheOldCeiling, batch.Rows.Count);
             // One row per file, each with its own place in the batch — a count alone would not rule out
             // rows sharing an identity and therefore being un-retirable one at a time.
             Assert.Equal(pastTheOldCeiling, batch.Rows.Select(r => r.Seq).Distinct().Count());
 
             var summary = await journal.ReadUndoTargetAsync();
             Assert.NotNull(summary);
-            Assert.Equal(pastTheOldCeiling, summary!.Value.OriginalCount);
+            Assert.Equal(pastTheOldCeiling, summary.Value.OriginalCount);
         }
         finally
         {
@@ -213,7 +213,7 @@ public sealed class JournalRenameUndoTracerTests
 
         var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
         Assert.NotNull(batch);
-        return Assert.Single(batch!.Rows);
+        return Assert.Single(batch.Rows);
     }
 
     private static async Task SeedBatchAsync(

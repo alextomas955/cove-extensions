@@ -62,7 +62,7 @@ public sealed class UndoReplayerTests
             Assert.NotNull(batch);
             var undoBus = new CapturingEventBus();
             var replayer = new UndoReplayer(port, undoBus, new DiskMover());
-            var result = await replayer.RevertAsync(batch!, default);
+            var result = await replayer.RevertAsync(batch, default);
 
             // Result: one undone, none failed/skipped.
             Assert.Equal(1, result.Undone);
@@ -127,7 +127,7 @@ public sealed class UndoReplayerTests
 
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
-            Assert.Equal(2, batch!.Rows.Count);
+            Assert.Equal(2, batch.Rows.Count);
 
             var undoBus = new CapturingEventBus();
             var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch, default);
@@ -177,7 +177,7 @@ public sealed class UndoReplayerTests
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch!, default);
+            var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch, default);
 
             // video2 restored; video1 reported as skipped/failed (never clobbered).
             Assert.Equal(1, result.Undone);
@@ -230,7 +230,7 @@ public sealed class UndoReplayerTests
             // A port that throws on the reverse save forces the rollback path.
             var throwingPort = new ThrowOnSaveDataPort(db);
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(throwingPort, undoBus, new DiskMover()).RevertAsync(batch!, default);
+            var result = await new UndoReplayer(throwingPort, undoBus, new DiskMover()).RevertAsync(batch, default);
 
             Assert.Equal(0, result.Undone);
             Assert.Single(result.Failed);
@@ -283,7 +283,7 @@ public sealed class UndoReplayerTests
             // A reverse save that cancels forces the OCE path: rollback to NEW, then propagate.
             var undoBus = new CapturingEventBus();
             var replayer = new UndoReplayer(new CancelOnReverseSaveDataPort(db), undoBus, new DiskMover());
-            await Assert.ThrowsAsync<OperationCanceledException>(() => replayer.RevertAsync(batch!, default));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => replayer.RevertAsync(batch, default));
 
             // Disk rolled back to NEW (no half-state), no event published — a cancel, not an UndoFailure.
             Assert.True(File.Exists(newFull), "disk rolled back to new on a cancelled reverse save");
@@ -339,7 +339,7 @@ public sealed class UndoReplayerTests
 
             var undoBus = new CapturingEventBus();
             var result = await new UndoReplayer(port, undoBus, new DiskMover(), cross: recordingCross)
-                .RevertAsync(batch!, default);
+                .RevertAsync(batch, default);
 
             // The entry was undone via the verbatim v1.3 DiskMover path; the cross mover was never invoked.
             Assert.Equal(1, result.Undone);

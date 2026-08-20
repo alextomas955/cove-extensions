@@ -118,6 +118,41 @@ public sealed class DestAnchoredMaxPathTests
     }
 
     [Fact]
+    public async Task SuffixedPastTheBudget_IsRefused_NamingTheLengthItMeasured()
+    {
+        // The one case the pair above cannot reach: the rendered name fits the budget EXACTLY, and the
+        // duplicate-suffix loop is what pushes it over. That loop runs after the budget check, so before a
+        // second measurement this item planned as an ordinary rename and was written to disk at a path the
+        // configured budget forbids — at the budget it is four characters, but the suffix format is
+        // user-configurable and the loop runs to a thousand attempts, so the overrun has no fixed size.
+        var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot(BoundaryRoot);
+        port.SeedEntity(Entity(BoundaryTitle, VideoFile(ShortSource)));
+
+        // Two seeds are what make the loop run at all. The destination folder must already have an id,
+        // because it is looked up rather than minted during planning and the lookup returns null unless
+        // seeded — which is exactly why the two boundary cases above never enter the loop. And the name
+        // must be held by a DIFFERENT file, since the collision check excludes the item's own row.
+        const int TargetFolderId = 77;
+        port.SeedFolder(Fwd(BoundaryRoot) + "/" + BoundaryFolder, TargetFolderId);
+        port.SeedOccupied(TargetFolderId, BoundaryBasename, fileId: 999);
+
+        var plan = await new RenamerPlanner(port).PlanAsync(
+            RenamerFileKind.Video, 10, BoundaryOptions(BoundaryAbsoluteLength),
+            StudioLookup(BoundaryDestination), default);
+        var item = Assert.Single(plan.Items);
+
+        Assert.Equal(RenamerStatus.SkipTooLong, item.Status);
+        // Transcribed from PathConfinement's own message, as the reject case above does. Here it carries a
+        // second load: naming a length four over the budget is what proves the re-measure ran on the
+        // SUFFIXED name and against the same basis as the first check, rather than repeating the first
+        // measurement or measuring from a different folder.
+        Assert.Equal(
+            $"resolved absolute path length {BoundaryAbsoluteLength + 4} exceeds FullPathMax {BoundaryAbsoluteLength}",
+            item.Reason);
+    }
+
+    [Fact]
     public async Task WithTheInFlightHeadroomAdded_TheBasenameIsByteIdentical()
     {
         // The pair is the assertion: the same literal at the boundary and the minted segment's length

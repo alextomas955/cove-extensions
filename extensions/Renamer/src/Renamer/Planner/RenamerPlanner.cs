@@ -237,9 +237,13 @@ public sealed class RenamerPlanner
         string renderedFolder = rendered.FolderPath;
         bool chosenRoot = destination.Root.Length > 0;
         bool isMove = chosenRoot || renderedFolder.Length > 0;
-        string? libraryRoot = chosenRoot
-            ? destination.Root
-            : isMove ? PathConfinement.ContainingRoot(file.ParentFolderPath, _port.LibraryRoots) : null;
+        // Resolved in two steps rather than one nested conditional. The guard on !chosenRoot is not
+        // cosmetic: a chosen root always implies isMove, so without it this would walk the library-root
+        // list on every routed item and discard the answer.
+        string? containingRoot = !chosenRoot && isMove
+            ? PathConfinement.ContainingRoot(file.ParentFolderPath, _port.LibraryRoots)
+            : null;
+        string? libraryRoot = chosenRoot ? destination.Root : containingRoot;
 
         // Told to measure from the file's own library path, and the file is under none: the destination
         // is not forbidden, it is uncomputable, and every remaining candidate anchor is one the rename
@@ -331,6 +335,29 @@ public sealed class RenamerPlanner
             }
 
             candidate = ApplySuffix(rendered.Filename, rendered.Ext, options.DuplicateSuffixFormat, attempt);
+        }
+
+        // (3b) Re-measure the budget against the SETTLED candidate. The check at (2b) ran before the loop
+        //      above, and the loop lengthens the name to free a taken slot — so an item accepted at or
+        //      near the budget could be planned, previewed and written at a path the budget forbids. The
+        //      overrun is not bounded by one suffix: DuplicateSuffixFormat is user-configurable and the
+        //      loop runs to MaxSuffixAttempts.
+        //
+        //      Measured against confined.TargetFolderPath and NOT relTargetFolder, which is the one way
+        //      to get this silently wrong. The gate resolves under the synthetic __renamer_root__ when the
+        //      anchor is not itself absolute (see the note at the destination join above), so it is the
+        //      basis the first check measured; re-measuring against a different base would let the two
+        //      verdicts disagree about one path, refusing an item whose real destination fits. Only the
+        //      final candidate is ever written, so measuring here rather than inside the loop is the
+        //      correct placement and not merely a cheaper one. A collision-exhausted item has already
+        //      returned above, so that refusal keeps precedence with no ordering decision to make.
+        var recheck = PathConfinement.WithinBudget(confined.TargetFolderPath, candidate, options);
+        if (!recheck.Accepted)
+        {
+            return new RenamerPlanItem(
+                file.FileId, oldFullPath, oldFullPath, RenamerStatus.SkipTooLong,
+                file.Basename, file.ParentFolderPath,
+                ExplainRefusal(recheck, isMove, libraryRoot));
         }
 
         string newFullPath = JoinPath(relTargetFolder, candidate);

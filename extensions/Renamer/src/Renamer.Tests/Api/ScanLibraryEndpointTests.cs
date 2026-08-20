@@ -134,7 +134,7 @@ public sealed class ScanLibraryEndpointTests
             var json = await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey);
             Assert.False(string.IsNullOrEmpty(json));
 
-            var summary = JsonSerializer.Deserialize<global::Renamer.Contracts.ScanSummary>(json!, EnumJson)!;
+            var summary = JsonSerializer.Deserialize<global::Renamer.Contracts.ScanSummary>(json, EnumJson)!;
 
             // Per kind, not flat — that split is what lets the readback drop a kind the caller cannot see.
             Assert.Equal(
@@ -280,7 +280,7 @@ public sealed class ScanLibraryEndpointTests
         public int ReaderCount { get; set; }
 
         public override ValueTask<DbDataReader> ReaderExecutedAsync(
-            DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken ct = default)
+            DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default)
         {
             ReaderCount++;
             return ValueTask.FromResult(result);

@@ -2,213 +2,116 @@
 
 User-facing changes, newest first.
 
-## 0.4.0 (unreleased) — Renamer needs Cove 1.3.0-rc.2
+## 0.4.1 — The dry run finishes by itself, and a numbered name cannot outgrow your path limit
 
-<!-- Release state for whoever cuts `renamer/v0.4.0`: both manifest steps are already in the tree.
-     `src/Renamer/extension.json` declares version 0.4.0 and minCoveVersion 1.3.0-rc.2, and
-     `registry/com.alextomas955.renamer.json` `versions[]` carries a matching 0.4.0 row, so the tag
-     push has what validate needs. Never satisfy a floor raise by editing an existing `versions[]`
-     row instead: the 0.3.0 row declares 1.1.0 and describes an immutable artifact that genuinely
-     runs on a 1.1.0 host. The full rule is in the repo-wide Releasing guide, under "Raising
-     minCoveVersion". -->
+- **Dry run → Will change now loads every matching row on its own.** It used to stop after a handful —
+  6 of 102 on a 7,459-item library — and clicking **Load more** often added one row or none at all, so
+  reaching the end took a dozen clicks or more. The cause was that Cove's scan answers in fixed
+  chunks of work rather than of rows, so a chunk containing no matches is a normal answer meaning
+  "keep asking", and the list treated it as the end. It now keeps asking until it has filled the view,
+  and the footer tells you how much of the library has been checked instead of asking you to scroll a
+  list with nothing in it to scroll. The narrower your filter, the more this was costing you.
+- **A file whose name has to be numbered can no longer be written past your path-length limit.** When
+  the target name is already taken, Renamer appends a number — and that happened _after_ the path
+  length was checked, so an item sitting at your configured limit was renamed to a path longer than
+  the limit allows. The length is now re-checked once the final name is settled, both while previewing
+  and while running, and such an item is skipped as too long rather than written. If you have never
+  lowered the path-length setting you are very unlikely to have hit this.
 
-- **This release needs Cove 1.3.0-rc.2, and an older host will not install it.** Nothing here is a
-  feature you lose — an older Cove declines to load the extension at all, so no part of Renamer
-  appears. The floor rose because Renamer now relies on the host publishing entity events for bulk
-  mutations (Cove commit `ca14830`, 2026-08-02); without those, editing several items at once renames
-  one of them and says nothing about the rest. **That fix first shipped in the 1.2 line, and
-  1.3.0-rc.2 is a release candidate, so no generally-available Cove runs this release today.**
-  **Stay on 0.3.0 until you are ready to run a 1.3 release candidate.**
-- **Every destination is now a root you pick from Cove's own library paths, plus a folder template
+## 0.4.0 — Destinations you pick, not paths you type
+
+**Needs Cove 1.3.0.** An older host does not load Renamer at all — no Rename tab under Settings →
+Extensions, no "Rename selected" on your lists — so stay on 0.3.0 until you have upgraded Cove.
+Nothing here is a feature you lose. The floor rose because Renamer now relies on the host publishing
+entity events for bulk mutations; without those, editing several items at once renames one of them
+and says nothing about the rest.
+
+**Preview a dry run before your first rename after upgrading.** Two of the changes below move files
+once, including files that no rule of yours matches.
+
+- **Every destination is now a library path you pick from Cove's own list, plus a folder template
   made under it.** _Where files go_, the per-studio and per-tag maps, the source-path rules and the
-  unorganized route all have this one shape, and **you no longer type a path for a destination**.
-  Cove already owns your library paths; a typed copy of one silently pointed at nothing the moment
-  you changed it in Cove, where a picked root follows it. A destination **names a place**: everything
-  matching it goes there, wherever those files sit now. When Cove has one library path there is
-  nothing to choose, so the picker is not shown and that path is the root of every rule you make.
-- **Read this one and the two below it together — between them they say what moves.** **A rule that
-  pointed inside one of Cove's library paths is converted for you and keeps sending its items to the
-  same folder** — a rule that said `I:\Downloads\P\videos` with a folder template of `$studio` becomes
-  the root `I:\Downloads\P` plus the template `videos/$studio`, the identical destination, and those
-  items do not move. **That covers the items those rules match, and only those.** A rule pointing
-  outside every library path is a different story and is removed — the next entry. And everything no
-  rule matches at all — which on most libraries is most of it — follows _Where files go_, and **where
-  that lands does change on the first run after upgrading**, as the folder-template entry below sets
-  out. So: rules inside the library unchanged, rules outside it removed, unmatched items moved once.
-  **Preview a dry run before your next rename** and read the destination column for a file that has no
-  rule.
-- **A rule pointing outside every Cove library path is REMOVED by that conversion, and its items now
-  follow _Where files go_ instead.** There is no root to pick for such a rule, and inventing one would
-  move files somewhere you never chose. Every removed rule is named in Cove's log at the first load of
-  this version. **If you had one, preview a dry run before your next rename** and add a replacement
-  rule — the way to send files to another drive is now to add that drive as a library path in Cove's
-  own settings, then pick it as the rule's root.
-- **A folder template no longer buries a file one directory deeper every run.** For an item with no
-  destination rule, the folder template used to be applied to the folder the file was sitting in _at
-  that moment_. That folder was the previous run's own output, so a second run added the folder again:
+  unorganized route all share this one shape, and **you no longer type a path**. A typed copy of a
+  library path silently pointed at nothing the moment you changed it in Cove; a picked root follows
+  it. When Cove has one library path there is nothing to choose, and that path is the root of every
+  rule you make.
+- **Your destination rules convert on first load — except one kind, which is removed.** A rule that
+  pointed inside a Cove library path keeps sending its items to the same folder, and those items do
+  not move: `I:\Downloads\P\videos` with a folder template of `$studio` becomes the root
+  `I:\Downloads\P` plus the template `videos/$studio`, the identical destination. A rule pointing
+  **outside** every library path is **removed**, because there is no root to pick and inventing one
+  would move files somewhere you never chose; each removed rule is named in Cove's log at first load,
+  and its items now follow _Where files go_. To send files to another drive, add that drive as a
+  library path in Cove's own settings, then pick it as the rule's root.
+- **A folder template no longer buries a file one directory deeper every run.** It used to be applied
+  to the folder the file was sitting in _at that moment_ — the previous run's own output — so
   `…/Ann Miller` became `…/Ann Miller/Ann Miller`, and with _Auto-rename on update_ on, a single edit
-  ran the loop until the path became too long to write. A folder template is now measured from the
-  destination's root, which no rename can move, so running a rename twice leaves the file where the
-  first run put it. **This changes where an item no rule matched lands the first time you run it after
-  upgrading:** with the default root — _(the file's own library path)_ — a file already sitting below
-  its library path moves up to sit directly under that path, once, however deep it was. With a library
-  path of `/media/library` and a folder template of `$performers`, a file at
-  `/media/library/2024/incoming/batch7/clip.mp4` moves to `/media/library/Ann Miller/clip.mp4`, and
-  stays there on every later run. With the folder template blank, a file already sitting directly at
-  its library path does not move at all. **To keep an intermediate level, put it in the template** —
-  `videos/$performers` rather than `$performers`. **Preview a dry run before your first rename after
-  upgrading.**
-- **Two new dry-run reasons, and neither stops the run.** _Skipped — destination root no longer
-  exists_ means the library path a rule was pointed at is not one of Cove's any more; re-pick it, and
-  note that those items are **not** quietly handed to _Where files go_. _Skipped — outside every Cove
-  library path_ means the destination measures from the file's own library path and the file is under
-  none of them; add its folder to Cove's library paths, or pick a library path for the destination.
-  Worth knowing for the first one: **renaming a library path in Cove reads as removing it.** Renamer is
-  handed the current list of paths, not a history of your edits, so a rule pointed at the old name
-  skips until you re-pick it — even when the new name still contains the old folder.
-- **_Allowed roots_ now only narrows.** A destination is a Cove library path plus a relative template,
-  so every target is inside your library by construction and there is no longer anything for this list
-  to permit. Filling it in restricts renaming to a smaller area **within** the library; leaving it
-  empty — the default — restricts nothing. It can no longer be used to send files outside the library;
-  add the folder to Cove's library paths instead.
-- **_Use filename as title when none is set_ now saves the title, and is off by default.** When it is
-  on and an item has no title, Renamer works one out from the filename and now **stores it on the item**
-  as part of the same rename — the first time this extension changes metadata rather than only a file's
-  name or location. That is what stops the name growing: the old behaviour re-read the title out of the
-  filename on every run, so a template rendering anything besides `$title` wrapped its own additions
-  around the name again each time (`Ann Miller.Delicacy` → `Ann Miller.Ann Miller.Delicacy.Delicacy`).
-  A title you have already set is never overwritten, and undo restores the file's name and folder but
-  leaves the title. Because it writes metadata, **the setting now ships off**; a value you have already
-  saved is kept exactly as it is, so this changes nothing for an existing install. On a fresh install an
-  item with no title is skipped by the shipped `title` required field, and the dry run names the reason.
-- **Your last whole-library dry run is discarded once, on the first load of this version.** Renamer
-  labels each planned file with a status, and the label for "renamed where it sits" was misspelled
-  `renamer`; it is now `rename`, and the never-used `gallery` file kind is gone with it. A dry-run
-  summary stored by an earlier version spells the old label, so Renamer reads it as "no scan yet"
-  rather than showing you figures it cannot interpret. **Nothing else is affected** — no setting, no
-  template and no filename changes, and your undo history is untouched. Run the dry run again to get
-  the summary back. If you call Renamer's HTTP API yourself, this is a breaking change to the `status`
-  field: match `rename` instead of `renamer`.
-- **_Default destination_ and _Relocate unmatched items to the default destination_ are gone.** The
-  relocate switch shipped off and was never going to be turned on — it moved every item that matched no
-  rule, with whole-library reach and no way to undo a move across drives — and the default destination it
-  fed did nothing on its own. An item matching no rule is renamed where it already sits, exactly as
-  before. **Nothing moves differently:** to move a group of items, give them a per-studio, per-tag or
-  source-path rule, which is what already did the work. Your stored settings still load; the two retired
-  values are ignored.
-- **The _Duration format_ setting now takes effect.** `$duration` used to render the raw number of
-  seconds whatever you picked, so a template using it produced `My Film [5025]` where the setting's own
-  example column promised `My Film [01-23-45]`. It now renders in the format you chose, so the dry run,
-  the preview samples and the finished filename all agree. **If a template of yours uses `$duration`,
-  your names will change** — check a dry run before your next rename. One example was also wrong and is
-  corrected: `mm-ss` renders the minutes within the hour, so 1h 23m 45s is `23-45`, not `83-45`. A format
-  the .NET duration formatter rejects no longer stops the whole run; that file's `$duration` falls back
-  to the seconds, and every other file renames normally.
-- **A file your exclude rules skip now says so in the dry run, and is counted with the other skips.**
-  Such a file used to appear flagged in the dry-run table with nothing naming the reason, so the row read
-  as a problem you could not act on; and it was left out of the skipped total the rename confirmation
-  shows, so that total read lower than the number of files Renamer would actually leave alone. Both now
-  cover it. **No renaming behaviour changed** — the same files are excluded as before, and no template
-  and no setting moved.
-- **A rename whose copy will not fit across drives is now flagged before you approve it.** A move to
-  another drive copies the file to a temporary name beside its destination and then promotes it, and that
-  temporary name is longer than the final one. A destination path close to the length limit therefore
-  passes the plan and still fails part-way through the move. Renamer now counts those files in the rename
-  confirmation and marks each one in the dry run, a dry run over your whole library included, so you see
-  them before anything runs. **Your filenames are unchanged.** Shortening them to fit would change the
-  result for every file near the limit, including the ones that were never at risk. Where you see the
-  warning, shorten the destination folder or the name yourself, or keep the move on one drive.
-- **Renamer says that it renames audio files, which it has been doing all along.** The manifest and the
-  docs described video and image only, so the Extensions list understated what Renamer touches — and
-  understated the permissions it asks for, which is what you read before granting it access. It now
-  states all three kinds and all three permission pairs: `videos.read`/`videos.write`,
-  `images.read`/`images.write` and `audios.read`/`audios.write`. Nothing about renaming changed. Worth
-  knowing where the reach is genuinely narrower: **Rename selected** is on video and image lists only,
-  and _Auto-rename on update_ covers those two kinds as well, so rename audio from the Rename settings
-  page or a whole-library run.
-- **Two job-progress messages say "rename" rather than "Renamer".** When a run finishes, the progress
-  line in Cove's job UI now reads _"Rename complete."_, and a whole-library run reads _"Library rename
-  complete."_ Both used to name the extension where they meant the action, left over from a rename
-  that swept the word through too widely. Wording only — nothing about a run changed.
-- **Requires Cove `1.1.0`.** Renamer now uses the authenticated fetch Cove hands to extension pages.
-  Cove serves that for the first time in the 1.1.0 release; a 1.0.0 host does not serve it at all. So
-  `minCoveVersion` is `1.1.0`, and on anything older Renamer does not load — there is no Rename tab
-  under Settings → Extensions, and no "Rename selected" action on your video and image lists. Nothing
-  degrades; the extension is simply absent until you upgrade Cove. Renamer 0.3.0 stays installable on
-  Cove 1.0.0 and keeps working there.
-- **Renamer's requests now carry your session the way the rest of Cove does.** Renamer used to make
-  them with a plain request of its own; in a signed-in browser Cove accepted those anyway, on your
-  session cookie. They now go through the request path Cove hands to extension pages, which sends your
-  access token — or your share token and password on a share link — and retries once when an access
-  token has expired. What changes for you: a settings page left open long enough for your access token
-  to lapse no longer fails the next save or dry run; it renews and carries on.
-- **Undo now brings back subtitles and captions, not just the media file.** A rename moves a
-  same-name neighbour — a `.srt` subtitle, say — along with the video, and rewrites the caption
-  filenames Cove stores for it. Undo used to move only the video back, leaving both under the names
-  the rename gave them. They now come back with it, to their original names and locations. Worth
-  knowing if you relied on the old behaviour: an undo you ran before this upgrade left those
-  companion files behind, and they are still where that rename put them. Where one cannot come back
-  — something already sits in its old slot — the media file is restored anyway and the message names
-  the file that stayed behind, because clearing that slot is yours to do.
-- **Undo is kept for seven days, and several renames can be waiting at once.** Only the most recent
-  rename used to be kept, so starting another one discarded it. The case that bit hardest was silent:
-  with _Auto-rename on update_ turned on, one background rename of a single edited item threw away
-  the undo of the deliberate rename you had run minutes earlier, and nothing said so. Each rename now
-  keeps its own record for seven days, and the undo panel shows the date the one it is offering stops
-  being available. A rename expires as a whole — when its seven days are up, everything it still
-  holds goes with it, including any part you had not restored yet.
-- **No rename is too large to undo.** A rename of more than 5,000 files was not recorded at all,
-  which put a whole-library rename beyond undo. That ceiling is gone, and so are the warnings that
-  announced it in the rename confirmation and the dry-run footer.
-- **An undo that stopped part-way can now be retried.** A locked file, an unmounted drive or
-  something already sitting in a file's old slot stops that file coming back. Undo restored the rest
-  and then spent the whole record, so the files it had not reached were beyond recovery. It now
-  restores what it can and leaves the rest waiting: clear the cause, press Undo again, and the second
-  run acts only on what is left. The panel states where it got to and until when, in the shape
-  _12 of 500 restored · 488 remaining · undo available until August 18, 2026_. One case is genuinely
-  final rather than worth retrying: a file that is no longer in your library cannot be restored, and
-  those are counted apart.
-- **A rename you only partly undid no longer vanishes from the panel.** Anything that started a newer
-  rename — including a single background _Auto-rename on update_ edit — took the panel over, and once
-  that newer one had been put back the panel read _No rename to undo._ while your own files were still
-  waiting. They were never lost, but there was no way to reach them before their seven days ran out.
-  The panel and the button now reach the most recent rename that still has files to put back, so your
-  remainder comes back to the panel and **Undo last rename** acts on it. When two renames are waiting,
-  the newer one is offered first.
-- **An undo left pending from before this upgrade is carried over — once.** Whatever your previous
-  version still had waiting is moved into the new record the first time this version loads, keeping
-  its original date so it keeps its real age, and the old record is then cleared. It is a one-time
-  step, not a recurring one, and nothing pending is lost. Undo also now survives an update or a
-  reinstall of Renamer, because the record lives in Cove's database rather than in the extension's
-  own folder.
-- **A destination folder directly inside a drive or volume root now works.** On Windows, with
-  _Allowed roots_ set, a destination such as `D:\Films` was refused whenever the folder did not exist
-  yet — the item was skipped as blocked, with no explanation you could act on. It is accepted now,
-  for both a rename and an undo.
-- **A cross-drive move can no longer delete a file of your own.** While copying a file to another
-  drive, Renamer wrote it under a fixed working name first — and deleted anything already at that
-  name before starting, which could be your file. The working name is now unguessable and made fresh
-  for each copy, and nothing is deleted before the copy. One consequence to know: if the machine
-  loses power mid-copy, a stray file may be left in the destination folder, named after the file
-  being moved with `.rnm` and eight characters added. It is inert and you can delete it; Renamer will
-  not, because it never removes a file it did not create.
+  ran the loop until the path was too long to write. A template is now measured from the destination's
+  root, which no rename can move. **This moves an item that no rule matches, once:** with the default
+  root, a file sitting below its library path moves up to directly under that path, however deep it
+  was — `/media/library/2024/incoming/batch7/clip.mp4` with a template of `$performers` becomes
+  `/media/library/Ann Miller/clip.mp4`, and stays there on every later run. To keep an intermediate
+  level, put it in the template — `videos/$performers` rather than `$performers`.
+- **Undo is much harder to lose.** It keeps **seven days** instead of only the most recent rename, so
+  a background _Auto-rename on update_ can no longer silently discard the undo of the rename you ran
+  minutes earlier; several renames can be waiting at once, and the panel offers the most recent one
+  that still has files to put back. The 5,000-file ceiling is gone, so a whole-library rename is
+  undoable. Subtitles and captions now come back with the video rather than being left under their
+  new names. An undo stopped part-way — a locked file, an unmounted drive — can be retried and acts
+  only on what is left, and the panel says where it got to. And the record now lives in Cove's
+  database, so undo survives an update or reinstall of Renamer; anything pending from your previous
+  version is carried over once, keeping its original date.
 - **Tag and performer rules now follow the item, not its name.** Whitelists, blacklists, _Exclude by
-  tag_ and _Per-tag destinations_ used to be stored as the tag's or performer's **name**, so renaming
-  one in Cove quietly broke every rule pointing at it. They now store Cove's own stable id for that
-  item, and a rename no longer breaks anything. **Your existing settings convert automatically** the
-  first time the Rename settings page loads after this upgrade — there is nothing to re-enter. Three
-  consequences are worth knowing before you upgrade. A stored name that matches no tag or performer in
-  your library is **dropped**, because it could never have matched anything. Where two of your tags or
-  performers differ only in capitalisation, a rule that used to match both now matches one of them,
-  since both names resolve to a single item. And if a tag or performer is later deleted from your
-  library, a rule still targeting it shows a **loading placeholder** in place of the name until you
-  remove that entry.
-- **The tag, performer and studio fields now search your library as you type.** They used to list
-  everything the moment you clicked into them, which is what made them slow on a large library. Type
-  at least one character to see matches; an empty field shows nothing.
-- **A failed search now reads the same as a search with no matches.** Both show _No tags found_. If a
-  value you know exists does not appear, change the search text and try again — there is no separate
-  message to tell a lookup that failed from a lookup that genuinely found nothing.
+  tag_ and _Per-tag destinations_ stored the tag's or performer's **name**, so renaming one in Cove
+  quietly broke every rule pointing at it. They now store Cove's own stable id, and **your settings
+  convert automatically** the first time the Rename settings page loads — there is nothing to
+  re-enter. A stored name matching nothing in your library is dropped, since it could never have
+  matched anything.
+- **A cross-drive move can no longer delete a file of your own.** Renamer wrote the copy under a fixed
+  working name and deleted anything already at that name before starting — which could be your file.
+  The name is now unguessable and made fresh for each copy, and nothing is deleted before the copy.
+  One consequence: if the machine loses power mid-copy, an inert leftover named after the file with
+  `.rnm` and eight characters added may remain, and you can delete it. Renamer will not, because it
+  never removes a file it did not create.
+- **_Use filename as title when none is set_ now saves the title, and ships off.** When an item has no
+  title, Renamer works one out from the filename and now **stores it on the item**. That is what stops
+  the name growing: the old behaviour re-read the title out of the filename on every run, so a template
+  rendering anything besides `$title` wrapped its own additions around the name again each time
+  (`Ann Miller.Delicacy` → `Ann Miller.Ann Miller.Delicacy.Delicacy`). A title you have already set is
+  never overwritten. Because it now writes metadata the setting ships off, but a value you have already
+  saved is kept exactly as it is — so this changes nothing for an existing install.
+- **Two settings retired, one narrowed.** _Default destination_ and _Relocate unmatched items to the
+  default destination_ are **gone**; an item matching no rule is renamed where it already sits, exactly
+  as before, and to move a group of items you give them a per-studio, per-tag or source-path rule.
+  _Allowed roots_ now only narrows **within** your library — every destination is inside it by
+  construction — so leaving it empty restricts nothing, and it can no longer send files outside the
+  library. Your stored settings still load; the retired values are ignored.
+- **The _Duration format_ setting now takes effect.** `$duration` used to render the raw number of
+  seconds whatever you picked, producing `My Film [5025]` where the setting's own example column
+  promised `My Film [01-23-45]`. **If a template of yours uses `$duration`, your names will change** —
+  check a dry run before your next rename. One example was also wrong: `mm-ss` renders the minutes
+  within the hour, so 1h 23m 45s is `23-45`, not `83-45`.
+- **The dry run explains more before you commit.** A file your exclude rules skip now names that as the
+  reason and is counted in the skipped total, instead of appearing flagged with nothing you could act
+  on. A cross-drive move whose temporary copy would exceed the path limit is flagged too — such a move
+  used to pass the plan and fail part-way through. And two new skip reasons cover a destination root
+  that is no longer one of Cove's library paths, and a file that sits outside every library path.
+  Worth knowing for the first: **renaming a library path in Cove reads as removing it**, so a rule
+  pointed at the old name skips until you re-pick it.
+- **Renamer now states that it renames audio, which it has been doing all along.** The manifest and
+  docs described video and image only, so the Extensions list understated both what Renamer touches and
+  the permissions it asks for — which is what you read before granting it access. It now declares all
+  three kinds and all three pairs: `videos.read`/`videos.write`, `images.read`/`images.write` and
+  `audios.read`/`audios.write`. Nothing about renaming changed. **Rename selected** and _Auto-rename on
+  update_ remain video and image only, so rename audio from the Rename settings page.
+- **Smaller fixes.** The tag, performer and studio fields search your library as you type rather than
+  listing everything the moment you click in, which is what made them slow on a large library. A
+  settings page left open until your access token lapses no longer fails the next save or dry run — the
+  request renews and carries on. A destination folder directly inside a drive root such as `D:\Films`
+  is accepted when _Allowed roots_ is set, instead of being skipped as blocked. And your last
+  whole-library dry-run summary is discarded once on first load, because a status label was misspelled
+  `renamer` and is now `rename`; run the scan again to get it back. If you call Renamer's HTTP API
+  yourself, that is a breaking change to the `status` field.
 
 ## 0.3.0 — Undo that cannot grow without bound
 

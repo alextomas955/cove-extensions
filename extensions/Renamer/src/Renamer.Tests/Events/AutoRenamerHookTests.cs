@@ -139,7 +139,9 @@ public sealed class AutoRenamerHookTests
 
             // The host calls OnEventAsync; the inner option-load throws. The handler must swallow it
             // so the host's dispatch loop is not handed a context-free exception. No throw == pass.
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", 1), default);
+            var ex = await Record.ExceptionAsync(
+                () => ext.OnEventAsync(new ExtensionEvent("video.updated", "video", 1), default));
+            Assert.Null(ex);
         }
         finally
         {
@@ -364,7 +366,7 @@ public sealed class AutoRenamerHookTests
             var readBack = new CoveRevertJournal(db);
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(readBack);
             Assert.NotNull(batch);
-            Assert.Equal(RenamerFileKind.Video, batch!.Kind);
+            Assert.Equal(RenamerFileKind.Video, batch.Kind);
 
             // (b) EntityId is the VIDEO id and FileId is the FILE id, and they differ — a row that
             // confused the two would have EntityId == FileId.

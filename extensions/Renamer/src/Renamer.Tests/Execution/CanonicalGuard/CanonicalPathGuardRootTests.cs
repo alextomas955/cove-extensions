@@ -142,7 +142,7 @@ public sealed class CanonicalPathGuardRootTests
         char? free = FirstUnmappedDriveLetter();
         Skip.If(free is null, "no unmapped drive letter available on this host");
 
-        string rootFwd = free!.Value + ":/";
+        string rootFwd = free.Value + ":/";
 
         var r = CanonicalPathGuard.Check(rootFwd + "Films", [rootFwd]);
 

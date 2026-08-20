@@ -9,6 +9,7 @@ import {
   bucketWireValue,
   inFlightOverflowLabel,
   IN_FLIGHT_OVERFLOW_LABEL,
+  shouldContinueWalk,
   summaryCounts,
   assetHref,
   clampProgress,
@@ -102,6 +103,54 @@ test("bucketWireValue emits the camelCase ScanBucketKind names the server parses
   assert.equal(bucketWireValue("no-change"), "noChange");
   assert.equal(bucketWireValue("attention"), "attention");
   assert.equal(bucketWireValue("all"), "all");
+});
+
+/**
+ * The walk state at the moment a real stall happened, derived from two consecutive `/scan-rows`
+ * responses captured against a live 7,459-entity library on a bucket 1.4% of it matches:
+ *
+ *   page 2 → { rows: 6, entitiesExamined: 500, budgetExhausted: true, next: { kind: "video", afterEntityId: 500 } }
+ *   page 3 → { rows: 0, entitiesExamined: 500, budgetExhausted: true, next: { kind: "video", afterEntityId: 1000 } }
+ *
+ * So: six rows accumulated, a cursor still live, and a page that added nothing at all — the responses
+ * are what makes this state a real one rather than a composed one. `targetRows` is what the viewport
+ * and its prefetch window ask for at an unscrolled open. Each case below flips exactly one field, so
+ * the field it flipped is what decided the answer.
+ */
+const STALLED_WALK = {
+  loadedRows: 6,
+  targetRows: 35,
+  hasMore: true,
+  loading: false,
+  hasError: false,
+} as const;
+
+test("a page that returned no rows while the cursor is still live continues the walk", () => {
+  // The zero-row page is the whole defect: it changes no row count, so anything watching the counts
+  // sees a finished walk and stops six rows into a hundred and two.
+  assert.equal(shouldContinueWalk(STALLED_WALK), true);
+});
+
+test("a walk whose cursor has gone null does not continue, however few rows it loaded", () => {
+  // The end of the library is the one honest reason to stop short of the target.
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, hasMore: false }), false);
+});
+
+test("a walk that has covered its row target does not continue", () => {
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 35 }), false);
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 36 }), false);
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 34 }), true);
+});
+
+test("a failed page does not continue, so a failing server is not asked without end", () => {
+  // A failure leaves the cursor live and clears the in-flight flag, so every other input still reads
+  // as "more to fetch, nothing in flight" — this arm is the only thing standing between that state
+  // and an unbounded retry.
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, hasError: true }), false);
+});
+
+test("a page already in flight does not continue", () => {
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loading: true }), false);
 });
 
 /**

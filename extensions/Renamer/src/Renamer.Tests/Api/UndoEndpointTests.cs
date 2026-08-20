@@ -427,7 +427,7 @@ public sealed class UndoEndpointTests
             {
                 var open = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
                 Assert.NotNull(open);
-                Assert.Equal(blockedFileId, Assert.Single(open!.Rows).FileId);
+                Assert.Equal(blockedFileId, Assert.Single(open.Rows).FileId);
             }
 
             // PARTIALLY RESTORED: the figures the panel's one line is built from. The original count is

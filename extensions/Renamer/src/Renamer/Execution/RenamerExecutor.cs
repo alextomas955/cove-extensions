@@ -216,6 +216,28 @@ public sealed class RenamerExecutor
             newFull = JoinPath(targetFolder, candidate);
         }
 
+        // (3b) Re-measure the absolute-path budget against the SETTLED candidate. The planner performs the
+        //      same re-check on its own suffixed name, and this site is NOT redundant with it: the loop
+        //      above re-suffixes against a fresher snapshot than the plan saw, so it can reach a longer
+        //      name than any the planner measured. An item previewed at exactly the budget with no suffix
+        //      lands over it once this loop appends one, which no plan-time check can see.
+        //
+        //      Measured against the real absolute path about to be written, where the planner measures the
+        //      gate's resolved folder. That asymmetry is correct: the planner may hold a non-absolute
+        //      anchor and its gate resolves under a synthetic root for the length arithmetic, while by
+        //      here the folder is the actual destination.
+        //
+        //      This refusal is visible to the user only after the confirm gate, which is accepted: nothing
+        //      has been mutated at this point — it precedes the sidecar plan, the canonical guard and every
+        //      disk write — so refusing is strictly safer than writing a path the budget forbids.
+        var recheck = PathConfinement.WithinBudget(targetFolder, candidate, options);
+        if (!recheck.Accepted)
+        {
+            skipped.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.SkipTooLong,
+                recheck.Reason!));
+            return;
+        }
+
         // (4) Sidecar moves: DB-tracked captions + configured same-stem neighbors that ride with the primary.
         var (plannedSidecars, captionRenames) = PlanSidecarMoves(srcFile, item.OldFullPath, targetFolder, candidate, options);
 
