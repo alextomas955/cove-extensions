@@ -62,8 +62,8 @@ what is specific to it. Shared first-party code lives in `shared/` — `Cove.Ext
   `FullExtensionBase`. `extension.json` is the load manifest (`id`, `name`, `entryDll`, `jsBundle`,
   `minCoveVersion`); its `entryDll` MUST match the built assembly name.
 - **Do not add a direct Cove reference or a `Directory.Build.props` in an extension `.csproj`.** The
-  `Cove.Sdk` reference and the source-selection math are wired once at the repo root (see *Build
-  wiring*).
+  `Cove.Sdk` reference and the source-selection math are wired once at the repo root (see _Build
+  wiring_).
 - **Never bundle host-provided assemblies.** `Cove.Core` / `Cove.Plugins` / `Cove.Sdk`, EF Core,
   Npgsql, and Pgvector are provided by the host and referenced `Private=false`. Shipping them causes
   `AssemblyLoadContext` type-identity mismatches at runtime. `Cove.Sdk.targets` strips them — verify
@@ -74,29 +74,29 @@ what is specific to it. Shared first-party code lives in `shared/` — `Cove.Ext
 
 ## Extension authoring patterns
 
-The rules above are the load/build contract; these are the durable *shape* rules every extension
+The rules above are the load/build contract; these are the durable _shape_ rules every extension
 follows. A new extension or a reshape obeys them; deviate only with a recorded reason. (The
 human-facing version lives at `website/docs/contributing/authoring-patterns.md`.)
 
 - **Six-kind taxonomy as a lens, not a folder tree.** Every module is exactly one of **FEAT**
   (capability slice) · **DOM** (pure logic) · **MODEL** (data/wire shape) · **INFRA** (I/O:
   HTTP/DB/disk/store/timers) · **UIP** (business-agnostic UI primitive) · **TOOL** (commit/CI/build
-  gate). Classify by what a file *is*, then place it by its tier's convention. The one dependency
+  gate). Classify by what a file _is_, then place it by its tier's convention. The one dependency
   rule: depend **downward** (toward MODEL) and sideways onto shared/UIP, never **upward** and never
   **across sibling features**.
 - **Structure per tier — do NOT mirror FE and BE.** The honest full-stack seam is the wire contract,
   not a directory layout. C# backend = capability/vertical slices at the project root (`Ingest/ ·
-  Matching/ · Monitor/ · Push/ · SceneStatus/`) alongside foundation folders (`Contracts/ · Adapters/
-  · Client/ · State/ · …`); a single rich capability is domain-layered instead (Renamer's `Engine/ ·
-  Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ · scene/ · monitor/
-  · …`) next to `index.ts`, `contracts.ts`, `common/`. Seeing the same capability name on both tiers
+Matching/ · Monitor/ · Push/ · SceneStatus/`) alongside foundation folders (`Contracts/ · Adapters/
+· Client/ · State/ · …`); a single rich capability is domain-layered instead (Renamer's `Engine/ ·
+Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ · scene/ · monitor/
+· …`) next to `index.ts`, `contracts.ts`, `common/`. Seeing the same capability name on both tiers
   (`Monitor/` + `monitor/`) is intended alignment, **not** duplication to collapse.
 - **No `features/` wrapper.** Slices live at the tier root, not under `features/`/`Features/` — that
   is a large-app (FSD/Bulletproof-React) pattern that discriminates nothing in a plugin that is almost
   entirely slices. Sub-concerns reachable from only one slice NEST under it (Renamer's
   `settings/dry-run/`). Add a `features/` grouping later only if a tier grows a real body of
   non-feature code.
-- **Capability naming, not entity naming (C#).** Slice by *what the code does*, never by entity —
+- **Capability naming, not entity naming (C#).** Slice by _what the code does_, never by entity —
   **no `Studio/`, `Performer/`, or `Scene/` folder**. Entity ops live in the capability acting on them
   (studio + performer monitoring → `Monitor/`; scene add → `Push/`). Name a projection for its
   capability: `SceneStatus/`, never bare `Scene/`.
@@ -111,7 +111,7 @@ human-facing version lives at `website/docs/contributing/authoring-patterns.md`.
   `postAction.ts`, `overlay.ts`, `entityPickerLogic.ts` — because at seven files the suffix already
   carries the kind and a `ui/`/`lib/` split would only restate it (the suffix-as-kind rule above).
   **The level is decided by reach, never by a directory name:** a module belongs at repo level only if
-  it is business-agnostic *and* reusable by every extension unchanged. Extension-local multi-feature
+  it is business-agnostic _and_ reusable by every extension unchanged. Extension-local multi-feature
   code lives in that extension's own `common/`, which **is** split (`common/ui` + `common/lib`, as
   Renamer's is today), and is **never** called "shared" — anything carrying one extension's branding or
   domain vocabulary belongs in its `common/ui`, not in `cove-extensions-ui`.
@@ -147,7 +147,7 @@ human-facing version lives at `website/docs/contributing/authoring-patterns.md`.
   **aggregates**, serve **rows paged on demand** — planning and projection here are pure per entity, so a
   slice computes identically to a full pass. A row cap is NOT the remedy: it converts a hard failure into
   a silently truncated answer, which is worse. When a design cannot avoid a full pass (a count, a
-  reconcile), the pass may be O(library) in *time* but its output must still be O(1) in size. Renamer's
+  reconcile), the pass may be O(library) in _time_ but its output must still be O(1) in size. Renamer's
   `last-scan-result` reaching 595 MB (~1.04M files) is the worked example.
 - **Testing.** Every xUnit test class carries exactly one class-level `[Trait("Tier", …)]` — L0
   pure-logic · L1 host-double (real SQLite `CoveContext` / `TempDir` / principal) · L2 in-process
@@ -199,7 +199,7 @@ comment.
   surface (the `IExtension` boundary, interfaces, shared-vocabulary contract types) where the tag
   states a contract a caller cannot read from the signature; discouraged-when-redundant on internal
   app code; none on test or generated code. Each tag earns its place: no `<param>` that merely
-  restates a parameter name. `<remarks>` is the home for the *why* and the edge cases; `<exception>`
+  restates a parameter name. `<remarks>` is the home for the _why_ and the edge cases; `<exception>`
   is genuinely useful because it documents which throws a caller must catch.
 
 ```csharp
@@ -220,11 +220,11 @@ string ResolveCanonicalPath(string candidate);
 ```
 
 - **AI tools (Claude Code / Copilot / Cursor):** when generating code, do **not** add comments or XML
-  docs unless they clear the *why* bar above. Match the surrounding comment density. Never narrate
+  docs unless they clear the _why_ bar above. Match the surrounding comment density. Never narrate
   the edit; never restate a name.
 - **Analyzer posture (why there is no forced-doc rule):** `GenerateDocumentationFile` is ON only so
   `IDE0005` (dead `using`) is reported on build; `CS1591` (missing XML doc on a public member) is
-  deliberately silenced via `NoWarn`, so doc *presence* is not mandated. There is intentionally **no**
+  deliberately silenced via `NoWarn`, so doc _presence_ is not mandated. There is intentionally **no**
   StyleCop / Sonar / Meziantou doc-enforcement analyzer — those would manufacture exactly the filler
   this policy forbids. Do not add one. See the root `Directory.Build.props` for the actual lever state.
 
@@ -271,7 +271,7 @@ style guides). When writing or reviewing docs:
 
 - **Keep the four Diátaxis modes separate** — don't blend them on one page:
   - **How-to guide** (task-oriented, for a competent user): a real-world goal, written from the
-    *user's* perspective, a sequence of actions; omit teaching. → a "Rename your library" guide.
+    _user's_ perspective, a sequence of actions; omit teaching. → a "Rename your library" guide.
   - **Reference** (information-oriented, neutral, factual): its structure **mirrors the product**
     (group settings by the UI panel section, in the same order the user sees). → the settings and
     token references.
@@ -285,11 +285,11 @@ style guides). When writing or reviewing docs:
   filename it produces), then a graduated series (name → +year → +resolution …); pair every token
   with its rendered output (`token = example`); group tokens into thematic tables; document syntax
   rules explicitly (Renamer's `{ … }` group collapses when its inner tokens are empty; `$$` is a
-  literal `$`; absent tokens are omitted). List the shipped presets. Document tokens *as they are*
+  literal `$`; absent tokens are omitted). List the shipped presets. Document tokens _as they are_
   (`$title`, `$resolution`) — do NOT impose an UPPERCASE_UNDERSCORE convention (that's for
   user-replaced CLI placeholders, not a fixed token vocabulary).
 - **README vs site:** the GitHub README is a short entry point (what it is + a link to the site) and
-  holds dev/build/release detail; the *user* story (what it does, settings, tokens) lives on the site.
+  holds dev/build/release detail; the _user_ story (what it does, settings, tokens) lives on the site.
 - **Style:** second person ("you"), active voice, present tense; sentence-case headings; task
   headings use the bare infinitive ("Add a per-studio destination"), concept headings use noun
   phrases ("Naming templates"), never an -ing gerund; lead with the most important info and put

@@ -77,9 +77,7 @@ try {
 }
 
 if (!siblingVersion) {
-  console.error(
-    `[check-sdk-drift] FAIL: ${siblingPackageJson} has no "version" field`,
-  );
+  console.error(`[check-sdk-drift] FAIL: ${siblingPackageJson} has no "version" field`);
   process.exit(1);
 }
 console.log(`[check-sdk-drift] sibling Cove SDK version:  ${siblingVersion}`);

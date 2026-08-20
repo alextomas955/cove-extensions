@@ -11,25 +11,25 @@
 // the full 3-step add-a-suite guide.
 //
 // Run: cd tests/e2e && npm test -- template.spec.mjs
-import { test, expect } from '../lib/fixtures.mjs';
-import { resolveExtensionPaths } from '../lib/resolve-extension.mjs';
+import { test, expect } from "../lib/fixtures.mjs";
+import { resolveExtensionPaths } from "../lib/resolve-extension.mjs";
 
 // resolveExtensionPaths derives your extension's build outputs from THIS file's own location — no
 // hand-rolled repo-root math. When copied into your extension it resolves relative to the copy.
 test.use({
   extension: resolveExtensionPaths(import.meta.url, {
-    srcProject: 'Renamer', // → src/<srcProject>/extension.json  (change to your .NET project name)
-    uiProject: 'Renamer.Ui', // → src/<uiProject>/dist/index.mjs  (change to your UI project name)
+    srcProject: "Renamer", // → src/<srcProject>/extension.json  (change to your .NET project name)
+    uiProject: "Renamer.Ui", // → src/<uiProject>/dist/index.mjs  (change to your UI project name)
   }),
 });
 
-test('extension installs and reports enabled via the API', async ({ api }) => {
-  const { ok, json } = await api.get('/api/extensions');
+test("extension installs and reports enabled via the API", async ({ api }) => {
+  const { ok, json } = await api.get("/api/extensions");
   expect(ok).toBe(true);
-  const installed = json.find((e) => e.id === 'com.alextomas955.renamer');
+  const installed = json.find((e) => e.id === "com.alextomas955.renamer");
   expect(installed?.enabled).toBe(true);
 });
 
-test('Cove home page loads in the browser against the containerized instance', async ({ page }) => {
+test("Cove home page loads in the browser against the containerized instance", async ({ page }) => {
   await expect(page).toHaveTitle(/Cove/i);
 });

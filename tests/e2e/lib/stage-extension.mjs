@@ -2,8 +2,8 @@
 // bind-mount install expects: <stagingRoot>/<extensionId>/{extension.json, *.dll, index.mjs, ...}.
 // This mirrors what Renamer's own scripts/deploy-dev.ps1 does for a native install, but targets a
 // throwaway staging dir instead of a live COVE_HOME.
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
 
 export function stageExtension({ publishDir, manifestPath, uiBundlePath, stagingRoot }) {
   if (!existsSync(publishDir)) {
@@ -13,7 +13,7 @@ export function stageExtension({ publishDir, manifestPath, uiBundlePath, staging
     throw new Error(`stageExtension: manifestPath does not exist: ${manifestPath}`);
   }
 
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   if (!manifest.id) {
     throw new Error(`stageExtension: manifest at ${manifestPath} has no "id" field`);
   }
@@ -25,13 +25,13 @@ export function stageExtension({ publishDir, manifestPath, uiBundlePath, staging
   mkdirSync(target, { recursive: true });
 
   cpSync(publishDir, target, { recursive: true });
-  cpSync(manifestPath, join(target, 'extension.json'));
+  cpSync(manifestPath, join(target, "extension.json"));
 
   if (uiBundlePath) {
     if (!existsSync(uiBundlePath)) {
       throw new Error(`stageExtension: uiBundlePath does not exist: ${uiBundlePath}`);
     }
-    cpSync(uiBundlePath, join(target, 'index.mjs'));
+    cpSync(uiBundlePath, join(target, "index.mjs"));
   }
 
   return { id: manifest.id, path: target };
