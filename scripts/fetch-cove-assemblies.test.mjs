@@ -19,6 +19,7 @@ import {
   compareSemver,
   main,
   parseMsBuildProperties,
+  imageAtLeastVersion,
   parseSemver,
   readCoveImageReference,
   readExtensionFloors,
@@ -131,6 +132,29 @@ test("the strict-semver regex is the whole filter: every non-semver tag spelling
     prerelease: [],
   });
   assert.deepEqual(parseSemver("1.3.0-rc.2").prerelease, ["rc", "2"]);
+});
+
+test("a host-capability floor is compared, not enumerated: only tags below it read as lacking it", () => {
+  const image = (tag) => `ghcr.io/yourcove/cove-app:${tag}`;
+  // Cove publishes per-entity events for bulk mutations from 1.2.0 (issue #108).
+  for (const tag of ["1.0.0", "1.1.0", "1.1.1", "0.9.0"])
+    assert.equal(imageAtLeastVersion(image(tag), "1.2.0"), false, tag);
+  for (const tag of ["1.2.0", "1.3.0", "1.10.0", "2.0.0"])
+    assert.equal(imageAtLeastVersion(image(tag), "1.2.0"), true, tag);
+
+  // A tag that is no version at all tracks ahead of the last release, so it counts as capable.
+  for (const tag of ["nightly", "latest"])
+    assert.equal(imageAtLeastVersion(image(tag), "1.2.0"), true, tag);
+
+  // A prerelease sorts below its own release, so it reads as lacking the capability. That is a skip,
+  // never a false failure, which is the direction to err in.
+  assert.equal(imageAtLeastVersion(image("1.2.0-rc.1"), "1.2.0"), false);
+
+  // The tag is the last colon-separated component, so a registry port is not mistaken for one.
+  assert.equal(imageAtLeastVersion("localhost:5000/cove-app:1.0.0", "1.2.0"), false);
+
+  // A floor that is not strict semver would silently admit everything, so it throws instead.
+  assert.throws(() => imageAtLeastVersion(image("1.2.0"), "nightly"), /strict X\.Y\.Z floor/);
 });
 
 test("ranking follows semver precedence, including the three pre-release rules", () => {

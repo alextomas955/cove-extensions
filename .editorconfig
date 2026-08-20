@@ -85,6 +85,9 @@ dotnet_naming_style.underscore_camel_style.capitalization = camel_case
 dotnet_naming_style.underscore_camel_style.required_prefix = _
 
 # ---------- Analyzer category tuning (strict-but-not-pedantic) ----------
+# Only list rules latest-Recommended actually enables — the SDK's analysislevel_<n>_recommended
+# .globalconfig is that list. An entry for a rule that mode leaves off is dead config, not a
+# relaxation, and reads as though it holds something back.
 [*.cs]
 # Dead code must block a merge, not whisper. These three rules DO run in a command-line build (with
 # EnforceCodeStyleInBuild, set in Directory.Build.props) but ship at SUGGESTION severity, which
@@ -100,8 +103,6 @@ dotnet_diagnostic.IDE0051.severity = error
 dotnet_diagnostic.IDE0052.severity = error
 dotnet_diagnostic.IDE0060.severity = error
 
-# CA1062 (validate public args) is noisy for an internal-ish extension; keep as suggestion.
-dotnet_diagnostic.CA1062.severity = suggestion
 # CA1031 (do not catch general Exception) is ENFORCED here, and relaxed only at the enumerated files
 # below. It used to be `suggestion` repo-wide carrying a file-specific reason ("the disk-mover/undo
 # paths intentionally do"), which made the permission unbounded: the next bare `catch (Exception)`
@@ -111,8 +112,6 @@ dotnet_diagnostic.CA1062.severity = suggestion
 # rule does not fire on `catch (Exception ex) when (ex is not OperationCanceledException)`, an idiom
 # already used in five places here.
 dotnet_diagnostic.CA1031.severity = warning
-# CA2007 (ConfigureAwait) — not needed in a library hosted by ASP.NET; suppress to avoid churn.
-dotnet_diagnostic.CA2007.severity = none
 
 # ── Sonar rules disabled repo-wide, each for a structural reason and none because it had hits ──
 #
@@ -164,10 +163,9 @@ dotnet_diagnostic.CA1031.severity = none
 dotnet_diagnostic.CA1031.severity = none
 
 # Tests: relax a few rules that fight idiomatic xUnit.
-[extensions/Renamer/src/Renamer.Tests/**.cs]
+[**/*.Tests/**.cs]
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1822.severity = none
-dotnet_diagnostic.CA2007.severity = none
 # CA1861 (hoist constant array args to static readonly fields) is a micro-perf rule that fights
 # inline literal arrays in test arrange/assert (e.g. Assert.Equal(new[] { 3, 2, 1 }, ...)); test
 # readability wins over a non-measurable allocation in a unit test.

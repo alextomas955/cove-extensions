@@ -19,7 +19,7 @@ import {
   createApiClient,
   pollUntil,
 } from "../lib/renamer-fixtures.mjs";
-import { resolveCoveImage } from "@cove-extensions/e2e/harness";
+import { imageAtLeastVersion, resolveCoveImage } from "@cove-extensions/e2e/harness";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 import { VideoDetailPage } from "../lib/pages/video-detail-page.mjs";
 import { assertRenamedTo, basename } from "../lib/rename-assertions.mjs";
@@ -212,27 +212,24 @@ test("an untitled item with a folder template moves once, and a later edit does 
 
 // ── Multi-item edits ─────────────────────────────────────────────────────────────────────────────
 //
-// Cove publishes entity events for bulk mutations only since `ca14830` (2026-08-02), which ships in
-// nightly and in no released tag. Without it /videos/bulk saves the rows and raises nothing, so the
-// hook is never invoked and cannot be — an extension cannot observe an event the host does not
-// publish. Measured, one variable: cove-app:1.1.0 renamed 0 of 6, cove-app:nightly renamed 6 of 6.
+// Cove publishes entity events for bulk mutations from 1.2.0 onward. Before that, /videos/bulk saves
+// the rows and raises nothing, so the hook is never invoked and cannot be — an extension cannot
+// observe an event the host does not publish.
 //
 // This therefore asserts a HOST CAPABILITY the feature depends on, and is skipped — loudly, never
-// silently — on a host known to lack it. When the repo's pinned image moves to a release carrying
-// ca14830 the skip stops firing and the assertion starts running, with no edit here. (Issue #108.)
-// Asked of the harness, which is what actually decides — so this reads the host the run really booted,
-// including the tag-only form a CI version leg supplies. A literal here (or a partial re-derivation of
-// that precedence) would key the skip below on a tag the run did not use, reporting "host limitation"
-// for a host that has none, or running the assertion against one that cannot satisfy it.
+// silently — on a host below that floor. The image is asked of the harness rather than written down
+// here, so the skip keys on the host the run actually booted, including the tag-only form a CI version
+// leg supplies. (Issue #108.)
+const BULK_EVENTS_SINCE = "1.2.0";
 const HOST_IMAGE = resolveCoveImage();
-const HOST_PUBLISHES_BULK_EVENTS = !/:(0\.|1\.0|1\.1\.0)/.test(HOST_IMAGE);
+const HOST_PUBLISHES_BULK_EVENTS = imageAtLeastVersion(HOST_IMAGE, BULK_EVENTS_SINCE);
 const BULK_COUNT = 6;
 
 test.describe("multi-item edits", () => {
   test.skip(
     !HOST_PUBLISHES_BULK_EVENTS,
-    `host ${HOST_IMAGE} predates Cove ca14830, so /videos/bulk publishes no entity events — the hook ` +
-      `cannot fire. A host limitation, not a Renamer defect (issue #108).`,
+    `host ${HOST_IMAGE} is below Cove ${BULK_EVENTS_SINCE}, so /videos/bulk publishes no entity ` +
+      `events and the hook cannot fire. A host limitation, not a Renamer defect (issue #108).`,
   );
 
   test("setting Organized on several videos at once renames every one of them, not just one", async ({

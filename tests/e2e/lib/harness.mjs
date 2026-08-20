@@ -20,6 +20,10 @@ import {
   readExtensionFloors,
 } from "../../../scripts/fetch-cove-assemblies.mjs";
 
+// Re-exported rather than wrapped: a spec gates on a host capability, and the version logic it needs
+// already lives with the other semver helpers.
+export { imageAtLeastVersion } from "../../../scripts/fetch-cove-assemblies.mjs";
+
 // import.meta.dirname, never a filesystem path read off a module URL's path component: on Windows
 // that yields a leading-slash form which resolves to a doubled drive prefix.
 const COMPOSE_DIR = join(import.meta.dirname, "..", "docker");

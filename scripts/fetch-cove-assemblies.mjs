@@ -292,6 +292,30 @@ const SEMVER =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+(?:[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 
 /** Parses a strict semver tag, or returns null for anything that is not one. */
+/**
+ * True when the tag on `image` is at or above `floor`.
+ *
+ * For gating a test on a host capability that arrived in a known release. Compared rather than
+ * enumerated: a list of known-bad tags silently admits the next patch nobody thought of, and admitting
+ * one is the direction that produces a false failure.
+ *
+ * Two tag shapes are not a plain version and are handled deliberately. A tag that is not semver at all
+ * (`nightly`, `latest`) counts as at or above, because those track ahead of the last release. A
+ * prerelease (`1.2.0-rc.1`) sorts BELOW its own release per semver, so it reads as lacking the
+ * capability even when it carries it — a skip rather than a failure, which is the safe direction.
+ *
+ * @param {string} image - a complete image reference, e.g. `ghcr.io/yourcove/cove-app:1.3.0`.
+ * @param {string} floor - the release the capability arrived in, as strict X.Y.Z.
+ * @returns {boolean}
+ */
+export function imageAtLeastVersion(image, floor) {
+  const target = parseSemver(floor);
+  if (target === null)
+    throw new Error(`imageAtLeastVersion needs a strict X.Y.Z floor, got '${floor}'.`);
+  const parsed = parseSemver(image.slice(image.lastIndexOf(":") + 1));
+  return parsed === null || compareSemver(parsed, target) >= 0;
+}
+
 export function parseSemver(tag) {
   const match = SEMVER.exec(String(tag ?? ""));
   if (match === null) return null;
