@@ -10,12 +10,6 @@ export function basename(path) {
   return path.slice(path.lastIndexOf("/") + 1);
 }
 
-/** POSIX dirname — container paths are always '/'-separated. */
-export function dirname(path) {
-  const idx = path.lastIndexOf("/");
-  return idx <= 0 ? "/" : path.slice(0, idx);
-}
-
 /**
  * Asserts a video renamed to EXACTLY `expectedBasename`: the DB record's file basename matches, the
  * file exists on disk at that new path, and `originalPath` is gone from disk. Polls the record so the
