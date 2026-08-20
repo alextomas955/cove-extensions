@@ -56,11 +56,7 @@ function tsxFiles(dir) {
 const PANEL_FILES = [...tsxFiles(SRC_DIR), ...tsxFiles(SHARED_SRC_DIR)];
 
 // Host-absent Tailwind classes (verified 0× in cove-ui).
-const FORBIDDEN = [
-  "focus-visible:ring-1",
-  "focus-visible:ring-accent",
-  "lg:top-4",
-];
+const FORBIDDEN = ["focus-visible:ring-1", "focus-visible:ring-accent", "lg:top-4"];
 
 // The raw-HTML React prop — banned as actual JSX usage (`dangerouslySetInnerHTML=` or `:`), but NOT when
 // it merely appears in a comment/doc string (e.g. "NO dangerouslySetInnerHTML"). Render escaped only.
@@ -97,9 +93,7 @@ for (const full of PANEL_FILES) {
     }
   }
   if (RAW_HTML_RE.test(text)) {
-    console.error(
-      `FORBIDDEN raw-HTML prop (dangerouslySetInnerHTML) used in src/${file}`,
-    );
+    console.error(`FORBIDDEN raw-HTML prop (dangerouslySetInnerHTML) used in src/${file}`);
     failed = true;
   }
   for (const cls of classNameLiterals(text)) {
@@ -119,6 +113,4 @@ if (failed) {
   console.error("check-classes: FAILED");
   process.exit(1);
 }
-console.log(
-  "check-classes: OK (no host-absent classes, no raw-HTML rendering)",
-);
+console.log("check-classes: OK (no host-absent classes, no raw-HTML rendering)");

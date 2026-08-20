@@ -89,7 +89,7 @@ disk or database mutation.
   count and byte total it summarises stay exact, and the stored value says when the list was topped.
 - `ScanRowPager.cs` / `ScanBucket.cs` — the dry run's rows are not stored at all. A page is planned on
   demand through the same `PlanLoadedEntity` the scan job uses, walking the same ascending `(kind,
-  entity id)` order, so a page computes exactly what the full pass would have. It is the purity of
+entity id)` order, so a page computes exactly what the full pass would have. It is the purity of
   planning — one item's plan depends on no other item in the run — that makes this equivalence hold
   rather than a second code path written to agree. A request also has a ceiling on how many items it
   will examine, so a narrow filter cannot turn one page into a full-library pass; when it stops there,
@@ -156,9 +156,10 @@ A Vite library build that Cove loads as `index.mjs`. Its home is a dedicated **S
   not help, because rows do not exist until they are planned, so ordering by new name or destination
   would mean planning the entire library to answer one page. The one order that is free is the
   cursor's own — kind, then entity id — so that is the order rows are served in, and the table states
-  it rather than offering a header that could not act. The two controls that *can* be answered cheaply
+  it rather than offering a header that could not act. The two controls that _can_ be answered cheaply
   stay: the status filter, answered by the summary's counts, and the path search, answered by the page
   query using the same match rule the browser used to apply.
+
 - `renameSelected.ts` — the bulk-action handler: preview → confirm → `/rename`, cancellable.
 - `UndoSection.tsx` — the undo control backed by `/undo` and `/last-batch`.
 - `EntityPicker.tsx` / `StudioMap.tsx` — the searchable studio/tag picker and the per-studio

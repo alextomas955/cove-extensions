@@ -69,13 +69,21 @@ const uiPkg = JSON.parse(read(uiPackageJsonArg));
 
 const versionSources = [
   { label: "extension.json version", file: manifestArg, value: manifest.version },
-  { label: "C# source Version", file: versionSourceArg, value: csharpOverride(versionSource, "Version") },
+  {
+    label: "C# source Version",
+    file: versionSourceArg,
+    value: csharpOverride(versionSource, "Version"),
+  },
   { label: "package.json version", file: uiPackageJsonArg, value: uiPkg.version },
 ];
 
 const minCoveSources = [
   { label: "extension.json minCoveVersion", file: manifestArg, value: manifest.minCoveVersion },
-  { label: "C# source MinCoveVersion", file: versionSourceArg, value: csharpOverride(versionSource, "MinCoveVersion") },
+  {
+    label: "C# source MinCoveVersion",
+    file: versionSourceArg,
+    value: csharpOverride(versionSource, "MinCoveVersion"),
+  },
 ];
 
 const failures = [];
@@ -86,7 +94,9 @@ const failures = [];
 // uncaught TypeError.
 if (catalogManifestArg) {
   const catalogManifest = JSON.parse(read(catalogManifestArg));
-  const latestVersion = Array.isArray(catalogManifest.versions) ? catalogManifest.versions[0] : null;
+  const latestVersion = Array.isArray(catalogManifest.versions)
+    ? catalogManifest.versions[0]
+    : null;
 
   if (latestVersion == null) {
     failures.push(`catalog manifest (${catalogManifestArg}) has no versions[0] entry to compare`);

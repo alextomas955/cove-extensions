@@ -27,7 +27,7 @@ that Cove fills in from each item's metadata — for example `$title` becomes th
 `$resolution` becomes `1080p`.
 
 1. In the **Filename & destination** section, either pick a **preset** chip (for example
-   *Date – Title [Resolution]*) or type your own template.
+   _Date – Title [Resolution]_) or type your own template.
 2. Watch the **live preview** below the field — it shows the new name for a few sample items and
    updates as you type. Nothing is renamed yet.
 3. To move files into folders as well as rename them, fill in the **folder template** (for example
@@ -40,7 +40,7 @@ full token list and the grouping rules.
 
 ## Preview with a dry run
 
-A dry run scans your whole library and shows exactly what *would* happen — old name → new name, the
+A dry run scans your whole library and shows exactly what _would_ happen — old name → new name, the
 destination, and any warnings — without changing anything.
 
 1. In the **Run & automation** section, click **Dry run**. While the library scans, a progress bar
@@ -95,12 +95,12 @@ re-run is how you change your mind about a template. Before the first run on a s
 
 ## Common tasks
 
-- **Rename only curated items** — turn on *Only rename organized items* (What gets renamed).
+- **Rename only curated items** — turn on _Only rename organized items_ (What gets renamed).
 - **Keep files organized into folders by studio/year** — set a folder template like
   `$studio / $year` and, if the destination is outside the source folder, add that root under
-  *Allowed roots* (Destination routing → Advanced).
-- **Route certain studios or tags to specific drives** — use *Per-studio destinations* or
-  *Per-tag destinations* (Destination routing).
+  _Allowed roots_ (Destination routing → Advanced).
+- **Route certain studios or tags to specific drives** — use _Per-studio destinations_ or
+  _Per-tag destinations_ (Destination routing).
 - **Skip certain items entirely** — add exclude rules by tag, studio, or path (Advanced → Excludes).
 
 Every one of these is documented field-by-field in the [Settings reference](./settings).

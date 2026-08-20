@@ -41,7 +41,9 @@ function readMsBuildProperties(filePath) {
   const pattern = /<([A-Za-z_][A-Za-z0-9_.-]*)(?:\s+[^>]*)?>([^<]*)<\/\1>/g;
   for (const match of content.matchAll(pattern)) {
     const [, name, rawValue] = match;
-    const value = rawValue.trim().replace(/\$\(([^)]+)\)/g, (_, propertyName) => props[propertyName] ?? `$(${propertyName})`);
+    const value = rawValue
+      .trim()
+      .replace(/\$\(([^)]+)\)/g, (_, propertyName) => props[propertyName] ?? `$(${propertyName})`);
     props[name] = value;
   }
 
@@ -52,7 +54,7 @@ function parseVersion(value) {
   if (typeof value !== "string") return null;
   const match = value.match(/^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);
   if (!match) return null;
-  return match.slice(1).map(part => Number.parseInt(part, 10));
+  return match.slice(1).map((part) => Number.parseInt(part, 10));
 }
 
 function compareVersions(left, right) {
@@ -95,7 +97,9 @@ function validateExternalDependencies(extensionId, manifest) {
       errors.push(extensionId + ": external dependency uses legacy optional; use required");
     }
     if (Object.prototype.hasOwnProperty.call(dependency, "settingsKey")) {
-      errors.push(extensionId + ": external dependency uses legacy settingsKey; use configurationKeys");
+      errors.push(
+        extensionId + ": external dependency uses legacy settingsKey; use configurationKeys",
+      );
     }
     if (dependency.configurationKeys != null && !Array.isArray(dependency.configurationKeys)) {
       errors.push(extensionId + ": external dependency configurationKeys must be an array");
@@ -119,7 +123,9 @@ function validateSettings(extensionId, manifest) {
       errors.push(extensionId + ": setting uses legacy label; use displayName");
     }
     if (Object.prototype.hasOwnProperty.call(setting, "defaultValue")) {
-      errors.push(extensionId + ": setting uses legacy defaultValue; remove it from extension.json");
+      errors.push(
+        extensionId + ": setting uses legacy defaultValue; remove it from extension.json",
+      );
     }
     if (Object.prototype.hasOwnProperty.call(setting, "scope")) {
       errors.push(extensionId + ": setting uses legacy scope; remove it from extension.json");
@@ -141,31 +147,48 @@ if (entries.length === 0) errors.push("extensions/catalog.json has no extensions
 // the floor checks below rather than fail, so the upstream's unconditional
 // "missing CoveMinVersion" error line is intentionally NOT ported here.
 if (coveMinVersion) {
-  validateVersionFloor("Directory.Build.props", "CoveSdkVersion", buildProps.CoveSdkVersion, coveMinVersion);
-  validateVersionFloor("Directory.Build.props", "CoveCoreVersion", buildProps.CoveCoreVersion, coveMinVersion);
+  validateVersionFloor(
+    "Directory.Build.props",
+    "CoveSdkVersion",
+    buildProps.CoveSdkVersion,
+    coveMinVersion,
+  );
+  validateVersionFloor(
+    "Directory.Build.props",
+    "CoveCoreVersion",
+    buildProps.CoveCoreVersion,
+    coveMinVersion,
+  );
 }
 
 const ids = new Set();
 const tagPrefixes = new Set();
 for (const entry of entries) {
   for (const field of ["name", "id", "path", "tagPrefix"]) {
-    if (!entry[field]) errors.push((entry.id ?? entry.name ?? "catalog entry") + ": missing " + field);
+    if (!entry[field])
+      errors.push((entry.id ?? entry.name ?? "catalog entry") + ": missing " + field);
   }
 
   if (entry.id && ids.has(entry.id)) errors.push(entry.id + ": duplicate extension id");
   if (entry.id) ids.add(entry.id);
 
-  if (entry.tagPrefix && tagPrefixes.has(entry.tagPrefix)) errors.push(entry.id + ": duplicate tagPrefix " + entry.tagPrefix);
+  if (entry.tagPrefix && tagPrefixes.has(entry.tagPrefix))
+    errors.push(entry.id + ": duplicate tagPrefix " + entry.tagPrefix);
   if (entry.tagPrefix) tagPrefixes.add(entry.tagPrefix);
-  if (entry.tagPrefix && !entry.tagPrefix.endsWith("/")) errors.push(entry.id + ": tagPrefix must end with /");
+  if (entry.tagPrefix && !entry.tagPrefix.endsWith("/"))
+    errors.push(entry.id + ": tagPrefix must end with /");
 
   const extensionDir = path.join(root, entry.path ?? "");
   // Fork adaptation #1: prefer the catalog entry's explicit manifestPath/projectPath when present
   // (Renamer's real layout nests both one level deeper under src/Renamer/), falling back to the
   // upstream's {path}/extension.json and {path}/{name}.csproj convention when the entry omits
   // them, so a flat-convention or manifestOnly entry added later still validates unchanged.
-  const manifestPath = entry.manifestPath ? path.join(root, entry.manifestPath) : path.join(extensionDir, "extension.json");
-  const projectPath = entry.projectPath ? path.join(root, entry.projectPath) : path.join(extensionDir, entry.name + ".csproj");
+  const manifestPath = entry.manifestPath
+    ? path.join(root, entry.manifestPath)
+    : path.join(extensionDir, "extension.json");
+  const projectPath = entry.projectPath
+    ? path.join(root, entry.projectPath)
+    : path.join(extensionDir, entry.name + ".csproj");
   const isManifestOnly = entry.manifestOnly === true;
 
   if (!fs.existsSync(extensionDir)) {
@@ -177,15 +200,28 @@ for (const entry of entries) {
     continue;
   }
   if (!isManifestOnly && !fs.existsSync(projectPath)) {
-    errors.push(entry.id + ": missing project " + (entry.projectPath ?? entry.name + ".csproj at " + entry.path));
+    errors.push(
+      entry.id +
+        ": missing project " +
+        (entry.projectPath ?? entry.name + ".csproj at " + entry.path),
+    );
   }
 
   const manifest = readJson(manifestPath);
-  if (manifest.id !== entry.id) errors.push(entry.id + ": catalog id does not match extension.json id " + manifest.id);
+  if (manifest.id !== entry.id)
+    errors.push(entry.id + ": catalog id does not match extension.json id " + manifest.id);
   if (!manifest.version) errors.push(entry.id + ": extension.json missing version");
-  if (coveMinVersion) validateVersionFloor(entry.id, "extension.json minCoveVersion", manifest.minCoveVersion, coveMinVersion);
-  if (!isManifestOnly && !manifest.entryDll) errors.push(entry.id + ": extension.json missing entryDll");
-  if (isManifestOnly && manifest.entryDll) errors.push(entry.id + ": manifestOnly entry must not declare entryDll");
+  if (coveMinVersion)
+    validateVersionFloor(
+      entry.id,
+      "extension.json minCoveVersion",
+      manifest.minCoveVersion,
+      coveMinVersion,
+    );
+  if (!isManifestOnly && !manifest.entryDll)
+    errors.push(entry.id + ": extension.json missing entryDll");
+  if (isManifestOnly && manifest.entryDll)
+    errors.push(entry.id + ": manifestOnly entry must not declare entryDll");
   if (isManifestOnly && !["bundle", "scraper-pack"].includes(manifest.kind)) {
     errors.push(entry.id + ": manifestOnly entries must use kind=bundle or kind=scraper-pack");
   }
@@ -194,7 +230,8 @@ for (const entry of entries) {
     errors.push(entry.id + ": extension.json missing categories");
   } else {
     for (const category of manifest.categories) {
-      if (!isLowerKebab(category)) errors.push(entry.id + ": category must be lowercase kebab-case: " + category);
+      if (!isLowerKebab(category))
+        errors.push(entry.id + ": category must be lowercase kebab-case: " + category);
     }
   }
 
