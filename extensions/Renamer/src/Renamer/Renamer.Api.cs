@@ -2,7 +2,6 @@ using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Core.Entities;
 using Cove.Core.Interfaces;
-using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Cove.Sdk;
 using Microsoft.AspNetCore.Builder;
@@ -316,7 +315,10 @@ public sealed partial class Renamer
             (coreProgress, ct) => RunRenamerBatchAsync(parameters, new HostProgress(coreProgress), ct),
             exclusive: true);
 
-        return new AcceptedWire<JobEnqueued>(new JobEnqueued(jobId));
+        return Results.Json(
+            new JobEnqueued(jobId),
+            PreviewResponseJsonOptions,
+            statusCode: StatusCodes.Status202Accepted);
     }
 
     /// <summary>
@@ -617,7 +619,10 @@ public sealed partial class Renamer
             (coreProgress, ct) => RunScanLibraryJobAsync(readableKinds, overrideOptions, new HostProgress(coreProgress), ct),
             exclusive: true);
 
-        return new AcceptedWire<JobEnqueued>(new JobEnqueued(jobId));
+        return Results.Json(
+            new JobEnqueued(jobId),
+            PreviewResponseJsonOptions,
+            statusCode: StatusCodes.Status202Accepted);
     }
 
     /// <summary>
@@ -905,7 +910,10 @@ public sealed partial class Renamer
             (coreProgress, ct) => RunRenamerLibraryJobAsync(writableKinds, new HostProgress(coreProgress), ct),
             exclusive: true);
 
-        return new AcceptedWire<JobEnqueued>(new JobEnqueued(jobId));
+        return Results.Json(
+            new JobEnqueued(jobId),
+            PreviewResponseJsonOptions,
+            statusCode: StatusCodes.Status202Accepted);
     }
 
     /// <summary>
