@@ -25,15 +25,21 @@ namespace Renamer.Tests.Concurrency;
 public sealed class ParallelFolderCreationTests
 {
     private static async Task<(global::Renamer.Renamer ext, ConcurrentFakeStore store, CapturingEventBus bus)>
-        BuildAsync(SharedCacheSqlite shared, RenamerOptions options)
+        BuildAsync(SharedCacheSqlite shared, RenamerOptions options, params string[] libraryRoots)
     {
         var services = new ServiceCollection();
         services.AddScoped<DbContext>(_ => shared.NewContext());
         var bus = new CapturingEventBus();
         services.AddSingleton<IEventBus>(bus);
+        // Registered only when a caller names one — see Library.LibraryConfig for the whole statement.
+        if (libraryRoots.Length > 0)
+        {
+            services.AddSingleton(Library.LibraryConfig(libraryRoots));
+        }
+
         var provider = services.BuildServiceProvider();
 
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         var store = new ConcurrentFakeStore();
         await new OptionsStore(store).SaveAsync(options);
         ((IStatefulExtension)ext).SetStore(store);
@@ -77,12 +83,14 @@ public sealed class ParallelFolderCreationTests
             var options = new RenamerOptions
             {
                 FilenameTemplate = "$title",
-                FolderTemplate = "sorted",
                 AllowedRoots = [destRootFwd],
                 PathDestinations =
-                    [new PathDestinationRule { Pattern = sourceFolderFwd, Dest = destRootFwd, IsRegex = false }],
+                    [new PathDestinationRule
+                    {
+                        Pattern = sourceFolderFwd, Dest = Dests.At(destRootFwd, "sorted"), IsRegex = false,
+                    }],
             };
-            var (ext, store, _) = await BuildAsync(shared, options);
+            var (ext, _, _) = await BuildAsync(shared, options, destRootFwd);
             var progress = new FakeJobProgress();
 
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
@@ -103,10 +111,11 @@ public sealed class ParallelFolderCreationTests
             }
             Assert.Equal(1d, progress.LastPercent);
 
-            // The RevertLog recorded one row per moved file under one batch (no torn/lost append).
-            var batch = await new RevertLog(store).ReadLastOpenBatchAsync();
+            // The journal recorded one row per moved file under one batch (no torn/lost append).
+            await using var readDb = shared.NewContext();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(new CoveRevertJournal(readDb));
             Assert.NotNull(batch);
-            Assert.Equal(k, batch!.Entries.Count);
+            Assert.Equal(k, batch.Rows.Count);
         }
         finally
         {

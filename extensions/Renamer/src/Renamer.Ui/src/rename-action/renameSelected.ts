@@ -9,15 +9,15 @@
  *   - OK but N == 0         → return { cancelled: true } (nothing to do; no pointless /renamer).
  *   - OK and N >= 1         → POST /renamer → return {} (host shows its queued toast).
  * Request errors are NOT swallowed (the host's onError alert shows the failure) — except the
- * SDK's spurious res.json() throw on the empty-200 /renamer response, which is success.
+ * bodyless 200 the /renamer route answers with, which postAction resolves as success.
  */
-import { request } from "@cove/extension-sdk";
+import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { ActionPayload, HandlerResult } from "@cove-extensions/ui-shared";
 import { postAction } from "@cove-extensions/ui-shared/postAction";
-import { api } from "../common/lib/extension";
-import { buildConfirmSummary } from "../common/lib/preview";
-import type { PreviewResponse } from "../contracts";
+import { api } from "../common/extension";
+import { buildConfirmSummary } from "./preview";
+import type { PreviewResponse } from "../wire/api";
 
 export async function renameSelected(
   _action: unknown,
@@ -25,8 +25,9 @@ export async function renameSelected(
 ): Promise<HandlerResult> {
   const requestBody = { EntityType: payload.entityType, EntityIds: payload.entityIds };
 
-  // /preview returns { items, summary } (non-empty body) — parses cleanly.
-  const response = await request<PreviewResponse>(api("preview"), {
+  // /preview returns { items, summary }; an empty body would be a failure, and requestJson raises it
+  // as one so the host's onError alert shows it rather than the confirm summary reading `undefined`.
+  const response = await requestJson<PreviewResponse>(api("preview"), {
     method: "POST",
     body: JSON.stringify(requestBody),
   });

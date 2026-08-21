@@ -1,16 +1,20 @@
 namespace Renamer.Planner;
 
 /// <summary>
-/// The media-file kinds this extension can renamer. Drives entity-type-aware token degradation in
+/// The media-file kinds this extension can rename. Drives entity-type-aware token degradation in
 /// the <c>MetadataProjector</c>: only the media tokens a kind actually carries are projected.
-/// Gallery is not yet renamed but is listed for completeness.
 /// </summary>
+/// <remarks>
+/// Every member here is renamable, so the enum doubles as the definition of "a kind this extension
+/// acts on" — a Cove entity type outside it (gallery, text) is rejected at the boundary by
+/// <c>Renamer.TryParseKind</c> and never reaches a port method. The per-kind switches still carry a
+/// defensive fallthrough for an out-of-range cast, since a C# enum accepts any underlying value.
+/// </remarks>
 public enum RenamerFileKind
 {
     Video,
     Image,
     Audio,
-    Gallery,
 }
 
 /// <summary>
@@ -88,8 +92,8 @@ public sealed record RenamerPerformer(int Id, string Name, bool Favorite, string
 /// A loaded media item (Video/Image/Audio) in the renamer boundary's own vocabulary — the
 /// entity-level metadata the projector turns into scalar tokens + the per-file rows it renders
 /// independently (every file is processed, not just the first). Performers carry a per-performer
-/// record (name plus the id/favorite/gender used for ordering); tags are a pre-flattened name
-/// list. Both are resolved from Cove's JOIN collections at the port boundary rather than here.
+/// record (name plus the id/favorite/gender used for ordering); tags carry the id/name pairs the tag
+/// rules key on. Both are resolved from Cove's JOIN collections at the port boundary rather than here.
 /// </summary>
 /// <param name="EntityId">The Cove entity id (Video/Image/Audio).</param>
 /// <param name="Kind">The media kind (used as the per-file <see cref="RenamerFile.Kind"/> too).</param>
@@ -103,7 +107,13 @@ public sealed record RenamerPerformer(int Id, string Name, bool Favorite, string
 /// token renders the names; the id/favorite/gender fields drive the optional performer ordering and
 /// gender filtering applied before the max-count limit.
 /// </param>
-/// <param name="Tags">Tag names (<c>$tags</c> multi-value side-input).</param>
+/// <param name="TagRefs">
+/// The item's tags as <c>(int Id, string Name)</c> pairs. The <c>Id</c> is the rule key — tag routing
+/// and tag exclusion both match on it, so a renamed tag keeps its rules — while the <c>Name</c> drives
+/// the <c>$tags</c> display token and the user-visible route reason. They travel as pairs rather than
+/// as parallel id and name lists precisely because routing takes the FIRST tag in this order whose id
+/// has a rule: two lists that drift by one element would silently route to another tag's destination.
+/// </param>
 /// <param name="Files">Every physical file of the item (all files, not just the first).</param>
 /// <param name="StudioId">
 /// The entity's STABLE studio id (Cove's <c>Video/Image/Audio.StudioId</c>; <c>null</c> when the item
@@ -133,11 +143,26 @@ public sealed record RenamerEntity(
     DateOnly? Date,
     bool Organized,
     IReadOnlyList<RenamerPerformer> Performers,
-    IReadOnlyList<string> Tags,
+    IReadOnlyList<(int Id, string Name)> TagRefs,
     IReadOnlyList<RenamerFile> Files,
     int? StudioId = null,
     IReadOnlyList<(int Id, string Name)>? ParentStudios = null,
-    string? Director = null);
+    string? Director = null)
+{
+    /// <summary>The tag NAMES the <c>$tags</c> token renders, in <see cref="TagRefs"/> order.</summary>
+    /// <remarks>
+    /// Derived, and REQUIRED alongside the ids rather than accepted beside them, because the two being
+    /// out of alignment is silent in both directions: names without ids used to fall through to an
+    /// unfiltered render past the whitelist, and ids without names rendered the token empty. Neither
+    /// state is constructible now.
+    /// <para>
+    /// Recomputed per read rather than cached, because a cached list is copied verbatim by a <c>with</c>
+    /// expression and would go stale exactly where a caller replaces the pairs. One projection per file
+    /// over an item's own tags is bounded work; nothing here scales with the library.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<string> Tags => [.. TagRefs.Select(t => t.Name)];
+}
 
 /// <summary>
 /// The DB seam: the ONLY surface between the planner/executor and a live <c>CoveContext</c>.
@@ -152,6 +177,27 @@ public sealed record RenamerEntity(
 /// </summary>
 public interface IRenamerDataPort
 {
+    /// <summary>
+    /// The absolute library paths Cove is configured to scan, in configuration order.
+    /// </summary>
+    /// <remarks>
+    /// THE CANONICAL STATEMENT of the anchor a rename cannot move, and the reason this member exists;
+    /// the other sites that touch it (<c>RenamerPlanner.PlanFileAsync</c>,
+    /// <see cref="RenamerStatus.SkipUnanchored"/>) point here. A source-confined item's
+    /// folder template resolves against the library path CONTAINING the file; anchoring it on the
+    /// file's own parent folder — which is the previous run's output — re-appends the rendered folder
+    /// every run, so the item descends one directory per pass until the path length refuses it. The
+    /// routed arm already anchors on its configured destination root and is unaffected.
+    /// <para>
+    /// A property rather than a query because this is host configuration held in memory, so an async
+    /// signature would imply a round-trip no implementation makes. Empty means the host declares no
+    /// library path at all, which a library holding files never does — Cove refuses to scan without
+    /// one — and a file under none of the declared paths is planned as
+    /// <see cref="RenamerStatus.SkipUnanchored"/> rather than moved relative to itself.
+    /// </para>
+    /// </remarks>
+    IReadOnlyList<string> LibraryRoots { get; }
+
     /// <summary>
     /// Loads a media item's full file graph (entity metadata + every file + parent folder paths
     /// + captions) for the given kind + id, mapped into a <see cref="RenamerEntity"/>. Returns
@@ -194,7 +240,7 @@ public interface IRenamerDataPort
     /// Contract a caller cannot infer from the signature: the result holds one entry per id that
     /// EXISTS — a missing id is omitted, never a null slot and never a throw. Ordering within the
     /// result is NOT guaranteed by the DB, so an order-sensitive caller (the scan) re-orders by its
-    /// own id list. Gallery (non-renamable) and an empty <paramref name="ids"/> return an empty list.
+    /// own id list. An empty <paramref name="ids"/> returns an empty list.
     /// </remarks>
     Task<IReadOnlyList<RenamerEntity>> LoadEntitiesAsync(RenamerFileKind kind, IReadOnlyList<int> ids, CancellationToken ct = default);
 
@@ -230,15 +276,10 @@ public interface IRenamerDataPort
     Task<bool> SourceExistsAsync(string fullPath, CancellationToken ct = default);
 
     /// <summary>
-    /// Persists a planned set of file mutations (new basename / parent folder / caption renames)
-    /// to the DB. The executor sets <c>Basename</c>/<c>ParentFolderId</c> only — never <c>.Path</c>,
-    /// which Cove recomputes on save. Returns the number of file rows changed.
-    /// </summary>
-    Task<int> SaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default);
-
-    /// <summary>
-    /// The mutating write-seam: applies each mutation (Basename / ParentFolderId / caption filenames)
-    /// and persists them in one save, returning each saved file's recomputed <c>Path</c>.
+    /// The one mutating write-seam: applies each mutation (Basename / ParentFolderId / caption
+    /// filenames) and persists them in one save, returning each saved file's recomputed <c>Path</c>.
+    /// The executor sets <c>Basename</c>/<c>ParentFolderId</c> only — never <c>.Path</c>, which Cove
+    /// recomputes on save.
     /// </summary>
     /// <remarks>
     /// Contract the executor's rollback spine depends on: an implementation throws on a save failure
@@ -255,14 +296,36 @@ public readonly record struct SavedFile(int FileId, string RecomputedPath);
 
 /// <summary>
 /// One file's intended DB mutation, produced by the executor and handed to
-/// <see cref="IRenamerDataPort.SaveAsync"/>. Caption renames travel with their file.
+/// <see cref="IRenamerDataPort.ApplyAndSaveAsync"/>. Caption renames travel with their file.
 /// </summary>
 /// <param name="FileId">The file row to mutate.</param>
 /// <param name="NewBasename">The new basename to set.</param>
 /// <param name="NewParentFolderId">The new parent folder id, or null for an in-place renamer.</param>
 /// <param name="CaptionRenames">(captionId, newFilename) pairs for moved sidecars.</param>
+/// <param name="EntityTitle">
+/// The one-time title write that rides with this file's save, or <c>null</c> when the item already
+/// carries a title or the filename-as-title fallback is off. It names the OWNING entity rather than
+/// the file because a title belongs to the item; it travels on the file mutation so it lands in the
+/// same <c>SaveChangesAsync</c> as the rename that derived it, which is what makes "renamed but
+/// title not recorded" unreachable rather than merely unlikely.
+/// </param>
 public sealed record RenamerFileMutation(
     int FileId,
     string NewBasename,
     int? NewParentFolderId,
-    IReadOnlyList<(int CaptionId, string NewFilename)>? CaptionRenames = null);
+    IReadOnlyList<(int CaptionId, string NewFilename)>? CaptionRenames = null,
+    RenamerEntityTitleWrite? EntityTitle = null);
+
+/// <summary>
+/// A filename-derived title to record on a media entity that has none.
+/// </summary>
+/// <remarks>
+/// The rename's output stops feeding its own input here. While the title is derived per run it is a
+/// function of the basename the previous run wrote, so any template rendering more than <c>$title</c>
+/// wraps its own decorations again every pass; recording the derivation once turns the fallback into a
+/// first-run-only path. See <c>MetadataProjector.DerivedTitle</c> for the whole statement.
+/// </remarks>
+/// <param name="Kind">Which media table holds the entity.</param>
+/// <param name="EntityId">The entity row to write.</param>
+/// <param name="Title">The derived title (never empty — an empty derivation is carried as no write at all).</param>
+public readonly record struct RenamerEntityTitleWrite(RenamerFileKind Kind, int EntityId, string Title);

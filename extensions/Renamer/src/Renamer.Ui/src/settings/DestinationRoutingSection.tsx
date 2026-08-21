@@ -1,16 +1,24 @@
 /**
- * DestinationRoutingSection — the "Destination routing" card: default/unorganized destinations, the
+ * DestinationRoutingSection — the "Destination routing" card: the unorganized destination, the
  * per-studio and per-tag destination maps, advanced allowed-roots + source-path rules, the sidecar-
  * extension list, and the empty-folder cleanup toggle.
  *
- * Card ORDER is presentation only (default & unorganized first, then per-studio, per-tag, advanced,
+ * Card ORDER is presentation only (unorganized first, then per-studio, per-tag, advanced,
  * then sidecar and empty-folder); it does NOT set the engine's rule-evaluation precedence, which is
  * decided server-side, so reordering these cards is safe. Presentational — every field flows up
  * through `set`.
  */
 import { useState } from "react";
+import { EntityReferenceValue } from "@cove/runtime/components";
 
-import { type RenamerOptions, type PathDestinationRule } from "./options";
+import {
+  toStringKeyed,
+  fromStringKeyed,
+  newDestination,
+  type LibraryPathsState,
+  type RenamerOptions,
+  type PathDestinationRule,
+} from "./options";
 import {
   Field,
   TextInput,
@@ -22,12 +30,12 @@ import {
   KeyValueMapEditor,
   ObjectArrayEditor,
   RegexValidity,
-  PathShapeHint,
   StatusText,
   extensionShapeAdvisory,
 } from "@cove-extensions/ui-shared";
-import { TagPicker } from "./EntityPicker";
+import { EntitySelectField } from "./EntitySelectField";
 import { StudioDestinationsEditor } from "./StudioMap";
+import { DestinationField } from "./DestinationField";
 
 /** Strip one leading dot if present, then lowercase — the add-time transform for a sidecar extension. */
 function normalizeSidecarExtension(raw: string): string {
@@ -39,9 +47,15 @@ function normalizeSidecarExtension(raw: string): string {
 export interface DestinationRoutingSectionProps {
   options: RenamerOptions;
   set: <K extends keyof RenamerOptions>(key: K, value: RenamerOptions[K]) => void;
+  /** Cove's configured library paths, fetched once at the panel root. */
+  library: LibraryPathsState;
 }
 
-export function DestinationRoutingSection({ options, set }: DestinationRoutingSectionProps) {
+export function DestinationRoutingSection({
+  options,
+  set,
+  library,
+}: DestinationRoutingSectionProps) {
   // Live (not-yet-committed) AssociatedExtensions input, so the sidecar-extension advisory reflects
   // what the user is currently typing, before Enter commits it.
   const [sidecarLiveInput, setSidecarLiveInput] = useState("");
@@ -49,50 +63,36 @@ export function DestinationRoutingSection({ options, set }: DestinationRoutingSe
   return (
     <SectionCard
       title="Destination routing"
-      description="Where renamed files land. Per-studio and per-tag rules override the default."
+      description="Where renamed files land. An item matching no rule follows Where files go."
     >
-      <GroupCard title="Default destination" description="The root most of your library lands in.">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Field
-            label="Default destination"
-            helper="Where an item matching no rule goes. Blank = no default route. Honored only with the relocate gate below ON."
-          >
-            <TextInput
-              value={options.DefaultDestination}
-              onChange={(v) => {
-                set("DefaultDestination", v);
-              }}
-              placeholder="Absolute root, or blank"
-            />
-            <PathShapeHint value={options.DefaultDestination} />
-          </Field>
-          <Field
-            label="Unorganized destination"
-            helper="Where un-curated items route instead of being skipped. Blank = no unorganized route."
-          >
-            <TextInput
-              value={options.UnorganizedDestination}
-              onChange={(v) => {
-                set("UnorganizedDestination", v);
-              }}
-              placeholder="Absolute root, or blank"
-            />
-            <PathShapeHint value={options.UnorganizedDestination} />
-          </Field>
-        </div>
+      <GroupCard
+        title="Unorganized destination"
+        description="Where items you have not curated yet land."
+      >
         <Toggle
-          label="Relocate unmatched items to the default destination"
-          checked={options.EnableDefaultRelocate}
-          onChange={(v) => {
-            set("EnableDefaultRelocate", v);
+          label="Route un-curated items"
+          checked={options.UnorganizedDestination !== null}
+          onChange={(on) => {
+            set("UnorganizedDestination", on ? newDestination(library.paths) : null);
           }}
-          helper="Moves every item matching no rule to the default destination — whole-library reach, which is too large to record an undo. Dry-run first. Off by default."
+          helper="Off = no unorganized route, and an un-curated item is skipped by Only organized."
         />
+        {options.UnorganizedDestination !== null ? (
+          <DestinationField
+            value={options.UnorganizedDestination}
+            onChange={(v) => {
+              set("UnorganizedDestination", v);
+            }}
+            library={library}
+            label="Folder"
+            helper="Rendered under the root above. Blank = the root itself."
+          />
+        ) : null}
       </GroupCard>
 
       <ToggleHeaderCard
         title="Per-studio destinations"
-        description="Pick a studio, then the absolute root its items route to."
+        description="Pick a studio, then where its items go."
         enabled={options.EnableStudioDestinations}
         onToggle={(v) => {
           set("EnableStudioDestinations", v);
@@ -103,39 +103,48 @@ export function DestinationRoutingSection({ options, set }: DestinationRoutingSe
           onChange={(m) => {
             set("StudioDestinations", m);
           }}
+          library={library}
         />
       </ToggleHeaderCard>
 
       <ToggleHeaderCard
         title="Per-tag destinations"
-        description="Pick a tag, then the absolute root its items route to."
+        description="Pick a tag, then where its items go."
         enabled={options.EnableTagDestinations}
         onToggle={(v) => {
           set("EnableTagDestinations", v);
         }}
       >
+        {/* The map keys on the stable tag id, so it crosses the string-keyed KeyValueMapEditor
+            boundary through the same explicit coercion the studio map uses — the id must stay a
+            NUMBER end to end to stay value-equal with the backend field and normalizeOptions.
+            A committed row therefore shows an opaque id, which the host resolves to the tag's name:
+            one cached lookup per configured rule, bounded by the rules the user authored rather than
+            by the library. */}
         <KeyValueMapEditor
-          map={options.TagDestinations}
+          map={toStringKeyed(options.TagDestinations)}
+          emptyValue={newDestination(library.paths)}
           onChange={(m) => {
-            set("TagDestinations", m);
+            set("TagDestinations", fromStringKeyed(m));
           }}
           renderKey={(draftKey, setDraftKey, existingKeys) => (
-            <TagPicker
+            <EntitySelectField
+              entityType="tag"
               label=""
-              values={draftKey === "" ? [] : [draftKey]}
+              values={draftKey === "" ? [] : [Number(draftKey)]}
               onChange={(values) => {
-                setDraftKey(values.at(-1) ?? "");
+                // Last-id-wins: the selector is multi-value but a map key holds exactly one tag.
+                const latest = values.at(-1);
+                setDraftKey(latest === undefined ? "" : String(latest));
               }}
               placeholder="Search tags…"
-              excludeValues={existingKeys}
+              excludeIds={existingKeys.map(Number)}
             />
           )}
           renderValue={(value, setValue) => (
-            <>
-              <TextInput value={value} onChange={setValue} placeholder="Destination root" />
-              <PathShapeHint value={value} />
-            </>
+            <DestinationField value={value} onChange={setValue} library={library} label="Folder" />
           )}
+          renderKeyLabel={(key) => <EntityReferenceValue entityType="tag" value={Number(key)} />}
           addLabel="Add tag rule"
         />
       </ToggleHeaderCard>
@@ -151,8 +160,9 @@ export function DestinationRoutingSection({ options, set }: DestinationRoutingSe
         <div>
           <h4 className="text-sm font-semibold text-foreground">Allowed roots</h4>
           <p className="mb-4 mt-1 text-sm text-secondary">
-            A rename may only write inside these absolute directories; a target outside them is
-            rejected. Empty = files stay within their own source folder.
+            Narrows where a rename may write to these absolute directories. Every destination is
+            already inside a Cove library path, so this can only make that area smaller — never
+            larger. Empty = no narrowing.
           </p>
           <TagListInput
             values={options.AllowedRoots}
@@ -166,15 +176,15 @@ export function DestinationRoutingSection({ options, set }: DestinationRoutingSe
         <div>
           <h4 className="text-sm font-semibold text-foreground">Source-path destinations</h4>
           <p className="mb-4 mt-1 text-sm text-secondary">
-            Match an item&apos;s source path to a destination root, top rule first. An exact match
-            or a regex.
+            Match an item&apos;s source path to a destination, top rule first. An exact match or a
+            regex.
           </p>
           <ObjectArrayEditor<PathDestinationRule>
             rows={options.PathDestinations}
             onChange={(rows) => {
               set("PathDestinations", rows);
             }}
-            makeRow={() => ({ Pattern: "", Dest: "", IsRegex: false })}
+            makeRow={() => ({ Pattern: "", Dest: newDestination(library.paths), IsRegex: false })}
             renderRow={(row, _i, update) => (
               <>
                 <Field label="Source path">
@@ -195,16 +205,14 @@ export function DestinationRoutingSection({ options, set }: DestinationRoutingSe
                   }}
                 />
                 <RegexValidity pattern={row.Pattern} isRegex={row.IsRegex} />
-                <Field label="Destination root">
-                  <TextInput
-                    value={row.Dest}
-                    onChange={(v) => {
-                      update({ Dest: v });
-                    }}
-                    placeholder="Destination root"
-                  />
-                  <PathShapeHint value={row.Dest} />
-                </Field>
+                <DestinationField
+                  value={row.Dest}
+                  onChange={(v) => {
+                    update({ Dest: v });
+                  }}
+                  library={library}
+                  label="Folder"
+                />
               </>
             )}
             addLabel="Add path rule"

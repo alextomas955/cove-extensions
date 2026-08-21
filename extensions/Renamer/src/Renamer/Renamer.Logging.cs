@@ -105,13 +105,77 @@ public sealed partial class Renamer
 
     [LoggerMessage(
         EventId = 1054, Level = LogLevel.Warning,
-        Message = "[Renamer] could not discard the pre-upgrade undo journal; the settings page may stay unreadable until the next load retries")]
-    private partial void LogRevertLogPurgeFailed(Exception ex);
+        Message = "[Renamer] could not migrate or clear the legacy stored undo journal; the settings page may stay unreadable until the next load retries")]
+    private partial void LogJournalBlobMigrationFailed(Exception ex);
+
+    // The one-time options conversions rewrite the stored settings IN PLACE and keep no copy of the
+    // originals, so these lines are the whole forensic trail: what they resolved against, what they
+    // discarded or rewrote, and why they refused when they did. Every one is written BEFORE the settings
+    // write, so a write that throws cannot take the record with it.
 
     [LoggerMessage(
-        EventId = 1055, Level = LogLevel.Information,
-        Message = "[Renamer] batch {RunId}: {Files} file(s) exceeds the {Cap}-file undo cap — this batch is not undoable")]
-    private partial void LogBatchNotJournalled(string runId, int files, int cap);
+        EventId = 1056, Level = LogLevel.Information,
+        Message = "[Renamer] options migration: converted against {Tags} tag(s) and {Performers} performer(s); {Dropped} name(s) dropped")]
+    private partial void LogOptionsMigrationConverted(int tags, int performers, int dropped);
+
+    [LoggerMessage(
+        EventId = 1057, Level = LogLevel.Information,
+        Message = "[Renamer] options migration: {Count} stored rule name(s) matched no tag or performer and were dropped: {Names}")]
+    private partial void LogOptionsMigrationDroppedNames(int count, string names);
+
+    // Matching was case-insensitive before the migration, so a rule stored as "4K" suppressed every tag
+    // whose name equalled it in any case. Keyed on an id it now suppresses one of them, and because the
+    // name still RESOLVED nothing is dropped — this line is the only place that narrowing surfaces.
+    [LoggerMessage(
+        EventId = 1061, Level = LogLevel.Warning,
+        Message = "[Renamer] options migration: {Count} stored rule name(s) matched several entities differing only by letter case and now match one: {Detail}")]
+    private partial void LogOptionsMigrationNarrowedNames(int count, string detail);
+
+    // A destination map is keyed, so two stored keys reaching one id leave one rule with nowhere to
+    // live. Which one survives is decided by JSON document order, which is not something a user chose.
+    [LoggerMessage(
+        EventId = 1062, Level = LogLevel.Warning,
+        Message = "[Renamer] options migration: {Count} tag destination rule(s) resolved to an id another rule already routed and were discarded: {Detail}")]
+    private partial void LogOptionsMigrationDiscardedDestinations(int count, string detail);
+
+    // A destination rule used to name a typed absolute ROOT; it now names a Cove library path plus a
+    // relative template. The conversion folds the old global folder template into each one and keeps no
+    // copy, so this line is the only record of what each rule was before.
+    [LoggerMessage(
+        EventId = 1066, Level = LogLevel.Information,
+        Message = "[Renamer] options migration: {Count} destination rule(s) rewritten onto a Cove library path: {Detail}")]
+    private partial void LogOptionsMigrationDestinationsRewritten(int count, string detail);
+
+    // The one line naming files that will move somewhere else after this release. A dropped rule's
+    // items follow the DEFAULT destination from now on, which is a behaviour change nothing else
+    // announces at runtime — the rule is gone from the panel, so its absence cannot be read as a loss.
+    [LoggerMessage(
+        EventId = 1067, Level = LogLevel.Warning,
+        Message = "[Renamer] options migration: {Count} destination rule(s) removed because their root lies under no Cove library path; "
+            + "their items now follow the default destination: {Detail}")]
+    private partial void LogOptionsMigrationDestinationsDropped(int count, string detail);
+
+    [LoggerMessage(
+        EventId = 1058, Level = LogLevel.Warning,
+        Message = "[Renamer] options migration deferred ({Reason}); the stored settings are unchanged and the next load retries")]
+    private partial void LogOptionsMigrationDeferred(string reason);
+
+    [LoggerMessage(
+        EventId = 1059, Level = LogLevel.Warning,
+        Message = "[Renamer] options migration failed before it recorded a conversion; the next load retries")]
+    private partial void LogOptionsMigrationFailed(Exception ex);
+
+    [LoggerMessage(
+        EventId = 1060, Level = LogLevel.Warning,
+        Message = "[Renamer] options migration rewrote the stored settings but could not stamp them as converted; the next load re-scans an already-converted blob and changes nothing")]
+    private partial void LogOptionsMigrationStampFailed(Exception ex);
+
+    // The extension is about to refuse to load. The throw that follows reaches the host as a disable
+    // with an exception; this line is what names the table in the log the operator is already reading.
+    [LoggerMessage(
+        EventId = 1063, Level = LogLevel.Error,
+        Message = "[Renamer] the undo journal table '{Table}' cannot be read; refusing to load rather than rename unjournalled")]
+    private partial void LogJournalUnreachable(Exception ex, string table);
 
     [LoggerMessage(
         EventId = 1010, Level = LogLevel.Information,
@@ -132,6 +196,14 @@ public sealed partial class Renamer
         EventId = 1013, Level = LogLevel.Information,
         Message = "[Renamer] undo {RunId} done: {Undone} restored, {Skipped} skipped, {Failed} failed")]
     private partial void LogUndoDone(string runId, int undone, int skipped, int failed);
+
+    // A sidecar that could not go back leaves its entry RESTORED, so nothing in the counted buckets
+    // records it. Without this line a half-restored entry would be silent, and the user would find a
+    // subtitle stranded under the renamed name with nothing anywhere saying why.
+    [LoggerMessage(
+        EventId = 1065, Level = LogLevel.Warning,
+        Message = "[Renamer] undo {RunId}: file id={FileId} restored, but a companion file could not be: {Detail}")]
+    private partial void LogUndoSidecarStranded(string runId, int fileId, string detail);
 
     [LoggerMessage(
         EventId = 1020, Level = LogLevel.Information,
@@ -154,4 +226,22 @@ public sealed partial class Renamer
         EventId = 1030, Level = LogLevel.Warning,
         Message = "[Renamer] routing: skipped invalid source-path regex '{Pattern}': {Reason}")]
     private partial void LogInvalidRouteRegex(string pattern, string reason);
+
+    // The legacy journal migration deletes its own source, so this line is the only lasting trace that
+    // it ran and what it moved. A COUNT and nothing else: the value it read is a list of the user's
+    // file paths, and a log is the wrong place for those.
+    [LoggerMessage(
+        EventId = 1064, Level = LogLevel.Information,
+        Message = "[Renamer] undo journal migration: moved {Rows} row(s) out of the legacy stored journal and deleted both legacy keys")]
+    private partial void LogJournalBlobMigrated(int rows);
+
+    // Said once, at load, because the consequence appears much later and somewhere else: without the
+    // library paths every unrouted folder template plans as SkipUnanchored, and a user reading that
+    // reason alone would look for a fault in their own library rather than in a host registration.
+    [LoggerMessage(
+        EventId = 1065, Level = LogLevel.Warning,
+        Message = "[Renamer] the host supplied no CoveConfiguration, so Renamer cannot read Cove's library paths: "
+            + "items with no destination rule will not honour the folder template (they are reported as unanchored). "
+            + "Renaming in place is unaffected.")]
+    private partial void LogNoCoveConfiguration();
 }

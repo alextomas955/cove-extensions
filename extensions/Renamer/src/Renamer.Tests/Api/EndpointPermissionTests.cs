@@ -1,7 +1,13 @@
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Renamer.Tests.Execution;
+using Renamer.Tests.TestSupport;
+using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
@@ -12,6 +18,13 @@ namespace Renamer.Tests.Api;
 /// that the <c>/renamer</c> deny path does NOT enqueue a job. The authorized path enqueues exactly one
 /// renamer-batch job and returns 202 {jobId}.
 /// </summary>
+/// <remarks>
+/// In-process endpoint tier on the strength of one case: every deny/allow case below drives a handler
+/// as a plain method, but <see cref="MappedRoute_DeclaresItsCoarsePolicyToTheHost"/> builds a real host
+/// and reads its route metadata back, and a class takes the tier of the strongest dependency any of its
+/// cases needs. The two halves stay together because they are the two halves of one property — what a
+/// route enforces, and what it declares.
+/// </remarks>
 [Trait("Tier", "L2")]
 public sealed class EndpointPermissionTests
 {
@@ -35,12 +48,15 @@ public sealed class EndpointPermissionTests
 
     private static global::Renamer.Renamer NewExtension()
     {
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         ((Cove.Plugins.IStatefulExtension)ext).SetStore(new FakeStore());
         return ext;
     }
 
-    private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode ?? 0;
+    // Unwrapped first: a handler declaring Results<…> hands back a union that carries no status of its
+    // own and converts implicitly to IResult, so an un-unwrapped read throws instead of reporting 403.
+    private static int StatusOf(IResult result) =>
+        Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
     [Fact]
     public async Task PreviewAsync_WithoutVideosRead_Returns403_AndComputesNoPlan()
@@ -83,7 +99,7 @@ public sealed class EndpointPermissionTests
             var allowed = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("image", [1]), db, imageOk, default);
             Assert.NotEqual(403, StatusOf(allowed));
-            Assert.IsAssignableFrom<IValueHttpResult>(allowed);
+            Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(allowed));
         }
         finally
         {
@@ -116,10 +132,10 @@ public sealed class EndpointPermissionTests
             new global::Renamer.Api.RenamerRequest("video", [1, 2]), principal, jobs);
 
         Assert.Equal(202, StatusOf(result));
-        var value = Assert.IsAssignableFrom<IValueHttpResult>(result).Value;
+        var value = Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value;
         Assert.NotNull(value);
         // The 202 body carries the enqueued jobId the fake returned.
-        Assert.Equal("job-123", value!.GetType().GetProperty("jobId")!.GetValue(value));
+        Assert.Equal("job-123", Assert.IsType<global::Renamer.Contracts.JobEnqueued>(value).JobId);
 
         var (type, _, exclusive) = Assert.Single(jobs.Enqueued);
         Assert.Equal("ext:com.alextomas955.renamer:renamer-batch", type);
@@ -188,5 +204,91 @@ public sealed class EndpointPermissionTests
         var result = await ext.LastBatchAsync(FakePrincipalAccessor.None(), default);
 
         Assert.Equal(403, StatusOf(result));
+    }
+
+    [Fact]
+    public void LibraryPaths_WithoutVideosRead_Returns403()
+    {
+        // This route answers with Cove's real filesystem layout. Production already refuses an
+        // unauthorized caller twice — the declared policy below and the handler's own check, which
+        // refuses a null principal rather than defaulting through — so what is added here is the
+        // regression pin, not the gate. It has to be a STATUS assertion: TransportSmokeTests reaches
+        // this route but asserts only that the response is neither 404 nor 405, which an anonymous 200
+        // carrying those paths satisfies exactly as a 403 does.
+        var ext = NewExtension();
+
+        var result = ext.LibraryPaths(FakePrincipalAccessor.None());
+
+        Assert.Equal(403, StatusOf(result));
+    }
+
+    /// <summary>The any-of read / write permission sets an endpoint's coarse policy is expected to declare.</summary>
+    private static readonly string[] AnyRead =
+        [Permissions.VideosRead, Permissions.ImagesRead, Permissions.AudiosRead];
+
+    private static readonly string[] AnyWrite =
+        [Permissions.VideosWrite, Permissions.ImagesWrite, Permissions.AudiosWrite];
+
+    /// <summary>Each mapped route, and the coarse gate its own handler applies before anything else.</summary>
+    public static TheoryData<string, string[]> RoutePolicies()
+    {
+        const string b = "/api/extensions/com.alextomas955.renamer";
+        var data = new TheoryData<string, string[]>();
+        foreach (var read in new[] { "/preview", "/preview-sample", "/last-batch", "/scan-library", "/last-scan", "/scan-rows", "/library-paths" })
+        {
+            data.Add(b + read, AnyRead);
+        }
+
+        foreach (var write in new[] { "/renamer", "/undo", "/renamer-library" })
+        {
+            data.Add(b + write, AnyWrite);
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    /// Every mapped route DECLARES its coarse gate to the host, in the any-of form its handler enforces.
+    /// </summary>
+    /// <remarks>
+    /// The in-handler cases above drive the handlers as plain methods, so they cannot see an endpoint
+    /// declaration at all — which is exactly how nine routes came to be registered with no policy while
+    /// every permission test stayed green. The host reads this metadata: an endpoint carrying none is
+    /// treated as anonymous-for-compatibility and named in a boot warning. Reading it back off the built
+    /// endpoint is what makes a route added later without a policy fail here rather than in a log nobody
+    /// is watching.
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(RoutePolicies))]
+    public void MappedRoute_DeclaresItsCoarsePolicyToTheHost(string route, string[] expected)
+    {
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.Services.AddRouting();
+
+        // Minimal-API metadata inference resolves each handler parameter's SOURCE at endpoint-build
+        // time, and a parameter whose type is not a known service is inferred as a second body — which
+        // it refuses. So the three handler-parameter services have to be REGISTERED for the endpoints to
+        // build at all. Only their presence matters here: no handler runs, which is why the DbContext is
+        // a registration that would throw if anything asked for one.
+        builder.Services.AddSingleton<ICurrentPrincipalAccessor>(FakePrincipalAccessor.None());
+        builder.Services.AddSingleton<IJobService>(new RecordingJobService());
+        builder.Services.AddScoped<DbContext>(
+            _ => throw new NotSupportedException("metadata-only host: no endpoint is invoked"));
+
+        var app = builder.Build();
+        var ext = NewExtension();
+
+        ext.MapEndpoints(app);
+
+        var endpoint = Assert.Single(
+            ((IEndpointRouteBuilder)app).DataSources
+                .SelectMany(source => source.Endpoints)
+                .OfType<RouteEndpoint>(),
+            candidate => candidate.RoutePattern.RawText == route);
+
+        var policy = endpoint.Metadata.GetMetadata<Cove.Plugins.CovePermissionRequirementMetadata>();
+        Assert.NotNull(policy);
+        Assert.Equal(PermissionMode.Any, policy.Mode);
+        Assert.Equal(expected, policy.Permissions);
     }
 }

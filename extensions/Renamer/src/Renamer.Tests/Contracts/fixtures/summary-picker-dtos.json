@@ -2,12 +2,15 @@
   "lastBatch": {
     "hasBatch": true,
     "count": 3,
+    "remainingCount": 1,
+    "unrestorableCount": 1,
     "writtenAtUtcTicks": 638000000000000000,
     "consumed": false
   },
   "undoResult": {
     "undone": 2,
-    "failed": [
+    "failedCount": 9,
+    "failedSample": [
       {
         "fileId": 7,
         "oldPath": "/new/a.mkv",
@@ -15,7 +18,15 @@
         "reason": "locked"
       }
     ],
-    "skipped": []
+    "skippedCount": 0,
+    "skippedSample": [],
+    "warningCount": 1,
+    "warningSample": [
+      {
+        "fileId": 7,
+        "detail": "companion \u0027a.srt\u0027 stayed behind: target occupied"
+      }
+    ]
   },
   "previewSample": {
     "sampleLabel": "Video",

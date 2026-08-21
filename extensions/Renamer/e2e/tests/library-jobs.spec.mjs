@@ -1,25 +1,16 @@
 // Whole-library job flow coverage: the scan-library (whole-library Dry Run) and renamer-library
 // (Rename All) job pair, driven through the job-polling API.
-import { test as base, expect, pollJob, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
-import { startHarness } from "@cove-extensions/e2e/harness";
-import { seedVideo } from "@cove-extensions/e2e/seed-media";
+import {
+  isolatedTest as test,
+  expect,
+  pollJob,
+  seedVideo,
+  createApiClient,
+} from "../lib/renamer-fixtures.mjs";
 import { assertRenamedTo } from "../lib/rename-assertions.mjs";
 
 const EXTENSION_ID = "com.alextomas955.renamer";
 const ROUTE = `/api/extensions/${EXTENSION_ID}`;
-
-const test = base.extend({
-  isolatedHarness: [
-    async ({}, use) => {
-      const isolatedHarness = await startHarness();
-      isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
-      await isolatedHarness.installExtension(RENAMER_EXTENSION);
-      await use(isolatedHarness);
-      await isolatedHarness.stop();
-    },
-    { scope: "test" },
-  ],
-});
 
 test("scan-library aggregates and pages every seeded item without mutating any of them", async ({
   harness,
@@ -80,26 +71,7 @@ test("scan-library aggregates and pages every seeded item without mutating any o
 test("renamer-library renames every seeded item in one run", async ({ isolatedHarness }) => {
   const baseUrl = isolatedHarness.baseUrl;
   const container = isolatedHarness.container;
-  async function callApi(method, path, body) {
-    const res = await fetch(`${baseUrl}${path}`, {
-      method,
-      headers: body ? { "Content-Type": "application/json" } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const text = await res.text();
-    let json;
-    try {
-      json = text ? JSON.parse(text) : undefined;
-    } catch {
-      json = undefined;
-    }
-    return { status: res.status, ok: res.ok, json, text };
-  }
-  const api = {
-    get: (p) => callApi("GET", p),
-    post: (p, b) => callApi("POST", p, b),
-    put: (p, b) => callApi("PUT", p, b),
-  };
+  const api = createApiClient(baseUrl, isolatedHarness.token);
 
   // A "$title"-only template over distinct safe titles makes each item's computed name deterministic,
   // so each EXACT resulting basename can be asserted rather than merely "the path changed".

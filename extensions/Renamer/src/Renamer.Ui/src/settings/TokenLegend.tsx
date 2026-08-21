@@ -7,10 +7,6 @@
  * `Tokens` class). Listing the engine's real names keeps the legend single-sourced with what
  * the engine actually resolves.
  */
-// This is a Vite *library* bundle (one ESM artifact), not an HMR app, so the fast-refresh
-// "components-only file" rule's premise does not apply. The `TOKENS` table is intentionally
-// co-located with the component that renders it; splitting it out would be pure churn.
-/* eslint-disable react-refresh/only-export-components */
 import { Chip } from "@cove-extensions/ui-shared";
 
 /**

@@ -2,6 +2,8 @@ using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Renamer.Tests.Execution;
+using Renamer.Tests.TestSupport;
+using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
@@ -11,7 +13,7 @@ namespace Renamer.Tests.Api;
 /// one job. Both reject an over-cap array with a 400 BEFORE any per-id work, so a runaway/oversized
 /// request can't tie up a request thread or enqueue a giant job.
 /// </summary>
-[Trait("Tier", "L2")]
+[Trait("Tier", "L1")]
 public sealed class EntityIdsCapTests
 {
     // Keep in sync with Renamer.Api.cs MaxEntityIdsPerRequest. Over-cap = cap + 1.
@@ -37,12 +39,15 @@ public sealed class EntityIdsCapTests
 
     private static global::Renamer.Renamer NewExtension()
     {
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         ((Cove.Plugins.IStatefulExtension)ext).SetStore(new FakeStore());
         return ext;
     }
 
-    private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode ?? 0;
+    // Unwrapped first: a handler declaring Results<…> hands back a union that carries no status of its
+    // own and converts implicitly to IResult, so an un-unwrapped read throws instead of reporting one.
+    private static int StatusOf(IResult result) =>
+        Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
     [Fact]
     public async Task PreviewAsync_OverCapIds_Returns400_AndMutatesNothing()

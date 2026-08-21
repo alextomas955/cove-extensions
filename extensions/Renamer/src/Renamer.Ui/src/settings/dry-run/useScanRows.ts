@@ -7,10 +7,10 @@
  * of what is already loaded.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ApiError, request } from "@cove/extension-sdk";
+import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type { ScanRow, ScanRowsPage } from "../../contracts";
-import { api } from "../../common/lib/extension";
+import type { ScanRow, ScanRowsPage } from "../../wire/api";
+import { api } from "../../common/extension";
 import { bucketWireValue, type DryRunFilter } from "./dryRunLogic";
 import {
   createScanRowsStore,
@@ -60,7 +60,7 @@ export function useScanRows(
     (walkTarget: string) => {
       if (!store.begin(walkTarget)) return;
       const cursor = store.getSnapshot().cursor;
-      request<ScanRowsPage>(SCAN_ROWS_PATH, {
+      requestJson<ScanRowsPage>(SCAN_ROWS_PATH, {
         method: "POST",
         body: JSON.stringify({
           Options: optionsBlob,

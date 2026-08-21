@@ -35,8 +35,14 @@ public static class VolumeClassifier
     /// Returns <c>true</c> when <paramref name="pathA"/> and <paramref name="pathB"/> live on the same volume,
     /// <c>false</c> when they are cross-volume.
     /// </summary>
-    /// <remarks>Comparison is case-insensitive on Windows and case-sensitive elsewhere, mirroring
-    /// <c>RenamerExecutor.PathsEqual</c> so volume identity and path identity agree on case.</remarks>
+    /// <remarks>
+    /// Comparison is case-insensitive on Windows and case-sensitive elsewhere. This deliberately does
+    /// NOT track <c>PathOps.PathsEqual</c>, which also ignores case on macOS: that comparer asks
+    /// whether two paths name one FILE (a question the volume's case-folding answers), while this one
+    /// compares mount-table VOLUME KEYS, which are distinct entries even when they differ only by
+    /// case. Widening it would merge two real mounts into one and silently disable the cross-volume
+    /// copy-verify-delete path between them.
+    /// </remarks>
     public static bool SameVolume(string pathA, string pathB, IReadOnlyCollection<string>? mountPoints = null)
     {
         var cmp = OperatingSystem.IsWindows()
