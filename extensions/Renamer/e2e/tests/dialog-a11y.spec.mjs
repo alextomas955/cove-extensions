@@ -88,6 +88,16 @@ test("while a rename is in flight the dialog suspends cancel; it closes again on
   // Let the op settle (it fails) — pending clears, the modal stays open, and cancel re-enables.
   releaseRename();
   await expect(settings.dryRunCloseButton).toBeEnabled({ timeout: 30_000 });
-  await page.keyboard.press("Escape");
-  await expect(settings.dryRunDialog).toBeHidden();
+
+  // Retried, because a single press can legitimately land on nothing. The overlay's Escape branch
+  // reads `enabled` from a closure that a useEffect swaps in, and effects run AFTER the DOM commit
+  // that clears the button's `disabled` — so between the commit Playwright is waiting on and the
+  // re-arm there is a window where the keydown hits the stale `enabled: false` closure and returns
+  // silently. Nothing retries a keypress for us, so the one-shot form waits out its timeout on a
+  // dialog nobody asked to close. What is under test is that cancel RE-ENABLES once the op settles,
+  // which a repeated press proves exactly as well.
+  await expect(async () => {
+    await page.keyboard.press("Escape");
+    await expect(settings.dryRunDialog).toBeHidden({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
 });
