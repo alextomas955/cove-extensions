@@ -14,7 +14,8 @@
     "lint:fix": "eslint . --fix",
     "prepare": "lefthook install",
     "syncpack": "syncpack lint",
-    "test": "node --test scripts/*.test.mjs"
+    "test": "node --test scripts/*.test.mjs",
+    "wire-usage": "node scripts/check-wire-usage.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -43,5 +44,11 @@
     "openapi-typescript": {
       "typescript": "$typescript"
     }
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "volta": {
+    "node": "24.11.0"
   }
 }

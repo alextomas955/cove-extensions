@@ -1,10 +1,30 @@
 {
   "$schema": "https://unpkg.com/syncpack@15.3.2/dist/schema.json",
+  "source": [
+    "package.json",
+    "tests/e2e/package.json",
+    "extensions/*/e2e/package.json",
+    "extensions/*/src/*/package.json",
+    "shared/*/package.json",
+    "website/package.json"
+  ],
   "versionGroups": [
     {
       "label": "The e2e projects depend on the shared @cove-extensions/e2e workspace package by wildcard: npm resolves it to the local copy, and pinning a fixed range would break workspace resolution the moment that local version bumps.",
       "dependencies": ["@cove-extensions/e2e"],
-      "packages": ["@cove-extensions/renamer-e2e"],
+      "packages": ["@cove-extensions/*-e2e"],
+      "isIgnored": true
+    },
+    {
+      "label": "The docs site's React is Docusaurus's own and is independent of an extension UI's, which must match whatever React the Cove host page already loaded. Aligning the two would couple a Docusaurus upgrade to the host runtime and buy nothing. Scoped to website, so React drift between the root and any extension UI still fails.",
+      "dependencies": ["react", "react-dom", "@types/react"],
+      "packages": ["website"],
+      "isIgnored": true
+    },
+    {
+      "label": "@cove-extensions/renamer-ui is private and nothing declares a dependency on it (vite bundles it; it is never resolved from a registry), so it carries no version field for syncpack to compare dependents against. Scoped to the local type, so a dependent declaring a wrong range would still fail.",
+      "dependencies": ["@cove-extensions/renamer-ui"],
+      "dependencyTypes": ["local"],
       "isIgnored": true
     }
   ]

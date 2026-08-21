@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
-    Build -> strip-verify -> frontend-build -> deploy -> restart pipeline for the Renamer Cove
-    extension (Windows dev loop).
+    Build -> frontend-build -> assemble -> deploy -> restart pipeline for the Renamer Cove
+    extension (local dev loop).
 
 .DESCRIPTION
     Contract (one atomic dev step):
@@ -11,22 +11,30 @@
                     running dev host. Publish (not plain build) because Cove.Sdk.targets strips
                     the host-provided closure from the *publish* set (AfterTargets=ComputeFilesToPublish).
 
-      2. STRIP-VERIFY  Enumerate the published *.dll set and BLOCK before any
-                    copy if a host-provided assembly is present. The denylist mirrors
-                    Cove.Sdk.targets' CoveHostProvidedAssemblies. This empirically proves the
-                    Cove.Sdk reference stripped the host closure. Also asserts Renamer.dll IS present.
-
-      2b. FRONTEND BUILD  Build the src/Renamer.Ui Vite library bundle to dist/index.mjs and
+      2. FRONTEND BUILD  Build the src/Renamer.Ui Vite library bundle to dist/index.mjs and
                     assert it exists. `npm install` runs only when node_modules is absent (keeps the
-                    dev loop fast). index.mjs is a UI asset, NOT a .NET assembly, so it is exempt from
-                    the host-assembly strip-verify denylist and is copied as a separate explicit
-                    Copy-Item in the deploy step. No CSS bundle is shipped (host-Tailwind path).
+                    dev loop fast). No CSS bundle is shipped (host-Tailwind path).
 
-      3. DEPLOY  Resolve the Cove data root (COVE_HOME if set, else %LOCALAPPDATA%\cove),
-                    target the FIXED subdir <root>\extensions\com.alextomas955.renamer (never an
-                    arbitrary/caller-supplied path), clean only that subdir's contents (never the
-                    sibling host-managed .load-cache), then copy the published set + extension.json +
-                    the Renamer.Ui dist/index.mjs bundle in.
+      2b. ASSEMBLE  Remove and recreate artifacts/package, then copy the file set
+                    extensions/catalog.json declares for this extension into it, with the manifest
+                    version stamped, via the shared scripts/assemble-package.mjs. That declaration
+                    is the one statement of what ships: this script and CI copy the same list, so a
+                    dev deploy installs what a release ships. A declared file the build did not
+                    produce fails here, before the deploy target is touched.
+
+                    The packer never deletes and refuses a package directory that is not empty, so
+                    clearing that directory belongs to whichever caller re-uses one. CI and the E2E
+                    harness both hand over a path that is fresh by construction; this script is the
+                    only caller with a stable one, and therefore the only one that owns the delete.
+
+      3. DEPLOY  Resolve the Cove data root: COVE_HOME when set, otherwise the per-user
+                    local-application-data 'cove' folder, which is a WINDOWS-only default. On any
+                    other OS COVE_HOME is required and its absence throws, because a guessed data
+                    root is worse than no default — it deploys to a directory Cove never reads and
+                    reports success. Then target the FIXED subdir
+                    <root>/extensions/com.alextomas955.renamer (never an arbitrary/caller-supplied
+                    path), clean only that subdir's contents (never the sibling host-managed
+                    .load-cache), then copy the assembled package in.
 
       4. RESTART    Detect the process owning port 5073 and attempt a graceful restart. The exact
                     launcher is environment-specific (dotnet run vs InstanceManager); if a reliable
@@ -34,12 +42,16 @@
                     Loaded DLLs are not hot-reloaded, so a restart is required to pick up the new build.
 
     Safety controls:
-      * The strip-verify gate throws BEFORE copy on any host-assembly leak.
+      * The assemble writes nothing unless every declared file resolved, so an incomplete package
+                cannot reach the deploy step.
       * The deploy target is a fixed, validated path; no arbitrary destination argument is
                 accepted; the clean step touches only the id subdir and never the sibling .load-cache;
                 the restart step never kills unrelated processes.
 
 .NOTES
+    Runs on Windows, macOS and Linux, and must be invoked as `pwsh` — it reads the $IsWindows
+    automatic variable, which Windows PowerShell 5.1 does not define.
+
     Location-independent: all paths resolve relative to $PSScriptRoot, so this is CI/GitHub-publishable.
     Property names (UseLocalCoveSource/CoveSdkVersion) must match the monorepo root's
     Directory.Build.props, since that is what selects the local-source build path.
@@ -49,7 +61,7 @@
 param(
     # Local Cove checkout the publish references for the ABI-matched build. Falls back to
     # $env:COVE_REPO, then the conventional ../cove sibling (relative to the monorepo root).
-    # Selects the build SOURCE only — the deploy TARGET is always COVE_HOME-resolved (see step 4),
+    # Selects the build SOURCE only — the deploy TARGET is always COVE_HOME-resolved (see step 3),
     # never this value.
     [string]$CoveRepo
 )
@@ -59,7 +71,6 @@ Set-StrictMode -Version Latest
 
 # --- Fixed, validated identity (never caller-supplied) -----------------------------------------
 $ExtensionId   = 'com.alextomas955.renamer'
-$EntryDll      = 'Renamer.dll'
 $CovePort      = 5073
 
 # --- 1. Resolve repo paths (location-independent) ----------------------------------------------
@@ -69,18 +80,9 @@ $ExtensionRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $MonorepoRoot  = Resolve-Path (Join-Path $ExtensionRoot '../..')
 $Csproj        = Join-Path $ExtensionRoot 'src/Renamer/Renamer.csproj'
 $PublishDir    = Join-Path $ExtensionRoot 'artifacts/publish'
+$PackageDir    = Join-Path $ExtensionRoot 'artifacts/package'
 $UiDir         = Join-Path $ExtensionRoot 'src/Renamer.Ui'
 $UiBundle      = Join-Path $UiDir 'dist/index.mjs'
-
-# Host-provided assemblies that MUST NOT ship — the single source of truth shared with CI's
-# strip-verify gate (.github/workflows/build.yml), defined in .github/DLL_DENYLIST.json. Read here
-# (after $MonorepoRoot resolves) rather than hand-copied, so a host-dependency change updates one file.
-$DenylistPath = Join-Path $MonorepoRoot '.github/DLL_DENYLIST.json'
-if (-not (Test-Path $DenylistPath)) {
-    throw "Shared host-assembly denylist not found at $DenylistPath — cannot verify host-assembly " +
-          "stripping. Refusing to deploy (fail-closed)."
-}
-$HostProvidedAssemblies = Get-Content -Raw -Path $DenylistPath | ConvertFrom-Json
 
 if (-not (Test-Path $Csproj)) {
     throw "Cannot find project at $Csproj"
@@ -103,7 +105,7 @@ Write-Host "    Cove repo      : $CoveRepo (build source)"
 # --- 2. BUILD (publish, local source) ----------------------------------------------------------
 # Best-effort pre-clean: `dotnet publish` overwrites/refreshes stale output on its own, so a
 # leftover directory handle (e.g. an editor/watcher with the folder open) is not fatal here — only
-# the strip-verify gate below (which inspects the fresh publish output) needs to actually succeed.
+# the assemble below (which reads the fresh publish output) needs to actually succeed.
 if (Test-Path $PublishDir) {
     try {
         Remove-Item -Recurse -Force $PublishDir -ErrorAction Stop
@@ -121,49 +123,10 @@ if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed with exit code $LASTEXITCODE — deploy aborted."
 }
 
-# --- 3. STRIP-VERIFY GATE — runs BEFORE any copy ------------------------------------------------
-Write-Host "`n==> Strip-verify gate (no host assemblies may ship)…" -ForegroundColor Cyan
-
-$publishedDlls = Get-ChildItem -Path $PublishDir -Filter '*.dll' -File
-$leaked = $publishedDlls | Where-Object { $HostProvidedAssemblies -contains $_.BaseName }
-
-if ($leaked) {
-    Write-Host "STRIP-VERIFY FAILED — host-provided assemblies present in publish output:" -ForegroundColor Red
-    $leaked | ForEach-Object { Write-Host "    LEAK: $($_.Name)" -ForegroundColor Red }
-    throw "Host assemblies leaked into the publish set. Refusing to deploy. " +
-          "Ensure src/Renamer/Renamer.csproj references Cove.Sdk (via the root Directory.Build.targets, " +
-          "which imports Cove.Sdk.targets) and that the local ProjectReferences carry " +
-          "<Private>false</Private><ExcludeAssets>runtime</ExcludeAssets>."
-}
-
-# Sanity: the extension's own DLL must be present.
-if (-not ($publishedDlls | Where-Object { $_.Name -eq $EntryDll })) {
-    throw "Expected $EntryDll in the publish output but it is missing — build produced no extension assembly."
-}
-
-# Must-ship: System.IO.Hashing is a BUNDLED (NOT host-provided) dependency the cross-volume mover
-# hashes with (XxHash3 for the size+hash verify). It is intentionally NOT in $HostProvidedAssemblies
-# — it is the opposite of a host assembly: it MUST ship, not be stripped. This is the mirror-image
-# of the $EntryDll presence check above (inverted to require presence). Its absence means the
-# System.IO.Hashing bundling regressed (e.g. it was wrongly added to a strip denylist or marked
-# Private=false), which would break the cross-volume verify at runtime — refuse to deploy.
-if (-not ($publishedDlls | Where-Object { $_.Name -eq 'System.IO.Hashing.dll' })) {
-    throw "Expected System.IO.Hashing.dll in the publish output but it is missing — the bundled hashing " +
-          "dependency (used by CrossVolumeMover's size+hash verify) did not ship. Ensure " +
-          "src/Renamer/Renamer.csproj keeps the <PackageReference Include='System.IO.Hashing' /> outside " +
-          "any UseLocalCoveSource conditional groups (NOT Private=false) and that it is NOT in any strip " +
-          "denylist."
-}
-
-Write-Host "    PASS — no host assemblies present. Approved publish set:" -ForegroundColor Green
-Get-ChildItem -Path $PublishDir -File | Sort-Object Name | ForEach-Object {
-    Write-Host "      $($_.Name)"
-}
-
-# --- 3b. FRONTEND BUILD — build the Renamer.Ui bundle ------------------------------------------
-# index.mjs is the panel ESM bundle the manifest's jsBundle field points at. It is a UI asset,
-# NOT a .NET assembly, so it is intentionally exempt from the strip-verify denylist above. It is
-# copied into the extension dir as a separate explicit Copy-Item in the deploy step below.
+# --- 3. FRONTEND BUILD — build the Renamer.Ui bundle -------------------------------------------
+# index.mjs is the panel ESM bundle the manifest's jsBundle field points at, and one ordinary row of
+# the catalog's declared artifacts — the assemble below resolves it out of dist/, so it needs no
+# copy of its own.
 $UiPackageJson = Join-Path $UiDir 'package.json'
 if (Test-Path $UiPackageJson) {
     Write-Host "`n==> Building frontend bundle (src/Renamer.Ui)…" -ForegroundColor Cyan
@@ -197,13 +160,51 @@ if (Test-Path $UiPackageJson) {
     throw "Expected $UiPackageJson but it is missing — cannot build the frontend bundle."
 }
 
+# --- 3b. ASSEMBLE — the declared package set ----------------------------------------------------
+# extensions/catalog.json's artifacts array is the one declaration of what ships, and this shared
+# script is what CI runs too, so the dev deploy installs the same list a release does. The version
+# comes from the source manifest because the packer defaults no argument.
+$SourceManifest = Join-Path $ExtensionRoot 'src/Renamer/extension.json'
+$Version = (Get-Content -Raw -Path $SourceManifest | ConvertFrom-Json).version
+
+Write-Host "`n==> Assembling the declared package (extensions/catalog.json)…" -ForegroundColor Cyan
+
+# The packer refuses a package directory that is not empty, so this run-to-run directory is cleared
+# here. Not best-effort like the publish pre-clean above: a leftover handle that defeats this leaves
+# the assemble refusing, so a failure must stop the deploy rather than be worked around. $PackageDir is
+# derived from $PSScriptRoot at the top of this script and is never caller-supplied, which is what
+# makes a recursive remove of it safe to state.
+if (Test-Path $PackageDir) {
+    Remove-Item -Recurse -Force $PackageDir
+}
+New-Item -ItemType Directory -Force -Path $PackageDir | Out-Null
+
+node (Join-Path $MonorepoRoot 'scripts/assemble-package.mjs') --publish-dir $PublishDir --package-dir $PackageDir --extension $ExtensionId --version $Version
+if ($LASTEXITCODE -ne 0) {
+    throw "Package assemble failed with exit code $LASTEXITCODE — deploy aborted."
+}
+
 # --- 4. DEPLOY ---------------------------------------------------------------------------------
-$CoveRoot = if ($env:COVE_HOME) { $env:COVE_HOME } else { Join-Path $env:LOCALAPPDATA 'cove' }
+# The clean below deletes this directory's contents, so resolving it wrongly is destructive. Only two
+# answers are safe: what the caller declared, or the one default this script actually knows. There is
+# no third guess — an invented per-OS path would either delete a directory that is not Cove's or
+# deploy where Cove never looks, and the run would report success either way.
+$CoveRoot = if ($env:COVE_HOME) {
+    $env:COVE_HOME
+} elseif ($IsWindows) {
+    Join-Path $env:LOCALAPPDATA 'cove'
+} else {
+    throw "COVE_HOME is not set. On Windows this falls back to the per-user local application-data " +
+          "'cove' folder, but that location is Windows-only and this script will not guess an " +
+          "equivalent on $([System.Runtime.InteropServices.RuntimeInformation]::OSDescription). " +
+          "Set COVE_HOME to your Cove instance's data directory (the folder holding 'extensions') " +
+          "and re-run."
+}
 $ExtensionsDir = Join-Path $CoveRoot 'extensions'
 $Target = Join-Path $ExtensionsDir $ExtensionId
 
 Write-Host "`n==> Deploying to $Target" -ForegroundColor Cyan
-Write-Host "    Cove root : $CoveRoot ($(if ($env:COVE_HOME) { 'COVE_HOME' } else { '%LOCALAPPDATA%\cove fallback' }))"
+Write-Host "    Cove root : $CoveRoot ($(if ($env:COVE_HOME) { 'COVE_HOME' } else { 'Windows default' }))"
 
 if (-not (Test-Path $ExtensionsDir)) {
     throw "Cove extensions dir not found at $ExtensionsDir — is Cove installed / has it run once? " +
@@ -217,11 +218,7 @@ if (Test-Path $Target) {
     New-Item -ItemType Directory -Force -Path $Target | Out-Null
 }
 
-Copy-Item -Path (Join-Path $PublishDir '*') -Destination $Target -Recurse -Force
-
-# Copy the frontend bundle separately (UI asset, exempt from the strip-verify set). The manifest's
-# jsBundle="index.mjs" is relative to this dir, so it must land at <Target>\index.mjs. No CSS bundle.
-Copy-Item -Path $UiBundle -Destination $Target -Force
+Copy-Item -Path (Join-Path $PackageDir '*') -Destination $Target -Recurse -Force
 
 Write-Host "    Deployed files:" -ForegroundColor Green
 Get-ChildItem -Path $Target -File | Sort-Object Name | ForEach-Object {
@@ -231,31 +228,52 @@ Get-ChildItem -Path $Target -File | Sort-Object Name | ForEach-Object {
 # --- 5. RESTART (best-effort; manual fallback) -------------------------------------------------
 Write-Host "`n==> Restart Cove backend (no hot-reload — required to pick up the new DLL)…" -ForegroundColor Cyan
 
-$conn = $null
+# A connect attempt rather than a connection-table query, so the probe works on all three OSes. Three
+# outcomes, kept distinct on purpose: connected, refused, and "the probe did not run". Collapsing the
+# third into the second is what the previous version did, and it printed "nothing is listening" when
+# the check itself had failed — the one reading that reasonably restarts nothing.
+$listening = $false
+$probeFailure = $null
 try {
-    $conn = Get-NetTCPConnection -LocalPort $CovePort -State Listen -ErrorAction Stop | Select-Object -First 1
+    $client = [System.Net.Sockets.TcpClient]::new()
+    try {
+        # The host name, not a literal address: it resolves to whichever of ::1 / 127.0.0.1 the
+        # backend actually bound, and Connect succeeds if any resolved address answers.
+        $client.Connect('localhost', $CovePort)
+        $listening = $client.Connected
+    } finally {
+        $client.Dispose()
+    }
+} catch [System.Net.Sockets.SocketException] {
+    if ($_.Exception.SocketErrorCode -eq [System.Net.Sockets.SocketError]::ConnectionRefused) {
+        $listening = $false
+    } else {
+        $probeFailure = "socket error $($_.Exception.SocketErrorCode)"
+    }
 } catch {
-    $conn = $null
+    $probeFailure = $_.Exception.Message
 }
 
-if ($null -eq $conn) {
+if ($null -ne $probeFailure) {
+    Write-Host "    Port probe did not complete ($probeFailure), so whether anything is listening on" -ForegroundColor Yellow
+    Write-Host "    port $CovePort is UNKNOWN — this is not a report that the backend is stopped." -ForegroundColor Yellow
+} elseif (-not $listening) {
     Write-Host "    No process is listening on port $CovePort." -ForegroundColor Yellow
     Write-Host "    The Cove dev backend does not appear to be running. Start your Cove dev host;" -ForegroundColor Yellow
     Write-Host "    on next startup it will discover the freshly deployed extension." -ForegroundColor Yellow
     exit 0
+} else {
+    Write-Host "    Something is listening on port $CovePort." -ForegroundColor Yellow
 }
 
-$proc = $null
-try { $proc = Get-Process -Id $conn.OwningProcess -ErrorAction Stop } catch { $proc = $null }
-
-if ($null -ne $proc) {
-    Write-Host "    Found PID $($proc.Id) ($($proc.ProcessName)) listening on $CovePort." -ForegroundColor Yellow
-}
 Write-Host "    Automated graceful restart of the Cove host is environment-specific and is intentionally" -ForegroundColor Yellow
 Write-Host "    NOT forced here (we never kill a process we cannot cleanly identify as the Cove dev backend)." -ForegroundColor Yellow
 Write-Host "    ACTION REQUIRED: restart your Cove dev host (the process on port $CovePort)," -ForegroundColor Yellow
 Write-Host "    then confirm the extension loaded:" -ForegroundColor Yellow
-Write-Host "      curl -s http://localhost:$CovePort/api/extensions | findstr $ExtensionId" -ForegroundColor Yellow
-Write-Host "      (expect enabled:true; check %LOCALAPPDATA%\cove\logs\cove-YYYYMMDD.log for '... initialized')" -ForegroundColor Yellow
+# Cmdlets rather than curl piped to a text matcher: pwsh carries these on every OS it runs on, where
+# an external binary on PATH is an assumption that does not hold off Windows. The log path is derived
+# from the resolved root above, so it names the directory this run actually deployed into.
+Write-Host "      (Invoke-WebRequest `"http://localhost:$CovePort/api/extensions`").Content | Select-String $ExtensionId" -ForegroundColor Yellow
+Write-Host "      (expect enabled:true; check $(Join-Path (Join-Path $CoveRoot 'logs') 'cove-YYYYMMDD.log') for '... initialized')" -ForegroundColor Yellow
 
 exit 0

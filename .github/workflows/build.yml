@@ -1,26 +1,20 @@
 # Build, validate, and (on <extension-slug>/v* tags) package + release extensions in this monorepo.
 #
-# Adapted from yourcove/multi-extension-repo-template's build.yml (forked 2026-07-01) to target
-# Renamer's real src/ subtree layout via extensions/catalog.json's additive path fields
-# (projectPath/manifestPath/uiPath/versionSourcePath — see catalog.json +
-# scripts/validate-extension-repo.mjs) instead of the template's flat {path}/{name}.csproj
-# convention. Folds in the old single-extension `rename` repo's strip-verify / stale-bundle /
-# version-parity / csharp-format / markdown-lint hardening as matrix steps (per-extension) or
-# root-level jobs (repo-wide) so future extensions inherit them automatically.
+# Adapted from yourcove/multi-extension-repo-template's build.yml (forked 2026-07-01). The one
+# deviation worth recording: this targets Renamer's real src/ subtree layout via
+# extensions/catalog.json's additive path fields (projectPath/manifestPath/uiPath — see catalog.json +
+# scripts/validate-extension-repo.mjs) instead of the template's flat {path}/{name}.csproj convention.
 #
-# The validate job computes the build matrix from catalog.json (all entries for a PR build; only
-# the tagged extension for a tag push) and — on a tag push — confirms the tag matches exactly one
-# catalog entry's tagPrefix and carries a valid semver suffix. No PR trigger path filtering is
-# used anywhere: every catalog entry is built on every PR.
+# One property no step below owns, because it is the absence of one: there is no PR trigger path
+# filtering anywhere, so every catalog entry is built on every pull request.
 #
-# Required-check model: the `required-checks` aggregation job is the single
-# status check to mark required in branch protection; it transitively gates on `build` (bare C# unit
-# tier) and `e2e` (Playwright + the optional per-extension node:test correctness tier — the
-# containerized safety backstop for the rollback/undo/ingest/loop-safety tests the bare leg
-# Compile-Removes, since Cove.Data is source-only and unavailable to CI). The cove-present C# tier is
-# a required LOCAL pre-merge gate (see .github/PULL_REQUEST_TEMPLATE.md). A "0 node specs found"
-# hard-fails, never passes silently — but the tier runs only for a catalog entry that declares
-# e2eNodeTestsPath, and no extension declares one today.
+# Required-check model: the `required-checks` aggregation job is the single status check to mark
+# required in branch protection; it transitively gates on `build`, `test-cove-present` and `e2e`, each
+# of which states its own subject where it is defined. No job here runs an extension's own node:test
+# specs: that tier was subscribed to through a catalog `e2eNodeTestsPath`, no entry has declared one
+# since e6b2263, and a tier with no subscriber gated nothing while reading as coverage. The field is
+# still accepted by scripts/validate-extension-repo.mjs, so a future subscriber declares it and
+# restores the steps here in one change.
 
 name: Build and Release Extensions
 
@@ -29,6 +23,23 @@ on:
   push:
     tags:
       - "*/v*"
+  # A daily signal on a moving target, which the two triggers above cannot give: only a non-pull-request
+  # event resolves the version axis (see `Resolve the Cove version axis`), so this is the only place
+  # upstream breakage above the declared floor is seen at all, and 24 hours is the budget for noticing
+  # it. It is also the only environment carrying more than one leg, so a per-leg `continue-on-error` can
+  # be read here and nowhere else. Deleting this trigger leaves both facts unobservable everywhere.
+  #
+  # What it costs is stated rather than absorbed: EVERY job in this file runs daily, including both
+  # safety legs and the aggregate, so this is recurring runner spend for a repository with a single
+  # maintainer.
+  #
+  # 06:00 UTC is chosen to be well outside that maintainer's working hours, so a red arrives before a
+  # session rather than during one. One caveat that costs a day of debugging if not known: the upstream
+  # images move too, and a scheduled run landing inside an upstream rebuild window can read a
+  # partially-updated tag. A red that recurs at this hour and passes on re-run is the schedule, not the
+  # workflow.
+  schedule:
+    - cron: "0 6 * * *"
 
 env:
   DOTNET_VERSION: "10.0.x"
@@ -43,6 +54,10 @@ jobs:
       contents: read
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
+      # A SECOND output, deliberately: `build`, `test-cove-present` and `e2e` all read `matrix`, so
+      # widening that one would multiply `build` — which compiles against CoveSourceMode=none and has
+      # nothing to do with a host version.
+      coveMatrix: ${{ steps.coveMatrix.outputs.coveMatrix }}
     steps:
       - uses: actions/checkout@v7
 
@@ -53,15 +68,28 @@ jobs:
       - name: Validate extension catalog
         run: node scripts/validate-extension-repo.mjs
 
-      - name: Test validator error paths
-        run: node --test scripts/validate-extension-repo.test.mjs
+      # Globbed rather than named file-by-file: a hand-maintained list silently stops covering a
+      # test the moment one is added, and a check no workflow runs cannot block a merge. Every
+      # scripts/*.test.mjs is fixture-driven and needs only node.
+      - name: Test repo tooling
+        run: node --test scripts/*.test.mjs
 
+      # The tag is the version authority and extension.json is the single hand-edited declaration of
+      # it, so this is where the two are reconciled — in validate, before anything builds, rather than
+      # after a full matrix has run. It also confirms the registry manifest already carries a
+      # versions[] row for the release being cut, which is otherwise only discovered when the registry
+      # pull request fails days later. The registry file is located by the catalog's
+      # registryManifestPath — the same declaration scripts/validate-extension-repo.mjs reads for its
+      # floor comparison, so both cannot end up reading different files — falling back to the
+      # {path}/extensions/{id}.json convention for an entry declaring none. It is checked only when it
+      # exists: an extension not yet published to the store has none, and its absence is not a defect.
       - name: Validate release tag
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: |
           node -e '
             const fs = require("fs");
+            const path = require("path");
             const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
             const tag = process.env.GITHUB_REF.replace("refs/tags/", "");
             const matches = catalog.extensions.filter((e) => tag.startsWith(e.tagPrefix));
@@ -69,13 +97,33 @@ jobs:
               console.error("Tag " + tag + " must match exactly one catalog tagPrefix, matched " + matches.length);
               process.exit(1);
             }
-            const versionTag = tag.slice(matches[0].tagPrefix.length);
+            const entry = matches[0];
+            const versionTag = tag.slice(entry.tagPrefix.length);
             const semver = /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
             if (!semver.test(versionTag)) {
               console.error("Tag version suffix " + versionTag + " is not valid semver (expected v<major>.<minor>.<patch>)");
               process.exit(1);
             }
-            console.log("Tag " + tag + " matches catalog entry " + matches[0].id + " with version " + versionTag.slice(1));
+            const version = versionTag.slice(1);
+            const manifestPath = entry.manifestPath || path.posix.join(entry.path, "extension.json");
+            const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+            if (manifest.version !== version) {
+              console.error("Tag " + tag + " releases " + version + ", but " + manifestPath + " declares version " + manifest.version + " — set that version to " + version + ", or retag.");
+              process.exit(1);
+            }
+            const registryPath = entry.registryManifestPath || path.posix.join(entry.path, "extensions", entry.id + ".json");
+            let registryChecked = "no registry manifest at " + registryPath + ", so no versions[] row was checked";
+            if (fs.existsSync(registryPath)) {
+              const registry = JSON.parse(fs.readFileSync(registryPath, "utf8"));
+              const latest = Array.isArray(registry.versions) ? registry.versions[0] : null;
+              if (latest == null || latest.version !== version) {
+                const found = latest == null ? "there are no versions[] rows" : "versions[0] is " + latest.version;
+                console.error("Registry manifest " + registryPath + " does not describe this release: prepend a versions[] row for " + version + " (" + found + "). Do not edit an existing row — each one describes an immutable published artifact.");
+                process.exit(1);
+              }
+              registryChecked = registryPath + " versions[0] is " + version;
+            }
+            console.log("Tag " + tag + " releases " + entry.id + " " + version + "; " + manifestPath + " agrees; " + registryChecked + ".");
           '
         env:
           GITHUB_REF: ${{ github.ref }}
@@ -99,6 +147,61 @@ jobs:
         env:
           GITHUB_REF: ${{ github.ref }}
 
+      # The version axis, built ONCE here and fanned out, rather than once per leg per extension: every
+      # leg then tests a tag something reported, and there is a single place where "what was examined,
+      # and what did that build" is printed. Both producers reach each entry's floor through that
+      # entry's own manifest, so a second extension needs a catalog entry and no edit.
+      #
+      # TWO producers, ONE consumer. A pull request builds the axis from the declared floors alone — a
+      # file read, reaching nothing — so which hosts a pull request examines is a property of the tree
+      # under review rather than of what upstream published that morning, and a re-run of the same
+      # commit examines the same hosts. That is the whole of the offline-determinism half: this step is
+      # the only reach out of `validate`, and a pull request no longer takes it. Every other event
+      # RESOLVES the axis from the registry tag list and keeps all three roles.
+      #
+      # What the two producers do NOT get is a copy of what happens next. The ref filtering, the
+      # empty-axis refusal and the output below are one body shared by both: the filter reuses the
+      # matrix step's ref filtering rather than repeating it, and an empty join is a hard failure on
+      # either path — an axis that produced nothing must not read as an axis with nothing to test.
+      #
+      # No floor is written down here. readExtensionFloors is the same reader the e2e harness's own
+      # image fallback uses, so the number reaches this file from the manifest that declares it and
+      # there is no second copy free to fall behind that declaration.
+      - name: Resolve the Cove version axis
+        id: coveMatrix
+        shell: bash
+        run: |
+          set -o pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            node --input-type=module -e '
+              import { readExtensionFloors } from "./scripts/fetch-cove-assemblies.mjs";
+              const include = [];
+              for (const { entry, floor, manifestPath } of readExtensionFloors()) {
+                console.error("offline floor leg: " + entry.name + " " + floor + " (from " + manifestPath + ")");
+                include.push({ extension: entry, cove: { tag: floor, role: "floor", advisory: false } });
+              }
+              process.stdout.write(JSON.stringify({ include }) + "\n");
+            ' > /tmp/cove-legs.json
+          else
+            node scripts/fetch-cove-assemblies.mjs --resolve-tags --report > /tmp/cove-legs.json
+          fi
+          node -e '
+            const fs = require("fs");
+            const resolved = JSON.parse(fs.readFileSync("/tmp/cove-legs.json", "utf8"));
+            const selected = new Set(JSON.parse(process.env.BUILD_MATRIX).extension.map((e) => e.id));
+            const include = resolved.include.filter((combo) => selected.has(combo.extension.id));
+            if (include.length === 0) {
+              console.error("::error::The Cove version axis resolved no leg for any selected extension, so the safety tiers would run against nothing.");
+              process.exit(1);
+            }
+            for (const combo of include) {
+              console.log("cove leg: " + combo.extension.name + " " + combo.cove.role + " " + combo.cove.tag);
+            }
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, "coveMatrix=" + JSON.stringify({ include }) + "\n");
+          '
+        env:
+          BUILD_MATRIX: ${{ steps.matrix.outputs.matrix }}
+
   build:
     needs: validate
     runs-on: ubuntu-latest
@@ -108,15 +211,22 @@ jobs:
     permissions:
       contents: read
     steps:
+      # Every catalog- and version-derived value in this job's shell bodies arrives through the step's
+      # own environment and is read as a quoted variable, never spliced into the body text:
+      # extensions/catalog.json is editable by a pull request from a fork, and a value in the
+      # environment is data the shell reads, where the same value in the body is code the shell runs.
       - name: Derive version
         id: check
         shell: bash
         run: |
-          if [[ "${GITHUB_REF}" == refs/tags/${{ matrix.extension.tagPrefix }}v* ]]; then
-            echo "version=${GITHUB_REF#refs/tags/${{ matrix.extension.tagPrefix }}v}" >> "$GITHUB_OUTPUT"
+          prefix="refs/tags/${TAG_PREFIX}v"
+          if [[ "${GITHUB_REF}" == "${prefix}"* ]]; then
+            echo "version=${GITHUB_REF#"${prefix}"}" >> "$GITHUB_OUTPUT"
           else
             echo "version=0.0.0" >> "$GITHUB_OUTPUT"
           fi
+        env:
+          TAG_PREFIX: ${{ matrix.extension.tagPrefix }}
 
       # Unconditional: the validate job's matrix computation already filters to only the tagged
       # extension on a tag push (all entries on a PR), so there is nothing left for this job to
@@ -131,20 +241,34 @@ jobs:
 
       - name: Restore
         if: ${{ !matrix.extension.manifestOnly }}
-        run: dotnet restore ${{ matrix.extension.projectPath }} -p:UseLocalCoveSource=false
+        run: dotnet restore "$PROJECT_PATH" -p:CoveSourceMode=none
+        env:
+          PROJECT_PATH: ${{ matrix.extension.projectPath }}
 
       - name: Build
         if: ${{ !matrix.extension.manifestOnly }}
-        run: dotnet build ${{ matrix.extension.projectPath }} -c Release --no-restore -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
+        run: dotnet build "$PROJECT_PATH" -c Release --no-restore -p:CoveSourceMode=none "-p:Version=$EXTENSION_VERSION" -p:ContinuousIntegrationBuild=true
+        env:
+          PROJECT_PATH: ${{ matrix.extension.projectPath }}
+          EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
-      # Unit tier only — this bare runner has no ../cove sibling checkout, so the test project's
-      # cove-referencing sources are Compile-Removed (see Renamer.Tests.csproj's cove-absent
-      # group). Runs before Publish so a test failure blocks packaging, matching
+      # Cove-absent tier — this leg states CoveSourceMode=none, so the test project's cove-referencing
+      # sources are Compile-Removed (see Renamer.Tests.csproj's cove-absent group). What survives is
+      # every test that needs no Cove source type, across every tier, not a tier of its own. The mode is
+      # DECLARED rather than inferred from whether a ../cove sibling happens to be on disk: that
+      # inference is what let a smaller run read as a pass. The rest of the suite runs in the
+      # test-cove-present job below. Runs before Publish so a test failure blocks packaging, matching
       # windows-build-test's build-then-test order in lint.yml. Optional: an extension without a
       # testProjectPath entry in catalog.json skips this step (manifestOnly-style opt-out).
+      #
+      # A run that executes nothing fails rather than passing: .runsettings sets TreatNoTestsAsError
+      # repo-wide, so this leg cannot report success having asserted nothing. No expected total is
+      # compared — .runsettings records why the two catalog minimum-count floors were removed.
       - name: Test (unit tier)
         if: ${{ !matrix.extension.manifestOnly && matrix.extension.testProjectPath != '' }}
-        run: dotnet test ${{ matrix.extension.testProjectPath }} -c Release -p:UseLocalCoveSource=false
+        run: dotnet test "$TEST_PROJECT_PATH" -c Release -p:CoveSourceMode=none
+        env:
+          TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
 
       # AFTER the unit tier, because the emit test inside it is what WROTE this file; running before it
       # would diff whatever the checkout happened to carry. The document is derived from the endpoint
@@ -168,30 +292,16 @@ jobs:
         env:
           WIRE_DOC: ${{ matrix.extension.wireDocumentPath }}
 
+      # Publishes to a throwaway directory, NOT the package directory: the package receives only what
+      # the assemble step below copies into it, so nothing the build happens to emit alongside the
+      # shipped files can reach a release without being declared.
       - name: Publish
         if: ${{ !matrix.extension.manifestOnly }}
-        run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o artifacts/${{ matrix.extension.name }} --no-build -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
-
-      # Catalog-driven strip-verify gate: proves the publish set carries no host-provided
-      # (denylisted) assembly, carries the entry assembly plus any first-party runtime dependency
-      # the catalog entry declares in requiredBundledDlls, and leaks no absolute build path in its
-      # json. Runs on every build (not tag-gated), so a leak fails the build before anything is
-      # zipped. scripts/strip-verify.mjs is the single shared implementation both this job and the
-      # local release-proof harness call, and it reads the shared .github/DLL_DENYLIST.json — so
-      # there is no drift between what CI enforces and what a local run proves, nor when the host
-      # adds a provided dependency.
-      - name: Strip-verify (no host assemblies, no absolute paths)
-        if: ${{ !matrix.extension.manifestOnly }}
-        run: node scripts/strip-verify.mjs artifacts/${{ matrix.extension.name }} ${{ matrix.extension.id }}
-
-      - name: Copy manifest
-        if: ${{ !matrix.extension.manifestOnly }}
-        run: cp ${{ matrix.extension.manifestPath }} artifacts/${{ matrix.extension.name }}/
-
-      - name: Stamp packaged extension.json version
-        if: ${{ !matrix.extension.manifestOnly }}
-        run: |
-          node -e "const fs=require('fs'); const p='artifacts/${{ matrix.extension.name }}/extension.json'; const m=JSON.parse(fs.readFileSync(p,'utf8')); m.version='${{ steps.check.outputs.version }}'; fs.writeFileSync(p, JSON.stringify(m, null, 2) + '\n');"
+        run: dotnet publish "$PROJECT_PATH" -c Release -o "artifacts/publish/$EXTENSION_NAME" --no-build -p:CoveSourceMode=none "-p:Version=$EXTENSION_VERSION" -p:ContinuousIntegrationBuild=true
+        env:
+          PROJECT_PATH: ${{ matrix.extension.projectPath }}
+          EXTENSION_NAME: ${{ matrix.extension.name }}
+          EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
       # Conditional frontend build — only extensions with a uiPath field ship a frontend bundle.
       - name: Setup Node
@@ -206,18 +316,19 @@ jobs:
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm ci
 
-      - name: Stamp source package.json version
-        if: ${{ matrix.extension.uiPath != '' }}
-        working-directory: ${{ matrix.extension.uiPath }}
-        run: npm version ${{ steps.check.outputs.version }} --no-git-tag-version --allow-same-version
-
-      # The generator lives at the repo root while the types land under the extension's UI directory, so
-      # the root has to be installed too. --no-workspaces keeps that to the root's own tooling rather
-      # than also pulling the browser-driven end-to-end harness workspace this job never uses.
+      # The UI's wire types are generated from the committed OpenAPI document and are gitignored, so a
+      # fresh checkout carries none and the typecheck below would fail on a module that does not exist.
+      # The generator is a repo-ROOT devDependency and the frontend install above is scoped to the
+      # extension's UI directory, so the root has to be installed too. --no-workspaces keeps that to the
+      # root's own tooling: a plain root install would also pull in the browser-driven end-to-end
+      # harness workspace, which this job never uses. Both steps carry the generate step's condition so
+      # an entry declaring no wire document pays for neither.
       #
-      # --ignore-scripts is safe HERE specifically: the generator imports only node builtins plus
-      # openapi-typescript, and neither that package nor its deps declares an install hook, so nothing
-      # this step needs is built by one.
+      # --ignore-scripts is safe HERE specifically, and the reasoning does not transfer to the other
+      # installs in this file: the generator imports only node builtins plus openapi-typescript, and
+      # neither that package nor the deps it pulls declares an install hook, so nothing this step
+      # needs is built by one. The root tree as a whole does contain four packages with lifecycle
+      # scripts, which is why the harness install below deliberately keeps them.
       - name: Install root tooling (wire-type generator)
         if: ${{ matrix.extension.uiPath != '' && matrix.extension.wireDocumentPath != '' }}
         run: npm ci --no-workspaces --ignore-scripts
@@ -228,7 +339,7 @@ jobs:
         env:
           EXTENSION_ID: ${{ matrix.extension.id }}
 
-      - name: Verify frontend (typecheck + lint + format:check + check-classes + test)
+      - name: Verify frontend (typecheck + format:check + test)
         if: ${{ matrix.extension.uiPath != '' }}
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm run verify
@@ -238,46 +349,161 @@ jobs:
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm run build
 
-      - name: Copy frontend bundle
-        if: ${{ matrix.extension.uiPath != '' }}
-        run: cp ${{ matrix.extension.uiPath }}/dist/index.mjs artifacts/${{ matrix.extension.name }}/
+      # Runs after the frontend build because the UI bundle is one of the declared artifacts and does
+      # not exist before that step. Unconditional on the event, so every pull request is the release
+      # rehearsal: the same script assembles the same declared set a tag push ships.
+      - name: Assemble package
+        if: ${{ !matrix.extension.manifestOnly }}
+        run: node scripts/assemble-package.mjs --publish-dir "artifacts/publish/$EXTENSION_NAME" --package-dir "artifacts/$EXTENSION_NAME" --extension "$EXTENSION_ID" --version "$EXTENSION_VERSION"
+        env:
+          EXTENSION_NAME: ${{ matrix.extension.name }}
+          EXTENSION_ID: ${{ matrix.extension.id }}
+          EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
-      # Version parity: the version the manifest, the assembly, the UI package, and (when it exists)
-      # the catalog registry manifest declare must agree, so a release can't ship a manifest that
-      # disagrees with the binary. The registry manifest (<path>/extensions/<id>.json) is the
-      # optional 4th arg and is passed ONLY when that file exists — an extension not yet registered
-      # in the store has no such file, and check-version-parity.mjs would otherwise crash on the
-      # missing path before packaging.
-      # PR-excluded like Package/Upload artifact below: on a PR build steps.check.outputs.version
-      # is the "0.0.0" placeholder (no real tag), which the "Stamp source package.json version"
-      # step above writes into package.json — but extension.json's own version is left at its real
-      # value (only the PACKAGED copy under artifacts/ gets stamped on a real release), so a PR
-      # build's package.json and extension.json versions are expected to disagree and would always
-      # fail this gate. The real check only makes sense once there's a real version being released.
-      - name: Check version parity
-        if: ${{ matrix.extension.versionSourcePath != '' && github.event_name != 'pull_request' }}
-        shell: bash
-        run: |
-          registry="${{ matrix.extension.path }}/extensions/${{ matrix.extension.id }}.json"
-          args=("${{ matrix.extension.manifestPath }}" "${{ matrix.extension.versionSourcePath }}" "${{ matrix.extension.uiPath }}/package.json")
-          if [[ -f "$registry" ]]; then
-            args+=("$registry")
-          fi
-          node scripts/check-version-parity.mjs "${args[@]}"
-
+      # Archives what the assemble step wrote, so it carries the same manifest-only guard that step
+      # carries. Without it the two conditions disagree: on a tag push a manifest-only entry would cd
+      # into a directory the skipped assemble never created. With it, such an entry archives nothing
+      # and uploads nothing, so no artifact for it reaches the release job — this workflow does not
+      # release a manifest-only entry, it skips one.
       - name: Package
-        if: ${{ github.event_name != 'pull_request' }}
+        if: ${{ startsWith(github.ref, 'refs/tags/') && !matrix.extension.manifestOnly }}
         shell: bash
         run: |
-          cd artifacts/${{ matrix.extension.name }}
-          zip -r ../../${{ matrix.extension.id }}-${{ steps.check.outputs.version }}.zip .
+          cd "artifacts/$EXTENSION_NAME"
+          zip -r "../../${EXTENSION_ID}-${EXTENSION_VERSION}.zip" .
+        env:
+          EXTENSION_NAME: ${{ matrix.extension.name }}
+          EXTENSION_ID: ${{ matrix.extension.id }}
+          EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
+      # The `package-` prefix is what makes this artifact release material, and it is load-bearing rather
+      # than cosmetic: the release job downloads by `pattern: package-*` instead of taking everything in
+      # the run. So an artifact reaches a published release only by opting IN to that name. Renaming this
+      # without renaming the pattern silently publishes nothing; adding a new upload without the prefix
+      # silently stays out, which is the safe direction.
       - name: Upload artifact
-        if: ${{ github.event_name != 'pull_request' }}
+        if: ${{ startsWith(github.ref, 'refs/tags/') && !matrix.extension.manifestOnly }}
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.extension.id }}-${{ steps.check.outputs.version }}
+          name: package-${{ matrix.extension.id }}-${{ steps.check.outputs.version }}
           path: ${{ matrix.extension.id }}-${{ steps.check.outputs.version }}.zip
+
+  # ---- The cove-present C# tier: the whole test suite, compiled and run against Cove taken from the
+  # RELEASED cove-app image rather than from a source checkout. This is what closes the gap where the
+  # bare `build` leg above compiles only the pure-core tests — every rollback / undo / ingest /
+  # loop-safety assertion that needs a real CoveContext runs here, in process, and blocks a merge.
+  #
+  # Catalog-driven like every other leg: a second extension gains this job through its catalog entry,
+  # with no edit here. No Cove version is named in this file either — each leg's tag arrives resolved
+  # from validate's version axis, which reads it off the registry against the floor the extension
+  # declares in its own manifest, and the repository half still comes from Directory.Build.props.
+  #
+  # This job's matrix is the version axis (coveMatrix), so its combos are flat: `matrix.extension` is
+  # still the catalog entry and `matrix.cove` is the leg. A cross product would have paired one
+  # extension with another's floor, which is correct with one extension and silently wrong with two.
+  test-cove-present:
+    needs: validate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.validate.outputs.coveMatrix) }}
+    # An upstream release-candidate regression is not this pull request's defect, and a gate that can
+    # freeze merges for someone else's breakage is a gate that gets switched off — so the leg testing an
+    # unreleased Cove reports rather than blocks. The value is the LEG'S OWN flag, so which roles are
+    # advisory is a fact the resolver states once and no consumer re-derives from a role name.
+    #
+    # Two things about how this reads on a run, both easy to mistake for defects. A job that fails under
+    # this setting still renders a red cross on the run; branch protection keys on the aggregate status
+    # further down, which reports success for such a job, so the red is a cosmetic residue of the
+    # mechanism rather than a merge block. And the local workflow runner (act, through 0.2.89) does not
+    # implement job-level continue-on-error at all — neither a literal nor a matrix expression — so it
+    # leaves the downstream result at `failure` and exits non-zero whenever this leg fails. A local run
+    # reporting failure for an advisory leg is therefore a runner artefact, not something to fix here.
+    #
+    # Where the expression can be READ is a scheduled run and nowhere else, which is worth knowing before
+    # anyone trusts it. A pull request builds ONE required leg, so it offers no leg-to-leg contrast, and
+    # act cannot stand in for the reason just given. Only half is established today: an aggregate green
+    # over a failing advisory leg rules out this resolving `false` job-wide, but a green leg leaves no
+    # trace of its own value, so it is equally consistent with a job-wide `true` — under which the
+    # REQUIRED leg would silently stop being able to block. The discriminator is a red REQUIRED leg, and
+    # only the full axis a scheduled run carries can produce one.
+    continue-on-error: ${{ matrix.cove.advisory }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      # An entry with no test project skips the tier entirely, matching the unit-tier opt-out.
+      - name: Check for a cove-present tier
+        id: check
+        shell: bash
+        run: |
+          if [[ "$MANIFEST_ONLY" == "true" || -z "$TEST_PROJECT_PATH" ]]; then
+            echo "has_tier=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$EXTENSION_NAME declares no testProjectPath — skipping the cove-present tier."
+            exit 0
+          fi
+          echo "has_tier=true" >> "$GITHUB_OUTPUT"
+        env:
+          EXTENSION_NAME: ${{ matrix.extension.name }}
+          MANIFEST_ONLY: ${{ matrix.extension.manifestOnly }}
+          TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
+
+      # The fetcher is Node, and it deliberately shells out to nothing — no docker, no curl, no tar —
+      # so this and the .NET SDK are the whole toolchain.
+      - uses: actions/setup-node@v7
+        if: steps.check.outputs.has_tier == 'true'
+        with:
+          node-version: "24.11.0"
+
+      - name: Setup .NET
+        if: steps.check.outputs.has_tier == 'true'
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # A leg's tag reaches BOTH consumers from the one env entry below: --tag here, because the
+      # fetcher text-parses Directory.Build.props and cannot see an MSBuild global property, and
+      # -p:CoveTestImageTag on the test step, because the build's staleness guard compares what the
+      # extraction recorded against what this leg was told to test. They are two consumers of one
+      # value, and the guard's whole job is to fail when they disagree.
+      #
+      # A resolved registry tag is third-party input, so it arrives through the environment for the
+      # reason the build job's first step states.
+      - name: Fetch Cove assemblies from the released image
+        if: steps.check.outputs.has_tier == 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/fetch-cove-assemblies.mjs --tag "$COVE_TAG" --out artifacts/cove-assemblies | tee /tmp/fetch.log
+          digest=$(grep -E '^manifest digest: ' /tmp/fetch.log | tail -1)
+          assembly=$(grep -E '^Cove\.Data\.dll assembly version: ' /tmp/fetch.log | tail -1)
+          informational=$(grep -E '^Cove\.Data\.dll informational version: ' /tmp/fetch.log | tail -1)
+          if [[ -z "$digest" || -z "$assembly" ]]; then
+            echo "::error::The fetcher reported no manifest digest or no assembly version, so there is nothing to attribute a later failure to."
+            exit 1
+          fi
+          echo "::notice::Cove under test ($COVE_ROLE $COVE_TAG) — $digest; $assembly; $informational"
+        env:
+          COVE_TAG: ${{ matrix.cove.tag }}
+          COVE_ROLE: ${{ matrix.cove.role }}
+
+      # -p:CoveSourceMode=assemblies is stated EXPLICITLY: an infrastructure failure that left the
+      # extraction empty must fail this job, not quietly select the cove-absent branch and report a
+      # smaller green run. AssertCoveLocation refuses that case at build time, and the extraction
+      # staleness guard refuses assemblies pulled from a tag other than the one under test — so an
+      # incomplete extraction is caught where it happens, not inferred afterwards from a test count.
+      # An empty run still fails, via TreatNoTestsAsError in .runsettings.
+      - name: Test (cove-present tier, assemblies from the released image)
+        if: steps.check.outputs.has_tier == 'true'
+        run: |
+          dotnet test "$TEST_PROJECT_PATH" -c Release \
+            -p:CoveSourceMode=assemblies \
+            -p:CoveTestImageTag="$COVE_TAG" \
+            -p:CoveAssembliesDir=artifacts/cove-assemblies
+        env:
+          TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
+          COVE_TAG: ${{ matrix.cove.tag }}
 
   # ---- E2E: rebuilds each extension (a separate job from build/matrix.extension — GitHub Actions
   # jobs don't share a filesystem, so this job publishes its own fresh copy rather than trying to
@@ -285,65 +511,83 @@ jobs:
   # instance via tests/e2e's shared harness, then runs its Playwright suite against it.
   # Extensions without their own e2e suite are skipped via the catalog's optional
   # `e2ePath`/`e2eProject` fields (absent = no suite yet, not a failure).
+  #
+  # This job's matrix is the version axis (coveMatrix), the same one test-cove-present takes and with
+  # the same flat shape stated there. It takes that axis rather than the floor alone because the two
+  # safety legs see different things — one runs the suite in process against the image's assemblies,
+  # this one installs the assembled package into the running host and drives it — so a host version
+  # that only the second would notice (a load refusal, a changed route) is examined.
   e2e:
     needs: [validate, build]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.validate.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.validate.outputs.coveMatrix) }}
+    # Advisory on the forward-looking leg, for the reason and with the caveats stated once on
+    # test-cove-present above.
+    continue-on-error: ${{ matrix.cove.advisory }}
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v7
 
+      # Every catalog-derived value in this job's shell bodies arrives through the step's own
+      # environment, for the reason the build job's first step states. What differs here is the worst
+      # outcome: it is not exfiltration — an injected body can `exit 0`, so this job would report
+      # success having run no specs, and required-check aggregation would go green over it.
+      # `if:`, `with:` and `working-directory:` are evaluated by Actions rather than by a shell, so a
+      # value reaching only those is not part of this hazard.
       - name: Check for an e2e suite
         id: check
         shell: bash
         run: |
-          if [[ -n "${{ matrix.extension.e2ePath }}" && -d "${{ matrix.extension.e2ePath }}" && -n "${{ matrix.extension.e2eProject }}" ]]; then
+          if [[ -n "$E2E_PATH" && -d "$E2E_PATH" && -n "$E2E_PROJECT" ]]; then
             echo "has_suite=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_suite=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::${{ matrix.extension.name }} has no e2ePath/e2eProject in catalog.json (or the directory is missing) — skipping E2E for this extension."
+            echo "::notice::$EXTENSION_NAME has no e2ePath/e2eProject in catalog.json (or the directory is missing) — skipping E2E for this extension."
           fi
-          # Fail closed on the node:test tier: a catalog entry DECLARING an e2eNodeTestsPath makes the
-          # tier required, so a declared-but-missing directory (a typo or a moved/deleted path) is a hard
-          # error here — never a silent has_node_tests=false that would skip the required correctness run.
-          if [[ -n "${{ matrix.extension.e2eNodeTestsPath }}" ]]; then
-            if [[ -d "${{ matrix.extension.e2eNodeTestsPath }}" ]]; then
-              echo "has_node_tests=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "::error::e2eNodeTestsPath '${{ matrix.extension.e2eNodeTestsPath }}' is declared in catalog.json but that directory does not exist — the required node:test correctness tier cannot run."
-              exit 1
-            fi
-          else
-            echo "has_node_tests=false" >> "$GITHUB_OUTPUT"
-          fi
+        env:
+          EXTENSION_NAME: ${{ matrix.extension.name }}
+          E2E_PATH: ${{ matrix.extension.e2ePath }}
+          E2E_PROJECT: ${{ matrix.extension.e2eProject }}
 
       - name: Setup .NET
-        if: (steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true') && !matrix.extension.manifestOnly
+        if: steps.check.outputs.has_suite == 'true' && !matrix.extension.manifestOnly
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       # Publishes to <extension.path>/artifacts/publish, NOT the build job's repo-root-relative
-      # artifacts/<name> — this must match the path each extension's own e2e fixtures file expects
+      # publish directory — this must match the path each extension's own e2e fixtures file expects
       # (e.g. Renamer's RENAMER_EXTENSION.publishDir), which mirrors what a local dev deploy script
       # (deploy-dev.ps1) produces. A mismatch here fails every E2E test at harness install time with
       # "publishDir does not exist" — found via this repo's actual first CI run, since this job's
       # own publish path was never exercised against the real fixtures before.
+      #
+      # The harness assembles the declared package from this publish output in-process, so a change to
+      # the package shape reaches this job through extensions/catalog.json with no workflow edit here.
+      #
+      # This publish carries no -p:ContinuousIntegrationBuild=true, unlike the build job's, so it is
+      # the one Linux publish whose generated json is not path-normalised by construction — and the
+      # in-process assemble applies the absolute-path refusal to it. If that refusal ever fires here,
+      # the remedy is adding that flag to this step, never weakening the check.
       - name: Build extension (publish output for the harness to install)
-        if: (steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true') && !matrix.extension.manifestOnly
-        run: dotnet publish ${{ matrix.extension.projectPath }} -c Release -o ${{ matrix.extension.path }}/artifacts/publish -p:UseLocalCoveSource=false
+        if: steps.check.outputs.has_suite == 'true' && !matrix.extension.manifestOnly
+        shell: bash
+        run: dotnet publish "$PROJECT_PATH" -c Release -o "$EXTENSION_PATH/artifacts/publish" -p:CoveSourceMode=none
+        env:
+          PROJECT_PATH: ${{ matrix.extension.projectPath }}
+          EXTENSION_PATH: ${{ matrix.extension.path }}
 
       - name: Setup Node
-        if: steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true'
+        if: steps.check.outputs.has_suite == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: "24.11.0"
 
       - name: Build extension UI bundle
-        if: (steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true') && matrix.extension.uiPath != ''
+        if: steps.check.outputs.has_suite == 'true' && matrix.extension.uiPath != ''
         working-directory: ${{ matrix.extension.uiPath }}
         run: |
           npm ci
@@ -357,46 +601,50 @@ jobs:
       # lever the pinned npm offers is blanket: --ignore-scripts would disable all of them to
       # contain any one. Containment here is the job's read-only token instead. Revisit on the Node
       # bump whose npm first prints `npm warn allow-scripts` — that warning is per-package approval.
+      #
+      # The browser step goes through the harness's own script rather than `npx playwright`. npx
+      # resolves the local binary when one is present but SILENTLY FETCHES an unpinned copy from the
+      # registry when it is not, so an install failure upstream of this line turns into a download
+      # nobody declared instead of an error. A workspace script can only run what the lockfile placed.
       - name: Install harness dependencies
-        if: steps.check.outputs.has_suite == 'true' || steps.check.outputs.has_node_tests == 'true'
+        if: steps.check.outputs.has_suite == 'true'
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          npm run install:browsers --workspace @cove-extensions/e2e
 
+      # The leg's VERSION reaches the harness, not a whole image reference: the repository is declared
+      # once in Directory.Build.props and the harness reads it from there, exactly as the fetcher and the
+      # build's staleness guard do with their own tag arguments. Composing the reference here would put a
+      # second copy of that repository in this file, free to disagree with the declaration.
+      # A leg whose role is newest-GA and nothing else runs the `@smoke` selection instead of the whole
+      # suite. The floor leg has already run every spec against a host this tree names, and what a newer
+      # GA adds is one question — does the extension still install, enable, rename and undo on it —
+      # which is what that selection is. Such a leg exists only where the two roles resolve to DIFFERENT
+      # images: when they collapse onto one (they do today, upstream having published no GA above the
+      # floor) the merged leg's role reads `floor+newest-ga`, this match fails, and the whole suite runs.
+      # Every way of being wrong about a role name therefore lands on MORE coverage, never less, which is
+      # the only direction a selection keyed on a label may fail in — and it is why `advisory` is read
+      # off the leg's own flag instead, where the safe direction would be the opposite one.
+      #
+      # The pre-release leg is deliberately not on this list: it is the forward-compatibility canary, and
+      # cutting it to six tests would hide the breakage it exists to report. Nor can the selection
+      # silently run nothing — Playwright exits non-zero when a --grep matches no test, so a tag deleted
+      # out of the specs fails this leg by name rather than passing it over an empty set.
       - name: Run E2E suite
         id: e2e
         if: steps.check.outputs.has_suite == 'true'
         working-directory: tests/e2e
-        run: npx playwright test --project=${{ matrix.extension.e2eProject }}
-
-      # Did-it-run guard: the node:test correctness tier is a REQUIRED safety backstop (it exercises the
-      # loop-safety / ingest / rollback contracts that are Compile-Removed from the bare C# leg), so a
-      # silent "0 specs found" must FAIL rather than pass green. This closes the empty-glob case (the
-      # directory exists but holds no *.test.mjs); the declared-but-missing/mis-pointed path is already a
-      # hard error in the check step above. Runs only when the catalog declares the path.
-      - name: Guard the node:test tier actually has specs
-        if: steps.check.outputs.has_node_tests == 'true'
         shell: bash
         run: |
-          shopt -s nullglob
-          specs=(${{ matrix.extension.e2eNodeTestsPath }}/*.test.mjs)
-          if [ ${#specs[@]} -eq 0 ]; then
-            echo "::error::has_node_tests=true but no *.test.mjs under ${{ matrix.extension.e2eNodeTestsPath }} — the required node correctness tier would silently pass."
-            exit 1
+          if [[ "$COVE_ROLE" == "newest-ga" ]]; then
+            npm test -- --project="$E2E_PROJECT" --grep @smoke
+          else
+            npm test -- --project="$E2E_PROJECT"
           fi
-          echo "node:test tier: found ${#specs[@]} spec file(s)."
-
-      # The container-correctness tier: an extension's non-browser API/webhook/sync specs run against
-      # real containers whose external metadata source is a committed offline replay stub. It reads no
-      # repository secret — identities resolve through the stub and the images are public — so it runs
-      # on fork pull requests, where secrets are never provided. The glob is required: `node
-      # --test <dir>` treats a bare directory as a module entry point on current Node and fails, so the
-      # run must enumerate the spec files. Files run serially (--test-concurrency=1): each spec boots its
-      # own container stack, and running them in parallel starves the runner's Docker host.
-      - name: Run node:test correctness tier (offline, no secret)
-        id: node_tests
-        if: steps.check.outputs.has_node_tests == 'true'
-        run: node --test --test-concurrency=1 ${{ matrix.extension.e2eNodeTestsPath }}/*.test.mjs
+        env:
+          E2E_PROJECT: ${{ matrix.extension.e2eProject }}
+          COVE_E2E_TAG: ${{ matrix.cove.tag }}
+          COVE_ROLE: ${{ matrix.cove.role }}
 
       # The `list` reporter's stdout only ever shows pass/fail + duration, never the actual
       # assertion/stack-trace detail, which otherwise only reaches the Upload Playwright report
@@ -422,22 +670,20 @@ jobs:
           retention-days: 7
 
   # ---- Required-check aggregation.
-  # A single job to mark REQUIRED in branch protection on `main`. It transitively requires the bare C#
-  # unit tier (build) AND the containerized safety backstop (e2e: the Playwright projects plus the
-  # optional per-extension node:test correctness tier). This is the workflow-level lever that "makes
-  # e2e + the node tier required": before this phase nothing `needs:` the e2e job, so an e2e failure did
-  # not block a merge — now this gate fails whenever any matrix leg of build or e2e fails or is
-  # skipped-by-failure.
+  # A single job to mark REQUIRED in branch protection on `main`, so a leg gates a merge by being in this
+  # job's `needs:` AND by having its result tested in the shell body below. Listing a job in `needs:`
+  # alone would let it fail while this gate still reported success.
   #
-  # WHY the e2e job (not a cove-present C# leg) is the required safety gate: Cove.Data / Cove.Core are
-  # SOURCE-ONLY (not on nuget.org) and this repo's CI has no cove-repo checkout, so the rollback / undo /
-  # ingest / loop-safety / NoMutation tests that are Compile-Removed from the bare leg cannot run as a C#
-  # job in CI. The e2e job exercises those same contracts against real containers, so it is the required
-  # backstop here; the cove-present C# leg (`dotnet test` with the `../cove` sibling) is a REQUIRED LOCAL
-  # pre-merge gate documented in .github/PULL_REQUEST_TEMPLATE.md. If CI later gains cove source access,
-  # add a cove-present `dotnet test -p:UseLocalCoveSource=true` job and fold it into needs:.
+  # There are two safety legs, each stating its own subject where it is defined, and neither substitutes
+  # for the other: test-cove-present sees seams no containerized run can reach — which principal a
+  # database command executed under, a rollback's intermediate state, an event hook's re-entrancy —
+  # while e2e is the only check that would notice a package the host cannot load. A green here means
+  # both were observed, not that one stood in for the other.
+  #
+  # Cove.Data is on no feed, and that is why the image is the route for it; Cove.Core, Cove.Plugins and
+  # Cove.Sdk are published on nuget.org. Neither fact makes the cove-present leg optional.
   required-checks:
-    needs: [validate, build, e2e]
+    needs: [validate, build, test-cove-present, e2e]
     if: always()
     runs-on: ubuntu-latest
     # No token at all: this job only reads the other jobs' results and echoes them. An empty mapping
@@ -447,24 +693,46 @@ jobs:
       - name: Assert the required legs succeeded
         shell: bash
         run: |
-          echo "validate=${{ needs.validate.result }} build=${{ needs.build.result }} e2e=${{ needs.e2e.result }}"
+          echo "validate=${{ needs.validate.result }} build=${{ needs.build.result }} test-cove-present=${{ needs.test-cove-present.result }} e2e=${{ needs.e2e.result }}"
           if [ "${{ needs.validate.result }}" != "success" ] \
             || [ "${{ needs.build.result }}" != "success" ] \
+            || [ "${{ needs.test-cove-present.result }}" != "success" ] \
             || [ "${{ needs.e2e.result }}" != "success" ]; then
-            echo "::error::A required leg failed or was skipped — validate/build/e2e must all be green."
+            echo "::error::A required leg failed or was skipped — validate/build/test-cove-present/e2e must all be green."
             exit 1
           fi
           echo "All required legs green."
 
+  # ---- Release. Depends on the aggregation job rather than on `build` directly, so a tag push must
+  # clear the same set that must be green to merge. Naming that set a second time here would leave two
+  # lists free to drift apart; a leg added to `required-checks` reaches the release path with no edit
+  # in this job.
+  #
+  # What a green aggregate does NOT establish: the e2e job runs for a catalog entry only when that entry
+  # declares e2ePath/e2eProject — both optional. For an entry declaring neither, the e2e job's first
+  # step sets has_suite=false, every later step in it is skipped, and the job still reports success. So a
+  # green aggregate proves the containerized install ran ONLY for an entry that declares the path; for
+  # an entry without one it proves nothing about the package, and the release proceeds.
   release:
-    needs: build
+    needs: required-checks
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      # `pattern` is an allowlist over artifact NAMES, and it is a security boundary rather than tidiness.
+      # Without it this step downloads EVERY artifact in the run and `merge-multiple` flattens them into
+      # one directory, so any job's upload becomes a candidate for `files: "*.zip"` below. That matters
+      # because the pre-release e2e leg is advisory: it boots an UNRELEASED upstream image, and on failure
+      # it still uploads its Playwright report while reporting success to the aggregate. Publishing from a
+      # directory that leg can write into makes an upstream compromise a release-integrity problem.
+      #
+      # Today nothing of its report lands at the root as a `.zip` (Playwright puts traces under `data/`),
+      # so the exposure was latent — but that is a third-party layout detail, not an invariant this repo
+      # owns, and resting on it is the kind of accident this allowlist removes at the source.
       - uses: actions/download-artifact@v8
         with:
+          pattern: package-*
           merge-multiple: true
 
       - name: Create GitHub Release
