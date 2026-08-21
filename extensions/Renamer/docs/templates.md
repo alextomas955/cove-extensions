@@ -44,7 +44,11 @@ to place it somewhere unusual.
 - **A literal dollar sign** is written `$$`.
 - **Missing tokens are omitted**, not rendered as blank — which is what makes the `{ … }` groups
   collapse.
-- **Folders**: in the folder template, use `/` to separate sub-folders, e.g. `$studio / $year`.
+- **Folders**: in the folder template, use `/` to separate sub-folders, e.g. `$studio / $year`
+  (`\` is read the same way, so type whichever your system uses). A folder template is always
+  **relative** — it is made under a root you pick from Cove's library paths beside the field, and a
+  path typed into it becomes ordinary folder names under that root. See
+  [Where a file lands](./settings#where-a-file-lands).
 
 ## Presets
 
@@ -69,10 +73,10 @@ with no value is simply omitted.
 
 ### Core
 
-| Token    | Produces                                                                                                                       | Example      |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------ |
-| `$title` | The item's title. If the item has no title and _Use filename as title_ is on, the file's current basename (without extension). | `The Matrix` |
-| `$ext`   | The file extension (added automatically at the end; include it explicitly only for unusual placements).                        | `mp4`        |
+| Token    | Produces                                                                                                                                                                                         | Example      |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------ |
+| `$title` | The item's title. If the item has no title and [_Use filename as title_](./settings#use-filename-as-title-when-none-is-set) is on, a title worked out from the filename — and saved to the item. | `The Matrix` |
+| `$ext`   | The file extension (added automatically at the end; include it explicitly only for unusual placements).                                                                                          | `mp4`        |
 
 ### Titles, studios, people
 

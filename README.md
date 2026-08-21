@@ -30,6 +30,15 @@ Build the shared solution from the repo root:
 dotnet build CoveExtensions.slnx
 ```
 
+Before building or verifying an extension's frontend, generate its wire types from the repo root —
+they are derived from the committed OpenAPI document and gitignored, so a fresh clone has none and
+the typecheck fails on a missing module:
+
+```sh
+npm ci --no-workspaces
+npm run generate:wire
+```
+
 `Directory.Build.props`/`Directory.Build.targets` at this root auto-wire every project against
 `Cove.Sdk` (transitively `Cove.Plugins` + `Cove.Core`), either from a local sibling `../cove`
 checkout (if present) or from NuGet — individual extensions do not declare their own Cove

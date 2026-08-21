@@ -34,13 +34,17 @@ Rename is a Cove extension in two halves:
 A **preview** runs Options → Engine → Planner and stops — zero mutation. A **rename** runs the whole
 chain through Execution. **Undo** replays the Execution layer's revert log in reverse.
 
-The revert log is bounded by design rather than by circumstance: it holds one batch, of at most 5,000
-files, and a row records only what reversal needs — the entity, the file, and the path it came from.
-The file's current path is not stored, because Cove's database is authoritative for it. A batch over
-the cap is not recorded at all and the preview says so before the rename runs, so a rename is either
-fully reversible or plainly not — never half-restorable. A journal written before this shape is
-discarded once, on the first load that finds a stale schema stamp — a separate few-byte key, so the
-oversized value goes without ever being read.
+The revert log lives in two tables the extension owns in Cove's database — one row per journalled file,
+one aggregate row per batch — created by a schema migration the host applies before the extension
+loads. A row records only what reversal needs: the entity, the file, and the path it came from. The
+file's current path is not stored, because Cove's database is authoritative for it.
+
+It is bounded in **time**, not in row count: a batch older than seven days is dropped whole — every row
+it still holds and its aggregate together — the next time any batch opens. A batch therefore either
+falls wholly inside the window or is wholly gone, so an undo is never silently partial, and a rename of
+any size is journalled. An installation upgrading from the earlier single-value journal has whatever it
+still held moved into the tables once, keeping its original timestamp so it keeps its real age, after
+which the old keys are deleted.
 
 ## Layer by layer
 
@@ -52,6 +56,13 @@ length safety settings, case transforms, required-field gating, and the auto-ren
 - `RenamerOptions.cs` — the options model and its JSON (de)serialization settings.
 - `OptionsStore.cs` — loads and saves options through Cove's per-extension data store, so the
   configuration persists in Cove and survives extension upgrades.
+
+Two kinds of persisted state, and the boundary between them is load-bearing. The host's per-extension
+key/value store holds what is bounded by configuration — the options, and the last scan's summary. The
+undo journal is deliberately **not** there: it is the two extension-owned database tables described
+under Execution below. A journal grows with the library, and a growing value under one store key put
+every writer into a read-modify-write race and once grew large enough to fail this extension's whole
+settings page, survive a reinstall, and need SQL to remove. A row insert has neither problem.
 
 ### Engine — `src/Renamer/Engine/`
 
@@ -106,10 +117,19 @@ the two never drift.
 - `DiskMover.cs` — the actual filesystem move, including sidecar files (captions/subtitles sharing
   the stem) and collision-safe behavior.
 - `CoveRenamerDataPort.cs` — the concrete `IRenamerDataPort` backed by Cove's DbContext.
-- `RevertLog.cs` — the bounded single-batch log that makes undo possible: one batch, a hard row cap,
-  and a refusal path that journals nothing when a batch exceeds it.
-- `UndoReplayer.cs` — reverse-replays the most recent batch from the revert log, reading each file's
-  current location from the database rather than from the log.
+- `CoveRevertJournal.cs` — the revert journal over the extension's own tables: appends a row per
+  renamed file, retires a row as its file returns, and purges expired batches whole when one opens.
+  Carries the retention window it purges against, as a constant rather than a setting.
+- `RevertJournalStorage.cs` — the EF shapes behind those tables and the frozen migration that creates
+  them.
+- `JournalBlobMigration.cs` / `RevertLog.cs` — the one-way move of an earlier version's stored journal
+  into those tables, and the tolerant parsers that read the format it was written in.
+- `UndoReplayer.cs` — reverse-replays the newest batch that still holds rows, reading each file's
+  current location from the database rather than from the journal, and replaying each row's recorded
+  sidecar and caption moves (`RevertDelta.cs`) in the opposite direction. A row it could not restore
+  stays in the journal for the next attempt: `UndoStopReason.cs` retires a row only for the
+  one stop reason that can never clear — the file has left the library — so a lock, an unmounted
+  drive or a widened allowlist all leave the row retryable.
 
 ### Api — `src/Renamer/Renamer.Api.cs` (+ `src/Renamer/Api/`)
 
@@ -129,9 +149,24 @@ Minimal-API endpoints the frontend calls, mounted under
 - `POST /scan-rows` — one page of that dry run's rows, planned on demand, with an optional path search
   and status-bucket filter.
 
-Every endpoint re-checks the caller's permission **in the handler** (`videos.read` to preview,
-`videos.write` to rename or undo) — Cove's attribute-based permission filter is inert on minimal-API
-routes, so the check is explicit and runs before any work.
+Every endpoint re-checks the caller's permission **in the handler**, and it asks for the permission of
+the _kind_ it is about: that kind's read permission to preview it (`videos.read`, `images.read`,
+`audios.read`) and its write permission to rename or undo it (`videos.write`, `images.write`,
+`audios.write`). A caller holding only some of them is not refused outright — the whole-library
+endpoints narrow to the kinds that caller may read. Cove's attribute-based permission filter is inert on
+minimal-API routes, so the check is explicit and runs before any work.
+
+Three surfaces reach different numbers of kinds, and the difference is deliberate:
+
+| Surface                               | Kinds               | Where               |
+| ------------------------------------- | ------------------- | ------------------- |
+| Endpoints and their permission checks | video, image, audio | `Renamer.Api.cs`    |
+| The "Rename selected" bulk action     | video, image        | `GetUIManifest`     |
+| The opt-in auto-rename hook           | video, image        | `Renamer.Events.cs` |
+
+So audio is renamed from the Rename tab or through the API, and an audio list carries no "Rename
+selected" action. The manifest's description states the endpoint reach and the bulk action's narrower
+one together, because that description is what an operator reads before granting the extension access.
 
 The bulk-action registration, the job definition, and the optional auto-rename event hook live
 alongside in `src/Renamer/Renamer.cs` (shared batch core) and `src/Renamer/Renamer.Events.cs`
@@ -141,7 +176,8 @@ background job runner in `src/Renamer/Jobs/`.
 ### Frontend — `src/Renamer.Ui/src/`
 
 A Vite library build that Cove loads as `index.mjs`. Its home is a dedicated **Settings → Extensions
-→ Rename** tab; it also registers the "Rename selected" bulk action on video and image lists.
+→ Rename** tab; it also registers the "Rename selected" bulk action on video and image lists — the two
+kinds that action covers, per the reach table above.
 
 - `index.ts` — the bundle entry that registers the components and the bulk-action handler.
 - `RenamePage.tsx` / `RenameSettingsPanel.tsx` — the settings tab and its body (the controls + the
@@ -162,7 +198,8 @@ A Vite library build that Cove loads as `index.mjs`. Its home is a dedicated **S
 
 - `renameSelected.ts` — the bulk-action handler: preview → confirm → `/rename`, cancellable.
 - `UndoSection.tsx` — the undo control backed by `/undo` and `/last-batch`.
-- `EntityPicker.tsx` / `StudioMap.tsx` — the searchable studio/tag picker and the per-studio
+- `EntitySelectField.tsx` / `StudioMap.tsx` — the single adapter over the host's entity selector
+  (every studio/tag/performer field in the panel is reached through it) and the per-studio
   destination-map editor.
 - `PreviewCard.tsx`, `WarningBadge.tsx`, `TokenLegend.tsx`, `templateValidation.ts`, `presets.ts`,
   `options.ts`, `preview.ts`, `primitives.tsx` — supporting UI, types, and the inline token
@@ -198,9 +235,10 @@ These are the guarantees the design exists to protect. Preserve them when you ch
 - **Options persist and survive upgrades.** Configuration lives in Cove's per-extension store, not in
   a local file.
 - **No host assemblies shipped.** The extension must never bundle host-provided assemblies
-  (`Cove.Core` / `Cove.Plugins` / `Cove.Sdk`, EF Core, Npgsql, …). They're stripped from the publish
-  set, and the deploy script's strip-verify gate refuses to deploy if any leak in. Bundling them
-  would cause load-context type-identity mismatches at runtime.
+  (`Cove.Core` / `Cove.Plugins` / `Cove.Sdk`, EF Core, Npgsql, …). `Cove.Sdk.targets` strips them from
+  the publish set, and the package is copied from an explicit declaration, so an undeclared file never
+  reaches it. A leak on the current host is ignored — it loads its own copy and warns once — so the
+  cost is package weight, not correctness.
 - **ABI-matched local-source build.** When building against a local Cove checkout, the extension
   references the host's own Cove projects so it's binary-compatible with the running host. This is the
   path the deploy script uses.
