@@ -1,3 +1,7 @@
 node_modules/
 # Build output — rebuilt from source by CI (npm run build) and packaged into the release.
 dist/
+# Wire types generated from the committed OpenAPI document (npm run generate:wire at the repo root).
+# A deterministic function of a committed file, so a stored copy would only add a way for the two to
+# disagree — and a staleness gate to maintain. CI regenerates before anything reads the TypeScript.
+src/wire/
