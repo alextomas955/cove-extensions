@@ -12,9 +12,23 @@
     -->
     <PackageVersion Include="Cove.Sdk" Version="$(CoveSdkVersion)" />
     <PackageVersion Include="Cove.Plugins" Version="$(CoveSdkVersion)" />
+    <!--
+      Cove.Core normally arrives transitively through Cove.Sdk and is never referenced directly, which
+      is why this repo declared no version for it. It has one consumer now, and only one: the test
+      project's `assemblies` mode names it in an ExcludeAssets="all" reference, so that the image's
+      Cove.Core is what compiles and runs instead of the NuGet one. Central package management requires
+      a declared version even for a reference whose whole purpose is to bring in nothing.
+    -->
+    <PackageVersion Include="Cove.Core" Version="$(CoveSdkVersion)" />
 
     <PackageVersion Include="System.IO.Hashing" Version="10.0.11" />
 
+    <!--
+      Sonar's C# rules as a build-time Roslyn analyzer: no server, no token, no workflow step. The
+      package is marked developmentDependency and carries no dependencies and no runtime assets, so it
+      reaches no publish output and needs no catalog.json declaration.
+    -->
+    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.32.0.713" />
     <PackageVersion Include="xunit.v3" Version="4.0.0" />
     <!-- Bundled inside xunit.v3, but not inside the split packages the test-support library takes, so
          that library references the analyzers directly. Hold this at the version xunit.v3 resolves:
@@ -24,7 +38,27 @@
     <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.11" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <!--
+      Microsoft.AspNetCore.OpenApi 10.0.10 resolves Microsoft.OpenApi 2.0.0, which carries a HIGH
+      advisory (GHSA-v5pm-xwqc-g5wc, circular schema references terminate parsing; first patched in
+      2.7.5). The document-emitting test writes against this library's own writer types, so it is a
+      direct dependency here rather than a pin-to-dodge-the-audit: name the patched version and let
+      NuGetAudit stay a real gate. Hold this on the 2.x line — 3.x is the next major API surface and
+      the ASP.NET Core integration is compiled against 2.x.
+    -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.11.0" />
+    <!--
+      Aligns the compile graph with the runtime users actually receive. Cove.Core 1.1.0's nuspec
+      declares Pgvector 0.3.2, whose nuspec declares Npgsql >= 8.0.5, while the released cove-app image
+      ships Npgsql 10.0.3 — so without this the extension is compiled against a dependency closure two
+      majors behind anything that runs. Not a new dependency to vet: Npgsql is already restored
+      transitively along that same edge, and the version was read from the image's own Npgsql.dll
+      identity rather than chosen.
+
+      The symptom without it is a non-fatal MSB3277 conflict, which TreatWarningsAsErrors does NOT
+      cover — that setting is compiler-only — so it would sit in the log unnoticed indefinitely.
+    -->
+    <PackageVersion Include="Npgsql" Version="10.0.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.11" />

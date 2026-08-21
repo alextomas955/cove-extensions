@@ -5,6 +5,11 @@ artifacts/
 # and writes reports and crash dumps into it.
 TestResults/
 *.zip
+# TypeScript build-mode cache. No tsconfig here sets `composite`/`incremental` and the packages' own
+# scripts run `tsc --noEmit`, which writes nothing — but `tsc -b` by hand and some editor TS services
+# do write it, and it has kept reappearing untracked. Globbed rather than named per package so a
+# second extension needs no edit here.
+*.tsbuildinfo
 .DS_Store
 .playwright-mcp/
 *.playwright-mcp.yml
