@@ -11,8 +11,9 @@ using Xunit;
 namespace Cove.Extensions.Shared.Testing;
 
 /// <summary>
-/// Emits an extension's OpenAPI document from its own <c>MapEndpoints</c> registration and writes it
-/// to a committed file, so a route or a wire shape that moves shows up as a diff on that file.
+/// Emits an extension's OpenAPI document from its own <c>MapEndpoints</c> registration and fails when
+/// it differs from the committed copy, so a route or a wire shape that moves cannot land unnoticed.
+/// Set <c>COVE_WIRE_DOC_UPDATE=1</c> to rewrite the committed copy after an intended change.
 /// </summary>
 /// <remarks>
 /// Derive once per extension and supply the two hooks; the invariants that decide whether the
@@ -39,6 +40,9 @@ public abstract class ExtensionOpenApiDocumentTests
     private const string PinnedTitle = "cove extension wire contract";
     private const string PinnedVersion = "1.0.0";
 
+    /// <summary>Set to <c>1</c> to rewrite the committed document instead of comparing against it.</summary>
+    public const string UpdateVariable = "COVE_WIRE_DOC_UPDATE";
+
     /// <summary>The extension under test, built the way the host builds it (shipped manifest applied).</summary>
     protected abstract IApiExtension CreateExtension();
 
@@ -54,7 +58,7 @@ public abstract class ExtensionOpenApiDocumentTests
     protected virtual void ConfigureBindingServices(IServiceCollection services) { }
 
     [Fact]
-    public async Task EmitsTheCurrentWireDocument()
+    public async Task MatchesTheCommittedWireDocument()
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
@@ -71,7 +75,10 @@ public abstract class ExtensionOpenApiDocumentTests
 
         // NumberHandling is narrowed to Strict deliberately: the Web default also accepts numbers
         // written as strings, which the generator reports as an integer-or-string union on EVERY
-        // numeric field, while the server only ever writes a JSON number.
+        // numeric field. The server only ever WRITES a JSON number, so this is exact for responses.
+        // It overstates the request side, where the host does still accept a string-encoded number —
+        // the document is generated to be a client-codegen input, and a client that never sends the
+        // looser form is the outcome worth having.
         builder.Services.ConfigureHttpJsonOptions(
             options => options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict);
 
@@ -90,7 +97,7 @@ public abstract class ExtensionOpenApiDocumentTests
             .Endpoints.OfType<RouteEndpoint>()
             .ToList();
 
-        // Before any write: an empty route set is a hard failure, never a pass.
+        // Before anything is compared: an empty route set is a hard failure, never a pass.
         Assert.NotEmpty(routes);
 
         var provider = app.Services.GetRequiredKeyedService<IOpenApiDocumentProvider>(DocumentName);
@@ -128,11 +135,26 @@ public abstract class ExtensionOpenApiDocumentTests
         var json = NormalizeForCommit(writer.ToString());
 
         var path = ResolveDocumentPath();
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
-        // One call, so an interrupted or concurrent run leaves either the previous complete document or
-        // the new one, never a half-written file that the CI diff would report as a wire change.
-        File.WriteAllText(path, json);
+        if (Environment.GetEnvironmentVariable(UpdateVariable) == "1")
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+            // One call, so an interrupted run leaves either the previous complete document or the new
+            // one, never a half-written file that the next comparison would report as a wire change.
+            File.WriteAllText(path, json);
+            return;
+        }
+
+        // Compare rather than overwrite, so THIS test is the gate. Writing and leaving the check to a
+        // later CI step splits the two: the run that detects the drift is not the run that produced it,
+        // a developer's `dotnet test` reports success while silently dirtying the working tree, and the
+        // separate step cannot tell an unchanged-because-correct document from one whose emit never ran.
+        Assert.True(
+            File.Exists(path),
+            $"No committed wire document at {DocumentPath}. Re-run with {UpdateVariable}=1 to write it.");
+
+        Assert.Equal(File.ReadAllText(path).ReplaceLineEndings("\n"), json);
     }
 
     // The document is committed and CI diffs it, so its bytes must not depend on which platform emitted
