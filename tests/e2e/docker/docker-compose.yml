@@ -31,14 +31,20 @@ services:
       - /var/lib/postgresql
 
   cove:
-    # Pinned to a versioned tag, NOT floating `latest`, for two reasons: (1) both extensions declare
-    # `minCoveVersion: 1.0.0`, so the host must be >= 1.0.0 or its version gate silently refuses to
-    # LOAD the extension (the routes 404 and every browser spec fails against a Settings page that
-    # never gains the extension's tab); (2) `latest` drifts — a stale local `latest` pulled before the
-    # 1.0.0 release still resolved to 0.9.0, dropping the whole suite below the floor without any error.
-    # Bump this tag deliberately in lockstep with the extensions' minCoveVersion. Override per-run with
-    # COVE_E2E_IMAGE.
-    image: ${COVE_E2E_IMAGE:-ghcr.io/yourcove/cove-app:1.0.0}
+    # Required, with NO default: `lib/harness.mjs`'s resolveCoveImage is the only thing that decides
+    # which host boots — the highest floor the catalog's extensions declare in their own manifests, on
+    # the repository the build properties declare, with a CI leg's resolved version overriding it. A
+    # version written here would be a second declaration of a number that already lives in a manifest,
+    # free to fall behind it — and a host below an extension's floor does not error, it silently refuses
+    # to LOAD the extension, so the routes 404 and every browser spec fails against a Settings page that
+    # never gains the extension's tab. A floating `latest` is not the alternative either: a stale local
+    # `latest` pulled before the 1.0.0 release still resolved to 0.9.0, dropping the whole suite below
+    # the floor with no error at all.
+    #
+    # The cost this shape accepts: `docker compose up` in this directory no longer starts anything,
+    # because there is no value left to fall back to. Go through the harness (see ../README.md), or
+    # name an image yourself in COVE_E2E_IMAGE.
+    image: ${COVE_E2E_IMAGE:?set by tests/e2e/lib/harness.mjs from the catalog floor — this compose file declares no Cove version, so a bare docker compose invocation must name one}
     depends_on:
       db:
         condition: service_healthy
@@ -51,7 +57,20 @@ services:
       COVE__GeneratedPath: /generated
       COVE__CachePath: /cache
       COVE__BackupPath: /backups
-      COVE__Auth__Enabled: "false"
+      # The two media directories, declared as Cove's own library paths. Cove seeds none by default
+      # and the specs create their file rows through /api/videos/from-file — an import that takes an
+      # explicit path and never consults this list — so without these the instance ran with NO library
+      # path at all, which no real install does. That gap is not cosmetic: an extension asking "which
+      # library path holds this file" gets no answer here and behaves as it would for a file genuinely
+      # outside the library, which is a different code path from the one the specs mean to drive.
+      # /data2 is listed beside /data because the cross-device spec moves files there.
+      COVE__CovePaths__0__Path: /data
+      COVE__CovePaths__1__Path: /data2
+      # Authentication is OFF by default: every existing spec runs against the bypass principal and
+      # must keep doing so. A suite that needs a real credential flow opts in per instance with
+      # `startHarness({ env: { COVE_E2E_AUTH_ENABLED: 'true' } })` — flipping it is instance-global,
+      # so it belongs to an isolated harness, never to a worker-shared one.
+      COVE__Auth__Enabled: "${COVE_E2E_AUTH_ENABLED:-false}"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5073/health"]
       interval: 2s
@@ -67,13 +86,35 @@ services:
       # link not permitted"), the same error a move across two real drives raises. This is the one
       # mount strategy that actually triggers cross-device behavior inside a single container.
       #
-      # Caveat (see extensions/Renamer/.planning/ for the full finding): Renamer's own same-vs-
-      # cross-volume DECISION is `Path.GetPathRoot()`-based (Windows drive-letter shaped), which
-      # always returns "/" on Linux — so Renamer's code still classifies a move into /data2 as
-      # "same volume" and routes it through the fast-path `File.Move`, which then throws the real
-      # EXDEV as a plain IOException. That exception IS caught (not a crash), but by the same
-      # branch as "locked/destination exists", so the reported reason is misleading on Linux. This
-      # mount exists to make that real, verified behavior testable and regression-protected, not to
-      # exercise Renamer's CrossVolumeMover verify/copy path (which is Windows-only reachable by
-      # the code's own design — see the existing CrossVolumeMoverTests.cs xUnit suite for that).
+      # The caveat that used to sit here — that the same-vs-cross-volume decision is
+      # `Path.GetPathRoot()`-based, that /data2 is therefore classified "same volume", and that
+      # CrossVolumeMover is Windows-only reachable — was true when written and became false on
+      # 2026-07-28, when v0.3.0 made VolumeClassifier mount-aware. Measured in a Linux container on
+      # .NET 10: DriveInfo.GetDrives() enumerates this container's mounts, so /data keys to "/" and
+      # /data2 keys to "/data2" and the pair classifies CROSS-volume. So this mount now does exercise
+      # the verified copy path, which is more than it was originally built for.
+      #
+      # OWNERSHIP, stated here because it decides whether anything can write into this mount at all, and
+      # because the only prior account of it lived inside the one spec that works around it.
+      #
+      # The mount is root-owned throughout, and its permissions are NOT constant across the container's
+      # life. On first bring-up it arrives world-writable with the sticky bit, so the image's own
+      # non-root process can create files in it with no handover. A container restart resets it to
+      # root-owned with no world write, and a write by that same non-root user is then DENIED.
+      #
+      # Docker's restart is what changes it; nothing inside the container can, because a root-owned mode
+      # is not the image user's to alter. That is why two readings taken at different points both stand:
+      # a world-writable one and a non-writable one describe this same declaration in two different
+      # states, and neither refutes the other.
+      #
+      # Which state a spec meets follows from the harness, not from this file: every spec reaches this
+      # container through `installExtension`, which restarts it before the spec's first line runs. So the
+      # state under test is always the post-restart one, and a spec that writes into /data2 must hand the
+      # mount over itself first — which is what extensions/Renamer/e2e/tests/cross-device-move.spec.mjs
+      # does, and why the refusal its first phase builds on is sound rather than stale.
+      #
+      # Established through the harness itself — `startHarness()` plus `handle.restart()` — because that
+      # is the route the specs take. A bare `docker compose` bring-up observes only the first state, and
+      # reasoning from it to the specs is the inference that put a wrong ownership fact here before: the
+      # variable is the restart, not the compose file.
       - /data2

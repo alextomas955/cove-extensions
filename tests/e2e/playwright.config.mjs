@@ -1,15 +1,36 @@
 import { defineConfig, devices } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const repoRoot = join(__dirname, "..", "..");
 
-// One shared Playwright install/config for every extension's E2E suite in this monorepo — each
-// extension gets its own `project` entry pointing `testDir` at its own test directory, so there is
-// exactly one `node_modules`/@playwright/test install to keep in sync, and `npx playwright test
-// --project=<name>` runs a single extension's suite. Add a new extension's suite by adding one
-// entry here, not by giving it its own separate Playwright install (which breaks Playwright's
-// module singleton — see tests/e2e/README.md).
+// The catalog is this monorepo's single declaration of which extensions exist, so a suite is
+// registered by declaring it there rather than here, where the same fact would then live twice and be
+// free to disagree with itself. Two things the derivation below cannot show. There is exactly one
+// shared @playwright/test install for the whole monorepo: a second install breaks Playwright's
+// module singleton the moment a test file imports a fixture module across the two, so an extension
+// gets a project here rather than an install of its own (see tests/e2e/README.md). And this
+// harness's own `tests/` directory is deliberately not a catalog entry — `template.spec.mjs` there
+// is a copyable starting point rather than a live suite, and it resolves extension paths
+// self-relatively, so it addresses a real extension only once it has been copied into one.
+const catalog = JSON.parse(
+  readFileSync(join(repoRoot, "extensions", "catalog.json"), "utf8").replace(/^\uFEFF/, ""),
+);
+const catalogEntries = Array.isArray(catalog.extensions) ? catalog.extensions : [];
+const e2eProjects = catalogEntries
+  .filter((entry) => entry.e2ePath && entry.e2eProject)
+  .map((entry) => ({ name: entry.e2eProject, testDir: join(repoRoot, entry.e2ePath, "tests") }));
+
+// A runner configured with no projects collects nothing and still exits 0, so a mis-shaped catalog
+// would read as a green E2E tier that inspected nothing.
+if (e2eProjects.length === 0) {
+  throw new Error(
+    `No E2E project resolved: examined ${catalogEntries.length} catalog entries, of which 0 declared both e2ePath and e2eProject.`,
+  );
+}
+
 export default defineConfig({
   // Safe because every test's data is isolated: worker-shared-harness test files (the default —
   // see fixtures.mjs) seed their own uniquely-named data per test (timestamp + random suffix), so
@@ -30,6 +51,9 @@ export default defineConfig({
   // count as local. Override with `--workers=N` if a given machine/runner can sustain more (or
   // fewer) than its default.
   fullyParallel: true,
+  // A committed `.only` silently shrinks the suite to the focused test and still exits 0, which reads
+  // as a green run over work nothing checked. Keyed on CI so a local focused run stays possible.
+  forbidOnly: !!process.env.CI,
   workers: process.env.CI ? 2 : 4,
   retries: process.env.CI ? 2 : 0,
   timeout: 180_000,
@@ -39,16 +63,5 @@ export default defineConfig({
     screenshot: "only-on-failure",
     ...devices["Desktop Chrome"],
   },
-  // One project per extension, each pointing at that extension's co-located tests. `tests/` here
-  // (the harness's own dir) holds only `template.spec.mjs` — a COPYABLE starting point, not a live
-  // suite — so it is intentionally NOT registered as a project: it uses `resolveExtensionPaths`
-  // self-relatively, which only resolves to a real extension once the file has been copied INTO one.
-  // Add a new extension by adding one entry here (see the "Authoring E2E tests" docs page:
-  // https://alextomas955.github.io/cove-extensions/contributing/authoring-e2e).
-  projects: [
-    {
-      name: "renamer",
-      testDir: join(__dirname, "..", "..", "extensions", "Renamer", "e2e", "tests"),
-    },
-  ],
+  projects: e2eProjects,
 });
