@@ -50,10 +50,14 @@ pre-commit:
       run: npx eslint --fix {staged_files}
       stage_fixed: true
 
-    # --- C#: format-verify changed projects (cheap; no full build) ---
+    # --- C#: format changed projects in place (cheap; no full build) ---
+    # Fixes rather than verifies, matching the prettier/eslint hooks above: the check costs the same
+    # solution load either way, so reporting a violation a contributor then has to fix by hand buys
+    # nothing over fixing it here.
     csharp-format:
       glob: "*.cs"
-      run: dotnet format CoveExtensions.slnx --verify-no-changes --severity warn --include {staged_files}
+      run: dotnet format CoveExtensions.slnx --severity warn --include {staged_files}
+      stage_fixed: true
 
     # Local-only: warns when the committed vendor/cove-extension-sdk-*.tgz drifts from the
     # sibling ../cove checkout's frontend SDK version. Cannot run in CI (no ../cove there) — it
