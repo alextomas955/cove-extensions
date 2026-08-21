@@ -135,3 +135,6 @@ public static class PreviewContracts
     /// </summary>
     public static readonly JsonSerializerOptions PreviewResponseJsonOptions = CoveJsonOptions.WebWithEnumStrings();
 }
+
+/// <summary>The job id a caller polls after an enqueue route accepts the work.</summary>
+public sealed record JobEnqueued(string JobId);

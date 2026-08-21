@@ -1,5 +1,4 @@
 using Cove.Core.Auth;
-using Microsoft.AspNetCore.Http;
 
 namespace Cove.Extensions.Shared;
 
@@ -15,8 +14,8 @@ public static class MinimalApiPermissions
     /// Returns a <c>403 FORBIDDEN</c> result when the principal is null or lacks
     /// <paramref name="permission"/>, otherwise <c>null</c> (proceed).
     /// </summary>
-    public static IResult? Forbidden(ICurrentPrincipalAccessor principal, string permission)
+    public static ForbiddenCode? Forbidden(ICurrentPrincipalAccessor principal, string permission)
         => principal.Current is null || !principal.Current.Has(permission)
-            ? Results.Json(new { code = "FORBIDDEN" }, statusCode: 403)
+            ? new ForbiddenCode()
             : null;
 }

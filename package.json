@@ -3,16 +3,16 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "knip": "knip",
-    "syncpack": "syncpack lint",
+    "generate:wire": "node scripts/generate-wire-types.mjs",
     "jscpd": "jscpd .",
+    "knip": "knip",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "prepare": "lefthook install",
-    "test": "node --test scripts/*.test.mjs",
-    "wire-usage": "node scripts/check-wire-usage.mjs"
+    "syncpack": "syncpack lint",
+    "test": "node --test scripts/*.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -27,6 +27,7 @@
     "jscpd": "5.0.16",
     "knip": "6.32.2",
     "lefthook": "2.1.10",
+    "openapi-typescript": "7.13.0",
     "prettier": "3.9.6",
     "syncpack": "15.3.3",
     "typescript": "6.0.3",
@@ -35,5 +36,10 @@
   "workspaces": [
     "tests/e2e",
     "extensions/*/e2e"
-  ]
+  ],
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
+  }
 }
