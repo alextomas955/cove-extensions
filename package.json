@@ -7,12 +7,17 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "knip": "knip",
+    "format:cs": "dotnet format CoveExtensions.slnx --severity warn --exclude ../cove/",
+    "format:cs:check": "dotnet format CoveExtensions.slnx --verify-no-changes --severity warn --exclude ../cove/",
     "syncpack": "syncpack lint",
-    "jscpd": "jscpd .",
     "prepare": "lefthook install",
-    "test": "node --test scripts/*.test.mjs",
-    "wire-usage": "node scripts/check-wire-usage.mjs"
+    "generate:wire": "node scripts/generate-wire-types.mjs",
+    "test": "node --test scripts/*.test.mjs"
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -20,13 +25,10 @@
     "eslint-config-prettier": "10.1.8",
     "eslint-import-resolver-typescript": "4.4.5",
     "eslint-plugin-boundaries": "7.2.0",
-    "eslint-plugin-import-x": "4.17.1",
     "eslint-plugin-react-hooks": "7.1.1",
-    "eslint-plugin-react-refresh": "0.5.4",
     "globals": "17.11.0",
-    "jscpd": "5.0.16",
-    "knip": "6.32.2",
     "lefthook": "2.1.10",
+    "openapi-typescript": "7.13.0",
     "prettier": "3.9.6",
     "syncpack": "15.3.3",
     "typescript": "6.0.3",
@@ -35,5 +37,11 @@
   "workspaces": [
     "tests/e2e",
     "extensions/*/e2e"
-  ]
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "volta": {
+    "node": "24.11.0"
+  }
 }
