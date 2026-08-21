@@ -380,19 +380,30 @@ jobs:
       # assertion/stack-trace detail, which otherwise only reaches the Upload Playwright report
       # artifact below — requiring a download+unzip round trip to read. Dump it straight to the job
       # log instead so a CI failure is diagnosable from the log alone.
+      # always(), NOT failure(): a test that fails and then passes on retry leaves the job green, so a
+      # failure()-gated dump discards the evidence for exactly the flakes that are hardest to
+      # reproduce. Playwright writes an error-context.md per failed ATTEMPT, so this prints them for
+      # a rescued flake too, and says so rather than exiting quietly on a clean run.
       - name: Dump E2E failure context
-        if: steps.check.outputs.has_suite == 'true' && failure() && steps.e2e.outcome == 'failure'
+        if: always() && steps.check.outputs.has_suite == 'true'
         working-directory: tests/e2e
         shell: bash
         run: |
-          for f in $(find test-results -name "error-context.md" 2>/dev/null); do
+          contexts=$(find test-results -name "error-context.md" 2>/dev/null | sort)
+          if [[ -z "$contexts" ]]; then
+            echo "No failed attempts: no error-context.md written."
+            exit 0
+          fi
+          echo "::warning::$(echo "$contexts" | wc -l) failed attempt(s) recorded; a green job here means retries rescued them."
+          while IFS= read -r f; do
             echo "::group::$f"
             cat "$f"
             echo "::endgroup::"
-          done
+          done <<< "$contexts"
 
+      # Same reason as the dump above: keep the report for a retry-rescued flake, not only a red job.
       - name: Upload Playwright report
-        if: steps.check.outputs.has_suite == 'true' && failure()
+        if: always() && steps.check.outputs.has_suite == 'true' && hashFiles('tests/e2e/test-results/**') != ''
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.extension.id }}-e2e-report

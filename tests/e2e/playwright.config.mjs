@@ -32,6 +32,13 @@ export default defineConfig({
   fullyParallel: true,
   workers: process.env.CI ? 2 : 4,
   retries: process.env.CI ? 2 : 0,
+
+  // Retries exist so a real infrastructure hiccup does not fail a run, NOT so a flaky test can hide
+  // behind one. Without this a test that fails and passes on retry leaves the job green and its
+  // evidence is discarded, which is how the same flake survives repeatedly without ever being
+  // diagnosed. Failing the run on a rescued flake is what makes "no flaky tests" a property of the
+  // suite rather than an aspiration — the retry still runs, so the report says flaky-not-broken.
+  failOnFlakyTests: true,
   timeout: 180_000,
   reporter: [["list"]],
   use: {
