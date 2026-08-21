@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using Cove.Extensions.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
@@ -16,13 +18,27 @@ namespace Renamer;
 /// hook.
 ///
 /// SAFETY: the executor's save re-raises <c>video.updated</c>, which re-enters this
-/// handler — an unconditional execute would loop forever. The guard is idempotency: build the plan
-/// for the single touched id and short-circuit BEFORE the executor when every item is a non-acting
-/// status (no save → no re-raised event → loop broken). Combined with the opt-in default-OFF flag,
-/// a real metadata change triggers at most one renamer.
+/// handler — an unconditional execute would loop forever. TWO separate guards hold it down, and
+/// reading them as redundancy is a mistake: a self-save suppression, which is what breaks the loop, and a
+/// plan-is-empty short-circuit, which stops a pass that would act on nothing from opening a batch.
+/// Each is stated in full at its own site inside <see cref="AutoRenamerAsync"/>.
 /// </summary>
 public sealed partial class Renamer
 {
+    /// <summary>
+    /// The entities whose next update event was caused by this handler's OWN executor save, keyed by the
+    /// (kind, id) pair the handler is invoked with. Membership is the suppression; the value carries
+    /// nothing.
+    /// </summary>
+    /// <remarks>
+    /// In memory only, and deliberately so: the guard reads no database row, consults no timestamp and
+    /// no time window, and holds nothing across a process restart — so an interrupted or restarted host
+    /// leaves behind no suppression to swallow the first edit after it comes back. Concurrent because
+    /// the host dispatches these events fire-and-forget and can have several in flight at once; two
+    /// entities cannot interfere with each other because each is its own key.
+    /// </remarks>
+    private readonly ConcurrentDictionary<(RenamerFileKind Kind, int EntityId), byte> _selfSaved = new();
+
     /// <summary>
     /// Registered by the base ctor (runs before <c>InitializeAsync</c> captures the seams), so this
     /// only wires the routing — the handler bodies, which run later, are what touch the scope/store.
@@ -35,8 +51,9 @@ public sealed partial class Renamer
 
     /// <summary>
     /// Re-renames a single updated entity when the opt-in flag is set and the item is not already
-    /// correctly named. Returns without any DB work when the hook is off; returns without calling
-    /// the executor (zero saves) when the plan is entirely non-acting (the re-entrancy guard).
+    /// correctly named. Returns without any DB work when the hook is off; returns before planning when
+    /// this handler's own save is what raised the event (the re-entrancy suppression); and returns
+    /// without calling the executor when the plan is entirely non-acting.
     /// <para>
     /// The whole body is wrapped so that a failure on one updated item (a transient DB error, a
     /// missing folder, etc.) is contained instead of escaping back to the host. The host dispatches
@@ -52,81 +69,149 @@ public sealed partial class Renamer
     {
         try
         {
-            var options = await new OptionsStore(Store).LoadAsync(ct);
+            var options = await new OptionsStore(Store, _log).LoadAsync(ct);
             if (!options.AutoRenamerOnUpdate)
             {
                 return; // opt-in, default off — do zero DB work when disabled.
             }
 
-            await using var scope = ScopeFactory.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-
-            var port = new CoveRenamerDataPort(db);
-            // Route auto-renamer IDENTICALLY to the manual batch and to /preview. Build the same
-            // RouteLookups from the same RenamerOptions and use the routing overload, so a matched
-            // studio/tag/path rule relocates the just-edited item to its configured destination — the
-            // same on-disk outcome the user previews and the batch executes.
-            //
-            // This does NOT enable dribble-relocate of the whole library: default-relocate
-            // stays gated behind EnableDefaultRelocate (default false), so an UNMATCHED item stays in
-            // place (SourceConfine). Only an explicitly-MATCHED routing rule relocates, and the move
-            // still passes the allowlist/canonical confinement gate via the routed anchor.
-            // Preview, auto-renamer, and batch all resolve destinations identically.
-            var lookups = BuildLookups(options);
-            var plan = await new RenamerPlanner(port).PlanAsync(kind, entityId, options, lookups, ct);
-
-            // Re-entrancy guard: if nothing would actually move, do NOT touch the executor. No save
-            // means no re-raised update event, so the save→event→re-enter loop never starts. Gated
-            // items land here as SkipGated (only-organized / require-fields respected) and are
-            // likewise skipped.
-            //
-            // Dribble guard (defense in depth): this hook fires once per metadata edit with NO user
-            // confirm — unlike the manual batch (which previews + confirms the blast radius) and unlike
-            // /preview. So a default-relocate reaching the executor on THIS path would let a single edit
-            // quietly relocate the whole library one item at a time. We therefore EXCLUDE the
-            // default-relocate category from "acting" here, regardless of the EnableDefaultRelocate flag:
-            // even if that flag were later flipped on, an unmatched item is never moved by the per-edit
-            // hook. An explicitly-matched rule still acts and still relocates. This is a code-level
-            // guarantee on the hook path on top of the flag default, not merely a config default.
-            int actingFiles = plan.Items.Count(i =>
-                i.Status is RenamerStatus.Renamer or RenamerStatus.Move && !IsDefaultRelocate(i));
-            if (actingFiles == 0)
+            // One elevated scope for the whole handler, obtained from the seam that elevates as it
+            // creates. The hook carries whichever principal made the edit, or none, and a scope running
+            // half its work as System and half as the caller is the kind of split that only shows up as
+            // an empty result much later.
+            await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
             {
-                return;
-            }
+                var selfSaveKey = (kind, entityId);
 
-            // Open exactly one batch header for this per-edit rename, mirroring the manual batch
-            // (RunRenamerBatchAsync): mint a runId and call BeginBatchAsync only now, on the acting path,
-            // so nothing-acts writes no header (an empty open header would shadow a prior replayable
-            // batch from /undo). WITHOUT a header the executor's success rows are headerless, and /undo
-            // misparses them as pre-header rows (entityId→fileId), corrupting the restore. The SAME
-            // revertLog instance is handed to the executor so its AppendAsync rows land under this header.
-            // The row cap applies here too — one entity can hold more files than the journal takes.
-            var runId = Guid.NewGuid().ToString("N");
-            var revertLog = new RevertLog(Store);
-            if (RevertLog.ExceedsCap(actingFiles))
-            {
-                await revertLog.SuppressAsync(ct);
-                LogBatchNotJournalled(runId, actingFiles, RevertLog.MaxJournalledFiles);
-            }
-            else
-            {
-                await revertLog.BeginBatchAsync(runId, kind, ct);
-            }
+                // THE re-entrancy guard, and the one that actually breaks the loop. The executor's save
+                // makes the host re-raise the update event for the very entity just saved, and that
+                // re-entry is the loop's engine — so an item this handler itself just saved is not
+                // planned at all: no plan, no run id, no batch, no executor call.
+                //
+                // SINGLE-USE, never a mode. One save re-raises one event, so the token is CONSUMED here
+                // and the item is live again immediately. A suppression that stayed armed would mute a
+                // genuine later edit to the same item, silently and forever, which is strictly worse
+                // than the loop it was added to stop.
+                //
+                // WHAT IT DOES NOT BOUND, because the two arities do not match: the token is one per
+                // ENTITY and consumed once, while a save publishes one event per renamed FILE. An
+                // entity with more than one acting file therefore leaves a surplus event unsuppressed
+                // in every generation, and that mismatch is unchanged. This suppression bounds the chain
+                // only where one save raises one event, which is the single-file case.
+                //
+                // What the surplus event needs in order to still have something to DO is a destination
+                // configuration that never reaches a fixed point of its own — the alternating pair the
+                // routing note below states, and the cost it records as accepted. Under such a pair a
+                // multi-file item remains unbounded: every generation's survivor re-plans, acts, and
+                // publishes a full set again, which AutoRenamerHookTests measures across generations.
+                // Otherwise the survivor's re-plan finds an item that changes nothing, because
+                // PlanFileAsync refuses a destination that is the file's current path once its
+                // duplicate-name loop has settled.
+                //
+                // Arming a COUNT instead is the obvious remedy and is deliberately not taken: a
+                // leftover token mutes a genuine later edit with no symptom at all, which is a worse
+                // failure than a relocation the user can see.
+                if (_selfSaved.TryRemove(selfSaveKey, out _))
+                {
+                    return;
+                }
 
-            var executor = new RenamerExecutor(port, EventBus, revertLog, new DiskMover());
-            // Single-entity hook path (no batch concurrency): no pre-resolved folder map — the executor
-            // resolves the destination folder itself, safe because this call is not parallelized.
-            var result = await executor.ExecuteAsync(plan, options, ct: ct);
+                var db = services.GetRequiredService<DbContext>();
+                var port = new CoveRenamerDataPort(db, _coveConfig);
 
-            foreach (var r in result.Renamed)
-            {
-                LogAutoRenamed(kind, entityId, r.Status, r.OldPath, r.NewPath);
-            }
-            foreach (var f in result.Failed)
-            {
-                LogAutoRenamerFailed(kind, entityId, f.OldPath, f.NewPath, f.Reason ?? "no reason given");
-            }
+                // Route auto-renamer IDENTICALLY to the manual batch and to /preview. Build the same
+                // RouteLookups from the same RenamerOptions and use the routing overload, so a matched
+                // studio/tag/path rule relocates the just-edited item to its configured destination — the
+                // same on-disk outcome the user previews and the batch executes.
+                //
+                // This does NOT enable dribble-relocate of the whole library: only the entity just
+                // edited is planned, and it lands where preview and the batch would put it — a matched
+                // rule's own destination, or the DEFAULT *Where files go* for an item no rule matched
+                // (RouteCategory.Unmatched), which leaves the item in place only while that default names
+                // neither a root nor a folder template. Either way the move passes the allowlist/canonical
+                // confinement gate via the routed anchor.
+                //
+                // It does NOT follow that the item then settles. A source-path rule matches on where the
+                // file IS, so once the rule has moved the file the rule no longer matches and the default
+                // takes the item back: the two destinations ALTERNATE rather than compete, and a default
+                // rooted exactly at a rule's source path with an EMPTY folder template names the very
+                // folder that rule empties, so the pair never reaches a fixed point at all. What bounds
+                // the damage is the self-save suppression above, not convergence — and only as far as
+                // that suppression reaches, which its own site states.
+                //
+                // The accepted cost, so it is never read as an oversight: on a single-file item such a
+                // pair still moves it ONE HOP PER ACTION — one per manual "Rename all" click, one per
+                // external edit — and nothing in the panel names the cause. The pair is exactly
+                // decidable at save time (a default whose folder EQUALS a rule's source path while its
+                // folder template is empty) and refusing it there is deliberately not done here.
+                // Preview, auto-renamer, and batch all resolve destinations identically.
+                var lookups = BuildLookups(options);
+                var plan = await new RenamerPlanner(port).PlanAsync(kind, entityId, options, lookups, ct);
+
+                // The NARROWER of the two guards, and not redundant with the suppression above: this one
+                // stops a pass that would act on nothing from doing anything at all — no batch opened, no
+                // run id minted, no executor call — while the suppression stops a pass this handler's own
+                // save caused. Gated items land here as SkipGated (only-organized / require-fields
+                // respected) and are likewise skipped. On a configuration that converges this guard is
+                // what ends the chain; on one that does not, it never fires, which is why it cannot be
+                // the re-entrancy guard on its own.
+                int actingFiles = plan.Items.Count(i =>
+                    i.Status is RenamerStatus.Rename or RenamerStatus.Move);
+                if (actingFiles == 0)
+                {
+                    return;
+                }
+
+                // Open exactly one batch for this per-edit rename, mirroring the manual batch
+                // (RunRenamerBatchAsync): mint a runId and call BeginBatchAsync only now, on the acting
+                // path, so nothing-acts opens no batch. Opening one here no longer costs the previous
+                // batch its rows — each batch is its own set of rows keyed by run id, so a background edit
+                // can no longer erase the undo record of a deliberate rename.
+                var runId = Guid.NewGuid().ToString("N");
+                using var journal = new CoveRevertJournal(db);
+                await journal.BeginBatchAsync(runId, kind, DateTime.UtcNow, ct);
+
+                var executor = new RenamerExecutor(port, EventBus, journal, runId, new DiskMover());
+
+                // Armed BEFORE the call, never after. The host's re-raise is fire-and-forget and can
+                // arrive while ExecuteAsync is still running, so a token set afterwards is a race the
+                // event wins — and the one it wins is the loop.
+                _selfSaved[selfSaveKey] = 0;
+                RenamerExecutor.RenamerRunResult result;
+                try
+                {
+                    // Single-entity hook path (no batch concurrency): no pre-resolved folder map — the
+                    // executor resolves the destination folder itself, safe because this call is not
+                    // parallelized.
+                    result = await executor.ExecuteAsync(plan, options, ct: ct);
+                }
+                catch
+                {
+                    // Disarm on any escape, cancellation included. A throw says nothing about whether a
+                    // save landed, and a token nothing consumes swallows the next genuine edit — this
+                    // design's one failure mode. Erring toward one extra hop beats erring toward a
+                    // silently muted hook.
+                    _selfSaved.TryRemove(selfSaveKey, out _);
+                    throw;
+                }
+
+                if (result.Renamed.Count == 0)
+                {
+                    // Nothing saved ⇒ no event will be re-raised ⇒ nothing will consume the token.
+                    // Disarm immediately, for the same reason as the catch above: a leaked suppression
+                    // is what this guard must not become.
+                    _selfSaved.TryRemove(selfSaveKey, out _);
+                }
+
+                foreach (var r in result.Renamed)
+                {
+                    LogAutoRenamed(kind, entityId, r.Status, r.OldPath, r.NewPath);
+                }
+                foreach (var f in result.Failed)
+                {
+                    LogAutoRenamerFailed(kind, entityId, f.OldPath, f.NewPath, f.Reason ?? "no reason given");
+                }
+            });
         }
         catch (OperationCanceledException)
         {
@@ -142,14 +227,4 @@ public sealed partial class Renamer
             LogAutoRenamerError(ex, kind, entityId);
         }
     }
-
-    /// <summary>
-    /// True iff this planned item was routed by the GATED default-relocate category (an item that
-    /// matched no explicit tag/studio/source-path rule). Keyed on the resolver's own matched-rule
-    /// label — the single source of truth the <c>DestinationResolver</c> emits for that category — so
-    /// the per-edit hook can structurally exclude it from acting (see the dribble guard above). An
-    /// explicitly-matched rule carries a different label and is unaffected.
-    /// </summary>
-    private static bool IsDefaultRelocate(RenamerPlanItem item) =>
-        item.MatchedRule == DestinationResolver.DefaultRouteLabel;
 }

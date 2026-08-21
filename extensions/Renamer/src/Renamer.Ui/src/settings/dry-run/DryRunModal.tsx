@@ -18,17 +18,21 @@
  * SECURITY: every filename/path is a React text node (auto-escaped); no dangerouslySetInnerHTML.
  */
 import { useEffect, useRef, useState } from "react";
-import { request, ApiError } from "@cove/extension-sdk";
+import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Search } from "lucide-react";
 
-import { Dialog, ErrorBox } from "../../common/ui/Dialog";
+import { Dialog, ErrorBox } from "../../common/Dialog";
 import { Button, ProgressBar, Spinner } from "@cove-extensions/ui-shared";
 import { WarningBadges } from "./WarningBadge";
-import { api } from "../../common/lib/extension";
-import type { ScanSummaryResponse } from "../../contracts";
+import { api } from "../../common/extension";
+import { errText } from "../../common/format";
+import { basename, dirname } from "../../common/pathLogic";
+import type { JobEnqueued, ScanSummaryView } from "../../wire/api";
 import type { RenamerOptions } from "../options";
 import { useScanRows } from "./useScanRows";
+import { JobUnresponsiveError } from "../jobPollLogic";
+import { pollJob, type JobInfo } from "../pollJob";
 import {
   assetHref,
   classifyItem,
@@ -36,6 +40,7 @@ import {
   formatEta,
   isFinalizing,
   progressPercent,
+  shouldContinueWalk,
   summaryCounts,
   type DryRunCounts,
   type DryRunFilter,
@@ -61,7 +66,6 @@ const LAST_SCAN_PATH = api("last-scan");
 
 const TITLE_ID = "rename-dry-run-title";
 const DESC_ID = "rename-dry-run-summary";
-const POLL_INTERVAL_MS = 1000;
 
 // Each keystroke would otherwise be a server-side plan of a slice of the library, not a filter over an
 // array already in memory. Long enough that typing a word is one request, short enough to feel live.
@@ -75,76 +79,43 @@ const PREFETCH_ROWS = 12;
 const COLUMNS = ["Type", "Current name", "New name", "Destination"] as const;
 
 /**
- * Mirrors `Cove.Core.Interfaces.JobInfo` — only the fields this modal reads. The host's minimal-API
- * JSON options apply `JsonStringEnumConverter(JsonNamingPolicy.CamelCase)`, which lowercases the
- * leading character of the C# `JobStatus` enum's PascalCase member names (`Completed` → `"completed"`),
- * not just the field names — so the string values here must be camelCase too, not just `status` itself.
- */
-interface JobInfo {
-  id: string;
-  status: "pending" | "running" | "completed" | "failed" | "cancelled";
-  progress: number;
-  error?: string | null;
-  // The host reports these on every poll; only the bar reads them. `subTask` is the free-text phase
-  // message ("Scanning library… {done}/{total}"); `etaSeconds` is the server's own estimate (null
-  // when it can't compute one); `startedAt` anchors the client-side ETA fallback.
-  subTask?: string | null;
-  etaSeconds?: number | null;
-  startedAt?: string;
-}
-
-function errText(err: unknown): string {
-  return err instanceof ApiError ? `${err.status} ${err.body}` : String(err);
-}
-
-function basename(p: string): string {
-  if (!p) return p;
-  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-  return i >= 0 ? p.slice(i + 1) : p;
-}
-
-/** The folder portion of a path (everything before the last separator); "" if there is none. */
-function dirname(p: string): string {
-  if (!p) return p;
-  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-  return i >= 0 ? p.slice(0, i) : "";
-}
-
-/**
- * Polls `GET /jobs/{jobId}` every second until the job leaves Pending/Running, then calls
- * `onDone` once. No polling hook exists anywhere in `@cove/extension-sdk` — this is new code
- * (first job-polling UI in this codebase). Clears its interval on unmount or job change so no
- * timer leaks and no state updates fire after unmount.
+ * Watches the scan job through the shared {@link pollJob} helper, calling `onDone` once when the job
+ * reaches its own verdict — or `onExpire` when the run ended on a bound instead. The loop, its two
+ * bounds and the hand-declared response shape all live in that module; what this hook adds is the
+ * React lifecycle: start on a job id, stop on unmount or job change, so no timer leaks and no state
+ * updates fire after unmount.
+ *
+ * A cancelled poll rejects too, and that rejection is this hook's own cleanup — nothing to report to
+ * a component that is already gone — so only an expiry is passed on.
  */
 function usePollJob(
   jobId: string | null,
   onDone: (job: JobInfo) => void,
   onProgress?: (job: JobInfo) => void,
+  onExpire?: (message: string) => void,
 ) {
   useEffect(() => {
     if (!jobId) return;
-    let cancelled = false;
-    const interval = setInterval(() => {
-      request<JobInfo>(`/jobs/${jobId}`)
-        .then((job) => {
-          if (cancelled) return;
-          if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
-            clearInterval(interval);
-            onDone(job);
-          } else {
-            // Still pending/running — surface live progress. Terminal polls never fire onProgress.
-            onProgress?.(job);
-          }
-        })
-        .catch(() => {
-          // Transient poll failure — keep polling; a real failure surfaces via job.status.
-        });
-    }, POLL_INTERVAL_MS);
+    const poll = pollJob(jobId, onProgress);
+    poll.done
+      .then(({ job }) => {
+        // A resolve and a reject verdict both hand the job back: the caller reads its status to
+        // decide between the summary and an error, which is the split it has always made.
+        onDone(job);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof JobUnresponsiveError) onExpire?.(err.message);
+      });
     return () => {
-      cancelled = true;
-      clearInterval(interval);
+      poll.cancel();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- onDone/onProgress are stable refs from the caller
+    // The three callbacks are NOT stable refs — the one caller passes inline arrows, rebuilt on every
+    // render. They are left out of the dependency list on purpose: listing them would restart the poll
+    // on each render. What makes the captured first-render closures safe to keep is that they touch
+    // only useState setters and useRef values, both stable for the component's life, so a stale
+    // closure reads nothing stale. Give one of them a render-scoped value to capture and that stops
+    // being true — the poll would then report against a snapshot from the first render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate; see above
   }, [jobId]);
 }
 
@@ -199,7 +170,7 @@ export function DryRunModal({
   renameProgress?: { progress: number; subTask?: string | null; etaSeconds?: number | null } | null;
 }) {
   const [scanJobId, setScanJobId] = useState<string | null>(null);
-  const [summary, setSummary] = useState<ScanSummaryResponse | null>(null);
+  const [summary, setSummary] = useState<ScanSummaryView | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [filter, setFilter] = useState<DryRunFilter>("all");
   const [search, setSearch] = useState("");
@@ -211,10 +182,8 @@ export function DryRunModal({
   // Highest percent seen so far — the displayed bar is clamped up to this so a backwards poll sample
   // (the host can revise progress downward) never makes the bar visibly retreat.
   const scanMaxPercent = useRef(0);
-  // Trailing (timeMs, progress) samples for the client-side ETA fallback when the host's
-  // etaSeconds is null. A rolling window (not a since-open anchor) so the estimate tracks the
-  // CURRENT scan rate and the slow first sample ages out — otherwise a scan that finishes in
-  // seconds flashes an absurd "~2h left" from the cold-start average.
+  // Trailing (timeMs, progress) samples for the client-side ETA fallback when the host's etaSeconds
+  // is null. A rolling window rather than a since-open anchor, for the reason `etaFromSamples` states.
   const scanSamples = useRef<ProgressSample[]>([]);
   // Guards against StrictMode's dev-only mount->unmount->remount cycle enqueueing the scan job
   // twice. A plain boolean ref (rather than a per-effect `cancelled` local) survives the
@@ -239,7 +208,7 @@ export function DryRunModal({
     // computes a bogus slow rate → a brief "~2m"/"~2h" flash before it self-corrects).
     scanSamples.current = [];
     scanMaxPercent.current = 0;
-    request<{ jobId: string }>(SCAN_LIBRARY_PATH, {
+    requestJson<JobEnqueued>(SCAN_LIBRARY_PATH, {
       method: "POST",
       body: JSON.stringify({ Options: scanOptionsBlob }),
     })
@@ -259,7 +228,7 @@ export function DryRunModal({
         setScanError(job.error ?? "the scan job did not complete");
         return;
       }
-      request<ScanSummaryResponse>(LAST_SCAN_PATH)
+      requestJson<ScanSummaryView>(LAST_SCAN_PATH)
         .then((res) => {
           setSummary(res);
         })
@@ -269,24 +238,20 @@ export function DryRunModal({
     },
     (job) => {
       // Advance the monotonic ceiling before storing the sample so the bar never retreats on a
-      // downward-revised poll (see scanMaxPercent). The wall-clock ETA fallback reads Date.now()
-      // here, in the event handler, not at render (the React Compiler forbids impure render calls).
+      // downward-revised poll (see scanMaxPercent).
       scanMaxPercent.current = Math.max(scanMaxPercent.current, progressPercent(job.progress));
       const percent = scanMaxPercent.current;
       const finalizing = isFinalizing(job.progress);
-      // Append this poll to the sample buffer that feeds the EWMA ETA. Reading Date.now() here in the
-      // handler, not at render (the React Compiler forbids impure render calls). The buffer is capped
-      // generously (a scan is only ~tens of polls) — the EWMA recency-weights anyway, so the cap is
-      // just a memory bound, not part of the estimate.
+      // Append this poll to the sample buffer that feeds the EWMA ETA. This is where the wall clock is
+      // read — in the handler, never at render, as {@link ScanDisplay} states.
       scanSamples.current = [
         ...scanSamples.current.slice(-(ETA_MAX_SAMPLES - 1)),
         { timeMs: Date.now(), progress: job.progress },
       ];
-      // Use our OWN EWMA ETA FIRST, not the host's job.etaSeconds. The host's estimate for a
-      // fraction-reporting job (which the scan is) comes from its legacy fraction path — a since-start
-      // average that folds the slow cold-start sample in, so it flashes an absurd "~2h left" on a scan
-      // that finishes in seconds. Our recency-weighted EWMA tracks the actual current rate. Fall back
-      // to the host value only before we have two samples (a rate needs two points).
+      // Use our OWN EWMA ETA FIRST, not the host's job.etaSeconds: for a fraction-reporting job (which
+      // the scan is) the host's estimate comes from its legacy fraction path, a since-start average —
+      // exactly the shape `etaFromSamples` exists to avoid. Fall back to the host value only before we
+      // have two samples (a rate needs two points).
       const eta = formatEta(etaFromSamples(scanSamples.current)) ?? formatEta(job.etaSeconds);
       setScanProgress({
         percent,
@@ -294,6 +259,11 @@ export function DryRunModal({
         eta,
         line: finalizing ? "Finalizing…" : (job.subTask ?? `Scanning your library… ${percent}%`),
       });
+    },
+    (message) => {
+      // A scan that went quiet or an id that stopped answering. Reported as a scan error because from
+      // this modal's side that is what it is — there is no summary to render and none is coming.
+      setScanError(message);
     },
   );
 
@@ -315,7 +285,6 @@ export function DryRunModal({
     loadMore,
     loading: rowsLoading,
     complete: rowsComplete,
-    budgetExhausted,
     examined,
     error: rowsError,
   } = useScanRows(scanOptionsBlob, summary !== null, query, filter);
@@ -332,12 +301,29 @@ export function DryRunModal({
   });
 
   const virtualRows = rowVirtualizer.getVirtualItems();
-  const lastVisible = virtualRows.length > 0 ? virtualRows[virtualRows.length - 1].index : -1;
-  // Scrolling within a prefetch window of the loaded end continues the walk. Overlapping calls are
-  // deduplicated in the store, so firing this on consecutive scroll frames costs one request.
+  const lastVisible = virtualRows[virtualRows.length - 1]?.index ?? -1;
+  // How many rows the loaded window needs to cover: one prefetch window past the last row the
+  // virtualizer handed back, so the next page is requested before the user reaches the end.
+  const targetRows = lastVisible + PREFETCH_ROWS + 1;
+  // Whether another page is wanted is shouldContinueWalk's decision; this effect is only its wiring.
+  // The in-flight flag is the dependency that makes the re-evaluation reliable, and it is why the walk
+  // does not stall: a page can land carrying no rows at all, leaving both the row count and the last
+  // visible index identical, and that page is precisely the one whose successor still has to be
+  // requested. The flag flips on every request this client issues, so the trigger cannot go quiet.
+  // Overlapping calls are deduplicated in the store, so a condition that holds across consecutive
+  // scroll frames costs one request.
   useEffect(() => {
-    if (lastVisible >= rows.length - PREFETCH_ROWS) loadMore();
-  }, [lastVisible, rows.length, loadMore]);
+    if (
+      shouldContinueWalk({
+        loadedRows: rows.length,
+        targetRows,
+        hasMore: !rowsComplete,
+        loading: rowsLoading,
+        hasError: rowsError !== null,
+      })
+    )
+      loadMore();
+  }, [rows.length, targetRows, rowsComplete, rowsLoading, rowsError, loadMore]);
 
   // What the footer can honestly claim as a denominator. With a search active the matching total is
   // unknown until the walk ends — only the server knows how many rows a query matches, and finding out
@@ -499,6 +485,11 @@ export function DryRunModal({
                     >
                       {virtualRows.map((vRow) => {
                         const it = rows[vRow.index];
+                        // The virtualizer is sized from `rows.length`, but it can still hand back an
+                        // index from before the list shrank (a filter change, a reset) for the one
+                        // frame before it re-measures. Skipping that row costs nothing; reading
+                        // through it would throw inside render and blank the whole modal.
+                        if (!it) return null;
                         const bucket = classifyItem(it);
                         const willChange = bucket === "will-change";
                         const oldName = basename(it.oldFullPath);
@@ -577,9 +568,12 @@ export function DryRunModal({
                   )}
                 </div>
 
-                {/* Footer: what is loaded, in what order, and whether the walk is finished. The
-                    budget case must never read as "that's everything" — it means the server stopped
-                    looking for now, and asking again continues the search. */}
+                {/* Footer: what is loaded, in what order, and whether the walk is finished. While it
+                    is unfinished the line reports how much of the library has been checked, because
+                    the only honest thing to say there is progress: the walk continues itself, and the
+                    count is what shows it moving through windows that match nothing. It must never
+                    read as "that's everything", and it must never ask for a gesture — a handful of
+                    rows in a virtualized list leaves nothing to scroll. */}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-card px-3 py-2 text-xs text-muted">
                   <span>
                     {showTotal
@@ -590,9 +584,7 @@ export function DryRunModal({
                       ? searching
                         ? "Your whole library has been searched."
                         : "That is all of them."
-                      : budgetExhausted
-                        ? `The server paused after checking ${examined} items — scroll to keep searching.`
-                        : "Scroll for more."}
+                      : `Checked ${examined} items so far…`}
                   </span>
                   {rowsComplete ? null : (
                     <Button variant="ghost" onClick={loadMore} disabled={rowsLoading}>
@@ -629,15 +621,6 @@ export function DryRunModal({
             })()}
           </div>
         </div>
-      ) : null}
-
-      {/* Stated before the button that starts the run, not after it: the server has already decided
-          this batch is too large to journal, so undo will not be offered once it has finished. */}
-      {summary && !summary.blastRadius.undoable && counts && counts.willChange > 0 ? (
-        <p className="mt-6 text-sm text-secondary">
-          This rename is too large to record an undo — it cannot be reversed. The rows above are the
-          check that matters.
-        </p>
       ) : null}
 
       <div className="mt-6 flex justify-end gap-3">

@@ -26,7 +26,7 @@ import {
   type SeparatorOption,
   type ValueOption,
 } from "@cove-extensions/ui-shared";
-import { PerformerPicker, TagPicker } from "./EntityPicker";
+import { EntitySelectField } from "./EntitySelectField";
 import { templateUsesToken } from "./templateValidation";
 
 const OVERFLOW_OPTIONS: readonly { value: OverflowPolicy; label: string }[] = [
@@ -73,7 +73,10 @@ const DATE_FORMAT_OPTIONS: readonly ExampleOption[] = [
 const DURATION_FORMAT_OPTIONS: readonly ExampleOption[] = [
   { value: String.raw`hh\-mm\-ss`, example: "01-23-45" },
   { value: String.raw`hh\.mm\.ss`, example: "01.23.45" },
-  { value: String.raw`mm\-ss`, example: "83-45" },
+  // "23-45", not "83-45": mm is the minutes COMPONENT of the duration, and .NET has no total-minutes
+  // specifier. MetadataProjectorTests pins all three of these renderings server-side, where the
+  // formatting actually happens — an example computed here could only agree with itself.
+  { value: String.raw`mm\-ss`, example: "23-45" },
 ];
 
 // Common separators; each label makes the literal whitespace visible.
@@ -185,21 +188,23 @@ export function TokenSettingsSection({
               addPrompt="Add a gender…"
             />
           </Field>
-          <PerformerPicker
+          <EntitySelectField
+            entityType="performer"
             label="Whitelist"
-            helper="If set, only these performers are kept (case-insensitive)."
-            values={mv("Performers").Whitelist}
+            helper="If set, only these performers are kept. Type to search."
+            values={mv("Performers").WhitelistIds}
             onChange={(v) => {
-              setMulti("Performers", { Whitelist: v });
+              setMulti("Performers", { WhitelistIds: v });
             }}
             placeholder="Search performers…"
           />
-          <PerformerPicker
+          <EntitySelectField
+            entityType="performer"
             label="Blacklist"
-            helper="These performers are removed (case-insensitive)."
-            values={mv("Performers").Blacklist}
+            helper="These performers are removed. Type to search."
+            values={mv("Performers").BlacklistIds}
             onChange={(v) => {
-              setMulti("Performers", { Blacklist: v });
+              setMulti("Performers", { BlacklistIds: v });
             }}
             placeholder="Search performers…"
           />
@@ -247,21 +252,23 @@ export function TokenSettingsSection({
               options={TAG_SORT_OPTIONS}
             />
           </Field>
-          <TagPicker
+          <EntitySelectField
+            entityType="tag"
             label="Whitelist"
-            helper="If set, only these tags are kept (case-insensitive)."
-            values={mv("Tags").Whitelist}
+            helper="If set, only these tags are kept. Type to search."
+            values={mv("Tags").WhitelistIds}
             onChange={(v) => {
-              setMulti("Tags", { Whitelist: v });
+              setMulti("Tags", { WhitelistIds: v });
             }}
             placeholder="Search tags…"
           />
-          <TagPicker
+          <EntitySelectField
+            entityType="tag"
             label="Blacklist"
-            helper="These tags are removed (case-insensitive)."
-            values={mv("Tags").Blacklist}
+            helper="These tags are removed. Type to search."
+            values={mv("Tags").BlacklistIds}
             onChange={(v) => {
-              setMulti("Tags", { Blacklist: v });
+              setMulti("Tags", { BlacklistIds: v });
             }}
             placeholder="Search tags…"
           />

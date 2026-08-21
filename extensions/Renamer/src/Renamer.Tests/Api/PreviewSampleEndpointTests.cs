@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Renamer.Api;
 using Renamer.Contracts;
 using Renamer.Options;
+using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
@@ -18,17 +19,20 @@ namespace Renamer.Tests.Api;
 /// and the videos.read deny path returns 403 with no engine work. Exercised as a plain method
 /// (no HTTP host, no DbContext).
 /// </summary>
-[Trait("Tier", "L2")]
+[Trait("Tier", "L1")]
 public sealed class PreviewSampleEndpointTests
 {
     private static global::Renamer.Renamer NewExtension()
     {
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         ((Cove.Plugins.IStatefulExtension)ext).SetStore(new FakeStore());
         return ext;
     }
 
-    private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
+    // Unwrapped first: a handler declaring Results<…> hands back a union that carries no status of its
+    // own and converts implicitly to IResult, so an un-unwrapped read throws instead of reporting one.
+    private static int StatusOf(IResult result) =>
+        Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
     /// <summary>
     /// Builds an <see cref="HttpRequest"/> whose body is the given raw JSON — the endpoint now binds the
@@ -281,8 +285,8 @@ public sealed class PreviewSampleEndpointTests
         public override long Position { get => 0; set => throw new NotSupportedException(); }
         public override void Flush() { }
         public override int Read(byte[] buffer, int offset, int count) => throw new IOException("body must not be read");
-        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct) => throw new IOException("body must not be read");
-        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default) => throw new IOException("body must not be read");
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => throw new IOException("body must not be read");
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => throw new IOException("body must not be read");
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();

@@ -1,4 +1,5 @@
 using System.Text;
+using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
 
@@ -38,17 +39,17 @@ public static class Tokens
 /// to turn a token dictionary into a sanitized, length-safe <see cref="RenamerResult"/>.
 ///
 /// Pipeline: (1) build the effective resolved token map (scalar tokens, multi-value
-/// performers/tags via <see cref="MultiValue.Resolve(IReadOnlyList{string}, Options.MultiValueOptions)"/>,
-/// derived <c>$resolution</c>);
+/// performers/tags via <see cref="MultiValue"/> — through the id-filtering overload when the
+/// caller supplied the performer/tag records, else the name-only one — derived <c>$resolution</c>);
 /// (2) render the filename and folder templates independently — walk the <see cref="Segment"/>
 /// list, collapse <c>{}</c> spans whose every inner token resolved empty; (3) apply
 /// the case/transliteration transforms; (4) sanitize per segment (filename as one segment so
 /// <c>/</c> is stripped; folder split on <c>/</c>, each piece cleaned, rejoined with <c>/</c>);
 /// (5) resolve the extension (never duplicated); (6) <see cref="LengthReducer.Fit"/>.
 ///
-/// 100% pure: no <c>Path</c>/<c>File</c>/DB calls. Path-traversal confinement (<c>..</c>,
-/// absolute paths) is deliberately the executor's job, not the engine's — the engine never
-/// sees the library root.
+/// 100% pure: no <c>Path</c>/<c>File</c>/DB calls. Deciding whether a destination is PERMITTED —
+/// traversal, containment, the absolute budget — is deliberately the confinement gate's job, not the
+/// engine's, and the engine never sees the library root.
 /// </summary>
 public static class TemplateEngine
 {
@@ -57,8 +58,9 @@ public static class TemplateEngine
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
         RenamerOptions options,
         Action<string>? logUnbalanced = null,
-        IReadOnlyList<RenamerPerformer>? performers = null)
-        => RenderWithDropped(tokens, multiValues, options, logUnbalanced, performers).result;
+        IReadOnlyList<RenamerPerformer>? performers = null,
+        IReadOnlyList<(int Id, string Name)>? tagRecords = null)
+        => RenderWithDropped(tokens, multiValues, options, logUnbalanced, performers, tagRecords).result;
 
     /// <summary>
     /// Identical to <see cref="Render"/>, but also returns the set of <see cref="RenamerOptions.DropOrder"/>
@@ -72,10 +74,11 @@ public static class TemplateEngine
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
         RenamerOptions options,
         Action<string>? logUnbalanced = null,
-        IReadOnlyList<RenamerPerformer>? performers = null)
+        IReadOnlyList<RenamerPerformer>? performers = null,
+        IReadOnlyList<(int Id, string Name)>? tagRecords = null)
     {
         // (1) Build the effective resolved token map (case-insensitive keys).
-        var resolved = BuildResolvedMap(tokens, multiValues, options, performers);
+        var resolved = BuildResolvedMap(tokens, multiValues, options, performers, tagRecords);
 
         // (5, partial) Resolve the extension up front so the filename template can reference
         // $ext without it appearing twice: the $ext token resolves empty during the
@@ -116,7 +119,8 @@ public static class TemplateEngine
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
         RenamerOptions options,
-        IReadOnlyList<RenamerPerformer>? performerRecords = null)
+        IReadOnlyList<RenamerPerformer>? performerRecords = null,
+        IReadOnlyList<(int Id, string Name)>? tagRecords = null)
     {
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var kv in tokens)
@@ -170,7 +174,19 @@ public static class TemplateEngine
 
         if (TryGetMulti(multiValues, Tokens.Tags, out var tags))
         {
-            map[Tokens.Tags] = MultiValue.Resolve(tags, options.Tags);
+            if (tagRecords is not null)
+            {
+                // The id-keyed whitelist/blacklist can only be applied when the tag ids travelled
+                // with the names; the resolver joins the NAMES, so the rendered token is unchanged.
+                map[Tokens.Tags] = MultiValue.Resolve(tagRecords, options.Tags);
+            }
+            else
+            {
+                // No ids came with the names, so nothing can be whitelisted or blacklisted here —
+                // the name-only arm sorts, limits and joins. This is the settings page's preview
+                // samples, which have no entity behind them; a loaded entity always carries its ids.
+                map[Tokens.Tags] = MultiValue.Resolve(tags, options.Tags);
+            }
         }
 
         // Derive $resolution from height only if the caller didn't already supply it.
@@ -189,14 +205,20 @@ public static class TemplateEngine
         string key,
         out IReadOnlyList<string> values)
     {
-        foreach (var kv in multiValues)
+        // Matches on the KEY and then reads its value, rather than filtering on the pair: the value is
+        // returned whatever it holds, which is what the loop this replaced did. A linear
+        // case-insensitive scan, and it stays one — the lookup is O(n) in the number of multi-value
+        // keys, a handful fixed by the token set rather than by library size, so the case-insensitive
+        // dictionary that would remove the scan is a design change this does not need.
+        string? matchedKey = multiValues.Keys.FirstOrDefault(
+            k => string.Equals(k, key, StringComparison.OrdinalIgnoreCase));
+
+        if (matchedKey is not null)
         {
-            if (string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase))
-            {
-                values = kv.Value;
-                return true;
-            }
+            values = multiValues[matchedKey];
+            return true;
         }
+
         values = Array.Empty<string>();
         return false;
     }
@@ -250,6 +272,15 @@ public static class TemplateEngine
     /// "Nikki [368p]" plus a template that appends <c>{ [$resolution]}</c> (which now renders "368p")
     /// would otherwise yield "Nikki [368p] [368p]" — matching ONLY the five fixed labels missed the
     /// sub-480 tag and left it to double. Matching any bracketed numeric-p (or 4k) suffix de-dupes it.
+    /// <para>
+    /// It de-doubles a STORED title, which is a job of its own and the reason this survives the fixed
+    /// point work: it also used to be the single reason <c>$title{ [$resolution]}</c> was the one
+    /// shipped template that converged, and recording the derived title makes every template converge
+    /// without it. The two roles are indistinguishable to a convergence test — both end in a stable
+    /// name — so measure the other one instead: for a title-less file already called
+    /// "My Film [1080p].mp4", this is what makes the rename a no-op rather than a rewrite to
+    /// "My Film [1080p] [1080p].mp4".
+    /// </para>
     /// </remarks>
     private static string StripTrailingResolutionTag(string value)
     {
@@ -338,9 +369,14 @@ public static class TemplateEngine
     public static bool WouldSanitizeFilename(
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
-        RenamerOptions options)
+        RenamerOptions options,
+        IReadOnlyList<RenamerPerformer>? performers = null,
+        IReadOnlyList<(int Id, string Name)>? tagRecords = null)
     {
-        var resolved = BuildResolvedMap(tokens, multiValues, options);
+        // The records are what make "the SAME pipeline" true: without them the multi-value tokens
+        // resolve unfiltered here while the real render filters them by id, so the reported flag
+        // could describe a name the caller never produces.
+        var resolved = BuildResolvedMap(tokens, multiValues, options, performers, tagRecords);
         string raw = RenderRaw(options.FilenameTemplate, resolved, suppressExt: true, null);
         raw = ApplyTransforms(raw, options);
         return Sanitizer.CleanSegment(raw, options) != raw;
@@ -365,8 +401,18 @@ public static class TemplateEngine
     /// <summary>
     /// Renders the folder template: emits the raw text, applies transforms, then splits on
     /// <c>/</c>, cleans each segment, drops empties, and rejoins with <c>/</c> — keeping <c>/</c>
-    /// only as the path separator. An empty template → empty (no folder move).
+    /// only as the path separator. An empty template → empty. The result is ALWAYS relative: it is
+    /// rendered under a destination root the user chose from Cove's own library paths, and the
+    /// per-segment sanitizer strips <c>:</c> and edge dots, so no template can name a location of its
+    /// own or traverse out of the root it is placed under.
     /// </summary>
+    /// <remarks>
+    /// The separator reading is taken from the TEMPLATE and never from the rendered output, which is
+    /// what stops a piece of metadata choosing a directory: a studio named <c>Acme/Sub</c> renders as
+    /// one ordinary segment. A <c>\</c> in the template is read as <c>/</c> is, because the template is
+    /// a path expression and a Windows user types <c>videos\$studio</c>; left as an illegal character
+    /// the sanitizer would delete it and mash those two levels into one folder name.
+    /// </remarks>
     private static string RenderFolder(
         string template,
         IReadOnlyDictionary<string, string> resolved,
@@ -378,7 +424,8 @@ public static class TemplateEngine
             return string.Empty;
         }
 
-        string raw = RenderRaw(template, resolved, suppressExt: false, logUnbalanced);
+        string raw = RenderRaw(
+            PathOps.NormalizeSlash(template), resolved, suppressExt: false, logUnbalanced);
         raw = ApplyTransforms(raw, options);
 
         var cleaned = raw

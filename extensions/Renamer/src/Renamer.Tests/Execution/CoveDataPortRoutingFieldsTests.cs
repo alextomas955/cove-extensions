@@ -6,14 +6,20 @@ using Renamer.Planner;
 namespace Renamer.Tests.Execution;
 
 /// <summary>
-/// Host-fact proof that <see cref="CoveRenamerDataPort.LoadEntityAsync"/> surfaces the three routing
+/// Host-fact proof that <see cref="CoveRenamerDataPort.LoadEntityAsync"/> surfaces the routing
 /// foundations onto the Renamer-owned DTO from a REAL Cove entity graph: the stable studio id, the
-/// nearest-first parent-studio chain, and each file's projected byte size. Runs against a SQLite-backed
+/// nearest-first parent-studio chain, the paired tag ids and names, and each file's projected byte
+/// size. Runs against a SQLite-backed
 /// <see cref="Cove.Data.CoveContext"/> (not EF-InMemory) so the self-referencing Studio parent FK and
 /// the relational graph hydrate exactly as production would (per MEMORY: bind the base DbContext;
 /// SQLite for graph-shape fidelity). Without these fields surfacing, Plan 02's resolver could not route
 /// on a stable id and Plan 04's free-space guard would have no per-file bytes to sum.
 /// </summary>
+/// <remarks>
+/// The port's other two read contracts live here too, against the same SQLite context: the studio-depth
+/// lockstep, which keys every assertion on <c>MaxParentDepth</c> so the constant and the per-kind
+/// Include chains cannot drift apart, and the id-only bulk enumeration a whole-library scan starts from.
+/// </remarks>
 [Trait("Tier", "L1")]
 public sealed class CoveDataPortRoutingFieldsTests
 {
@@ -53,12 +59,12 @@ public sealed class CoveDataPortRoutingFieldsTests
             Assert.NotNull(entity);
 
             // Route-on-id: the rule key is the STABLE id, not the (drift-prone) name.
-            Assert.Equal(direct.Id, entity!.StudioId);
+            Assert.Equal(direct.Id, entity.StudioId);
 
             // Parent chain is nearest-first: index 0 is the direct studio's immediate parent.
             Assert.NotNull(entity.ParentStudios);
-            Assert.NotEmpty(entity.ParentStudios!);
-            Assert.Equal(parent.Id, entity.ParentStudios![0].Id);
+            Assert.NotEmpty(entity.ParentStudios);
+            Assert.Equal(parent.Id, entity.ParentStudios[0].Id);
             Assert.Equal(parent.Name, entity.ParentStudios[0].Name);
             // The grandparent follows the parent (bounded eager walk hydrated it).
             Assert.Equal(grandparent.Id, entity.ParentStudios[1].Id);
@@ -74,49 +80,79 @@ public sealed class CoveDataPortRoutingFieldsTests
         }
     }
 
+    // The hand-seeded three-level ancestor case that used to sit here is gone: every assertion it made
+    // is made again, from the constant rather than from a literal chain length and for all three kinds,
+    // by MaxDepthChain_LoadsExactlyMaxParentDepthAncestors_ForVideo/Image/Audio below.
+
     [Fact]
-    public async Task LoadEntity_Surfaces_ThreeAncestorLevels_MatchingTheWalkDepth()
+    public async Task LoadEntity_Surfaces_TagIdsPairedWithNames_InJoinOrder()
     {
-        // A three-level ancestor chain: great-grandparent ← grandparent ← parent ← direct. The eager
-        // include chain loads exactly as many ancestor levels as the walk visits, so a studio rule
-        // keyed on the third ancestor up still surfaces rather than silently going unmatched.
+        // The whole tag-routing cascade keys on TagRefs. If this projection were empty or misordered,
+        // every tag rule would silently stop matching with no error anywhere — so prove it against a
+        // real entity graph rather than against the fake port the resolver tests use.
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
             var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
                 db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip");
 
-            var greatGrand = new Studio { Name = "Conglomerate" };
-            db.Set<Studio>().Add(greatGrand);
+            var first = new Tag { Name = "anime" };
+            var second = new Tag { Name = "raw" };
+            db.Set<Tag>().AddRange(first, second);
             await db.SaveChangesAsync();
 
-            var grandparent = new Studio { Name = "Grand Network", ParentId = greatGrand.Id };
-            db.Set<Studio>().Add(grandparent);
-            await db.SaveChangesAsync();
-
-            var parent = new Studio { Name = "Parent Label", ParentId = grandparent.Id };
-            db.Set<Studio>().Add(parent);
-            await db.SaveChangesAsync();
-
-            var direct = new Studio { Name = "Direct Studio", ParentId = parent.Id };
-            db.Set<Studio>().Add(direct);
-            await db.SaveChangesAsync();
-
-            var video = await db.Set<Video>().FirstAsync(v => v.Id == videoId);
-            video.StudioId = direct.Id;
+            db.Set<VideoTag>().AddRange(
+                new VideoTag { VideoId = videoId, TagId = first.Id },
+                new VideoTag { VideoId = videoId, TagId = second.Id });
             await db.SaveChangesAsync();
 
             var port = new CoveRenamerDataPort(db);
             var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
 
             Assert.NotNull(entity);
-            Assert.NotNull(entity!.ParentStudios);
-            // Nearest-first, three ancestor levels deep, all hydrated. The count asserts against the
-            // single source of truth (not a literal 3) so it cannot silently out-run a depth change.
-            Assert.Equal(CoveRenamerDataPort.MaxParentDepth, entity.ParentStudios!.Count);
-            Assert.Equal(parent.Id, entity.ParentStudios[0].Id);
-            Assert.Equal(grandparent.Id, entity.ParentStudios[1].Id);
-            Assert.Equal(greatGrand.Id, entity.ParentStudios[2].Id);
+            Assert.Equal(
+                [(first.Id, first.Name), (second.Id, second.Name)],
+                entity.TagRefs);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task LoadEntity_ABlankTagName_ArrivesAsTheCanonicalMarker_AndIsCarried()
+    {
+        // A blank tag name is not a state the port can meet: the host normalizes it to
+        // TagNameRules.EmptyCanonicalName inside the save and STORES that, so what reaches a read is the
+        // marker, never an empty string. The marker is carried rather than filtered because Cove's own
+        // frontend has no special case for it and renders it as an ordinary tag name — dropping the pair
+        // here would make Renamer route on a tag set the user does not see in the host UI.
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
+                db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip");
+
+            var blank = new Tag { Name = "" };
+            var named = new Tag { Name = "raw" };
+            db.Set<Tag>().AddRange(blank, named);
+            await db.SaveChangesAsync();
+
+            db.Set<VideoTag>().AddRange(
+                new VideoTag { VideoId = videoId, TagId = blank.Id },
+                new VideoTag { VideoId = videoId, TagId = named.Id });
+            await db.SaveChangesAsync();
+
+            var port = new CoveRenamerDataPort(db);
+            var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
+
+            Assert.NotNull(entity);
+            Assert.Equal(
+                [(blank.Id, TagNameRules.EmptyCanonicalName), (named.Id, named.Name)],
+                entity.TagRefs);
+            Assert.Equal([TagNameRules.EmptyCanonicalName, "raw"], entity.Tags);
         }
         finally
         {
@@ -167,7 +203,7 @@ public sealed class CoveDataPortRoutingFieldsTests
                 var single = await port.LoadEntityAsync(RenamerFileKind.Video, id);
                 Assert.NotNull(single);
                 Assert.True(byId.TryGetValue(id, out var batched));
-                AssertEntityEqual(single!, batched);
+                AssertEntityEqual(single, batched);
             }
         }
         finally
@@ -194,14 +230,17 @@ public sealed class CoveDataPortRoutingFieldsTests
         }
     }
 
+    // Every DECLARED kind is renamable and has its own query arm, so the switch's fallthrough is now
+    // reachable only by an out-of-range cast — which C# permits for any enum, including one deserialized
+    // or cast from an untrusted int. It must read as "no such rows", never throw.
     [Fact]
-    public async Task LoadEntities_Gallery_ReturnsEmpty()
+    public async Task LoadEntities_OutOfRangeKind_ReturnsEmpty_NeverThrows()
     {
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
             var port = new CoveRenamerDataPort(db);
-            var result = await port.LoadEntitiesAsync(RenamerFileKind.Gallery, [1, 2, 3]);
+            var result = await port.LoadEntitiesAsync((RenamerFileKind)999, [1, 2, 3]);
             Assert.Empty(result);
         }
         finally
@@ -245,11 +284,13 @@ public sealed class CoveDataPortRoutingFieldsTests
         Assert.Equal(expected.StudioId, actual.StudioId);
         Assert.Equal(expected.Director, actual.Director);
         Assert.Equal(expected.Performers, actual.Performers);
-        Assert.Equal(expected.Tags, actual.Tags);
 
         var expectedParents = expected.ParentStudios ?? [];
         var actualParents = actual.ParentStudios ?? [];
         Assert.Equal(expectedParents, actualParents);
+
+        // The names are derived from these pairs, so pinning the pairs pins both.
+        Assert.Equal(expected.TagRefs, actual.TagRefs);
 
         // RenamerFile carries an IReadOnlyList<RenamerCaption> member, which record value-equality
         // compares by reference — two field-identical files from distinct loads are never record-equal.
@@ -293,8 +334,262 @@ public sealed class CoveDataPortRoutingFieldsTests
             var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
 
             Assert.NotNull(entity);
-            Assert.Null(entity!.StudioId);
+            Assert.Null(entity.StudioId);
             Assert.True(entity.ParentStudios is null || entity.ParentStudios.Count == 0);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    // ── studio-depth lockstep ─────────────────────────────────────────────────
+    //
+    // Every assertion below is keyed on CoveRenamerDataPort.MaxParentDepth and driven through the REAL
+    // per-kind EF Include chain, so it fails if anyone (a) adds or removes a .ThenInclude(s => s!.Parent)
+    // hop in VideoQuery/ImageQuery/AudioQuery, or (b) changes the constant without matching the chains —
+    // closing the "the coupling is enforced only by a comment" concern.
+
+    [Fact]
+    public async Task MaxDepthChain_LoadsExactlyMaxParentDepthAncestors_ForVideo()
+        => await AssertMaxDepthChainLoads(SeedKind.Video);
+
+    [Fact]
+    public async Task MaxDepthChain_LoadsExactlyMaxParentDepthAncestors_ForImage()
+        => await AssertMaxDepthChainLoads(SeedKind.Image);
+
+    [Fact]
+    public async Task MaxDepthChain_LoadsExactlyMaxParentDepthAncestors_ForAudio()
+        => await AssertMaxDepthChainLoads(SeedKind.Audio);
+
+    private static async Task AssertMaxDepthChainLoads(SeedKind kind)
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            // direct studio + exactly MaxParentDepth ancestors above it; the walk visits the ancestors
+            // only (nearest-first), so a full-depth chain must surface exactly MaxParentDepth entries.
+            var ancestors = await SeedAncestorChainAsync(db, CoveRenamerDataPort.MaxParentDepth);
+            var direct = new Studio { Name = "direct", ParentId = ancestors[^1].Id };
+            db.Set<Studio>().Add(direct);
+            await db.SaveChangesAsync();
+
+            var (renamerKind, entityId) = await SeedEntityWithStudioAsync(db, kind, direct.Id);
+
+            var port = new CoveRenamerDataPort(db);
+            var entity = await port.LoadEntityAsync(renamerKind, entityId);
+
+            Assert.NotNull(entity);
+            Assert.NotNull(entity.ParentStudios);
+            Assert.Equal(CoveRenamerDataPort.MaxParentDepth, entity.ParentStudios.Count);
+
+            // Nearest-first: index 0 is the direct studio's immediate parent (the deepest-seeded
+            // ancestor), walking toward the root.
+            var nearestFirst = Enumerable.Reverse(ancestors).ToList();
+            for (int i = 0; i < CoveRenamerDataPort.MaxParentDepth; i++)
+            {
+                Assert.Equal(nearestFirst[i].Id, entity.ParentStudios[i].Id);
+            }
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task OverDepthChain_LeavesTheDeepestAncestorUnmatched()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            // One level DEEPER than supported. The (MaxParentDepth+1)-th ancestor is beyond the hard
+            // product depth limit: it is neither eager-loaded nor walked, so it is ABSENT from the
+            // surfaced chain. That absence IS the explicit contract — a studio nested deeper than the
+            // limit simply gets no routing rule (unmatched / no-rule), not a silent mis-hydration.
+            var ancestors = await SeedAncestorChainAsync(db, CoveRenamerDataPort.MaxParentDepth + 1);
+            var direct = new Studio { Name = "direct", ParentId = ancestors[^1].Id };
+            db.Set<Studio>().Add(direct);
+            await db.SaveChangesAsync();
+
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
+                db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip");
+            var video = await db.Set<Video>().FirstAsync(v => v.Id == videoId);
+            video.StudioId = direct.Id;
+            await db.SaveChangesAsync();
+
+            var port = new CoveRenamerDataPort(db);
+            var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
+
+            Assert.NotNull(entity);
+            Assert.NotNull(entity.ParentStudios);
+            Assert.Equal(CoveRenamerDataPort.MaxParentDepth, entity.ParentStudios.Count);
+
+            // The root ancestor (seeded first, deepest-above the limit) is absent from the loaded chain.
+            var overDepthAncestorId = ancestors[0].Id;
+            Assert.DoesNotContain(entity.ParentStudios, s => s.Id == overDepthAncestorId);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    private enum SeedKind { Video, Image, Audio }
+
+    /// Seeds <paramref name="count"/> Studio rows root→leaf (each saved before the next references its
+    /// Id) and returns them in seed order (index 0 = root, index ^1 = the studio nearest the entity's
+    /// direct studio).
+    private static async Task<List<Studio>> SeedAncestorChainAsync(Cove.Data.CoveContext db, int count)
+    {
+        var chain = new List<Studio>(count);
+        int? parentId = null;
+        for (int i = 0; i < count; i++)
+        {
+            var s = new Studio { Name = $"anc-{i}", ParentId = parentId };
+            db.Set<Studio>().Add(s);
+            await db.SaveChangesAsync();
+            chain.Add(s);
+            parentId = s.Id;
+        }
+
+        return chain;
+    }
+
+    private static async Task<(RenamerFileKind kind, int entityId)> SeedEntityWithStudioAsync(
+        Cove.Data.CoveContext db, SeedKind kind, int directStudioId)
+    {
+        switch (kind)
+        {
+            case SeedKind.Video:
+                {
+                    var (_, id, _) = await ExecutorTestSeed.SeedVideoAsync(
+                        db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip");
+                    var e = await db.Set<Video>().FirstAsync(x => x.Id == id);
+                    e.StudioId = directStudioId;
+                    await db.SaveChangesAsync();
+                    return (RenamerFileKind.Video, id);
+                }
+            case SeedKind.Image:
+                {
+                    var (_, id, _) = await ExecutorTestSeed.SeedImageAsync(
+                        db, folderPath: "media/incoming", basename: "shot.jpg", title: "A Shot");
+                    var e = await db.Set<Image>().FirstAsync(x => x.Id == id);
+                    e.StudioId = directStudioId;
+                    await db.SaveChangesAsync();
+                    return (RenamerFileKind.Image, id);
+                }
+            case SeedKind.Audio:
+                {
+                    var (_, id, _) = await ExecutorTestSeed.SeedAudioAsync(
+                        db, folderPath: "media/incoming", basename: "track.mp3", title: "A Track");
+                    var e = await db.Set<Audio>().FirstAsync(x => x.Id == id);
+                    e.StudioId = directStudioId;
+                    await db.SaveChangesAsync();
+                    return (RenamerFileKind.Audio, id);
+                }
+            default:
+                throw new ArgumentOutOfRangeException(nameof(kind));
+        }
+    }
+
+    // ── id-only bulk enumeration ──────────────────────────────────────────────
+    //
+    // CoveRenamerDataPort.LoadAllEntityIdsAsync is an AsNoTracking id-only bulk query per
+    // RenamerFileKind — the enumeration step a whole-library scan needs before running the per-id
+    // planner over each candidate. Exercised against the same real SQLite CoveContext so the EF query
+    // shape (and the zero-tracking contract) is proven, not faked.
+
+    [Fact]
+    public async Task LoadAllEntityIdsAsync_Video_ReturnsBothSeededVideoIds()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            var (_, video1Id, _) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films/one", "one.mkv", "One");
+            var (_, video2Id, _) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films/two", "two.mkv", "Two");
+
+            var port = new CoveRenamerDataPort(db);
+            var ids = await port.LoadAllEntityIdsAsync(RenamerFileKind.Video, default);
+
+            Assert.Equal(new[] { video1Id, video2Id }.OrderBy(x => x), ids.OrderBy(x => x));
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task LoadAllEntityIdsAsync_Image_ReturnsOnlyImageIds_NotVideoOrAudio()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One");
+            var (_, imageId, _) = await ExecutorTestSeed.SeedImageAsync(db, "/library/pics", "pic.jpg", "Pic");
+            await ExecutorTestSeed.SeedAudioAsync(db, "/library/music", "song.mp3", "Song");
+
+            var port = new CoveRenamerDataPort(db);
+            var ids = await port.LoadAllEntityIdsAsync(RenamerFileKind.Image, default);
+
+            Assert.Equal([imageId], ids);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    // The seeded video proves the query would have found rows for a kind it names, so the empty result
+    // below is the fallthrough arm answering and not an empty database. That arm is reachable only by an
+    // out-of-range cast now that every declared kind is renamable, and it must not throw.
+    [Fact]
+    public async Task LoadAllEntityIdsAsync_OutOfRangeKind_ReturnsEmpty_NeverThrows()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One");
+
+            var port = new CoveRenamerDataPort(db);
+            var ids = await port.LoadAllEntityIdsAsync((RenamerFileKind)999, default);
+
+            Assert.Empty(ids);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task LoadAllEntityIdsAsync_DoesNotTrackAnyEntries()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One");
+            await ExecutorTestSeed.SeedImageAsync(db, "/library/pics", "pic.jpg", "Pic");
+            await ExecutorTestSeed.SeedAudioAsync(db, "/library/music", "song.mp3", "Song");
+
+            // SeedXAsync leaves its own rows tracked as Unchanged from the seeding SaveChangesAsync
+            // calls; clear the tracker first so this assertion isolates LoadAllEntityIdsAsync's own
+            // AsNoTracking behavior rather than residue from seeding.
+            db.ChangeTracker.Clear();
+
+            var port = new CoveRenamerDataPort(db);
+            await port.LoadAllEntityIdsAsync(RenamerFileKind.Video, default);
+            await port.LoadAllEntityIdsAsync(RenamerFileKind.Image, default);
+            await port.LoadAllEntityIdsAsync(RenamerFileKind.Audio, default);
+
+            Assert.Empty(db.ChangeTracker.Entries());
         }
         finally
         {

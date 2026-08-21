@@ -50,11 +50,20 @@ public sealed record MultiValueOptions
     /// <summary>Sort applied before joining.</summary>
     public SortOrder Sort { get; init; } = SortOrder.NameAsc;
 
-    /// <summary>If non-empty, only these values are kept (case-insensitive).</summary>
-    public List<string> Whitelist { get; init; } = [];
+    /// <summary>
+    /// If non-empty, only items whose STABLE id is listed survive. Keyed on the id — never the name —
+    /// exactly like <see cref="RenamerOptions.StudioDestinations"/> and
+    /// <see cref="RenamerOptions.ExcludeTagIds"/>, so renaming a performer or a tag in Cove cannot
+    /// orphan the rule and two spelling variants of one item can never be treated as two. The joined
+    /// output still renders NAMES; the id only decides who survives.
+    /// </summary>
+    public List<int> WhitelistIds { get; init; } = [];
 
-    /// <summary>If non-empty, these values are removed (case-insensitive).</summary>
-    public List<string> Blacklist { get; init; } = [];
+    /// <summary>
+    /// If non-empty, items whose STABLE id is listed are removed. Keyed exactly like
+    /// <see cref="WhitelistIds"/>, and applied after it.
+    /// </summary>
+    public List<int> BlacklistIds { get; init; } = [];
 
     /// <summary>
     /// Performer-only: genders to drop entirely (case-insensitive). Applied BEFORE the max-count
@@ -86,8 +95,8 @@ public sealed record MultiValueOptions
         yield return MaxCount;
         yield return OnOverflow;
         yield return Sort;
-        yield return StructuralEquality.Sequence(Whitelist);
-        yield return StructuralEquality.Sequence(Blacklist);
+        yield return StructuralEquality.Sequence(WhitelistIds);
+        yield return StructuralEquality.Sequence(BlacklistIds);
         yield return StructuralEquality.Sequence(IgnoreGenders);
         yield return StructuralEquality.Sequence(GenderOrder);
     }
@@ -130,9 +139,55 @@ public sealed record FieldReplaceRule
 }
 
 /// <summary>
+/// Where a matched item lands: a <see cref="Root"/> CHOSEN from Cove's own library paths, plus a
+/// relative <see cref="Template"/> rendered underneath it. Every destination in this extension has
+/// this one shape — the per-studio, per-tag and source-path rules, the unorganized route, and the
+/// default (<see cref="RenamerOptions.FolderRoot"/> + <see cref="RenamerOptions.FolderTemplate"/>)
+/// alike — so there is nothing to combine and no precedence to teach.
+/// </summary>
+/// <remarks>
+/// No path is ever typed. Cove already owns the library paths, and a typed absolute path is a copy of
+/// a value that lives upstream: change the library path in Cove and every typed copy silently points
+/// at nothing. <see cref="Root"/> is a REFERENCE into that list, re-read on every plan, so a root the
+/// user removed from Cove stops the rule loudly (<c>SkipRootMissing</c>) instead of writing somewhere
+/// nobody chose.
+/// <para>
+/// The two empty values are the two useful defaults, not two spellings of "unset". An empty
+/// <see cref="Root"/> means "the file's own library path" — the containing root, so a rule can tidy
+/// each drive in place. An empty <see cref="Template"/> means the root itself. BOTH empty is the one
+/// state that moves nothing: a destination naming neither a root nor a folder asks for nothing, which
+/// is what an unconfigured <i>Where files go</i> has always meant.
+/// </para>
+/// <para>
+/// Hand-written structural <c>Equals</c>/<c>GetHashCode</c> for the same reason
+/// <see cref="PathDestinationRule"/> has them: a JSON round-trip allocates a fresh instance and the
+/// settings panel's dirty check compares by value.
+/// </para>
+/// </remarks>
+public sealed record Destination
+{
+    /// <summary>The chosen Cove library path, or <c>""</c> = the library path containing the file.</summary>
+    public string Root { get; init; } = "";
+
+    /// <summary>The relative folder template rendered under <see cref="Root"/>; <c>""</c> = the root itself.</summary>
+    public string Template { get; init; } = "";
+
+    public bool Equals(Destination? other)
+        => other is not null && Root == other.Root && Template == other.Template;
+
+    public override int GetHashCode()
+    {
+        var hc = new HashCode();
+        hc.Add(Root);
+        hc.Add(Template);
+        return hc.ToHashCode();
+    }
+}
+
+/// <summary>
 /// One source-path destination rule: when the entity's source path matches
-/// <see cref="Pattern"/>, the item routes to <see cref="Dest"/> (an absolute destination-root
-/// template). <see cref="IsRegex"/> selects how <see cref="Pattern"/> is interpreted:
+/// <see cref="Pattern"/>, the item routes to <see cref="Dest"/>.
+/// <see cref="IsRegex"/> selects how <see cref="Pattern"/> is interpreted:
 /// <c>false</c> = an EXACT source-path match (the common, safe case); <c>true</c> = the pattern is
 /// a .NET regex matched against the source path.
 ///
@@ -150,8 +205,8 @@ public sealed record PathDestinationRule
     /// <summary>Source-path pattern: an exact path when <see cref="IsRegex"/> is false, else a .NET regex (pre-parsed/validated at build time).</summary>
     public string Pattern { get; init; } = "";
 
-    /// <summary>Absolute destination-root template the matched item routes to.</summary>
-    public string Dest { get; init; } = "";
+    /// <summary>Where a matched item lands — a library root plus a relative template.</summary>
+    public Destination Dest { get; init; } = new();
 
     /// <summary>When <c>true</c>, <see cref="Pattern"/> is interpreted as a regex; otherwise an exact source-path match.</summary>
     public bool IsRegex { get; init; }
@@ -217,7 +272,31 @@ public sealed record ExcludeRule
 public sealed record RenamerOptions
 {
     public string FilenameTemplate { get; init; } = "{$date - }$title{ [$resolution]}";
-    public string FolderTemplate { get; init; } = "";        // empty = no folder move
+
+    /// <summary>
+    /// The DEFAULT destination's relative folder template — the panel's <i>Where files go</i>, applied
+    /// to an item no destination rule matched. Rendered under <see cref="FolderRoot"/>.
+    /// </summary>
+    /// <remarks>
+    /// Empty (the shipped default) together with an empty <see cref="FolderRoot"/> is the
+    /// moves-nothing state described at <see cref="Destination"/>: unmatched items are renamed where
+    /// they stand. This field is ALSO the effective template the engine renders — the planner
+    /// substitutes a matched rule's own template into it, so every downstream consumer (both folder
+    /// renders and the length reducer's re-render) reads the one value rather than each deciding for
+    /// itself which template applies.
+    /// </remarks>
+    public string FolderTemplate { get; init; } = "";
+
+    /// <summary>
+    /// The DEFAULT destination's root: a Cove library path, or <c>""</c> = the library path containing
+    /// the file. Pairs with <see cref="FolderTemplate"/> to make one <see cref="Destination"/>.
+    /// </summary>
+    /// <remarks>
+    /// Two flat fields rather than a nested <see cref="Destination"/> because
+    /// <see cref="FolderTemplate"/> is also the engine's render input (see its remarks); the SHAPE is
+    /// the same root-plus-relative-template every rule has.
+    /// </remarks>
+    public string FolderRoot { get; init; } = "";
     public string DateFormat { get; init; } = "yyyy-MM-dd";
     public string DurationFormat { get; init; } = @"hh\-mm\-ss";
     public MultiValueOptions Performers { get; init; } = new() { Separator = " " };
@@ -235,13 +314,21 @@ public sealed record RenamerOptions
     public string RemoveCharacters { get; init; } = ",#";  // default strips comma + hash; "" = remove nothing
 
     /// <summary>
-    /// Fallback: when an item has no title, derive <c>$title</c> from the file's basename
-    /// (extension stripped) instead of omitting the token. Default <c>true</c> = a fresh install
-    /// gives a title-less item a name from its basename rather than skipping it under the
-    /// <c>title</c>-required gate. A previously-saved value is preserved on load (the default applies
-    /// only to a first run); set it <c>false</c> to keep the strict omit-not-blank behavior.
+    /// Fallback: when an item has no title, derive <c>$title</c> from the item's first file's basename
+    /// (extension stripped) instead of omitting the token — and RECORD that title on the item, which is
+    /// the only way the derivation stops re-reading its own output (see
+    /// <c>MetadataProjector.DerivedTitle</c>).
     /// </summary>
-    public bool FilenameAsTitle { get; init; } = true;
+    /// <remarks>
+    /// Default <c>false</c>, and the default is the setting rather than a detail of it: this is the one
+    /// option that makes a rename write metadata instead of only moving a file, and writing into a
+    /// person's library is a thing to be asked for. The earlier <c>true</c> default was chosen to keep a
+    /// title-less item from being skipped by the <c>title</c>-required gate — but being skipped is the
+    /// safe answer for an item this extension has no metadata for, and the skip says so where a
+    /// silently-invented title does not. A previously-saved value is preserved on load, so this governs
+    /// a first run only.
+    /// </remarks>
+    public bool FilenameAsTitle { get; init; }
 
     /// <summary>
     /// Opt-in: after a move relocates a file out of its source directory, delete that source directory
@@ -273,13 +360,17 @@ public sealed record RenamerOptions
         ["videoCodec", "audioCodec", "frameRate", "resolution", "tags", "studioCode", "studio", "performers", "date"];
 
     /// <summary>
-    /// The set of absolute directories a renamer is permitted to write into. A target folder
-    /// (including one produced by a rooted folder template) is accepted only when it normalizes
-    /// to a path inside one of these roots; a target under no listed root is rejected. The empty
-    /// default keeps the original behavior where a renamer can only stay within the file's own
-    /// source folder and a rooted folder template is refused outright — so adding a root is an
-    /// explicit, opt-in widening of where files may move.
+    /// An optional NARROWING of where a rename may write: when non-empty, a resolved target folder is
+    /// accepted only if it also lies inside one of these absolute directories. Empty (the shipped
+    /// default) applies no narrowing.
     /// </summary>
+    /// <remarks>
+    /// It cannot WIDEN, and that is the whole of what it now is. A destination is a Cove library path
+    /// plus a relative, sanitized template, so every target is inside the library by construction and
+    /// there is no escape left for a permission list to refuse; drawing this list narrower than a
+    /// library path is the only thing it can still express — "rename inside this subtree only". It
+    /// never decides where a relative template is PLACED: that is the destination's own root.
+    /// </remarks>
     public List<string> AllowedRoots { get; init; } = [];
 
     /// <summary>
@@ -297,10 +388,8 @@ public sealed record RenamerOptions
     /// Gating: when <c>true</c>, an item whose <c>Organized</c> flag is false is skipped
     /// (not renamed), so un-curated items don't get junk names. Default <c>false</c> = renamer all.
     /// <para>
-    /// A configured <see cref="UnorganizedDestination"/> takes PRECEDENCE over this gate. When an
-    /// unorganized destination is set, an unorganized item is NOT skipped — it routes to that
-    /// destination, since routing unorganized items is the whole point of that destination. This gate
-    /// skips unorganized items only when no <see cref="UnorganizedDestination"/> is configured.
+    /// An <see cref="UnorganizedDestination"/> takes PRECEDENCE over this gate — see that member for
+    /// the whole statement, including which of its states may fall through to here.
     /// </para>
     /// </summary>
     public bool OnlyOrganized { get; init; }
@@ -374,20 +463,19 @@ public sealed record RenamerOptions
     public bool PreventConsecutiveSegments { get; init; } = true;
 
     /// <summary>
-    /// Studio routing map: stable studio <c>Id</c> → absolute destination-root template. The studio
-    /// cascade keys on this id (never the name) so a name typo/sanitization variant can never split
-    /// one studio across two destination trees. Default empty = no studio routing (legacy
-    /// source-confine behavior).
+    /// Studio routing map: stable studio <c>Id</c> → <see cref="Destination"/>. The studio cascade keys
+    /// on this id (never the name) so a name typo/sanitization variant can never split one studio
+    /// across two destination trees. Default empty = no studio routing.
     /// </summary>
-    public Dictionary<int, string> StudioDestinations { get; init; } = [];
+    public Dictionary<int, Destination> StudioDestinations { get; init; } = [];
 
     /// <summary>
-    /// Tag routing map: tag NAME → absolute destination-root template, keyed and compared
-    /// case-insensitively (a rule for <c>"Anime"</c> matches an entity tagged <c>"anime"</c>).
-    /// Tag routing keys on the name (matching the existing flattened tag-name list). Default empty =
-    /// no tag routing (legacy source-confine behavior).
+    /// Tag routing map: stable tag <c>Id</c> → <see cref="Destination"/>. The tag cascade keys on this
+    /// id (never the name), exactly like <see cref="StudioDestinations"/>, so renaming a tag in Cove
+    /// cannot orphan or mis-target its rule and two spelling variants of one tag can never split
+    /// across two destination trees. Default empty = no tag routing.
     /// </summary>
-    public Dictionary<string, string> TagDestinations { get; init; } = [];
+    public Dictionary<int, Destination> TagDestinations { get; init; } = [];
 
     /// <summary>
     /// Source-path routing rules, in user order. Each <see cref="PathDestinationRule"/> is an exact OR
@@ -399,12 +487,13 @@ public sealed record RenamerOptions
     public List<PathDestinationRule> PathDestinations { get; init; } = [];
 
     /// <summary>
-    /// Tag excludes: tag NAMES (matched case-insensitively, mirroring tag routing). An item carrying
-    /// any of these tags is EXCLUDED from renamer/move BEFORE any routing category is considered
-    /// (excludes are evaluated first), surfaced as a visible <c>SkipExcluded</c> in the preview.
-    /// Default empty = no tag excludes (legacy behavior, no regression).
+    /// Tag excludes: STABLE tag ids (never the name), keyed exactly like <see cref="TagDestinations"/>
+    /// and mirroring <see cref="ExcludeStudioIds"/>. An item carrying any of these tags is EXCLUDED
+    /// from renamer/move BEFORE any routing category is considered (excludes are evaluated first),
+    /// surfaced as a visible <c>SkipExcluded</c> in the preview. Default empty = no tag excludes
+    /// (legacy behavior, no regression).
     /// </summary>
-    public List<string> ExcludeTags { get; init; } = [];
+    public List<int> ExcludeTagIds { get; init; } = [];
 
     /// <summary>
     /// Studio excludes: STABLE studio ids (never the name). An item is excluded when its own
@@ -423,32 +512,22 @@ public sealed record RenamerOptions
     public List<ExcludeRule> ExcludePaths { get; init; } = [];
 
     /// <summary>
-    /// Default destination: the absolute root for an item that matched NO rule. Honored ONLY when
-    /// <see cref="EnableDefaultRelocate"/> is <c>true</c> (a hard gate). Default <c>""</c> = no
-    /// default route.
-    /// </summary>
-    public string DefaultDestination { get; init; } = "";
-
-    /// <summary>
     /// Unorganized destination: the route for an item whose <c>Organized</c> flag is false. Resolved
     /// at the unorganized precedence slot (before the tag/studio/path cascade), so an unorganized item
-    /// routes here rather than being skipped. Default <c>""</c> = no unorganized route.
+    /// routes here rather than being skipped. Default <c>null</c> = no unorganized route.
     /// <para>
     /// When set, this OVERRIDES <see cref="OnlyOrganized"/> for unorganized items — the item routes
     /// here instead of being gated out, so the unorganized route is never silently nullified by the
     /// only-organized gate.
     /// </para>
+    /// <para>
+    /// Nullable rather than a <see cref="Destination"/> whose emptiness means "off", because the two
+    /// states are genuinely different questions: <c>null</c> is "there is no unorganized route", while
+    /// a present destination naming neither root nor folder is a route that deliberately moves nothing.
+    /// Only the first may fall through to the only-organized gate.
+    /// </para>
     /// </summary>
-    public string UnorganizedDestination { get; init; } = "";
-
-    /// <summary>
-    /// Hard-gate flag: default-relocate of an UNMATCHED item to <see cref="DefaultDestination"/> is
-    /// enabled ONLY when this is <c>true</c>. It ships <c>false</c> and STAYS disabled until
-    /// volume-aware undo is delivered — because a runaway default-relocate has whole-library blast
-    /// radius and undo is the only recovery. The resolver enforces this as a code path (the off branch
-    /// returns SourceConfine), not merely a config default.
-    /// </summary>
-    public bool EnableDefaultRelocate { get; init; }
+    public Destination? UnorganizedDestination { get; init; }
 
     /// <summary>
     /// Free-space safety margin: the number of bytes left FREE on each destination volume
@@ -481,11 +560,11 @@ public sealed record RenamerOptions
 
     // Record value equality would compare the List/Dictionary members by REFERENCE, so a JSON round-trip
     // (fresh instances) would never be Equal. Both Equals and GetHashCode run off the SAME
-    // EqualityComponents list — the single source of truth that replaces the old twin member lists, so a
-    // new member added to one can never be forgotten in the other (the twin-list footgun, 45-R4). Each
+    // EqualityComponents list — one source of truth rather than twin member lists, so a new member
+    // added to one can never be forgotten in the other (the twin-list footgun). Each
     // collection member is wrapped to compare by VALUE: order-SENSITIVE for lists, order-INDEPENDENT for
     // the destination maps (a Dictionary has no guaranteed order and a round-trip may reorder keys), with
-    // the map's original key comparer (ordinal ids, OrdinalIgnoreCase tag names) preserved.
+    // the map's original key comparer preserved.
     public bool Equals(RenamerOptions? other)
         => other is not null && StructuralEquality.Members(EqualityComponents(), other.EqualityComponents());
 
@@ -495,6 +574,7 @@ public sealed record RenamerOptions
     {
         yield return FilenameTemplate;
         yield return FolderTemplate;
+        yield return FolderRoot;
         yield return DateFormat;
         yield return DurationFormat;
         yield return Performers;
@@ -523,14 +603,12 @@ public sealed record RenamerOptions
         yield return StructuralEquality.Sequence(AllowedRoots);
         yield return StructuralEquality.Sequence(AssociatedExtensions);
         yield return StructuralEquality.Map(StudioDestinations, EqualityComparer<int>.Default);
-        yield return StructuralEquality.Map(TagDestinations, StringComparer.OrdinalIgnoreCase);
+        yield return StructuralEquality.Map(TagDestinations, EqualityComparer<int>.Default);
         yield return StructuralEquality.Sequence(PathDestinations);
-        yield return StructuralEquality.Sequence(ExcludeTags);
+        yield return StructuralEquality.Sequence(ExcludeTagIds);
         yield return StructuralEquality.Sequence(ExcludeStudioIds);
         yield return StructuralEquality.Sequence(ExcludePaths);
-        yield return DefaultDestination;
         yield return UnorganizedDestination;
-        yield return EnableDefaultRelocate;
         yield return FreeSpaceHeadroomBytes;
         yield return CrossVolumeConcurrency;
         yield return SameVolumeConcurrency;
@@ -541,6 +619,16 @@ public sealed record RenamerOptions
     /// case-insensitive property names (forward-compat for hand-edited blobs) and
     /// enums as stable strings. <c>OptionsStore</c> reuses this exact instance.
     /// </summary>
+    /// <remarks>
+    /// These options are also the one home for every body this extension parses ITSELF, and the reason
+    /// it parses them at all: the host's default minimal-API <see cref="JsonSerializerOptions"/> carry
+    /// no <see cref="JsonStringEnumConverter"/>, so a body holding a string enum value
+    /// (<c>"case":"Lower"</c>) fails typed binding with a 400 BEFORE the handler runs, and extension
+    /// code cannot reach host startup (<c>ConfigureHttpJsonOptions</c>) to fix that globally. An
+    /// endpoint that must accept such a body therefore binds the raw request and deserializes here.
+    /// The blob's PascalCase spelling is never the obstacle — property binding is case-insensitive on
+    /// both paths — so retyping such a parameter is not the simplification it looks like.
+    /// </remarks>
     public static JsonSerializerOptions JsonOptions { get; } = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -576,8 +664,8 @@ internal static class StructuralEquality
     public static object Sequence<T>(IReadOnlyCollection<T> items) => new SeqKey<T>(items);
 
     /// <summary>Wraps a map so equality is an ORDER-INDEPENDENT compare under <paramref name="keyComparer"/> (a round-trip may reorder keys).</summary>
-    public static object Map<TKey>(Dictionary<TKey, string> map, IEqualityComparer<TKey> keyComparer)
-        where TKey : notnull => new MapKey<TKey>(map, keyComparer);
+    public static object Map<TKey, TValue>(Dictionary<TKey, TValue> map, IEqualityComparer<TKey> keyComparer)
+        where TKey : notnull => new MapKey<TKey, TValue>(map, keyComparer);
 
     private readonly struct SeqKey<T> : IEquatable<SeqKey<T>>
     {
@@ -599,19 +687,19 @@ internal static class StructuralEquality
         }
     }
 
-    private readonly struct MapKey<TKey> : IEquatable<MapKey<TKey>>
+    private readonly struct MapKey<TKey, TValue> : IEquatable<MapKey<TKey, TValue>>
         where TKey : notnull
     {
-        private readonly Dictionary<TKey, string> _map;
+        private readonly Dictionary<TKey, TValue> _map;
         private readonly IEqualityComparer<TKey> _keyComparer;
 
-        public MapKey(Dictionary<TKey, string> map, IEqualityComparer<TKey> keyComparer)
+        public MapKey(Dictionary<TKey, TValue> map, IEqualityComparer<TKey> keyComparer)
         {
             _map = map;
             _keyComparer = keyComparer;
         }
 
-        public bool Equals(MapKey<TKey> other)
+        public bool Equals(MapKey<TKey, TValue> other)
         {
             if (_map.Count != other._map.Count)
             {
@@ -621,7 +709,7 @@ internal static class StructuralEquality
             // Build the lookup by assignment (last write wins on a key collision under the comparer),
             // matching the prior hand-rolled comparison rather than the throwing dictionary(source,
             // comparer) constructor.
-            var lookup = new Dictionary<TKey, string>(other._map.Count, _keyComparer);
+            var lookup = new Dictionary<TKey, TValue>(other._map.Count, _keyComparer);
             foreach (var kv in other._map)
             {
                 lookup[kv.Key] = kv.Value;
@@ -629,7 +717,8 @@ internal static class StructuralEquality
 
             foreach (var kv in _map)
             {
-                if (!lookup.TryGetValue(kv.Key, out var value) || value != kv.Value)
+                if (!lookup.TryGetValue(kv.Key, out var value)
+                    || !EqualityComparer<TValue>.Default.Equals(value, kv.Value))
                 {
                     return false;
                 }
@@ -638,7 +727,7 @@ internal static class StructuralEquality
             return true;
         }
 
-        public override bool Equals(object? obj) => obj is MapKey<TKey> other && Equals(other);
+        public override bool Equals(object? obj) => obj is MapKey<TKey, TValue> other && Equals(other);
 
         public override int GetHashCode()
         {

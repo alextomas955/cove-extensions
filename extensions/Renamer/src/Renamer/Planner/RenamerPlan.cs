@@ -1,22 +1,22 @@
-using Renamer.Options;
-
-using static global::Renamer.Execution.PathOps;
-
 namespace Renamer.Planner;
 
 /// <summary>
-/// The shared classification vocabulary for a planned per-file renamer. The dry-run planner
-/// produces <see cref="Renamer"/>/<see cref="Move"/>/<see cref="NoOp"/>/
-/// <see cref="SkipCollision"/>/<see cref="SkipGated"/>; <see cref="SkipLocked"/>,
-/// <see cref="SkipBlocked"/> and <see cref="Failed"/> are produced by the executor but defined here
-/// so the planner and executor speak one enum. <see cref="SkipMissingSource"/> is produced by BOTH
-/// halves — the executor's move-time source pre-check and the preview planner's read-only
-/// source-presence check.
+/// The shared classification vocabulary for a planned per-file renamer. Both halves speak this one
+/// enum: the dry-run planner classifies what it INTENDS from the library it can read, and the
+/// executor classifies what actually HAPPENED once disk and database were touched — so which half
+/// produced a status is not something a member name reveals, and each member's own summary says.
+/// <para>
+/// Two members are produced by BOTH halves, which is the part worth stating because nothing about
+/// them looks dual: <see cref="SkipMissingSource"/> comes from the executor's move-time source
+/// pre-check AND the preview planner's read-only source-presence check, and
+/// <see cref="SkipCollision"/> from the planner's suffix loop AND the executor's execution-time
+/// re-check of the same collision against a now-staler snapshot.
+/// </para>
 /// </summary>
 public enum RenamerStatus
 {
     /// <summary>In-place basename change (same parent folder).</summary>
-    Renamer,
+    Rename,
 
     /// <summary>Basename change AND a parent-folder move.</summary>
     Move,
@@ -25,8 +25,10 @@ public enum RenamerStatus
     NoOp,
 
     /// <summary>
-    /// A taken target the suffix loop could not free, OR a folder template that escaped the
-    /// library root (confinement rejection). The executor must NOT attempt a move.
+    /// The destination name was taken and nothing was overwritten. From a suffix loop that could not
+    /// free a name — the planner's, or the executor's own — in which case the executor must NOT attempt
+    /// a move; or from a move that WAS attempted and met an occupied destination at move time, which
+    /// leaves both the file holding the name and the source standing.
     /// </summary>
     SkipCollision,
 
@@ -74,6 +76,97 @@ public enum RenamerStatus
 
     /// <summary>Executor-only: the DB save failed after a disk move and was rolled back.</summary>
     Failed,
+
+    /// <summary>
+    /// Executor-only: the OS refused the move for want of permission — across volumes that covers the
+    /// copy, the promote and the source delete alike. Kept DISTINCT from <see cref="SkipLocked"/> (a
+    /// file-lock skip) because the two ask a maintainer for opposite responses: a lock clears by
+    /// itself once whatever holds the file lets go, while a denial persists until someone changes an
+    /// access rule, so log monitoring that conflates them reports a standing misconfiguration as
+    /// transient contention and nobody ever acts on it.
+    /// </summary>
+    SkipPermissionDenied,
+
+    /// <summary>
+    /// Executor-only, cross-volume only: the destination read-back did not match the source by size
+    /// or content hash, so the copy was rejected, the suspect destination deleted and the source left
+    /// intact. Kept DISTINCT from <see cref="SkipLocked"/> (a file-lock skip) because this names a
+    /// destination that returned different bytes than it was handed — the item was refused AFTER
+    /// being written rather than never started, which is the signal to distrust the volume or the
+    /// transport rather than to retry the item.
+    /// </summary>
+    SkipVerifyFailed,
+
+    /// <summary>
+    /// Executor-only: the move was cancelled in flight (a host shutdown), so the in-flight copy was
+    /// removed and the source left untouched. Kept DISTINCT from <see cref="SkipLocked"/> (a file-lock
+    /// skip) to honour the invariant that work interrupted by shutdown classifies as cancelled and
+    /// never as a defect: reported as a lock skip, a clean stop tells a maintainer reading logs after
+    /// a restart that those files were in use when in fact nothing held them.
+    /// </summary>
+    SkipCancelled,
+
+    /// <summary>
+    /// Planner-only: the item's destination measures from "the file's own library path" and the file
+    /// lies under none of Cove's configured library paths — so there is no anchor to measure it from
+    /// that the move leaves standing. Kept DISTINCT from <see cref="SkipCollision"/> (a name-taken
+    /// skip) and from <see cref="SkipBlocked"/> (a security denial) because it is neither: the
+    /// destination is not forbidden, it cannot be computed. The item keeps its current name and folder
+    /// rather than being placed relative to its own parent — see
+    /// <see cref="IRenamerDataPort.LibraryRoots"/> for why that arrangement is refused.
+    /// <para>
+    /// A destination whose root was CHOSEN from the library paths never reaches this status — it names
+    /// its anchor outright. Whether that chosen root is still one of Cove's library paths is a
+    /// different question, answered by <see cref="SkipRootMissing"/>.
+    /// </para>
+    /// </summary>
+    SkipUnanchored,
+
+    /// <summary>
+    /// Planner-only: the destination's root was chosen from Cove's library paths and is no longer one
+    /// of them — the user removed or re-pointed that path in Cove. Every file of the item is skipped
+    /// with the rule named, and the run does not fail.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately NOT a fall-through to the default destination. A rule that cannot be honoured has
+    /// no opinion about where its items go, and quietly handing them to the default would move files
+    /// somewhere the user never chose BECAUSE their rule broke — a silent bulk relocation triggered by
+    /// an unrelated edit in Cove's own settings. Kept DISTINCT from <see cref="SkipUnanchored"/>
+    /// because the two ask for opposite actions: this one is fixed by re-picking a root in Renamer, that
+    /// one by adding a folder to Cove's library.
+    /// </remarks>
+    SkipRootMissing,
+
+    /// <summary>
+    /// Planner-only: the rendered destination lies outside the area the configuration permits writing
+    /// into — a folder template that is not relative, a template that traversed out of its own anchor,
+    /// or an <c>AllowedRoots</c> list that does not cover it. Those are the three refusals
+    /// <c>PathConfinement.Resolve</c> can produce, in the order it takes them. The item keeps its current
+    /// name and folder. Kept DISTINCT from <see cref="SkipCollision"/> (a name-taken skip) because the
+    /// two ask for different actions, and from <see cref="SkipBlocked"/>, which is the executor's
+    /// disk-resolving guard refusing a real on-disk target at move time; this one is a pure string
+    /// decision made before anything is touched, so the two can disagree and each is worth reading.
+    /// </summary>
+    SkipNotAllowed,
+
+    /// <summary>
+    /// The resolved absolute destination path is longer than
+    /// <see cref="Options.RenamerOptions.FullPathMax"/>, so the item keeps its current name and folder.
+    /// Kept DISTINCT from <see cref="SkipCollision"/> (a name-taken skip) because the two ask a
+    /// maintainer for opposite responses: a collision clears by itself once the other file moves, while
+    /// an over-long path stands until someone shortens the template or picks a shallower destination, so
+    /// reading them as one reason means waiting for a state that never arrives.
+    /// <para>
+    /// Emitted at THREE points, which is what makes it evidence about the path that would actually be
+    /// written. The budget is measured against the rendered name before the duplicate-suffix loop, and
+    /// again against the settled candidate after it — because that loop lengthens the name to free a taken
+    /// slot, and by an amount the configured suffix format decides rather than a fixed one. The executor
+    /// repeats the second measurement, because its own loop re-suffixes against a fresher snapshot and can
+    /// reach a name longer than any the planner saw; that emission arrives after the confirm gate, before
+    /// anything is written.
+    /// </para>
+    /// </summary>
+    SkipTooLong,
 }
 
 /// <summary>
@@ -90,9 +183,31 @@ public enum RenamerStatus
 /// <param name="Reason">Human-readable reason for a skip/no-op (null for a plain renamer/move).</param>
 /// <param name="Suffixed">UI badge signal: true iff the collision suffix loop ran (a number was appended to free the name). Defaults false; set only on the final Renamer/Move item.</param>
 /// <param name="Sanitized">UI badge signal: true iff the engine cleaned the rendered name (illegal chars / spaces changed). Defaults false; set only on the final Renamer/Move item.</param>
-/// <param name="ResolvedDestinationRoot">The routed destination-root template the <c>DestinationResolver</c> produced; <c>null</c> for a source-confine / legacy in-place item. Present only on a routed Renamer/Move item.</param>
-/// <param name="MatchedRule">The resolver's matched-rule label (e.g. <c>"Studio:42(direct)"</c>, <c>"Tag:anime"</c>, <c>"InPlace"</c>) for preview/log. Defaults <c>""</c> on skip/no-op.</param>
+/// <param name="ResolvedDestinationRoot">The Cove library path the destination was measured from — the root the rule (or the default) chose, or the one containing the file when it chose "the file's own library path". <c>null</c> when the item does not move and so anchored on nothing. Present only on a Renamer/Move item.</param>
+/// <param name="MatchedRule">The resolver's matched-rule label (e.g. <c>"Studio:42(direct)"</c>, <c>"Tag:anime"</c>, <c>"Default"</c>) for preview/log. Defaults <c>""</c> on skip/no-op.</param>
 /// <param name="TargetVolume">The destination volume (<see cref="Path.GetPathRoot(string)"/> of the resolved absolute target), set only on the final Renamer/Move item; consumed by the free-space sum and the cross-drive preview flag. Defaults <c>""</c>.</param>
+/// <param name="DerivedTitle">
+/// The filename-derived title the executor records on the entity in the same save as this rename, or
+/// <c>null</c> when the item keeps a stored title, the fallback is off, or the item does not act. Set
+/// only on a final Renamer/Move item, because a plan that changes nothing must write nothing.
+/// </param>
+/// <param name="OffLibraryDestination">
+/// UI badge signal: true iff this item will act and is renamed where it already sits, in a folder under
+/// none of Cove's configured library paths — so the file stays outside everything Cove scans. Not an
+/// error and never a block: the rename happens exactly as previewed, and nothing about the new name or
+/// folder changes. What it costs is worth stating before a bulk rename — a rescan never re-examines the
+/// file, and if anything later moves it on disk Cove cannot rediscover it, at which point the next Clean
+/// drops its row.
+/// <para>
+/// A rule's own destination never lands here, and this flag must not be read as promising otherwise:
+/// every destination measures from a Cove library path, so a rule that still resolves writes inside the
+/// library, and one whose root has gone is a <see cref="RenamerStatus.SkipRootMissing"/> or a
+/// <see cref="RenamerStatus.SkipUnanchored"/> that never reaches this flag. Keyed on the resolved
+/// DESTINATION folder rather than on the route, which leaves the in-place rename above as the one
+/// reachable case. False when the host declares no library path at all, where "outside the scanned set"
+/// describes every file equally and so warns about nothing.
+/// </para>
+/// </param>
 public sealed record RenamerPlanItem(
     int FileId,
     string OldFullPath,
@@ -105,7 +220,9 @@ public sealed record RenamerPlanItem(
     bool Sanitized = false,
     string? ResolvedDestinationRoot = null,
     string MatchedRule = "",
-    string TargetVolume = "");
+    string TargetVolume = "",
+    string? DerivedTitle = null,
+    bool OffLibraryDestination = false);
 
 /// <summary>
 /// The dry-run output of <c>RenamerPlanner.PlanAsync</c>: one <see cref="RenamerPlanItem"/> per
@@ -119,188 +236,3 @@ public sealed record RenamerPlan(
     int EntityId,
     RenamerFileKind Kind,
     IReadOnlyList<RenamerPlanItem> Items);
-
-/// <summary>
-/// The path-traversal confinement gate. The engine emits a relative, sanitized folder path but
-/// explicitly does NOT confine <c>..</c> or absolute paths; this helper is the boundary before any
-/// executor sees a target. PURE: only
-/// <see cref="Path"/> string math (the <c>GetFullPath(path, basePath)</c> overload does not touch
-/// disk for these inputs) — no <c>File.</c>/<c>Directory.</c> calls.
-/// </summary>
-public static class PathConfinement
-{
-    // A deterministic absolute anchor so a RELATIVE allowed-root (the DTO's forward-slash
-    // ParentFolderPath) resolves the same way regardless of the process cwd. The anchor never
-    // touches disk; it only gives Path.GetFullPath a fixed base to collapse "."/".." against.
-    private static readonly string Anchor =
-        OperatingSystem.IsWindows() ? @"C:\__renamer_root__" : "/__renamer_root__";
-
-    /// <summary>
-    /// Result of a confinement check. <see cref="Accepted"/> false means the target escaped the
-    /// allowed root or exceeded <see cref="RenamerOptions.FullPathMax"/>; the caller classifies a skip.
-    /// </summary>
-    /// <param name="Accepted">True iff the resolved absolute target stays under the allowed root and within MAX_PATH.</param>
-    /// <param name="TargetFolderPath">The resolved absolute target folder (forward-slash), valid only when <see cref="Accepted"/>.</param>
-    /// <param name="Reason">Rejection reason when not accepted; null when accepted.</param>
-    public readonly record struct ConfinementResult(bool Accepted, string TargetFolderPath, string? Reason);
-
-    /// <summary>
-    /// The allowlist gate. <paramref name="destinationFolder"/> (the engine's folder template
-    /// output, which may now be ROOTED) is resolved to a normalized absolute path — collapsing
-    /// any <c>..</c> traversal via <see cref="Path.GetFullPath(string, string)"/> — and accepted
-    /// only when it lands under one of <paramref name="allowedRoots"/>:
-    /// <list type="bullet">
-    /// <item>when <paramref name="allowedRoots"/> is empty, the original source-confine behavior
-    /// applies: the file may only move within <paramref name="legacySourceRoot"/> (its own parent
-    /// directory) and a rooted destination is rejected outright;</item>
-    /// <item>when roots are configured, a rooted destination is normalized then required to be
-    /// under SOME root; a relative destination is first resolved under
-    /// <paramref name="legacySourceRoot"/> and then held to the same under-a-root rule;</item>
-    /// <item>the <c>..</c> collapse runs BEFORE containment, so a rooted target that walks out of
-    /// every root (e.g. <c>&lt;root&gt;/../sibling</c>) is rejected;</item>
-    /// <item>containment uses an ordinal, separator-normalized prefix check that is NOT fooled by a
-    /// sibling like <c>rootEvil</c> vs <c>root</c>;</item>
-    /// <item>the resolved ABSOLUTE full path (folder + <paramref name="newBasename"/>) is
-    /// re-checked against <see cref="RenamerOptions.FullPathMax"/> — the engine only measured the
-    /// generated portion, so the absolute length including the root must be re-checked here.</item>
-    /// </list>
-    /// On acceptance, <see cref="ConfinementResult.TargetFolderPath"/> is the resolved absolute
-    /// target folder (forward-slash). This is a PURE string decision — no disk access.
-    /// </summary>
-    public static ConfinementResult Resolve(
-        IReadOnlyList<string> allowedRoots,
-        string legacySourceRoot,
-        string destinationFolder,
-        string newBasename,
-        RenamerOptions options)
-    {
-        bool rooted = !string.IsNullOrEmpty(destinationFolder) && Path.IsPathRooted(destinationFolder);
-
-        // No configured roots: the file's own source folder is the sole implicit root, and a rooted
-        // destination is refused — the original, narrow confinement.
-        if (allowedRoots.Count == 0)
-        {
-            if (rooted)
-            {
-                return new(false, string.Empty, "folder template is an absolute/rooted path");
-            }
-
-            return ResolveUnderSingleRoot(legacySourceRoot, destinationFolder, newBasename, options);
-        }
-
-        // Normalize the target (collapsing "."/"..") BEFORE any containment decision. A rooted
-        // destination resolves on its own; a relative one is anchored under the source folder.
-        string targetAbs = rooted
-            ? ToAbsolute(destinationFolder)
-            : ToAbsolute(Combine(ToAbsolute(legacySourceRoot), destinationFolder));
-
-        // Accept only when the normalized target is the same as, or under, one of the allowed roots.
-        if (!allowedRoots.Any(r => IsUnderRoot(targetAbs, ToAbsolute(r))))
-        {
-            return new(false, string.Empty, "destination is not under any allowed root");
-        }
-
-        // Re-check the ABSOLUTE full path (folder + new basename) the engine never saw.
-        string fullAbs = Combine(targetAbs, newBasename);
-        if (fullAbs.Length > options.FullPathMax)
-        {
-            return new(false, string.Empty,
-                $"resolved absolute path length {fullAbs.Length} exceeds FullPathMax {options.FullPathMax}");
-        }
-
-        return new(true, NormalizeSlash(targetAbs), null);
-    }
-
-    /// <summary>
-    /// The original single-root confinement, preserved verbatim for the empty-allowlist fallback
-    /// and the back-compat overload. Resolves the RELATIVE <paramref name="relativeFolder"/> (may
-    /// be empty = in-place) under <paramref name="allowedRoot"/>, rejecting any <c>..</c> escape or
-    /// an over-<see cref="RenamerOptions.FullPathMax"/> absolute target.
-    /// </summary>
-    public static ConfinementResult Resolve(
-        string allowedRoot,
-        string relativeFolder,
-        string newBasename,
-        RenamerOptions options)
-    {
-        // Absolute/rooted folder templates are rejected outright (they are not a relative move).
-        if (!string.IsNullOrEmpty(relativeFolder) && Path.IsPathRooted(relativeFolder))
-        {
-            return new(false, string.Empty, "folder template is an absolute/rooted path");
-        }
-
-        return ResolveUnderSingleRoot(allowedRoot, relativeFolder, newBasename, options);
-    }
-
-    /// <summary>
-    /// Resolves <paramref name="relativeFolder"/> under <paramref name="allowedRoot"/> and applies
-    /// the escape + length checks. The caller is responsible for the rooted-template rejection; this
-    /// helper assumes <paramref name="relativeFolder"/> is relative (or empty = in-place).
-    /// </summary>
-    private static ConfinementResult ResolveUnderSingleRoot(
-        string allowedRoot,
-        string relativeFolder,
-        string newBasename,
-        RenamerOptions options)
-    {
-        // The allowed root, resolved to a normalized absolute path under the fixed anchor.
-        string rootAbs = ToAbsolute(allowedRoot);
-
-        // Target folder: in-place when the engine emitted no folder; else root + relativeFolder.
-        string targetAbs = string.IsNullOrEmpty(relativeFolder)
-            ? rootAbs
-            : ToAbsolute(Combine(rootAbs, relativeFolder));
-
-        // Containment: the resolved target must be the root or a directory UNDER it. Use a
-        // boundary-aware ordinal prefix check (rootAbs + separator) so "rootEvil" != "root".
-        if (!IsUnderRoot(targetAbs, rootAbs))
-        {
-            return new(false, string.Empty, "folder template escapes the library root");
-        }
-
-        // Re-check the ABSOLUTE full path (folder + new basename) the engine never saw.
-        string fullAbs = Combine(targetAbs, newBasename);
-        if (fullAbs.Length > options.FullPathMax)
-        {
-            return new(false, string.Empty,
-                $"resolved absolute path length {fullAbs.Length} exceeds FullPathMax {options.FullPathMax}");
-        }
-
-        return new(true, NormalizeSlash(targetAbs), null);
-    }
-
-    /// <summary>Resolves a (possibly relative, forward-slash) path to a normalized absolute form under the anchor, collapsing "."/"..".</summary>
-    private static string ToAbsolute(string path)
-    {
-        // GetFullPath(path, basePath) is pure (no disk) and anchors a relative path deterministically.
-        string native = path.Replace('/', Path.DirectorySeparatorChar);
-        return Path.GetFullPath(native, Anchor);
-    }
-
-    private static string Combine(string a, string b)
-        => a.TrimEnd('/', '\\') + "/" + b.TrimStart('/', '\\');
-
-
-    /// <summary>
-    /// True iff <paramref name="candidate"/> is <paramref name="root"/> itself or lies under it.
-    /// Normalizes separators and compares ordinally with a trailing separator on the root so a
-    /// sibling ("…/rootEvil") is not mistaken for a child of ("…/root").
-    /// </summary>
-    /// <remarks>
-    /// Exposed <c>internal</c> (not <c>private</c>) so the disk-resolving canonical guard
-    /// (<c>Renamer.Execution.CanonicalPathGuard</c>, same assembly) reuses this single source of
-    /// truth for boundary-aware containment instead of duplicating the ~8-line check. Tests reach it
-    /// via <c>InternalsVisibleTo("Renamer.Tests")</c>.
-    /// </remarks>
-    internal static bool IsUnderRoot(string candidate, string root)
-    {
-        string c = NormalizeSlash(candidate).TrimEnd('/');
-        string r = NormalizeSlash(root).TrimEnd('/');
-
-        var cmp = OperatingSystem.IsWindows()
-            ? StringComparison.OrdinalIgnoreCase
-            : StringComparison.Ordinal;
-
-        return string.Equals(c, r, cmp) || c.StartsWith(r + "/", cmp);
-    }
-}

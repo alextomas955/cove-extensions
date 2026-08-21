@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Cove.Core.Auth;
-using Cove.Core.Entities;
 using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
 using Cove.Plugins;
@@ -33,22 +32,25 @@ namespace Renamer;
 /// </summary>
 public sealed partial class Renamer
 {
-    // The action's endpoint reference and the mapped route MUST be the same literal, so derive
-    // both from one base. The route prefix mirrors how the host mounts an extension's
-    // IApiExtension endpoints: /api/extensions/{id}/…
-    private const string RouteBase = "/api/extensions/com.alextomas955.renamer";
-    private const string RenamerRoute = RouteBase + "/renamer";
-    private const string PreviewRoute = RouteBase + "/preview";
-    private const string PreviewSampleRoute = RouteBase + "/preview-sample";
-    private const string UndoRoute = RouteBase + "/undo";
-    private const string LastBatchRoute = RouteBase + "/last-batch";
-    private const string ListStudiosRoute = RouteBase + "/list-studios";
-    private const string ListTagsRoute = RouteBase + "/list-tags";
-    private const string ListPerformersRoute = RouteBase + "/list-performers";
-    private const string ScanLibraryRoute = RouteBase + "/scan-library";
-    private const string LastScanRoute = RouteBase + "/last-scan";
-    private const string ScanRowsRoute = RouteBase + "/scan-rows";
-    private const string RenamerLibraryRoute = RouteBase + "/renamer-library";
+    // Every route derives from one base so the action's endpoint reference and the mapped route can
+    // never disagree, and the base derives from Id — which comes from extension.json — so this
+    // extension's id is written in exactly one place. The prefix mirrors how the host mounts an
+    // extension's IApiExtension endpoints: /api/extensions/{id}/…
+    //
+    // Instance members, not consts, precisely because Id is manifest-backed: reading these before the
+    // host has applied the manifest throws rather than silently mapping a route under the wrong id.
+    // Safe for every real caller — MapEndpoints and GetUIManifest both run well after ApplyManifest.
+    private string RouteBase => "/api/extensions/" + Id;
+    private string RenamerRoute => RouteBase + "/renamer";
+    private string PreviewRoute => RouteBase + "/preview";
+    private string PreviewSampleRoute => RouteBase + "/preview-sample";
+    private string UndoRoute => RouteBase + "/undo";
+    private string LastBatchRoute => RouteBase + "/last-batch";
+    private string ScanLibraryRoute => RouteBase + "/scan-library";
+    private string LastScanRoute => RouteBase + "/last-scan";
+    private string ScanRowsRoute => RouteBase + "/scan-rows";
+    private string RenamerLibraryRoute => RouteBase + "/renamer-library";
+    private string LibraryPathsRoute => RouteBase + "/library-paths";
 
     /// <summary>
     /// The key a pre-0.2.1 scan wrote one wire row PER FILE to. Retained only so
@@ -141,66 +143,102 @@ public sealed partial class Renamer
             showInTaskList: true);
 
     /// <summary>
-    /// Maps the POST endpoints. Each lambda IMMEDIATELY delegates to an extracted instance
-    /// method so the logic is unit-testable without an HTTP host — <c>WebApplicationFactory</c> can't
-    /// mount extension routes, so we test the extracted methods directly. The host resolves the lambda
-    /// parameters from the request scope; <c>ICurrentPrincipalAccessor</c> is populated by the host's
-    /// CurrentPrincipalMiddleware.
+    /// Maps the endpoints. Each lambda IMMEDIATELY delegates to an extracted instance method, so a
+    /// handler can be driven as a plain method while an in-process host still covers the real
+    /// transport. The host resolves the lambda parameters from the request scope;
+    /// <c>ICurrentPrincipalAccessor</c> is populated by the host's CurrentPrincipalMiddleware.
+    /// <para>
+    /// A handler's DECLARED return type is where its response contract lives: each arm of its
+    /// <c>Results&lt;…&gt;</c> union publishes a status code and a payload schema into the wire
+    /// document, so a payload that does not match the declaration is a compile error rather than a
+    /// document describing a shape nothing returns. Nothing is chained onto a registration to restate
+    /// that; the one chained call below describes a body no parameter binds.
+    /// </para>
+    /// <para>
+    /// Every route also DECLARES its coarse gate with <c>RequireCovePermission</c>, in the any-of form
+    /// matching the check its own handler runs first (see <see cref="AnyReadPermissions"/>). Without a
+    /// declaration the host treats an extension endpoint as anonymous-for-compatibility and warns at
+    /// boot naming every such route. The in-handler checks STAY: the declaration is what the host reads
+    /// and audits, while the handler's own check is what keeps behavior identical on a host predating
+    /// policy enforcement — and the precise per-kind re-checks have no endpoint-level equivalent at all,
+    /// since the kind is carried in the request body and the host binds policies to route values only.
+    /// </para>
     /// </summary>
     public override void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost(PreviewRoute,
             (RenamerRequest req, DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => PreviewAsync(req, db, principal, ct));
+                => PreviewAsync(req, db, principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapPost(RenamerRoute,
             (RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs)
-                => RenamerEnqueue(req, principal, jobs));
+                => RenamerEnqueue(req, principal, jobs))
+            .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
 
-        // NB: this endpoint binds the RAW HttpContext (not a typed PreviewSampleRequest) so the
-        // handler can deserialize the body with RenamerOptions.JsonOptions — the host's default
-        // minimal-API JsonSerializerOptions has NO JsonStringEnumConverter, so a body carrying
-        // string enum values (e.g. "case":"Lower") would 400 on typed binding before the handler
-        // ran. Extension code cannot touch host startup (ConfigureHttpJsonOptions), so we parse
-        // the body ourselves with the converter-aware options.
+        // Binds the RAW HttpContext rather than a typed PreviewSampleRequest so the handler can parse
+        // the body with RenamerOptions.JsonOptions (see that member for why typed binding 400s here).
+        //
+        // .Accepts<> is what puts that body in the wire document, since no parameter declares it. It is
+        // documentation ONLY: it binds nothing, validates nothing, and changes no behavior.
         endpoints.MapPost(PreviewSampleRoute,
             (HttpContext http, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => PreviewSampleAsync(http.Request, principal, ct));
+                => PreviewSampleAsync(http.Request, principal, ct))
+            .Accepts<PreviewSampleRequest>("application/json")
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
-        // /undo takes NO request body — it operates on "the last batch", so binding no body avoids
-        // the host's enum-converter 400 trap (see the preview-sample note above); /last-batch is a plain read.
+        // /undo takes NO request body — it operates on "the last batch", so binding no body avoids the
+        // host's enum-converter 400 trap (RenamerOptions.JsonOptions); /last-batch is a plain read.
         endpoints.MapPost(UndoRoute,
-            (ICurrentPrincipalAccessor principal, CancellationToken ct) => UndoAsync(principal, ct));
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => UndoAsync(principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
 
         endpoints.MapGet(LastBatchRoute,
-            (ICurrentPrincipalAccessor principal, CancellationToken ct) => LastBatchAsync(principal, ct));
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => LastBatchAsync(principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
-        endpoints.MapGet(ListStudiosRoute,
-            (DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => ListStudiosAsync(db, principal, ct));
-
-        endpoints.MapGet(ListTagsRoute,
-            (DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => ListTagsAsync(db, principal, ct));
-
-        endpoints.MapGet(ListPerformersRoute,
-            (DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => ListPerformersAsync(db, principal, ct));
-
+        // A scan is a POST because it enqueues a job, but it is a READ: it plans and counts, and
+        // mutates neither disk nor database. So it declares the read gate its handler applies, not a
+        // write gate its verb might suggest.
         endpoints.MapPost(ScanLibraryRoute,
             (ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs) =>
-                ScanLibraryEnqueue(body, principal, jobs));
+                ScanLibraryEnqueue(body, principal, jobs))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapGet(LastScanRoute,
-            (ICurrentPrincipalAccessor principal, CancellationToken ct) => ScanLibraryResultAsync(principal, ct));
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => ScanLibraryResultAsync(principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapPost(ScanRowsRoute,
             (ScanRowsRequest? body, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => ScanRowsAsync(body, principal, ct));
+                => ScanRowsAsync(body, principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapPost(RenamerLibraryRoute,
-            (ICurrentPrincipalAccessor principal, IJobService jobs) => RenamerLibraryEnqueue(principal, jobs));
+            (ICurrentPrincipalAccessor principal, IJobService jobs) => RenamerLibraryEnqueue(principal, jobs))
+            .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
+
+        endpoints.MapGet(LibraryPathsRoute,
+            (ICurrentPrincipalAccessor principal) => LibraryPaths(principal))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
     }
+
+    /// <summary>
+    /// Cove's configured library paths — the list every destination root is CHOSEN from, so the
+    /// settings panel offers exactly the roots the planner will accept and no typed path exists to
+    /// drift from them.
+    /// </summary>
+    /// <remarks>
+    /// Reads the host configuration this extension already holds; it opens no scope and touches no
+    /// database, because the answer is in-memory host settings rather than library data. An empty list
+    /// means the host supplied no configuration, which the panel says plainly rather than presenting an
+    /// empty picker as a library with no folders in it.
+    /// </remarks>
+    internal Results<WireJson<LibraryPathsView>, ForbiddenCode> LibraryPaths(
+        ICurrentPrincipalAccessor principal)
+        => HasAnyReadPermission(principal)
+            ? new WireJson<LibraryPathsView>(new LibraryPathsView(LibraryRoots))
+            : new ForbiddenCode();
 
     /// <summary>
     /// The synchronous, read-only dry-run: runs the planner over each requested
@@ -231,8 +269,8 @@ public sealed partial class Renamer
             return new BadRequestCode("TOO_MANY_IDS", MaxEntityIdsPerRequest);
         }
 
-        var options = await new OptionsStore(Store).LoadAsync(ct);
-        var port = new CoveRenamerDataPort(db);
+        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+        var port = new CoveRenamerDataPort(db, _coveConfig);
         var planner = new RenamerPlanner(port);
 
         // Build the SAME RouteLookups the batch builds and route through the routing overload,
@@ -245,13 +283,14 @@ public sealed partial class Renamer
         foreach (var id in req.EntityIds)
         {
             ct.ThrowIfCancellationRequested();
-            var plan = await planner.PlanAsync(kind, id, options, lookups, ct);
+            var (plan, entity) = await planner.PlanWithEntityAsync(kind, id, options, lookups, ct);
             items.AddRange(plan.Items);
 
             // File sizes for the blast-radius byte sums live on the loaded entity's files, not on the
-            // plan item. Load the entity once (AsNoTracking — still zero mutation) and record each
-            // file's bytes by id; the aggregate reads them per acting item. Mirrors the batch's PHASE A.
-            var entity = await port.LoadEntityAsync(kind, id, ct);
+            // plan item — so they are read off the entity the PLANNER already loaded (AsNoTracking,
+            // still zero mutation) rather than from a second, identical multi-Include read per id.
+            // That second read doubled this endpoint's database cost for every selection. Same
+            // load-once seam the batch's PHASE A takes.
             if (entity is not null)
             {
                 foreach (var file in entity.Files)
@@ -261,22 +300,22 @@ public sealed partial class Renamer
             }
         }
 
-        // The whole-batch blast radius: a pure aggregate over the acting items + their sizes.
-        var summary = BatchPreview.Summarize(items, sizeByFileId);
+        // The whole-batch blast radius: a pure aggregate over the acting items + their sizes. The path
+        // budget is read from the loaded options ONCE and handed to both halves of the response below, so
+        // the aggregate's in-flight overflow COUNT and the per-row FLAGS cannot be measured against
+        // different limits and disagree.
+        var summary = BatchPreview.Summarize(items, sizeByFileId, options.FullPathMax);
 
-        // Serialize explicitly with PreviewResponseJsonOptions so the wire shape matches what the UI
-        // bundle reads: camelCase property names AND the RenamerStatus/ConfirmLevel enums as STRINGS
-        // ("Renamer"/"NoOp"/"SkipGated"…, "Light"/"Standard"/"Heavy"). The host's default minimal-API
-        // serializer is camelCase but emits NUMERIC enums (status:0) — the frontend's
-        // buildConfirmSummary matches on it.status === "Renamer", so a numeric enum reads as a
-        // non-renamer and the renamer would silently never fire. Extension code cannot touch host
-        // startup (ConfigureHttpJsonOptions), so we serialize here. (RenamerOptions.JsonOptions is
-        // PascalCase + tolerant-read for the options round-trip — wrong casing for a response — hence
-        // this dedicated instance.) The response is { items, summary }; the per-item array keeps its
-        // exact camelCase string-enum shape because both halves ride this SAME options instance. The
-        // domain plan items are projected onto PreviewItemView (the wire type) at this boundary.
+        // WireJson<T> writes the response with the extension's own options (CoveJsonOptions.
+        // WebWithEnumStrings) rather than the host's, so status arrives as "rename"/"noOp"/… and the
+        // UI's match on it holds. The response is { items, summary }, and both halves ride the one
+        // options instance, so the per-item array keeps its exact shape. The domain plan items are
+        // projected onto PreviewItemView (the wire type) at this boundary.
         return new WireJson<PreviewResponse>(
-            new PreviewResponse([.. items.Select(PreviewItemView.From)], summary));
+            new PreviewResponse(
+                [.. items.Select(i => PreviewItemView.From(
+                    i, BatchPreview.InFlightPathOverflows(i, options.FullPathMax)))],
+                summary));
     }
 
     /// <summary>
@@ -286,7 +325,8 @@ public sealed partial class Renamer
     /// <c>videos.write</c> in-handler (the host permission filter is inert on minimal-API endpoints)
     /// — and crucially returns 403 BEFORE any enqueue.
     /// </summary>
-    internal Results<Accepted<JobEnqueued>, BadRequestCode, ForbiddenCode> RenamerEnqueue(RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs)
+    internal Results<Accepted<JobEnqueued>, BadRequestCode, ForbiddenCode> RenamerEnqueue(
+        RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         // Kind first so the write check gates on the request's own kind (videos/images/audios.write).
         if (!TryParseKind(req.EntityType, out var kind))
@@ -322,55 +362,76 @@ public sealed partial class Renamer
 
     /// <summary>
     /// Reverse-replays the most recent renamer batch. Enforces <c>videos.write</c>
-    /// in-handler and returns 403 BEFORE any RevertLog read / scope open / disk touch (the
+    /// in-handler and returns 403 BEFORE any journal read / scope open / disk touch (the
     /// host's <c>[RequiresPermission]</c> filter is inert on minimal-API endpoints; mirrors
-    /// <see cref="RenamerEnqueue"/>). Takes no body — it always targets "the last open batch".
+    /// <see cref="RenamerEnqueue"/>). Takes no body — it always targets "the batch with rows left".
     /// <para>
-    /// Reads the last still-open batch (its <see cref="RenamerFileKind"/> from the <c>#batch</c>
-    /// header, its entityId-bearing rows newest-first), reverse-replays it via
-    /// <see cref="UndoReplayer"/> (kind from the header, entityId from each row — there is NO
-    /// hardcoded Video default on this path), then marks the batch consumed so a SECOND <c>/undo</c>
-    /// finds no open batch and returns <c>{undone:0}</c>. The batch is marked consumed even
-    /// on a partial failure: undo is not retried per-entry;
-    /// the failed/skipped buckets report what was left behind. A null/empty batch (no batch, empty
-    /// log, or already-consumed) is a clean <c>{undone:0}</c> no-op.
+    /// Names its target through <see cref="IRevertJournal.ReadUndoTargetAsync"/> — the same read the
+    /// panel's summary uses, so the batch described and the batch acted on cannot be different ones —
+    /// then reads that batch's rows A PAGE AT A TIME and reverse-replays each page via
+    /// <see cref="UndoReplayer"/> (kind from the batch, entityId from each row — there is NO hardcoded
+    /// Video default on this path). Every row whose outcome is settled is RETIRED: one that was
+    /// restored, and one that stopped for the single reason no retry can improve on. A row that stopped
+    /// for any other reason stays in the journal, so a later <c>/undo</c> retries exactly the work that
+    /// is still outstanding, and a batch with nothing left is not offered again. A null/empty batch is a
+    /// clean <c>{undone:0}</c> no-op.
+    /// </para>
+    /// <para>
+    /// Paging bounds this handler's memory by the page size rather than by the library, because a batch
+    /// is as large as the library. Each page is handed to the replayer wrapped in the same
+    /// <see cref="RevertBatch"/> record it already consumed: the replayer's signature, its per-entity
+    /// path cache and its whole restore spine are deliberately untouched here. That spine is the
+    /// destructive path, and a memory fix has no business rewriting it.
+    /// </para>
+    /// <para>
+    /// The RESPONSE is bounded the same way, and for the same reason: each page's outcome is folded into
+    /// an <see cref="UndoRunAccumulator"/>, which keeps a total per channel and describes at most
+    /// <see cref="UndoRunAccumulator.MaxSampleEntries"/> entries of each. Neither the cap nor the fold is
+    /// consulted by a restore or a retirement, so an undo of any size still puts back and retires every
+    /// row it reaches.
     /// </para>
     /// </summary>
-    internal async Task<Results<WireJson<UndoResult>, ForbiddenCode>> UndoAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
+    internal async Task<Results<WireJson<UndoResult>, ForbiddenCode>> UndoAsync(
+        ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
-        // 403 FIRST for a caller holding NO renamer-write permission of any kind — before any RevertLog
+        // 403 FIRST for a caller holding NO renamer-write permission of any kind — before any journal
         // read or disk touch, so an unauthorized caller cannot even learn whether a batch exists. The
-        // SPECIFIC kind's write permission is re-checked below once the batch header reveals the kind;
-        // this coarse gate only preserves the "no read/disk work for the wholly-unauthorized" property.
-        bool canWriteAny = principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosWrite)
-                || principal.Current.Has(Permissions.ImagesWrite)
-                || principal.Current.Has(Permissions.AudiosWrite));
-        if (!canWriteAny)
+        // SPECIFIC kind's write permission is re-checked below once the batch reveals the kind; this
+        // coarse gate only preserves the "no read/disk work for the wholly-unauthorized" property.
+        if (!HasAnyWritePermission(principal))
         {
             return new ForbiddenCode();
         }
 
-        var revertLog = new RevertLog(Store);
+        // Open a scope the SAME way RunRenamerBatchAsync does and resolve the scoped DbContext. It is
+        // opened before the batch read because the journal now lives in the database rather than in the
+        // extension store — a scope open is not a mutation, so the "an under-permissioned caller
+        // changes nothing" property the per-kind re-gate below protects is unaffected.
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<DbContext>();
+        using var journal = new CoveRevertJournal(db);
 
-        // The summary carries the runId we mark consumed after the replay.
-        var summary = await revertLog.ReadLastBatchSummaryAsync(ct);
-        var batch = await revertLog.ReadLastOpenBatchAsync(ct);
-        // Guard `summary` explicitly rather than relying on the implicit (and non-atomic)
-        // coupling that `batch != null` forces `summary != null`. The two reads are separate store
-        // reads; treating a missing summary as a clean no-op makes the nullability safe instead of
-        // `!`-suppressed, so a future parser change (e.g. a header-only batch returning a null summary)
-        // can never turn the `summary.Value.RunId` dereferences below into a runtime NRE.
-        if (batch is null || batch.Entries.Count == 0 || summary is null)
+        var target = await journal.ReadUndoTargetAsync(ct);
+        if (target is null)
         {
-            return new WireJson<UndoResult>(new UndoResult(0, [], []));
+            return new WireJson<UndoResult>(new UndoRunAccumulator().ToResult());
         }
 
-        // Re-gate on the WRITE permission of the kind that was actually renamed (the batch header
-        // carries it) — undoing an image renamer requires images.write, not videos.write. This is
-        // checked after the batch read (needed to learn the kind) but BEFORE the options load, scope
-        // open, or any disk touch, so an under-permissioned caller still mutates nothing.
-        var (_, undoWritePermission) = PermissionsFor(batch.Kind);
+        // The first page is read BEFORE the per-kind re-gate, exactly where the whole-batch read used to
+        // sit: a settled batch is the "nothing to undo" answer for every caller holding any renamer
+        // write permission, not a 403 that would also disclose which kind the settled batch was.
+        var page = await journal.ReadBatchPageAsync(
+            target.Value.RunId, belowSeq: long.MaxValue, CoveRevertJournal.DefaultPageSize, ct);
+        if (page.Count == 0)
+        {
+            return new WireJson<UndoResult>(new UndoRunAccumulator().ToResult());
+        }
+
+        // Re-gate on the WRITE permission of the kind that was actually renamed (the batch carries it)
+        // — undoing an image renamer requires images.write, not videos.write. This is checked after the
+        // batch read (needed to learn the kind) but BEFORE the options load and any disk touch, so an
+        // under-permissioned caller still mutates nothing.
+        var (_, undoWritePermission) = PermissionsFor(target.Value.Kind);
         if (Forbidden(principal, undoWritePermission) is { } denied)
         {
             return denied;
@@ -380,64 +441,88 @@ public sealed partial class Renamer
         // unauthorized or no-op request still short-circuits without the load), mirroring PreviewAsync.
         // The undo RE-GATES each restore target against options.AllowedRoots — the same write boundary
         // the forward move used — so a restore can never land outside the allowed roots.
-        var options = await new OptionsStore(Store).LoadAsync(ct);
+        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
 
-        // Open a scope the SAME way RunRenamerBatchAsync does and resolve the scoped DbContext.
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-
-        var replayer = new UndoReplayer(new CoveRenamerDataPort(db), EventBus, new DiskMover(),
+        var replayer = new UndoReplayer(new CoveRenamerDataPort(db, _coveConfig), EventBus, new DiskMover(),
             cross: new CrossVolumeMover(), allowedRoots: options.AllowedRoots);
-        var run = await replayer.RevertAsync(batch, ct);
 
-        LogUndo(summary.Value.RunId, batch, run);
+        // Folded page by page rather than concatenated: a batch reaches library size, so keeping every
+        // page's entries would rebuild in this handler's memory — and then on the wire — exactly the
+        // library-sized value the paged read above removed. What survives the loop is four totals and
+        // three capped samples. The host log still receives every entry, per page, which is where the
+        // full detail belongs.
+        var accumulated = new UndoRunAccumulator();
 
-        // Consume the batch only when at least one entry was actually restored. A run that restored
-        // nothing — every entry skipped or failed — must leave the batch OPEN so the operation can be
-        // retried after the cause is corrected (e.g. an allowlist that didn't yet cover the original
-        // location, an offline source drive, a temporarily-locked file). Marking an all-skipped run
-        // spent would permanently foreclose the only recovery path and strand the file at its new
-        // location. Re-running undo is inherently safe: each already-restored row finds its old slot
-        // occupied and skips (no clobber), so a retry only acts on the entries that still need it.
-        if (run.Undone > 0)
+        while (page.Count > 0)
         {
-            await revertLog.MarkLastBatchConsumedAsync(summary.Value.RunId, ct);
+            var pageBatch = new RevertBatch(target.Value.RunId, target.Value.Kind, page);
+            var run = await replayer.RevertAsync(pageBatch, ct);
+
+            LogUndoEntries(target.Value.RunId, pageBatch, run);
+
+            accumulated.Add(run);
+
+            // Retire each row whose file actually came back. A row that stopped for a reason the world
+            // can clear STAYS, so it is offered again on the next undo — which is what makes a retry act
+            // on exactly the work still outstanding after the cause is corrected (an allowlist that
+            // didn't yet cover the original location, an offline source drive, a locked file).
+            foreach (var row in run.Restored)
+            {
+                await journal.DeleteRowAsync(row.RunId, row.Seq, unrestorable: false, ct);
+            }
+
+            // A row that can NEVER be restored is retired too, on the other counter. Leaving it would
+            // keep the batch offering an undo that cannot complete, and the panel promising work that
+            // will never happen; the aggregate still records that it ended unrestorable, and the reason
+            // was already surfaced in this very response. The decision reads the TYPED stop reason — the
+            // same fact as the note beside it, but as a value, so rewording a message for a human cannot
+            // change which rows get deleted for good.
+            //
+            // The same single call carries both outcomes, which is what keeps row presence and the batch
+            // aggregate from drifting apart: the row goes away either way and the flag only chooses
+            // which counter moves.
+            foreach (var stopped in run.Failed.Concat(run.Skipped)
+                .Where(stopped => UndoTerminalClassifier.IsTerminal(stopped.Stop)))
+            {
+                await journal.DeleteRowAsync(stopped.RunId, stopped.Seq, unrestorable: true, ct);
+            }
+
+            // The cursor is the LOWEST sequence this page returned, and the next page returns only rows
+            // strictly below it — so the cursor strictly decreases and the loop terminates whatever the
+            // outcomes were. A cursor that failed to advance would re-read the same page forever, which
+            // is a hang rather than an error, so it is pinned by a test rather than left to review.
+            page = await journal.ReadBatchPageAsync(
+                target.Value.RunId, page[^1].Seq, CoveRevertJournal.DefaultPageSize, ct);
         }
 
-        return new WireJson<UndoResult>(new UndoResult(
-            run.Undone,
-            [.. run.Failed.Select(f => new UndoEntryError(f.FileId, f.OldPath, f.NewPath, f.Reason))],
-            [.. run.Skipped.Select(s => new UndoEntryError(s.FileId, s.OldPath, s.NewPath, s.Reason))]));
+        // The log line reports the run's TOTALS, which are the accumulator's counts and never a sample's
+        // length: a host log that under-reported a large undo would be worse than no line at all.
+        var result = accumulated.ToResult();
+        LogUndoDone(target.Value.RunId, result.Undone, result.SkippedCount, result.FailedCount);
+
+        return new WireJson<UndoResult>(result);
     }
 
     /// <summary>
-    /// Records the outcome of reverse-replaying a batch to the host log: a line per restored file
-    /// (current → original), per skip/failure (with reason), and a summary. The restored entries are
-    /// the batch rows that are NOT in the failed/skipped buckets (the run result only returns the
-    /// restored COUNT, so they are derived here by difference).
-    /// <para>
-    /// The difference is keyed on the ROW IDENTITY <c>(FileId, OldPath)</c> — NOT on FileId alone. A
-    /// single batch can legitimately contain two rows with the same FileId (a file renamed twice within
-    /// one run, or a duplicated row the tolerant parser admits); keying on FileId alone would drop BOTH
-    /// such rows from the restored log when only one was a problem (under-reporting restores), or
-    /// mislabel a failed duplicate as restored. Two rows for one file necessarily differ in their old
-    /// path — the second row's old path is where the first row's rename left it — so the pair is the
-    /// row's unique identity within the batch and each row is bucketed exactly once.
-    /// </para>
+    /// Records the outcome of reverse-replaying ONE PAGE of a batch to the host log: a line per
+    /// restored file (current → original) and one per skip/failure (with reason).
     /// </summary>
-    private void LogUndo(string runId, RevertLog.RevertBatch batch, UndoReplayer.UndoRunResult run)
+    /// <remarks>
+    /// The run's closing summary line is deliberately NOT written here: an undo replays as many pages
+    /// as the batch has, and a "done" line per page would report a fraction of the run as the whole of
+    /// it. The caller writes it once, from the totals.
+    /// <para>
+    /// The restored rows are the ones the replayer reports, never a set derived by subtracting the
+    /// problem buckets from the batch. A single batch can legitimately hold two rows for the same file
+    /// (renamed twice within one run), so a derived set has to reconstruct each row's identity from its
+    /// paths to bucket it once — and get that reconstruction exactly right. The replayer already knows
+    /// which rows it restored.
+    /// </para>
+    /// </remarks>
+    private void LogUndoEntries(string runId, RevertBatch batch, UndoReplayer.UndoRunResult run)
     {
-        var problemRows = run.Failed.Select(f => (f.FileId, f.OldPath))
-            .Concat(run.Skipped.Select(s => (s.FileId, s.OldPath)))
-            .ToHashSet();
-
-        foreach (var entry in batch.Entries)
+        foreach (var entry in run.Restored)
         {
-            if (problemRows.Contains((entry.FileId, entry.OldPath)))
-            {
-                continue;
-            }
-
             LogUndoRestored(runId, batch.Kind, entry.EntityId, entry.OldPath);
         }
 
@@ -451,133 +536,90 @@ public sealed partial class Renamer
             LogUndoFailed(runId, f.FileId, f.Reason);
         }
 
-        LogUndoDone(runId, run.Undone, run.Skipped.Count, run.Failed.Count);
+        // Entries that were restored anyway, minus a companion file. They are in no counted bucket, so
+        // this loop is the only place a partial restore surfaces in the log.
+        foreach (var w in run.Warnings)
+        {
+            LogUndoSidecarStranded(runId, w.FileId, w.Detail);
+        }
     }
 
     /// <summary>
-    /// Returns the paths-free summary of the most recent batch for the undo panel: its
-    /// row count, open timestamp, and consumed flag — no paths. Enforces <c>videos.read</c>
-    /// in-handler (403-first; minimal-API <c>[RequiresPermission]</c> is inert). An empty log
+    /// Returns the paths-free summary of the batch an undo would act on: its original file
+    /// count, how many of those are still outstanding, how many can never come back, its open
+    /// timestamp, and its spent flag — no paths. Enforces <c>videos.read</c>
+    /// in-handler (403-first; minimal-API <c>[RequiresPermission]</c> is inert). An empty journal
     /// returns <see cref="LastBatchSummary"/> with <c>HasBatch:false</c>.
     /// </summary>
-    internal async Task<Results<WireJson<LastBatchSummary>, ForbiddenCode>> LastBatchAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
+    /// <remarks>
+    /// A batch is spent when it has no rows left to restore, which is derived from the aggregate rather
+    /// than stored: a row exists exactly while its file still needs restoring, so "nothing remains" and
+    /// "already undone" are the same fact and cannot disagree. The outstanding count is derived from the
+    /// same aggregate for the same reason — a fourth stored number is a fourth number that can go stale,
+    /// and it is the one the panel's button acts on.
+    /// <para>
+    /// Reads the batch row only. It never touches the row table, so the response stays O(1) whatever the
+    /// batch's size — which is also what keeps this endpoint's coarse permission gate defensible.
+    /// </para>
+    /// </remarks>
+    internal async Task<Results<WireJson<LastBatchSummary>, ForbiddenCode>> LastBatchAsync(
+        ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         // This is the undo panel's paths-free "is there a batch to undo?" probe (count + timestamp +
         // consumed flag only — no paths). A user who can renamer ANY kind may see it, so gate on holding
         // ANY renamer-read permission rather than videos.read specifically. The summary does not carry
         // the batch kind, so a per-kind gate would require reading the full batch for a metadata probe.
-        bool canReadAny = principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosRead)
-                || principal.Current.Has(Permissions.ImagesRead)
-                || principal.Current.Has(Permissions.AudiosRead));
-        if (!canReadAny)
+        if (!HasAnyReadPermission(principal))
         {
             return new ForbiddenCode();
         }
 
-        var summary = await new RevertLog(Store).ReadLastBatchSummaryAsync(ct);
+        // The journal is a database read now, so this endpoint needs the scope it never had.
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<DbContext>();
+
+        using var journal = new CoveRevertJournal(db);
+
+        // The SAME read /undo names its target with, which is what makes the line this endpoint feeds
+        // describe the batch the button will act on. Two reads that merely agreed today drifted the
+        // moment a newer batch could settle while an older one still held rows.
+        var summary = await journal.ReadUndoTargetAsync(ct);
         return new WireJson<LastBatchSummary>(new LastBatchSummary(
             HasBatch: summary is not null,
-            Count: summary?.Count ?? 0,
+            Count: summary?.OriginalCount ?? 0,
+            RemainingCount: summary?.Remaining ?? 0,
+            UnrestorableCount: summary?.UnrestorableCount ?? 0,
             WrittenAtUtcTicks: summary?.WrittenAtUtcTicks ?? 0,
-            Consumed: summary?.Consumed ?? false));
-    }
-
-    /// <summary>The lightweight id+name projection a routing/exclude picker resolves a name to a stable id against.</summary>
-    internal readonly record struct EntityRef(int Id, string Name);
-
-    /// <summary>
-    /// Lists the library's studios as id+name for the picker. Gated on holding ANY renamer-read
-    /// permission — these are library-wide reference lists, not per-kind data, so the coarse any-read
-    /// gate matches the sibling read endpoint (<see cref="LastBatchAsync"/>) rather than a specific
-    /// kind's read. Read AsNoTracking so the live library rows are never written back.
-    /// </summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
-        Justification = "Kept as an instance method to match its sibling endpoint handlers and the test " +
-            "call sites that invoke it through an extension instance.")]
-    internal async Task<Results<WireJson<EntityRef[]>, ForbiddenCode>> ListStudiosAsync(
-        DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
-    {
-        // 403 FIRST — before any DB query, so an unauthorized caller reads no rows.
-        if (!HasAnyReadPermission(principal))
-        {
-            return new ForbiddenCode();
-        }
-
-        // Set<Studio>() reads through the base DbContext seam (the data port binds the base type, not the
-        // host's concrete context, which this project does not reference); the projection returns ONLY
-        // id+name so no other Studio column can leak.
-        var rows = await db.Set<Studio>().AsNoTracking()
-            .OrderBy(s => s.Name)
-            .Select(s => new EntityRef(s.Id, s.Name))
-            .ToArrayAsync(ct);
-
-        return new WireJson<EntityRef[]>(rows);
+            Consumed: summary is not null && summary.Value.Remaining == 0));
     }
 
     /// <summary>
-    /// Lists the library's tags as id+name for the picker. Same any-read gate, AsNoTracking read, and
-    /// id+name-only projection as <see cref="ListStudiosAsync"/>.
+    /// The renamable kinds' read (respectively write) permissions — the "any of these" set a coarse
+    /// gate is satisfied by.
     /// </summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
-        Justification = "Kept as an instance method to match its sibling endpoint handlers and the test " +
-            "call sites that invoke it through an extension instance.")]
-    internal async Task<Results<WireJson<EntityRef[]>, ForbiddenCode>> ListTagsAsync(
-        DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
-    {
-        if (!HasAnyReadPermission(principal))
-        {
-            return new ForbiddenCode();
-        }
+    /// <remarks>
+    /// Read BOTH by the in-handler helpers below and by the endpoint policies in
+    /// <see cref="MapEndpoints"/>, deliberately: the declared policy and the check the handler runs are
+    /// then the same set by construction. A policy that merely agreed with its handler when it was
+    /// written is the divergence worth designing out — the endpoint would advertise one gate to the host
+    /// while enforcing another, and no test that drives the handler directly could see the difference.
+    /// </remarks>
+    private static readonly string[] AnyReadPermissions =
+        [Permissions.VideosRead, Permissions.ImagesRead, Permissions.AudiosRead];
 
-        var rows = await db.Set<Tag>().AsNoTracking()
-            .OrderBy(t => t.Name)
-            .Select(t => new EntityRef(t.Id, t.Name))
-            .ToArrayAsync(ct);
-
-        return new WireJson<EntityRef[]>(rows);
-    }
-
-    /// <summary>
-    /// Lists the library's performers as id+name for the picker. Same any-read gate, AsNoTracking read,
-    /// and id+name-only projection as <see cref="ListStudiosAsync"/>.
-    /// </summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
-        Justification = "Kept as an instance method to match its sibling endpoint handlers and the test " +
-            "call sites that invoke it through an extension instance.")]
-    internal async Task<Results<WireJson<EntityRef[]>, ForbiddenCode>> ListPerformersAsync(
-        DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
-    {
-        if (!HasAnyReadPermission(principal))
-        {
-            return new ForbiddenCode();
-        }
-
-        var rows = await db.Set<Performer>().AsNoTracking()
-            .OrderBy(p => p.Name)
-            .Select(p => new EntityRef(p.Id, p.Name))
-            .ToArrayAsync(ct);
-
-        return new WireJson<EntityRef[]>(rows);
-    }
+    private static readonly string[] AnyWritePermissions =
+        [Permissions.VideosWrite, Permissions.ImagesWrite, Permissions.AudiosWrite];
 
     private static bool HasAnyReadPermission(ICurrentPrincipalAccessor principal)
-        => principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosRead)
-                || principal.Current.Has(Permissions.ImagesRead)
-                || principal.Current.Has(Permissions.AudiosRead));
+        => principal.Current is { } current && Array.Exists(AnyReadPermissions, current.Has);
 
     private static bool HasAnyWritePermission(ICurrentPrincipalAccessor principal)
-        => principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosWrite)
-                || principal.Current.Has(Permissions.ImagesWrite)
-                || principal.Current.Has(Permissions.AudiosWrite));
+        => principal.Current is { } current && Array.Exists(AnyWritePermissions, current.Has);
 
     /// <summary>
-    /// Every renamable kind, in a fixed iteration order. Gallery is excluded — it is not yet a
-    /// renamable kind (<see cref="TryParseKind"/> never produces it, <c>LoadEntityAsync</c> returns
-    /// null for it). Shared by the whole-library scan and renamer-library job loops so both iterate
-    /// the same three kinds in the same order.
+    /// Every renamable kind, in a fixed iteration order — which is every <see cref="RenamerFileKind"/>
+    /// member, since the enum holds nothing else. Shared by the whole-library scan and renamer-library
+    /// job loops so both iterate the same three kinds in the same order.
     /// </summary>
     private static readonly RenamerFileKind[] RenamableKinds =
         [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio];
@@ -592,11 +634,12 @@ public sealed partial class Renamer
     /// the principal's held read kinds into the job closure so the job body can apply the SAME per-kind
     /// skip a partial-permission caller would see from <see cref="PreviewAsync"/>, without re-resolving
     /// <see cref="ICurrentPrincipalAccessor"/> from inside the detached job. The scan summary is persisted
-    /// under the FIXED <see cref="LastScanSummaryKey"/> (mirroring how <c>RevertLog</c> always targets
+    /// under the FIXED <see cref="LastScanSummaryKey"/> (mirroring how the undo panel always targets
     /// "the last batch") rather than a per-jobId key, since the id <c>Enqueue</c> mints is not available
     /// to the job body before <c>Enqueue</c> returns.
     /// </summary>
-    internal Results<Accepted<JobEnqueued>, ForbiddenCode> ScanLibraryEnqueue(ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs)
+    internal Results<Accepted<JobEnqueued>, ForbiddenCode> ScanLibraryEnqueue(
+        ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         if (!HasAnyReadPermission(principal))
         {
@@ -665,7 +708,8 @@ public sealed partial class Renamer
     /// future version costs the user one dry run and not a 500.
     /// </para>
     /// </summary>
-    internal async Task<Results<WireJson<ScanSummaryView>, NotFound, ForbiddenCode>> ScanLibraryResultAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
+    internal async Task<Results<WireJson<ScanSummaryView>, NotFound, ForbiddenCode>> ScanLibraryResultAsync(
+        ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         if (!HasAnyReadPermission(principal))
         {
@@ -735,13 +779,13 @@ public sealed partial class Renamer
             cursor = new ScanCursor(cursorKind, Math.Max(body.AfterEntityId ?? 0, 0));
         }
 
-        var options = TryParseOptionsOverride(body?.Options) ?? await new OptionsStore(Store).LoadAsync(ct);
+        var options = TryParseOptionsOverride(body?.Options) ?? await new OptionsStore(Store, _log).LoadAsync(ct);
         var lookups = BuildLookups(options);
         var readableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
 
         await using var scope = ScopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-        var port = new CoveRenamerDataPort(db);
+        var port = new CoveRenamerDataPort(db, _coveConfig);
         var pager = new ScanRowPager(new RenamerPlanner(port), port);
 
         var page = await pager.PageAsync(
@@ -756,9 +800,9 @@ public sealed partial class Renamer
     /// </summary>
     /// <param name="readableKinds">
     /// The kinds the enqueuing principal held read permission for, captured at enqueue time — the job
-    /// runs detached from the original request, so this is the only way the per-kind skip (Pitfall 2:
-    /// a partial-permission caller's scan must omit a kind they cannot read, never 403 the whole job)
-    /// reaches the job body.
+    /// runs detached from the original request, so this is the only way the per-kind skip reaches the
+    /// job body: a partial-permission caller's scan must omit a kind they cannot read, never 403 the
+    /// whole job.
     /// </param>
     /// <param name="overrideOptions">
     /// The caller's current options for a dry run on unsaved edits, or null to scan the saved options.
@@ -772,11 +816,17 @@ public sealed partial class Renamer
     {
         // A dry run previews the caller's CURRENT (possibly unsaved) options when they were sent;
         // otherwise it scans the saved options — the original behavior.
-        var options = overrideOptions ?? await new OptionsStore(Store).LoadAsync(ct);
+        var options = overrideOptions ?? await new OptionsStore(Store, _log).LoadAsync(ct);
 
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-        await RunScanCoreAsync(new CoveRenamerDataPort(db), readableKinds, options, progress, ct);
+        // The widest of the elevated bodies, because RunScanCoreAsync takes a PORT rather than a
+        // service provider — deliberately, so its boundedness is provable over a fake — and so there is
+        // no narrower seam here to wrap. Per-kind authorization still reaches the detached job through
+        // readableKinds, captured at enqueue time.
+        await Cove.Extensions.Shared.RunAsSystem.RunInSystemScopeAsync(ScopeFactory, services =>
+        {
+            var db = services.GetRequiredService<DbContext>();
+            return RunScanCoreAsync(new CoveRenamerDataPort(db, _coveConfig), readableKinds, options, progress, ct);
+        });
     }
 
     /// <summary>
@@ -806,12 +856,11 @@ public sealed partial class Renamer
     {
         var lookups = BuildLookups(options);
         var planner = new RenamerPlanner(port);
-        var aggregator = new ScanAggregator();
+        var aggregator = new ScanAggregator(options.FullPathMax);
 
-        // Load every kind's ids up front so the TOTAL is known before planning — the scan previously
-        // reported only a single Report(1.0) at the end, so the job jumped 0%→100% with no intermediate
-        // feedback. A denominator lets each planned entity advance the bar. The id-only queries are cheap
-        // (they were already run one-per-kind below; this just hoists them so the total is available).
+        // Load every kind's ids up front so the TOTAL is known before planning: without a denominator
+        // the job can only report a single 1.0 at the end and jumps 0%→100% with no feedback. The
+        // id-only queries are cheap, and each kind needs its list below regardless.
         var idsByKind = new List<(RenamerFileKind Kind, IReadOnlyList<int> Ids)>(readableKinds.Count);
         foreach (var kind in readableKinds)
         {
@@ -835,10 +884,10 @@ public sealed partial class Renamer
         int done = 0;
         foreach (var (kind, ids) in idsByKind)
         {
-            // The scan previously issued one heavy multi-Include query per entity (100K entities = 100K
-            // sequential round-trips — the scan bottleneck). Batch-load instead, one chunk at a time:
-            // the loaded entities AND their file-size map are released with each chunk, so neither the
-            // graphs nor the sizes are ever held for the whole library. The chunk size is the port's own
+            // Batch-load one chunk at a time rather than a heavy multi-Include query per entity, which
+            // costs one sequential round-trip per entity across the whole library. The loaded entities
+            // AND their file-size map are released with each chunk, so neither the graphs nor the
+            // sizes are ever held for the whole library. The chunk size is the port's own
             // single decision. Each chunk's entities are re-ordered by the (ascending) id list because
             // the batch load returns DB order, preserving the per-id order and the progress cadence.
             foreach (var chunk in ids.Chunk(CoveRenamerDataPort.LoadChunkSize))
@@ -858,7 +907,7 @@ public sealed partial class Renamer
                     // yielded an empty plan.
                     if (byId.TryGetValue(id, out var entity))
                     {
-                        var plan = await planner.PlanLoadedEntity(entity, options, lookups, ct);
+                        var plan = await planner.PlanLoadedEntityAsync(entity, options, lookups, ct);
                         aggregator.Fold(kind, plan, sizeByFileId);
                     }
 
@@ -891,7 +940,8 @@ public sealed partial class Renamer
     /// the principal's held write kinds into the job closure (the job runs detached from the request, so
     /// it cannot re-resolve <see cref="ICurrentPrincipalAccessor"/> itself).
     /// </summary>
-    internal Results<Accepted<JobEnqueued>, ForbiddenCode> RenamerLibraryEnqueue(ICurrentPrincipalAccessor principal, IJobService jobs)
+    internal Results<Accepted<JobEnqueued>, ForbiddenCode> RenamerLibraryEnqueue(
+        ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         if (!HasAnyWritePermission(principal))
         {
@@ -914,14 +964,16 @@ public sealed partial class Renamer
     /// and — when the list is non-empty — calls the EXISTING <see cref="RunRenamerBatchAsync"/> ONCE for
     /// that kind, exactly as <c>/renamer</c> already does for a single-kind selection. A kind with zero
     /// candidate ids is skipped entirely (no call into <see cref="RunRenamerBatchAsync"/> for it), so no
-    /// empty <c>RevertLog</c> batch header opens for it — matching that method's own "nothing acts → no
-    /// batch" behavior. Never combines kinds into one call: <c>RevertLog</c>'s batch header is one
-    /// <see cref="RenamerFileKind"/> per batch by design, so a whole-library renamer across all three kinds
+    /// empty journal batch opens for it — matching that method's own "nothing acts → no
+    /// batch" behavior. Never combines kinds into one call: a journal batch carries one
+    /// <see cref="RenamerFileKind"/> by design, so a whole-library renamer across all three kinds
     /// naturally opens up to three separate batches/runIds, one per acting kind — this introduces NO
-    /// multi-kind batch format and NO engine/executor/<c>RevertLog</c> change. A consequence worth
-    /// noting (not fixed here, out of scope): <c>/undo</c> only replays the single LAST open batch, so if
-    /// this run touches more than one kind, only the last kind's batch is undoable via the existing
-    /// single-shot Undo button.
+    /// multi-kind batch format and NO engine/executor/journal change. A consequence worth noting:
+    /// undoing such a run takes one press of the Undo button per acting kind, because
+    /// <see cref="UndoAsync"/> acts on one batch per call — see its summary for how that batch is named.
+    /// Successive presses therefore walk back from the kind the run reached LAST to the kind it reached
+    /// first, and every batch the run opened is reachable to a caller holding that kind's write
+    /// permission; none of them is stranded.
     /// </summary>
     /// <param name="writableKinds">The kinds the enqueuing principal held write permission for, captured at enqueue time (same rationale as <see cref="RunScanLibraryJobAsync"/>'s <c>readableKinds</c> parameter).</param>
     /// <param name="progress">The job-progress sink, forwarded into each per-kind <see cref="RunRenamerBatchAsync"/> call.</param>
@@ -933,12 +985,13 @@ public sealed partial class Renamer
         {
             ct.ThrowIfCancellationRequested();
 
-            IReadOnlyList<int> ids;
-            await using (var scope = ScopeFactory.CreateAsyncScope())
-            {
-                var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-                ids = await new CoveRenamerDataPort(db).LoadAllEntityIdsAsync(kind, ct);
-            }
+            var ids = await Cove.Extensions.Shared.RunAsSystem.RunInSystemScopeAsync(
+                ScopeFactory,
+                services =>
+                {
+                    var db = services.GetRequiredService<DbContext>();
+                    return new CoveRenamerDataPort(db, _coveConfig).LoadAllEntityIdsAsync(kind, ct);
+                });
 
             if (ids.Count == 0)
             {
@@ -951,14 +1004,13 @@ public sealed partial class Renamer
             await RunRenamerBatchAsync(parameters, progress, ct);
         }
 
-        progress.Report(1d, "Library renamer complete.");
+        progress.Report(1d, "Library rename complete.");
     }
 
     /// <summary>
     /// The reverse of <see cref="TryParseKind"/>: maps a <see cref="RenamerFileKind"/> back to the
-    /// lowercase-singular Cove entity-type string <see cref="RenamerJob.Encode"/> expects. Only the three
-    /// renamable kinds round-trip (Gallery never reaches this method — <see cref="RenamableKinds"/>
-    /// excludes it).
+    /// lowercase-singular Cove entity-type string <see cref="RenamerJob.Encode"/> expects. All three
+    /// renamable kinds round-trip; the fallthrough exists only for an out-of-range cast.
     /// </summary>
     private static string EntityTypeFor(RenamerFileKind kind) => kind switch
     {
@@ -976,11 +1028,9 @@ public sealed partial class Renamer
     /// Enforces <c>videos.read</c> in-handler BEFORE any body read or engine work (minimal-API
     /// <c>[RequiresPermission]</c> is inert — mirrors <see cref="PreviewAsync"/>).
     /// <para>
-    /// The body is deserialized with <see cref="RenamerOptions.JsonOptions"/> (case-insensitive +
-    /// <c>JsonStringEnumConverter</c>) rather than the host's default minimal-API options, which lack
-    /// the enum converter — so a panel body carrying string enum values (<c>"case":"Lower"</c>,
-    /// <c>"onOverflow":"KeepFirst"</c>, <c>"sort":"NameAsc"</c>) deserializes instead of 400ing. Empty
-    /// or <c>null</c>-Options body → safe defaults; MALFORMED JSON → 400.
+    /// The body is deserialized with <see cref="RenamerOptions.JsonOptions"/> (see that member for why
+    /// the host's default options cannot bind it). Empty or <c>null</c>-Options body → safe defaults;
+    /// MALFORMED JSON → 400.
     /// </para>
     /// </summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
@@ -988,17 +1038,17 @@ public sealed partial class Renamer
             "(PreviewAsync/RenamerEnqueue/UndoAsync/LastBatchAsync) and the test call sites that invoke " +
             "it through an extension instance; making it static would churn those call sites without " +
             "any behavior change.")]
-    internal async Task<Results<WireJson<IReadOnlyList<PreviewSampleResult>>, BadRequestCode, ForbiddenCode>> PreviewSampleAsync(
-        HttpRequest httpReq, ICurrentPrincipalAccessor principal, CancellationToken ct)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S2325:Methods and properties that don't access instance data should be static",
+        Justification = "Sonar's twin of the CA1822 suppression above; the same reason applies and is " +
+            "not restated. Suppressed rather than fixed because the fix is the call-site churn that " +
+            "reason declines.")]
+    internal async Task<Results<WireJson<IReadOnlyList<PreviewSampleResult>>, BadRequestCode, ForbiddenCode>>
+        PreviewSampleAsync(HttpRequest httpReq, ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         // Enforce permission BEFORE touching the body — never read/parse for an unauthorized caller.
         // The sample preview is a pure template render over fixed Video/Image/Audio samples (no DB, no
         // selection), so gate on holding ANY renamer-read permission rather than videos.read specifically.
-        bool canReadAny = principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosRead)
-                || principal.Current.Has(Permissions.ImagesRead)
-                || principal.Current.Has(Permissions.AudiosRead));
-        if (!canReadAny)
+        if (!HasAnyReadPermission(principal))
         {
             return new ForbiddenCode();
         }
@@ -1022,8 +1072,6 @@ public sealed partial class Renamer
             PreviewSampleRequest? req;
             try
             {
-                // Converter-aware parse: case-insensitive props + JsonStringEnumConverter, so a body
-                // carrying string enum values deserializes instead of 400ing on the host's default opts.
                 req = JsonSerializer.Deserialize<PreviewSampleRequest>(body, RenamerOptions.JsonOptions);
             }
             catch (JsonException)

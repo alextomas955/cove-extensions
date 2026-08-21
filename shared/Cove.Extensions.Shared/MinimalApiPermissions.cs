@@ -5,8 +5,8 @@ namespace Cove.Extensions.Shared;
 /// <summary>Shared authorization gate for extension minimal-API endpoints.</summary>
 /// <remarks>
 /// The host <c>[RequiresPermission]</c> filter is MVC-only and inert on minimal-API endpoints, so
-/// every handler must re-check the principal itself. This centralizes the one 403 gate both
-/// extensions use.
+/// every handler must re-check the principal itself. This is the one 403 gate every extension in
+/// this repository re-checks through, so the denial is spelled once rather than per handler.
 /// </remarks>
 public static class MinimalApiPermissions
 {

@@ -2,13 +2,28 @@
   <!--
     Provenance + license metadata. The extension ships as a folder, not a NuGet package, so these are
     informational rather than packaging-critical, but they keep authorship and the AGPL-3.0 license
-    honest in the assembly + any future packaging. RepositoryUrl mirrors the manifest/class Url; if a
-    canonical public repo URL differs later, update all three together.
+    honest in the assembly + any future packaging. RepositoryUrl mirrors extension.json's `url` and
+    moves with it — there are two sites, not three. Do NOT add a matching Url to the extension class:
+    the host reads a class property in preference to the manifest, which is how a dead repository URL
+    once shipped, and ExtensionIdentityTests pins that absence.
   -->
   <PropertyGroup>
     <Authors>alextomas955</Authors>
-    <RepositoryUrl>https://github.com/alextomas955/renamer</RepositoryUrl>
+    <RepositoryUrl>https://github.com/alextomas955/cove-extensions</RepositoryUrl>
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
+      CS8524 asks a discard-free switch over an enum to also handle values OUTSIDE the named set — a
+      cast integer no member stands for. Satisfying it costs the guarantee that motivates writing the
+      switch discard-free: the only way to name that case is a catch-all arm, which then also swallows
+      every NAMED member added later, silently, which is the collapse this classification was unified
+      to remove. Suppressing it gives up nothing that matters here, because the failure worth catching
+      is a new named member, and that is CS8509's job — a separate diagnostic, left live. Scoped to
+      this project rather than the root props so the trade stays where the reasoning is.
+    -->
+    <NoWarn>$(NoWarn);CS8524</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -37,8 +52,8 @@
     reference wiring (now centralized in the root Directory.Build.targets) so it ships on BOTH the
     local-source ProjectReference path and the published-NuGet PackageReference path. It is NOT
     marked <Private>false</Private> (that is only for the host-provided Cove refs) — it must
-    copy-local and ship. The deploy-dev.ps1 strip-verify gate asserts System.IO.Hashing.dll IS
-    present in the publish set.
+    copy-local and ship. It is a declared row of the Renamer entry's artifacts array in
+    extensions/catalog.json, so a build that fails to emit it fails the package assemble.
   -->
   <ItemGroup>
     <PackageReference Include="System.IO.Hashing" />

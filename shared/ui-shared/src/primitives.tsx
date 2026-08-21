@@ -1,0 +1,1481 @@
+/**
+ * Field primitives re-implemented locally (the host's `SettingsPrimitives.tsx` is not
+ * importable from an extension bundle). Every class string is matched byte-for-byte to
+ * Cove's own primitives so the panel is typographically/spacing-wise indistinguishable
+ * from native Cove settings — and so every utility resolves against the host's already-
+ * emitted Tailwind stylesheet (no CSS bundle ships).
+ *
+ * Focus treatment uses Cove's convention `focus:border-accent focus:outline-none` — NOT the
+ * `focus-visible:ring-*` utilities, which the host stylesheet does not emit (so they would do nothing).
+ *
+ * Import audit (checked directly against `@cove/runtime/components`, not assumed): none of its
+ * exports are a drop-in for these primitives. `SettingsPrimitives.tsx` — the host's own field/
+ * control set these mirror — is never re-exported to extensions at all; only three host-internal
+ * pages import it directly. The barrel offers entity-browsing (`ListPage`, `VideoCard`,
+ * `DetailListToolbar`, `Pager`), dialog (`ConfirmDialog`, `EditModal`), and formatting
+ * (`TagBadge`, `formatDuration`, `formatFileSize`, `formatDate`, `getResolutionLabel`,
+ * `CustomFieldsDisplay`/`Editor`) utilities. Only the dialog entry overlaps a settings-field
+ * primitive's shape: alongside `EditModal` the barrel re-exports six field primitives whose names
+ * collide with the ones here — `Field`, `TextInput`, `TextArea`, `NumberInput`, `SelectInput`,
+ * `SaveButton`. They are still not the swap, on two counts. Geometry: the host keeps two field
+ * idioms and exports only the MODAL one, whose input string differs from {@link INPUT_CLASS} in
+ * exactly one utility (`rounded` against `rounded-xl`), so adopting it would change the panel's
+ * corner radius and defeat the byte-for-byte match above. Props: the exported shapes are narrower
+ * than the panel needs — no input ref for the token picker to insert through, no monospace flag for
+ * template fields — and the exported `Field` has no equivalent for the helper slot or the
+ * empty-label branch this file's `Field` carries across its call sites.
+ * `TagBadge` is a tag/label pill with color and provenance — this codebase's status pills
+ * (`WarningBadge.tsx`) key off a rename-status enum instead, a different concept, not a swap.
+ * `formatDuration`/`formatFileSize`/`formatDate`/`getResolutionLabel` have no counterpart in this
+ * directory — nothing here renders a raw duration, file size or date value — but the repository does
+ * have two, one directory over: a byte formatter in the bulk-rename confirm builder and a date
+ * formatter in the undo panel's logic module. Neither imports the host's, and each says at its own site
+ * why: the confirm builder is pure so its wording can be unit-tested without a running host, and the
+ * undo module is bound by the `*Logic.ts` import rule and needs a different contract anyway.
+ * `CustomFieldsDisplay`/`Editor` render Cove's custom-fields feature, which this extension has no
+ * UI for. The bare `react`/`react-dom`/`lucide-react`/`@tanstack/react-query` import specifiers
+ * used throughout this codebase are not a migration gap either: the host's `legacySpecifiers`
+ * alias table (`extension-runtime-contract.ts`) resolves each of them to the identical runtime-
+ * injected module `@cove/runtime/react` etc. resolve to, so there is no behavior difference and no
+ * reason to change the specifier string. See `Dialog.tsx`'s header for why `ConfirmDialog` isn't a
+ * swap for `Dialog` either.
+ */
+import type { CSSProperties, ReactNode } from "react";
+import { useId, useRef, useState, useEffect } from "react";
+import { Loader2, X, ChevronUp, ChevronDown } from "lucide-react";
+import { isRegexValid, isAbsolutePathShape, listEditors, swapped } from "./primitivesLogic";
+import { availableOptions, type ValueOption } from "./entityPickerLogic";
+
+/**
+ * The shared text-input class, also handed to host components that take a `className` for their own
+ * input so an embedded host control matches these primitives.
+ *
+ * Append only utilities touching a property this string does not already set. Appending a CONFLICTING
+ * color utility (an error border over its `border-border`, say) silently loses and renders as the
+ * default: the host resolves two utilities on one property by its stylesheet's source order, never by
+ * the order in the class attribute, and this bundle ships no CSS of its own to override with. See
+ * {@link CHIP_BASE} for the same conflict as a shipped bug, and its mutually-exclusive color sets for
+ * the shape that avoids it.
+ */
+export const INPUT_CLASS =
+  "w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none";
+
+/**
+ * Selectable chip/button styling, matching the TokenLegend / PresetRow chip. Host-compiled classes
+ * only — no arbitrary `[…]` values, because the host's Tailwind JIT never scans this bundle.
+ *
+ * The selected and unselected states must NOT share a conflicting color utility. Tailwind resolves
+ * two utilities targeting the same property by their order in the generated stylesheet, NOT by the
+ * order in the class attribute — and the host emits `.bg-card` / `.text-foreground` / `.border-border`
+ * AFTER `.bg-accent` / `.text-accent` / `.border-accent`. So a selected state built by APPENDING accent
+ * utilities to the base chip (which carries the card/foreground/border ones) loses every color
+ * conflict and renders identically to unselected — the bug that made the selection invisible.
+ *
+ * The fix: a color-free shape base, plus two MUTUALLY EXCLUSIVE color sets. {@link chipClass} picks one
+ * — never both — so no same-property conflict exists and the host's source order is irrelevant.
+ */
+const CHIP_BASE = "cursor-pointer rounded-lg border px-2 py-1 text-xs";
+const CHIP_UNSELECTED =
+  "border-border bg-card text-foreground hover:border-accent/50 hover:text-accent";
+// Cove's own chip/pill selected state is an accent TINT, not a solid fill — `border-accent bg-accent/15`
+// (see CustomFields enum chips / BookmarkButton). The solid `bg-accent text-white` is Cove's idiom for
+// segmented TOGGLE buttons, not chips, and reads too heavy here. The tint still carries selection on the
+// BACKGROUND (a property the unselected set's text/border utilities don't contest), so it stays visible
+// regardless of the host stylesheet's source order — the conflict that hid an earlier border/text tint.
+const CHIP_SELECTED = "border-accent bg-accent/15 text-foreground";
+
+/** The full chip class for a selected/unselected chip — one color set, never both. */
+function chipClass(selected: boolean): string {
+  return `${CHIP_BASE} ${selected ? CHIP_SELECTED : CHIP_UNSELECTED}`;
+}
+
+/** Shared selectable-chip button, wrapping {@link chipClass} so every chip site renders identically. */
+export function Chip({
+  selected,
+  onClick,
+  disabled,
+  title,
+  mono,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+  title?: string;
+  mono?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={mono ? `${chipClass(selected)} font-mono` : chipClass(selected)}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Sentinel `value` for the "Custom…" option in {@link ExampleSelect}. */
+const CUSTOM_SENTINEL = "__custom__";
+
+/** Label + control + optional helper. Matches Cove `SettingsField`. */
+export function Field({
+  label,
+  helper,
+  children,
+}: {
+  label: string;
+  helper?: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="block text-sm" title={helper}>
+      {label ? (
+        <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted">
+          {label}
+        </span>
+      ) : null}
+      {children}
+      {helper ? <span className="mt-1 block text-xs text-secondary">{helper}</span> : null}
+    </label>
+  );
+}
+
+export function TextInput({
+  value,
+  onChange,
+  onFocus,
+  placeholder,
+  mono = false,
+  inputRef,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onFocus?: () => void;
+  placeholder?: string;
+  mono?: boolean;
+  inputRef?: React.Ref<HTMLInputElement>;
+}) {
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => {
+        onChange(e.target.value);
+      }}
+      onFocus={onFocus}
+      className={mono ? `${INPUT_CLASS} font-mono` : INPUT_CLASS}
+    />
+  );
+}
+
+export function NumberInput({
+  value,
+  onChange,
+  min,
+  max,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  min?: number;
+  max?: number;
+}) {
+  return (
+    <input
+      type="number"
+      value={Number.isNaN(value) ? "" : value}
+      min={min}
+      max={max}
+      onChange={(e) => {
+        if (e.target.value === "") {
+          onChange(0);
+          return;
+        }
+        let next = Number(e.target.value);
+        if (max !== undefined && next > max) next = max;
+        if (min !== undefined && next < min) next = min;
+        onChange(next);
+      }}
+      className={`themed-number-input ${INPUT_CLASS}`}
+    />
+  );
+}
+
+export function Select<T extends string>({
+  value,
+  onChange,
+  options,
+  disabled = false,
+  ariaLabel,
+}: {
+  value: T;
+  onChange: (value: T) => void;
+  options: readonly { value: T; label: string }[];
+  disabled?: boolean;
+  // A native <select> has no visible label of its own; a caller with no adjacent label names it here.
+  ariaLabel?: string;
+}) {
+  return (
+    <select
+      value={value}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      onChange={(e) => {
+        onChange(e.target.value as T);
+      }}
+      className={`${INPUT_CLASS} disabled:opacity-60`}
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/** One known format/pattern option for {@link ExampleSelect}. */
+export interface ExampleOption {
+  /** The canonical value persisted into RenamerOptions (e.g. `"yyyy-MM-dd"`). */
+  value: string;
+  /** Static, hand-authored reference example shown after the arrow (e.g. `"2026-03-12"`). */
+  example: string;
+}
+
+/**
+ * A labelled native `<select>` of common format/pattern strings, each option
+ * folding a static reference example into its text (`{value} → {example}`), plus a `Custom…`
+ * sentinel that reveals the existing mono {@link TextInput} pre-filled with the current value.
+ *
+ * The canonical persisted value never changes shape — this is purely how the user produces the
+ * string. On a value that matches no known option, `Custom…` is auto-selected and the input shown
+ * (so a previously-customised value is never lost). Below the select, a `font-mono` helper line
+ * restates the currently-selected option's example. All text renders as React text nodes
+ * (auto-escaped) — no raw-HTML rendering.
+ */
+export function ExampleSelect({
+  value,
+  onChange,
+  options,
+  customPlaceholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly ExampleOption[];
+  customPlaceholder?: string;
+}) {
+  const matched = options.find((o) => o.value === value);
+  const isCustom = matched === undefined;
+  // Which <select> option is shown: the matching value, or the Custom… sentinel.
+  const selectValue = isCustom ? CUSTOM_SENTINEL : value;
+  // Helper-line example: the matched option's reference example, or the live custom string.
+  const helperExample = matched ? `${matched.value} → ${matched.example}` : value;
+
+  return (
+    <div>
+      <select
+        value={selectValue}
+        onChange={(e) => {
+          const v = e.target.value;
+          // Choosing Custom…: keep the current value if it's already custom, else seed empty so
+          // the revealed input starts blank for a fresh custom entry.
+          if (v === CUSTOM_SENTINEL) {
+            if (!isCustom) onChange("");
+          } else {
+            onChange(v);
+          }
+        }}
+        className={INPUT_CLASS}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.value} → {o.example}
+          </option>
+        ))}
+        <option value={CUSTOM_SENTINEL}>Custom…</option>
+      </select>
+      {isCustom ? (
+        <div className="mt-2">
+          <TextInput value={value} onChange={onChange} placeholder={customPlaceholder} mono />
+        </div>
+      ) : (
+        <span className="mt-1 block font-mono text-xs text-secondary">{helperExample}</span>
+      )}
+    </div>
+  );
+}
+
+/** One known separator option for {@link SeparatorChips}. */
+export interface SeparatorOption {
+  /** The canonical separator value persisted (e.g. `", "`). */
+  value: string;
+  /** Human label with the literal whitespace made visible (e.g. `"Comma + space ( , )"`). */
+  label: string;
+}
+
+/**
+ * A `flex flex-wrap gap-1` quick-pick chip row of common separators plus a `Custom`
+ * chip. The active separator's chip is persistently selected (the filled-accent {@link chipClass}).
+ * Each chip label makes leading/trailing whitespace visible (never an apparently-empty chip).
+ * The `Custom` chip reveals the existing mono {@link TextInput}, pre-filled, when the saved value
+ * matches no preset. Binds the SAME separator string via `onChange` — no shape change.
+ */
+export function SeparatorChips({
+  value,
+  onChange,
+  options,
+  customPlaceholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly SeparatorOption[];
+  customPlaceholder?: string;
+}) {
+  const isCustom = !options.some((o) => o.value === value);
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1">
+        {options.map((o) => {
+          const selected = o.value === value;
+          return (
+            <Chip
+              key={o.value || "__empty__"}
+              selected={selected}
+              onClick={() => {
+                onChange(o.value);
+              }}
+            >
+              {o.label}
+            </Chip>
+          );
+        })}
+        <Chip
+          selected={isCustom}
+          onClick={() => {
+            // Selecting Custom from a preset clears to a fresh custom entry; if already custom, keep.
+            if (!isCustom) onChange("");
+          }}
+        >
+          Custom
+        </Chip>
+      </div>
+      {isCustom ? (
+        <div className="mt-2">
+          <TextInput value={value} onChange={onChange} placeholder={customPlaceholder} mono />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A two-option segmented control: option A (strip/keep) sets the bound value to `""`;
+ * option B ("Replace with") conditionally renders a short inline mono {@link TextInput} bound to
+ * the value. Selecting B on an empty value focuses the input. Switching back to A resets the value
+ * to `""` and removes the input. Reuses the chip visual vocabulary (selected = the filled-accent
+ * {@link chipClass}). Labels and helper copy are caller-supplied. The reveal is
+ * conditionally rendered (`mt-2`), not `hidden`.
+ */
+export function SegmentedReplace({
+  value,
+  onChange,
+  stripLabel,
+  replaceLabel,
+  stripHelper,
+  replaceHelper,
+  inputPlaceholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  stripLabel: string;
+  replaceLabel: string;
+  stripHelper?: string;
+  replaceHelper?: string;
+  inputPlaceholder?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  // replaceMode is the explicit UI mode. It is needed (not derived purely from value !== "") because
+  // clicking "Replace with" on an empty value must REVEAL the input so the user can type — deriving from
+  // value alone deadlocks. When the user is in replace mode and the input is momentarily empty, we stay in
+  // replace mode (don't collapse mid-type). The key case is an EXTERNAL change to "" (Reset-to-
+  // defaults / load): we detect "value changed to empty since last render" and snap back to strip mode.
+  const [replaceMode, setReplaceMode] = useState(value !== "");
+  const prevValue = useRef(value);
+  // Sync the explicit UI mode to an EXTERNAL value change (Reset/load), detected via prevValue.
+  // This is a prop-change synchronization across renders, not a render-derived setState — the
+  // react-compiler set-state-in-effect heuristic flags it but the ref-guarded transition is correct.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (value !== "") {
+      setReplaceMode(true); // a non-empty value always means replace mode
+    } else if (prevValue.current !== "") {
+      // value transitioned non-empty → "" from OUTSIDE this control (Reset/load) → return to strip mode.
+      setReplaceMode(false);
+    }
+    prevValue.current = value;
+  }, [value]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+  const replaceActive = replaceMode || value !== "";
+
+  function chooseStrip() {
+    setReplaceMode(false);
+    if (value !== "") onChange("");
+  }
+  function chooseReplace() {
+    setReplaceMode(true);
+    // Reveal the (possibly empty) input and focus it so the user can type the replacement.
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }
+
+  return (
+    <div>
+      <div className="flex gap-1">
+        <Chip selected={!replaceActive} onClick={chooseStrip}>
+          {stripLabel}
+        </Chip>
+        <Chip selected={replaceActive} onClick={chooseReplace}>
+          {replaceLabel}
+        </Chip>
+      </div>
+      {replaceActive ? (
+        <div className="mt-2">
+          <TextInput
+            value={value}
+            onChange={onChange}
+            placeholder={inputPlaceholder}
+            inputRef={inputRef}
+            mono
+          />
+          {replaceHelper ? (
+            <span className="mt-1 block text-xs text-secondary">{replaceHelper}</span>
+          ) : null}
+        </div>
+      ) : stripHelper ? (
+        <span className="mt-1 block text-xs text-secondary">{stripHelper}</span>
+      ) : null}
+    </div>
+  );
+}
+
+export function Toggle({
+  label,
+  checked,
+  onChange,
+  helper,
+  ariaLabel,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  helper?: string;
+  ariaLabel?: string;
+}) {
+  return (
+    <div>
+      <label className="flex items-center gap-2 text-sm text-secondary" title={helper}>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={checked}
+          aria-label={label ? undefined : ariaLabel}
+          onClick={() => {
+            onChange(!checked);
+          }}
+          className={`inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+            checked ? "bg-accent" : "bg-card border border-border"
+          }`}
+        >
+          <span
+            className="inline-block h-4 w-4 rounded-full bg-white transition-transform"
+            // Knob offset is an inline transform, not a translate-x-* utility. The extension
+            // ships no CSS of its own; it styles via classes the host's prebuilt Tailwind bundle
+            // already emits. translate-x-4 / translate-x-0.5 are used nowhere in Cove's own UI, so
+            // the host never compiles them — as classes they'd resolve to nothing and the knob
+            // wouldn't move. An inline style is element-scoped (cannot leak onto host pages) and
+            // needs no bundle. 1rem = the 9-wide track minus the 4-wide knob minus the 0.125rem
+            // off-state inset; transition-transform (host-emitted) still animates the slide.
+            style={{
+              transform: checked ? "translateX(1rem)" : "translateX(0.125rem)",
+            }}
+          />
+        </button>
+        {label ? <span>{label}</span> : null}
+      </label>
+      {helper ? <p className="mt-1 text-xs text-secondary">{helper}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * A copy of `list` with the entries at `i` and `j` exchanged, or an unchanged copy when either index
+ * is out of range.
+ *
+ * @remarks
+ * The three reordering controls below shared one destructuring swap, which reads both slots before
+ * it writes either and so can put an `undefined` into the array it is reordering when an index is
+ * stale. Doing it once here means the bound is established in one place instead of being re-assumed
+ * at each call site.
+ */
+/**
+ * String-list editor: chips above an add-on-Enter input. Used for Whitelist / Blacklist /
+ * RequiredFields / DropOrder. DropOrder additionally gets up/down reordering (`ordered`).
+ */
+export function TagListInput({
+  values,
+  onChange,
+  placeholder,
+  ordered = false,
+  normalize,
+  onReject,
+  onLiveChange,
+}: {
+  values: string[];
+  onChange: (values: string[]) => void;
+  placeholder?: string;
+  ordered?: boolean;
+  normalize?: (raw: string) => string;
+  onReject?: (candidate: string) => boolean;
+  onLiveChange?: (raw: string) => void;
+}) {
+  const id = useId();
+
+  function addFrom(input: HTMLInputElement) {
+    const v = (normalize ? normalize(input.value) : input.value).trim();
+    if (v.length === 0) return;
+    if (onReject?.(v)) return;
+    if (!values.includes(v)) onChange([...values, v]);
+    input.value = "";
+  }
+
+  const { move, remove } = listEditors(values, onChange);
+
+  return (
+    <div>
+      {values.length > 0 ? (
+        <div className="mb-1 flex flex-wrap gap-1">
+          {values.map((v, i) => (
+            <span
+              key={`${v}-${i}`}
+              className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-0.5 text-xs text-foreground"
+            >
+              {ordered ? (
+                <>
+                  <button
+                    type="button"
+                    aria-label={`Move ${v} up`}
+                    onClick={() => {
+                      move(i, -1);
+                    }}
+                    className="text-muted hover:text-foreground"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Move ${v} down`}
+                    onClick={() => {
+                      move(i, 1);
+                    }}
+                    className="text-muted hover:text-foreground"
+                  >
+                    ↓
+                  </button>
+                </>
+              ) : null}
+              <span className="font-mono">{v}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${v}`}
+                onClick={() => {
+                  remove(i);
+                }}
+                className="text-muted hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <input
+        id={id}
+        type="text"
+        placeholder={placeholder}
+        className={INPUT_CLASS}
+        onChange={(e) => {
+          onLiveChange?.(e.target.value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            addFrom(e.currentTarget);
+          }
+        }}
+        onBlur={(e) => {
+          addFrom(e.currentTarget);
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * A toggle-chip multiselect over a FIXED option set where order does not matter (the ignore-genders
+ * list): clicking a chip toggles its membership, selected chips carry the accent tint via
+ * {@link chipClass}. Stores the option VALUES (e.g. the gender enum names), in the option set's order
+ * rather than click order — so two configs with the same members serialize identically. Every label
+ * is a React text node (auto-escaped).
+ *
+ * A stored value NOT in `options` (e.g. one saved via the old free-text control, or a gender this
+ * build doesn't list) is PRESERVED, not silently dropped: it renders as an extra removable chip and
+ * toggling a known option keeps it. Otherwise the first toggle would erase a value the user can't see.
+ */
+export function ChipMultiSelect({
+  options,
+  values,
+  onChange,
+}: {
+  options: readonly ValueOption[];
+  values: string[];
+  onChange: (values: string[]) => void;
+}) {
+  const optionValues = new Set(options.map((o) => o.value));
+  // Stored values outside the offered set — kept verbatim so a toggle never erases them.
+  const extras = values.filter((v) => !optionValues.has(v));
+
+  function toggle(value: string) {
+    const has = values.includes(value);
+    // Rebuild known members in the option set's order (order-stable), then re-append any extras so
+    // an out-of-set stored value survives the edit.
+    const known = options
+      .map((o) => o.value)
+      .filter((v) => (v === value ? !has : values.includes(v)));
+    onChange([...known, ...extras]);
+  }
+
+  function removeExtra(value: string) {
+    onChange(values.filter((v) => v !== value));
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {options.map((o) => {
+        const selected = values.includes(o.value);
+        return (
+          <Chip
+            key={o.value}
+            selected={selected}
+            onClick={() => {
+              toggle(o.value);
+            }}
+          >
+            {o.label}
+          </Chip>
+        );
+      })}
+      {extras.map((v) => (
+        <button
+          key={`extra:${v}`}
+          type="button"
+          onClick={() => {
+            removeExtra(v);
+          }}
+          className={`${chipClass(true)} inline-flex items-center gap-1`}
+          title="Not a recognized value — click to remove"
+        >
+          {v}
+          <X className="h-3 w-3" />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * An ordered pick-to-add control over a FIXED option set where order DOES matter (the gender-order
+ * priority ranking): a `<select>` offers only the not-yet-added options (via {@link availableOptions}),
+ * and the chosen values render as ↑↓-reorderable, removable chips in priority order. Stores the option
+ * VALUES in user order. Mirrors {@link TagListInput}'s ordered reorder/remove, but the add path is a
+ * constrained dropdown rather than free text — so only valid enum names can ever be added.
+ */
+export function OrderedPickToAdd({
+  options,
+  values,
+  onChange,
+  addPrompt,
+}: {
+  options: readonly ValueOption[];
+  values: string[];
+  onChange: (values: string[]) => void;
+  addPrompt: string;
+}) {
+  const labelOf = (value: string) => options.find((o) => o.value === value)?.label ?? value;
+  const offerable = availableOptions(options, values);
+
+  const { move, remove } = listEditors(values, onChange);
+
+  return (
+    <div>
+      {values.length > 0 ? (
+        <div className="mb-1 flex flex-wrap gap-1">
+          {values.map((v, i) => (
+            <span
+              key={v}
+              className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-0.5 text-xs text-foreground"
+            >
+              <button
+                type="button"
+                aria-label={`Move ${labelOf(v)} up`}
+                onClick={() => {
+                  move(i, -1);
+                }}
+                className="text-muted hover:text-foreground"
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                aria-label={`Move ${labelOf(v)} down`}
+                onClick={() => {
+                  move(i, 1);
+                }}
+                className="text-muted hover:text-foreground"
+              >
+                ↓
+              </button>
+              <span>{labelOf(v)}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${labelOf(v)}`}
+                onClick={() => {
+                  remove(i);
+                }}
+                className="text-muted hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {offerable.length > 0 ? (
+        <select
+          // A select with no committed value: it returns to the prompt after each add (the value prop
+          // stays the empty sentinel), so it always reads "Add a …" rather than the last pick.
+          value=""
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v !== "") onChange([...values, v]);
+          }}
+          className={INPUT_CLASS}
+        >
+          <option value="">{addPrompt}</option>
+          {offerable.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A bespoke "Add token" affordance opening a `flex flex-wrap gap-1` click-to-add chip menu
+ * of bare token names (NOT a dropdown, NOT autocomplete). It is purely ADDITIVE UI around a
+ * {@link TagListInput} (it does not replace it). The host has no equivalent, so this is bespoke;
+ * it reuses the selectable chip class verbatim (host-compiled classes only — no arbitrary
+ * `[…]` values). Clicking a chip calls `onAdd(name)`; tokens already in `values` render
+ * de-emphasized (existing `text-muted`) and skip the callback, mirroring TagListInput.addFrom de-dupe.
+ * Every chip label is a React text node (auto-escaped, so token names can't inject markup).
+ */
+export function TokenPicker({
+  tokens,
+  values,
+  onAdd,
+}: {
+  tokens: readonly string[];
+  values: string[];
+  onAdd: (name: string) => void;
+}) {
+  return (
+    <div className="mt-1">
+      <span className="mb-1 block text-xs text-muted">Add a token:</span>
+      <div className="flex flex-wrap gap-1">
+        {tokens.map((name) => {
+          const present = values.includes(name);
+          return present ? (
+            // Already-added tokens render a distinct muted/disabled treatment (text-muted, no hover),
+            // not the standard unselected chip — so this branch stays direct markup rather than <Chip>.
+            <button
+              key={name}
+              type="button"
+              disabled
+              className={`${CHIP_BASE} border-border bg-card text-muted font-mono`}
+            >
+              {name}
+            </button>
+          ) : (
+            <Chip
+              key={name}
+              selected={false}
+              mono
+              onClick={() => {
+                onAdd(name);
+              }}
+            >
+              {name}
+            </Chip>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Generic add/remove/reorder editor for a list of typed-object rows. Controlled (`rows`/`onChange`,
+ * no internal persistence). The caller supplies the row layout via `renderRow` and a fresh blank row
+ * via `makeRow`, so routing (Pattern+IsRegex+Dest), excludes (Pattern+IsRegex), and field-replacers
+ * (TargetToken+Find+Replace) all reuse this one editor without forking — the render-prop shape is the
+ * only thing that keeps the generic worth its weight over three near-duplicate row components.
+ *
+ * `renderRow` receives the row, its index, and a typed patch callback so a field edit produces a fresh
+ * row object (the update never mutates `rows` in place — it rebuilds the array and calls `onChange`).
+ * Reorder (`ordered`) mirrors {@link TagListInput}'s ↑↓ move; empty state renders only the add control.
+ */
+export function ObjectArrayEditor<T>({
+  rows,
+  onChange,
+  makeRow,
+  renderRow,
+  addLabel,
+  ordered = false,
+}: {
+  rows: T[];
+  onChange: (rows: T[]) => void;
+  makeRow: () => T;
+  renderRow: (row: T, index: number, update: (patch: Partial<T>) => void) => ReactNode;
+  addLabel: string;
+  ordered?: boolean;
+}) {
+  // A stable key per row, carried in lockstep with the data ops. The rows are arbitrary typed
+  // objects with no id, and an edit rebuilds the row object — so neither the array index nor the
+  // object reference is a stable React key (an index key reattaches a removed/reordered row's DOM +
+  // uncommitted input state to the wrong row). These counter-backed keys move with the data ops:
+  // remove/reorder permute them, add mints a fresh one, and an external wholesale replacement
+  // (load/Reset) re-seeds via the length-drift effect below. The key list lives in a ref so
+  // reorder/remove/add can keep it in step without a state-sync render: the ref is written only from
+  // event handlers, and render only READS it (writing a ref during render is what react-compiler
+  // forbids, not reading).
+  const [keys, setKeys] = useState<number[]>(() => rows.map((_, i) => i));
+  const nextKey = useRef(rows.length);
+  // Re-seed when `rows` is replaced wholesale from outside (lengths diverge); the index fallback in
+  // the key prop covers the single frame before this lands. Syncing external props into local state
+  // is the sanctioned use of the disable here (same pattern as SegmentedReplace's mode sync).
+  // The guard makes this a no-op on an edit (row count unchanged), so depending on the whole `rows`
+  // array re-runs the effect harmlessly per edit and only re-seeds on a genuine length change.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (keys.length !== rows.length) {
+      nextKey.current = rows.length;
+      setKeys(rows.map((_, i) => i));
+    }
+  }, [rows, keys.length]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  function update(i: number, patch: Partial<T>) {
+    onChange(rows.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+  }
+
+  function remove(i: number) {
+    onChange(rows.filter((_, idx) => idx !== i));
+    setKeys((ks) => ks.filter((_, idx) => idx !== i));
+  }
+
+  function move(i: number, dir: -1 | 1) {
+    const j = i + dir;
+    if (j < 0 || j >= rows.length) return;
+    onChange(swapped(rows, i, j));
+    setKeys((ks) => swapped(ks, i, j));
+  }
+
+  function add() {
+    onChange([...rows, makeRow()]);
+    setKeys((ks) => [...ks, nextKey.current++]);
+  }
+
+  return (
+    <div className="space-y-2">
+      {rows.map((row, i) => (
+        <div
+          key={keys.length === rows.length ? keys[i] : i}
+          className="flex items-start gap-2 rounded-xl border border-border bg-card p-3"
+        >
+          <div className="min-w-0 flex-1 space-y-2">
+            {renderRow(row, i, (patch) => {
+              update(i, patch);
+            })}
+          </div>
+          {ordered ? (
+            <span className="flex flex-col text-muted">
+              <button
+                type="button"
+                aria-label={`Move row ${i + 1} up`}
+                onClick={() => {
+                  move(i, -1);
+                }}
+                className="hover:text-foreground"
+              >
+                <ChevronUp className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                aria-label={`Move row ${i + 1} down`}
+                onClick={() => {
+                  move(i, 1);
+                }}
+                className="hover:text-foreground"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </button>
+            </span>
+          ) : null}
+          <button
+            type="button"
+            aria-label={`Remove row ${i + 1}`}
+            onClick={() => {
+              remove(i);
+            }}
+            className="text-muted hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ))}
+      <Button variant="ghost" onClick={add}>
+        {addLabel}
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Generic key→value map editor. Controlled (`map`/`onChange`, no internal persistence). Renders one
+ * row per existing entry and a separate "add" row; the caller renders both the key and value controls
+ * via render-props (`renderKey`/`renderValue`) so the studio/tag picker can supply a searchable key
+ * control while a plain text map supplies a text input — the map editor itself stays agnostic to how a
+ * key is chosen.
+ *
+ * De-dupe on add mirrors {@link TagListInput}: adding a key already present is refused rather than
+ * silently overwriting the existing value (a silent overwrite would lose the prior mapping). The
+ * pending key/value are local draft state; only a successful add commits them through `onChange`.
+ * Keys render as React text nodes (auto-escaped).
+ */
+export function KeyValueMapEditor<TValue>({
+  map,
+  onChange,
+  emptyValue,
+  renderKey,
+  renderValue,
+  renderKeyLabel,
+  addLabel,
+}: {
+  map: Record<string, TValue>;
+  onChange: (map: Record<string, TValue>) => void;
+  // What the add row starts from, and what it returns to after a commit. Supplied rather than assumed
+  // because a value is not always a string: an editor whose rows hold a composite would otherwise have
+  // to invent an empty one, and two places would then disagree about what "not filled in yet" is.
+  emptyValue: TValue;
+  renderKey: (
+    draftKey: string,
+    setDraftKey: (key: string) => void,
+    existingKeys: readonly string[],
+  ) => ReactNode;
+  renderValue: (value: TValue, setValue: (value: TValue) => void) => ReactNode;
+  // How a committed row's key displays. An opaque-id key (e.g. a studio id) supplies this to show a
+  // human label so a saved rule reads "Studio Name → …" not "42 → …". A nullish result falls back to
+  // the raw key: a renderer resolving an id it cannot find must not blank the cell, which would leave
+  // the row unidentifiable and so unremovable.
+  renderKeyLabel?: (key: string) => ReactNode;
+  addLabel: string;
+}) {
+  const [draftKey, setDraftKey] = useState("");
+  // The draft holds UNDEFINED until the user edits it, and `emptyValue` is read at the moment it is
+  // needed rather than copied at mount. Seeding the state with `emptyValue` instead would freeze the
+  // caller's FIRST one forever: `useState` reads its argument on the first render only, so a value
+  // derived from data still being fetched — a destination root derived from Cove's library paths, say
+  // — would commit the placeholder the caller had before the fetch landed, on the first row added.
+  const [draftValue, setDraftValue] = useState<TValue | undefined>(undefined);
+  const pendingValue = draftValue ?? emptyValue;
+  // Rows render from the entries rather than from the keys, so each row's value arrives paired with
+  // its key out of one traversal instead of being looked back up by index.
+  const entries = Object.entries(map);
+  const keys = entries.map(([key]) => key);
+
+  function setValue(key: string, value: TValue) {
+    onChange({ ...map, [key]: value });
+  }
+
+  function remove(key: string) {
+    onChange(Object.fromEntries(Object.entries(map).filter(([k]) => k !== key)));
+  }
+
+  function add() {
+    const k = draftKey.trim();
+    // Refuse a blank or duplicate key — a duplicate add must not clobber the existing mapping.
+    if (k.length === 0 || k in map) return;
+    onChange({ ...map, [k]: pendingValue });
+    setDraftKey("");
+    setDraftValue(undefined);
+  }
+
+  const duplicate = draftKey.trim().length > 0 && draftKey.trim() in map;
+
+  return (
+    <div className="space-y-2">
+      {entries.map(([key, value]) => (
+        <div
+          key={key}
+          className="flex items-center gap-2 rounded-xl border border-border bg-card p-3"
+        >
+          <span className="min-w-0 flex-1 truncate font-mono text-sm text-foreground">
+            {renderKeyLabel?.(key) ?? key}
+          </span>
+          <span className="flex-1">
+            {renderValue(value, (v) => {
+              setValue(key, v);
+            })}
+          </span>
+          <button
+            type="button"
+            aria-label={`Remove ${key}`}
+            onClick={() => {
+              remove(key);
+            }}
+            className="text-muted hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ))}
+      <div className="flex items-start gap-2 rounded-xl border border-border bg-card p-3">
+        <span className="min-w-0 flex-1">{renderKey(draftKey, setDraftKey, keys)}</span>
+        <span className="min-w-0 flex-1">{renderValue(pendingValue, setDraftValue)}</span>
+        <Button onClick={add} disabled={draftKey.trim().length === 0 || duplicate}>
+          {addLabel}
+        </Button>
+      </div>
+      {duplicate ? <StatusText kind="error">That key already has a value.</StatusText> : null}
+    </div>
+  );
+}
+
+/**
+ * Inline regex-validity message for a rule row. Presentational only — it shows an error when the
+ * pattern is in regex mode and obviously malformed, and renders nothing otherwise; the consuming row
+ * decides whether to block on it. The verdict comes from the tested {@link isRegexValid}, whose
+ * browser-vs-.NET caveat applies: this flags obvious JS parse errors, not full .NET parity, so a
+ * clean result is not a promise the engine will accept the pattern.
+ */
+export function RegexValidity({ pattern, isRegex }: { pattern: string; isRegex: boolean }) {
+  if (!isRegex) return null;
+  const result = isRegexValid(pattern);
+  if (result.valid) return null;
+  return <StatusText kind="error">Invalid pattern: {result.message}</StatusText>;
+}
+
+/**
+ * Advisory-only, non-blocking hint that a field meant to hold a RELATIVE folder template has been
+ * given something that looks like a typed path. Mirrors {@link RegexValidity}'s presentational shape
+ * exactly: pure, stateless, and renders nothing when the value looks fine or is blank.
+ *
+ * A typed path is not refused — it renders as ordinary folder names under whichever root the field's
+ * owner chose, which is confined and harmless but almost never what the author meant.
+ *
+ * `message` is the REMEDY, and it is the caller's because only the caller knows what it is. Wording
+ * it here would put one extension's panel layout inside a business-agnostic package, where no import
+ * records the dependency and so nothing can detect it — and the next extension would inherit advice
+ * describing a control its own screen does not have. What stays shared is
+ * {@link isAbsolutePathShape}, which is a fact about a string and true everywhere.
+ */
+export function PathShapeHint({ value, message }: { value: string; message: string }) {
+  if (value.trim().length === 0) return null;
+  if (!isAbsolutePathShape(value)) return null;
+  return <StatusText kind="warning">{message}</StatusText>;
+}
+
+/** One of the five field groups. Matches Cove sub-card styling. */
+export function GroupCard({
+  title,
+  description,
+  badge,
+  headerRight,
+  children,
+}: {
+  title: string;
+  description?: string;
+  badge?: ReactNode;
+  headerRight?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-2">
+          {badge ? <span className="mt-0.5 shrink-0">{badge}</span> : null}
+          <h3 className="text-base font-semibold text-foreground">{title}</h3>
+        </div>
+        {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
+      </div>
+      {description ? (
+        <p className="mb-4 mt-1 text-sm text-secondary">{description}</p>
+      ) : (
+        <div className="mb-4" />
+      )}
+      <div className="space-y-4">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * A small accent-tinted pill, used for the token-settings `$token` badges. `mono` renders the
+ * label monospaced (the `$token` case); the plain case is the short uppercase tag. Host-compiled
+ * classes only.
+ */
+export function Badge({ children, mono = false }: { children: ReactNode; mono?: boolean }) {
+  const base = "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold";
+  const color = "border border-accent/40 bg-accent/15 text-accent";
+  return (
+    <span className={`${base} ${color} ${mono ? "font-mono" : "uppercase tracking-wider"}`}>
+      {children}
+    </span>
+  );
+}
+
+export type StatusPillVariant = "accent" | "amber" | "red" | "green" | "gray";
+
+/** A theme colour at partial alpha, in the same form the host's own stylesheet emits. */
+const tint = (variable: string, percent: number) =>
+  `color-mix(in oklab, var(${variable}) ${percent}%, transparent)`;
+
+// Split per variant into the utilities the host stylesheet actually contains and the ones it does
+// not. As classes, the absent ones rendered nothing at all — no border, no fill, and no error to
+// notice. Cove defines the underlying colour scale as custom properties even for the utilities it
+// never emits, so inlining from those variables keeps the pills following the host theme instead of
+// freezing a literal. A consumer whose text colour rides on inner spans still overrides the `text-*`
+// class, as before.
+//
+// Four are genuinely absent at the floor — `bg-amber-400/10`, `bg-red-950/40`, `border-green-500/40`
+// and `bg-green-500/10`. `border-amber-400/40` is emitted at the floor and is inlined anyway, which
+// costs nothing because an inline style beats the class either way.
+//
+// Measure any host-absent claim against the floor `extension.json` declares, never against the host
+// extraction checked into this repo: that extraction is pinned to an OLDER tag, and
+// `border-amber-400/40` is absent there while present at the floor.
+const STATUS_PILL_VARIANT: Record<StatusPillVariant, { className: string; style?: CSSProperties }> =
+  {
+    accent: { className: "border-accent/40 bg-accent/10 text-accent" },
+    amber: {
+      className: "text-amber-400",
+      style: {
+        borderColor: tint("--color-amber-400", 40),
+        backgroundColor: tint("--color-amber-400", 10),
+      },
+    },
+    red: {
+      className: "border-red-700/50 text-red-400",
+      style: { backgroundColor: tint("--color-red-950", 40) },
+    },
+    green: {
+      className: "text-green-400",
+      style: {
+        borderColor: tint("--color-green-500", 40),
+        backgroundColor: tint("--color-green-500", 10),
+      },
+    },
+    gray: { className: "border-border bg-card text-muted" },
+  };
+
+/**
+ * A status-tinted pill — the badge family the single-accent `$token` {@link Badge} does not cover.
+ * `variant` selects the tint, `shape` the corner radius (`pill` fully rounded | `tag` `rounded-md`),
+ * `icon` a caller-supplied leading glyph so status never rides on color alone.
+ */
+export function StatusPill({
+  variant,
+  icon,
+  shape = "pill",
+  title,
+  children,
+}: {
+  variant: StatusPillVariant;
+  icon?: ReactNode;
+  shape?: "pill" | "tag";
+  title?: string;
+  children: ReactNode;
+}) {
+  // gap tracks shape to keep both families' existing spacing: the fully-rounded pill sits tighter at
+  // gap-1, the rounded-md status tags at gap-1.5.
+  const gap = shape === "pill" ? "gap-1" : "gap-1.5";
+  const rounded = shape === "pill" ? "rounded-full" : "rounded-md";
+  const tone = STATUS_PILL_VARIANT[variant];
+  return (
+    <span
+      title={title}
+      className={`inline-flex items-center ${gap} ${rounded} border px-2 py-0.5 text-xs ${tone.className}`}
+      style={tone.style}
+    >
+      {icon}
+      {children}
+    </span>
+  );
+}
+
+/**
+ * The primary settings section container. Chrome is matched to Cove's own `SettingsSection`
+ * (`components/SettingsPrimitives.tsx`) so extension sections are indistinguishable from native
+ * ones: same `rounded-2xl border-border bg-surface p-5` fill and long soft drop shadow, and a
+ * MARGIN header (no divider rule) — not the heavier `shadow-sm` + `border-b` header the extension
+ * used before. `badge` is the one addition core lacks: an inline `$token` marker for the
+ * token-settings cards. Presentational only.
+ */
+export function SectionCard({
+  title,
+  description,
+  badge,
+  headerRight,
+  children,
+}: {
+  title?: string;
+  description?: string;
+  badge?: ReactNode;
+  headerRight?: ReactNode;
+  children: ReactNode;
+}) {
+  const hasHeader = Boolean(title) || badge != null || headerRight != null;
+  // The shadow resolves as a class because Cove's own settings card carries this exact string
+  // (`SettingsPrimitives.tsx`), so the host stylesheet emits it — measured present at the floor host,
+  // alongside seven other arbitrary shadows it also emits. What decides whether an arbitrary-value
+  // class works here is whether COVE uses it, not whether its value is arbitrary.
+  return (
+    <section className="rounded-2xl border border-border bg-surface p-5 shadow-[0_12px_30px_-20px_rgba(0,0,0,0.7)]">
+      {hasHeader ? (
+        <header className="mb-4 flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            {badge ? <span className="mt-0.5 shrink-0">{badge}</span> : null}
+            <div className="min-w-0">
+              {title ? <h3 className="text-base font-semibold text-foreground">{title}</h3> : null}
+              {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
+            </div>
+          </div>
+          {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
+        </header>
+      ) : null}
+      <div className="space-y-4">{children}</div>
+    </section>
+  );
+}
+
+/**
+ * A titled sub-section INSIDE a {@link SectionCard}: a title-case bold heading with an optional
+ * one-line description, then its controls. Groups related fields within one card (e.g. "Filename"
+ * and "Where files go" under a single card) without nesting another bordered card — the pattern
+ * Cove core uses for sub-groups within a settings section. Presentational.
+ */
+export function Subsection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+        {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * A card whose header carries an enable {@link Toggle}; the body renders inline only when `enabled`.
+ * The design's per-studio / per-tag / advanced-routing pattern — the card stays visible with its
+ * title + description, and flipping the header toggle reveals the controls (or an off-state hint).
+ * The toggle state is owned by the caller (the same Enable* option), so this is presentational.
+ */
+export function ToggleHeaderCard({
+  title,
+  description,
+  enabled,
+  onToggle,
+  children,
+}: {
+  title: string;
+  description?: string;
+  enabled: boolean;
+  onToggle: (enabled: boolean) => void;
+  children: ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base font-semibold text-foreground">{title}</h3>
+          {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
+        </div>
+        <div className="shrink-0">
+          <Toggle label="" ariaLabel={`Enable ${title}`} checked={enabled} onChange={onToggle} />
+        </div>
+      </div>
+      {enabled ? (
+        <div className="space-y-4 border-t border-border px-4 pb-4 pt-4">{children}</div>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * Progressive-disclosure section (mirrors Cove's native `CollapsibleSection`, which isn't importable
+ * from an extension bundle). Collapsed by default; the header always shows the title + a one-line
+ * `summary` of what's inside so a closed section still telegraphs its contents (NN/g accordion rule).
+ * Self-manages open state. Host-compiled classes only.
+ */
+export function CollapsibleSection({
+  title,
+  summary,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  summary?: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="overflow-hidden rounded-xl border border-border">
+      <button
+        type="button"
+        onClick={() => {
+          setOpen((v) => !v);
+        }}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-4 bg-card px-4 py-3 text-left transition-colors hover:bg-card-hover"
+      >
+        <span className="min-w-0">
+          <span className="block text-sm font-medium text-foreground">{title}</span>
+          {summary ? (
+            <span className="mt-1 block truncate text-xs text-muted">{summary}</span>
+          ) : null}
+        </span>
+        {open ? (
+          <ChevronUp className="h-4 w-4 shrink-0 text-muted" />
+        ) : (
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
+        )}
+      </button>
+      {open ? <div className="space-y-4 border-t border-border px-4 py-3">{children}</div> : null}
+    </div>
+  );
+}
+
+/**
+ * The panel's button, mirroring the behaviours of Cove's own `SettingsButton`.
+ *
+ * The shared class string is behaviour rather than decoration: `min-h-10` with `sm:min-h-0`/`sm:py-1.5`
+ * keeps a touch-sized target on a narrow viewport and shrinks it on a wide one; `transition-colors`
+ * animates hover rather than snapping it; `disabled:cursor-not-allowed` reads as disabled rather than
+ * merely dim; `justify-center` centres the label within that minimum height. `danger` is Cove's third
+ * variant, for a destructive action that must not read as an ordinary confirm.
+ *
+ * Every class here is emitted by the floor host — measured — so this needs no shipped stylesheet and
+ * contributes nothing to one.
+ */
+export function Button({
+  variant = "primary",
+  children,
+  onClick,
+  disabled,
+}: {
+  variant?: "primary" | "danger" | "ghost";
+  children: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  // Appended to each variant's existing string, deliberately NOT the host's base string wholesale:
+  // that would also move this button's padding and gap.
+  const shared =
+    "min-h-10 justify-center transition-colors disabled:cursor-not-allowed sm:min-h-0 sm:py-1.5";
+  const variantClass =
+    variant === "ghost"
+      ? "inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-secondary hover:border-accent/50 hover:bg-card-hover hover:text-foreground disabled:opacity-60"
+      : variant === "danger"
+        ? "inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-60"
+        : "inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-60";
+  const className = `${variantClass} ${shared}`;
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} className={className}>
+      {children}
+    </button>
+  );
+}
+
+export type StatusKind = "success" | "error" | "muted" | "warning";
+
+export function StatusText({ kind, children }: { kind: StatusKind; children: ReactNode }) {
+  const cls =
+    kind === "success"
+      ? "text-green-400"
+      : kind === "error"
+        ? "text-red-400"
+        : kind === "warning"
+          ? "text-amber-400"
+          : "text-secondary";
+  return <span className={`text-xs ${cls}`}>{children}</span>;
+}
+
+export function Spinner() {
+  return <Loader2 className="h-4 w-4 animate-spin" />;
+}
+
+/**
+ * A thin determinate/indeterminate progress track. Presentational: the caller supplies an already-
+ * clamped whole `percent` (0..100) when it has one, or omits it for the indeterminate state before
+ * the first sample arrives. The fill width is an element-scoped inline style — an arbitrary
+ * `w-[NN%]` class would render nothing here (the host's Tailwind JIT never scans this bundle, the
+ * same reason {@link Toggle}'s knob offset is inline). Colors/shape come from host-emitted utilities
+ * only, so no CSS ships. Determinate carries `role="progressbar"` + `aria-valuenow/min/max`;
+ * indeterminate carries `aria-busy` instead, with a full-width pulsing fill.
+ */
+export function ProgressBar({ percent, label }: { percent?: number; label?: string }) {
+  const determinate = percent !== undefined;
+  return (
+    <div
+      role="progressbar"
+      aria-label={label}
+      aria-valuenow={determinate ? percent : undefined}
+      aria-valuemin={determinate ? 0 : undefined}
+      aria-valuemax={determinate ? 100 : undefined}
+      aria-busy={determinate ? undefined : true}
+      className="h-1.5 w-full overflow-hidden rounded-full bg-card"
+    >
+      <div
+        className={`h-full rounded-full bg-accent ${determinate ? "transition-all" : "animate-pulse"}`}
+        style={{ width: determinate ? `${percent}%` : "100%" }}
+      />
+    </div>
+  );
+}
