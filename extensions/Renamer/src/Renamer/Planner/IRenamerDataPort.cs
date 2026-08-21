@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using Cove.Extensions.Shared;
+
 namespace Renamer.Planner;
 
 /// <summary>
@@ -5,6 +8,7 @@ namespace Renamer.Planner;
 /// the <c>MetadataProjector</c>: only the media tokens a kind actually carries are projected.
 /// Gallery is not yet renamed but is listed for completeness.
 /// </summary>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum RenamerFileKind
 {
     Video,

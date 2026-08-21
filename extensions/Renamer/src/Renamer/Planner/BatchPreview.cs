@@ -1,13 +1,14 @@
+using System.Text.Json.Serialization;
+using Cove.Extensions.Shared;
 using Renamer.Execution;
 
 namespace Renamer.Planner;
 
 /// <summary>
 /// How loud the pre-renamer confirmation must be, scaled to the blast radius of the planned batch.
-/// Serialized as the string "Light"/"Standard"/"Heavy" (the response rides the
-/// <c>JsonStringEnumConverter</c> the preview endpoint already uses), so the UI renders the level
-/// rather than re-deriving it.
+/// Sent to the UI so it renders the level rather than re-deriving it.
 /// </summary>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum ConfirmLevel
 {
     /// <summary>A same-drive-only batch (or nothing to do): instant metadata renames, cheap and easy to undo.</summary>

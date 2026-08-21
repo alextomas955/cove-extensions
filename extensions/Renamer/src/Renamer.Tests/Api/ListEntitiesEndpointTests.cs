@@ -2,8 +2,8 @@ using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Core.Entities;
 using Cove.Data;
-using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
@@ -44,7 +44,7 @@ public sealed class ListEntitiesEndpointTests
 
             var result = await ext.ListStudiosAsync(db, principal, default);
 
-            var ok = Assert.IsType<WireJson<global::Renamer.Renamer.EntityRef[]>>(Unwrap(result));
+            var ok = Assert.IsType<Ok<global::Renamer.Renamer.EntityRef[]>>(Unwrap(result));
             var rows = ok.Value!;
             Assert.Equal(3, rows.Length);
             Assert.Equal(["Alpha", "Bravo", "Charlie"], rows.Select(r => r.Name));
@@ -73,7 +73,7 @@ public sealed class ListEntitiesEndpointTests
 
             var result = await ext.ListTagsAsync(db, principal, default);
 
-            var ok = Assert.IsType<WireJson<global::Renamer.Renamer.EntityRef[]>>(Unwrap(result));
+            var ok = Assert.IsType<Ok<global::Renamer.Renamer.EntityRef[]>>(Unwrap(result));
             var rows = ok.Value!;
             Assert.Equal(3, rows.Length);
             Assert.Equal(["Alpha", "Bravo", "Charlie"], rows.Select(r => r.Name));
@@ -178,7 +178,7 @@ public sealed class ListEntitiesEndpointTests
 
             var result = await ext.ListPerformersAsync(db, principal, default);
 
-            var ok = Assert.IsType<WireJson<global::Renamer.Renamer.EntityRef[]>>(Unwrap(result));
+            var ok = Assert.IsType<Ok<global::Renamer.Renamer.EntityRef[]>>(Unwrap(result));
             var rows = ok.Value!;
             Assert.Equal(3, rows.Length);
             Assert.Equal(["Alpha", "Bravo", "Charlie"], rows.Select(r => r.Name));
@@ -270,7 +270,7 @@ public sealed class ListEntitiesEndpointTests
 
             var result = await ext.ListStudiosAsync(db, principal, default);
 
-            var ok = Assert.IsType<WireJson<global::Renamer.Renamer.EntityRef[]>>(Unwrap(result));
+            var ok = Assert.IsType<Ok<global::Renamer.Renamer.EntityRef[]>>(Unwrap(result));
             var json = JsonSerializer.Serialize(ok.Value!, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
             Assert.Contains("\"id\":", json);
             Assert.Contains("\"name\":", json);

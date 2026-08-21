@@ -1,8 +1,8 @@
 using System.Text;
 using System.Text.Json;
 using Cove.Core.Auth;
-using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Renamer.Api;
 using Renamer.Contracts;
 using Renamer.Options;
@@ -58,7 +58,7 @@ public sealed class PreviewSampleEndpointTests
         var ext = NewExtension();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
         var result = ext.PreviewSampleAsync(RequestWithBody(json), principal, default).GetAwaiter().GetResult();
-        var ok = Assert.IsType<WireJson<IReadOnlyList<PreviewSampleResult>>>(Unwrap(result));
+        var ok = Assert.IsType<Ok<IReadOnlyList<PreviewSampleResult>>>(Unwrap(result));
         return ok.Value!;
     }
 

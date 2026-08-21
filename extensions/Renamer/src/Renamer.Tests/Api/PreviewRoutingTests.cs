@@ -1,5 +1,5 @@
 using Cove.Core.Auth;
-using Cove.Extensions.Shared;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Renamer.Execution;
 using Renamer.Options;
 using Renamer.Planner;
@@ -60,7 +60,7 @@ public sealed class PreviewRoutingTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<WireJson<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
+            var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var item = Assert.Single(ok.Value!.Items);
 
             // The preview now reflects the routed destination — the SAME route the batch resolves.

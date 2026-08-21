@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Cove.Core.Auth;
-using Cove.Extensions.Shared;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.Execution;
@@ -52,7 +52,7 @@ public sealed class PreviewEndpointTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<WireJson<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
+            var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var item = Assert.Single(ok.Value!.Items);
             Assert.Equal(fileId, item.FileId);
             Assert.EndsWith("raw one.mkv", item.OldFullPath);
@@ -98,7 +98,7 @@ public sealed class PreviewEndpointTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<WireJson<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
+            var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             // one plan item per physical file of the entity, never just the first file.
             Assert.Equal(2, ok.Value!.Items.Count);
         }

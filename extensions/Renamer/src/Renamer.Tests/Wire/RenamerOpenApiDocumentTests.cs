@@ -1,10 +1,8 @@
-using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Renamer.Contracts;
 
 namespace Renamer.Tests.Wire;
 
@@ -23,9 +21,6 @@ public sealed class RenamerOpenApiDocumentTests : ExtensionOpenApiDocumentTests
         return extension;
     }
 
-    protected override JsonSerializerOptions ResponseOptions() =>
-        PreviewContracts.PreviewResponseJsonOptions;
-
     protected override string DocumentPath => "extensions/Renamer/wire/openapi.json";
 
     // Registration-time binding only. Minimal-API binding resolves an unregistered complex type as a
@@ -38,5 +33,4 @@ public sealed class RenamerOpenApiDocumentTests : ExtensionOpenApiDocumentTests
         services.AddSingleton<ICurrentPrincipalAccessor>(_ => null!);
         services.AddSingleton<IJobService>(_ => null!);
     }
-
 }

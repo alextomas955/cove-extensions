@@ -24,3 +24,15 @@ public static class CoveJsonOptions
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     };
 }
+
+/// <summary>
+/// A <see cref="JsonStringEnumConverter"/> fixed to <see cref="JsonNamingPolicy.CamelCase"/>, so an enum
+/// can carry it as <c>[JsonConverter(typeof(CamelCaseStringEnumConverter))]</c>.
+/// </summary>
+/// <remarks>
+/// A <c>[JsonConverter]</c> attribute cannot pass a naming policy, which is the only reason this derived
+/// type exists. Declaring the converter on the ENUM rather than on an options instance is what makes the
+/// wire spelling a property of the type: the response bytes, the persisted blob and the OpenAPI schema
+/// all read the same one declaration, so no two of them can be configured to disagree.
+/// </remarks>
+public sealed class CamelCaseStringEnumConverter() : JsonStringEnumConverter(JsonNamingPolicy.CamelCase);

@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Cove.Core.Auth;
-using Cove.Extensions.Shared;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.Execution;
@@ -69,7 +69,7 @@ public sealed class PreviewWholeBatchTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<WireJson<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
+            var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var response = ok.Value!;
 
             // Per-item contract preserved + routing fields present.
@@ -144,7 +144,7 @@ public sealed class PreviewWholeBatchTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<WireJson<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
+            var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var response = ok.Value!;
 
             // The excluded item APPEARS in the preview (not dropped), with SkipExcluded + its reason.
@@ -193,7 +193,7 @@ public sealed class PreviewWholeBatchTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<WireJson<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
+            var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var response = ok.Value!;
 
             Assert.Equal(1, response.Summary.TotalCount);

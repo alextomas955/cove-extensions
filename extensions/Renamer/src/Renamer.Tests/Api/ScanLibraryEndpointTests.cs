@@ -3,7 +3,6 @@ using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Cove.Data;
-using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -404,7 +403,7 @@ public sealed class ScanLibraryEndpointTests
         global::Renamer.Renamer ext, ICurrentPrincipalAccessor principal)
     {
         var result = await ext.ScanLibraryResultAsync(principal, default);
-        return Assert.IsType<WireJson<global::Renamer.Contracts.ScanSummaryView>>(Unwrap(result)).Value!;
+        return Assert.IsType<Ok<global::Renamer.Contracts.ScanSummaryView>>(Unwrap(result)).Value!;
     }
 
     /// <summary>Invokes the page query and unwraps the page.</summary>
@@ -413,7 +412,7 @@ public sealed class ScanLibraryEndpointTests
         global::Renamer.Contracts.ScanRowsRequest? body = null)
     {
         var result = await ext.ScanRowsAsync(body, principal, default);
-        return Assert.IsType<WireJson<global::Renamer.Contracts.ScanRowsPage>>(Unwrap(result)).Value!;
+        return Assert.IsType<Ok<global::Renamer.Contracts.ScanRowsPage>>(Unwrap(result)).Value!;
     }
 
     /// <summary>A one-kind aggregate whose per-status counts are the only thing the readback merges.</summary>
