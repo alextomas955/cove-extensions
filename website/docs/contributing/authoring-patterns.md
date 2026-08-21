@@ -90,8 +90,16 @@ convention on the external boundary (the Cove host). Keep the wire types in one
 home per tier: a `Contracts/` unit in the C# assembly (cross-cutting enums defined once in a neutral
 vocabulary file) and one `contracts.ts` per UI `src/` root, imported with `import type` so it erases at
 runtime. Every response the UI reads is a projection type, never a live domain object, so the backend
-can evolve without breaking the wire. Hand-mirror the types and let the offline logic tests catch
-drift; a code generator is not worth its cost at this size.
+can evolve without breaking the wire.
+
+Derive the contract; do not restate it. A hand-written TypeScript wire type is checked by the compiler
+against itself and never against the server, so a wrong one still type-checks and every field then
+reads `undefined` at runtime with nothing failing anywhere. The handler signatures are the source of
+truth: a test emits an OpenAPI document from the shipped endpoint registrations into the extension's
+`wire/` directory and fails when the committed copy no longer matches, and `npm run generate:wire`
+turns that document into TypeScript. Declare an enum's wire spelling on the enum type rather than on a
+serializer options object, so the response bytes and the published schema read one declaration and
+cannot be configured to disagree.
 
 ## Frontend conventions
 
