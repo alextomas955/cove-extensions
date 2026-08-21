@@ -130,10 +130,9 @@ public static class PreviewContracts
     /// persisted scan-summary blob, and the tests that assert what a response looks like.
     /// </summary>
     /// <remarks>
-    /// Deliberately carries NO converter. Enum spelling comes from
+    /// Carries no converter. Enum spelling comes from
     /// <see cref="Cove.Extensions.Shared.CamelCaseStringEnumConverter"/> on the enum types, and a
-    /// converter here would outrank it (see that type's remarks) — reintroducing a second declaration
-    /// that could drift from the one the responses and the emitted document read.
+    /// converter here would outrank it (see that type's remarks) rather than agree with it.
     /// </remarks>
     public static readonly JsonSerializerOptions PreviewResponseJsonOptions = new(JsonSerializerDefaults.Web);
 }

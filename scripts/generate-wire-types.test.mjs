@@ -1,7 +1,5 @@
-// Behavior coverage for the catalog-driven wire-type generator. Every case drives a fixture
-// extensions/catalog.json in a temp dir and injects the document-to-types step, so this file needs
-// nothing installed — which is the property the catalog-validation job depends on: that job installs
-// no dependencies at all and runs every scripts/*.test.mjs.
+// Every case drives a fixture extensions/catalog.json in a temp dir and injects the document-to-types
+// step, so this file needs nothing installed — the property the catalog-validation job depends on.
 //
 // The fixture entry's names deliberately differ from any real extension's, so a passing case proves
 // the resolution came from the catalog rather than from a name baked into the generator.

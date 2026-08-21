@@ -100,10 +100,8 @@ export async function startHarness({ image, timeoutMs = DEFAULT_STARTUP_TIMEOUT_
       });
       if (!res.ok) {
         const body = await res.text().catch(() => "<unreadable body>");
-        // This is the FIRST request any test makes against a just-booted container, and Cove answers
-        // an unhandled exception with a bare 500 and an empty body — so the failure as thrown says
-        // nothing about its own cause. Under retries a flake here is rescued and its evidence is
-        // discarded, which is how a recurring failure stays undiagnosed. Carry the server's own log.
+        // Cove answers an unhandled exception with a bare 500 and an empty body, so the failure as
+        // thrown says nothing about its own cause. Carry the server's own log.
         throw new Error(
           [
             `bootstrapOwner: POST /api/auth/bootstrap-owner failed (${res.status}): ${body}`,
@@ -123,18 +121,14 @@ export async function startHarness({ image, timeoutMs = DEFAULT_STARTUP_TIMEOUT_
 }
 
 /**
- * Blocks until Cove has seeded its built-in roles.
+ * Blocks until Cove has seeded its built-in roles. A healthy container is NOT enough:
+ * `BootstrapAuthService.StartAsync` pushes the seeding onto a background `Task.Run` and returns, so it
+ * is neither awaited by host startup nor covered by the 503 maintenance gate, and `/health` answers 200
+ * while it runs.
  *
- * The container reporting healthy is NOT enough. Cove seeds permissions and the built-in roles from
- * `BootstrapAuthService`, whose `StartAsync` kicks the work onto a background `Task.Run` and returns
- * immediately — so it is neither awaited by host startup nor covered by the 503 maintenance gate that
- * guards the schema migration. `/health` therefore answers 200 while that seeding is still running.
- *
- * That matters here specifically because `POST /api/auth/bootstrap-owner` inserts the Owner role
- * itself when it is absent. Two concurrent read-then-inserts on the same unique role name means the
- * loser gets a unique-constraint violation, and the controller only converts `InvalidOperationException`
- * into a 409 — anything else escapes as a bare 500 with an empty body. Waiting until the role exists
- * removes the second writer instead of retrying into the collision.
+ * `POST /api/auth/bootstrap-owner` inserts the Owner role itself when absent, so inside that window two
+ * writers race one unique role name and the loser escapes as a bare 500. Waiting for the role removes
+ * the second writer instead of retrying into the collision.
  */
 async function waitForBuiltinRoles(baseUrl, { timeoutMs = 60_000, intervalMs = 250 } = {}) {
   const deadline = Date.now() + timeoutMs;
@@ -160,9 +154,9 @@ async function waitForBuiltinRoles(baseUrl, { timeoutMs = 60_000, intervalMs = 2
 }
 
 /**
- * Best-effort tail of a container's own log, for attaching to an error whose cause is server-side.
- * Never throws and never hangs: a diagnostic that can fail the run it is trying to explain is worse
- * than no diagnostic, so every failure mode degrades to a short note.
+ * Best-effort tail of a container's own log. Never throws and never hangs: a diagnostic that can fail
+ * the run it is trying to explain is worse than no diagnostic, so every failure mode degrades to a
+ * short note.
  */
 async function tailContainerLog(container, { lines = 60, timeoutMs = 5000 } = {}) {
   try {

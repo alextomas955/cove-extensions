@@ -23,6 +23,7 @@ import process from "node:process";
 const root = path.resolve(import.meta.dirname, "..");
 const catalogPath = path.join(root, "extensions", "catalog.json");
 const buildPropsPath = path.join(root, "Directory.Build.props");
+const WIRE_DOCUMENT_SUBPATH = "wire/openapi.json";
 const errors = [];
 
 function readJson(filePath) {
@@ -207,14 +208,14 @@ for (const entry of entries) {
     );
   }
 
-  // An entry with a UI must carry an emitted wire document. The mechanism's whole point is that a
-  // hand-written TypeScript wire type type-checks while reading undefined at runtime; an extension
-  // that gains a UI without gaining the derived document loses that check silently.
+  // An entry with a UI must carry an emitted wire document: a hand-written TypeScript wire type
+  // type-checks while reading undefined at runtime, so an extension that gains a UI without gaining
+  // the derived document loses that check silently.
   if (entry.uiPath) {
-    // Reported with forward slashes on every platform: this names a catalog-relative path, and the
-    // catalog spells them that way regardless of which runner produced the message.
-    const wireDocument = entry.path + "/wire/openapi.json";
-    if (!fs.existsSync(path.join(root, entry.path, "wire", "openapi.json"))) {
+    // POSIX-spelled once, as the catalog spells it: path.join takes it as the native path, and the
+    // message reads the same whichever runner produced it.
+    const wireDocument = entry.path + "/" + WIRE_DOCUMENT_SUBPATH;
+    if (!fs.existsSync(path.join(root, wireDocument))) {
       errors.push(entry.id + ": declares uiPath, so " + wireDocument + " must exist");
     }
   }

@@ -14,6 +14,9 @@
     "syncpack": "syncpack lint",
     "test": "node --test scripts/*.test.mjs"
   },
+  "engines": {
+    "node": ">=22.18"
+  },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "eslint": "10.8.1",

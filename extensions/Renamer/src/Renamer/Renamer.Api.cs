@@ -264,12 +264,10 @@ public sealed partial class Renamer
         // The whole-batch blast radius: a pure aggregate over the acting items + their sizes.
         var summary = BatchPreview.Summarize(items, sizeByFileId);
 
-        // The host's serializer is already camelCase but emits NUMERIC enums (status:0), which the
-        // frontend's buildConfirmSummary would read as a non-renamer — so the renamer would silently
-        // never fire. The string spelling comes from CamelCaseStringEnumConverter declared ON
-        // RenamerStatus/ConfirmLevel, never from an options instance chosen here, so the bytes and the
-        // emitted wire document cannot be configured to disagree. The domain plan items are projected
-        // onto PreviewItemView (the wire type) at this boundary.
+        // The host's serializer is camelCase but emits NUMERIC enums (status:0), which the frontend's
+        // buildConfirmSummary reads as a non-renamer — so the renamer would silently never fire. The
+        // string spelling comes from CamelCaseStringEnumConverter declared ON RenamerStatus and
+        // ConfirmLevel, never from an options instance chosen here.
         return TypedResults.Ok(
             new PreviewResponse([.. items.Select(PreviewItemView.From)], summary));
     }

@@ -8,11 +8,10 @@ namespace Cove.Extensions.Shared;
 
 /// <summary>A <c>403 FORBIDDEN</c> result carrying an <see cref="ErrorCode"/> body and its own schema.</summary>
 /// <remarks>
-/// The framework's typed results cover every other arm these endpoints return, but none of them is a
-/// 403 WITH a body: <c>ForbidHttpResult</c> writes none, and the results that do carry one
-/// (<c>TypedResults.Json</c> with a status) describe no response schema, which is
-/// <c>dotnet/aspnetcore#47630</c>. Declaring this type as a handler's return type is what publishes the
-/// 403 shape, so the document cannot describe something the handler does not return.
+/// The framework's typed results cover every other arm these endpoints return, but none of them is a 403
+/// WITH a body: <c>ForbidHttpResult</c> writes none, and the results that do carry one describe no
+/// response schema (<c>dotnet/aspnetcore#47630</c>). Declaring this type as a handler's return type is
+/// what publishes the 403 shape.
 /// </remarks>
 public sealed class ForbiddenCode
     : IResult,
@@ -52,14 +51,14 @@ public sealed class ForbiddenCode
 
 /// <summary>The error body every non-2xx wire result carries: one stable machine-readable code.</summary>
 /// <param name="Code">
-/// A stable SCREAMING_SNAKE token the UI branches on (<c>FORBIDDEN</c>, <c>INVALID_BODY</c>, …).
-/// Not localized and not for display; it is part of the wire contract, so changing one is a breaking
-/// change even though nothing in the type system says so.
+/// A stable SCREAMING_SNAKE token the UI branches on (<c>FORBIDDEN</c>, <c>INVALID_BODY</c>, …). Not
+/// localized and not for display; it is part of the wire contract, so changing one is a breaking change
+/// even though nothing in the type system says so.
 /// </param>
 /// <param name="Max">
 /// The bound a cap rejection exceeded, so the caller can batch to fit rather than guess. Written only
-/// when a code carries one — one status code admits exactly one response schema in the document, so a
-/// second error record for the cap arm could not be described alongside this one.
+/// when a code carries one: a status code admits exactly one response schema, so a second error record
+/// for the cap arm could not be described alongside this one.
 /// </param>
 public sealed record ErrorCode(
     string Code,

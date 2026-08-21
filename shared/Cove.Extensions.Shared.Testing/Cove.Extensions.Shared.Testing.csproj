@@ -25,18 +25,14 @@
   </PropertyGroup>
   <ItemGroup>
     <!--
-      TEST-SUPPORT ONLY (IsPackable=false â€” none of this reaches a deployed plugin).
-      ExtensionOpenApiDocumentTests boots a WebApplication over TestHost and pulls the generated
-      document from IOpenApiDocumentProvider, so the OpenAPI integration and the in-memory server both
-      have to be referenceable from HERE rather than from each consuming test project: the emit is the
-      one place the StartAsync ordering can be got wrong, and a per-extension copy of it is a
-      per-extension chance to omit that call. xunit arrives with them because the emit carries its own
-      [Fact] for the same reason. Renamer.Tests keeps its OWN TestHost reference: TransportSmokeTests
-      uses UseTestServer/GetTestClient directly and does not go through this project.
+      The OpenAPI emit lives HERE rather than in each consuming test project because the StartAsync
+      ordering is the one thing it can get wrong, and a per-extension copy is a per-extension chance to
+      omit that call. Renamer.Tests keeps its OWN TestHost reference for TransportSmokeTests, which uses
+      UseTestServer/GetTestClient directly.
     -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
-    <!-- The writer and info types the emit serializes through, and the patched floor the ASP.NET Core
-         integration's own transitive resolve falls below (see Directory.Packages.props). -->
+    <!-- Pinned above the floor the ASP.NET Core integration's own transitive resolve falls to
+         (see Directory.Packages.props). -->
     <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
     <PackageReference Include="xunit" />

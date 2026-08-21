@@ -13,40 +13,35 @@ namespace Cove.Extensions.Shared.Testing;
 
 /// <summary>
 /// Emits an extension's OpenAPI document from its own <c>MapEndpoints</c> registration and fails when
-/// it differs from the committed copy, so a route or a wire shape that moves cannot land unnoticed.
-/// Set <c>COVE_WIRE_DOC_UPDATE=1</c> to rewrite the committed copy after an intended change.
+/// it differs from the committed copy. Set <c>COVE_WIRE_DOC_UPDATE=1</c> to rewrite that copy after an
+/// intended change.
 /// </summary>
 /// <remarks>
-/// Derive once per extension and supply the two hooks; the invariants that decide whether the
-/// document describes anything at all live here, where a second extension inherits rather than
-/// restates them. The host is never contacted: the endpoints are mounted in an in-memory
-/// <see cref="WebApplication"/>, no request is sent, and the binding services are never dereferenced,
-/// which is what keeps the emit runnable on a CI leg with no Cove checkout.
+/// Derive once per extension and supply the two hooks. The host is never contacted: the endpoints are
+/// mounted in an in-memory <see cref="WebApplication"/>, no request is sent and the binding services are
+/// never dereferenced, which keeps the emit runnable on a CI leg with no Cove checkout.
 /// <para>
-/// Nothing here configures the wire spelling. Property casing is the host's own camelCase default and
-/// an enum's string form is declared on the enum type, so the document is generated under exactly the
-/// options the responses ride and there is no second declaration to keep in step.
+/// Nothing here configures the wire spelling. Property casing is the host's camelCase default and an
+/// enum's string form is declared on the enum type, so the document is generated under the options the
+/// responses ride.
 /// </para>
 /// </remarks>
 public abstract class ExtensionOpenApiDocumentTests
 {
-    // AddOpenApi() registers IOpenApiDocumentProvider KEYED by document name, and "v1" is the name it
-    // adds by default; an unkeyed resolve finds nothing.
+    // AddOpenApi() registers IOpenApiDocumentProvider KEYED by document name; an unkeyed resolve finds
+    // nothing.
     private const string DocumentName = "v1";
 
-    // The untransformed title is derived from the ENTRY assembly, so it reads "testhost | v1" under
-    // vstest and would move the committed document the day the runner changes — a diff about the
-    // toolchain on a file whose diffs are supposed to be about the wire. Pinning both fields makes the
-    // info block a constant.
+    // The untransformed title is derived from the ENTRY assembly, so it would move the committed
+    // document the day the test runner changes.
     private const string PinnedTitle = "cove extension wire contract";
     private const string PinnedVersion = "1.0.0";
 
     /// <summary>Set to <c>1</c> to rewrite the committed document instead of comparing against it.</summary>
     public const string UpdateVariable = "COVE_WIRE_DOC_UPDATE";
 
-    // Fixed layout, deliberately not a catalog field. The path is the same for every extension, and a
-    // declared one would be a second place to state it — the C# side and the catalog would each carry a
-    // copy with nothing checking they agree.
+    // Not a catalog field: the path is the same inside every extension, so declaring it would give the
+    // catalog and this file each a copy with nothing checking they agree.
     private const string DocumentSubPath = "wire/openapi.json";
 
     /// <summary>The extension under test, built the way the host builds it (shipped manifest applied).</summary>
@@ -55,8 +50,8 @@ public abstract class ExtensionOpenApiDocumentTests
     /// <summary>
     /// Registers whatever the extension's endpoint lambdas take as non-body parameters. Minimal-API
     /// binding treats an unregistered complex type as a second body parameter and throws at
-    /// registration, so these have to resolve — but the document never invokes any of them, so a
-    /// factory returning null is enough and is what keeps the emit off a real database.
+    /// registration, so these have to resolve; the document invokes none of them, so a factory
+    /// returning null is enough and is what keeps the emit off a real database.
     /// </summary>
     protected virtual void ConfigureBindingServices(IServiceCollection services) { }
 
@@ -76,12 +71,10 @@ public abstract class ExtensionOpenApiDocumentTests
                 return Task.CompletedTask;
             }));
 
-        // NumberHandling is narrowed to Strict deliberately: the Web default also accepts numbers
-        // written as strings, which the generator reports as an integer-or-string union on EVERY
-        // numeric field. The server only ever WRITES a JSON number, so this is exact for responses.
-        // It overstates the request side, where the host does still accept a string-encoded number —
-        // the document is generated to be a client-codegen input, and a client that never sends the
-        // looser form is the outcome worth having.
+        // Strict, not the Web default: the Web default also accepts numbers written as strings, which
+        // the generator reports as an integer-or-string union on EVERY numeric field. The server only
+        // ever writes a JSON number. This overstates the request side, where the host does still accept
+        // the looser form, and a client that never sends it is the outcome worth having.
         builder.Services.ConfigureHttpJsonOptions(
             options => options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict);
 
@@ -89,11 +82,9 @@ public abstract class ExtensionOpenApiDocumentTests
         var extension = CreateExtension();
         extension.MapEndpoints(app);
 
-        // MANDATORY, and the single most dangerous line to omit here. A WebApplication's own route
-        // registrations are not folded into the DI EndpointDataSource until routing middleware is built
-        // at start, so without this the data source is empty, the provider still returns a perfectly
-        // valid ~110-byte document with ZERO paths, and a test that only checked for non-empty JSON
-        // would pass over it.
+        // MANDATORY. A WebApplication's route registrations are not folded into the DI
+        // EndpointDataSource until routing middleware is built at start, so without this the data
+        // source is empty and the provider still returns a valid document with ZERO paths.
         await app.StartAsync();
 
         var routes = app.Services
@@ -101,7 +92,6 @@ public abstract class ExtensionOpenApiDocumentTests
             .Endpoints.OfType<RouteEndpoint>()
             .ToList();
 
-        // Before anything is compared: an empty route set is a hard failure, never a pass.
         Assert.NotEmpty(routes);
 
         var provider = app.Services.GetRequiredKeyedService<IOpenApiDocumentProvider>(DocumentName);
@@ -115,13 +105,11 @@ public abstract class ExtensionOpenApiDocumentTests
 
         Assert.Equal(routes.Count, operations.Count);
 
-        // Every mounted route must also SAY what it returns. A documented operation with no response
-        // content is the failure mode this whole mechanism exists to close: it reads as covered, emits a
-        // valid document, and describes nothing a client could be generated from. Both counts are
-        // compared against the live route table rather than against each other, and the assertion sits
-        // after the non-empty check above, so an empty document can never satisfy it by having nothing
-        // to disagree about. There is deliberately NO list of routes expected to be documented — an
-        // allowlist is the shape that lets a gate lose a route in silence.
+        // Every mounted route must also SAY what it returns. Both counts are compared against the live
+        // route table rather than against each other, and the assertion sits after the non-empty check
+        // above, so an empty document cannot satisfy it by having nothing to disagree about. There is
+        // deliberately no allowlist of routes expected to be documented: that is the shape that lets a
+        // gate lose a route in silence.
         var withoutResponseSchema = operations
             .Where(entry => entry.Operation.Responses?.Values
                 .Any(response => response.Content is { Count: > 0 }) != true)
@@ -145,15 +133,15 @@ public abstract class ExtensionOpenApiDocumentTests
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
             // One call, so an interrupted run leaves either the previous complete document or the new
-            // one, never a half-written file that the next comparison would report as a wire change.
+            // one, never a half-written file the next comparison would report as a wire change.
             File.WriteAllText(path, json);
             return;
         }
 
-        // Compare rather than overwrite, so THIS test is the gate. Writing and leaving the check to a
-        // later CI step splits the two: the run that detects the drift is not the run that produced it,
-        // a developer's `dotnet test` reports success while silently dirtying the working tree, and the
-        // separate step cannot tell an unchanged-because-correct document from one whose emit never ran.
+        // Compare rather than overwrite, so THIS test is the gate. Writing here and diffing in a later
+        // CI step splits the two: a developer's `dotnet test` reports success while silently dirtying
+        // the working tree, and the separate step cannot tell an unchanged-because-correct document
+        // from one whose emit never ran.
         Assert.True(
             File.Exists(path),
             $"No committed wire document at {relativePath}. Re-run with {UpdateVariable}=1 to write it.");
@@ -161,20 +149,18 @@ public abstract class ExtensionOpenApiDocumentTests
         Assert.Equal(File.ReadAllText(path).ReplaceLineEndings("\n"), json);
     }
 
-    // The document is committed and CI diffs it, so its bytes must not depend on which platform emitted
-    // them: a StringWriter takes its line breaks from Environment.NewLine, which would otherwise leave
-    // the Windows and Linux runs each rewriting what the other committed. The non-empty precondition
-    // comes first because a rewrite that read no input at all produces a clean-looking result.
+    // A StringWriter takes its line breaks from Environment.NewLine, which would otherwise leave the
+    // Windows and Linux runs each rewriting what the other committed. The non-empty precondition comes
+    // first because a rewrite that read no input at all produces a clean-looking result.
     private static string NormalizeForCommit(string serialized)
     {
         Assert.NotEmpty(serialized);
         return serialized.ReplaceLineEndings("\n");
     }
 
-    // The catalog is the one place an extension's directory is written down, so the document path is
-    // taken from the entry matching this extension's id rather than declared a second time. The test
-    // assembly sits several unstable levels below the repo root (configuration, framework), so the root
-    // is found by walking up to the catalog rather than counted out in "..".
+    // The catalog is the one place an extension's directory is written down. The test assembly sits
+    // several unstable levels below the repo root (configuration, framework), so the root is found by
+    // walking up to the catalog rather than counted out in "..".
     private static (string Absolute, string Relative) ResolveDocumentPath(string extensionId)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)

@@ -189,13 +189,10 @@ jobs:
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm version ${{ steps.check.outputs.version }} --no-git-tag-version --allow-same-version
 
-      # The generator lives at the repo root while the types land under the extension's UI directory, so
-      # the root has to be installed too. --no-workspaces keeps that to the root's own tooling rather
-      # than also pulling the browser-driven end-to-end harness workspace this job never uses.
-      #
-      # --ignore-scripts is safe HERE specifically: the generator imports only node builtins plus
-      # openapi-typescript, and neither that package nor its deps declares an install hook, so nothing
-      # this step needs is built by one.
+      # The generator lives at the repo root while the types land under the extension's UI directory.
+      # --no-workspaces keeps this to the root's own tooling rather than also pulling the end-to-end
+      # harness workspace; --ignore-scripts is safe because openapi-typescript's dependency closure
+      # declares no install hooks.
       - name: Install root tooling (wire-type generator)
         if: ${{ matrix.extension.uiPath != '' }}
         run: npm ci --no-workspaces --ignore-scripts
@@ -380,10 +377,9 @@ jobs:
       # assertion/stack-trace detail, which otherwise only reaches the Upload Playwright report
       # artifact below — requiring a download+unzip round trip to read. Dump it straight to the job
       # log instead so a CI failure is diagnosable from the log alone.
-      # always(), NOT failure(): a test that fails and then passes on retry leaves the job green, so a
-      # failure()-gated dump discards the evidence for exactly the flakes that are hardest to
-      # reproduce. Playwright writes an error-context.md per failed ATTEMPT, so this prints them for
-      # a rescued flake too, and says so rather than exiting quietly on a clean run.
+      # always(), NOT failure(): a retry-rescued flake leaves the job green, so a failure()-gated dump
+      # discards the evidence for exactly the flakes hardest to reproduce. Playwright writes an
+      # error-context.md per failed ATTEMPT, so a rescued flake still has one.
       - name: Dump E2E failure context
         if: always() && steps.check.outputs.has_suite == 'true'
         working-directory: tests/e2e
