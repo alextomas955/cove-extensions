@@ -197,11 +197,11 @@ jobs:
       # openapi-typescript, and neither that package nor its deps declares an install hook, so nothing
       # this step needs is built by one.
       - name: Install root tooling (wire-type generator)
-        if: ${{ matrix.extension.uiPath != '' && matrix.extension.wireDocumentPath != '' }}
+        if: ${{ matrix.extension.uiPath != '' }}
         run: npm ci --no-workspaces --ignore-scripts
 
       - name: Generate wire types
-        if: ${{ matrix.extension.uiPath != '' && matrix.extension.wireDocumentPath != '' }}
+        if: ${{ matrix.extension.uiPath != '' }}
         run: node scripts/generate-wire-types.mjs --extension "$EXTENSION_ID"
         env:
           EXTENSION_ID: ${{ matrix.extension.id }}

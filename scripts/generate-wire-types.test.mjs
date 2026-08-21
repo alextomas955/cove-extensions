@@ -17,7 +17,7 @@ const ID = "com.example.fixture";
 const NAME = "Fixture";
 const EXT_PATH = "extensions/" + NAME;
 const UI_PATH = EXT_PATH + "/src/" + NAME + ".Ui";
-const DOC_PATH = EXT_PATH + "/wire/openapi.json";
+const DOC_PATH = EXT_PATH + "/wire/openapi.json"; // derived, never declared in the catalog
 
 function fixtureRoot({ entry = {}, writeDocument = true } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "generate-wire-types-"));
@@ -26,7 +26,6 @@ function fixtureRoot({ entry = {}, writeDocument = true } = {}) {
     id: ID,
     path: EXT_PATH,
     uiPath: UI_PATH,
-    wireDocumentPath: DOC_PATH,
     ...entry,
   };
   fs.mkdirSync(path.join(root, "extensions"), { recursive: true });
@@ -87,8 +86,8 @@ test("a declaring entry is generated from, with the document as input and the UI
   }
 });
 
-test("a catalog whose entries declare no wireDocumentPath says so rather than exiting quietly", async () => {
-  const root = fixtureRoot({ entry: { wireDocumentPath: undefined } });
+test("a catalog whose entries declare no uiPath says so rather than exiting quietly", async () => {
+  const root = fixtureRoot({ entry: { uiPath: undefined } });
   try {
     const { calls, generate } = recordingGenerate();
     const { lines, log } = silent();
@@ -97,26 +96,13 @@ test("a catalog whose entries declare no wireDocumentPath says so rather than ex
 
     assert.equal(result.ok, true);
     assert.equal(calls.length, 0);
-    assert.match(lines.join("\n"), /no entry declares both wireDocumentPath and uiPath/);
+    assert.match(lines.join("\n"), /no entry declares a uiPath/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test("an entry declaring a UI but no wireDocumentPath is not generated from", async () => {
-  const root = fixtureRoot({ entry: { wireDocumentPath: undefined }, writeDocument: false });
-  try {
-    const { calls, generate } = recordingGenerate();
-    const result = await generateWireTypes({ root, generate, log: () => {} });
-
-    assert.equal(result.ok, true);
-    assert.equal(calls.length, 0);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("a declared document that does not exist fails, naming the entry and the path", async () => {
+test("a UI entry whose document does not exist fails, naming the entry and the path", async () => {
   const root = fixtureRoot({ writeDocument: false });
   try {
     const { calls, generate } = recordingGenerate();

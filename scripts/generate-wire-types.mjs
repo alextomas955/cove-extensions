@@ -4,9 +4,10 @@
 // reads undefined at runtime with nothing failing — which is the defect this generator removes at its
 // source rather than guards against afterwards.
 //
-// Catalog-driven with no extension named anywhere: an entry declaring both wireDocumentPath and uiPath
-// is generated from, and an entry declaring neither is not. A second extension needs a catalog entry
-// and no edit here.
+// Catalog-driven with no extension named anywhere: an entry declaring a uiPath is generated from, and
+// one without is not. A second extension needs a catalog entry and no edit here. The document itself
+// is at a fixed place inside the extension, so its location is derived rather than declared — a
+// catalog field for it would restate the layout and give the C# emitter a second copy to drift from.
 //
 // The generated file is gitignored, because it is a deterministic function of a committed document and
 // storing it would only create a staleness problem to guard. That makes regeneration a prerequisite of
@@ -34,6 +35,7 @@ const GENERATOR_FLAGS = [
 ];
 
 const OUTPUT_SUBPATH = path.join("src", "wire", "api.ts");
+const DOCUMENT_SUBPATH = path.join("wire", "openapi.json");
 
 /**
  * The real document-to-types step.
@@ -97,18 +99,18 @@ export async function generateWireTypes({
     return { ok: false, failures, generated, examined: 0 };
   }
 
-  const declaring = selected.filter((entry) => entry.wireDocumentPath && entry.uiPath);
+  const declaring = selected.filter((entry) => entry.uiPath);
 
   for (const entry of declaring) {
-    const documentPath = path.join(absoluteRoot, entry.wireDocumentPath);
+    const documentPath = path.join(absoluteRoot, entry.path, DOCUMENT_SUBPATH);
     const outputPath = path.join(absoluteRoot, entry.uiPath, OUTPUT_SUBPATH);
 
-    // A declared document that is absent is a hard failure naming the entry and the path, never a
-    // skip: the declaration is what makes the UI import a generated module, so a run that quietly
-    // generated nothing leaves the next step failing somewhere with no cause attached.
+    // An absent document is a hard failure naming the entry and the path, never a skip: declaring a
+    // UI is what makes the extension import a generated module, so a run that quietly generated
+    // nothing leaves the next step failing somewhere with no cause attached.
     if (!fs.existsSync(documentPath)) {
       failures.push(
-        `MISSING: ${entry.id} declares wireDocumentPath ${entry.wireDocumentPath}, which does not exist.`,
+        `MISSING: ${entry.id} declares a uiPath, so ${entry.path}/wire/openapi.json must exist; it does not.`,
       );
       continue;
     }
@@ -123,7 +125,7 @@ export async function generateWireTypes({
   log(
     `Examined ${selected.length} catalog entr${selected.length === 1 ? "y" : "ies"}; ` +
       (declaring.length === 0
-        ? "no entry declares both wireDocumentPath and uiPath, so nothing was generated."
+        ? "no entry declares a uiPath, so nothing was generated."
         : `generated from ${generated.length} of ${declaring.length} declared wire document(s).`),
   );
   for (const item of generated) {

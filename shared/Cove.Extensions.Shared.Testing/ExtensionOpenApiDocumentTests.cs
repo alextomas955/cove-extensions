@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Cove.Plugins;
 using Microsoft.AspNetCore.Builder;
@@ -43,11 +44,13 @@ public abstract class ExtensionOpenApiDocumentTests
     /// <summary>Set to <c>1</c> to rewrite the committed document instead of comparing against it.</summary>
     public const string UpdateVariable = "COVE_WIRE_DOC_UPDATE";
 
+    // Fixed layout, deliberately not a catalog field. The path is the same for every extension, and a
+    // declared one would be a second place to state it — the C# side and the catalog would each carry a
+    // copy with nothing checking they agree.
+    private const string DocumentSubPath = "wire/openapi.json";
+
     /// <summary>The extension under test, built the way the host builds it (shipped manifest applied).</summary>
     protected abstract IApiExtension CreateExtension();
-
-    /// <summary>The repo-relative path the emitted document is written to.</summary>
-    protected abstract string DocumentPath { get; }
 
     /// <summary>
     /// Registers whatever the extension's endpoint lambdas take as non-body parameters. Minimal-API
@@ -83,7 +86,8 @@ public abstract class ExtensionOpenApiDocumentTests
             options => options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict);
 
         var app = builder.Build();
-        CreateExtension().MapEndpoints(app);
+        var extension = CreateExtension();
+        extension.MapEndpoints(app);
 
         // MANDATORY, and the single most dangerous line to omit here. A WebApplication's own route
         // registrations are not folded into the DI EndpointDataSource until routing middleware is built
@@ -134,7 +138,7 @@ public abstract class ExtensionOpenApiDocumentTests
         document.SerializeAsV31(new OpenApiJsonWriter(writer));
         var json = NormalizeForCommit(writer.ToString());
 
-        var path = ResolveDocumentPath();
+        var (path, relativePath) = ResolveDocumentPath(extension.Id);
 
         if (Environment.GetEnvironmentVariable(UpdateVariable) == "1")
         {
@@ -152,7 +156,7 @@ public abstract class ExtensionOpenApiDocumentTests
         // separate step cannot tell an unchanged-because-correct document from one whose emit never ran.
         Assert.True(
             File.Exists(path),
-            $"No committed wire document at {DocumentPath}. Re-run with {UpdateVariable}=1 to write it.");
+            $"No committed wire document at {relativePath}. Re-run with {UpdateVariable}=1 to write it.");
 
         Assert.Equal(File.ReadAllText(path).ReplaceLineEndings("\n"), json);
     }
@@ -167,23 +171,40 @@ public abstract class ExtensionOpenApiDocumentTests
         return serialized.ReplaceLineEndings("\n");
     }
 
-    // The document path is repo-relative so the same test writes the same file from any working
-    // directory and on either platform; the test assembly sits several unstable levels below the root
-    // (configuration, framework), so the root is found by the catalog rather than counted out in "..".
-    // Protected rather than private so a derived suite can assert ON the committed artifact — the one
-    // CI diffs — instead of re-deriving the same walk and drifting from it.
-    protected string ResolveDocumentPath()
+    // The catalog is the one place an extension's directory is written down, so the document path is
+    // taken from the entry matching this extension's id rather than declared a second time. The test
+    // assembly sits several unstable levels below the repo root (configuration, framework), so the root
+    // is found by walking up to the catalog rather than counted out in "..".
+    private static (string Absolute, string Relative) ResolveDocumentPath(string extensionId)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "extensions", "catalog.json")))
+            var catalogPath = Path.Combine(directory.FullName, "extensions", "catalog.json");
+            if (!File.Exists(catalogPath))
             {
-                return Path.Combine(directory.FullName, DocumentPath);
+                continue;
             }
+
+            using var catalog = JsonDocument.Parse(File.ReadAllText(catalogPath));
+            var entries = catalog.RootElement.GetProperty("extensions").EnumerateArray().ToList();
+            foreach (var entry in entries)
+            {
+                if (entry.GetProperty("id").GetString() != extensionId)
+                {
+                    continue;
+                }
+
+                var relative = $"{entry.GetProperty("path").GetString()}/{DocumentSubPath}";
+                return (Path.Combine(directory.FullName, relative.Replace('/', Path.DirectorySeparatorChar)), relative);
+            }
+
+            throw new InvalidOperationException(
+                $"No entry in extensions/catalog.json has id '{extensionId}'; found "
+                    + string.Join(", ", entries.Select(e => e.GetProperty("id").GetString())));
         }
 
         throw new InvalidOperationException(
-            $"No extensions/catalog.json above {AppContext.BaseDirectory}, so the repo-relative "
-                + $"document path '{DocumentPath}' cannot be resolved.");
+            $"No extensions/catalog.json above {AppContext.BaseDirectory}, so the wire document path "
+                + $"for '{extensionId}' cannot be resolved.");
     }
 }
