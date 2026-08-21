@@ -133,7 +133,7 @@ export async function generateWireTypes({
   return { ok: failures.length === 0, failures, generated, examined: selected.length };
 }
 
-const FLAGS = ["--extension", "--root"];
+const FLAGS = new Set(["--extension", "--root"]);
 
 function usage() {
   console.error("Usage: node scripts/generate-wire-types.mjs [--extension <id>] [--root <dir>]");
@@ -142,7 +142,7 @@ function usage() {
 async function main(argv) {
   const options = new Map();
   for (let i = 0; i < argv.length; i += 2) {
-    if (!FLAGS.includes(argv[i]) || argv[i + 1] == null || options.has(argv[i])) {
+    if (!FLAGS.has(argv[i]) || argv[i + 1] == null || options.has(argv[i])) {
       usage();
       return 1;
     }
