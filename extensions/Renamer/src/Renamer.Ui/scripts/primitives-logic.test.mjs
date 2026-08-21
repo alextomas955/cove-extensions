@@ -19,10 +19,7 @@ test("a blank query returns the full list in original order", () => {
 
 test("the filter matches case-insensitively as a substring", () => {
   const result = filterByText("alph", items, byName);
-  assert.deepEqual(
-    result.map(byName),
-    ["Alpha", "alphabet"],
-  );
+  assert.deepEqual(result.map(byName), ["Alpha", "alphabet"]);
 });
 
 test("the query is trimmed before comparing", () => {
