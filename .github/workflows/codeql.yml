@@ -20,7 +20,6 @@ name: CodeQL
 # by another route, and the weekly cron re-analyses unchanged code against updated queries.
 on:
   pull_request:
-    branches: [main]
   push:
     branches: [main]
   schedule:
