@@ -4,6 +4,10 @@ using Renamer.Planner;
 
 namespace Renamer.Contracts;
 
+/// <summary>The body an enqueue route returns: the id of the job to poll.</summary>
+/// <param name="JobId">The queued job's id.</param>
+public sealed record JobEnqueued(string JobId);
+
 /// <summary>
 /// The Cove-facing wire projection of a <see cref="RenamerPlanItem"/>: the fields the preview
 /// response serializes, decoupled from the plan/domain model so the planner and executor can evolve

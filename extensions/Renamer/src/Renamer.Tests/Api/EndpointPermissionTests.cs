@@ -1,6 +1,7 @@
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Microsoft.AspNetCore.Http;
+using Renamer.Contracts;
 using Renamer.Tests.Execution;
 
 namespace Renamer.Tests.Api;
@@ -116,10 +117,10 @@ public sealed class EndpointPermissionTests
             new global::Renamer.Api.RenamerRequest("video", [1, 2]), principal, jobs);
 
         Assert.Equal(202, StatusOf(result));
-        var value = Assert.IsAssignableFrom<IValueHttpResult>(result).Value;
-        Assert.NotNull(value);
-        // The 202 body carries the enqueued jobId the fake returned.
-        Assert.Equal("job-123", value!.GetType().GetProperty("jobId")!.GetValue(value));
+        // The 202 body is a declared type now, so the id is read off the record rather than reflected
+        // off an anonymous one -- and the wire casing is the serializer's business, not this test's.
+        var body = Assert.IsType<JobEnqueued>(Assert.IsAssignableFrom<IValueHttpResult>(result).Value);
+        Assert.Equal("job-123", body.JobId);
 
         var (type, _, exclusive) = Assert.Single(jobs.Enqueued);
         Assert.Equal("ext:com.alextomas955.renamer:renamer-batch", type);
