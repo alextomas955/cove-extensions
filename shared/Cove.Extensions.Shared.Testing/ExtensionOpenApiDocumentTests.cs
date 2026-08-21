@@ -21,9 +21,8 @@ namespace Cove.Extensions.Shared.Testing;
 /// mounted in an in-memory <see cref="WebApplication"/>, no request is sent and the binding services are
 /// never dereferenced, which keeps the emit runnable on a CI leg with no Cove checkout.
 /// <para>
-/// Nothing here configures the wire spelling. Property casing is the host's camelCase default and an
-/// enum's string form is declared on the enum type, so the document is generated under the options the
-/// responses ride.
+/// Nothing here configures the wire spelling. Property casing is the host's camelCase default, and an
+/// enum's string form is declared on the enum type.
 /// </para>
 /// </remarks>
 public abstract class ExtensionOpenApiDocumentTests
@@ -40,8 +39,7 @@ public abstract class ExtensionOpenApiDocumentTests
     /// <summary>Set to <c>1</c> to rewrite the committed document instead of comparing against it.</summary>
     public const string UpdateVariable = "COVE_WIRE_DOC_UPDATE";
 
-    // Not a catalog field: the path is the same inside every extension, so declaring it would give the
-    // catalog and this file each a copy with nothing checking they agree.
+    // Fixed layout, not a catalog field: only the extension's own directory is declared there.
     private const string DocumentSubPath = "wire/openapi.json";
 
     /// <summary>The extension under test, built the way the host builds it (shipped manifest applied).</summary>
@@ -106,10 +104,9 @@ public abstract class ExtensionOpenApiDocumentTests
         Assert.Equal(routes.Count, operations.Count);
 
         // Every mounted route must also SAY what it returns. Both counts are compared against the live
-        // route table rather than against each other, and the assertion sits after the non-empty check
-        // above, so an empty document cannot satisfy it by having nothing to disagree about. There is
-        // deliberately no allowlist of routes expected to be documented: that is the shape that lets a
-        // gate lose a route in silence.
+        // route table, never against each other, and the Assert.NotEmpty above rules out the empty
+        // document that would otherwise satisfy this by having nothing to disagree about. No allowlist
+        // of documented routes: that is the shape that lets a gate lose a route in silence.
         var withoutResponseSchema = operations
             .Where(entry => entry.Operation.Responses?.Values
                 .Any(response => response.Content is { Count: > 0 }) != true)
@@ -132,16 +129,15 @@ public abstract class ExtensionOpenApiDocumentTests
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
-            // One call, so an interrupted run leaves either the previous complete document or the new
-            // one, never a half-written file the next comparison would report as a wire change.
+            // One call: an interrupted run then leaves a complete document, old or new, never a
+            // half-written one the next comparison would report as a wire change.
             File.WriteAllText(path, json);
             return;
         }
 
-        // Compare rather than overwrite, so THIS test is the gate. Writing here and diffing in a later
-        // CI step splits the two: a developer's `dotnet test` reports success while silently dirtying
-        // the working tree, and the separate step cannot tell an unchanged-because-correct document
-        // from one whose emit never ran.
+        // This test is the gate. Writing here and diffing in a later CI step would split the two: a
+        // developer's `dotnet test` reports success while silently dirtying the working tree, and the
+        // separate step cannot tell an unchanged-because-correct document from one whose emit never ran.
         Assert.True(
             File.Exists(path),
             $"No committed wire document at {relativePath}. Re-run with {UpdateVariable}=1 to write it.");
@@ -158,9 +154,9 @@ public abstract class ExtensionOpenApiDocumentTests
         return serialized.ReplaceLineEndings("\n");
     }
 
-    // The catalog is the one place an extension's directory is written down. The test assembly sits
-    // several unstable levels below the repo root (configuration, framework), so the root is found by
-    // walking up to the catalog rather than counted out in "..".
+    // The catalog is the one place an extension's directory is written down. The walk up to it beats a
+    // counted-out "..": the test assembly's depth below the repo root varies with configuration and
+    // target framework.
     private static (string Absolute, string Relative) ResolveDocumentPath(string extensionId)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)

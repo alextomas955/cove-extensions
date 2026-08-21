@@ -131,8 +131,8 @@ public static class PreviewContracts
     /// </summary>
     /// <remarks>
     /// Carries no converter. Enum spelling comes from
-    /// <see cref="Cove.Extensions.Shared.CamelCaseStringEnumConverter"/> on the enum types, and a
-    /// converter here would outrank it (see that type's remarks) rather than agree with it.
+    /// <see cref="Cove.Extensions.Shared.CamelCaseStringEnumConverter"/> on the enum types; a converter
+    /// here would OUTRANK that one (see its remarks).
     /// </remarks>
     public static readonly JsonSerializerOptions PreviewResponseJsonOptions = new(JsonSerializerDefaults.Web);
 }
