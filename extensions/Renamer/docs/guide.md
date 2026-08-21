@@ -6,7 +6,7 @@ sidebar_position: 2
 
 Renamer bulk-renames — and optionally relocates — your Cove library items from the metadata Cove
 already has, using a naming template you control. It previews every change before touching disk,
-updates the file and its Cove database record together, and can undo the last batch.
+updates the file and its Cove database record together, and can undo the last rename.
 
 This guide walks the everyday workflow. For the meaning of every setting see the
 [Settings reference](./settings); for the tokens you can put in a template see the
@@ -31,7 +31,10 @@ that Cove fills in from each item's metadata — for example `$title` becomes th
 2. Watch the **live preview** below the field — it shows the new name for a few sample items and
    updates as you type. Nothing is renamed yet.
 3. To move files into folders as well as rename them, fill in the **folder template** (for example
-   `$studio / $year`). Leave it blank to rename each file in place.
+   `$studio / $year`). It is made under one of **Cove's own library paths** — the one you pick beside
+   the field, or, when Cove has several and you have picked none, whichever one holds the file. Leave
+   the template blank to rename each file in place. See
+   [Where a file lands](./settings#where-a-file-lands).
 
 If a token might be empty for some items, wrap it in a `{ … }` group so its surrounding punctuation
 disappears when the value is missing — `$title{ [$resolution]}` produces `My Movie [1080p]` when
@@ -61,6 +64,17 @@ destination, and any warnings — without changing anything.
    iterate on the template and re-run until the preview looks right. If something looks wrong,
    adjust the template or the relevant setting and dry-run again.
 
+A row can also be flagged because its move would cross to another drive and the temporary copy's path
+would be too long. Those rows are worth resolving before you rename — see
+[If the confirmation warns about a path being too long](#if-the-confirmation-warns-about-a-path-being-too-long).
+
+A row can also be marked **Lands outside your Cove library**. That rename still happens exactly as
+previewed; what it costs is that Cove stops seeing the file — see
+[When a rename lands outside your Cove library](./settings#when-a-rename-lands-outside-your-cove-library).
+
+A row that one of your exclude rules matched is marked as excluded in the table, and it counts toward
+the skipped total the rename confirmation shows.
+
 ## Rename
 
 1. When the preview looks right, **save** your settings (the sticky Save bar at the bottom).
@@ -69,18 +83,93 @@ destination, and any warnings — without changing anything.
 3. Renamer renames each file and updates its Cove record together. A file is never renamed onto an
    existing file — a collision gets a numbered suffix such as `(1)` instead.
 
-## Undo the last batch
+If the panel says it **couldn't confirm the rename**, the job stopped telling Renamer how it was
+getting on — it did not necessarily stop working. Some of your files may already have been renamed.
+Run a dry run again to see where your library actually stands before you start another rename.
 
-If a rename batch wasn't what you wanted, open the **Undo** section and click **Undo last batch**
-(behind a confirmation). Undo restores the previous names and locations of the most recent batch.
+When a move crosses to another drive, Renamer copies the file, verifies the copy, and only then
+removes the original. If the machine loses power in the middle of that, you may find one stray file
+in the destination folder, named after the file being moved with `.rnm` and eight characters added.
+Nothing reads it, the next attempt writes a different one, and you can delete it. Renamer will not
+delete it for you, because it never removes a file it did not create.
 
-Undo is deliberately small, so know what it covers:
+### If the confirmation warns about a path being too long
 
-- Only the **most recent** batch is kept — starting another rename replaces it.
-- A batch of more than **5,000 files** is **not recorded at all**, and both the rename confirmation
-  and the dry-run footer say so before it runs. A whole-library rename usually lands here.
+That temporary name is longer than the final one, so a file can fit its new name and still not fit
+while the copy is in flight. Renamer checks for this before you approve, and the confirmation says so:
+
+```text
+⚠ 3 cannot be copied across drives — the temporary copy's path would be too long.
+  Shorten the destination folder or the filename template for them.
+```
+
+Two remedies, either of which is enough:
+
+- **Shorten the destination folder.** A destination closer to the drive root leaves more room for the
+  name. This is usually the quicker fix, because it applies to every file heading there.
+- **Shorten the filename template.** Drop a token, or shorten a separator, so the generated name is
+  smaller. See [Templates](./templates.md).
+
+The check only reports — it never renames a file differently to make it fit. Your names are exactly
+what the preview showed, whether or not this warning appears, so you can dry-run again after changing
+a setting and compare the two previews directly.
+
+This applies only to moves that cross drives. A rename within one drive never mints the temporary
+name, so it is never affected.
+
+## Undo the last rename
+
+If a rename wasn't what you wanted, open the **Undo last rename** section and click **Undo last
+rename** (behind a confirmation). Undo moves the files back to the names and folders they came from
+and updates their Cove records to match. The companion files that travelled with them come back too
+— a same-name neighbour such as a `.srt` subtitle, and the captions Cove tracks for the item.
+
+The panel states what it will act on before you press it:
+
+```text
+Last rename: 2 items renamed · undo available until August 18, 2026
+```
+
+Know what undo covers:
+
+- Undo is kept for **7 days**. Several renames can be waiting at once, so starting another rename no
+  longer discards the one before it.
+- The panel and the button both reach the most recent rename that **still has files to put back**.
+  When two renames are waiting, the newer one is offered first. The older one is not lost — it keeps
+  its own 7 days, and the panel offers it again as soon as the newer one has nothing left to restore.
+  What you cannot do is reach past the newer rename to get to it.
+- A rename expires as a whole. When its 7 days are up, everything it holds goes, including any part
+  you had not restored yet.
+- Any rename can be undone, whatever its size.
+- **Rename all files** renames each media kind as its own batch, so one undo restores one kind — the
+  **last kind** the run reached. If your library holds videos and images, undoing once after a
+  whole-library rename brings back one of them, not both. Click **Undo last rename** again and the
+  kind before it comes back — one click per kind, and each kind keeps its own 7 days. The success
+  message says so when the run finishes.
+- A pending undo survives an update or a reinstall of Renamer, because the record lives in Cove's
+  database rather than in the extension's own folder.
 - Undo does **not** re-create a source folder that ["Delete the source folder when a move leaves it
   empty"](./settings#destination-routing) removed.
+
+### If some files could not be moved back
+
+A file can be locked by another program, a drive can be unmounted, or something can already sit in
+the slot a file came from. Undo restores the rest and names the first problem it hit, and the panel
+then reads:
+
+```text
+Last rename: 1 of 2 restored · 1 remaining · undo available until August 18, 2026
+```
+
+Clear the cause and undo again — the second run acts only on what is left, for as long as the rename
+is still inside its 7 days. If you started another rename in between, the panel offers that newer one
+first; once it has nothing left to put back, yours is offered again. One case is final rather than
+worth retrying: a file that is no longer in your library cannot be restored, because Renamer reads its
+current location from Cove. The panel counts those apart.
+
+A file can also come back without a companion, when the neighbour's original slot is taken. The media
+file is restored and its Cove record is correct, and the message names the companion that stayed
+behind, because clearing that slot is yours to do.
 
 ### If a rename can't be undone
 
@@ -97,8 +186,15 @@ re-run is how you change your mind about a template. Before the first run on a s
 
 - **Rename only curated items** — turn on _Only rename organized items_ (What gets renamed).
 - **Keep files organized into folders by studio/year** — set a folder template like
-  `$studio / $year` and, if the destination is outside the source folder, add that root under
-  _Allowed roots_ (Destination routing → Advanced).
+  `$studio / $year`. The folders are made under the library path you picked beside it, or under
+  whichever one holds each file if you picked none.
+- **Tidy each drive in place, without gathering files onto one** — leave every root at
+  _(the file's own library path)_. Every other choice names a place and pulls matching files to it.
+- **Keep an intermediate level, such as `videos/<studio>`** — put that level in the folder template:
+  `videos/$studio`. The template is relative to the root beside it, so the level has to be written in.
+- **Send some studios to another drive** — add that drive as a library path in **Cove's** settings,
+  then pick it as the root of a _Per-studio destination_. Renamer only ever writes inside Cove's own
+  library paths. See [Where a file lands](./settings#where-a-file-lands).
 - **Route certain studios or tags to specific drives** — use _Per-studio destinations_ or
   _Per-tag destinations_ (Destination routing).
 - **Skip certain items entirely** — add exclude rules by tag, studio, or path (Advanced → Excludes).

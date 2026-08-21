@@ -13,6 +13,28 @@ From the repo root:
 dotnet build CoveExtensions.slnx
 ```
 
+An extension's frontend needs its wire types generated first — they are derived from the committed
+OpenAPI document and gitignored, so a fresh clone has none and `npm run verify` fails on a missing
+module. From the repo root, before any per-extension frontend command:
+
+```sh
+npm ci --no-workspaces
+npm run generate:wire
+```
+
+To format the C# (`npm run format:cs`, or `format:cs:check` to verify without writing):
+
+```sh
+npm run format:cs:check
+```
+
+Run it through the script rather than calling `dotnet format` directly. Two reasons, both of which
+have bitten here: with a `../cove` sibling checked out, `dotnet format` follows the ProjectReference
+graph into Cove's own source and reports hundreds of issues that are not yours — the script excludes
+it, and that exclude is a harmless no-op in CI, which has no sibling. And a folder path passed to
+`--include`/`--exclude` **must end in a separator**: `--include ./src` matches nothing and exits 0,
+while `--include ./src/` works. A scoping typo there does not fail — it silently passes.
+
 Each extension has its own build/test/verify commands — see that extension's own README
 ([`extensions/Renamer/README.md`](extensions/Renamer/README.md)) and
 [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) for what a PR is expected to
@@ -30,12 +52,14 @@ extend an existing one), you work against the same contract:
   reference and the source-selection math are wired once at the repo root
   (`Directory.Build.props`/`Directory.Build.targets`); your extension inherits it.
 - Never bundle host-provided assemblies (`Cove.Core`/`Cove.Plugins`/`Cove.Sdk`, EF Core, Npgsql,
-  Pgvector) — the host provides them, and shipping them causes runtime type-identity mismatches.
+  Pgvector) — the host loads its own copy and warns once, so a leak costs weight, not correctness.
 - Never write to Cove's database directly; go through `CoveContext` and `SaveChangesAsync`.
 
 Register the extension in [`extensions/catalog.json`](extensions/catalog.json) so CI can build and
 release it. Each entry declares `name`, `id`, `path`, `tagPrefix`, `projectPath`, `manifestPath`,
-`versionSourcePath`, and the optional `testProjectPath`, `uiPath`, and `e2ePath`/`e2eProject`.
+and the optional `testProjectPath`, `uiPath`, and `e2ePath`/`e2eProject`. Every path you declare
+must exist: `scripts/validate-extension-repo.mjs` fails the build on one that does not, rather than
+letting the typo surface later as an `npm ci` in a missing directory partway through a matrix leg.
 Adding an extension's build and release capability is a catalog edit, not a workflow-logic change.
 
 For the full authoring rules and a real layout to copy (`src/<Name>/`, `src/<Name>.Tests/`,

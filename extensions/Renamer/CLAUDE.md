@@ -34,9 +34,8 @@ The monorepo-wide bans (shipping host assemblies, direct SQLite/Postgres writes)
 ## Structure & patterns (Renamer-specific)
 
 The monorepo shape rules — six-kind taxonomy, no `features/` wrapper, suffix-as-kind, two-level shared
-(`common/` for extension-local), all-camelCase wire + `contracts.ts`, correctness + testing + tooling
-gates — live in the root `CLAUDE.md` under **Extension authoring patterns** and apply here. Renamer
-specifics:
+(`common/` for extension-local), the wire-type rule, correctness + testing + tooling gates — live in the
+root `CLAUDE.md` under **Extension authoring patterns** and apply here. Renamer specifics:
 
 - **One rich capability → domain-layered, not capability-sliced.** The C# backend stays
   `Engine/ · Planner/ · Execution/` (+ `Options/ · Jobs/ · Contracts/`) at the project root — the
@@ -44,10 +43,13 @@ specifics:
 - **UI slices directly under `src/`, no `features/` wrapper.** `settings/` holds the panel + its
   per-section children; the dry-run modal NESTS as `settings/dry-run/` (it is launched only from the
   settings panel). The bulk-action handler is its own slice (`rename-action/`).
-- **Extension-local shared is `common/`, not "shared".** `common/lib/preview.ts` — evicted from any
-  old `shared/` bucket; nothing Renamer-specific goes in the repo-level `shared/` packages.
-- **Wire home: one `contracts.ts`** (UI) + a `Contracts/` unit in the assembly
-  (`PreviewItemView` split out of the plan model so the domain can evolve without a wire break).
+- **Extension-local shared is `common/`, and it is flat.** `common/format.ts` holds what more than one
+  surface formats; nothing Renamer-specific goes in the repo-level `shared/` packages, and a module
+  only one slice consumes belongs in that slice rather than here.
+- **Wire home: a `Contracts/` unit in the assembly** (`PreviewItemView` split out of the plan model so
+  the domain can evolve without a wire break). The UI declares no response type of its own — they are
+  derived from the extension's own emitted document, so the panel imports its wire types rather than
+  transcribing them.
 - **Tests mirror source** (`Engine/ · Execution/{…}/ · Options/ · Api/ · TransportSmoke/`). Widen the
   `IRenamerDataPort` write seam so a throwing fake can unit-test the rollback spine at L0.
 
@@ -66,7 +68,7 @@ specifics:
 - The **dev local-source build** is the path used to load into the running dev Cove: it resolves
   `Cove.Sdk` from a local Cove checkout so the extension is ABI-identical to the running host (the
   source-selection precedence and host-assembly stripping are handled at the repo root). Use
-  `scripts/deploy-dev.ps1` for the full build → strip-verify → deploy → restart loop.
+  `scripts/deploy-dev.ps1` for the full build → frontend-build → assemble → deploy → restart loop.
 - **Publish-readiness** targets the published NuGet packages (the pinned `CoveSdkVersion`,
   `Private=false`), where `Cove.Sdk.targets` is imported transitively from the package.
 
