@@ -1,11 +1,12 @@
 using System.Text;
 using System.Text.Json;
 using Cove.Core.Auth;
+using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Renamer.Api;
 using Renamer.Contracts;
 using Renamer.Options;
+using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
@@ -27,7 +28,7 @@ public sealed class PreviewSampleEndpointTests
         return ext;
     }
 
-    private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode ?? 0;
+    private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
     /// <summary>
     /// Builds an <see cref="HttpRequest"/> whose body is the given raw JSON — the endpoint now binds the
@@ -43,7 +44,7 @@ public sealed class PreviewSampleEndpointTests
     }
 
     /// <summary>Runs the endpoint with a videos.read principal and a serialized {Options:...} body.</summary>
-    private static List<PreviewSampleResult> Preview(RenamerOptions? options)
+    private static IReadOnlyList<PreviewSampleResult> Preview(RenamerOptions? options)
     {
         // Serialize the body exactly as the panel/host would, via the converter-aware options, so the
         // round-trip mirrors production (string enums, case-insensitive props).
@@ -52,12 +53,12 @@ public sealed class PreviewSampleEndpointTests
     }
 
     /// <summary>Runs the endpoint with a videos.read principal and a RAW JSON body string.</summary>
-    private static List<PreviewSampleResult> PreviewRaw(string json)
+    private static IReadOnlyList<PreviewSampleResult> PreviewRaw(string json)
     {
         var ext = NewExtension();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
         var result = ext.PreviewSampleAsync(RequestWithBody(json), principal, default).GetAwaiter().GetResult();
-        var ok = Assert.IsType<Ok<List<PreviewSampleResult>>>(result);
+        var ok = Assert.IsType<WireJson<IReadOnlyList<PreviewSampleResult>>>(Unwrap(result));
         return ok.Value!;
     }
 

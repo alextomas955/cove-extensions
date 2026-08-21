@@ -207,6 +207,17 @@ for (const entry of entries) {
     );
   }
 
+  // A declared wire document must exist, and an entry with a UI must declare one. The mechanism's
+  // whole point is that a hand-written TypeScript wire type type-checks while reading undefined at
+  // runtime; an extension that gains a UI without gaining the derived document loses that check
+  // silently, because the CI step reads this very field to decide whether to run.
+  if (entry.wireDocumentPath && !fs.existsSync(path.join(root, entry.wireDocumentPath))) {
+    errors.push(entry.id + ": missing wire document at " + entry.wireDocumentPath);
+  }
+  if (entry.uiPath && !entry.wireDocumentPath) {
+    errors.push(entry.id + ": declares uiPath and must declare wireDocumentPath");
+  }
+
   const manifest = readJson(manifestPath);
   if (manifest.id !== entry.id)
     errors.push(entry.id + ": catalog id does not match extension.json id " + manifest.id);

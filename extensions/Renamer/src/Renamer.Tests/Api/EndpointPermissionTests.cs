@@ -2,6 +2,7 @@ using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Renamer.Tests.Execution;
+using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
@@ -40,7 +41,7 @@ public sealed class EndpointPermissionTests
         return ext;
     }
 
-    private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode ?? 0;
+    private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
     [Fact]
     public async Task PreviewAsync_WithoutVideosRead_Returns403_AndComputesNoPlan()
@@ -83,7 +84,7 @@ public sealed class EndpointPermissionTests
             var allowed = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("image", [1]), db, imageOk, default);
             Assert.NotEqual(403, StatusOf(allowed));
-            Assert.IsAssignableFrom<IValueHttpResult>(allowed);
+            Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(allowed));
         }
         finally
         {
@@ -116,10 +117,10 @@ public sealed class EndpointPermissionTests
             new global::Renamer.Api.RenamerRequest("video", [1, 2]), principal, jobs);
 
         Assert.Equal(202, StatusOf(result));
-        var value = Assert.IsAssignableFrom<IValueHttpResult>(result).Value;
-        Assert.NotNull(value);
-        // The 202 body carries the enqueued jobId the fake returned.
-        Assert.Equal("job-123", value!.GetType().GetProperty("jobId")!.GetValue(value));
+        // The 202 body carries the enqueued job id the fake returned.
+        var body = Assert.IsType<global::Renamer.Contracts.JobEnqueued>(
+            Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value);
+        Assert.Equal("job-123", body.JobId);
 
         var (type, _, exclusive) = Assert.Single(jobs.Enqueued);
         Assert.Equal("ext:com.alextomas955.renamer:renamer-batch", type);

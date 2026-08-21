@@ -9,6 +9,7 @@
       "projectPath": "extensions/Renamer/src/Renamer/Renamer.csproj",
       "testProjectPath": "extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj",
       "manifestPath": "extensions/Renamer/src/Renamer/extension.json",
+      "wireDocumentPath": "extensions/Renamer/wire/openapi.json",
       "uiPath": "extensions/Renamer/src/Renamer.Ui",
       "versionSourcePath": "extensions/Renamer/src/Renamer/Renamer.cs",
       "requiredBundledDlls": ["System.IO.Hashing"],
