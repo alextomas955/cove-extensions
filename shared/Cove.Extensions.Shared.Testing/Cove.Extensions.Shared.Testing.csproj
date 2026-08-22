@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>false</IsPackable>
+    <!-- References xunit for the shared [Fact] base classes but ships no runner, and xunit's own
+         props would otherwise mark it a test project. -->
+    <IsTestProject>false</IsTestProject>
     <!-- Test-support only: never a deployed Cove plugin, so neutralize the inherited dynamic-loading flag. -->
     <EnableDynamicLoading>false</EnableDynamicLoading>
     <!--
