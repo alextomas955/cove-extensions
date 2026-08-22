@@ -198,6 +198,19 @@ comment.
     to produce it. No references to GSD, planning phases, tickets, tasks, milestones, or any other
     development framework or agent-workflow vocabulary. A contributor reading the source should never
     have to know what process wrote it; the shipped code is tool-agnostic.
+  - **A measurement** — a line number, a count, a version, a date, a commit hash, a timing. These are
+    true when written and silently false later, and a reader who spots the drift stops trusting the
+    rest of the comment. Pin the fact with a test, or state the durable form ("the rollback catch",
+    not "the catch at :153"). A comment that must name a file, field or number is a comment whose
+    claim someone has to re-check; check it before writing it, and delete it rather than repair it
+    when it goes stale.
+  - **The argument for the decision** — a comment states the constraint and stops. Clauses like
+    "which is how a gate gets switched off", "rather than a smaller success" or "which is stronger
+    than detecting it after the fact" defend a choice to a reviewer; the code already made the
+    choice. This is the single largest source of comment bulk here.
+  - **A comparison against code that is not there** — "X used to do Y", "this replaces the Z gate",
+    "the apparatus this removed". A reader has never seen the old version. That belongs in the commit
+    message, which is where the diff it describes also lives.
   - The first two are the primary deletion targets when cleaning up existing comments.
 - **XML docs (`///`)** are earned by judgment, not mandated. Earn them on the public / SDK-facing
   surface (the `IExtension` boundary, interfaces, shared-vocabulary contract types) where the tag
@@ -248,9 +261,13 @@ code explains the what; comments explain the why.** Default to no comment; earn 
   - The invariant a `*Logic.ts` module exists to hold — it is extracted precisely so it can be
     unit-tested without a DOM.
 - **Never write:** name restatement; tutorial narration of obvious JSX/hooks; change-narrative or
-  author voice; or process / workflow / tooling jargon — no GSD, planning-phase, ticket, or
-  agent-workflow references. The shipped bundle is tool-agnostic; a reader should never need to know
-  what process wrote it.
+  author voice; process / workflow / tooling jargon — no GSD, planning-phase, ticket, or
+  agent-workflow references; or any of the three additions in the C# section above (a measurement,
+  the argument for the decision, a comparison against code that is not there), which apply here
+  unchanged. The shipped bundle is tool-agnostic; a reader should never need to know what process
+  wrote it.
+- **XML doc tags are C# only.** `<summary>`, `<remarks>` and `<para>` mean nothing to JSDoc and
+  render as literal text. A TypeScript or JavaScript doc comment is prose plus `@param`/`@returns`.
 - **JSDoc (`/** */`)** is earned, not mandated. Earn it on the extension's public surface — the
   `defineExtension` entry, exported slot/tab components, and the `*Logic.ts` contracts — where it
   states something the signature cannot (what a component reads from props, what a pure function
