@@ -34,7 +34,8 @@ public sealed class RevertLogConcurrencyTests
             await log.AppendAsync(
                 entityId: 1000 + i,
                 fileId: 5000 + i,
-                oldPath: $"media/old-{i}.mkv");
+                oldPath: $"media/old-{i}.mkv",
+                ct: TestContext.Current.CancellationToken);
         }));
 
         var batch = await log.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
@@ -78,13 +79,13 @@ public sealed class RevertLogConcurrencyTests
         {
             await Task.Yield();
             await jobA.AppendAsync(entityId: 2000 + i, fileId: 6000 + i,
-                oldPath: $"media/a-old-{i}.mkv");
+                oldPath: $"media/a-old-{i}.mkv", ct: TestContext.Current.CancellationToken);
         });
         var appendsB = Enumerable.Range(0, perJob).Select(async i =>
         {
             await Task.Yield();
             await jobB.AppendAsync(entityId: 3000 + i, fileId: 7000 + i,
-                oldPath: $"media/b-old-{i}.mkv");
+                oldPath: $"media/b-old-{i}.mkv", ct: TestContext.Current.CancellationToken);
         });
 
         await Task.WhenAll(appendsA.Concat(appendsB));

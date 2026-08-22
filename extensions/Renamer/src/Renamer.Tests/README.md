@@ -24,9 +24,9 @@ dotnet test --project extensions/Renamer/src/Renamer.Tests -- --filter-trait "Ti
 ```
 
 Some L0/L1 path tests assert Windows path semantics (DOS-device, UNC and extended-length prefixes,
-8.3 short names, symlink/junction canonicalization) and are expected to fail on non-Windows hosts;
-they pass on the Windows CI leg. The privilege-gated symlink case calls `Assert.SkipUnless` so it skips
-with a reason when symlink creation lacks the OS privilege.
+8.3 short names, symlink/junction canonicalization). Each calls `Assert.SkipUnless`, so off Windows it
+skips with a reason rather than failing, and it runs on the Windows CI leg. The symlink case gates on
+the OS privilege symlink creation needs, so it can skip on Windows too.
 
 ## Coverage guard
 

@@ -7,8 +7,8 @@ namespace Renamer.Tests.Execution.CanonicalGuard;
 /// GATE-03 symlink variant: a directory SYMBOLIC LINK inside an allowed root pointing OUTSIDE it is
 /// REJECTED — the same <c>ResolveLinkTarget</c> chain that the mandatory junction test proves also
 /// resolves symlinks. Unlike junctions, creating a directory symlink needs Developer Mode or admin
-/// privilege, so this one can skip. The junction test remains the non-skippable load-bearing proof of
-/// the resolution path.
+/// privilege, so this one can skip on Windows too. The junction test carries the resolution path: a
+/// junction needs no privilege, so on Windows it always runs.
 /// </summary>
 [Trait("Tier", "L1")]
 [Trait("Adversarial", "Symlink")]

@@ -43,8 +43,9 @@ public static class TierTraitGuard
         type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
             .Any(m => m.CustomAttributes.Any(a => IsFactLike(a.AttributeType)));
 
-    // [Theory] derives from Xunit.FactAttribute, so walking the base chain catches every discoverable
-    // test method.
+    // Matched by name, not by typeof: the inspected assembly may be built against a different xUnit
+    // identity, where a typed check matches nothing and the guard passes vacuously. Walking the base
+    // chain covers [Theory] and anything else derived from FactAttribute.
     private static bool IsFactLike(Type? attributeType)
     {
         for (var t = attributeType; t is not null; t = t.BaseType)
