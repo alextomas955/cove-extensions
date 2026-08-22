@@ -23,4 +23,18 @@
     -->
     <NoWarn>$(NoWarn);CA1716</NoWarn>
   </PropertyGroup>
+  <ItemGroup>
+    <!--
+      The OpenAPI emit lives HERE rather than in each consuming test project because the StartAsync
+      ordering is the one thing it can get wrong, and a per-extension copy is a per-extension chance to
+      omit that call. Renamer.Tests keeps its OWN TestHost reference for TransportSmokeTests, which uses
+      UseTestServer/GetTestClient directly.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <!-- Pinned above the floor the ASP.NET Core integration's own transitive resolve falls to
+         (see Directory.Packages.props). -->
+    <PackageReference Include="Microsoft.OpenApi" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <PackageReference Include="xunit" />
+  </ItemGroup>
 </Project>

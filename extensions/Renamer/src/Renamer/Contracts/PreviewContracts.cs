@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Cove.Extensions.Shared;
 using Renamer.Planner;
 
 namespace Renamer.Contracts;
@@ -127,11 +126,16 @@ public sealed record LastBatchSummary(bool HasBatch, int Count, long WrittenAtUt
 public static class PreviewContracts
 {
     /// <summary>
-    /// Response-serialization options for the preview/scan/picker endpoints: camelCase to match the
-    /// host's wire convention (and the UI's field names) plus a string-enum converter so
-    /// <c>status</c> serializes as the string the UI matches (<c>"Renamer"</c>/<c>"NoOp"</c>/…). The
-    /// host's default minimal-API serializer emits NUMERIC enums, which the frontend's
-    /// <c>buildConfirmSummary</c> would read as a non-renamer — so the extension serializes here.
+    /// The host's own wire convention, for the places this extension serializes something itself: the
+    /// persisted scan-summary blob, and the tests that assert what a response looks like.
     /// </summary>
-    public static readonly JsonSerializerOptions PreviewResponseJsonOptions = CoveJsonOptions.WebWithEnumStrings();
+    /// <remarks>
+    /// Carries no converter. Enum spelling comes from
+    /// <see cref="Cove.Extensions.Shared.CamelCaseStringEnumConverter"/> on the enum types; a converter
+    /// here would OUTRANK that one (see its remarks).
+    /// </remarks>
+    public static readonly JsonSerializerOptions PreviewResponseJsonOptions = new(JsonSerializerDefaults.Web);
 }
+
+/// <summary>The job id a caller polls after an enqueue route accepts the work.</summary>
+public sealed record JobEnqueued(string JobId);

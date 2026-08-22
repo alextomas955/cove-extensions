@@ -5,6 +5,7 @@ using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
+using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Preview;
 
@@ -68,7 +69,7 @@ public sealed class PreviewWholeBatchTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Contracts.PreviewResponse>>(result);
+            var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var response = ok.Value!;
 
             // Per-item contract preserved + routing fields present.
@@ -87,7 +88,7 @@ public sealed class PreviewWholeBatchTests
             // WIRE-SHAPE regression: the bytes the UI reads MUST be camelCase with `status` and
             // `confirmLevel` the camelCase STRING — NOT PascalCase, NOT a numeric enum. Serialize with
             // the handler's own options.
-            var json = JsonSerializer.Serialize(response, ok.JsonSerializerOptions);
+            var json = JsonSerializer.Serialize(response, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
             Assert.Contains("\"items\":", json);
             Assert.Contains("\"summary\":", json);
             Assert.Contains("\"status\":\"move\"", json);
@@ -143,7 +144,7 @@ public sealed class PreviewWholeBatchTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Contracts.PreviewResponse>>(result);
+            var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var response = ok.Value!;
 
             // The excluded item APPEARS in the preview (not dropped), with SkipExcluded + its reason.
@@ -157,7 +158,7 @@ public sealed class PreviewWholeBatchTests
             Assert.Equal(0, response.Summary.TotalCount);
 
             // The status survives serialization as the camelCase STRING the UI matches on.
-            var json = JsonSerializer.Serialize(response, ok.JsonSerializerOptions);
+            var json = JsonSerializer.Serialize(response, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
             Assert.Contains("\"status\":\"skipExcluded\"", json);
 
             // Zero mutation.
@@ -192,7 +193,7 @@ public sealed class PreviewWholeBatchTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Contracts.PreviewResponse>>(result);
+            var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var response = ok.Value!;
 
             Assert.Equal(1, response.Summary.TotalCount);

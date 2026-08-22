@@ -89,7 +89,7 @@ human-facing version lives at `website/docs/contributing/authoring-patterns.md`.
 Matching/ · Monitor/ · Push/ · SceneStatus/`) alongside foundation folders (`Contracts/ · Adapters/
 · Client/ · State/ · …`); a single rich capability is domain-layered instead (Renamer's `Engine/ ·
 Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ · scene/ · monitor/
-· …`) next to `index.ts`, `contracts.ts`, `common/`. Seeing the same capability name on both tiers
+· …`) next to `index.ts`, `wire/`, `common/`. Seeing the same capability name on both tiers
   (`Monitor/` + `monitor/`) is intended alignment, **not** duplication to collapse.
 - **No `features/` wrapper.** Slices live at the tier root, not under `features/`/`Features/` — that
   is a large-app (FSD/Bulletproof-React) pattern that discriminates nothing in a plugin that is almost
@@ -101,7 +101,7 @@ Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ 
   (studio + performer monitoring → `Monitor/`; scene add → `Push/`). Name a projection for its
   capability: `SceneStatus/`, never bare `Scene/`.
 - **Legibility is suffix-as-kind, not deep segment folders.** TS `*Logic.ts`=DOM, `*Store.ts`=INFRA,
-  `use*.ts`=INFRA hook, `*.tsx`=view, `contracts.ts`=MODEL; C# `*Service`/`*Guard`/`*Projector`/
+  `use*.ts`=INFRA hook, `*.tsx`=view, `wire/api.ts`=MODEL (generated); C# `*Service`/`*Guard`/`*Projector`/
   `*Detector`=DOM, `*Port`/`*Client`=INFRA, `*Contracts`/`*Models`=MODEL. No `ui/lib/model/` segments
   inside a slice — the suffix carries it. Folder-per-section only when a section holds more than one
   file.
@@ -117,13 +117,17 @@ Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ 
   domain vocabulary belongs in its `common/ui`, not in `cove-extensions-ui`.
 - **Models live with their behavior; only wire contracts get a home.** Do not strip behavior into a
   data-only "models layer" (anemic-domain anti-pattern). C# wire DTOs → a `Contracts/` unit in the
-  SAME assembly, cross-cutting enums defined once in a neutral `Vocabulary.cs`. TS wire types → one
-  `contracts.ts` per UI `src/` root, consumed via `import type` (erases at runtime, so `*Logic.ts`
-  stays offline-gate-clean).
+  SAME assembly, cross-cutting enums defined once in a neutral `Vocabulary.cs`. TS wire types are
+  GENERATED, never hand-mirrored: `npm run generate:wire` turns the committed `wire/openapi.json` into
+  `src/wire/api.ts` (gitignored), consumed via `import type` (erases at runtime, so `*Logic.ts` stays
+  offline-gate-clean).
 - **Wire is all-camelCase — properties AND enum values, no island.** It is the convention on the
-  external boundary (Cove `JsonSerializerDefaults.Web`). Every UI response is
-  a projection DTO, never a live domain/EF type. Codegen stays deferred (~17 stable types; offline
-  gates ARE the drift check); re-trigger only past ~30 mirrored types.
+  external boundary (Cove `JsonSerializerDefaults.Web`). Every UI response is a projection DTO, never a
+  live domain/EF type. An enum's wire spelling is declared on the enum TYPE via
+  `[JsonConverter(typeof(CamelCaseStringEnumConverter))]`, never on an options object — an options-level
+  converter OUTRANKS a type attribute, so a second declaration can drift and win silently. The C#
+  handler signatures are the source of truth: the emit test derives `wire/openapi.json` from the shipped
+  registrations and fails on drift, so that document is the drift check rather than the offline gates.
 - **UI conventions.** Named exports only (the `defineExtension` default in `index.ts` is the one
   default export); no barrels bar `index.ts` + the curated `shared/` public barrel; data access
   through a named `use*` hook beside its `*Store.ts`, never a raw `request()` in `useEffect`; no
@@ -165,7 +169,7 @@ Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ 
   gates. Rollout: land each tool, get it green on `main`, THEN flip to blocking.
 - **Adding a new extension:** register in `catalog.json` → manifest + `FullExtensionBase` → structure
   by tier (no `features/`, capability-not-entity, suffix-as-kind, `common/` for local shared) → wire
-  camelCase + `Contracts/`/`contracts.ts` → UI (named exports, `use*` hooks, no `hooks/`) → correctness
+  camelCase + `Contracts/` + generated `wire/` → UI (named exports, `use*` hooks, no `hooks/`) → correctness
   (RunAsSystem, no silent swallow, `Cancelled`, bounded stores) → tests (Tier traits, mirror source,
   safety behind e2e) → green under the merge gates → docs (README + site + CHANGELOG + own CLAUDE.md).
 

@@ -35,6 +35,8 @@ const scriptRules = {
 export default tseslint.config(
   {
     ignores: [
+      // Generated from the committed wire document; a program input, not lint's subject.
+      "**/src/wire/**",
       "**/node_modules/**",
       "**/dist/**",
       "**/bin/**",

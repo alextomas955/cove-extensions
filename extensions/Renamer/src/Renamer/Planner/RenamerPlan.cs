@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using Cove.Extensions.Shared;
 using Renamer.Options;
 
 using static global::Renamer.Execution.PathOps;
@@ -13,6 +15,7 @@ namespace Renamer.Planner;
 /// halves — the executor's move-time source pre-check and the preview planner's read-only
 /// source-presence check.
 /// </summary>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum RenamerStatus
 {
     /// <summary>In-place basename change (same parent folder).</summary>

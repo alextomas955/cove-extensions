@@ -5,6 +5,7 @@ using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
+using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
@@ -51,7 +52,7 @@ public sealed class PreviewEndpointTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Contracts.PreviewResponse>>(result);
+            var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var item = Assert.Single(ok.Value!.Items);
             Assert.Equal(fileId, item.FileId);
             Assert.EndsWith("raw one.mkv", item.OldFullPath);
@@ -62,8 +63,8 @@ public sealed class PreviewEndpointTests
             // serialize as camelCase with `status` the camelCase STRING "renamer" — NOT PascalCase,
             // NOT the numeric 0. The UI's confirm summary reads it.status === "renamer" and it.fileId; a
             // numeric enum or PascalCase key reads as a non-renamer and the renamer silently never
-            // fires. Assert the actual bytes, using the options the handler attached.
-            var json = JsonSerializer.Serialize(ok.Value!, ok.JsonSerializerOptions);
+            // fires. Assert the actual bytes the response options produce.
+            var json = JsonSerializer.Serialize(ok.Value!, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
             Assert.Contains("\"status\":\"renamer\"", json);
             Assert.Contains("\"fileId\":", json);
             Assert.DoesNotContain("\"status\":0", json);
@@ -97,7 +98,7 @@ public sealed class PreviewEndpointTests
             var result = await ext.PreviewAsync(
                 new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
-            var ok = Assert.IsType<JsonHttpResult<global::Renamer.Contracts.PreviewResponse>>(result);
+            var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             // one plan item per physical file of the entity, never just the first file.
             Assert.Equal(2, ok.Value!.Items.Count);
         }

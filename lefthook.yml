@@ -68,13 +68,6 @@ pre-commit:
     sdk-drift-check:
       run: node extensions/Renamer/scripts/check-sdk-drift.mjs --warn
 
-    # Flags a registered endpoint or a response field that no caller consumes — the UI bundle, the host manifest
-    # and the inbound webhook are all checked first. A compiler cannot see this: the C# side builds and the TS
-    # side simply never mentions the symbol. Advisory while it lands (the repo's tooling rollout rule), because a
-    # field with no UI is sometimes a deliberate advanced option rather than dead surface.
-    wire-usage-check:
-      run: node scripts/check-wire-usage.mjs --warn
-
     # Flags added comments in the staged diff that read as narrative (change-story, consumer-behavior,
     # author voice) instead of a non-obvious why (the CLAUDE.md rule). Heuristic, so it WARNS only; drop
     # --warn to make narrative comments a hard fail. This hook carries no glob, so on a doc-only commit

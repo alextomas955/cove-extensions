@@ -91,6 +91,8 @@ export async function startHarness({ image, timeoutMs = DEFAULT_STARTUP_TIMEOUT_
      * browser-driven E2E test needs this, so it lives here rather than being copy-pasted per test.
      */
     async bootstrapOwner({ username = "e2e-owner", password = "E2eTestPassword123!" } = {}) {
+      await waitForBuiltinRoles(handle.baseUrl, { timeoutMs });
+
       const res = await fetch(`${handle.baseUrl}/api/auth/bootstrap-owner`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -98,8 +100,14 @@ export async function startHarness({ image, timeoutMs = DEFAULT_STARTUP_TIMEOUT_
       });
       if (!res.ok) {
         const body = await res.text().catch(() => "<unreadable body>");
+        // Cove answers an unhandled exception with a bare 500 and an empty body, so the failure as
+        // thrown says nothing about its own cause. Carry the server's own log.
         throw new Error(
-          `bootstrapOwner: POST /api/auth/bootstrap-owner failed (${res.status}): ${body}`,
+          [
+            `bootstrapOwner: POST /api/auth/bootstrap-owner failed (${res.status}): ${body}`,
+            "--- cove container log (tail) ---",
+            await tailContainerLog(coveContainer),
+          ].join("\n"),
         );
       }
       return res.json();
@@ -110,6 +118,68 @@ export async function startHarness({ image, timeoutMs = DEFAULT_STARTUP_TIMEOUT_
     },
   };
   return handle;
+}
+
+/**
+ * Blocks until Cove has seeded its built-in roles. A healthy container is NOT enough:
+ * `BootstrapAuthService.StartAsync` pushes the seeding onto a background `Task.Run` and returns, so it
+ * is neither awaited by host startup nor covered by the 503 maintenance gate, and `/health` answers 200
+ * while it runs.
+ *
+ * `POST /api/auth/bootstrap-owner` inserts the Owner role itself when absent, so inside that window two
+ * writers race one unique role name and the loser escapes as a bare 500. Waiting for the role removes
+ * the second writer instead of retrying into the collision.
+ */
+async function waitForBuiltinRoles(baseUrl, { timeoutMs = 60_000, intervalMs = 250 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  let lastSeen = "no response yet";
+  while (Date.now() < deadline) {
+    const res = await fetch(`${baseUrl}/api/roles`).catch(() => null);
+    if (res?.ok) {
+      const roles = await res.json().catch(() => null);
+      if (Array.isArray(roles)) {
+        if (roles.some((role) => role?.name === "Owner")) return;
+        lastSeen = `${roles.length} role(s), none named Owner`;
+      } else {
+        lastSeen = "GET /api/roles did not return an array";
+      }
+    } else if (res) {
+      lastSeen = `GET /api/roles -> ${res.status}`;
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error(
+    `waitForBuiltinRoles: the Owner role was not seeded within ${timeoutMs}ms at ${baseUrl}/api/roles (last seen: ${lastSeen})`,
+  );
+}
+
+/**
+ * Best-effort tail of a container's own log. Never throws and never hangs: a diagnostic that can fail
+ * the run it is trying to explain is worse than no diagnostic, so every failure mode degrades to a
+ * short note.
+ */
+async function tailContainerLog(container, { lines = 60, timeoutMs = 5000 } = {}) {
+  try {
+    const stream = await container.logs();
+    const chunks = [];
+    stream.on("data", (chunk) => chunks.push(chunk.toString()));
+    await new Promise((resolve) => {
+      // Clear the timer and drop the stream on every exit path: an uncleared timer and an open
+      // stream both hold the event loop open, which reads as the suite hanging after its last test.
+      const timer = setTimeout(() => done(), timeoutMs);
+      function done() {
+        clearTimeout(timer);
+        stream.destroy();
+        resolve();
+      }
+      stream.once("end", done);
+      stream.once("error", done);
+    });
+    const text = chunks.join("");
+    return text ? text.split("\n").slice(-lines).join("\n") : "<container produced no log output>";
+  } catch (err) {
+    return `<container log unavailable: ${err.message}>`;
+  }
 }
 
 async function waitForExtensionEnabled(

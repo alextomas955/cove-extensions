@@ -55,15 +55,19 @@ export function useOverlayKeys(
     nav,
     itemSelector = DEFAULT_MENU_ITEM_SELECTOR,
     closeOnOutsideClick = true,
-    enabled = true,
     restoreFocus = nav === "dialog",
   } = options;
 
-  // onClose / excludeRefs read through a ref so the listener effect never re-attaches on their
-  // per-render identity, and focus-first stays a mount-once run. The write lands in a post-render
-  // effect: every read happens inside a DOM event handler, which cannot fire before commit.
+  // Every per-render option is read through this ref, so the listener effect never re-attaches on
+  // their identity and focus-first stays a mount-once run.
+  //
+  // The write MUST be a layout effect. A passive effect runs after the browser may already have
+  // painted and delivered input, so a key event arriving in that gap would read the previous
+  // render's values — which for `enabled` means a cancel suppressed by an operation that has
+  // already finished. `enabled` is likewise read from the ref and kept out of the deps below:
+  // re-subscribing the listener to pick up a new value reintroduces the same gap.
   const optsRef = useRef(options);
-  useEffect(() => {
+  useLayoutEffect(() => {
     optsRef.current = options;
   });
 
@@ -88,7 +92,7 @@ export function useOverlayKeys(
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        if (!enabled) return;
+        if (optsRef.current.enabled === false) return;
         if (nav === "menu") e.stopPropagation();
         else e.preventDefault();
         optsRef.current.onClose();
@@ -127,7 +131,7 @@ export function useOverlayKeys(
     }
 
     function onPointerDown(e: PointerEvent) {
-      if (!enabled) return;
+      if (optsRef.current.enabled === false) return;
       const target = e.target as Node;
       if (ref.current?.contains(target)) return;
       for (const r of optsRef.current.excludeRefs ?? []) {
@@ -144,7 +148,7 @@ export function useOverlayKeys(
       document.removeEventListener("keydown", onKeyDown, capture);
       document.removeEventListener("pointerdown", onPointerDown, capture);
     };
-  }, [ref, nav, itemSelector, closeOnOutsideClick, enabled]);
+  }, [ref, nav, itemSelector, closeOnOutsideClick]);
 }
 
 /**

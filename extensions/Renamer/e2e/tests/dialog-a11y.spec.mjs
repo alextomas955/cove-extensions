@@ -88,6 +88,10 @@ test("while a rename is in flight the dialog suspends cancel; it closes again on
   // Let the op settle (it fails) — pending clears, the modal stays open, and cancel re-enables.
   releaseRename();
   await expect(settings.dryRunCloseButton).toBeEnabled({ timeout: 30_000 });
+
+  // ONE press, deliberately. The re-enabled button and the re-armed Escape handler must become true
+  // in the same commit; a retried press would pass either way and so would not hold the overlay to
+  // that. See useOverlayKeys, which reads `enabled` through a layout-effect ref for this reason.
   await page.keyboard.press("Escape");
   await expect(settings.dryRunDialog).toBeHidden();
 });

@@ -15,6 +15,7 @@ using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
+using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
 
@@ -79,7 +80,7 @@ public sealed class ScanLibraryEndpointTests
         await ext.InitializeAsync(provider);
     }
 
-    private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode ?? 0;
+    private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
     [Fact]
     public async Task ScanLibraryEnqueue_WithAnyReadPermission_Returns202_AndEnqueuesExclusiveOnce()
@@ -379,7 +380,7 @@ public sealed class ScanLibraryEndpointTests
 
         var result = await ext.ScanLibraryResultAsync(principal, default);
 
-        Assert.IsType<NotFound>(result);
+        Assert.IsType<NotFound>(Unwrap(result));
     }
 
     [Fact]
@@ -402,7 +403,7 @@ public sealed class ScanLibraryEndpointTests
         global::Renamer.Renamer ext, ICurrentPrincipalAccessor principal)
     {
         var result = await ext.ScanLibraryResultAsync(principal, default);
-        return Assert.IsType<JsonHttpResult<global::Renamer.Contracts.ScanSummaryView>>(result).Value!;
+        return Assert.IsType<Ok<global::Renamer.Contracts.ScanSummaryView>>(Unwrap(result)).Value!;
     }
 
     /// <summary>Invokes the page query and unwraps the page.</summary>
@@ -411,7 +412,7 @@ public sealed class ScanLibraryEndpointTests
         global::Renamer.Contracts.ScanRowsRequest? body = null)
     {
         var result = await ext.ScanRowsAsync(body, principal, default);
-        return Assert.IsType<JsonHttpResult<global::Renamer.Contracts.ScanRowsPage>>(result).Value!;
+        return Assert.IsType<Ok<global::Renamer.Contracts.ScanRowsPage>>(Unwrap(result)).Value!;
     }
 
     /// <summary>A one-kind aggregate whose per-status counts are the only thing the readback merges.</summary>
@@ -476,8 +477,8 @@ public sealed class ScanLibraryEndpointTests
         var (ext, store) = await NewExtensionAsync();
 
         await store.SetAsync(global::Renamer.Renamer.LastScanSummaryKey, "{not json");
-        Assert.IsType<NotFound>(await ext.ScanLibraryResultAsync(
-            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default));
+        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
 
         await store.SetAsync(
             global::Renamer.Renamer.LastScanSummaryKey,
@@ -485,8 +486,8 @@ public sealed class ScanLibraryEndpointTests
                 new global::Renamer.Contracts.ScanSummary(
                     global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion + 1, 0L, []),
                 EnumJson));
-        Assert.IsType<NotFound>(await ext.ScanLibraryResultAsync(
-            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default));
+        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
     }
 
     [Fact]

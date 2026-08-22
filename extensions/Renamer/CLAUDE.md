@@ -34,7 +34,7 @@ The monorepo-wide bans (shipping host assemblies, direct SQLite/Postgres writes)
 ## Structure & patterns (Renamer-specific)
 
 The monorepo shape rules — six-kind taxonomy, no `features/` wrapper, suffix-as-kind, two-level shared
-(`common/` for extension-local), all-camelCase wire + `contracts.ts`, correctness + testing + tooling
+(`common/` for extension-local), all-camelCase wire + generated `wire/api.ts`, correctness + testing + tooling
 gates — live in the root `CLAUDE.md` under **Extension authoring patterns** and apply here. Renamer
 specifics:
 
@@ -46,7 +46,7 @@ specifics:
   settings panel). The bulk-action handler is its own slice (`rename-action/`).
 - **Extension-local shared is `common/`, not "shared".** `common/lib/preview.ts` — evicted from any
   old `shared/` bucket; nothing Renamer-specific goes in the repo-level `shared/` packages.
-- **Wire home: one `contracts.ts`** (UI) + a `Contracts/` unit in the assembly
+- **Wire home: the generated `src/wire/api.ts`** (UI) + a `Contracts/` unit in the assembly
   (`PreviewItemView` split out of the plan model so the domain can evolve without a wire break).
 - **Tests mirror source** (`Engine/ · Execution/{…}/ · Options/ · Api/ · TransportSmoke/`). Widen the
   `IRenamerDataPort` write seam so a throwing fake can unit-test the rollback spine at L0.
