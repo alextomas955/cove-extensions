@@ -395,7 +395,7 @@ public sealed class CrossVolumeMover
                 warnings.Add($"rollback move failed {from} -> {to}: {result.Outcome} {result.Reason}");
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             warnings.Add($"rollback move failed {from} -> {to}: {ex.Message}");
         }
@@ -412,7 +412,7 @@ public sealed class CrossVolumeMover
                 System.IO.File.Delete(path);
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Best-effort: a leftover .partial we cannot delete is never promoted, so it is harmless.
         }

@@ -28,6 +28,6 @@ public sealed class TempDir : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(Root, recursive: true); }
-        catch { /* best-effort cleanup; a leaked temp dir is harmless */ }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* best-effort cleanup; a leaked temp dir is harmless */ }
     }
 }

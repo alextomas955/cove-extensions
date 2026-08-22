@@ -82,10 +82,11 @@ public sealed partial class Renamer : FullExtensionBase
         {
             await Store.DeleteAsync(LastScanResultKey, ct);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Best-effort recovery: a load that refuses to complete because the cleanup failed leaves the
-            // user worse off than the oversized value did. Reported once, then continue.
+            // user worse off than the oversized value did. Reported once, then continue. Cancellation is
+            // NOT a purge failure, so it is left to propagate.
             LogLegacyScanPurgeFailed(ex);
         }
 
@@ -102,10 +103,10 @@ public sealed partial class Renamer : FullExtensionBase
                 await Store.SetAsync(RevertLog.SchemaKey, RevertLog.CurrentSchema, ct);
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // A failed stamp write only costs one more discard on the next load, so this is reported
-            // and stepped over rather than blocking the load.
+            // and stepped over rather than blocking the load. Cancellation propagates instead.
             LogRevertLogPurgeFailed(ex);
         }
 
