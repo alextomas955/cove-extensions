@@ -11,6 +11,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Contracts;
+using Renamer.Planner;
 
 namespace Renamer.Tests.Api;
 
@@ -90,6 +91,75 @@ public sealed class TransportSmokeTests
         Assert.False(summary.HasBatch); // fresh store: no batch to undo
     }
 
+    /// <summary>
+    /// The wire casing as the HOST actually writes it, read off the raw response body.
+    /// </summary>
+    /// <remarks>
+    /// Every other casing assertion in this suite serializes a DTO with options the TEST supplies, so it
+    /// proves only that the test's serializer works. This one names nothing: the bytes come from the
+    /// host's own pipeline over real HTTP, which is the only place the contract is actually settled.
+    /// Both halves are covered here because they have different sources — property casing is the host's
+    /// <c>JsonSerializerDefaults.Web</c> default, while the enum strings come from
+    /// <c>CamelCaseStringEnumConverter</c> on the enum types.
+    /// </remarks>
+    [Fact]
+    public async Task LastScan_WritesCamelCaseProperties_AndCamelCaseStringEnums()
+    {
+        var store = new FakeStore();
+        await store.SetAsync(
+            global::Renamer.Renamer.LastScanSummaryKey,
+            JsonSerializer.Serialize(SeededScanSummary(), PreviewContracts.PreviewResponseJsonOptions));
+
+        await using var host = await TransportHost.BootAsync(
+            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), store);
+
+        var resp = await host.Client.GetAsync(Base + "/last-scan");
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+
+        var body = await resp.Content.ReadAsStringAsync();
+
+        Assert.Contains("\"totalFiles\":", body, StringComparison.Ordinal);
+        Assert.Contains("\"completedAtUtcTicks\":", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"TotalFiles\":", body, StringComparison.Ordinal);
+
+        // RenamerFileKind, RenamerStatus and ConfirmLevel, each as the camelCase STRING the UI matches.
+        // A numeric enum here is the defect the converter exists to prevent: the panel compares against
+        // "renamer"/"noOp", so a 0 reads as a non-rename and the renamer silently never fires.
+        Assert.Contains("\"kinds\":[\"video\"]", body, StringComparison.Ordinal);
+        Assert.Contains("\"status\":\"noOp\"", body, StringComparison.Ordinal);
+        Assert.Contains("\"confirmLevel\":\"light\"", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"status\":0", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"Status\":", body, StringComparison.Ordinal);
+    }
+
+    // Built from the records directly rather than through the planner: this test is about the bytes on
+    // the way out, so the cheapest input that carries one of each wire enum is the honest one.
+    private static ScanSummary SeededScanSummary()
+    {
+        var blastRadius = new PreviewSummary(
+            TotalCount: 1,
+            SameVolumeCount: 1,
+            CrossVolumeCount: 0,
+            CrossVolumeBytes: 0,
+            VolumePairs: [],
+            ConfirmLevel: ConfirmLevel.Light,
+            Undoable: true);
+
+        return new ScanSummary(
+            ScanSummary.CurrentSchemaVersion,
+            CompletedAtUtcTicks: 1,
+            Kinds:
+            [
+                new ScanKindSummary(
+                    RenamerFileKind.Video,
+                    Entities: 1,
+                    Files: 1,
+                    StatusCounts: [new ScanStatusCount(RenamerStatus.NoOp, 1)],
+                    BlastRadius: blastRadius,
+                    VolumePairsTruncated: false),
+            ]);
+    }
+
     private sealed class RecordingJobService : IJobService
     {
         public string Enqueue(string type, string description, Func<Cove.Core.Interfaces.IJobProgress, CancellationToken, Task> work, bool exclusive = true)
@@ -117,7 +187,8 @@ public sealed class TransportSmokeTests
             _db = db;
         }
 
-        public static async Task<TransportHost> BootAsync(ICurrentPrincipalAccessor principal)
+        public static async Task<TransportHost> BootAsync(
+            ICurrentPrincipalAccessor principal, IExtensionStore? store = null)
         {
             var conn = new SqliteConnection("Data Source=:memory:");
             await conn.OpenAsync();
@@ -132,7 +203,7 @@ public sealed class TransportSmokeTests
             builder.Services.AddRouting();
 
             var ext = new global::Renamer.Renamer();
-            ((IStatefulExtension)ext).SetStore(new FakeStore());
+            ((IStatefulExtension)ext).SetStore(store ?? new FakeStore());
 
             var app = builder.Build();
             ext.MapEndpoints(app);
