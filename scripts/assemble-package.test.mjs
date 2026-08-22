@@ -1,10 +1,8 @@
-// Behavior coverage for the shared, catalog-driven package assembler. Every case is driven from a
-// fixture tree in a temp dir — a fake extensions/catalog.json plus a fake publish output — so no
-// dotnet build, no npm build and no sibling Cove checkout is needed, and the happy path is green or
-// red on the packer rather than on whether this machine happens to have built anything.
+// Every case is driven from a fixture tree in a temp dir — a fake catalog plus a fake publish
+// output — so no dotnet build, npm build or sibling Cove checkout is needed.
 //
-// The fixture entry's file names deliberately differ from any real extension's, so a case that
-// passes proves the resolution came from the catalog rather than from a name baked into the packer.
+// The fixture's file names deliberately differ from any real extension's, so a passing case proves
+// the resolution came from the catalog rather than from a name baked into the packer.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -225,11 +223,9 @@ test("assembles into an absent package directory, and into an existing empty one
   }
 });
 
-// What the retired protected-path apparatus existed to prevent, now prevented by the redesign instead:
-// a packageDir pointed at a source tree is refused because that tree is not empty, and — because
-// nothing in this script deletes — the tree is byte-for-byte intact afterwards. The three destructive
-// spellings once reproduced here (a drive-letter case alias, a junction, a source-bearing descendant)
-// all reduce to this one case: whatever spelling reaches a populated directory, the run refuses.
+// A packageDir pointed at a source tree is refused because that tree is not empty, and since
+// nothing here deletes, the tree is byte-for-byte intact afterwards. Every destructive spelling —
+// a drive-letter case alias, a junction, a source-bearing descendant — reduces to this one case.
 test("a packageDir pointed at a populated source tree is refused and destroys nothing", () => {
   const fixture = fixtureRoot();
   const before = snapshotTree(fixture.root);
@@ -392,11 +388,10 @@ test("refuses a shipped json carrying a network share path, in the spelling a ge
   }
 });
 
-// The two classes are separate markers so a future narrowing of one cannot silently narrow the other,
-// and that separation is worth nothing unless each still refuses only its own class. A share marker
-// written against the raw spelling alone collapses into the drive one, because an escaped drive path
-// also carries doubled backslashes — that mistake was made once while designing this and is what this
-// case exists to catch.
+// Separate markers, so a future narrowing of one cannot silently narrow the other — which is worth
+// nothing unless each still refuses only its own class. A share marker written against the raw
+// spelling alone collapses into the drive one, since an escaped drive path also carries doubled
+// backslashes.
 test("the two absolute-path marker families stay distinguishable", () => {
   const drive = assemble(leakyFixture(DRIVE_ESCAPED))
     .failures.filter((f) => f.startsWith("LEAK:"))
@@ -714,12 +709,11 @@ function runCli(fixture, argv, script = scriptPath) {
 }
 
 /**
- * The entry script reached through an alias of its own directory — the same mechanism this
- * repository's documented worktree workflow uses, which is why an invocation path that changes
- * behaviour is a defect here rather than a hypothetical.
+ * The entry script reached through an alias of its own directory — the mechanism this repository's
+ * worktree workflow uses, so an invocation path that changes behaviour is a real defect here.
  *
- * A failure to create the link is asserted, never skipped: a case that quietly does not run restores
- * exactly the zero-input-green shape these two cases exist to remove.
+ * A failure to create the link is asserted rather than skipped: a case that quietly does not run is
+ * the zero-input-green shape these cases exist to remove.
  */
 function aliasedEntryScript() {
   const linkType = process.platform === "win32" ? "junction" : "dir";
@@ -766,11 +760,9 @@ test("CLI: two runs over identical input print byte-identical output", () => {
   assert.equal(second.stdout, first.stdout);
 });
 
-// One directory has many spellings, and which one a caller happens to use must not decide whether the
-// script does anything at all. These two cases are the whole cover for that: run with no arguments the
-// entry point must refuse, and run with a full set it must assemble — identically through an alias and
-// through the real path. They are also what proves the `import.meta.main` guard that replaced the
-// two-file split, which is why the trim to representative pins kept both.
+// One directory has many spellings, and which one a caller uses must not decide whether the script
+// does anything. Run with no arguments the entry point must refuse; run with a full set it must
+// assemble identically through an alias and through the real path.
 test("CLI: invoked through an aliased path, no arguments still prints usage and exits non-zero", (t) => {
   const { aliased, form } = aliasedEntryScript();
   t.diagnostic("exercised form: " + form);

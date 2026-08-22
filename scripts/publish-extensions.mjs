@@ -1,16 +1,12 @@
-// Produces the build output the E2E harness installs, for every extension the catalog declares an e2e
-// suite for. It is the natural pair of assemble-package.mjs: one produces what the other consumes.
+// Produces the build output the E2E harness installs, for every extension the catalog declares an
+// e2e suite for — the natural pair of assemble-package.mjs, which consumes a publishDir and refuses
+// a missing one.
 //
-// Nothing else in this repository produced it. assemble-package.mjs CONSUMES a publishDir and refuses a
-// missing one, and the only other producers are the `dotnet publish` steps inside
-// .github/workflows/build.yml, which a local checkout never runs — so a fresh clone could not run the
-// harness at all. It failed at install time with "stageExtension: publishDir does not exist", which is
-// also the throw that makes this script's absence detectable rather than silent.
+// Nothing else in the repository produces it: the only other producers are the `dotnet publish`
+// steps in build.yml, which a local checkout never runs, so a fresh clone could not run the harness.
 //
-// Wired as tests/e2e's `pretest`. npm runs a pretest automatically, so the prerequisite is satisfied by
-// mechanism rather than by a reader remembering a README line — which is the whole reason this is a
-// script and not a documented step.
-//
+// Wired as tests/e2e's `pretest`, so the prerequisite is satisfied by mechanism rather than by a
+// reader remembering a README line.
 // Catalog-driven, and no extension is named anywhere below. The selection predicate is the one
 // playwright.config.mjs derives its projects from, so an extension that gains an e2e suite gains its
 // publish step with no edit here.

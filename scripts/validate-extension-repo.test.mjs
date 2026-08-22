@@ -1,14 +1,9 @@
-// Subprocess-fixture test suite for scripts/validate-extension-repo.mjs.
+// Drives the REAL validate-extension-repo.mjs as a child process against malformed catalog
+// fixtures, asserting exit code and output text.
 //
-// This suite does NOT import or refactor the validator. It drives the REAL, unmodified
-// validate-extension-repo.mjs as a child process against deliberately-malformed catalog
-// fixtures, asserting exit code + output text per case. Driving it as a subprocess rather
-// than refactoring it to export a function is forced by the subject: it resolves
-// `root = path.resolve(import.meta.dirname, "..")`, i.e. relative to wherever the EXECUTING
-// file physically lives on disk, not process.cwd(). So each fixture gets its own copy of the
-// real validator bytes (copyFileSync'd at run time, never hand-written) inside a
-// `<fixture>/scripts/` subfolder, and we spawn THAT copy so its relative-path math resolves
-// against the fixture tree instead of the real repo.
+// Subprocess rather than an imported function because the validator resolves its root relative to
+// where the executing file lives on disk, not process.cwd(). Each fixture therefore gets a copy of
+// the real validator bytes under its own `scripts/`, so that resolution lands in the fixture tree.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -34,13 +29,9 @@ function validManifest(id, overrides = {}) {
   };
 }
 
-// A fully-valid catalog entry baseline (mirrors extensions/catalog.json's real Renamer entry:
-// name, id, path, tagPrefix ending in "/", manifestPath). That mirrored list is not prose to be
-// trusted — the drift check at the end of this file asserts it against the real entry.
-//
-// manifestOnly:true (with a valid manifest kind, set in validManifest) avoids needing a real .csproj
-// fixture file for every case — the validator skips the projectPath existence check entirely when
-// manifestOnly is true. Callers override individual fields to create exactly one malformation.
+// A valid baseline mirroring the real Renamer entry; the drift check at the end of this file
+// asserts that mirror against the real one. manifestOnly:true skips the projectPath existence
+// check, so a case needs no .csproj fixture. Callers override one field to create one malformation.
 function validEntry(id, dirName, overrides = {}) {
   return {
     name: id,
@@ -53,11 +44,9 @@ function validEntry(id, dirName, overrides = {}) {
   };
 }
 
-// The floor-bearing props shape, written in the ATTRIBUTED form the real Directory.Build.props
-// uses. That form is what exercises readMsBuildProperties' optional-attribute branch; a fixture
-// using the bare `<CoveMinVersion>1.1.0</CoveMinVersion>` form would leave the branch that
-// actually runs in production uncovered, and a regex that stopped matching it would read the
-// floor as undefined while every test still passed.
+// The ATTRIBUTED form the real Directory.Build.props uses, which is what exercises
+// readMsBuildProperties' optional-attribute branch. A bare-element fixture would leave the branch
+// that runs in production uncovered.
 function buildPropsWithFloor(floor = "1.1.0") {
   return [
     "<Project>",
@@ -173,15 +162,10 @@ function maximalFixture() {
 }
 
 test("the summary line reports counts, and a check with no subject renders 0 rather than a sentence", () => {
-  // The gate's proof-of-work, and the only claim this file makes about the report line. Exit 0 alone
-  // cannot distinguish a check that passed from one that never ran, which is how the self-comparing
-  // checks this fork deleted stayed invisible — so the numbers are what has to be asserted. Both
-  // states are driven, because "this check ran" and "this check had no subject" reading identically is
-  // the whole failure mode: a clause reworded or dropped on absence is exactly that collision, and it
-  // is what five conditional sentences and their per-arm wording assertions were spent on.
-  //
-  // Asserted as the whole line rather than as fragments: a fragment matcher cannot see a counter that
-  // stopped being printed at all.
+  // Exit 0 alone cannot distinguish a check that passed from one that never ran, so the counts are
+  // what has to be asserted. Both states are driven, because "this check ran" and "this check had no
+  // subject" reading identically is the failure mode. Asserted as the whole line, since a fragment
+  // matcher cannot see a counter that stopped being printed at all.
   const maximal = maximalFixture();
   try {
     const { status, stdout, stderr } = runValidator(maximal);
@@ -458,17 +442,9 @@ test("a declared catalog path that does not exist fails, naming the field", () =
 });
 
 test("a manifestOnly entry that declares a uiPath fails, naming both fields", () => {
-  // The two fields contradict each other and nothing else in the catalog can say so: each is
-  // individually well-formed, and uiPath's own existence check passes here because the directory is
-  // real. What makes the pairing a defect is what CI does with it — several build steps read uiPath
-  // and would generate, verify and bundle a frontend for an entry that ships no assembly to load it.
-  // The refusal is read from the entry alone, so it must also speak for an entry whose directory or
-  // manifest is broken; the fixture plants both so this case has exactly one malformation.
-  //
-  // Both disarmed arms are already asserted by the counts case above, and by mechanism rather than by
-  // a case each: its minimal fixture is manifestOnly with no uiPath and its maximal one is a uiPath on
-  // an assembly-bearing entry — the repository's own catalog shape — and both exit 0. A refusal reading
-  // one operand instead of two would redden one of them.
+  // Each field is individually well-formed — uiPath's own existence check passes — so nothing else in
+  // the catalog can call the pairing a defect. What makes it one is that several build steps read
+  // uiPath and would generate, verify and bundle a frontend for an entry that ships no assembly.
   const entry = validEntry("com.example.foo", "Foo", { uiPath: "extensions/Foo/ui" });
   const root = makeFixture({
     catalog: { schemaVersion: 1, extensions: [entry] },

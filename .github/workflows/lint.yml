@@ -18,13 +18,10 @@ permissions:
   contents: read
 
 jobs:
-  # ---- C# style + analyzer gate (monorepo-wide, run once against the shared .slnx). The solution is
-  # this gate's whole subject list, and adding an extension's projects to it stays a manual step
-  # because MSBuild has no catalog and a .slnx is an explicit project list by design. An omission
-  # fails rather than passes: scripts/validate-extension-repo.mjs asserts every catalog-implied
-  # projectPath and testProjectPath is declared in CoveExtensions.slnx, exiting 1 with the entry, the
-  # field, the path and the solution named, and build.yml's validate job runs it on every pull
-  # request to main with build, test, e2e and release all gated behind that job. ----
+  # ---- C# style + analyzer gate, run once against the shared .slnx, which is this gate's whole
+  # subject list. Adding an extension's projects to it stays manual because a .slnx is an explicit
+  # project list by design; an omission fails rather than passes, because validate-extension-repo.mjs
+  # asserts every catalog-implied project is declared there. ----
   csharp-format:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -46,18 +43,13 @@ jobs:
       - name: Build with analyzers (warnings = errors)
         run: dotnet build CoveExtensions.slnx -c Release -p:CoveSourceMode=none
 
-  # ---- Windows build + unit-test signal (monorepo-wide). The whole-slnx Build step below compiles
-  # every solution member; the unit-test step then runs each catalog entry's testProjectPath, read
-  # from extensions/catalog.json, so adding an extension is a catalog edit. Scoped to .NET build/test only, NOT the full
-  # containerized E2E suite: GitHub-hosted windows-latest runners' Docker daemon is fixed to Windows
-  # containers mode, with no supported way to switch to Linux containers (would need nested
-  # virtualization, which the standard hosted fleet does not enable) — so Testcontainers'
-  # DockerComposeEnvironment, which starts Linux-only images (the Cove app image + Postgres), cannot
-  # run there at all, on any hosted Windows runner, not just as a config issue. This job instead
-  # verifies the actual, achievable Windows signal: the solution builds and its unit tier
-  # (the pure-core tests that don't need a live Cove checkout — see Renamer.Tests.csproj's
-  # cove-absent Compile-Remove group) passes on Windows. A full Windows-hosted E2E run would need a
-  # self-hosted Windows runner with Docker Desktop configured for Linux containers, out of scope here. ----
+  # ---- Windows build + unit-test signal. Compiles every solution member, then runs each catalog
+  # entry's testProjectPath, so adding an extension is a catalog edit.
+  #
+  # No E2E here, and this will not change: GitHub-hosted windows-latest runners fix Docker to Windows
+  # containers with no supported switch to Linux ones, so Testcontainers cannot start the Cove app and
+  # Postgres images at all. What is achievable is verified instead — the solution builds and the
+  # cove-absent unit tier passes on Windows. A full Windows E2E would need a self-hosted runner. ----
   windows-build-test:
     runs-on: windows-latest
     timeout-minutes: 25
@@ -87,13 +79,10 @@ jobs:
             echo "::endgroup::"
           done
 
-  # ---- macOS build + unit-test signal (monorepo-wide), ADVISORY. Mirrors windows-build-test above,
-  # and is bare for a reason that will not change: GitHub-hosted macOS runners ship no Docker daemon,
-  # so the Testcontainers E2E tier cannot run there — and assemblies mode is not the alternative,
-  # because the docker-cp rewrite sources Cove's assemblies FROM a running container, which forecloses
-  # that path on this runner permanently. `CoveSourceMode=none` is the design here, not a gap.
-  # `continue-on-error: true` keeps the leg advisory while it has no green history; promoting it to
-  # required is a branch-protection edit, not a change to this file. ----
+  # ---- macOS build + unit-test signal, ADVISORY. Mirrors windows-build-test and is bare permanently:
+  # hosted macOS runners ship no Docker daemon, and assemblies mode is not an alternative because the
+  # docker-cp extraction sources Cove FROM a running container. `CoveSourceMode=none` is the design.
+  # Promoting the leg to required is a branch-protection edit, not a change here. ----
   macos-build-test:
     runs-on: macos-latest
     continue-on-error: true
@@ -106,11 +95,9 @@ jobs:
       - name: Build
         run: dotnet build CoveExtensions.slnx -c Release -p:CoveSourceMode=none
       # The whole-slnx Build above already compiled every test project, so --no-build still holds.
-      # Reads the catalog the same way windows-build-test does, but with `while read` rather than
-      # `mapfile`: macOS runners ship bash 3.2, where `mapfile` does not exist. Behind
-      # continue-on-error that would have failed silently forever — an advisory leg that can never go
-      # green reads as coverage while providing none. Redirected from a file, not piped, so the loop
-      # runs in this shell and a failing test still fails the step.
+      # `while read` rather than `mapfile`: macOS runners ship bash 3.2, which has no `mapfile`, and
+      # behind continue-on-error that would have failed silently forever. Redirected from a file rather
+      # than piped, so the loop runs in this shell and a failing test still fails the step.
       - name: Test (unit tier)
         shell: bash
         run: |
@@ -129,13 +116,10 @@ jobs:
             echo "::endgroup::"
           done < "$RUNNER_TEMP/test-projects.txt"
 
-  # ---- Markdown docs (repo-wide). The file list lives in .markdownlint-cli2.jsonc and only there.
-  # markdownlint-cli2 APPENDS that config's globs to the command line rather than deferring to it, so
-  # a glob passed here can only widen the set, never narrow it — an argument naming one file still
-  # lints everything the config declares, while reading as a scope the job does not have. The action's
-  # `globs` input is itself not free of that trap: it declares a non-empty default (`*.{md,markdown}`,
-  # root-only and non-recursive), so omitting the input substitutes that default instead of passing
-  # nothing. An explicitly empty value is the one spelling that yields an empty argv and leaves the
+  # ---- Markdown docs. The file list lives in .markdownlint-cli2.jsonc and only there, because
+  # markdownlint-cli2 APPENDS its config's globs to the command line: a glob passed here can only
+  # widen the set while reading as a narrowing. The action's `globs` input has a non-empty default
+  # (`*.{md,markdown}`, root-only), so an explicitly EMPTY value is the one spelling that leaves the
   # config as the single source. ----
   markdown-lint:
     runs-on: ubuntu-latest
@@ -147,12 +131,9 @@ jobs:
         with:
           globs: ""
 
-  # ---- Monorepo-wide ESLint (single root config at eslint.config.mjs): every extension's TS/React
-  # UI bundle plus all first-party .mjs/.cjs helper/build/test scripts. The type-aware UI rules need
-  # each extension's UI deps installed to build the TypeScript program, so this installs the root
-  # lint tooling and each catalog `uiPath` before running `eslint .` once from the repo root. There
-  # is no per-extension ESLint config — adding an extension needs no change here beyond its catalog
-  # entry. ----
+  # ---- Monorepo-wide ESLint from one root config. The type-aware UI rules need each extension's UI
+  # deps installed to build the TypeScript program, hence the installs below before a single
+  # `eslint .` from the repo root. Adding an extension needs no change here. ----
   js-lint:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -163,12 +144,9 @@ jobs:
           node-version: "24.11.0"
       - name: Install root lint tooling
         run: npm ci --no-workspaces
-      # Repo-wide Prettier gate. build.yml's format:check is the Renamer.Ui bundle's own, so without
-      # this step nothing blocking checked the root subject set — every .md, .json, .mjs and workflow
-      # file outside a UI. lefthook formats staged files locally, but a local hook is advice a
-      # contributor can skip, and only a check a workflow runs can block a merge. Placed before the UI
-      # installs because prettier needs nothing but the root tooling, so a formatting miss fails in
-      # seconds rather than after every UI's npm ci.
+      # build.yml's format:check covers only the Renamer.Ui bundle, so without this nothing blocking
+      # checked the root set. lefthook formats staged files locally, but a local hook is advice a
+      # contributor can skip. Placed before the UI installs so a formatting miss fails in seconds.
       - name: Prettier (whole monorepo)
         run: npm run format:check
       - name: Install each extension's UI deps (type-aware program inputs)
