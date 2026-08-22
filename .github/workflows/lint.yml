@@ -206,3 +206,11 @@ jobs:
       # UI bundle and the docs site.
       - name: syncpack (dependency-version drift)
         run: npm run syncpack
+
+      # Dead files, unused exports and unused dependencies on the TypeScript side. The C# side gates
+      # the same class as a build error (IDE0051/0052/0060 in .editorconfig), so dropping this would
+      # gate dead code on one tier and not the other. Runs after the UI installs and the wire-type
+      # generation above: without those, knip reads a UI whose imported modules do not exist and
+      # reports most of the tree as unused.
+      - name: knip (dead files / exports / dependencies)
+        run: npm run knip
