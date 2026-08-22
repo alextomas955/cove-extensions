@@ -2,53 +2,32 @@
 // Forked on: 2026-07-01
 // Upstream diff base: https://github.com/yourcove/multi-extension-repo-template/blob/main/scripts/validate-extension-repo.mjs
 //
-// Seven behavioral differences from upstream.
+// How this fork differs from upstream, so a later sync knows what was deliberate:
 //
-// 1. This fork reads the additive projectPath/manifestPath catalog fields (when present on a
-// catalog entry) instead of unconditionally deriving {path}/{name}.csproj and {path}/extension.json
-// by convention. This lets a real 3-project src/ subtree layout (e.g. Renamer's
-// extensions/Renamer/src/{Renamer,Renamer.Ui}/) be described explicitly, while a future
-// manifestOnly or flat-convention entry added WITHOUT these fields still validates correctly via
-// the upstream convention-derived fallback path — the fork is additive, not a breaking
-// replacement.
+// 1. Reads the additive projectPath/manifestPath catalog fields when present, rather than always
+// deriving {path}/{name}.csproj by convention. Additive, not a replacement: an entry without them
+// still validates through the upstream convention path.
 //
-// 2. Upstream floor-checks the two package-version properties in Directory.Build.props against
-// CoveMinVersion. This fork checks neither, because in this repo neither comparison has a subject:
-// the SDK version is declared as $(CoveMinVersion), so comparing it to the floor asks whether a
-// value is at least itself, and no companion property is declared for Cove.Core at all — it is
-// never a PackageReference here, arriving transitively through Cove.Sdk. Deriving the version makes
-// that drift unrepresentable, which is stronger than detecting it after the fact. The per-entry
-// extension.json minCoveVersion comparison, which does have a real subject, survives.
+// 2. Drops upstream's floor check on the two package-version properties, because neither has a
+// subject here — the SDK version IS $(CoveMinVersion), so the comparison asks whether a value is at
+// least itself, and no Cove.Core property is declared at all. The per-entry extension.json
+// comparison, which does have a subject, survives.
 //
-// 3. Upstream's success line reports only how many catalog entries it walked. This fork reports what
-// it actually examined, as one line of counts — a number per check, zero included. Exit 0 alone
-// cannot distinguish a check that passed from one that never ran, which is exactly how the
-// self-comparing checks removed in #2 stayed invisible.
+// 3. Reports a count per check rather than only the entry count. Exit 0 alone cannot distinguish a
+// check that passed from one that never ran, which is how the checks removed in #2 stayed invisible.
 //
-// 4. This fork confirms that every optional catalog path field the CI build matrix consumes exists
-// on disk (see matrixPathFields below). Upstream's catalog declares no such fields, so it has
-// nothing to check; here a typo in one is otherwise caught only late and cryptically inside a
-// matrix leg, as an `npm ci` in a directory that is not there or a dotnet restore several steps in.
+// 4. Confirms every optional catalog path the CI matrix consumes exists on disk. A typo in one is
+// otherwise caught late and cryptically inside a matrix leg.
 //
-// 5. This fork asserts that every C# project the catalog implies is declared in CoveExtensions.slnx.
-// The formatting and analyzer gates take their entire subject list from that solution, so a project
-// absent from it is not reported as unformatted or non-compliant — it is never compiled, and the
-// gate reports success over a smaller set than the reader believes. That is a silent loss of
-// coverage for every extension after the first, and the only kind of failure this repository treats
-// as worse than a red gate. Detection rather than generation is deliberate: generating the solution
-// from the catalog would reintroduce a checked-in generated artifact and its drift risk, and
-// pointing the gates at a glob instead would change what actually gets compiled. Asserting
-// membership changes neither, and costs one named error instead of a hole. The assertion runs one
-// way only — the solution may hold projects the catalog does not describe, as shared libraries are.
+// 5. Asserts every C# project the catalog implies is declared in CoveExtensions.slnx. The formatting
+// and analyzer gates take their subject list from that solution, so a project missing from it is
+// never compiled and the gate reports success over a smaller set than the reader believes. Detection
+// rather than generation, and one-way: the solution may hold projects the catalog does not describe.
 //
-// 6. This fork compares the registry manifest's minCoveVersion against extension.json's. Upstream has
-// no registry mechanism to check. The comparison is deliberately narrow: only the versions[] row whose
-// version equals the one extension.json currently declares is read, because a registry row describes an
-// immutable published zip and its floor is the floor THAT zip needs, not a copy of the source tree's
-// current one. Comparing every row would demand editing a published row, which is exactly what
-// website/docs/contributing/releasing.md forbids — a raised floor reaches the registry by prepending a
-// row. The narrow comparison is worth having because the drift it catches has already shipped here once
-// and was corrected by hand: two files each declaring a floor, and nothing anywhere reading both.
+// 6. Compares the registry manifest's minCoveVersion against extension.json's, reading only the
+// versions[] row matching the version extension.json declares. A registry row describes an immutable
+// published zip, so its floor is that zip's, not the source tree's; releasing.md forbids editing a
+// published row.
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";

@@ -1,30 +1,19 @@
-// Shared, catalog-driven package assembler: copies exactly the files a catalog entry's `artifacts`
-// array declares into an empty package directory, stamping the release version onto the manifest on
-// the way through. The declaration is the whole answer to "what ships" — a reviewer reads
-// extensions/catalog.json rather than running a build and listing a directory.
+// Catalog-driven package assembler: copies exactly the files a catalog entry's `artifacts` array
+// declares into an empty package directory, stamping the release version onto the manifest. Because
+// the set is declared rather than discovered, whatever else the build emits alongside them (debug
+// symbols, XML docs) cannot reach the package, and a reviewer reads catalog.json instead of listing a
+// build output.
 //
-// This script never deletes. It once emptied the package directory first, and carried a canonical-key
-// containment check over a protected-path set to make that delete safe — machinery a path-math slip
-// had already defeated once, wiping a source tree. A directory that is not empty is now simply
-// refused, which needs no notion of what it would have been safe to destroy, and leaves the one real
-// delete with the caller that owns its install location and therefore knows.
+// This script never deletes. A package directory that is not empty is refused, which needs no notion
+// of what would have been safe to destroy; the one real delete stays with the caller that owns the
+// install location.
 //
-// Because the set is declared rather than discovered, anything the build happens to emit alongside
-// the shipped files (debug symbols, XML documentation) cannot reach the package: it is not named, so
-// it is not copied. The build is left free to keep producing it.
+// Three callers share it: the CI build job, the local dev deploy, and the E2E harness, which imports
+// assemblePackage in-process so the package it installs is the package a release ships.
 //
-// Three callers share this one script: the CI build job, the local dev deploy, and the E2E harness,
-// which imports assemblePackage below in-process so the package it installs is the package a release
-// ships. One file carries both that export and the command line, behind the `import.meta.main` guard
-// at the bottom.
-//
-// The guard is what decides whether the entry point runs, and getting that decision wrong leaves no
-// trace: an invocation reached through an alias of the script's own path assembles nothing and exits
-// 0, which every caller reads as success. That is why this was two files for a while — a hand-written
-// guard comparing this module's URL against process.argv[1] answered "no" through a junction, because
-// Node realpaths the entry and the comparison did not. `import.meta.main` is the runtime's own answer
-// to the same question and does not have that failure, which is what makes one file safe again. The
-// two aliased-invocation cases in the test file are the pins that say so.
+// `import.meta.main` rather than a hand-rolled comparison against process.argv[1]: Node realpaths the
+// entry, so the hand-rolled form answers "no" when the script is reached through a junction and then
+// assembles nothing while exiting 0. The aliased-invocation cases in the test file pin this.
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -198,18 +187,16 @@ function checkDeclarationIsLoadable(sourceManifest, manifestName, names, failure
  * absolute-path refusal, and the package directory was empty. Nothing is ever deleted, and nothing
  * outside `packageDir` is written: every write this function makes names a file directly inside it.
  *
- * Past that point the guarantee is narrower, and the difference is what a caller has to act on. If a
- * write fails, the package directory is left INCOMPLETE, holding only what was written before the
- * failure. That failure is reported as a named `WRITE:` entry rather than thrown. So a caller reading
- * a non-zero result as "nothing shipped" is right about the rest of its tree and wrong about the
- * package directory, whose contents it must not treat as a package.
+ * Past that point the guarantee is narrower. A failed write leaves the package directory INCOMPLETE
+ * and is reported as a named `WRITE:` entry rather than thrown, so a caller reading a non-zero result
+ * as "nothing shipped" is right about the rest of its tree and wrong about the package directory.
  *
  * @param {object} opts
  * @param {string} opts.root - the repo root holding `extensions/catalog.json`.
- * @param {string} opts.publishDir - the throwaway build output the declared names are searched in first.
- * @param {string} opts.packageDir - where the declared set is written; created if absent, refused if not empty.
+ * @param {string} opts.publishDir - build output the declared names are searched in first.
+ * @param {string} opts.packageDir - created if absent, refused if not empty.
  * @param {string} opts.idOrName - the catalog entry's `id` or `name`.
- * @param {string} opts.version - written into the packaged manifest verbatim, with no normalisation.
+ * @param {string} opts.version - written into the packaged manifest verbatim.
  * @returns {{ ok: boolean, failures: string[], copied: Array<{ name: string, source: string, root: string }> }}
  */
 export function assemblePackage({ root, publishDir, packageDir, idOrName, version }) {

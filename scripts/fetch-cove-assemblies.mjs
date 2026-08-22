@@ -1,47 +1,17 @@
-// Extracts Cove's published assemblies out of the released `cove-app` container image, so a CI leg
-// can compile and run the test project's integration tier against the exact binaries the released
-// host loads — rather than against a source build nobody runs, or against a NuGet closure that does
-// not exist (Cove.Data is on no feed).
+// Extracts Cove's published assemblies from the released `cove-app` image, so a CI leg can build and
+// test against the binaries the released host actually loads. A source build is not what anyone runs,
+// and there is no NuGet closure to use instead: Cove.Data is on no feed.
 //
-// The image REPOSITORY is read from Directory.Build.props and is never written here as a literal, so
-// a rename of either image property fails this script's own node --test rather than drifting
-// silently. The TAG may arrive as --tag, because a CI leg testing a resolved version has to say which
-// one — but no workflow YAML names a Cove version literally either: a leg's tag is either the props
-// default or a value --resolve-tags read off the registry against the floor an extension declares in
-// its own manifest. The single declaration is therefore the resolver plus that declared floor, which
-// is a stronger claim than a tag typed in one file, not a weaker one.
+// The image repository comes from Directory.Build.props and is never a literal here, so a rename
+// fails this script's own tests rather than drifting. A tag may arrive via --tag.
 //
-// The extraction is `docker pull` + `docker create` + `docker cp`, which hands the layer selection,
-// the gunzip and the tar read to the daemon. Every consumer of this script already has Docker — the
-// e2e harness drives Testcontainers and the CI leg runs on a Docker-capable runner — so speaking the
-// registry protocol by hand bought no capability it does not already have.
+// Extraction is `docker pull` + `docker create` + `docker cp`, which leaves layer selection and
+// digest verification to the daemon. Both moby's classic path and containerd's verify every layer,
+// but the OCI distribution spec only says a client SHOULD, so re-check that if this is ever moved
+// onto a different puller. It also means assemblies mode needs a Docker that can run LINUX
+// containers; macOS and Windows runners are therefore permanently bare (`CoveSourceMode=none`).
 //
-// It DID carry one property worth naming, and this is the part of the change that is not a line cut.
-// `assertBlobMatchesDigest` used to be the ONLY check that the bytes received were the bytes the
-// registry attested — the hashes recorded in CoveExtraction.props cannot catch wrong upstream bytes,
-// because they are computed FROM those bytes. That check now lives in the daemon, and it was confirmed
-// against documentation before the guard was deleted rather than assumed from familiarity:
-//
-//   * moby's classic pull path (the one an overlay2 daemon and the CI runners use) streams each layer
-//     through a digest verifier and fails with "filesystem layer verification failed for digest" on a
-//     mismatch, and separately verifies the image config and manifest digests
-//     — moby/moby, daemon/internal/distribution/pull_v2.go.
-//   * containerd's path verifies at content-store commit: remotes.Fetch passes the descriptor's
-//     expected digest to content.Copy, and Commit rejects content that does not hash to it
-//     — containerd, core/remotes/handlers.go; docs/historical/design/data-flow.md states that pulling
-//     verifies the manifest and every layer.
-//
-// Stated honestly, because it bounds the claim: the OCI distribution spec only says a client SHOULD
-// verify a blob against the requested digest, not MUST. So this is an implementation property of both
-// pull paths, not something the protocol forces — strong in practice, and worth re-checking if the
-// extraction is ever moved onto a different puller.
-//
-// The consequence, stated because it is a real narrowing: assemblies mode now needs a Docker that can
-// run LINUX containers. A macOS or Windows runner cannot, so those legs are permanently bare
-// (`CoveSourceMode=none`).
-//
-// `--resolve-tags` is the one path that stays registry HTTP, because there is no `docker` verb for
-// listing a remote repository's tags.
+// `--resolve-tags` stays registry HTTP because there is no `docker` verb for listing remote tags.
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -858,22 +828,11 @@ async function extract({ out, tag }) {
 
 /**
  * Whether this process was STARTED from this file, rather than importing it for its helpers.
- * <remarks>
- * Used only to decide whether the missing-feature refusal below applies, so its worst case is an
- * unnecessary refusal — loud — and never a silent skip: the quiet branch is taken solely when some
- * other entry point imported this module, which is exactly when doing nothing is correct.
  *
- * `import.meta.filename`, never a path read off a module URL's path component, for the same reason
- * `import.meta.dirname` is used above. Windows path casing is normalised because a drive letter
- * arrives in either case and a case-sensitive miss here would read as "not the entry point".
- *
- * Both sides are realpathed, and that is the whole reason this is not a plain compare of two resolved
- * strings: Node realpaths the module URL and leaves process.argv[1] as the caller spelled it, so an
- * invocation through a junction or a symlink — the shape this repository's documented worktree
- * workflow uses — compared unequal, and the refusal below then did not fire on exactly the runtime and
- * exactly the invocation that need it. Measured on v22.6.0 through a junction before the fix: zero
- * output, exit 0.
- * </remarks>
+ * Both sides are realpathed rather than compared as resolved strings: Node realpaths the module URL
+ * and leaves process.argv[1] as the caller spelled it, so an invocation through a junction or symlink
+ * — the shape this repo's worktree workflow uses — compares unequal and the refusal below never
+ * fires. Windows drive-letter casing is normalised for the same reason.
  */
 function invokedAsScript() {
   const entry = process.argv[1];
