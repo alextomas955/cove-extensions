@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>false</IsPackable>
+    <!-- Test SUPPORT, not a test project: it references xunit so it can carry the shared
+         [Fact] base classes, but ships no runner. Without this `dotnet test` on the solution
+         treats it as a test assembly and the testhost aborts, taking the whole solution-level
+         run to exit 1. CI does not see it because it tests catalog projects one at a time. -->
+    <IsTestProject>false</IsTestProject>
     <!-- Test-support only: never a deployed Cove plugin, so neutralize the inherited dynamic-loading flag. -->
     <EnableDynamicLoading>false</EnableDynamicLoading>
     <!--
