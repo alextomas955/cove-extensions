@@ -156,7 +156,7 @@ Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ 
 - **Testing.** Every xUnit test class carries exactly one class-level `[Trait("Tier", …)]` — L0
   pure-logic · L1 host-double (real SQLite `CoveContext` / `TempDir` / principal) · L2 in-process
   endpoint (the `NewExtension` harness + permission-gated handlers) · L3 containerized / live-instance
-  e2e — so a tier runs in isolation (`dotnet test --filter "Tier=L0"`) as a design fact independent of
+  e2e — so a tier runs in isolation (`dotnet test -- --filter-trait "Tier=L0"`) as a design fact independent of
   the csproj Compile-Remove build fact. A shared reflection guard (`TierTraitGuard` in
   `Cove.Extensions.Shared.Testing`, driven by a per-project coverage test) fails the suite if any test
   class lacks a Tier trait, so the taxonomy stays exhaustive by mechanism rather than by hand. Tests

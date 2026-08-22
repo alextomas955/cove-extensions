@@ -144,7 +144,7 @@ jobs:
       # testProjectPath entry in catalog.json skips this step (manifestOnly-style opt-out).
       - name: Test (unit tier)
         if: ${{ !matrix.extension.manifestOnly && matrix.extension.testProjectPath != '' }}
-        run: dotnet test ${{ matrix.extension.testProjectPath }} -c Release -p:UseLocalCoveSource=false
+        run: dotnet test --project ${{ matrix.extension.testProjectPath }} -c Release -p:UseLocalCoveSource=false
 
       - name: Publish
         if: ${{ !matrix.extension.manifestOnly }}

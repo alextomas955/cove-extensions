@@ -75,7 +75,7 @@ jobs:
           ')
           for test in "${tests[@]}"; do
             echo "::group::dotnet test $test"
-            dotnet test "$test" -c Release --no-build
+            dotnet test --project "$test" -c Release --no-build
             echo "::endgroup::"
           done
 

@@ -20,19 +20,19 @@ Compile-Removed on the cove-absent leg).
 Run a single tier in isolation:
 
 ```sh
-dotnet test extensions/Renamer/src/Renamer.Tests --filter "Tier=L0"
+dotnet test --project extensions/Renamer/src/Renamer.Tests -- --filter-trait "Tier=L0"
 ```
 
 Some L0/L1 path tests assert Windows path semantics (DOS-device, UNC and extended-length prefixes,
 8.3 short names, symlink/junction canonicalization) and are expected to fail on non-Windows hosts;
-they pass on the Windows CI leg. The privilege-gated symlink case is a `[SkippableFact]` that skips
+they pass on the Windows CI leg. The privilege-gated symlink case calls `Assert.SkipUnless` so it skips
 with a reason when symlink creation lacks the OS privilege.
 
 ## Coverage guard
 
 `TierTraitCoverageTests` (this project) calls the shared `TierTraitGuard` reflection helper and fails
 if any xUnit test class in the assembly lacks a class-level Tier trait. An untagged class would
-silently drop out of a `--filter "Tier=Lx"` selection, so presence is enforced by mechanism, not
+silently drop out of a `--filter-trait "Tier=Lx"` selection, so presence is enforced by mechanism, not
 trusted.
 
 ## The two CI legs
