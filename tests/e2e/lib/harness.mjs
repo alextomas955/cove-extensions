@@ -164,10 +164,16 @@ async function tailContainerLog(container, { lines = 60, timeoutMs = 5000 } = {}
     const chunks = [];
     stream.on("data", (chunk) => chunks.push(chunk.toString()));
     await new Promise((resolve) => {
-      const done = () => resolve();
+      // Clear the timer and drop the stream on every exit path: an uncleared timer and an open
+      // stream both hold the event loop open, which reads as the suite hanging after its last test.
+      const timer = setTimeout(() => done(), timeoutMs);
+      function done() {
+        clearTimeout(timer);
+        stream.destroy();
+        resolve();
+      }
       stream.once("end", done);
       stream.once("error", done);
-      setTimeout(done, timeoutMs);
     });
     const text = chunks.join("");
     return text ? text.split("\n").slice(-lines).join("\n") : "<container produced no log output>";

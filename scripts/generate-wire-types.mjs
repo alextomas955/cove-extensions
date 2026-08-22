@@ -32,6 +32,13 @@ const DOCUMENT_SUBPATH = "wire/openapi.json";
  * The package is imported lazily so this MODULE stays loadable where it is absent: the tooling test
  * injects a fake in its place, and the catalog-validation job installs nothing yet runs every
  * scripts/*.test.mjs.
+ *
+ * openapi-typescript declares `typescript: ^5.x` as a peer and this repo is on 6, so `npm install`
+ * refuses the pair without the root package.json `overrides` entry that forces it. The combination is
+ * deliberate and unsupported by the package: it drives the TypeScript compiler API, so a bump on
+ * either side can break the emit for reasons the error will not name. 7.13.0 is the newest release
+ * and still says ^5.x, so the override cannot be retired by upgrading — check that first when it does
+ * break.
  */
 async function generateWithOpenApiTypescript({ documentPath, outputPath, flags }) {
   const { default: openapiTS, astToString } = await import("openapi-typescript");

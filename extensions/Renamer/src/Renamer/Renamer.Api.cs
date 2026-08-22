@@ -279,7 +279,8 @@ public sealed partial class Renamer
     /// <c>videos.write</c> in-handler (the host permission filter is inert on minimal-API endpoints)
     /// — and crucially returns 403 BEFORE any enqueue.
     /// </summary>
-    internal Results<Accepted<JobEnqueued>, BadRequest<ErrorCode>, ForbiddenCode> RenamerEnqueue(RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs)
+    internal Results<Accepted<JobEnqueued>, BadRequest<ErrorCode>, ForbiddenCode> RenamerEnqueue(
+        RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         // Kind first so the write check gates on the request's own kind (videos/images/audios.write).
         if (!TryParseKind(req.EntityType, out var kind))
@@ -329,7 +330,8 @@ public sealed partial class Renamer
     /// log, or already-consumed) is a clean <c>{undone:0}</c> no-op.
     /// </para>
     /// </summary>
-    internal async Task<Results<Ok<UndoResult>, ForbiddenCode>> UndoAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
+    internal async Task<Results<Ok<UndoResult>, ForbiddenCode>> UndoAsync(
+        ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         // 403 FIRST for a caller holding NO renamer-write permission of any kind — before any RevertLog
         // read or disk touch, so an unauthorized caller cannot even learn whether a batch exists. The
@@ -453,7 +455,8 @@ public sealed partial class Renamer
     /// in-handler (403-first; minimal-API <c>[RequiresPermission]</c> is inert). An empty log
     /// returns <see cref="LastBatchSummary"/> with <c>HasBatch:false</c>.
     /// </summary>
-    internal async Task<Results<Ok<LastBatchSummary>, ForbiddenCode>> LastBatchAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
+    internal async Task<Results<Ok<LastBatchSummary>, ForbiddenCode>> LastBatchAsync(
+        ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         // This is the undo panel's paths-free "is there a batch to undo?" probe (count + timestamp +
         // consumed flag only — no paths). A user who can renamer ANY kind may see it, so gate on holding
@@ -589,7 +592,8 @@ public sealed partial class Renamer
     /// "the last batch") rather than a per-jobId key, since the id <c>Enqueue</c> mints is not available
     /// to the job body before <c>Enqueue</c> returns.
     /// </summary>
-    internal Results<Accepted<JobEnqueued>, ForbiddenCode> ScanLibraryEnqueue(ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs)
+    internal Results<Accepted<JobEnqueued>, ForbiddenCode> ScanLibraryEnqueue(
+        ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         if (!HasAnyReadPermission(principal))
         {
@@ -658,7 +662,8 @@ public sealed partial class Renamer
     /// future version costs the user one dry run and not a 500.
     /// </para>
     /// </summary>
-    internal async Task<Results<Ok<ScanSummaryView>, NotFound, ForbiddenCode>> ScanLibraryResultAsync(ICurrentPrincipalAccessor principal, CancellationToken ct)
+    internal async Task<Results<Ok<ScanSummaryView>, NotFound, ForbiddenCode>> ScanLibraryResultAsync(
+        ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
         if (!HasAnyReadPermission(principal))
         {
@@ -884,7 +889,8 @@ public sealed partial class Renamer
     /// the principal's held write kinds into the job closure (the job runs detached from the request, so
     /// it cannot re-resolve <see cref="ICurrentPrincipalAccessor"/> itself).
     /// </summary>
-    internal Results<Accepted<JobEnqueued>, ForbiddenCode> RenamerLibraryEnqueue(ICurrentPrincipalAccessor principal, IJobService jobs)
+    internal Results<Accepted<JobEnqueued>, ForbiddenCode> RenamerLibraryEnqueue(
+        ICurrentPrincipalAccessor principal, IJobService jobs)
     {
         if (!HasAnyWritePermission(principal))
         {
