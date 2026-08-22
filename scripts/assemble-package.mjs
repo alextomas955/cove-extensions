@@ -85,7 +85,7 @@ const MANIFEST_BY_CONVENTION = "extension.json";
 // same name — which is why the root is offered for this list rather than for anything that happens to
 // be there. Generic by construction: a name specific to any extension in this repository does not
 // belong here, or the packer stops being catalog-driven.
-const REPO_ROOT_FALLBACK_NAMES = [
+const REPO_ROOT_FALLBACK_NAMES = new Set([
   "LICENSE",
   "LICENSE.md",
   "LICENSE.txt",
@@ -97,7 +97,7 @@ const REPO_ROOT_FALLBACK_NAMES = [
   "NOTICE",
   "NOTICE.md",
   "NOTICE.txt",
-];
+]);
 
 // The manifest fields whose value the host resolves as a file inside the installed package, in the
 // order their failures are reported so identical input yields an identical message sequence. Each is
@@ -327,22 +327,28 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
   // neither is ever produced by the dotnet publish. Matching only `jsBundle` sent a declared
   // `cssBundle` down the publish/extension/repo-root search, where it cannot exist, so declaring one
   // failed as MISSING however correctly it had been built.
-  function resolveArtifactSource(name) {
-    const searched =
-      name === manifestName
-        ? [{ source: manifestSource, root: "manifest" }]
-        : uiBundleDir && (sourceManifest.jsBundle === name || sourceManifest.cssBundle === name)
-          ? [{ source: path.join(uiBundleDir, name), root: "ui-bundle" }]
-          : [
-              { source: path.join(absolutePublishDir, name), root: "publish" },
-              { source: path.join(absoluteRoot, entry.path, name), root: "extension" },
-              { source: path.join(absoluteRoot, name), root: "repo-root", repoLevelOnly: true },
-            ];
+  // The roots a declared artifact may come from, in precedence order. The manifest and the UI
+  // bundle each resolve from exactly one place; everything else is searched.
+  function candidateSourcesFor(name) {
+    if (name === manifestName) {
+      return [{ source: manifestSource, root: "manifest" }];
+    }
+    if (uiBundleDir && (sourceManifest.jsBundle === name || sourceManifest.cssBundle === name)) {
+      return [{ source: path.join(uiBundleDir, name), root: "ui-bundle" }];
+    }
+    return [
+      { source: path.join(absolutePublishDir, name), root: "publish" },
+      { source: path.join(absoluteRoot, entry.path, name), root: "extension" },
+      { source: path.join(absoluteRoot, name), root: "repo-root", repoLevelOnly: true },
+    ];
+  }
 
+  function resolveArtifactSource(name) {
+    const searched = candidateSourcesFor(name);
     for (const candidate of searched) {
       // Skipped rather than dropped from `searched`: a root that was not offered is still a root the
       // caller has to know was considered, so the MISSING message stays as wide as the search.
-      if (candidate.repoLevelOnly && !REPO_ROOT_FALLBACK_NAMES.includes(name)) continue;
+      if (candidate.repoLevelOnly && !REPO_ROOT_FALLBACK_NAMES.has(name)) continue;
       if (fs.existsSync(candidate.source)) return { ...candidate, searched };
     }
     return { source: null, root: null, searched };
@@ -417,7 +423,7 @@ const REQUIRED_FLAGS = ["--publish-dir", "--package-dir", "--extension", "--vers
 // checkout, which is the same reason assemblePackage takes `root` instead of closing over the
 // constant above. It is the one flag with a default, because the answer for every real caller is the
 // checkout the script itself lives in.
-const ALL_FLAGS = [...REQUIRED_FLAGS, "--root"];
+const ALL_FLAGS = new Set([...REQUIRED_FLAGS, "--root"]);
 
 function usage() {
   console.error(
@@ -430,7 +436,7 @@ function usage() {
 function main(argv) {
   const options = new Map();
   for (let i = 0; i < argv.length; i += 2) {
-    if (!ALL_FLAGS.includes(argv[i]) || argv[i + 1] == null || options.has(argv[i])) {
+    if (!ALL_FLAGS.has(argv[i]) || argv[i + 1] == null || options.has(argv[i])) {
       usage();
       return 1;
     }

@@ -104,7 +104,7 @@ export const STDOUT_CONTRACT = Object.freeze({
  */
 export function parseMsBuildProperties(content) {
   const props = {};
-  const pattern = /<([A-Za-z_][A-Za-z0-9_.-]*)(?:\s+[^>]*)?>([^<]*)<\/\1>/g;
+  const pattern = /<([A-Za-z_][A-Za-z0-9_.-]*)(?:\s[^>]*)?>([^<]*)<\/\1>/g;
   for (const match of content.matchAll(pattern)) {
     const [, name, rawValue] = match;
     props[name] = rawValue
@@ -127,7 +127,7 @@ export function parseMsBuildProperties(content) {
 export function splitImageReference(reference) {
   const value = String(reference ?? "").trim();
   if (value === "") throw new Error("The Cove test image repository is empty.");
-  if (/[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value)) {
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value)) {
     throw new Error(
       `The Cove test image repository must be a bare image reference, not a URL: '${value}'.`,
     );
@@ -412,7 +412,7 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
   // collapse onto one image and that failure cannot be seen at all. When no GA reaches the floor the
   // role is omitted rather than pointed at the nearest thing to it — the same refusal to substitute a
   // plausible answer as the throws above.
-  const newestGa = ga.filter((version) => compareSemver(version, parsedFloor) >= 0).at(-1);
+  const newestGa = ga.findLast((version) => compareSemver(version, parsedFloor) >= 0);
   const newestPrerelease = prerelease.at(-1);
 
   const roles = [{ tag: floor, role: "floor", advisory: false }];
@@ -551,7 +551,8 @@ export function readCoveImageReference(propsPath = DEFAULT_PROPS_PATH) {
 }
 
 async function fetchPullToken(registry, repository) {
-  const url = `https://${registry}/token?service=${encodeURIComponent(registry)}&scope=${encodeURIComponent(`repository:${repository}:pull`)}`;
+  const scope = `repository:${repository}:pull`;
+  const url = `https://${registry}/token?service=${encodeURIComponent(registry)}&scope=${encodeURIComponent(scope)}`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Anonymous pull token request to ${registry} failed with ${response.status}.`);

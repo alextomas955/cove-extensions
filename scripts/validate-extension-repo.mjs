@@ -315,9 +315,8 @@ for (const entry of entries) {
     continue;
   }
   if (!isManifestOnly && !fs.existsSync(projectPath)) {
-    errors.push(
-      `${entry.id}: missing project ${entry.projectPath ?? `${entry.name}.csproj at ${entry.path}`}`,
-    );
+    const conventionProject = `${entry.name}.csproj at ${entry.path}`;
+    errors.push(`${entry.id}: missing project ${entry.projectPath ?? conventionProject}`);
   }
 
   // An entry with a UI must carry an emitted wire document: a hand-written TypeScript wire type
