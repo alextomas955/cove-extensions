@@ -114,21 +114,20 @@ public sealed class ScanLibraryEndpointTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (_, _, videoFileId1) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films/one", "one.mkv", "One");
-            var (_, _, videoFileId2) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films/two", "two.mkv", "Two");
-            await ExecutorTestSeed.SeedImageAsync(db, "/library/pics", "pic.jpg", "Pic");
-            await ExecutorTestSeed.SeedAudioAsync(db, "/library/music", "song.mp3", "Song");
+            var (_, _, videoFileId1) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films/one", "one.mkv", "One", ct: TestContext.Current.CancellationToken);
+            var (_, _, videoFileId2) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films/two", "two.mkv", "Two", ct: TestContext.Current.CancellationToken);
+            await ExecutorTestSeed.SeedImageAsync(db, "/library/pics", "pic.jpg", "Pic", ct: TestContext.Current.CancellationToken);
+            await ExecutorTestSeed.SeedAudioAsync(db, "/library/music", "song.mp3", "Song", ct: TestContext.Current.CancellationToken);
 
-            var (beforeVideoName, beforeVideoPath) = await ExecutorTestSeed.ReadFileAsync(db, videoFileId1);
+            var (beforeVideoName, beforeVideoPath) = await ExecutorTestSeed.ReadFileAsync(db, videoFileId1, TestContext.Current.CancellationToken);
 
             var (ext, store) = await NewExtensionAsync();
             await InitializeOverSharedConnectionAsync(ext, conn);
 
             var progress = new FakeJobProgress();
-            await ext.RunScanLibraryJobAsync(
-                [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio], null, progress, default);
+            await ext.RunScanLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio], null, progress, TestContext.Current.CancellationToken);
 
-            var json = await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey);
+            var json = await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey, TestContext.Current.CancellationToken);
             Assert.False(string.IsNullOrEmpty(json));
 
             var summary = JsonSerializer.Deserialize<global::Renamer.Contracts.ScanSummary>(json!, EnumJson)!;
@@ -155,7 +154,7 @@ public sealed class ScanLibraryEndpointTests
             Assert.Null(page.Next);
 
             // Zero mutation: the seeded row is byte-for-byte unchanged after the scan job ran.
-            var (afterVideoName, afterVideoPath) = await ExecutorTestSeed.ReadFileAsync(db, videoFileId1);
+            var (afterVideoName, afterVideoPath) = await ExecutorTestSeed.ReadFileAsync(db, videoFileId1, TestContext.Current.CancellationToken);
             Assert.Equal(beforeVideoName, afterVideoName);
             Assert.Equal(beforeVideoPath, afterVideoPath);
 
@@ -182,17 +181,17 @@ public sealed class ScanLibraryEndpointTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (_, _, videoFileId) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One");
-            await ExecutorTestSeed.SeedImageAsync(db, "/library/pics", "pic.jpg", "Pic");
+            var (_, _, videoFileId) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One", ct: TestContext.Current.CancellationToken);
+            await ExecutorTestSeed.SeedImageAsync(db, "/library/pics", "pic.jpg", "Pic", ct: TestContext.Current.CancellationToken);
 
             var (ext, store) = await NewExtensionAsync();
             await InitializeOverSharedConnectionAsync(ext, conn);
 
             var progress = new FakeJobProgress();
             // Caller holds videos.read but NOT images.read — only Video is in the captured readable set.
-            await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], null, progress, default);
+            await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], null, progress, TestContext.Current.CancellationToken);
 
-            var json = await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey);
+            var json = await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey, TestContext.Current.CancellationToken);
             var summary = JsonSerializer.Deserialize<global::Renamer.Contracts.ScanSummary>(json!, EnumJson)!;
 
             var kind = Assert.Single(summary.Kinds);
@@ -237,7 +236,7 @@ public sealed class ScanLibraryEndpointTests
             // The scan previews the source on disk, so the seeded row needs a real on-disk file — a
             // gone source would be SkipMissingSource, not the previewed rename this test asserts.
             string folderPath = dir.Root.Replace('\\', '/');
-            var (_, _, videoFileId) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "one.mkv", "One");
+            var (_, _, videoFileId) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "one.mkv", "One", ct: TestContext.Current.CancellationToken);
             File.WriteAllText(Path.Combine(dir.Root, "one.mkv"), "video-bytes");
 
             // Saved options template is "$title" (from NewExtensionAsync). The override below uses a
@@ -249,7 +248,7 @@ public sealed class ScanLibraryEndpointTests
             var overrideOptions = new RenamerOptions { FilenameTemplate = "DRYRUN - $title" };
 
             var progress = new FakeJobProgress();
-            await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], overrideOptions, progress, default);
+            await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], overrideOptions, progress, TestContext.Current.CancellationToken);
 
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
             var summary = await ReadSummaryAsync(ext, principal);
@@ -311,13 +310,13 @@ public sealed class ScanLibraryEndpointTests
             new Dictionary<int, string>(), new Dictionary<string, string>(),
             new Dictionary<string, string>(), Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
 
-        var loaded = await port.LoadEntitiesAsync(RenamerFileKind.Video, ids);
+        var loaded = await port.LoadEntitiesAsync(RenamerFileKind.Video, ids, TestContext.Current.CancellationToken);
         var byId = loaded.ToDictionary(e => e.EntityId);
         foreach (var id in ids)
         {
             if (byId.TryGetValue(id, out var e))
             {
-                await planner.PlanLoadedEntity(e, options, lookups, default);
+                await planner.PlanLoadedEntity(e, options, lookups, TestContext.Current.CancellationToken);
             }
         }
 
@@ -333,7 +332,7 @@ public sealed class ScanLibraryEndpointTests
         // reader commands via an EF command interceptor over a real SQLite context.
         var interceptor = new SelectCountingInterceptor();
         var connection = new SqliteConnection("Data Source=:memory:");
-        await connection.OpenAsync();
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
         try
         {
             var options = new DbContextOptionsBuilder<CoveContext>()
@@ -341,20 +340,19 @@ public sealed class ScanLibraryEndpointTests
                 .AddInterceptors(interceptor)
                 .Options;
             await using var db = new CoveContext(options, principalAccessor: null);
-            await db.Database.EnsureCreatedAsync();
+            await db.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
 
             int n = CoveRenamerDataPort.LoadChunkSize + 25;  // spans two chunks
             var ids = new List<int>(n);
             for (int k = 0; k < n; k++)
             {
-                var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
-                    db, folderPath: $"media/{k}", basename: $"c{k}.mkv", title: $"C{k}");
+                var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath: $"media/{k}", basename: $"c{k}.mkv", title: $"C{k}", ct: TestContext.Current.CancellationToken);
                 ids.Add(videoId);
             }
 
             var port = new CoveRenamerDataPort(db);
             interceptor.ReaderCount = default;  // count only the batch load below
-            var loaded = await port.LoadEntitiesAsync(RenamerFileKind.Video, ids);
+            var loaded = await port.LoadEntitiesAsync(RenamerFileKind.Video, ids, TestContext.Current.CancellationToken);
 
             Assert.Equal(n, loaded.Count);
             int expectedChunks = (n + CoveRenamerDataPort.LoadChunkSize - 1) / CoveRenamerDataPort.LoadChunkSize;
@@ -378,7 +376,7 @@ public sealed class ScanLibraryEndpointTests
         var (ext, _) = await NewExtensionAsync();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-        var result = await ext.ScanLibraryResultAsync(principal, default);
+        var result = await ext.ScanLibraryResultAsync(principal, TestContext.Current.CancellationToken);
 
         Assert.IsType<NotFound>(Unwrap(result));
     }
@@ -389,7 +387,7 @@ public sealed class ScanLibraryEndpointTests
         var (ext, _) = await NewExtensionAsync();
         var principal = FakePrincipalAccessor.None();
 
-        var result = await ext.ScanLibraryResultAsync(principal, default);
+        var result = await ext.ScanLibraryResultAsync(principal, TestContext.Current.CancellationToken);
 
         Assert.Equal(403, StatusOf(result));
     }
@@ -476,18 +474,14 @@ public sealed class ScanLibraryEndpointTests
     {
         var (ext, store) = await NewExtensionAsync();
 
-        await store.SetAsync(global::Renamer.Renamer.LastScanSummaryKey, "{not json");
-        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
-            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
+        await store.SetAsync(global::Renamer.Renamer.LastScanSummaryKey, "{not json", TestContext.Current.CancellationToken);
+        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), TestContext.Current.CancellationToken)));
 
-        await store.SetAsync(
-            global::Renamer.Renamer.LastScanSummaryKey,
-            JsonSerializer.Serialize(
+        await store.SetAsync(global::Renamer.Renamer.LastScanSummaryKey, JsonSerializer.Serialize(
                 new global::Renamer.Contracts.ScanSummary(
                     global::Renamer.Contracts.ScanSummary.CurrentSchemaVersion + 1, 0L, []),
-                EnumJson));
-        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(
-            FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), default)));
+                EnumJson), TestContext.Current.CancellationToken);
+        Assert.IsType<NotFound>(Unwrap(await ext.ScanLibraryResultAsync(FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), TestContext.Current.CancellationToken)));
     }
 
     [Fact]
@@ -495,7 +489,7 @@ public sealed class ScanLibraryEndpointTests
     {
         var (ext, _) = await NewExtensionAsync();
 
-        var result = await ext.ScanRowsAsync(null, FakePrincipalAccessor.None(), default);
+        var result = await ext.ScanRowsAsync(null, FakePrincipalAccessor.None(), TestContext.Current.CancellationToken);
 
         Assert.Equal(403, StatusOf(result));
     }
@@ -506,10 +500,8 @@ public sealed class ScanLibraryEndpointTests
         var (ext, _) = await NewExtensionAsync();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-        Assert.Equal(400, StatusOf(await ext.ScanRowsAsync(
-            new global::Renamer.Contracts.ScanRowsRequest(null, "gallery", null, null, null, null), principal, default)));
-        Assert.Equal(400, StatusOf(await ext.ScanRowsAsync(
-            new global::Renamer.Contracts.ScanRowsRequest(null, null, null, null, null, "nonsense"), principal, default)));
+        Assert.Equal(400, StatusOf(await ext.ScanRowsAsync(new global::Renamer.Contracts.ScanRowsRequest(null, "gallery", null, null, null, null), principal, TestContext.Current.CancellationToken)));
+        Assert.Equal(400, StatusOf(await ext.ScanRowsAsync(new global::Renamer.Contracts.ScanRowsRequest(null, null, null, null, null, "nonsense"), principal, TestContext.Current.CancellationToken)));
     }
 
     [Fact]
@@ -518,13 +510,13 @@ public sealed class ScanLibraryEndpointTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (_, entityId, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One");
+            var (_, entityId, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One", ct: TestContext.Current.CancellationToken);
 
             var (ext, _) = await NewExtensionAsync();
             await InitializeOverSharedConnectionAsync(ext, conn);
 
             var progress = new FakeJobProgress();
-            await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], null, progress, default);
+            await ext.RunScanLibraryJobAsync([RenamerFileKind.Video], null, progress, TestContext.Current.CancellationToken);
 
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
             var view = await ReadSummaryAsync(ext, principal);
@@ -573,7 +565,7 @@ public sealed class ScanLibraryEndpointTests
     public async Task InitializeAsync_WithALegacyScanValue_DeletesIt_WithoutEverReadingIt()
     {
         var store = new FakeStore();
-        await store.SetAsync(global::Renamer.Renamer.LastScanResultKey, "[a legacy per-file array]");
+        await store.SetAsync(global::Renamer.Renamer.LastScanResultKey, "[a legacy per-file array]", TestContext.Current.CancellationToken);
         store.GetKeys.Clear();
 
         await InitializeWithStoreAsync(store);
@@ -581,7 +573,7 @@ public sealed class ScanLibraryEndpointTests
         // Reading the value to decide whether to delete it is the one operation guaranteed to hurt: the
         // host's bulk read already fails on it, and its own delete materializes the row it removes.
         Assert.DoesNotContain(global::Renamer.Renamer.LastScanResultKey, store.GetKeys);
-        Assert.Null(await store.GetAsync(global::Renamer.Renamer.LastScanResultKey));
+        Assert.Null(await store.GetAsync(global::Renamer.Renamer.LastScanResultKey, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -589,21 +581,21 @@ public sealed class ScanLibraryEndpointTests
     {
         var store = new FakeStore();
         // Stamp already current, keeping this a claim about the SCAN purge alone.
-        await store.SetAsync(RevertLog.SchemaKey, RevertLog.CurrentSchema);
+        await store.SetAsync(RevertLog.SchemaKey, RevertLog.CurrentSchema, TestContext.Current.CancellationToken);
         store.GetKeys.Clear();
         int setsBefore = store.SetCallCount;
 
         await InitializeWithStoreAsync(store);
 
         Assert.Equal(setsBefore, store.SetCallCount);
-        Assert.Null(await store.GetAsync(global::Renamer.Renamer.LastScanResultKey));
+        Assert.Null(await store.GetAsync(global::Renamer.Renamer.LastScanResultKey, TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task InitializeAsync_WithAPreUpgradeJournal_DiscardsIt_WithoutEverReadingIt()
     {
         var store = new FakeStore();
-        await store.SetAsync(RevertLog.Key, "1|11|/lib/a.mkv|/lib/A.mkv");
+        await store.SetAsync(RevertLog.Key, "1|11|/lib/a.mkv|/lib/A.mkv", TestContext.Current.CancellationToken);
         store.GetKeys.Clear();
 
         await InitializeWithStoreAsync(store);
@@ -612,8 +604,8 @@ public sealed class ScanLibraryEndpointTests
         // hundreds of megabytes, which is the failure being cleared. The stamp answers instead.
         Assert.DoesNotContain(RevertLog.Key, store.GetKeys);
         Assert.Contains(RevertLog.SchemaKey, store.GetKeys);
-        Assert.Null(await store.GetAsync(RevertLog.Key));
-        Assert.Equal(RevertLog.CurrentSchema, await store.GetAsync(RevertLog.SchemaKey));
+        Assert.Null(await store.GetAsync(RevertLog.Key, TestContext.Current.CancellationToken));
+        Assert.Equal(RevertLog.CurrentSchema, await store.GetAsync(RevertLog.SchemaKey, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -623,19 +615,19 @@ public sealed class ScanLibraryEndpointTests
         // a purge on every load would take the user's undo with it — the capability this bounding exists
         // to keep. The stamp written by the first load is what stops the second from firing.
         var store = new FakeStore();
-        await store.SetAsync(RevertLog.Key, "[a pre-upgrade journal]");
+        await store.SetAsync(RevertLog.Key, "[a pre-upgrade journal]", TestContext.Current.CancellationToken);
         await InitializeWithStoreAsync(store);
-        Assert.Null(await store.GetAsync(RevertLog.Key));
+        Assert.Null(await store.GetAsync(RevertLog.Key, TestContext.Current.CancellationToken));
 
         var log = new RevertLog(store);
-        await log.BeginBatchAsync("R1", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 7, fileId: 70, oldPath: "/lib/raw.mkv");
-        string journalled = (await store.GetAsync(RevertLog.Key))!;
+        await log.BeginBatchAsync("R1", RenamerFileKind.Video, TestContext.Current.CancellationToken);
+        await log.AppendAsync(entityId: 7, fileId: 70, oldPath: "/lib/raw.mkv", ct: TestContext.Current.CancellationToken);
+        string journalled = (await store.GetAsync(RevertLog.Key, TestContext.Current.CancellationToken))!;
 
         await InitializeWithStoreAsync(store);
 
-        Assert.Equal(journalled, await store.GetAsync(RevertLog.Key));
-        var batch = await log.ReadLastOpenBatchAsync();
+        Assert.Equal(journalled, await store.GetAsync(RevertLog.Key, TestContext.Current.CancellationToken));
+        var batch = await log.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(batch);
         Assert.Equal(70, Assert.Single(batch!.Entries).FileId);
     }
@@ -644,13 +636,13 @@ public sealed class ScanLibraryEndpointTests
     public async Task InitializeAsync_WithAStaleJournalStamp_DiscardsTheJournalAgain()
     {
         var store = new FakeStore();
-        await store.SetAsync(RevertLog.SchemaKey, "1");
-        await store.SetAsync(RevertLog.Key, "[written under an older shape]");
+        await store.SetAsync(RevertLog.SchemaKey, "1", TestContext.Current.CancellationToken);
+        await store.SetAsync(RevertLog.Key, "[written under an older shape]", TestContext.Current.CancellationToken);
 
         await InitializeWithStoreAsync(store);
 
-        Assert.Null(await store.GetAsync(RevertLog.Key));
-        Assert.Equal(RevertLog.CurrentSchema, await store.GetAsync(RevertLog.SchemaKey));
+        Assert.Null(await store.GetAsync(RevertLog.Key, TestContext.Current.CancellationToken));
+        Assert.Equal(RevertLog.CurrentSchema, await store.GetAsync(RevertLog.SchemaKey, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -658,13 +650,13 @@ public sealed class ScanLibraryEndpointTests
     {
         var store = new FakeStore();
         await StoreSummaryAsync(store, MakeKind(RenamerFileKind.Video, 2, RenamerStatus.Renamer));
-        await store.SetAsync(global::Renamer.Renamer.LastScanResultKey, "[legacy]");
-        string before = (await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey))!;
+        await store.SetAsync(global::Renamer.Renamer.LastScanResultKey, "[legacy]", TestContext.Current.CancellationToken);
+        string before = (await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey, TestContext.Current.CancellationToken))!;
 
         await InitializeWithStoreAsync(store);
 
-        Assert.Equal(before, await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey));
-        Assert.Null(await store.GetAsync(global::Renamer.Renamer.LastScanResultKey));
+        Assert.Equal(before, await store.GetAsync(global::Renamer.Renamer.LastScanSummaryKey, TestContext.Current.CancellationToken));
+        Assert.Null(await store.GetAsync(global::Renamer.Renamer.LastScanResultKey, TestContext.Current.CancellationToken));
     }
 
     [Fact]

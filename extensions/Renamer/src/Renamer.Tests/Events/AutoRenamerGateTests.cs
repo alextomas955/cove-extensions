@@ -23,15 +23,15 @@ public sealed class AutoRenamerGateTests
             string folderPath = dir.Root.Replace('\\', '/');
             // Name differs from the "$title" render, so ONLY the OFF flag can be why nothing happens.
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film");
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film", ct: TestContext.Current.CancellationToken);
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
 
             // Default options: AutoRenamerOnUpdate is false.
             var (ext, bus, _) = await EventTestHarness.BuildAsync(db, new RenamerOptions());
 
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), TestContext.Current.CancellationToken);
 
-            var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
             Assert.Equal("raw.mkv", basename);                              // DB untouched
             Assert.True(File.Exists(Path.Combine(dir.Root, "raw.mkv")));     // disk untouched
             Assert.False(File.Exists(Path.Combine(dir.Root, "My Film.mkv")));
@@ -54,7 +54,7 @@ public sealed class AutoRenamerGateTests
             string folderPath = dir.Root.Replace('\\', '/');
             // Empty title → the require-fields ["title"] gate excludes this item (SkipGated).
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", title: "");
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", title: "", ct: TestContext.Current.CancellationToken);
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
 
             // FilenameAsTitle forced off so the empty title is NOT rescued by the basename fallback
@@ -67,9 +67,9 @@ public sealed class AutoRenamerGateTests
             };
             var (ext, bus, _) = await EventTestHarness.BuildAsync(db, options);
 
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), TestContext.Current.CancellationToken);
 
-            var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
             Assert.Equal("raw.mkv", basename);                           // gated → unchanged
             Assert.True(File.Exists(Path.Combine(dir.Root, "raw.mkv")));
             Assert.Empty(bus.Published);                                 // no save → no event

@@ -24,7 +24,7 @@ public sealed class RevertLogConcurrencyTests
         var store = new ConcurrentFakeStore();
         var log = new RevertLog(store);
 
-        await log.BeginBatchAsync("R-concurrent", RenamerFileKind.Video);
+        await log.BeginBatchAsync("R-concurrent", RenamerFileKind.Video, TestContext.Current.CancellationToken);
 
         // Fire N appends concurrently with a yield so the read-modify-write windows overlap and a
         // missing gate would reliably drop rows. Distinct entityId/fileId/paths per item.
@@ -37,7 +37,7 @@ public sealed class RevertLogConcurrencyTests
                 oldPath: $"media/old-{i}.mkv");
         }));
 
-        var batch = await log.ReadLastOpenBatchAsync();
+        var batch = await log.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(batch);
         Assert.Equal(RenamerFileKind.Video, batch!.Kind);
 
@@ -72,7 +72,7 @@ public sealed class RevertLogConcurrencyTests
         const int perJob = 100;
 
         // One shared open-batch header, written once before the parallel appends.
-        await jobA.BeginBatchAsync("R-shared", RenamerFileKind.Video);
+        await jobA.BeginBatchAsync("R-shared", RenamerFileKind.Video, TestContext.Current.CancellationToken);
 
         var appendsA = Enumerable.Range(0, perJob).Select(async i =>
         {
@@ -90,7 +90,7 @@ public sealed class RevertLogConcurrencyTests
         await Task.WhenAll(appendsA.Concat(appendsB));
 
         // The shared blob's open batch must contain ALL 200 rows from both instances, no torn/lost.
-        var batch = await jobA.ReadLastOpenBatchAsync();
+        var batch = await jobA.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(batch);
         Assert.Equal(2 * perJob, batch!.Entries.Count);
 

@@ -122,29 +122,29 @@ public sealed class RenamerLibraryEndpointTests
             string imageFolder = Path.Combine(dir.Root, "images").Replace('\\', '/');
             Directory.CreateDirectory(Path.Combine(dir.Root, "videos"));
             Directory.CreateDirectory(Path.Combine(dir.Root, "images"));
-            var (_, _, videoFileId) = await ExecutorTestSeed.SeedVideoAsync(db, videoFolder, "raw.mkv", "Film");
-            var (_, _, imageFileId) = await ExecutorTestSeed.SeedImageAsync(db, imageFolder, "raw.jpg", "Pic");
+            var (_, _, videoFileId) = await ExecutorTestSeed.SeedVideoAsync(db, videoFolder, "raw.mkv", "Film", ct: TestContext.Current.CancellationToken);
+            var (_, _, imageFileId) = await ExecutorTestSeed.SeedImageAsync(db, imageFolder, "raw.jpg", "Pic", ct: TestContext.Current.CancellationToken);
             File.WriteAllText(Path.Combine(dir.Root, "videos", "raw.mkv"), "video-bytes");
             File.WriteAllText(Path.Combine(dir.Root, "images", "raw.jpg"), "image-bytes");
 
             var (ext, store) = await NewExtensionAsync(conn);
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
+            await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, TestContext.Current.CancellationToken);
 
             // Both kinds actually renamed on disk.
             Assert.True(File.Exists(Path.Combine(dir.Root, "videos", "Film.mkv")));
             Assert.True(File.Exists(Path.Combine(dir.Root, "images", "Pic.jpg")));
 
-            var (videoBasename, _) = await ExecutorTestSeed.ReadFileAsync(db, videoFileId);
-            var (imageBasename, _) = await ExecutorTestSeed.ReadFileAsync(db, imageFileId);
+            var (videoBasename, _) = await ExecutorTestSeed.ReadFileAsync(db, videoFileId, TestContext.Current.CancellationToken);
+            var (imageBasename, _) = await ExecutorTestSeed.ReadFileAsync(db, imageFileId, TestContext.Current.CancellationToken);
             Assert.Equal("Film.mkv", videoBasename);
             Assert.Equal("Pic.jpg", imageBasename);
 
             // One batch PER KIND, never one combined batch across kinds. The journal retains only the
             // newest batch, so what survives is the second kind's: one header, its kind alone, and only
             // that kind's row. A combined batch would instead show one header carrying BOTH files.
-            var blob = await store.GetAsync(RevertLog.Key);
+            var blob = await store.GetAsync(RevertLog.Key, TestContext.Current.CancellationToken);
             Assert.NotNull(blob);
             var lines = blob!.Split('\n');
             int headerCount = lines.Count(line => line.StartsWith("#batch", StringComparison.Ordinal));
@@ -152,7 +152,7 @@ public sealed class RenamerLibraryEndpointTests
             Assert.StartsWith("#batch|", lines[0]);
             Assert.Equal("Image", lines[0].Split('|')[3]);
 
-            var batch = await new RevertLog(store).ReadLastOpenBatchAsync();
+            var batch = await new RevertLog(store).ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
             Assert.NotNull(batch);
             Assert.Equal(RenamerFileKind.Image, batch!.Kind);
             Assert.Equal(imageFileId, Assert.Single(batch.Entries).FileId);
@@ -174,7 +174,7 @@ public sealed class RenamerLibraryEndpointTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "Film");
+            await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "Film", ct: TestContext.Current.CancellationToken);
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "video-bytes");
             // No image/audio rows seeded at all.
 
@@ -184,9 +184,9 @@ public sealed class RenamerLibraryEndpointTests
             // Caller only holds videos.write + images.write (no audios.write) and there ARE zero
             // image candidates in the DB — both the permission filter and the empty-candidate skip
             // land on a kind that opens no batch.
-            await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
+            await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, TestContext.Current.CancellationToken);
 
-            var blob = await store.GetAsync(RevertLog.Key);
+            var blob = await store.GetAsync(RevertLog.Key, TestContext.Current.CancellationToken);
             Assert.NotNull(blob);
             int headerCount = blob!.Split('\n').Count(line => line.StartsWith("#batch", StringComparison.Ordinal));
             // Only Video opened a batch — Image had zero candidates, so RunRenamerBatchAsync was never
@@ -212,28 +212,28 @@ public sealed class RenamerLibraryEndpointTests
             string imageFolder = Path.Combine(dir.Root, "images").Replace('\\', '/');
             Directory.CreateDirectory(Path.Combine(dir.Root, "videos"));
             Directory.CreateDirectory(Path.Combine(dir.Root, "images"));
-            var (_, _, videoFileId) = await ExecutorTestSeed.SeedVideoAsync(db, videoFolder, "raw.mkv", "Film");
-            var (_, _, imageFileId) = await ExecutorTestSeed.SeedImageAsync(db, imageFolder, "raw.jpg", "Pic");
+            var (_, _, videoFileId) = await ExecutorTestSeed.SeedVideoAsync(db, videoFolder, "raw.mkv", "Film", ct: TestContext.Current.CancellationToken);
+            var (_, _, imageFileId) = await ExecutorTestSeed.SeedImageAsync(db, imageFolder, "raw.jpg", "Pic", ct: TestContext.Current.CancellationToken);
             File.WriteAllText(Path.Combine(dir.Root, "videos", "raw.mkv"), "video-bytes");
             File.WriteAllText(Path.Combine(dir.Root, "images", "raw.jpg"), "image-bytes");
 
-            var (beforeImageName, beforeImagePath) = await ExecutorTestSeed.ReadFileAsync(db, imageFileId);
+            var (beforeImageName, beforeImagePath) = await ExecutorTestSeed.ReadFileAsync(db, imageFileId, TestContext.Current.CancellationToken);
 
             var (ext, _) = await NewExtensionAsync(conn);
             var progress = new FakeJobProgress();
 
             // Caller's captured writable set holds only Video (images.write was missing at enqueue time).
-            await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video], progress, default);
+            await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video], progress, TestContext.Current.CancellationToken);
 
             // Video renamed.
-            var (videoBasename, _) = await ExecutorTestSeed.ReadFileAsync(db, videoFileId);
+            var (videoBasename, _) = await ExecutorTestSeed.ReadFileAsync(db, videoFileId, TestContext.Current.CancellationToken);
             Assert.Equal("Film.mkv", videoBasename);
             Assert.True(File.Exists(Path.Combine(dir.Root, "videos", "Film.mkv")));
 
             // Image untouched on disk and in the DB — the kind was never in the writable set, so the
             // job loop never even queried its candidates.
             Assert.True(File.Exists(Path.Combine(dir.Root, "images", "raw.jpg")));
-            var (afterImageName, afterImagePath) = await ExecutorTestSeed.ReadFileAsync(db, imageFileId);
+            var (afterImageName, afterImagePath) = await ExecutorTestSeed.ReadFileAsync(db, imageFileId, TestContext.Current.CancellationToken);
             Assert.Equal(beforeImageName, afterImageName);
             Assert.Equal(beforeImagePath, afterImagePath);
         }

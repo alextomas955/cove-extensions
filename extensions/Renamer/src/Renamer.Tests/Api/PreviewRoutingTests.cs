@@ -35,10 +35,9 @@ public sealed class PreviewRoutingTests
         try
         {
             string srcFolder = srcDir.Root.Replace('\\', '/');
-            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(
-                db, srcFolder, "raw.mkv", "My Film");
+            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "raw.mkv", "My Film", ct: TestContext.Current.CancellationToken);
             File.WriteAllText(Path.Combine(srcDir.Root, "raw.mkv"), "video-bytes");
-            var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
 
             // An exact source-path rule + an allowed dest root: BuildLookups turns this into a
             // source-path route, so a correctly-wired preview anchors the move on PathRoot.
@@ -52,13 +51,12 @@ public sealed class PreviewRoutingTests
 
             var ext = new global::Renamer.Renamer();
             var store = new FakeStore();
-            await new OptionsStore(store).SaveAsync(options);
+            await new OptionsStore(store).SaveAsync(options, TestContext.Current.CancellationToken);
             ((Cove.Plugins.IStatefulExtension)ext).SetStore(store);
 
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-            var result = await ext.PreviewAsync(
-                new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
+            var result = await ext.PreviewAsync(new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, TestContext.Current.CancellationToken);
 
             var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var item = Assert.Single(ok.Value!.Items);
@@ -71,14 +69,13 @@ public sealed class PreviewRoutingTests
             // Cross-check: the planner (the batch's own path) resolves the identical destination for
             // the same options + lookups — preview and batch agree.
             var port = new CoveRenamerDataPort(db);
-            var plan = await new RenamerPlanner(port).PlanAsync(
-                RenamerFileKind.Video, videoId, options, BuildLookupsViaBatch(options), default);
+            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, BuildLookupsViaBatch(options), TestContext.Current.CancellationToken);
             var batchItem = Assert.Single(plan.Items);
             Assert.Equal(batchItem.ResolvedDestinationRoot, item.ResolvedDestinationRoot);
             Assert.Equal(batchItem.MatchedRule, item.MatchedRule);
 
             // Still zero mutation.
-            var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
             Assert.Equal(beforeName, afterName);
             Assert.Equal(beforePath, afterPath);
         }

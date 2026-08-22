@@ -27,10 +27,10 @@ public sealed class CanonicalGuard8Dot3Tests
         return len > 0 && len < buffer.Length ? new string(buffer, 0, (int)len) : null;
     }
 
-    [SkippableFact]
+    [Fact]
     public void ShortNameDestinationUnderRoot_ResolvesToLongForm_IsAccepted()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "8.3 short-name expansion is Windows-only");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "8.3 short-name expansion is Windows-only");
 
         using var dir = new TempDir();
         string allowed = Directory.CreateDirectory(Path.Combine(dir.Root, "allowed")).FullName;
@@ -42,7 +42,7 @@ public sealed class CanonicalGuard8Dot3Tests
 
         // If 8.3 generation is disabled on the temp volume the alias equals the long form (or is null);
         // skip WITH a visible reason rather than asserting a non-existent behavior.
-        Skip.If(shortForm is null
+        Assert.SkipWhen(shortForm is null
             || string.Equals(shortForm, longNamed, StringComparison.OrdinalIgnoreCase),
             "no distinct 8.3 short alias on this volume (8dot3name likely disabled)");
 

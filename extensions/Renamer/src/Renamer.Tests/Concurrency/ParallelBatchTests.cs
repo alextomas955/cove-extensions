@@ -54,15 +54,15 @@ public sealed class ParallelBatchTests
             await using var seedDb = shared.NewContext();
 
             var (folderId, firstVideo, _) =
-                await ExecutorTestSeed.SeedVideoAsync(seedDb, folderPath, "raw 0.mkv", "Film 0");
+                await ExecutorTestSeed.SeedVideoAsync(seedDb, folderPath, "raw 0.mkv", "Film 0", ct: TestContext.Current.CancellationToken);
             var ids = new List<int> { firstVideo };
             File.WriteAllText(Path.Combine(dir.Root, "raw 0.mkv"), "bytes-0");
             for (int i = 1; i < k; i++)
             {
                 var video = new Cove.Core.Entities.Video { Title = $"Film {i}", Organized = true };
                 seedDb.Set<Cove.Core.Entities.Video>().Add(video);
-                await seedDb.SaveChangesAsync();
-                await ExecutorTestSeed.SeedAdditionalFileAsync(seedDb, folderId, video.Id, $"raw {i}.mkv");
+                await seedDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedAdditionalFileAsync(seedDb, folderId, video.Id, $"raw {i}.mkv", TestContext.Current.CancellationToken);
                 ids.Add(video.Id);
                 File.WriteAllText(Path.Combine(dir.Root, $"raw {i}.mkv"), $"bytes-{i}");
             }
@@ -70,7 +70,7 @@ public sealed class ParallelBatchTests
             var (ext, store, _) = await BuildAsync(shared, new RenamerOptions { FilenameTemplate = "$title" });
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, TestContext.Current.CancellationToken);
 
             // All K renamed on disk.
             for (int i = 0; i < k; i++)
@@ -81,7 +81,7 @@ public sealed class ParallelBatchTests
 
             // The shared RevertLog blob (read fresh from the store) holds exactly K well-formed rows.
             var log = new RevertLog(store);
-            var batch = await log.ReadLastOpenBatchAsync();
+            var batch = await log.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
             Assert.NotNull(batch);
             Assert.Equal(k, batch!.Entries.Count);
             Assert.Equal(k, batch.Entries.Select(e => e.FileId).Distinct().Count());
@@ -121,15 +121,15 @@ public sealed class ParallelBatchTests
             await using var seedDb = shared.NewContext();
 
             var (folderId, firstVideo, _) =
-                await ExecutorTestSeed.SeedVideoAsync(seedDb, folderPath, "raw 0.mkv", "Film 0");
+                await ExecutorTestSeed.SeedVideoAsync(seedDb, folderPath, "raw 0.mkv", "Film 0", ct: TestContext.Current.CancellationToken);
             var ids = new List<int> { firstVideo };
             File.WriteAllText(Path.Combine(dir.Root, "raw 0.mkv"), "bytes-0");
             for (int i = 1; i < k; i++)
             {
                 var video = new Cove.Core.Entities.Video { Title = $"Film {i}", Organized = true };
                 seedDb.Set<Cove.Core.Entities.Video>().Add(video);
-                await seedDb.SaveChangesAsync();
-                await ExecutorTestSeed.SeedAdditionalFileAsync(seedDb, folderId, video.Id, $"raw {i}.mkv");
+                await seedDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedAdditionalFileAsync(seedDb, folderId, video.Id, $"raw {i}.mkv", TestContext.Current.CancellationToken);
                 ids.Add(video.Id);
                 // Write the on-disk source for every id EXCEPT the fault one — with no source on disk
                 // the executor's source pre-check classifies it as SkipMissingSource (not a mover-level
@@ -143,7 +143,7 @@ public sealed class ParallelBatchTests
             var (ext, _, _) = await BuildAsync(shared, new RenamerOptions { FilenameTemplate = "$title" });
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, TestContext.Current.CancellationToken);
 
             // Every item whose source existed renamed; the faulting item did NOT (its target was never
             // created) and the batch still finished at 1.0 — one bad item never aborts the run.
@@ -180,15 +180,15 @@ public sealed class ParallelBatchTests
             await using var seedDb = shared.NewContext();
 
             var (folderId, firstVideo, _) =
-                await ExecutorTestSeed.SeedVideoAsync(seedDb, folderPath, "raw 0.mkv", "Film 0");
+                await ExecutorTestSeed.SeedVideoAsync(seedDb, folderPath, "raw 0.mkv", "Film 0", ct: TestContext.Current.CancellationToken);
             var ids = new List<int> { firstVideo };
             File.WriteAllText(Path.Combine(dir.Root, "raw 0.mkv"), "bytes-0");
             for (int i = 1; i < k; i++)
             {
                 var video = new Cove.Core.Entities.Video { Title = $"Film {i}", Organized = true };
                 seedDb.Set<Cove.Core.Entities.Video>().Add(video);
-                await seedDb.SaveChangesAsync();
-                await ExecutorTestSeed.SeedAdditionalFileAsync(seedDb, folderId, video.Id, $"raw {i}.mkv");
+                await seedDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedAdditionalFileAsync(seedDb, folderId, video.Id, $"raw {i}.mkv", TestContext.Current.CancellationToken);
                 ids.Add(video.Id);
                 File.WriteAllText(Path.Combine(dir.Root, $"raw {i}.mkv"), $"bytes-{i}");
             }
@@ -200,8 +200,7 @@ public sealed class ParallelBatchTests
                 new RenamerOptions { FilenameTemplate = "$title", CrossVolumeConcurrency = 1 });
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default,
-                freeSpaceProbe: _ => 1L);
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, TestContext.Current.CancellationToken, freeSpaceProbe: _ => 1L);
 
             for (int i = 0; i < k; i++)
             {
@@ -234,7 +233,7 @@ public sealed class ParallelBatchTests
             string destRootFwd = drive.Root.Replace('\\', '/'); // e.g. "P:/"
 
             await using var seedDb = shared.NewContext();
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(seedDb, srcPathFwd, "raw.mkv", "My Film");
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(seedDb, srcPathFwd, "raw.mkv", "My Film", ct: TestContext.Current.CancellationToken);
             File.WriteAllText(Path.Combine(srcFolder, "raw.mkv"), "bytes");
 
             // Route the item across volumes (src on the temp drive → dest on the subst drive root), so
@@ -258,7 +257,7 @@ public sealed class ParallelBatchTests
             long Probe(string vol) => Interlocked.Increment(ref calls) == 1 ? 1L << 40 : 1L;
 
             var progress = new FakeJobProgress();
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), progress, default, Probe);
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), progress, TestContext.Current.CancellationToken, Probe);
 
             // The in-flight drop skipped the move: the file stayed at its source and never landed on the
             // routed destination. The batch finished cleanly (no throw, final 1.0).

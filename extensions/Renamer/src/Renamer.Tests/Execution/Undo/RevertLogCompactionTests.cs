@@ -44,20 +44,20 @@ public sealed class RevertLogCompactionTests
         for (int n = 0; n < historical; n++)
         {
             var runId = $"R{n}";
-            await log.BeginBatchAsync(runId, RenamerFileKind.Video);
-            await log.AppendAsync(entityId: n, fileId: 1000 + n, oldPath: $"m/old-{n}.mkv");
-            await log.MarkLastBatchConsumedAsync(runId);
+            await log.BeginBatchAsync(runId, RenamerFileKind.Video, TestContext.Current.CancellationToken);
+            await log.AppendAsync(entityId: n, fileId: 1000 + n, oldPath: $"m/old-{n}.mkv", ct: TestContext.Current.CancellationToken);
+            await log.MarkLastBatchConsumedAsync(runId, TestContext.Current.CancellationToken);
         }
 
         // One final live batch with K rows.
         const int k = 3;
-        await log.BeginBatchAsync("FINAL", RenamerFileKind.Video);
+        await log.BeginBatchAsync("FINAL", RenamerFileKind.Video, TestContext.Current.CancellationToken);
         for (int j = 0; j < k; j++)
         {
-            await log.AppendAsync(entityId: 900 + j, fileId: 9000 + j, oldPath: $"m/f-{j}.mkv");
+            await log.AppendAsync(entityId: 900 + j, fileId: 9000 + j, oldPath: $"m/f-{j}.mkv", ct: TestContext.Current.CancellationToken);
         }
 
-        var blob = await store.GetAsync(RevertLog.Key);
+        var blob = await store.GetAsync(RevertLog.Key, TestContext.Current.CancellationToken);
         Assert.NotNull(blob);
 
         // Exactly ONE header remains (the final batch's), and exactly K data rows after it — the stored
@@ -75,7 +75,7 @@ public sealed class RevertLogCompactionTests
         }
 
         // The last open batch reads back as exactly the K live rows.
-        var batch = await log.ReadLastOpenBatchAsync();
+        var batch = await log.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(batch);
         Assert.Equal(k, batch!.Entries.Count);
     }
@@ -94,12 +94,12 @@ public sealed class RevertLogCompactionTests
         for (int n = 0; n < cycles; n++)
         {
             var runId = $"R{n}";
-            await log.BeginBatchAsync(runId, RenamerFileKind.Video);
-            await log.AppendAsync(entityId: n, fileId: 100 + n, oldPath: $"m/o-{n}.mkv");
-            await log.AppendAsync(entityId: n, fileId: 200 + n, oldPath: $"m/p-{n}.mkv");
-            await log.MarkLastBatchConsumedAsync(runId);
+            await log.BeginBatchAsync(runId, RenamerFileKind.Video, TestContext.Current.CancellationToken);
+            await log.AppendAsync(entityId: n, fileId: 100 + n, oldPath: $"m/o-{n}.mkv", ct: TestContext.Current.CancellationToken);
+            await log.AppendAsync(entityId: n, fileId: 200 + n, oldPath: $"m/p-{n}.mkv", ct: TestContext.Current.CancellationToken);
+            await log.MarkLastBatchConsumedAsync(runId, TestContext.Current.CancellationToken);
 
-            var mid = (await store.GetAsync(RevertLog.Key))!;
+            var mid = (await store.GetAsync(RevertLog.Key, TestContext.Current.CancellationToken))!;
             // After each consume the log holds exactly ONE batch (the just-consumed one, for the panel)
             // with its two data rows — never the accumulated history. Structural (one header + two rows),
             // constant at every cycle, so the footprint is flat across the install's life rather than
@@ -110,18 +110,18 @@ public sealed class RevertLogCompactionTests
 
         // A subsequent Begin (a fresh rename) drops the trailing consumed batch — its panel role passes to
         // the new open header — so the footprint does not even carry the last consumed batch forward.
-        await log.BeginBatchAsync("FINAL-OPEN", RenamerFileKind.Video);
-        var afterBegin = (await store.GetAsync(RevertLog.Key))!;
+        await log.BeginBatchAsync("FINAL-OPEN", RenamerFileKind.Video, TestContext.Current.CancellationToken);
+        var afterBegin = (await store.GetAsync(RevertLog.Key, TestContext.Current.CancellationToken))!;
         Assert.Equal(1, CountHeaders(afterBegin));
         Assert.StartsWith("#batch|FINAL-OPEN|", afterBegin);
 
         // The final open batch is undo-reachable; consuming it (with no earlier open batch behind it)
         // leaves at most the single consumed batch — never a growing trail.
-        Assert.NotNull(await log.ReadLastOpenBatchAsync());
-        await log.MarkLastBatchConsumedAsync("FINAL-OPEN");
-        var final = await store.GetAsync(RevertLog.Key);
+        Assert.NotNull(await log.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken));
+        await log.MarkLastBatchConsumedAsync("FINAL-OPEN", TestContext.Current.CancellationToken);
+        var final = await store.GetAsync(RevertLog.Key, TestContext.Current.CancellationToken);
         Assert.True(string.IsNullOrEmpty(final) || CountHeaders(final!) <= 1);
-        Assert.Null(await log.ReadLastOpenBatchAsync());
+        Assert.Null(await log.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -133,14 +133,14 @@ public sealed class RevertLogCompactionTests
         // Three renames with no undo between them. Retaining ONE batch is what gives the stored value a
         // fixed ceiling rather than a size that grows with however many renames went un-undone, and it
         // costs nothing the product offered — an earlier open batch was retained but unreachable.
-        await log.BeginBatchAsync("A", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 1, fileId: 11, oldPath: "m/a.mkv");
-        await log.BeginBatchAsync("B", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 2, fileId: 22, oldPath: "m/b.mkv");
-        await log.BeginBatchAsync("C", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 3, fileId: 33, oldPath: "m/c.mkv");
+        await log.BeginBatchAsync("A", RenamerFileKind.Video, TestContext.Current.CancellationToken);
+        await log.AppendAsync(entityId: 1, fileId: 11, oldPath: "m/a.mkv", ct: TestContext.Current.CancellationToken);
+        await log.BeginBatchAsync("B", RenamerFileKind.Video, TestContext.Current.CancellationToken);
+        await log.AppendAsync(entityId: 2, fileId: 22, oldPath: "m/b.mkv", ct: TestContext.Current.CancellationToken);
+        await log.BeginBatchAsync("C", RenamerFileKind.Video, TestContext.Current.CancellationToken);
+        await log.AppendAsync(entityId: 3, fileId: 33, oldPath: "m/c.mkv", ct: TestContext.Current.CancellationToken);
 
-        var blob = await store.GetAsync(RevertLog.Key);
+        var blob = await store.GetAsync(RevertLog.Key, TestContext.Current.CancellationToken);
         Assert.NotNull(blob);
 
         Assert.Equal(1, CountHeaders(blob!));
@@ -149,7 +149,7 @@ public sealed class RevertLogCompactionTests
         Assert.DoesNotContain("m/b.mkv", blob, StringComparison.Ordinal);
 
         // The retained batch is the one undo replays.
-        var batch = await log.ReadLastOpenBatchAsync();
+        var batch = await log.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(batch);
         var only = Assert.Single(batch!.Entries);
         Assert.Equal(33, only.FileId);
@@ -164,14 +164,14 @@ public sealed class RevertLogCompactionTests
         // A CONSUMED batch followed by an OPEN one: compaction must drop the leading consumed batch and
         // keep the open tail. This guards that fixing the multi-open bug did not disable the footprint
         // shrink for fully-consumed leading history.
-        await log.BeginBatchAsync("CONSUMED", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 1, fileId: 11, oldPath: "m/x.mkv");
-        await log.MarkLastBatchConsumedAsync("CONSUMED");
+        await log.BeginBatchAsync("CONSUMED", RenamerFileKind.Video, TestContext.Current.CancellationToken);
+        await log.AppendAsync(entityId: 1, fileId: 11, oldPath: "m/x.mkv", ct: TestContext.Current.CancellationToken);
+        await log.MarkLastBatchConsumedAsync("CONSUMED", TestContext.Current.CancellationToken);
 
-        await log.BeginBatchAsync("OPEN", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 2, fileId: 22, oldPath: "m/y.mkv");
+        await log.BeginBatchAsync("OPEN", RenamerFileKind.Video, TestContext.Current.CancellationToken);
+        await log.AppendAsync(entityId: 2, fileId: 22, oldPath: "m/y.mkv", ct: TestContext.Current.CancellationToken);
 
-        var blob = await store.GetAsync(RevertLog.Key);
+        var blob = await store.GetAsync(RevertLog.Key, TestContext.Current.CancellationToken);
         Assert.NotNull(blob);
 
         // Only the open batch survives; the leading consumed batch is gone (its Begin dropped it).
@@ -192,9 +192,9 @@ public sealed class RevertLogCompactionTests
             // Offset the Video id sequence so videoId ≠ fileId — the published event must carry the
             // ENTITY id (the row's), never the file id.
             db.Set<Cove.Core.Entities.Video>().Add(new Cove.Core.Entities.Video { Title = "decoy", Organized = true });
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw clip.mkv", "My Film");
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw clip.mkv", "My Film", ct: TestContext.Current.CancellationToken);
             Assert.NotEqual(videoId, fileId);
 
             var port = new CoveRenamerDataPort(db);
@@ -205,9 +205,9 @@ public sealed class RevertLogCompactionTests
             for (int n = 0; n < 5; n++)
             {
                 var earlier = $"EARLIER-{n}";
-                await revertLog.BeginBatchAsync(earlier, RenamerFileKind.Video);
-                await revertLog.AppendAsync(entityId: n, fileId: 5000 + n, oldPath: $"m/x-{n}.mkv");
-                await revertLog.MarkLastBatchConsumedAsync(earlier);
+                await revertLog.BeginBatchAsync(earlier, RenamerFileKind.Video, TestContext.Current.CancellationToken);
+                await revertLog.AppendAsync(entityId: n, fileId: 5000 + n, oldPath: $"m/x-{n}.mkv", ct: TestContext.Current.CancellationToken);
+                await revertLog.MarkLastBatchConsumedAsync(earlier, TestContext.Current.CancellationToken);
             }
 
             string oldFull = Path.Combine(dir.Root, "raw clip.mkv");
@@ -217,10 +217,10 @@ public sealed class RevertLogCompactionTests
 
             // Forward-rename a real file through the live planner + executor + RevertLog under a NEW open
             // batch. The Begin here compacts the earlier consumed batches away first.
-            await revertLog.BeginBatchAsync("LIVE", RenamerFileKind.Video);
-            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
+            await revertLog.BeginBatchAsync("LIVE", RenamerFileKind.Video, TestContext.Current.CancellationToken);
+            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, TestContext.Current.CancellationToken);
             var fwd = await new RenamerExecutor(port, new CapturingEventBus(), revertLog, new DiskMover())
-                .ExecuteAsync(plan, options, default);
+                .ExecuteAsync(plan, options, default, TestContext.Current.CancellationToken);
             Assert.Single(fwd.Renamed);
 
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
@@ -228,10 +228,10 @@ public sealed class RevertLogCompactionTests
             Assert.False(File.Exists(oldFull));
 
             // Reverse-replay the last open batch — it must survive the earlier compaction intact.
-            var batch = await revertLog.ReadLastOpenBatchAsync();
+            var batch = await revertLog.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
             Assert.NotNull(batch);
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch!, default);
+            var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch!, TestContext.Current.CancellationToken);
 
             Assert.Equal(1, result.Undone);
             Assert.Empty(result.Failed);
@@ -243,7 +243,7 @@ public sealed class RevertLogCompactionTests
             Assert.Equal("video-bytes", File.ReadAllText(oldFull));
 
             // DB restored.
-            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
             Assert.Equal("raw clip.mkv", basename);
             Assert.Equal(folderPath + "/raw clip.mkv", path);
 

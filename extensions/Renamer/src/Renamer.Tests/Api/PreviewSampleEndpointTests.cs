@@ -184,7 +184,7 @@ public sealed class PreviewSampleEndpointTests
         ctx.Request.Body = new ThrowingStream();
         ctx.Request.ContentType = "application/json";
 
-        var result = await ext.PreviewSampleAsync(ctx.Request, FakePrincipalAccessor.None(), default);
+        var result = await ext.PreviewSampleAsync(ctx.Request, FakePrincipalAccessor.None(), TestContext.Current.CancellationToken);
 
         Assert.Equal(403, StatusOf(result)); // permission denied
     }
@@ -232,7 +232,7 @@ public sealed class PreviewSampleEndpointTests
         var ext = NewExtension();
         var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-        var result = await ext.PreviewSampleAsync(RequestWithBody("{ not valid json "), principal, default);
+        var result = await ext.PreviewSampleAsync(RequestWithBody("{ not valid json "), principal, TestContext.Current.CancellationToken);
 
         Assert.Equal(400, StatusOf(result)); // malformed body → clean 400, not an unhandled throw
     }

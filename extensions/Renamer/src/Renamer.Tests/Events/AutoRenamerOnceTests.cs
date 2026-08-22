@@ -23,7 +23,7 @@ public sealed class AutoRenamerOnceTests
         {
             string folderPath = dir.Root.Replace('\\', '/');
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film");
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film", ct: TestContext.Current.CancellationToken);
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
 
             var options = new RenamerOptions
@@ -34,18 +34,18 @@ public sealed class AutoRenamerOnceTests
             var (ext, bus, _) = await EventTestHarness.BuildAsync(db, options);
 
             // First event: renames raw.mkv → My Film.mkv (one acting item ⇒ one publish).
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), TestContext.Current.CancellationToken);
 
             Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.mkv")));
             Assert.False(File.Exists(Path.Combine(dir.Root, "raw.mkv")));
-            var (basenameAfterFirst, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            var (basenameAfterFirst, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
             Assert.Equal("My Film.mkv", basenameAfterFirst);
             Assert.Single(bus.Published);            // exactly one save → exactly one re-raise
 
             // Second event (the re-raised update): now all-NoOp → guard short-circuits, no churn.
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), TestContext.Current.CancellationToken);
 
-            var (basenameAfterSecond, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            var (basenameAfterSecond, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
             Assert.Equal("My Film.mkv", basenameAfterSecond);                 // stable terminal state
             Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.mkv")));
             Assert.Single(bus.Published);            // no additional event from the re-entry

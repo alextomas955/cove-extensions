@@ -7,9 +7,8 @@ namespace Cove.Extensions.Shared.Testing;
 /// lack a class-level <c>[Trait("Tier", "L0"|"L1"|"L2"|"L3")]</c>.
 /// </summary>
 /// <remarks>
-/// A <c>--filter "Tier=Lx"</c> selection silently omits a class with no Tier trait; this guard is the
-/// enforcement point for that invariant. Traits are read by attribute type name to keep an xUnit
-/// package reference out of this shared assembly.
+/// A <c>--filter-trait "Tier=Lx"</c> selection silently omits a class with no Tier trait; this guard
+/// is the enforcement point for that invariant.
 /// </remarks>
 public static class TierTraitGuard
 {
@@ -44,8 +43,8 @@ public static class TierTraitGuard
         type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
             .Any(m => m.CustomAttributes.Any(a => IsFactLike(a.AttributeType)));
 
-    // [Theory], [SkippableFact] and [SkippableTheory] all derive from Xunit.FactAttribute, so walking
-    // the base chain by name catches every discoverable test method without an xUnit type reference.
+    // [Theory] derives from Xunit.FactAttribute, so walking the base chain catches every discoverable
+    // test method.
     private static bool IsFactLike(Type? attributeType)
     {
         for (var t = attributeType; t is not null; t = t.BaseType)

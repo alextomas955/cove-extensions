@@ -17,7 +17,7 @@ public sealed class IRenamerDataPortSeamTests
         port.SeedOccupied(folderId: 7, basename: "b.mp4", fileId: 42);
 
         // A different file (id 99) wanting "b.mp4" in folder 7 collides with file 42.
-        Assert.True(await port.CollisionExistsAsync(7, "b.mp4", selfFileId: 99));
+        Assert.True(await port.CollisionExistsAsync(7, "b.mp4", selfFileId: 99, ct: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -27,23 +27,23 @@ public sealed class IRenamerDataPortSeamTests
         port.SeedOccupied(folderId: 7, basename: "b.mp4", fileId: 42);
 
         // File 42 already owns the name; renaming itself to its own name is not a collision.
-        Assert.False(await port.CollisionExistsAsync(7, "b.mp4", selfFileId: 42));
+        Assert.False(await port.CollisionExistsAsync(7, "b.mp4", selfFileId: 42, ct: TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task CollisionExistsAsync_False_ForUnseededName()
     {
         var port = new FakeRenamerDataPort();
-        Assert.False(await port.CollisionExistsAsync(7, "free.mp4", selfFileId: 1));
+        Assert.False(await port.CollisionExistsAsync(7, "free.mp4", selfFileId: 1, ct: TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task GetOrCreateFolderId_IsStable_AcrossCalls()
     {
         var port = new FakeRenamerDataPort();
-        var a = await port.GetOrCreateFolderIdAsync("media/2024");
-        var b = await port.GetOrCreateFolderIdAsync("media/2024");
-        var c = await port.GetOrCreateFolderIdAsync("media/2025");
+        var a = await port.GetOrCreateFolderIdAsync("media/2024", TestContext.Current.CancellationToken);
+        var b = await port.GetOrCreateFolderIdAsync("media/2024", TestContext.Current.CancellationToken);
+        var c = await port.GetOrCreateFolderIdAsync("media/2025", TestContext.Current.CancellationToken);
 
         Assert.Equal(a, b);       // same path → same id
         Assert.NotEqual(a, c);    // different path → different id
@@ -55,7 +55,7 @@ public sealed class IRenamerDataPortSeamTests
         var port = new FakeRenamerDataPort();
         var muts = new List<RenamerFileMutation> { new(FileId: 1, NewBasename: "new.mp4", NewParentFolderId: null) };
 
-        var changed = await port.SaveAsync(muts);
+        var changed = await port.SaveAsync(muts, TestContext.Current.CancellationToken);
 
         Assert.Equal(1, changed);
         Assert.Single(port.SaveCalls);

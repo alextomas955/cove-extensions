@@ -55,7 +55,7 @@ public sealed class CrossVolumeUndoTests
 
             var undoBus = new CapturingEventBus();
             var replayer = new UndoReplayer(port, undoBus, new DiskMover(), cross: new CrossVolumeMover());
-            var result = await replayer.RevertAsync(batch, default);
+            var result = await replayer.RevertAsync(batch, TestContext.Current.CancellationToken);
 
             Assert.Equal(1, result.Undone);
             Assert.Empty(result.Failed);
@@ -108,7 +108,7 @@ public sealed class CrossVolumeUndoTests
 
             var undoBus = new CapturingEventBus();
             var replayer = new UndoReplayer(port, undoBus, new DiskMover(), cross: faultMover);
-            var result = await replayer.RevertAsync(batch, default);
+            var result = await replayer.RevertAsync(batch, TestContext.Current.CancellationToken);
 
             // The reverse move reports !Moved (VerifyFailed) → reported SKIP, never Undone.
             Assert.Equal(0, result.Undone);
@@ -155,7 +155,7 @@ public sealed class CrossVolumeUndoTests
             var throwingPort = new ThrowOnSaveDataPort(db);
             var undoBus = new CapturingEventBus();
             var replayer = new UndoReplayer(throwingPort, undoBus, new DiskMover(), cross: new CrossVolumeMover());
-            var result = await replayer.RevertAsync(batch, default);
+            var result = await replayer.RevertAsync(batch, TestContext.Current.CancellationToken);
 
             Assert.Equal(0, result.Undone);
             Assert.Single(result.Failed);
@@ -199,7 +199,7 @@ public sealed class CrossVolumeUndoTests
 
             var undoBus = new CapturingEventBus();
             var replayer = new UndoReplayer(port, undoBus, new DiskMover(), cross: new CrossVolumeMover());
-            var result = await replayer.RevertAsync(batch, default);
+            var result = await replayer.RevertAsync(batch, TestContext.Current.CancellationToken);
 
             // The missing OLD dir is a reported SKIP citing "original directory no longer exists".
             Assert.Equal(0, result.Undone);
@@ -251,7 +251,7 @@ public sealed class CrossVolumeUndoTests
 
             var undoBus = new CapturingEventBus();
             var replayer = new UndoReplayer(port, undoBus, new DiskMover(), cross: new CrossVolumeMover());
-            var result = await replayer.RevertAsync(batch, default);
+            var result = await replayer.RevertAsync(batch, TestContext.Current.CancellationToken);
 
             // A gone OLD drive is a reported SKIP (the dir-missing Directory.Exists check returns false on
             // an unmapped drive — never throws — or the cross mover's IOException classify catches it).
@@ -297,7 +297,7 @@ public sealed class CrossVolumeUndoTests
 
             var undoBus = new CapturingEventBus();
             var replayer = new UndoReplayer(port, undoBus, new DiskMover(), cross: new CrossVolumeMover());
-            var result = await replayer.RevertAsync(batch, default);
+            var result = await replayer.RevertAsync(batch, TestContext.Current.CancellationToken);
 
             // The re-occupied OLD slot is a reported SKIP — never clobbered.
             Assert.Equal(0, result.Undone);

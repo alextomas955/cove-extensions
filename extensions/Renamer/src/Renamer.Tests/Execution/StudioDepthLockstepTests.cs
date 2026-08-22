@@ -79,16 +79,15 @@ public sealed class StudioDepthLockstepTests
             var ancestors = await SeedAncestorChainAsync(db, CoveRenamerDataPort.MaxParentDepth + 1);
             var direct = new Studio { Name = "direct", ParentId = ancestors[^1].Id };
             db.Set<Studio>().Add(direct);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
-                db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip");
-            var video = await db.Set<Video>().FirstAsync(v => v.Id == videoId);
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip", ct: TestContext.Current.CancellationToken);
+            var video = await db.Set<Video>().FirstAsync(v => v.Id == videoId, cancellationToken: TestContext.Current.CancellationToken);
             video.StudioId = direct.Id;
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var port = new CoveRenamerDataPort(db);
-            var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
+            var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId, TestContext.Current.CancellationToken);
 
             Assert.NotNull(entity);
             Assert.NotNull(entity!.ParentStudios);

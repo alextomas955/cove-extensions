@@ -49,11 +49,11 @@ public sealed class AutoRenamerFailureContainmentTests
 
             var ext = new global::Renamer.Renamer();
             ((IStatefulExtension)ext).SetStore(new ThrowingStore()); // first store read throws.
-            await ext.InitializeAsync(provider);
+            await ext.InitializeAsync(provider, TestContext.Current.CancellationToken);
 
             // The host calls OnEventAsync; the inner option-load throws. The handler must swallow it
             // so the host's dispatch loop is not handed a context-free exception. No throw == pass.
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", 1), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", 1), TestContext.Current.CancellationToken);
         }
         finally
         {

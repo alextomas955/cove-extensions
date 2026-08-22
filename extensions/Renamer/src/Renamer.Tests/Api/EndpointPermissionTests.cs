@@ -49,11 +49,10 @@ public sealed class EndpointPermissionTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "raw.mkv", "Denied Film");
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "raw.mkv", "Denied Film", ct: TestContext.Current.CancellationToken);
             var ext = NewExtension();
 
-            var result = await ext.PreviewAsync(
-                new global::Renamer.Api.RenamerRequest("video", [videoId]), db, FakePrincipalAccessor.None(), default);
+            var result = await ext.PreviewAsync(new global::Renamer.Api.RenamerRequest("video", [videoId]), db, FakePrincipalAccessor.None(), TestContext.Current.CancellationToken);
 
             Assert.Equal(403, StatusOf(result));
         }
@@ -74,15 +73,13 @@ public sealed class EndpointPermissionTests
             // the matching images.read principal is allowed (200).
             var ext = NewExtension();
             var videoOnly = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
-            var denied = await ext.PreviewAsync(
-                new global::Renamer.Api.RenamerRequest("image", [1]), db, videoOnly, default);
+            var denied = await ext.PreviewAsync(new global::Renamer.Api.RenamerRequest("image", [1]), db, videoOnly, TestContext.Current.CancellationToken);
             Assert.Equal(403, StatusOf(denied));
 
             // The matching images.read principal is NOT forbidden — the preview proceeds (a successful
             // preview returns a JSON value result with no explicit status code, i.e. 200, not 403).
             var imageOk = FakePrincipalAccessor.WithPermissions(Permissions.ImagesRead);
-            var allowed = await ext.PreviewAsync(
-                new global::Renamer.Api.RenamerRequest("image", [1]), db, imageOk, default);
+            var allowed = await ext.PreviewAsync(new global::Renamer.Api.RenamerRequest("image", [1]), db, imageOk, TestContext.Current.CancellationToken);
             Assert.NotEqual(403, StatusOf(allowed));
             Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(allowed));
         }
@@ -176,7 +173,7 @@ public sealed class EndpointPermissionTests
         // scope factory it would NRE here — the absence of a throw proves the 403-first ordering.
         var ext = NewExtension();
 
-        var result = await ext.UndoAsync(FakePrincipalAccessor.None(), default);
+        var result = await ext.UndoAsync(FakePrincipalAccessor.None(), TestContext.Current.CancellationToken);
 
         Assert.Equal(403, StatusOf(result));
     }
@@ -186,7 +183,7 @@ public sealed class EndpointPermissionTests
     {
         var ext = NewExtension();
 
-        var result = await ext.LastBatchAsync(FakePrincipalAccessor.None(), default);
+        var result = await ext.LastBatchAsync(FakePrincipalAccessor.None(), TestContext.Current.CancellationToken);
 
         Assert.Equal(403, StatusOf(result));
     }

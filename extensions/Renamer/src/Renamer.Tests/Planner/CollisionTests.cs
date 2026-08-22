@@ -30,7 +30,7 @@ public sealed class CollisionTests
         port.SeedOccupied(folderId: 5, basename: "My Film.mkv", fileId: 99);
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), TestContext.Current.CancellationToken);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Renamer, item.Status);
@@ -48,7 +48,7 @@ public sealed class CollisionTests
         port.SeedOccupied(5, "My Film (1).mkv", 98);
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), TestContext.Current.CancellationToken);
 
         Assert.Equal("My Film (2).mkv", Assert.Single(plan.Items).NewBasename);
         Assert.Empty(port.SaveCalls);
@@ -67,7 +67,7 @@ public sealed class CollisionTests
         }
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), TestContext.Current.CancellationToken);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipCollision, item.Status);

@@ -67,7 +67,7 @@ public sealed class RoutingPlannerTests
         var opts = MoveOptions([SrcRoot, StudioRoot]);
         var lk = Lookups(studio: new Dictionary<int, string> { [42] = StudioRoot });
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, TestContext.Current.CancellationToken);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
@@ -96,7 +96,7 @@ public sealed class RoutingPlannerTests
         };
         var lk = Lookups(studio: new Dictionary<int, string> { [42] = StudioRoot });
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, TestContext.Current.CancellationToken);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
@@ -119,7 +119,7 @@ public sealed class RoutingPlannerTests
         var opts = MoveOptions([SrcRoot, TagRoot]);
         var lk = Lookups(tag: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["ANIME"] = TagRoot });
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, TestContext.Current.CancellationToken);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
@@ -138,7 +138,7 @@ public sealed class RoutingPlannerTests
         var opts = MoveOptions([SrcRoot, PathRoot]);
         var lk = Lookups(exact: new Dictionary<string, string>(StringComparer.Ordinal) { [Fwd(SrcRoot)] = PathRoot });
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, TestContext.Current.CancellationToken);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
@@ -162,7 +162,7 @@ public sealed class RoutingPlannerTests
             UnorganizedDestination = UnorgRoot,
         };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), TestContext.Current.CancellationToken);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
@@ -181,7 +181,7 @@ public sealed class RoutingPlannerTests
         // own folder, ResolvedDestinationRoot null.
         var opts = new RenamerOptions { FilenameTemplate = "$title", FolderTemplate = "Sorted" };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), TestContext.Current.CancellationToken);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
@@ -211,7 +211,7 @@ public sealed class RoutingPlannerTests
             EnableDefaultRelocate = false,
         };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), TestContext.Current.CancellationToken);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
@@ -237,7 +237,7 @@ public sealed class RoutingPlannerTests
         var opts = MoveOptions([SrcRoot]);
         var lk = Lookups(excludeTags: new HashSet<string>(["anime"], StringComparer.OrdinalIgnoreCase));
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, TestContext.Current.CancellationToken);
 
         Assert.Equal(2, plan.Items.Count);
         Assert.All(plan.Items, item =>
@@ -268,7 +268,7 @@ public sealed class RoutingPlannerTests
         };
         var lk = Lookups(excludeTags: new HashSet<string>(["anime"], StringComparer.OrdinalIgnoreCase));
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, TestContext.Current.CancellationToken);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipExcluded, item.Status);
@@ -298,7 +298,7 @@ public sealed class RoutingPlannerTests
             EnableDefaultRelocate = true,
         };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), TestContext.Current.CancellationToken);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.NoOp, item.Status);
@@ -321,7 +321,7 @@ public sealed class RoutingPlannerTests
             EnableDefaultRelocate = true,
         };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), TestContext.Current.CancellationToken);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);

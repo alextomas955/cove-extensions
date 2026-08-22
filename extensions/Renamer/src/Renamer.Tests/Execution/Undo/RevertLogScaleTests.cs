@@ -76,22 +76,22 @@ public sealed class RevertLogScaleTests
 
         // An earlier, still-undoable batch. Offering it as "the last rename" after the over-cap rename
         // has moved files would restore the wrong thing — the refusal has to take it with it.
-        await log.BeginBatchAsync("EARLIER", RenamerFileKind.Video);
-        await log.AppendAsync(entityId: 1, fileId: 11, oldPath: "/lib/a.mkv");
+        await log.BeginBatchAsync("EARLIER", RenamerFileKind.Video, TestContext.Current.CancellationToken);
+        await log.AppendAsync(entityId: 1, fileId: 11, oldPath: "/lib/a.mkv", ct: TestContext.Current.CancellationToken);
 
         Assert.True(RevertLog.ExceedsCap(RevertLog.MaxJournalledFiles + 1));
-        await log.SuppressAsync();
+        await log.SuppressAsync(TestContext.Current.CancellationToken);
 
         // Every append the batch goes on to make is a no-op, so no partial journal can form.
         for (int i = 0; i < SmallFixture; i++)
         {
-            await log.AppendAsync(entityId: 100 + i, fileId: 200 + i, oldPath: LongPath(i));
+            await log.AppendAsync(entityId: 100 + i, fileId: 200 + i, oldPath: LongPath(i), ct: TestContext.Current.CancellationToken);
         }
 
-        Assert.Empty((await store.GetAsync(RevertLog.Key))!);
+        Assert.Empty((await store.GetAsync(RevertLog.Key, TestContext.Current.CancellationToken))!);
         Assert.Empty(log.Rows);
-        Assert.Null(await log.ReadLastOpenBatchAsync());
-        Assert.Null(await log.ReadLastBatchSummaryAsync());
+        Assert.Null(await log.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken));
+        Assert.Null(await log.ReadLastBatchSummaryAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]

@@ -46,10 +46,10 @@ public sealed class UndoReGateTests
         }
     }
 
-    [SkippableFact] // On Windows this always runs — junctions need no privilege; it IS the UNDO-03 re-gate proof.
+    [Fact] // On Windows this always runs — junctions need no privilege; it IS the UNDO-03 re-gate proof.
     public async Task ReGate_RestoreOutsideAllowlist_ReportedSkip()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "needs an NTFS junction (cmd /c mklink /J)");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "needs an NTFS junction (cmd /c mklink /J)");
 
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -75,7 +75,7 @@ public sealed class UndoReGateTests
 
             // Seed the file at its CURRENT (NEW) location so the DB is consistent.
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, newFolder, "My Film.mkv", "My Film");
+                await ExecutorTestSeed.SeedVideoAsync(db, newFolder, "My Film.mkv", "My Film", ct: TestContext.Current.CancellationToken);
 
             var entry = new RevertLog.RevertEntry(videoId, fileId, escapeFwd + "/raw.mkv");
             var batch = new RevertLog.RevertBatch(RenamerFileKind.Video, [entry]);
@@ -86,7 +86,7 @@ public sealed class UndoReGateTests
             var replayer = new UndoReplayer(port, undoBus, new DiskMover(),
                 cross: new CrossVolumeMover(), allowedRoots: [allowed.Replace('\\', '/')]);
 
-            var result = await replayer.RevertAsync(batch, default);
+            var result = await replayer.RevertAsync(batch, TestContext.Current.CancellationToken);
 
             // The entry is a reported SKIP citing the allowlist rejection — never Undone, never a clobber.
             Assert.Equal(0, result.Undone);
@@ -117,7 +117,7 @@ public sealed class UndoReGateTests
         {
             string folderPath = dir.Root.Replace('\\', '/');
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "My Film.mkv", "My Film");
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "My Film.mkv", "My Film", ct: TestContext.Current.CancellationToken);
 
             // The file currently sits at NEW; a normal same-folder undo restores it to OLD in the same dir.
             string oldFull = Path.Combine(dir.Root, "raw.mkv");
@@ -133,7 +133,7 @@ public sealed class UndoReGateTests
             var replayer = new UndoReplayer(port, undoBus, new DiskMover(),
                 cross: new CrossVolumeMover(), allowedRoots: []);
 
-            var result = await replayer.RevertAsync(batch, default);
+            var result = await replayer.RevertAsync(batch, TestContext.Current.CancellationToken);
 
             Assert.Equal(1, result.Undone);
             Assert.Empty(result.Failed);
@@ -175,7 +175,7 @@ public sealed class UndoReGateTests
 
             string folderPath = library.Replace('\\', '/');
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "My Film.mkv", "My Film");
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "My Film.mkv", "My Film", ct: TestContext.Current.CancellationToken);
 
             // OLD and NEW are both in the SAME (outside-the-allowlist) library folder → an in-place renamer.
             string oldFull = Path.Combine(library, "raw.mkv");
@@ -191,7 +191,7 @@ public sealed class UndoReGateTests
             var replayer = new UndoReplayer(port, undoBus, new DiskMover(),
                 cross: new CrossVolumeMover(), allowedRoots: [allowed.Replace('\\', '/')]);
 
-            var result = await replayer.RevertAsync(batch, default);
+            var result = await replayer.RevertAsync(batch, TestContext.Current.CancellationToken);
 
             // The in-place restore is exempt from the re-gate → Undone, NOT Skipped.
             Assert.Equal(1, result.Undone);

@@ -25,7 +25,7 @@ public sealed class ReentrancyGuardTests
             string folderPath = dir.Root.Replace('\\', '/');
             // The basename already equals what "$title" renders → every file is NoOp.
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "My Film.mkv", "My Film");
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "My Film.mkv", "My Film", ct: TestContext.Current.CancellationToken);
             File.WriteAllText(Path.Combine(dir.Root, "My Film.mkv"), "bytes");
 
             var options = new RenamerOptions
@@ -35,12 +35,12 @@ public sealed class ReentrancyGuardTests
             };
             var (ext, bus, _) = await EventTestHarness.BuildAsync(db, options);
 
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), TestContext.Current.CancellationToken);
 
             // ZERO published events ⇒ no executor save ran ⇒ no re-raised event ⇒ the loop is impossible.
             Assert.Empty(bus.Published);
 
-            var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
             Assert.Equal("My Film.mkv", basename);                           // unchanged
             Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.mkv")));
         }

@@ -32,9 +32,9 @@ public sealed class RollbackTests
         {
             string folderPath = dir.Root.Replace('\\', '/');
             var (folderId, videoId, fileA) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A");
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A", ct: TestContext.Current.CancellationToken);
             // A second row occupies "taken.mkv" so the save of a→taken hits the unique index.
-            await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "taken.mkv");
+            await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "taken.mkv", TestContext.Current.CancellationToken);
 
             // Disk: "a.mkv" exists; "taken.mkv" does NOT (so the disk move succeeds first).
             string oldA = Path.Combine(dir.Root, "a.mkv");
@@ -52,7 +52,7 @@ public sealed class RollbackTests
             var bus = new CapturingEventBus();
             var executor = new RenamerExecutor(port, bus, new RevertLog(new FakeStore()), new DiskMover());
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default, TestContext.Current.CancellationToken);
 
             // The save threw after the move → item failed with a rollback reason (proving the catch,
             // i.e. the move had ALREADY happened before the save error — not a pre-move skip).
@@ -70,7 +70,7 @@ public sealed class RollbackTests
             Assert.False(File.Exists(newPath), "rolled-back file must not linger at the new path");
 
             // (c) the DB row still has the OLD basename — disk and DB consistent.
-            var (basenameA, pathA) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
+            var (basenameA, pathA) = await ExecutorTestSeed.ReadFileAsync(db, fileA, TestContext.Current.CancellationToken);
             Assert.Equal("a.mkv", basenameA);
             Assert.Equal(folderPath + "/a.mkv", pathA);
         }
@@ -90,12 +90,12 @@ public sealed class RollbackTests
         {
             string folderPath = dir.Root.Replace('\\', '/');
             var (folderId, videoId, fileA) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A");
-            await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "taken.mkv");
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A", ct: TestContext.Current.CancellationToken);
+            await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "taken.mkv", TestContext.Current.CancellationToken);
 
             // Seed a caption sidecar on file A.
             db.Set<VideoCaption>().Add(new VideoCaption { FileId = fileA, Filename = "a.en.vtt", LanguageCode = "en", CaptionType = "vtt" });
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             string oldA = Path.Combine(dir.Root, "a.mkv");
             string oldCap = Path.Combine(dir.Root, "a.en.vtt");
@@ -111,7 +111,7 @@ public sealed class RollbackTests
             var executor = new RenamerExecutor(
                 new CollisionBlindDataPort(db), new CapturingEventBus(), new RevertLog(new FakeStore()), new DiskMover());
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default, TestContext.Current.CancellationToken);
 
             Assert.Single(result.Failed);
             // Both the primary file AND the moved caption sidecar are restored to their old paths.
@@ -145,7 +145,7 @@ public sealed class RollbackTests
         {
             string folderPath = dir.Root.Replace('\\', '/');
             var (_, videoId, fileA) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A");
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A", ct: TestContext.Current.CancellationToken);
 
             // Disk: "a.mkv" exists; the target "b.mkv" is free so the disk move succeeds first.
             string oldA = Path.Combine(dir.Root, "a.mkv");
@@ -165,7 +165,7 @@ public sealed class RollbackTests
             var bus = new CapturingEventBus();
             var executor = new RenamerExecutor(port, bus, new RevertLog(new FakeStore()), new DiskMover());
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default, TestContext.Current.CancellationToken);
 
             // (a) the item is Failed, and the reason names BOTH the path mismatch and the rollback.
             var failedItem = Assert.Single(result.Failed);

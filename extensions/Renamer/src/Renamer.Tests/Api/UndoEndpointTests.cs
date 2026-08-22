@@ -72,8 +72,8 @@ public sealed class UndoEndpointTests
             // Offset the Video id sequence so videoId != fileId — the published undo event must carry
             // the ENTITY id from the log row, never the file id.
             db.Set<Video>().Add(new Video { Title = "decoy", Organized = true });
-            await db.SaveChangesAsync();
-            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw clip.mkv", "My Film");
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw clip.mkv", "My Film", ct: TestContext.Current.CancellationToken);
             Assert.NotEqual(videoId, fileId);
 
             string oldFull = Path.Combine(dir.Root, "raw clip.mkv");
@@ -85,13 +85,13 @@ public sealed class UndoEndpointTests
             await SeedTitleOptionsAsync(store); // → "My Film.mkv"
 
             // Forward renamer via the shared batch core — writes one real batch to the store.
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), TestContext.Current.CancellationToken);
             Assert.True(File.Exists(newFull));
             Assert.False(File.Exists(oldFull));
             bus.Published.Clear(); // drop the forward event; we assert only the undo event below.
 
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
-            var result = await ext.UndoAsync(principal, default);
+            var result = await ext.UndoAsync(principal, TestContext.Current.CancellationToken);
 
             Assert.Equal(200, StatusOf(result));
             var undo = UndoValue(result);
@@ -105,7 +105,7 @@ public sealed class UndoEndpointTests
             Assert.Equal("video-bytes", File.ReadAllText(oldFull));
 
             // DB restored.
-            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
             Assert.Equal("raw clip.mkv", basename);
             Assert.Equal(folderPath + "/raw clip.mkv", path);
 
@@ -117,7 +117,7 @@ public sealed class UndoEndpointTests
             Assert.NotEqual(fileId, evt.EntityId);
 
             // Batch consumed: a SECOND undo is a no-op.
-            var second = await ext.UndoAsync(principal, default);
+            var second = await ext.UndoAsync(principal, TestContext.Current.CancellationToken);
             var secondUndo = UndoValue(second);
             Assert.Equal(0, secondUndo.Undone);
             Assert.Empty(secondUndo.Failed);
@@ -140,7 +140,7 @@ public sealed class UndoEndpointTests
             string folderPath = dir.Root.Replace('\\', '/');
             // Offset the Image id sequence so imageId != fileId.
             db.Set<Image>().Add(new Image { Title = "decoy", Organized = true });
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             var (imageId, fileId) = await SeedImageAsync(db, folderPath, "raw shot.jpg", "My Photo");
             Assert.NotEqual(imageId, fileId);
 
@@ -152,13 +152,13 @@ public sealed class UndoEndpointTests
             var (ext, store) = await BuildExtensionAsync(db, bus);
             await SeedTitleOptionsAsync(store);
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("image", [imageId]), new FakeJobProgress(), default);
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("image", [imageId]), new FakeJobProgress(), TestContext.Current.CancellationToken);
             Assert.True(File.Exists(newFull));
             bus.Published.Clear();
 
             // Undoing an IMAGE batch requires images.write (the batch header carries the kind) — not
             // videos.write. This proves the per-kind permission gate on the undo path.
-            var result = await ext.UndoAsync(FakePrincipalAccessor.WithPermissions(Permissions.ImagesWrite), default);
+            var result = await ext.UndoAsync(FakePrincipalAccessor.WithPermissions(Permissions.ImagesWrite), TestContext.Current.CancellationToken);
             Assert.Equal(1, UndoValue(result).Undone);
 
             // The published event is ImageUpdated — proving the kind comes from the batch HEADER,
@@ -192,7 +192,7 @@ public sealed class UndoEndpointTests
         {
             string srcPath = srcDir.Root.Replace('\\', '/');
             string destPath = destDir.Root.Replace('\\', '/');
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, srcPath, "raw clip.mkv", "My Film");
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, srcPath, "raw clip.mkv", "My Film", ct: TestContext.Current.CancellationToken);
 
             string oldFull = Path.Combine(srcDir.Root, "raw clip.mkv");
             string newFull = Path.Combine(destDir.Root, "My Film.mkv");
@@ -206,8 +206,8 @@ public sealed class UndoEndpointTests
                 FilenameTemplate = "$title",
                 AllowedRoots = [srcPath, destPath],
                 PathDestinations = [new global::Renamer.Options.PathDestinationRule { Pattern = srcPath, Dest = destPath }],
-            });
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
+            }, TestContext.Current.CancellationToken);
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), TestContext.Current.CancellationToken);
             Assert.True(File.Exists(newFull), "forward move landed on dest");
             Assert.False(File.Exists(oldFull));
 
@@ -220,14 +220,14 @@ public sealed class UndoEndpointTests
             {
                 FilenameTemplate = "$title",
                 AllowedRoots = [destPath],   // source root deliberately omitted
-            });
-            var skippedRun = UndoValue(await ext.UndoAsync(write, default));
+            }, TestContext.Current.CancellationToken);
+            var skippedRun = UndoValue(await ext.UndoAsync(write, TestContext.Current.CancellationToken));
             Assert.Equal(0, skippedRun.Undone);
             Assert.Single(skippedRun.Skipped);
             Assert.True(File.Exists(newFull), "file still on dest — nothing restored");
 
             // The batch MUST remain open (not consumed) so it can be retried.
-            var afterSkip = LastBatchValue(await ext.LastBatchAsync(read, default));
+            var afterSkip = LastBatchValue(await ext.LastBatchAsync(read, TestContext.Current.CancellationToken));
             Assert.True(afterSkip.HasBatch);
             Assert.False(afterSkip.Consumed, "an all-skipped undo must NOT consume the batch");
 
@@ -236,8 +236,8 @@ public sealed class UndoEndpointTests
             {
                 FilenameTemplate = "$title",
                 AllowedRoots = [srcPath, destPath],
-            });
-            var retryRun = UndoValue(await ext.UndoAsync(write, default));
+            }, TestContext.Current.CancellationToken);
+            var retryRun = UndoValue(await ext.UndoAsync(write, TestContext.Current.CancellationToken));
             Assert.Equal(1, retryRun.Undone);
             Assert.Empty(retryRun.Skipped);
             Assert.True(File.Exists(oldFull), "file restored to original after corrected retry");
@@ -245,7 +245,7 @@ public sealed class UndoEndpointTests
             Assert.Equal("video-bytes", File.ReadAllText(oldFull));
 
             // Now — and only now — the batch is consumed.
-            var afterRetry = LastBatchValue(await ext.LastBatchAsync(read, default));
+            var afterRetry = LastBatchValue(await ext.LastBatchAsync(read, TestContext.Current.CancellationToken));
             Assert.True(afterRetry.Consumed, "batch consumed once a retry actually restored an entry");
         }
         finally
@@ -263,7 +263,7 @@ public sealed class UndoEndpointTests
         {
             var (ext, _) = await BuildExtensionAsync(db, new CapturingEventBus());
 
-            var result = await ext.UndoAsync(FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite), default);
+            var result = await ext.UndoAsync(FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite), TestContext.Current.CancellationToken);
 
             Assert.Equal(200, StatusOf(result));
             var undo = UndoValue(result);
@@ -286,7 +286,7 @@ public sealed class UndoEndpointTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film");
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film", ct: TestContext.Current.CancellationToken);
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
 
             var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
@@ -295,22 +295,22 @@ public sealed class UndoEndpointTests
             var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
             // Before any renamer: no batch.
-            var empty = LastBatchValue(await ext.LastBatchAsync(read, default));
+            var empty = LastBatchValue(await ext.LastBatchAsync(read, TestContext.Current.CancellationToken));
             Assert.False(empty.HasBatch);
             Assert.Equal(0, empty.Count);
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), TestContext.Current.CancellationToken);
 
             // After a renamer: a one-row, not-yet-consumed batch with a real server timestamp.
-            var summary = LastBatchValue(await ext.LastBatchAsync(read, default));
+            var summary = LastBatchValue(await ext.LastBatchAsync(read, TestContext.Current.CancellationToken));
             Assert.True(summary.HasBatch);
             Assert.Equal(1, summary.Count);
             Assert.False(summary.Consumed);
             Assert.True(summary.WrittenAtUtcTicks > 0);
 
             // After an undo: the batch is consumed.
-            await ext.UndoAsync(FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite), default);
-            var consumed = LastBatchValue(await ext.LastBatchAsync(read, default));
+            await ext.UndoAsync(FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite), TestContext.Current.CancellationToken);
+            var consumed = LastBatchValue(await ext.LastBatchAsync(read, TestContext.Current.CancellationToken));
             Assert.True(consumed.HasBatch);
             Assert.True(consumed.Consumed);
         }

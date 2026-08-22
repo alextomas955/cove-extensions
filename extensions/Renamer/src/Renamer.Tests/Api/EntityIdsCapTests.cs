@@ -51,20 +51,19 @@ public sealed class EntityIdsCapTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (_, _, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "raw.mkv", "Film");
-            var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            var (_, _, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "raw.mkv", "Film", ct: TestContext.Current.CancellationToken);
+            var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
 
             var ext = NewExtension();
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
             var ids = Enumerable.Range(1, Cap + 1).ToArray(); // over the cap by one.
 
-            var result = await ext.PreviewAsync(
-                new global::Renamer.Api.RenamerRequest("video", ids), db, principal, default);
+            var result = await ext.PreviewAsync(new global::Renamer.Api.RenamerRequest("video", ids), db, principal, TestContext.Current.CancellationToken);
 
             Assert.Equal(400, StatusOf(result));
 
             // The reject happens before any planner/DB work — the seeded row is untouched.
-            var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
             Assert.Equal(beforeName, afterName);
             Assert.Equal(beforePath, afterPath);
         }

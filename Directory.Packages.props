@@ -15,11 +15,17 @@
 
     <PackageVersion Include="System.IO.Hashing" Version="10.0.11" />
 
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
-    <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
-    <PackageVersion Include="Xunit.SkippableFact" Version="1.5.61" />
-    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
+    <!--
+      xunit.v3 carries the Microsoft Testing Platform runner and so refuses to build a project that
+      is not an executable. A test-support LIBRARY therefore takes the two runner-free packages
+      instead: xunit.v3.extensibility.core for the attributes, xunit.v3.assert for Assert.
+    -->
+    <PackageVersion Include="xunit.v3" Version="4.0.0" />
+    <!-- The metapackage bundles the analyzers; the split packages do not, so the library asks for
+         them by hand to keep both projects under the same rules. Version tracks what xunit.v3 pulls. -->
+    <PackageVersion Include="xunit.analyzers" Version="2.0.0" />
+    <PackageVersion Include="xunit.v3.assert" Version="4.0.0" />
+    <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.11" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
     <PackageVersion Include="Microsoft.OpenApi" Version="2.11.0" />

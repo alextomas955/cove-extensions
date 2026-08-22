@@ -19,26 +19,26 @@ public sealed class VolumeClassifierTests
     private static readonly string[] Mounts = ["/", "/mnt/media", "/mnt/media2", "/srv/archive"];
 
     private static void WindowsOnly()
-        => Skip.IfNot(OperatingSystem.IsWindows(), "asserts Windows drive/UNC root semantics");
+        => Assert.SkipUnless(OperatingSystem.IsWindows(), "asserts Windows drive/UNC root semantics");
 
     private static void UnixOnly()
-        => Skip.If(OperatingSystem.IsWindows(), "asserts Unix mount-point semantics");
+        => Assert.SkipWhen(OperatingSystem.IsWindows(), "asserts Unix mount-point semantics");
 
-    [SkippableFact]
+    [Fact]
     public void SameDriveRoot_DifferentFolders_IsSameVolume()
     {
         WindowsOnly();
         Assert.True(VolumeClassifier.SameVolume(@"C:\media\a.mkv", @"C:\archive\b.mkv"));
     }
 
-    [SkippableFact]
+    [Fact]
     public void DifferentDriveRoots_IsCrossVolume()
     {
         WindowsOnly();
         Assert.False(VolumeClassifier.SameVolume(@"C:\media\a.mkv", @"D:\media\a.mkv"));
     }
 
-    [SkippableFact]
+    [Fact]
     public void DriveLetterCaseDiffers_IsSameVolume()
     {
         WindowsOnly();
@@ -47,21 +47,21 @@ public sealed class VolumeClassifierTests
             "drive-letter case must be ignored on Windows");
     }
 
-    [SkippableFact]
+    [Fact]
     public void TwoPathsUnderOneUncShare_IsSameVolume()
     {
         WindowsOnly();
         Assert.True(VolumeClassifier.SameVolume(@"\\server\share\a.mkv", @"\\server\share\b.mkv"));
     }
 
-    [SkippableFact]
+    [Fact]
     public void UncShareVersusDriveRoot_IsCrossVolume()
     {
         WindowsOnly();
         Assert.False(VolumeClassifier.SameVolume(@"\\server\share\a.mkv", @"C:\a.mkv"));
     }
 
-    [SkippableFact]
+    [Fact]
     public void InFolderRenamerPair_IsSameVolume_GatesTheFastPath()
     {
         WindowsOnly();
@@ -71,21 +71,21 @@ public sealed class VolumeClassifierTests
         Assert.True(VolumeClassifier.SameVolume(@"C:\media\clip.mkv", @"C:\media\Renamed.mkv"));
     }
 
-    [SkippableFact]
+    [Fact]
     public void SameMount_DifferentFolders_IsSameVolume()
     {
         UnixOnly();
         Assert.True(VolumeClassifier.SameVolume("/mnt/media/a.mkv", "/mnt/media/sub/b.mkv", Mounts));
     }
 
-    [SkippableFact]
+    [Fact]
     public void DifferentMounts_IsCrossVolume()
     {
         UnixOnly();
         Assert.False(VolumeClassifier.SameVolume("/mnt/media/a.mkv", "/srv/archive/a.mkv", Mounts));
     }
 
-    [SkippableFact]
+    [Fact]
     public void MountNameIsAPrefixOfAnother_IsStillCrossVolume()
     {
         UnixOnly();
@@ -95,7 +95,7 @@ public sealed class VolumeClassifierTests
         Assert.False(VolumeClassifier.SameVolume("/mnt/media/a.mkv", "/mnt/media2/a.mkv", Mounts));
     }
 
-    [SkippableFact]
+    [Fact]
     public void PathOnNoListedMount_FallsBackToRoot()
     {
         UnixOnly();
@@ -103,14 +103,14 @@ public sealed class VolumeClassifierTests
         Assert.True(VolumeClassifier.SameVolume("/elsewhere/a.mkv", "/other/b.mkv", Mounts));
     }
 
-    [SkippableFact]
+    [Fact]
     public void InFolderRenamerPairOnAMount_IsSameVolume_GatesTheFastPath()
     {
         UnixOnly();
         Assert.True(VolumeClassifier.SameVolume("/mnt/media/clip.mkv", "/mnt/media/Renamed.mkv", Mounts));
     }
 
-    [SkippableFact]
+    [Fact]
     public void RelativePath_HasAnEmptyVolumeKey()
     {
         UnixOnly();

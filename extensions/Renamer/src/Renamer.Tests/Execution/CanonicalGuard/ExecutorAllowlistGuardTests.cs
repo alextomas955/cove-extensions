@@ -53,10 +53,10 @@ public sealed class ExecutorAllowlistGuardTests
         }
     }
 
-    [SkippableFact] // On Windows this always runs — junctions need no privilege; it IS the guard-runs-first proof.
+    [Fact] // On Windows this always runs — junctions need no privilege; it IS the guard-runs-first proof.
     public async Task MoveToJunctionEscapingAllowedRoot_IsBlocked_NoFolderRowLeaked()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "needs an NTFS junction (cmd /c mklink /J)");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "needs an NTFS junction (cmd /c mklink /J)");
 
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -73,7 +73,7 @@ public sealed class ExecutorAllowlistGuardTests
 
             string srcFolderPath = srcDir.Replace('\\', '/');
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, srcFolderPath, "clip.mkv", "My Film");
+                await ExecutorTestSeed.SeedVideoAsync(db, srcFolderPath, "clip.mkv", "My Film", ct: TestContext.Current.CancellationToken);
 
             string oldFull = Path.Combine(srcDir, "clip.mkv");
             File.WriteAllText(oldFull, "video-bytes");
@@ -91,9 +91,9 @@ public sealed class ExecutorAllowlistGuardTests
             var executor = new RenamerExecutor(port, bus, new RevertLog(new FakeStore()), new DiskMover());
             var options = new RenamerOptions { AllowedRoots = [allowed.Replace('\\', '/')] };
 
-            int foldersBefore = await db.Set<Folder>().CountAsync();
+            int foldersBefore = await db.Set<Folder>().CountAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-            var result = await executor.ExecuteAsync(plan, options, default);
+            var result = await executor.ExecuteAsync(plan, options, default, TestContext.Current.CancellationToken);
 
             // (a) The item is BLOCKED — SkipBlocked, with the guard's "outside every allowed root" reason.
             var skipped = Assert.Single(result.Skipped);
@@ -111,9 +111,9 @@ public sealed class ExecutorAllowlistGuardTests
 
             // (c) NO Folder DB row was created for the rejected destination (the guard ran BEFORE
             //     GetOrCreateFolderIdAsync). The folder count is unchanged and no row points at the escape.
-            Assert.Equal(foldersBefore, await db.Set<Folder>().CountAsync());
+            Assert.Equal(foldersBefore, await db.Set<Folder>().CountAsync(cancellationToken: TestContext.Current.CancellationToken));
             Assert.False(
-                await db.Set<Folder>().AnyAsync(f => f.Path == escapeFwd),
+                await db.Set<Folder>().AnyAsync(f => f.Path == escapeFwd, cancellationToken: TestContext.Current.CancellationToken),
                 "no Folder row may be persisted for the out-of-allowlist escape path");
         }
         finally
@@ -137,7 +137,7 @@ public sealed class ExecutorAllowlistGuardTests
 
             string srcFolderPath = srcDir.Replace('\\', '/');
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, srcFolderPath, "clip.mkv", "My Film");
+                await ExecutorTestSeed.SeedVideoAsync(db, srcFolderPath, "clip.mkv", "My Film", ct: TestContext.Current.CancellationToken);
 
             string oldFull = Path.Combine(srcDir, "clip.mkv");
             File.WriteAllText(oldFull, "video-bytes");
@@ -154,7 +154,7 @@ public sealed class ExecutorAllowlistGuardTests
             var executor = new RenamerExecutor(port, bus, new RevertLog(new FakeStore()), new DiskMover());
             var options = new RenamerOptions { AllowedRoots = [allowed.Replace('\\', '/')] };
 
-            var result = await executor.ExecuteAsync(plan, options, default);
+            var result = await executor.ExecuteAsync(plan, options, default, TestContext.Current.CancellationToken);
 
             // A benign in-allowlist destination moves: item renamed/moved, file on disk at the new path.
             var moved = Assert.Single(result.Renamed);
@@ -168,7 +168,7 @@ public sealed class ExecutorAllowlistGuardTests
             Assert.Equal("video-bytes", File.ReadAllText(newFull));
 
             // The destination folder row is now persisted (the guard accepted it before the create).
-            Assert.True(await db.Set<Folder>().AnyAsync(f => f.Path == targetFwd));
+            Assert.True(await db.Set<Folder>().AnyAsync(f => f.Path == targetFwd, cancellationToken: TestContext.Current.CancellationToken));
         }
         finally
         {

@@ -34,10 +34,10 @@ public sealed class CanonicalGuardJunctionTests
         }
     }
 
-    [SkippableFact] // On Windows this always runs — junctions need no privilege; it IS the GATE-03 proof.
+    [Fact] // On Windows this always runs — junctions need no privilege; it IS the GATE-03 proof.
     public void JunctionInsideAllowedRoot_PointingOutside_IsRejected()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "needs an NTFS junction (cmd /c mklink /J)");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "needs an NTFS junction (cmd /c mklink /J)");
 
         using var dir = new TempDir();
         string allowed = Directory.CreateDirectory(Path.Combine(dir.Root, "allowed")).FullName;
@@ -66,10 +66,10 @@ public sealed class CanonicalGuardJunctionTests
         Assert.Null(r.Reason);
     }
 
-    [SkippableFact] // An allowlisted root that is itself a junction must still accept its children.
+    [Fact] // An allowlisted root that is itself a junction must still accept its children.
     public void AllowedRootIsJunction_ChildDestination_IsAccepted()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "needs an NTFS junction (cmd /c mklink /J)");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "needs an NTFS junction (cmd /c mklink /J)");
 
         // The allowed root is a JUNCTION to a real directory on (logically) another location — the
         // "library relocated onto another volume" pattern. The target resolves (link side) to the

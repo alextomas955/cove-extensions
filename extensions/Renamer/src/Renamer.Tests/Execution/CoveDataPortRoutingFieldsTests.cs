@@ -23,32 +23,31 @@ public sealed class CoveDataPortRoutingFieldsTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
-                db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip");
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip", ct: TestContext.Current.CancellationToken);
 
             // A two-level studio chain: grandparent ← parent ← direct. The Video belongs to the direct
             // studio; the parent (index 0 of the walk) is the immediate parent of the direct studio.
             var grandparent = new Studio { Name = "Grand Network" };
             db.Set<Studio>().Add(grandparent);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var parent = new Studio { Name = "Parent Label", ParentId = grandparent.Id };
             db.Set<Studio>().Add(parent);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var direct = new Studio { Name = "Direct Studio", ParentId = parent.Id };
             db.Set<Studio>().Add(direct);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             // Attach the direct studio to the seeded video and give the file a known non-zero size.
-            var video = await db.Set<Video>().FirstAsync(v => v.Id == videoId);
+            var video = await db.Set<Video>().FirstAsync(v => v.Id == videoId, cancellationToken: TestContext.Current.CancellationToken);
             video.StudioId = direct.Id;
-            var file = await db.Set<VideoFile>().FirstAsync(f => f.VideoId == videoId);
+            var file = await db.Set<VideoFile>().FirstAsync(f => f.VideoId == videoId, cancellationToken: TestContext.Current.CancellationToken);
             file.Size = 4096;
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var port = new CoveRenamerDataPort(db);
-            var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
+            var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId, TestContext.Current.CancellationToken);
 
             Assert.NotNull(entity);
 
@@ -83,31 +82,30 @@ public sealed class CoveDataPortRoutingFieldsTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
-                db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip");
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip", ct: TestContext.Current.CancellationToken);
 
             var greatGrand = new Studio { Name = "Conglomerate" };
             db.Set<Studio>().Add(greatGrand);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var grandparent = new Studio { Name = "Grand Network", ParentId = greatGrand.Id };
             db.Set<Studio>().Add(grandparent);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var parent = new Studio { Name = "Parent Label", ParentId = grandparent.Id };
             db.Set<Studio>().Add(parent);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var direct = new Studio { Name = "Direct Studio", ParentId = parent.Id };
             db.Set<Studio>().Add(direct);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-            var video = await db.Set<Video>().FirstAsync(v => v.Id == videoId);
+            var video = await db.Set<Video>().FirstAsync(v => v.Id == videoId, cancellationToken: TestContext.Current.CancellationToken);
             video.StudioId = direct.Id;
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var port = new CoveRenamerDataPort(db);
-            var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
+            var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId, TestContext.Current.CancellationToken);
 
             Assert.NotNull(entity);
             Assert.NotNull(entity!.ParentStudios);
@@ -135,36 +133,35 @@ public sealed class CoveDataPortRoutingFieldsTests
             // full Include graph (studio parents, files, performers, tags) the single path exercises.
             var grandparent = new Studio { Name = "Grand Network" };
             db.Set<Studio>().Add(grandparent);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             var parent = new Studio { Name = "Parent Label", ParentId = grandparent.Id };
             db.Set<Studio>().Add(parent);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             var direct = new Studio { Name = "Direct Studio", ParentId = parent.Id };
             db.Set<Studio>().Add(direct);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var ids = new List<int>();
             for (int n = 1; n <= 3; n++)
             {
-                var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
-                    db, folderPath: $"media/incoming/{n}", basename: $"clip{n}.mkv", title: $"Clip {n}");
-                var video = await db.Set<Video>().FirstAsync(v => v.Id == videoId);
+                var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath: $"media/incoming/{n}", basename: $"clip{n}.mkv", title: $"Clip {n}", ct: TestContext.Current.CancellationToken);
+                var video = await db.Set<Video>().FirstAsync(v => v.Id == videoId, cancellationToken: TestContext.Current.CancellationToken);
                 video.StudioId = direct.Id;
-                var file = await db.Set<VideoFile>().FirstAsync(f => f.VideoId == videoId);
+                var file = await db.Set<VideoFile>().FirstAsync(f => f.VideoId == videoId, cancellationToken: TestContext.Current.CancellationToken);
                 file.Size = 1000 + n;
-                await db.SaveChangesAsync();
+                await db.SaveChangesAsync(TestContext.Current.CancellationToken);
                 ids.Add(videoId);
             }
 
             var port = new CoveRenamerDataPort(db);
 
-            var batch = await port.LoadEntitiesAsync(RenamerFileKind.Video, ids);
+            var batch = await port.LoadEntitiesAsync(RenamerFileKind.Video, ids, TestContext.Current.CancellationToken);
             var byId = batch.ToDictionary(e => e.EntityId);
             Assert.Equal(3, batch.Count);
 
             foreach (var id in ids)
             {
-                var single = await port.LoadEntityAsync(RenamerFileKind.Video, id);
+                var single = await port.LoadEntityAsync(RenamerFileKind.Video, id, TestContext.Current.CancellationToken);
                 Assert.NotNull(single);
                 Assert.True(byId.TryGetValue(id, out var batched));
                 AssertEntityEqual(single!, batched);
@@ -184,7 +181,7 @@ public sealed class CoveDataPortRoutingFieldsTests
         try
         {
             var port = new CoveRenamerDataPort(db);
-            var result = await port.LoadEntitiesAsync(RenamerFileKind.Video, []);
+            var result = await port.LoadEntitiesAsync(RenamerFileKind.Video, [], TestContext.Current.CancellationToken);
             Assert.Empty(result);
         }
         finally
@@ -201,7 +198,7 @@ public sealed class CoveDataPortRoutingFieldsTests
         try
         {
             var port = new CoveRenamerDataPort(db);
-            var result = await port.LoadEntitiesAsync(RenamerFileKind.Gallery, [1, 2, 3]);
+            var result = await port.LoadEntitiesAsync(RenamerFileKind.Gallery, [1, 2, 3], TestContext.Current.CancellationToken);
             Assert.Empty(result);
         }
         finally
@@ -217,11 +214,10 @@ public sealed class CoveDataPortRoutingFieldsTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
-                db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip");
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath: "media/incoming", basename: "clip.mkv", title: "A Clip", ct: TestContext.Current.CancellationToken);
 
             var port = new CoveRenamerDataPort(db);
-            var result = await port.LoadEntitiesAsync(RenamerFileKind.Video, [videoId, videoId + 9999]);
+            var result = await port.LoadEntitiesAsync(RenamerFileKind.Video, [videoId, videoId + 9999], TestContext.Current.CancellationToken);
 
             Assert.Single(result);
             Assert.Equal(videoId, result[0].EntityId);
@@ -284,13 +280,12 @@ public sealed class CoveDataPortRoutingFieldsTests
         try
         {
             // Seed a Video with no studio at all (StudioId left null by SeedVideoAsync).
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
-                db, folderPath: "media/loose", basename: "lonely.mkv", title: "No Studio");
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath: "media/loose", basename: "lonely.mkv", title: "No Studio", ct: TestContext.Current.CancellationToken);
 
             var port = new CoveRenamerDataPort(db);
 
             // classify-not-throw: a missing studio must never raise.
-            var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId);
+            var entity = await port.LoadEntityAsync(RenamerFileKind.Video, videoId, TestContext.Current.CancellationToken);
 
             Assert.NotNull(entity);
             Assert.Null(entity!.StudioId);
