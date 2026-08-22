@@ -50,6 +50,13 @@ public sealed class ForbiddenCode
 }
 
 /// <summary>The error body every non-2xx wire result carries: one stable machine-readable code.</summary>
+/// <remarks>
+/// Deliberately NOT RFC 9457 ProblemDetails, the ASP.NET Core convention for error bodies and what
+/// Cove's own permission filter returns for a 403. ProblemDetails carries its machine-readable
+/// discriminator in <c>type</c>, a URI, so callers would branch on URI strings rather than on a short
+/// token, and <see cref="Max"/> would ride as an extension member. The panel reads this shape, so
+/// changing it is a wire break.
+/// </remarks>
 /// <param name="Code">
 /// A stable SCREAMING_SNAKE token the UI branches on (<c>FORBIDDEN</c>, <c>INVALID_BODY</c>, …). Not
 /// localized and not for display; it is part of the wire contract, so changing one is a breaking change
