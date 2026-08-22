@@ -37,7 +37,7 @@ public sealed class CrossVolumeVerifyFailTests
             return Task.CompletedTask;
         });
 
-        var result = await mover.MoveAsync(src, dest, sidecars: null, CancellationToken.None);
+        var result = await mover.MoveAsync(src, dest, sidecars: null, TestContext.Current.CancellationToken);
 
         Assert.False(result.Moved);
         Assert.Equal(CrossVolumeMover.MoveOutcome.VerifyFailed, result.Outcome);
@@ -65,7 +65,7 @@ public sealed class CrossVolumeVerifyFailTests
             return Task.CompletedTask;
         });
 
-        var result = await mover.MoveAsync(src, dest, sidecars: null, CancellationToken.None);
+        var result = await mover.MoveAsync(src, dest, sidecars: null, TestContext.Current.CancellationToken);
 
         Assert.False(result.Moved);
         Assert.Equal(CrossVolumeMover.MoveOutcome.VerifyFailed, result.Outcome);
