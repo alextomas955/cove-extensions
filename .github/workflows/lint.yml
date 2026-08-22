@@ -212,5 +212,12 @@ jobs:
       # gate dead code on one tier and not the other. Runs after the UI installs and the wire-type
       # generation above: without those, knip reads a UI whose imported modules do not exist and
       # reports most of the tree as unused.
+      # knip reads tests/e2e/playwright.config.mjs, which imports @playwright/test, so it needs the
+      # workspaces the root install above deliberately skips. Installed here rather than by widening
+      # that install: eslint and prettier do not need them, and this keeps the extra cost on the one
+      # step that does.
+      - name: Install workspaces (knip resolves their configs)
+        run: npm ci
+
       - name: knip (dead files / exports / dependencies)
         run: npm run knip
