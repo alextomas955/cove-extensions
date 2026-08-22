@@ -142,9 +142,12 @@ jobs:
       # group). Runs before Publish so a test failure blocks packaging, matching
       # windows-build-test's build-then-test order in lint.yml. Optional: an extension without a
       # testProjectPath entry in catalog.json skips this step (manifestOnly-style opt-out).
+      # The version properties have to match the Build step's. The test project references the
+      # extension, so a differing property set rebuilds the extension assembly unstamped, and the
+      # Publish step below ships whatever is in bin/ without recompiling it.
       - name: Test (unit tier)
         if: ${{ !matrix.extension.manifestOnly && matrix.extension.testProjectPath != '' }}
-        run: dotnet test --project ${{ matrix.extension.testProjectPath }} -c Release -p:UseLocalCoveSource=false
+        run: dotnet test --project ${{ matrix.extension.testProjectPath }} -c Release -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
 
       - name: Publish
         if: ${{ !matrix.extension.manifestOnly }}
