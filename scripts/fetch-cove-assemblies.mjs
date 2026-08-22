@@ -26,46 +26,34 @@ const DEFAULT_PROPS_PATH = path.join(repoRoot, "Directory.Build.props");
 const DEFAULT_OUT_DIR = path.join(repoRoot, "artifacts", "cove-assemblies");
 const DEFAULT_CATALOG_PATH = path.join(repoRoot, "extensions", "catalog.json");
 
-// The one member whose presence defines the layer. It is also what every consumer of the extraction
-// needs, so an extraction that does not carry it is a failure rather than a smaller success.
+// The one member whose presence defines the layer, so an extraction without it is a failure.
 const MARKER_MEMBER = "opt/cove/Cove.Data.dll";
 const MEMBER_PREFIX = "opt/cove/";
 
-// The `docker cp` source, derived from MEMBER_PREFIX rather than written again, so the path copied
-// from and the member that proves the copy worked cannot drift apart. The trailing `/.` is what makes
-// docker copy the directory's CONTENTS into the output directory, which is the layout the guarded
-// assemblies are looked for in. A wrong path here yields an empty extraction rather than a wrong one,
-// and the empty-extraction refusal below turns that into a failure rather than a smaller green run.
+// Derived from MEMBER_PREFIX rather than written again, so the path copied from and the member that
+// proves the copy worked cannot drift apart. The trailing `/.` is what makes docker copy the
+// directory's CONTENTS rather than the directory.
 const CONTAINER_SOURCE = `/${MEMBER_PREFIX}.`;
 
-// The assemblies the build's output-closure guard compares, and therefore the ones whose content this
-// extraction has to record. Hashing every extracted file instead would go red whenever upstream
-// legitimately changed an unrelated native asset under runtimes/, which is how a gate gets switched
-// off; these four are the ones a NuGet copy can displace.
+// The assemblies the build's output-closure guard compares. Hashing every extracted file instead
+// would go red on any unrelated native asset upstream changed under runtimes/; these four are the
+// ones a NuGet copy can displace.
 const GUARDED_ASSEMBLIES = ["Cove.Core.dll", "Cove.Data.dll", "Cove.Plugins.dll", "Cove.Sdk.dll"];
 
 // Build output, imported by Directory.Build.targets, and the reason the version guard needs no
 // hand-maintained constant.
 const EXPECTATION_FILE = "CoveExtraction.props";
 
-// The three stdout lines `.github/workflows/build.yml` reads back with line-start-anchored `grep -E`,
-// declared once so the text has exactly one source rather than a literal per print site.
-//
-// These are a CONTRACT, not diagnostics. A rename, a re-order onto one line, or losing the
-// leading-of-line position silently empties the shell variable that reads it, and the job's own guard
-// only covers two of the three: an empty `informational` value degrades the notice with no failure
-// anywhere. That asymmetry is why this object is pinned against the workflow's own greps in
-// scripts/fetch-cove-assemblies.test.mjs, so drift on EITHER side goes red.
+// A CONTRACT, not diagnostics: build.yml reads these three lines back with line-start-anchored
+// `grep -E`, and a rename or a re-flow silently empties the shell variable that reads it. Pinned
+// against the workflow's own greps in the test file so drift on either side goes red.
 export const STDOUT_CONTRACT = Object.freeze({
   digest: "manifest digest: ",
   assemblyVersion: "Cove.Data.dll assembly version: ",
   informationalVersion: "Cove.Data.dll informational version: ",
 });
 
-// ---------------------------------------------------------------------------------------------
-// Pure helpers. These carry the logic worth testing, and they touch neither the network nor disk so
-// the test file can drive them with fixtures instead of a registry round trip.
-// ---------------------------------------------------------------------------------------------
+// ---- Pure helpers: no network, no disk, so the tests drive them with fixtures. ----
 
 /**
  * Reads the flat `<Name>value</Name>` property elements out of an MSBuild file's text.
@@ -86,13 +74,12 @@ export function parseMsBuildProperties(content) {
 
 /**
  * Splits `ghcr.io/yourcove/cove-app` into its registry host and repository path.
- * <remarks>
+ *
  * The registry host is taken from the reference itself and never from an argument, so the token
  * endpoint and the blob endpoint are always the same host the declared image names. A reference
  * with no host component is rejected rather than defaulted to Docker Hub: this repo declares one
  * image, and guessing a different registry for a malformed value is how a fetch ends up somewhere
  * nobody named.
- * </remarks>
  */
 export function splitImageReference(reference) {
   const value = String(reference ?? "").trim();
@@ -120,16 +107,11 @@ export function splitImageReference(reference) {
 
 /**
  * Picks the `algorithm:hex` digest `docker image inspect` recorded for one specific repository.
- * <remarks>
- * `RepoDigests` carries one entry per repository the image is known under, so taking index 0 can
- * hand back a digest attributed to a DIFFERENT repository — a provenance value naming an image nobody
- * asked about. The entry is matched on the repository instead. Two distinct digests for the same
- * repository are refused rather than resolved by position: which one is current is genuinely
- * ambiguous, and guessing records a provenance value that cannot be checked.
  *
- * An absent entry is a throw. An image built locally and never pulled has no registry digest at all,
- * and passing an empty one down would fail inside `renderExtractionProps` far from the cause.
- * </remarks>
+ * `RepoDigests` carries one entry per repository the image is known under, so index 0 can name a
+ * DIFFERENT repository. Matched on the repository instead, and two digests for the same repository
+ * are refused rather than resolved by position. An image built locally and never pulled has no
+ * registry digest at all, hence the throw rather than an empty value.
  */
 export function selectRepoDigest(repoDigests, repository) {
   const entries = (repoDigests ?? []).filter(
@@ -166,12 +148,11 @@ export function selectRepoDigest(repoDigests, repository) {
 /**
  * Reads the Win32 version-resource strings a .NET assembly carries — `Assembly Version` is the
  * managed assembly version and `ProductVersion` the informational one.
- * <remarks>
+ *
  * A diagnostic reader, not the gate: the build's own `GetAssemblyIdentity` task is what asserts the
  * version. Keys and values in the resource are UTF-16LE and 4-byte aligned, so the value is found by
  * stepping over the padding zeros after the key's terminator. A key that is absent yields no entry
  * rather than a guess.
- * </remarks>
  */
 export function readVersionStrings(
   buffer,
@@ -201,12 +182,11 @@ export function readVersionStrings(
 
 /**
  * Renders the MSBuild expectation the build compares its own output against.
- * <remarks>
+ *
  * The attributed `Condition="'$(X)' == ''"` form mirrors Directory.Build.props, so this file reads
  * back the way this repository's other MSBuild inputs do. Every value is checked against a strict
  * shape first: this file is IMPORTED by the build, so a registry-supplied string reaching it
  * unvalidated would be markup MSBuild evaluates rather than data it reads.
- * </remarks>
  */
 export function renderExtractionProps({ tag, digest, assemblies }) {
   if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(String(tag ?? ""))) {
@@ -250,10 +230,7 @@ ${items.join("\n")}
 `;
 }
 
-// ---------------------------------------------------------------------------------------------
-// Tag resolution. The ranking is pure and the paginated read takes its page reader as an argument,
-// so the whole of it is driven offline by fixtures rather than by a registry round trip.
-// ---------------------------------------------------------------------------------------------
+// ---- Tag resolution: ranking is pure and the paginated read takes its page reader as an argument. ----
 
 // Strict X.Y.Z[-pre][+build]. This regex IS the filter: it rejects `latest`, `nightly`, the
 // `sha-<hex>` digest tags and the truncated `X.Y` aliases without naming any of them, so an upstream
@@ -265,14 +242,10 @@ const SEMVER =
 /**
  * True when the tag on `image` is at or above `floor`.
  *
- * For gating a test on a host capability that arrived in a known release. Compared rather than
- * enumerated: a list of known-bad tags silently admits the next patch nobody thought of, and admitting
- * one is the direction that produces a false failure.
- *
- * Two tag shapes are not a plain version and are handled deliberately. A tag that is not semver at all
- * (`nightly`, `latest`) counts as at or above, because those track ahead of the last release. A
- * prerelease (`1.2.0-rc.1`) sorts BELOW its own release per semver, so it reads as lacking the
- * capability even when it carries it — a skip rather than a failure, which is the safe direction.
+ * Two tag shapes are not plain versions. A non-semver tag (`nightly`, `latest`) counts as at or
+ * above, since those track ahead of the last release. A prerelease (`1.2.0-rc.1`) sorts BELOW its own
+ * release per semver, so it reads as lacking the capability even when it carries it — a skip rather
+ * than a failure.
  *
  * @param {string} image - a complete image reference, e.g. `ghcr.io/yourcove/cove-app:1.3.0`.
  * @param {string} floor - the release the capability arrived in, as strict X.Y.Z.
@@ -300,12 +273,10 @@ export function parseSemver(tag) {
 
 /**
  * Orders two parsed versions by semver precedence, ascending.
- * <remarks>
+ *
  * Build metadata is ignored, a release outranks any pre-release of the same version, a numeric
  * identifier ranks BELOW an alphanumeric one, and a longer pre-release outranks a shorter prefix of
- * itself. Those three rules are what a naive string sort gets wrong, and getting them wrong resolves
- * a "newest" that is not the newest — a plausible answer with no error anywhere.
- * </remarks>
+ * itself. Those are the rules a naive string sort gets wrong.
  */
 export function compareSemver(a, b) {
   if (a.major !== b.major) return a.major - b.major;
@@ -344,10 +315,9 @@ export function splitReleaseChannels(parsed) {
 
 /**
  * Resolves one extension's version legs from a registry tag list and the floor it declares.
- * <remarks>
- * Every way this can be wrong is a throw naming the value read, never a fallback: an unresolvable
- * floor that defaulted to something near it would test an image nobody chose and report green.
- * </remarks>
+ *
+ * Every failure is a throw naming the value read, never a fallback: a defaulted floor would test an
+ * image nobody chose and report green.
  */
 export function resolveCoveLegs({ floor, tags, source = "the registry tag list" }) {
   const parsedFloor = parseSemver(floor);
@@ -426,10 +396,9 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
 
 /**
  * Reads every catalog entry's declared floor, reaching it through that entry's own manifest.
- * <remarks>
+ *
  * `minCoveVersion` is NOT a catalog field — it lives in the manifest the catalog's `manifestPath`
  * points at. Nothing here names an extension: a second one needs a catalog entry and no edit.
- * </remarks>
  */
 export function readExtensionFloors(catalogPath = DEFAULT_CATALOG_PATH) {
   if (!fs.existsSync(catalogPath)) {
@@ -463,13 +432,12 @@ export function readExtensionFloors(catalogPath = DEFAULT_CATALOG_PATH) {
 
 /**
  * Collects a repository's whole tag list, following the registry's `Link: rel="next"` pages.
- * <remarks>
+ *
  * GHCR emits no `Link` header at today's tag count but does implement pagination, so reading one
  * page is correct today and silently truncating later — and a truncated list yields an older
  * "newest", which is a wrong answer with no error. The page cap makes a runaway an error rather than
  * a hang, and a `next` target that is not a `/v2/` path on the same host is refused rather than
  * followed: the header is registry-supplied and is not trusted to say where to go next.
- * </remarks>
  */
 export async function collectRegistryTags(readPage, firstPath, pageCap = 50) {
   const collected = [];
@@ -620,10 +588,9 @@ function parseArguments(argv) {
 
 /**
  * Resolves each catalog entry's version legs and writes them as one flat matrix on stdout.
- * <remarks>
+ *
  * stdout carries only the JSON, so a report line can never corrupt what a workflow parses; the
  * report goes to stderr, where the runner's log still shows it beside the answer it explains.
- * </remarks>
  */
 async function resolveTags({ report }) {
   const image = readCoveImageReference();
@@ -672,10 +639,9 @@ export async function main(argv) {
 
 /**
  * Renders the two `Cove.Data.dll` version lines the workflow greps, in the workflow's own spelling.
- * <remarks>
+ *
  * An unreadable key prints `unreadable` rather than an empty value, so the line keeps its anchored
  * prefix and the notice says the version could not be read instead of silently reading as blank.
- * </remarks>
  */
 export function renderVersionLines(versions) {
   return [
@@ -686,12 +652,11 @@ export function renderVersionLines(versions) {
 
 /**
  * Refuses an extraction that wrote nothing or left no marker member, returning the marker's path.
- * <remarks>
+ *
  * The failure this exists for is a wrong container source path, which produces an EMPTY output
  * directory rather than a wrong one — and an empty extraction that returned quietly would surface as
  * a smaller green test run instead of a failure. fs-only and separated from the copy so both arms are
  * provable without Docker.
- * </remarks>
  */
 export function assertExtractionNotEmpty(out, written) {
   const marker = path.posix.basename(MARKER_MEMBER);
@@ -706,10 +671,9 @@ export function assertExtractionNotEmpty(out, written) {
 
 /**
  * Hashes each guarded assembly, refusing if any is absent from the extraction.
- * <remarks>
+ *
  * One missing assembly means the build's output-closure guard would have nothing to compare that
  * assembly against — a gate that silently covers three of four rather than a gate that fails.
- * </remarks>
  */
 export function readGuardedAssemblies(out) {
   return GUARDED_ASSEMBLIES.map((name) => {
@@ -728,7 +692,7 @@ export function readGuardedAssemblies(out) {
 
 /**
  * Runs one `docker` invocation and returns its stdout, or throws naming what failed.
- * <remarks>
+ *
  * `execFileSync` with no shell, so an argument is an argument: a registry-supplied tag reaches the
  * command as one argv element and is never text a shell parses. docker's own stderr is folded into
  * the thrown message, because "docker exited 1" without it says nothing about why.
@@ -740,7 +704,6 @@ export function readGuardedAssemblies(out) {
  * exposure that buys is PATH substitution, which requires an attacker who can already write to a
  * directory on PATH — on a throwaway CI runner or the maintainer's own machine, someone with that
  * access does not need this script. Revisit if this ever runs somewhere PATH is not trusted.
- * </remarks>
  */
 // Hoisted so the call below fits on one line: the suppression has to sit on the line the issue is
 // reported at, and Prettier relocates a trailing comment that follows an inline object's `{`.

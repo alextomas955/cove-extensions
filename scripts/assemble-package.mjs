@@ -59,21 +59,17 @@ const ABSOLUTE_PATH_MARKERS = [
   },
 ];
 
-// A declared artifact name is a bare filename that lands at the package root, so an absolute path,
-// a `..` segment or any separator would send the copy writing outside the package directory.
-// Rejected on shape before any source is read, since a path that escapes cannot be made safe by
-// happening to resolve to something that exists.
+// A declared artifact name lands at the package root, so an absolute path, a `..` segment or any
+// separator would write outside the package directory. Rejected on shape before any source is read.
 const PATH_ESCAPE_PREFIX = new RegExp("^([A-Za-z]:|[/" + BACKSLASH + BACKSLASH + "])");
 const PATH_SEPARATORS = new RegExp("[/" + BACKSLASH + BACKSLASH + "]");
 
 const MANIFEST_BY_CONVENTION = "extension.json";
 
-// The only names the repository root may supply: files a repository carries once, at its root, by
-// convention, so a package's copy and the repository's copy are the same document. Every other name
-// belongs to one extension, and a repository-root file matching it is a different document under the
-// same name — which is why the root is offered for this list rather than for anything that happens to
-// be there. Generic by construction: a name specific to any extension in this repository does not
-// belong here, or the packer stops being catalog-driven.
+// The only names the repository root may supply: files a repository carries once at its root by
+// convention, so the package's copy and the repository's are the same document. Any other name
+// belongs to an extension, and a root file matching it would be a different document under that name.
+// Keep this list generic, or the packer stops being catalog-driven.
 const REPO_ROOT_FALLBACK_NAMES = new Set([
   "LICENSE",
   "LICENSE.md",
@@ -148,14 +144,11 @@ function checkNoAbsolutePath(name, text, failures) {
   });
 }
 
-// A declaration can name only files that exist and still describe a package the host refuses to load:
-// the catalog and the manifest are two hand-edited files that have to agree, and nothing until now
-// made them. The strip-verification gate asserted these same two properties against the finished
-// folder; asserting them against the declaration on the way in makes the unloadable package
-// unrepresentable instead of detected, and costs no second read — the manifest is already parsed here
-// to stamp the version.
+// The catalog and the manifest are two hand-edited files that have to agree: a declaration can name
+// only files that exist and still describe a package the host refuses to load. Checked here because
+// the manifest is already parsed to stamp the version.
 //
-// Failures are pushed, never returned, so one run still reports everything wrong with a declaration.
+// Failures are pushed, never returned, so one run reports everything wrong with a declaration.
 function checkDeclarationIsLoadable(sourceManifest, manifestName, names, failures) {
   if (!names.includes(manifestName)) {
     failures.push(
@@ -256,14 +249,9 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
   // directory is touched, so a malformed declaration cannot destroy an earlier good package.
   if (failures.length > 0) return done();
 
-  // The one thing this script asks of a package directory, and the whole of what replaced the delete.
-  // A directory holding anything at all is refused: a leftover from an earlier run would ship
-  // alongside the declared set, and a directory holding something else is a caller pointing this at a
-  // location it means to keep. Neither can be told apart from the other by inspection, and neither
-  // needs to be — the answer to both is the same, and it is not to delete.
-  //
-  // Cheap by design. A single readdir replaces a canonical-key containment check over a protected-path
-  // set, which existed only to bound what the delete could reach. There is no delete to bound.
+  // Any content at all is refused: a leftover from an earlier run would ship alongside the declared
+  // set, and anything else is a caller pointing this at a directory it means to keep. Neither is
+  // distinguishable by inspection, and the answer to both is the same.
   if (fs.existsSync(absolutePackageDir) && fs.readdirSync(absolutePackageDir).length > 0) {
     failures.push(
       "INVALID: package directory is not empty: " +

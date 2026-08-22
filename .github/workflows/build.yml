@@ -9,12 +9,9 @@
 # filtering anywhere, so every catalog entry is built on every pull request.
 #
 # Required-check model: the `required-checks` aggregation job is the single status check to mark
-# required in branch protection; it transitively gates on `build`, `test-cove-present` and `e2e`, each
-# of which states its own subject where it is defined. No job here runs an extension's own node:test
-# specs: that tier was subscribed to through a catalog `e2eNodeTestsPath`, no entry has declared one
-# since e6b2263, and a tier with no subscriber gated nothing while reading as coverage. The field is
-# still accepted by scripts/validate-extension-repo.mjs, so a future subscriber declares it and
-# restores the steps here in one change.
+# required in branch protection; it transitively gates on `build`, `test-cove-present` and `e2e`. No
+# job runs an extension's own node:test specs, because no catalog entry declares an `e2eNodeTestsPath`
+# to subscribe one; the field is still accepted, so a future subscriber restores the steps here.
 
 name: Build and Release Extensions
 
@@ -23,21 +20,13 @@ on:
   push:
     tags:
       - "*/v*"
-  # A daily signal on a moving target, which the two triggers above cannot give: only a non-pull-request
-  # event resolves the version axis (see `Resolve the Cove version axis`), so this is the only place
-  # upstream breakage above the declared floor is seen at all, and 24 hours is the budget for noticing
-  # it. It is also the only environment carrying more than one leg, so a per-leg `continue-on-error` can
-  # be read here and nowhere else. Deleting this trigger leaves both facts unobservable everywhere.
+  # The only trigger that sees upstream breakage above the declared floor: a pull request does not
+  # resolve the version axis. It is also the only environment carrying more than one leg, so a per-leg
+  # `continue-on-error` can be read here and nowhere else. Every job runs daily, which is real spend.
   #
-  # What it costs is stated rather than absorbed: EVERY job in this file runs daily, including both
-  # safety legs and the aggregate, so this is recurring runner spend for a repository with a single
-  # maintainer.
-  #
-  # 06:00 UTC is chosen to be well outside that maintainer's working hours, so a red arrives before a
-  # session rather than during one. One caveat that costs a day of debugging if not known: the upstream
-  # images move too, and a scheduled run landing inside an upstream rebuild window can read a
-  # partially-updated tag. A red that recurs at this hour and passes on re-run is the schedule, not the
-  # workflow.
+  # 06:00 UTC puts a red before a working session rather than during one. Caveat worth a day of
+  # debugging: the upstream images move too, so a run landing inside an upstream rebuild window can
+  # read a partially-updated tag. A red that recurs at this hour and passes on re-run is the schedule.
   schedule:
     - cron: "0 6 * * *"
 
@@ -242,18 +231,14 @@ jobs:
           PROJECT_PATH: ${{ matrix.extension.projectPath }}
           EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
-      # Cove-absent tier — this leg states CoveSourceMode=none, so the test project's cove-referencing
-      # sources are Compile-Removed (see Renamer.Tests.csproj's cove-absent group). What survives is
-      # every test that needs no Cove source type, across every tier, not a tier of its own. The mode is
-      # DECLARED rather than inferred from whether a ../cove sibling happens to be on disk: that
-      # inference is what let a smaller run read as a pass. The rest of the suite runs in the
-      # test-cove-present job below. Runs before Publish so a test failure blocks packaging, matching
-      # windows-build-test's build-then-test order in lint.yml. Optional: an extension without a
-      # testProjectPath entry in catalog.json skips this step (manifestOnly-style opt-out).
+      # Cove-absent tier: CoveSourceMode=none Compile-Removes the cove-referencing sources, leaving every
+      # test that needs no Cove source type. The mode is DECLARED, never inferred from whether a ../cove
+      # sibling is on disk, or a smaller run reads as a pass. The rest of the suite runs in
+      # test-cove-present below. Before Publish, so a test failure blocks packaging. Skipped for an entry
+      # with no testProjectPath.
       #
-      # A run that executes nothing fails rather than passing: .runsettings sets TreatNoTestsAsError
-      # repo-wide, so this leg cannot report success having asserted nothing. No expected total is
-      # compared — .runsettings records why the two catalog minimum-count floors were removed.
+      # .runsettings sets TreatNoTestsAsError repo-wide, so a run that executes nothing fails rather than
+      # reporting success having asserted nothing.
       - name: Test (unit tier)
         if: ${{ !matrix.extension.manifestOnly && matrix.extension.testProjectPath != '' }}
         run: dotnet test "$TEST_PROJECT_PATH" -c Release -p:CoveSourceMode=none
