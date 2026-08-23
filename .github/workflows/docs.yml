@@ -29,6 +29,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Configure Pages queries the repository's Pages settings, and a permissions block sets every
     # unlisted scope to none — hence the explicit pages:read. No write scope: this job cannot deploy.
     permissions:
@@ -57,6 +58,7 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # The only job that can publish. deploy-pages authenticates the deployment with an OIDC token, so
     # id-token:write is inseparable from pages:write here. No contents scope — it checks nothing out.
     permissions:

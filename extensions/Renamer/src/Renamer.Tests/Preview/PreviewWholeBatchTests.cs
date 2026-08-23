@@ -35,10 +35,10 @@ public sealed class PreviewWholeBatchTests
         return ext;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task PreviewAsync_ReturnsItemsAndSummary_WithRoutingFields_AndCamelCaseStringEnums()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "needs a Windows drive letter to stand in for a second volume");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "needs a Windows drive letter to stand in for a second volume");
 
         // The source lives in a real temp dir so preview's on-disk source probe finds it (a gone
         // source would be SkipMissingSource, not the routed Move this test asserts). The routed

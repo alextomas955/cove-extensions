@@ -13,10 +13,10 @@ namespace Renamer.Tests.Execution.CanonicalGuard;
 [Trait("Tier", "L0")]
 public sealed class CanonicalGuardPrefixTests
 {
-    [SkippableFact]
+    [Fact]
     public void ExtendedLengthPrefix_WithParentTraversal_IsRejected()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "asserts Windows extended-length path semantics");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "asserts Windows extended-length path semantics");
 
         // \\?\ disables `..` collapse; the guard must refuse it (rather than be fooled into letting
         // the un-collapsed `..` walk out of the allowlisted root).
@@ -29,10 +29,10 @@ public sealed class CanonicalGuardPrefixTests
         Assert.Contains("device/UNC/extended-length", r.Reason);
     }
 
-    [SkippableFact]
+    [Fact]
     public void DosDevicePrefix_NotAllowlisted_IsRejected()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "asserts Windows DOS-device path semantics");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "asserts Windows DOS-device path semantics");
 
         string target = @"\\.\C:\allowed\sub".Replace('\\', '/');
 
@@ -43,10 +43,10 @@ public sealed class CanonicalGuardPrefixTests
         Assert.Contains("device/UNC/extended-length", r.Reason);
     }
 
-    [SkippableFact]
+    [Fact]
     public void UncPath_NotAllowlisted_IsRejected()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "asserts Windows UNC path semantics");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "asserts Windows UNC path semantics");
 
         string target = @"\\server\share\media\out".Replace('\\', '/');
 

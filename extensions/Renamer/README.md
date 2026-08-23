@@ -40,7 +40,7 @@ dotnet build CoveExtensions.slnx
 Run the unit tier (the pure-core tests that need no live Cove checkout):
 
 ```sh
-dotnet test src/Renamer.Tests/Renamer.Tests.csproj
+dotnet test --project src/Renamer.Tests/Renamer.Tests.csproj
 ```
 
 ## Frontend (the settings panel)

@@ -92,3 +92,14 @@ dotnet_naming_style.underscore_camel_style.required_prefix = _
 # one extension's path, so a second extension needs no edit.
 [**/*.Tests/**.cs]
 dotnet_diagnostic.CA1707.severity = none
+
+# xUnit1051 asks every call accepting a CancellationToken to be handed
+# TestContext.Current.CancellationToken. In xUnit v3 a timeout does not stop a test, it only signals
+# that token, so the rule buys cancellation and nothing else — and no test here declares a Timeout.
+# That is ~570 call sites for a hang path with no timeout to trigger it. xUnit1069 stays ON and is
+# the part that matters: it fails the build the moment a test DOES declare a Timeout without
+# consuming the token, so a timeout can never be silently inert. Turn this back on if per-test
+# timeouts become common. Covers the shared *.Testing support library as well as the *.Tests
+# projects, since the [Fact] base classes live there.
+[**/*.{Tests,Testing}/**.cs]
+dotnet_diagnostic.xUnit1051.severity = none

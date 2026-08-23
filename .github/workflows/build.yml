@@ -39,6 +39,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     outputs:
@@ -102,6 +103,7 @@ jobs:
   build:
     needs: validate
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.validate.outputs.matrix) }}
@@ -142,9 +144,12 @@ jobs:
       # group). Runs before Publish so a test failure blocks packaging, matching
       # windows-build-test's build-then-test order in lint.yml. Optional: an extension without a
       # testProjectPath entry in catalog.json skips this step (manifestOnly-style opt-out).
+      # The version properties have to match the Build step's. The test project references the
+      # extension, so a differing property set rebuilds the extension assembly unstamped, and the
+      # Publish step below ships whatever is in bin/ without recompiling it.
       - name: Test (unit tier)
         if: ${{ !matrix.extension.manifestOnly && matrix.extension.testProjectPath != '' }}
-        run: dotnet test ${{ matrix.extension.testProjectPath }} -c Release -p:UseLocalCoveSource=false
+        run: dotnet test --project ${{ matrix.extension.testProjectPath }} -c Release -p:UseLocalCoveSource=false -p:Version=${{ steps.check.outputs.version }} -p:ContinuousIntegrationBuild=true
 
       - name: Publish
         if: ${{ !matrix.extension.manifestOnly }}
@@ -263,6 +268,7 @@ jobs:
   e2e:
     needs: [validate, build]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.validate.outputs.matrix) }}
@@ -425,6 +431,7 @@ jobs:
     needs: [validate, build, e2e]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     # No token at all: this job only reads the other jobs' results and echoes them. An empty mapping
     # grants nothing, where omitting the block would inherit the workflow default.
     permissions: {}
@@ -445,6 +452,7 @@ jobs:
     needs: build
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:

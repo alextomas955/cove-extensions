@@ -1,6 +1,9 @@
 **/bin/*
 **/obj/*
 artifacts/
+# The Microsoft Testing Platform creates this at whatever directory dotnet test was invoked from,
+# and writes reports and crash dumps into it.
+TestResults/
 *.zip
 .DS_Store
 .playwright-mcp/

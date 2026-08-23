@@ -25,9 +25,6 @@ updates:
       test-analysis:
         patterns:
           - "xunit*"
-          - "Microsoft.NET.Test.Sdk"
-          - "coverlet.*"
-          - "Xunit.SkippableFact"
 
   # Every extension's frontend panel (glob, GA June 2024). @cove/extension-sdk is a file:vendor/...
   # dependency (a committed tarball, not a registry package), so Dependabot does not — and cannot —

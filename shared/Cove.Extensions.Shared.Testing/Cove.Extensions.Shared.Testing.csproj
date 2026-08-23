@@ -1,9 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>false</IsPackable>
-    <!-- References xunit for the shared [Fact] base classes but ships no runner, and xunit's own
-         props would otherwise mark it a test project. -->
-    <IsTestProject>false</IsTestProject>
     <!-- Test-support only: never a deployed Cove plugin, so neutralize the inherited dynamic-loading flag. -->
     <EnableDynamicLoading>false</EnableDynamicLoading>
     <!--
@@ -38,6 +35,13 @@
          (see Directory.Packages.props). -->
     <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
-    <PackageReference Include="xunit" />
+    <!--
+      The runner-free half of xUnit v3: attributes from extensibility.core, Assert from the assert
+      package. The xunit.v3 metapackage would drag in the Microsoft Testing Platform runner, which
+      refuses to build anything but an executable.
+    -->
+    <PackageReference Include="xunit.analyzers" />
+    <PackageReference Include="xunit.v3.assert" />
+    <PackageReference Include="xunit.v3.extensibility.core" />
   </ItemGroup>
 </Project>

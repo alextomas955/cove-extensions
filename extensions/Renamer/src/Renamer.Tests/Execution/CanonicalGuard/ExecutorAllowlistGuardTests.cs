@@ -53,10 +53,10 @@ public sealed class ExecutorAllowlistGuardTests
         }
     }
 
-    [SkippableFact] // On Windows this always runs — junctions need no privilege; it IS the guard-runs-first proof.
+    [Fact] // On Windows this always runs — junctions need no privilege; it IS the guard-runs-first proof.
     public async Task MoveToJunctionEscapingAllowedRoot_IsBlocked_NoFolderRowLeaked()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "needs an NTFS junction (cmd /c mklink /J)");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "needs an NTFS junction (cmd /c mklink /J)");
 
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();

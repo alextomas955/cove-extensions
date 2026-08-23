@@ -7,10 +7,8 @@ namespace Renamer.Tests.Execution.CanonicalGuard;
 /// GATE-03 symlink variant: a directory SYMBOLIC LINK inside an allowed root pointing OUTSIDE it is
 /// REJECTED — the same <c>ResolveLinkTarget</c> chain that the mandatory junction test proves also
 /// resolves symlinks. Unlike junctions, creating a directory symlink needs Developer Mode or admin
-/// privilege, so this is a <see cref="SkippableFactAttribute"/>: it probes by attempting to create one
-/// and SKIPS WITH A VISIBLE REASON when privilege is absent — never a silent early-return. On a
-/// privileged box it runs and asserts the escape is rejected. The junction test remains the
-/// non-skippable load-bearing proof of the resolution path.
+/// privilege, so this one can skip on Windows too. The junction test carries the resolution path: a
+/// junction needs no privilege, so on Windows it always runs.
 /// </summary>
 [Trait("Tier", "L1")]
 [Trait("Adversarial", "Symlink")]
@@ -34,7 +32,7 @@ public sealed class CanonicalGuardSymlinkTests
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public void SymlinkInsideAllowedRoot_PointingOutside_IsRejected()
     {
         using var dir = new TempDir();
@@ -43,7 +41,7 @@ public sealed class CanonicalGuardSymlinkTests
         string escape = Path.Combine(allowed, "escape");
 
         bool created = TryCreateSymlink(escape, outside);
-        Skip.IfNot(created, "symlink creation requires Developer Mode/admin privilege on this host");
+        Assert.SkipUnless(created, "symlink creation requires Developer Mode/admin privilege on this host");
 
         var r = CanonicalPathGuard.Check((escape + "/file.mkv").Replace('\\', '/'), [allowed]);
 

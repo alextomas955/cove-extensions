@@ -183,10 +183,10 @@ public sealed class RenamerExecutorIntegrationTests
     /// destination exists with the original content, the DB Basename + ParentFolderId + recomputed Path
     /// are updated, a revert-log row is written, and one VideoUpdated event fired.
     /// </summary>
-    [SkippableFact]
+    [Fact]
     public async Task CrossVolumeBranch_HappyMove_UsesCrossMover_DiskAndDbUpdated()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
 
         using var src = new TempDir();
         using var dst = new SubstDrive();
@@ -259,10 +259,10 @@ public sealed class RenamerExecutorIntegrationTests
     /// — copy the bytes back across the volume and restore the source — leaving disk and DB consistent.
     /// Re-proves disk-first/DB-second for the cross path.
     /// </summary>
-    [SkippableFact]
+    [Fact]
     public async Task CrossVolumeSaveFailure_RollsBackThroughCrossMover_SourceRestored()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
 
         using var src = new TempDir();
         using var dst = new SubstDrive();
@@ -337,10 +337,10 @@ public sealed class RenamerExecutorIntegrationTests
     /// "file rolled back". It must surface the rollback warnings so the disk/DB divergence is visible —
     /// silently discarding the warnings would falsely claim a rollback that did not happen.
     /// </summary>
-    [SkippableFact]
+    [Fact]
     public async Task CrossVolumeSaveFailure_RollbackWarnings_Surfaced_NotSilentlyRolledBack()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "needs a subst drive for a second volume");
 
         using var src = new TempDir();
         using var dst = new SubstDrive();

@@ -22,10 +22,10 @@ namespace Renamer.Tests.Execution.Collisions;
 [Trait("Tier", "L1")]
 public sealed class CaseOnlyRenamerTests
 {
-    [SkippableFact]
+    [Fact]
     public async Task CaseOnlyRenamer_OfFileOntoItself_IsCleanRenamer_NotSuffixed()
     {
-        Skip.IfNot(OperatingSystem.IsWindows(), "asserts Windows case-insensitive path semantics");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "asserts Windows case-insensitive path semantics");
 
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
