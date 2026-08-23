@@ -79,44 +79,6 @@ jobs:
             echo "::endgroup::"
           done
 
-  # ---- macOS build + unit-test signal, ADVISORY. Mirrors windows-build-test and is bare permanently:
-  # hosted macOS runners ship no Docker daemon, and assemblies mode is not an alternative because the
-  # docker-cp extraction sources Cove FROM a running container. `CoveSourceMode=none` is the design.
-  # Promoting the leg to required is a branch-protection edit, not a change here. ----
-  macos-build-test:
-    runs-on: macos-latest
-    timeout-minutes: 30
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v7
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-      - name: Build
-        run: dotnet build CoveExtensions.slnx -c Release -p:CoveSourceMode=none
-      # The whole-slnx Build above already compiled every test project, so --no-build still holds.
-      # `while read` rather than `mapfile`: macOS runners ship bash 3.2, which has no `mapfile`, and
-      # behind continue-on-error that would have failed silently forever. Redirected from a file rather
-      # than piped, so the loop runs in this shell and a failing test still fails the step.
-      - name: Test (unit tier)
-        shell: bash
-        run: |
-          node -e '
-            const fs = require("fs");
-            const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
-            for (const entry of catalog.extensions) {
-              if (entry.manifestOnly === true) continue;
-              if (entry.testProjectPath) console.log(entry.testProjectPath);
-            }
-          ' > "$RUNNER_TEMP/test-projects.txt"
-          test -s "$RUNNER_TEMP/test-projects.txt" || { echo "no test projects read from the catalog"; exit 1; }
-          while read -r test; do
-            echo "::group::dotnet test $test"
-            dotnet test --project "$test" -c Release --no-build
-            echo "::endgroup::"
-          done < "$RUNNER_TEMP/test-projects.txt"
-
   # ---- Markdown docs. The file list lives in .markdownlint-cli2.jsonc and only there, because
   # markdownlint-cli2 APPENDS its config's globs to the command line: a glob passed here can only
   # widen the set while reading as a narrowing. The action's `globs` input has a non-empty default
