@@ -7,7 +7,7 @@
     Contract (one atomic dev step):
 
       1. BUILD      Publish src/Renamer/Renamer.csproj in Release using the local Cove source
-                    (-p:UseLocalCoveSource=true), so the extension is ABI-identical to the
+                    (-p:CoveSourceMode=source), so the extension is ABI-identical to the
                     running dev host. Publish (not plain build) because Cove.Sdk.targets strips
                     the host-provided closure from the *publish* set (AfterTargets=ComputeFilesToPublish).
 
@@ -53,7 +53,7 @@
     automatic variable, which Windows PowerShell 5.1 does not define.
 
     Location-independent: all paths resolve relative to $PSScriptRoot, so this is CI/GitHub-publishable.
-    Property names (UseLocalCoveSource/CoveSdkVersion) must match the monorepo root's
+    Property names (CoveSourceMode/CoveSdkVersion) must match the monorepo root's
     Directory.Build.props, since that is what selects the local-source build path.
 #>
 
@@ -118,7 +118,7 @@ if (Test-Path $PublishDir) {
 }
 
 Write-Host "`n==> Publishing (Release, local Cove source)…" -ForegroundColor Cyan
-dotnet publish $Csproj -c Release -p:UseLocalCoveSource=true "-p:COVE_REPO=$CoveRepo" -o $PublishDir
+dotnet publish $Csproj -c Release -p:CoveSourceMode=source "-p:COVE_REPO=$CoveRepo" -o $PublishDir
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed with exit code $LASTEXITCODE — deploy aborted."
 }

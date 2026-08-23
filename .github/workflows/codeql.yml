@@ -1,9 +1,9 @@
 # CodeQL security analysis.
 #
 # C# is built on a bare runner with no Cove monorepo, so the build leg uses the same NuGet path the
-# main build uses (UseLocalCoveSource=false): Cove.Sdk (and its transitive Cove.Plugins/Cove.Core)
-# restore from nuget.org. The local-source build property is deliberately NOT used here — it needs
-# a Cove checkout the runner does not have.
+# main build uses (CoveSourceMode=none): Cove.Sdk (and its transitive Cove.Plugins/Cove.Core)
+# restore from nuget.org. The `source` mode is deliberately NOT used here — it needs a Cove
+# checkout the runner does not have.
 #
 # The C# leg builds every catalog extension's project (skipping manifestOnly entries), reading the
 # project paths from extensions/catalog.json, so CodeQL's manual build traces each extension's
@@ -77,7 +77,7 @@ jobs:
           ')
           for project in "${projects[@]}"; do
             echo "::group::dotnet build $project"
-            dotnet build "$project" -c Release -p:UseLocalCoveSource=false
+            dotnet build "$project" -c Release -p:CoveSourceMode=none
             echo "::endgroup::"
           done
 
