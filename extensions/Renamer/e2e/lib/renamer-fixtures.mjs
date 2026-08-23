@@ -8,7 +8,6 @@ import { resolveExtensionPaths } from "@cove-extensions/e2e/resolve-extension";
 
 export const RENAMER_EXTENSION = resolveExtensionPaths(import.meta.url, {
   srcProject: "Renamer",
-  uiProject: "Renamer.Ui",
 });
 
 export const test = baseTest.extend({
