@@ -37,9 +37,9 @@ services:
     # version written here would be a second declaration of a number that already lives in a manifest,
     # free to fall behind it — and a host below an extension's floor does not error, it silently refuses
     # to LOAD the extension, so the routes 404 and every browser spec fails against a Settings page that
-    # never gains the extension's tab. A floating `latest` is not the alternative either: a stale local
-    # `latest` pulled before the 1.0.0 release still resolved to 0.9.0, dropping the whole suite below
-    # the floor with no error at all.
+    # never gains the extension's tab. A floating `latest` is not the alternative either: it names no
+    # version, so a stale local copy of that tag can sit below the floor and drop the whole suite into
+    # the same silent failure with nothing to compare against.
     #
     # The cost this shape accepts: `docker compose up` in this directory no longer starts anything,
     # because there is no value left to fall back to. Go through the harness (see ../README.md), or
@@ -86,13 +86,9 @@ services:
       # link not permitted"), the same error a move across two real drives raises. This is the one
       # mount strategy that actually triggers cross-device behavior inside a single container.
       #
-      # The caveat that used to sit here — that the same-vs-cross-volume decision is
-      # `Path.GetPathRoot()`-based, that /data2 is therefore classified "same volume", and that
-      # CrossVolumeMover is Windows-only reachable — was true when written and became false on
-      # 2026-07-28, when v0.3.0 made VolumeClassifier mount-aware. Measured in a Linux container on
-      # .NET 10: DriveInfo.GetDrives() enumerates this container's mounts, so /data keys to "/" and
-      # /data2 keys to "/data2" and the pair classifies CROSS-volume. So this mount now does exercise
-      # the verified copy path, which is more than it was originally built for.
+      # The extension's volume classifier is mount-aware: it enumerates the container's own mounts, so
+      # /data keys to "/" and /data2 keys to "/data2", and the pair classifies CROSS-volume. This mount
+      # therefore exercises the verified copy path, not only the EXDEV that raises it.
       #
       # OWNERSHIP, stated here because it decides whether anything can write into this mount at all, and
       # because the only prior account of it lived inside the one spec that works around it.

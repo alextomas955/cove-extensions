@@ -68,8 +68,12 @@ Run a single extension's suite with `--project`:
 
 ```sh
 cd tests/e2e
-npx playwright test --project=renamer
+npm test -- --project=renamer
 ```
+
+Go through `npm test` rather than calling Playwright directly: the publish hook above is a `pretest`
+script, so a direct `npx playwright test` skips it and installs whatever publish output happens to
+be on disk.
 
 Each extension's own directory (e.g. `extensions/Renamer/e2e/`) has a minimal `package.json` that
 declares `@cove-extensions/e2e` as a dependency and whose `test` script shells out to this pattern,
@@ -189,11 +193,10 @@ the shared one — see `extension-lifecycle.spec.mjs` for the pattern.
 
 ## Running locally vs CI
 
-Locally: `npm test` (runs every project, 4 parallel workers) or `npx playwright test
---project=<name>` for one extension — see Quick start and "One Playwright install, many
-extensions" above.
+Locally: `npm test` (runs every project, 4 parallel workers) or `npm test -- --project=<name>` for
+one extension — see Quick start and "One Playwright install, many extensions" above.
 
-CI: the `.github/workflows/build.yml` `e2e` job runs `npx playwright test --project=<name>` for each
+CI: the `.github/workflows/build.yml` `e2e` job runs `npm test -- --project=<name>` for each
 catalog entry that declares an `e2ePath`/`e2eProject`, against that entry's own just-built publish
 output (not a downloaded zip), which the harness assembles as above. It runs that command once per
 Cove version the workflow's axis resolves, passing the image tag in `COVE_E2E_TAG` — so which Cove a
@@ -261,8 +264,8 @@ principal carrying wildcard permissions — so nothing about credentials or row-
 falsifiable there. The flag is instance-global, hence
 `startHarness({ env: { COVE_E2E_AUTH_ENABLED: 'true' } })` per test rather than per worker;
 `createRestrictedUser()` then mints the non-owner principal Cove's row-level filters actually apply
-to, which the owner's own token bypasses. Renamer's `authenticated-fetch.spec.mjs` and
-`authorization-filters.spec.mjs` are the worked examples, and their headers carry the reasoning.
+to, which the owner's own token bypasses — pass its token to `createApiClient` to drive a spec as
+that user while the harness handle keeps the owner's.
 
 It does not (yet):
 
