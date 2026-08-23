@@ -14,8 +14,7 @@
     "lint:fix": "eslint . --fix",
     "prepare": "lefthook install",
     "syncpack": "syncpack lint",
-    "test": "node --test scripts/*.test.mjs",
-    "wire-usage": "node scripts/check-wire-usage.mjs"
+    "test": "node --test scripts/*.test.mjs"
   },
   "engines": {
     "node": ">=22.18"
