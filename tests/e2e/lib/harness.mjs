@@ -81,7 +81,7 @@ export function resolveCoveImage(image) {
 function highestDeclaredFloor() {
   let highest = null;
   const withSuite = (entry) => Boolean(entry.e2ePath && entry.e2eProject);
-  for (const { entry, floor, manifestPath } of readExtensionFloors(undefined, withSuite)) {
+  for (const { entry, floor, manifestPath } of readExtensionFloors(withSuite)) {
     const parsed = parseSemver(floor);
     if (parsed === null) {
       throw new Error(

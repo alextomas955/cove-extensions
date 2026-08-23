@@ -405,10 +405,10 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
  * would otherwise be able to fail that caller. Omitted, every entry is read — what the CI version
  * matrix wants, since it resolves legs for the whole catalog.
  *
- * @param {string} [catalogPath]
  * @param {(entry: object) => boolean} [select]
+ * @param {string} [catalogPath]
  */
-export function readExtensionFloors(catalogPath = DEFAULT_CATALOG_PATH, select) {
+export function readExtensionFloors(select, catalogPath = DEFAULT_CATALOG_PATH) {
   if (!fs.existsSync(catalogPath)) {
     throw new Error(`${catalogPath} does not exist, so no extension floor can be read.`);
   }
