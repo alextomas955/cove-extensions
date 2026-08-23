@@ -518,15 +518,99 @@ jobs:
           path: tests/e2e/playwright-report/
           retention-days: 7
 
+  # ---- Cove-present tier. The build job above compiles against CoveSourceMode=none, which
+  # Compile-Removes every source referencing a Cove type, so the tests that need a real CoveContext
+  # never run there. This job supplies Cove by shallow-cloning the release tag the version axis
+  # resolved, which is what lets the full suite compile and run on a runner with no Cove checkout.
+  #
+  # The mode is DECLARED, never inferred from whether a checkout landed: without an explicit
+  # -p:CoveSourceMode=source a failed clone selects the cove-absent branch and a smaller run reports
+  # as a pass. AssertCoveLocation refuses the case where the mode names a checkout that is not there.
+  #
+  # The two repositories are checked out as SIBLINGS under the workspace rather than nesting Cove
+  # inside this one. Cove carries no Directory.Packages.props, so a nested clone inherits this repo's
+  # central package management and every version-carrying PackageReference in Cove fails NU1008.
+  test-cove-present:
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.validate.outputs.coveMatrix) }}
+    # A regression in an unreleased Cove is not this pull request's defect, so that leg reports rather
+    # than blocks, matching the e2e job.
+    continue-on-error: ${{ matrix.cove.advisory }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: extensions
+
+      - name: Check for a test project
+        id: check
+        shell: bash
+        run: |
+          if [[ "$MANIFEST_ONLY" == "true" || -z "$TEST_PROJECT_PATH" ]]; then
+            echo "has_tier=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$EXTENSION_NAME declares no testProjectPath — skipping the cove-present tier."
+            exit 0
+          fi
+          echo "has_tier=true" >> "$GITHUB_OUTPUT"
+        env:
+          EXTENSION_NAME: ${{ matrix.extension.name }}
+          MANIFEST_ONLY: ${{ matrix.extension.manifestOnly }}
+          TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
+
+      # The version axis resolves a container image tag; the matching git ref is that tag prefixed
+      # with `v`. A tag the upstream repository does not carry fails this step rather than silently
+      # testing something else.
+      - name: Check out Cove at the version under test
+        if: steps.check.outputs.has_tier == 'true'
+        uses: actions/checkout@v7
+        with:
+          repository: yourcove/cove
+          ref: v${{ matrix.cove.tag }}
+          fetch-depth: 1
+          path: cove
+
+      - name: Name the Cove under test
+        if: steps.check.outputs.has_tier == 'true'
+        shell: bash
+        run: echo "::notice::Cove under test ($COVE_ROLE $COVE_TAG) — v$COVE_TAG at $(git -C cove rev-parse HEAD)"
+        env:
+          COVE_TAG: ${{ matrix.cove.tag }}
+          COVE_ROLE: ${{ matrix.cove.role }}
+
+      - name: Setup .NET
+        if: steps.check.outputs.has_tier == 'true'
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # A run that executes nothing fails rather than reporting success having asserted nothing: the
+      # Microsoft Testing Platform exits 8 on zero tests, with no configuration needed.
+      - name: Test (cove-present tier, Cove built from the release tag)
+        if: steps.check.outputs.has_tier == 'true'
+        working-directory: extensions
+        run: |
+          dotnet test --project "$TEST_PROJECT_PATH" -c Release \
+            -p:CoveSourceMode=source \
+            -p:CoveRepoRoot="$COVE_REPO_ROOT"
+        env:
+          TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
+          COVE_REPO_ROOT: ${{ github.workspace }}/cove
+
   # ---- Required-check aggregation.
   # A single job to mark REQUIRED in branch protection on `main`, so a leg gates a merge by being in this
   # job's `needs:` AND by having its result tested in the shell body below. Listing a job in `needs:`
   # alone would let it fail while this gate still reported success.
   #
   # `e2e` is the only leg here that installs the assembled package into a running host, so it is the
-  # one check that would notice a package the host refuses to load.
+  # one check that would notice a package the host refuses to load. `test-cove-present` is the only
+  # leg that runs the tests needing a real CoveContext, which the cove-absent build job cannot compile.
   required-checks:
-    needs: [validate, build, e2e]
+    needs: [validate, build, test-cove-present, e2e]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -537,11 +621,12 @@ jobs:
       - name: Assert the required legs succeeded
         shell: bash
         run: |
-          echo "validate=${{ needs.validate.result }} build=${{ needs.build.result }} e2e=${{ needs.e2e.result }}"
+          echo "validate=${{ needs.validate.result }} build=${{ needs.build.result }} test-cove-present=${{ needs['test-cove-present'].result }} e2e=${{ needs.e2e.result }}"
           if [ "${{ needs.validate.result }}" != "success" ] \
             || [ "${{ needs.build.result }}" != "success" ] \
+            || [ "${{ needs['test-cove-present'].result }}" != "success" ] \
             || [ "${{ needs.e2e.result }}" != "success" ]; then
-            echo "::error::A required leg failed or was skipped — validate/build/e2e must all be green."
+            echo "::error::A required leg failed or was skipped — validate/build/test-cove-present/e2e must all be green."
             exit 1
           fi
           echo "All required legs green."
