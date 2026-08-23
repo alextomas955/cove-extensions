@@ -2,19 +2,16 @@
 // extension into it, and tear it down. This is the one entry point extension authors need —
 // everything else (compose file, install mechanics, staging) is an implementation detail behind it.
 //
-// Built on Testcontainers (https://node.testcontainers.org/), not a hand-rolled `docker compose`
-// child_process wrapper. Testcontainers' Ryuk sidecar guarantees container/network/volume cleanup
-// even if the test process is killed (not just on a graceful exit) — a hand-rolled wrapper only
-// cleans up in the success path, leaking containers on a killed run. It also owns port resolution
-// and health-check waiting, so this file hand-rolls no polling loop of its own.
+// Built on Testcontainers (https://node.testcontainers.org/). Its Ryuk sidecar reaps containers,
+// networks and volumes even when the test process is killed rather than exiting gracefully, and it
+// owns port resolution and health-check waiting.
 import { join } from "node:path";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
 import { installViaContainerCopy } from "./install-extension.mjs";
 import { createApiClient } from "./apiClient.mjs";
 import { attemptUntil } from "./poll.mjs";
-// The repository the image lives in and the floor each extension declares both already have exactly
-// one reader, and a second parse of either here would be free to disagree with the one CI resolves
-// against.
+// Imported rather than re-parsed here: CI resolves the image repository and each extension's floor
+// through these same readers, and a second parse would be free to disagree with it.
 import {
   compareSemver,
   parseSemver,
@@ -22,8 +19,7 @@ import {
   readExtensionFloors,
 } from "../../../scripts/fetch-cove-assemblies.mjs";
 
-// Re-exported rather than wrapped: a spec gates on a host capability, and the version logic it needs
-// already lives with the other semver helpers.
+// For a spec that gates on a host capability by version.
 export { imageAtLeastVersion } from "../../../scripts/fetch-cove-assemblies.mjs";
 
 // import.meta.dirname, never a filesystem path read off a module URL's path component: on Windows
@@ -31,8 +27,8 @@ export { imageAtLeastVersion } from "../../../scripts/fetch-cove-assemblies.mjs"
 const COMPOSE_DIR = join(import.meta.dirname, "..", "docker");
 const COMPOSE_FILE = "docker-compose.yml";
 
-// Shared-runner container cold-start is measurably slower than a dedicated dev machine's Docker
-// Desktop — widen the default startup budget in CI rather than tuning it tight against local timing.
+// A shared runner cold-starts containers more slowly than a dev machine's Docker Desktop, so the CI
+// budget is the wider one rather than local timing tuned tight.
 const DEFAULT_STARTUP_TIMEOUT_MS = process.env.CI ? 240_000 : 180_000;
 
 /**
@@ -69,9 +65,9 @@ export function resolveCoveImage(image) {
 /**
  * The highest `minCoveVersion` declared by a catalog entry that has an e2e suite.
  *
- * Narrowed to those entries because only they can be installed into an instance this harness boots.
- * A catalog entry with no suite reaching this decision would let an extension nothing here installs
- * raise the host every suite runs against, or fail the whole tier over a manifest no spec reads.
+ * Narrowed to those entries because only they are installed into an instance this harness boots. An
+ * entry without a suite would otherwise raise the host every suite runs against, or fail the whole
+ * tier over a manifest no spec reads.
  */
 function highestDeclaredFloor() {
   let highest = null;
@@ -108,11 +104,9 @@ function highestDeclaredFloor() {
 export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIMEOUT_MS } = {}) {
   let environment = new DockerComposeEnvironment(COMPOSE_DIR, COMPOSE_FILE)
     .withStartupTimeout(timeoutMs)
-    // Keyed on CONTAINER names (`<service>-<index>`, the same names getContainer takes below), not
-    // service names: Testcontainers drops a key that matches no container with only a log warning,
-    // leaving whatever it infers from the image in force. It infers a health-check strategy here
-    // anyway, so stating it is what makes that a decision rather than a coincidence — and the
-    // strategy chosen now is also the one restart() reuses, where the difference is load-bearing.
+    // Keyed on CONTAINER names (`<service>-<index>`, the same names getContainer takes below), never
+    // service names: Testcontainers drops a key matching no container with only a log warning, and
+    // leaves whatever it inferred from the image in force. restart() reuses the strategy named here.
     .withWaitStrategy("cove-1", Wait.forHealthCheck())
     .withWaitStrategy("db-1", Wait.forHealthCheck());
 
@@ -121,17 +115,15 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
 
   const started = await environment.up();
   const coveContainer = started.getContainer("cove-1");
-  // Resolved eagerly, like the Cove container above: a service name that no longer matches fails
-  // here, at startup, rather than part-way through whatever assertion first reached for it.
+  // Resolved eagerly, like the Cove container above, so a service name that no longer matches fails
+  // at startup rather than part-way through whatever assertion first reached for it.
   const dbContainer = started.getContainer("db-1");
 
-  // Remembered by bootstrapOwner so the handle can re-authenticate itself after a restart without
-  // the caller having to hold on to the credentials.
+  // Held by bootstrapOwner so the handle can re-authenticate itself after a restart with no help from
+  // the caller.
   let credentials = null;
 
-  // Both read the address through the handle, because a restart can republish the container on a
-  // different host port. `api` also carries whatever token the handle currently holds; `anonymous`
-  // deliberately carries none, since the endpoints that MINT a credential are the ones that must not
+  // `anonymous` carries no token: the endpoints that MINT a credential are the ones that must not
   // present a stale one.
   const api = createApiClient(
     () => handle.baseUrl,
@@ -141,8 +133,8 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
 
   const handle = {
     /**
-     * The bootstrapped owner's bearer token, set by `bootstrapOwner()`. Undefined until then, which
-     * is why every consumer applies it as a conditional header rather than an unconditional one.
+     * The bootstrapped owner's bearer token. Undefined until `bootstrapOwner()` runs, so a consumer
+     * must apply it as a conditional header.
      */
     token: undefined,
 
@@ -172,29 +164,26 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     /**
      * Restarts the Cove container and returns once the host can reach it again with a usable token.
      *
-     * `installExtension` needs this because a copied-in extension is only discovered on a (re)start,
-     * and a test needs it to reach anything an extension does at INITIALIZE time — a one-time
-     * startup conversion of stored settings, say, whose precondition has to be written into the
-     * running instance and the host then started over on top of it. There is no other way in: an
-     * initialize-time code path does not run again while the host stays up.
+     * `installExtension` needs it because a copied-in extension is only discovered on a (re)start. A
+     * spec needs it to reach anything an extension does at INITIALIZE time, which is the only way in:
+     * an initialize-time path does not run again while the host stays up.
      *
      * `baseUrl` MAY CHANGE across this call. A container published on an ephemeral host port can be
-     * reassigned a new one on restart, so a caller holding a previously-read `baseUrl` — or anything
-     * built from one — must re-read it after this resolves. `restart()` refreshes the same
-     * StartedGenericContainer's port-binding state in place, so the getter above is correct
-     * immediately afterwards.
+     * reassigned a new one, so a caller holding a previously-read `baseUrl`, or anything built from
+     * one, must re-read it. The port-binding state is refreshed in place, so the getter above is
+     * correct as soon as this resolves.
      *
-     * Returning does NOT mean an extension has finished initializing: this waits on the host being
-     * reachable, which is a weaker condition. A caller that depends on initialize-time work having
-     * landed must wait for that work's own observable outcome.
+     * Returning does NOT mean an extension finished initializing; host reachability is the weaker
+     * condition this waits on. A caller depending on initialize-time work must wait for that work's
+     * own observable outcome.
      */
     async restart() {
       await coveContainer.restart();
       await waitForHostReachable(handle.baseUrl, { timeoutMs });
-      // An access token does not survive the restart, so it is re-minted here; otherwise every later
-      // call against an auth-enabled instance fails as an authentication error. `login` retries a
-      // transient of its own, which matters here: reachability is a weaker condition than readiness,
-      // so this call can land while the host is still answering its maintenance status.
+      // An access token does not survive the restart, and without re-minting it every later call
+      // against an auth-enabled instance fails as an authentication error. `login` retries a
+      // transient, which is needed here: reachability is weaker than readiness, so this can land
+      // while the host still answers its maintenance status.
       if (handle.token) {
         await handle.login();
       }
@@ -202,12 +191,7 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
 
     /**
      * Runs a command inside the Cove container (e.g. to inspect /data2 for the cross-device test).
-     *
-     * Takes Testcontainers' own exec options alongside the argv, for the same reason `execDb` below
-     * does: passing a value through `env` is what lets a command carry quotes with no escaping rule
-     * to get wrong, and `user` is what reaches a path the container's own user may not. Dropping the
-     * options does not fail loudly — the command still runs and still exits 0, just without what the
-     * caller meant to supply — so the caller reads a successful run of a command that did nothing.
+     * `opts` carries Testcontainers' own exec options; see `execDb` for why they matter.
      */
     exec(command, opts) {
       return coveContainer.exec(command, opts);
@@ -216,15 +200,13 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     /**
      * Runs a command inside the DATABASE container — the one way to ask the database itself whether
      * the host really created an extension's tables, rather than inferring it from the extension
-     * having loaded. Nothing behavioural needs this: a failed extension migration is a host log line
-     * and the load continues, so an extension can be enabled with no table behind it.
+     * having loaded. A failed extension migration is a host log line and the load continues, so an
+     * extension can be enabled with no table behind it.
      *
-     * Takes an argv array plus Testcontainers' own exec options, and `opts` is not optional dressing:
-     * passing the statement through `env` is what lets it carry quotes with no escaping rule to get
-     * wrong, and reading the credentials from the container's own environment
+     * `opts` carries the statement. Passing it through `env` lets it hold quotes with no escaping
+     * rule to get wrong, and reading the credentials from the container's own environment
      * (`sh -c 'psql -U "$POSTGRES_USER" …'`) keeps the compose file the one place they are written.
-     * Dropping `opts` here does not fail loudly — psql exits 0 on an empty statement — so a caller
-     * would see a successful query that returned nothing.
+     * Omitting `opts` fails silently, because psql exits 0 on an empty statement.
      */
     execDb(command, opts) {
       return dbContainer.exec(command, opts);
@@ -232,14 +214,13 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
 
     /**
      * Creates the first (owner) account and returns its access token. REQUIRED before any
-     * browser-driven test: Cove's frontend (App.tsx's `showSetupWizard`) hard-gates the ENTIRE
-     * app behind a first-run setup wizard whenever no owner account exists, with no way to
-     * dismiss it — confirmed directly (a "Skip setup for now" click does nothing while
-     * `ownerMissing` is true). This is unrelated to `COVE__Auth__Enabled=false`: the auth-bypass
-     * principal used for API calls exists independently, but the UI itself still checks
-     * `GET /api/auth/bootstrap-status`'s `ownerExists` field and refuses to render past the
-     * wizard until an owner is created via `POST /api/auth/bootstrap-owner`. Every extension's
-     * browser-driven E2E test needs this, so it lives here rather than being copy-pasted per test.
+     * browser-driven test: Cove's frontend (App.tsx's `showSetupWizard`) hard-gates the ENTIRE app
+     * behind a first-run setup wizard whenever no owner account exists, and its "Skip setup for now"
+     * button does nothing while `ownerMissing` is true.
+     *
+     * This is unrelated to `COVE__Auth__Enabled=false`. The auth-bypass principal used for API calls
+     * exists independently, but the UI still checks `GET /api/auth/bootstrap-status`'s `ownerExists`
+     * and refuses to render past the wizard until `POST /api/auth/bootstrap-owner` has run.
      */
     async bootstrapOwner({ username = "e2e-owner", password = "E2eTestPassword123!" } = {}) {
       const { response, lastError } = await postUntilSettled(
@@ -303,23 +284,19 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
      * Creates a NON-OWNER user Cove's row-level authorization filters actually apply to, and returns
      * its token WITHOUT replacing the handle's own.
      *
-     * Why this exists at all: `CoveContext` short-circuits every one of those filters to true for a
-     * principal holding the `"*"` permission, and Cove's bootstrap grants exactly that to the owner
-     * role. So a spec driven with `bootstrapOwner()`'s token cannot observe row-level authorization —
-     * every assertion it makes about which rows a principal sees passes whatever the filters do. The
-     * same clause treats a MISSING principal as bypassed too, so "send no credential" proves the safe
-     * case rather than the dangerous one. What discriminates is a present, under-privileged user.
+     * `CoveContext` short-circuits every one of those filters to true for a principal holding the
+     * `"*"` permission, and Cove's bootstrap grants exactly that to the owner role. A spec driven
+     * with `bootstrapOwner()`'s token therefore cannot observe row-level authorization at all. The
+     * same clause treats a MISSING principal as bypassed, so sending no credential does not
+     * discriminate either; only a present, under-privileged user does.
      *
-     * Why a permission list is not enough on its own, and the deny rule is what does the work: Cove's
-     * write permissions declare the matching read as implied, so a role granted `videos.write` is
-     * expanded to hold `videos.read` and reaches every video read endpoint. A CONTENT RULE denying
-     * read on a kind is the mechanism that leaves the permission in place while making the per-entity
-     * SQL predicate answer false — which is the shape worth testing, because it is the one where a
-     * caller gets 200 and zero rows rather than a 403 that names itself.
+     * A permission list alone will not produce one. Cove's write permissions declare the matching
+     * read as implied, so a role granted `videos.write` is expanded to hold `videos.read` and reaches
+     * every video read endpoint. A CONTENT RULE denying read on a kind leaves the permission in place
+     * while making the per-entity SQL predicate answer false, which is the case where a caller gets
+     * 200 and zero rows rather than a 403 naming itself.
      *
-     * The handle's `token` deliberately stays the owner's: the caller still needs it to seed the
-     * fixture and to read the same data back as somebody the filters do not apply to, which is the
-     * comparison that gives a zero-row assertion any meaning.
+     * The handle's `token` stays the owner's, which is what a caller reads the same data back with.
      *
      * @param {object} opts
      * @param {string[]} opts.permissions - Host permission keys granted to the role, verbatim; this
@@ -345,9 +322,8 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
             `createRestrictedUser: POST ${path} failed (${res.status}): ${res.text || "<empty body>"}`,
           );
         }
-        // The shared client reports an unparseable body as `undefined` json, which every other
-        // caller treats as "nothing returned". Here a missing object is a failure: the ids read out
-        // of it are what the rest of this helper is built on.
+        // The shared client reports an unparseable body as `undefined` json, which every other caller
+        // reads as "nothing returned". Here it is a failure: the rest of this helper needs the ids.
         if (res.text && res.json === undefined) {
           throw new Error(
             `createRestrictedUser: POST ${path} answered ${res.status} with a body that is not JSON: ${res.text}`,
@@ -364,9 +340,8 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
       const roleId = requireId(role, "id", `createRestrictedUser: POST /api/roles`);
 
       for (const entityKind of denyReadEntityKinds) {
-        // The vocabulary is the host's own (ContentRuleService's valid effect/scope/appliesTo sets);
-        // it is lowercase there and matched case-insensitively, so it is written that way here rather
-        // than in an invented uppercase form. An empty ScopeValue is normalised to `{}` by the host,
+        // The vocabulary is the host's own (ContentRuleService's valid effect/scope/appliesTo sets),
+        // lowercase there and matched case-insensitively. An empty ScopeValue is normalised to `{}`,
         // which is what a scope of "all" wants.
         await asOwner("/api/content-rules", {
           RoleId: roleId,

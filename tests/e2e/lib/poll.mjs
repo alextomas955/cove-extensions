@@ -1,23 +1,22 @@
-// The one retry loop in this harness. Some Cove/extension write paths (job completion, undo's DB
+// The one retry loop in this harness. Some Cove and extension write paths (job completion, undo's DB
 // write) are not read-your-writes on the very next request, and a restarted container answers before
-// its host-side port binding is back. Poll instead of sleeping a fixed duration: fixed sleeps are
-// either flaky (too short) or slow every run for no reason (too long).
+// its host-side port binding is back. A fixed sleep is not the alternative: it is either too short
+// and flaky, or too long and slow on every run.
 
 /**
  * Runs `attempt` until it settles or the deadline passes.
  *
  * `attempt` receives a per-attempt `AbortSignal` and a `note` callback, and returns `{ value }` to
- * settle or anything falsy to be retried. The signal is load-bearing: the deadline is consulted only
- * BETWEEN attempts and Node's fetch applies no timeout of its own, so one call that never settles
- * would keep the loop from ever re-testing it. Docker's userland port proxy makes that concrete by
- * accepting the TCP connection while the app behind it is still starting.
+ * settle or anything falsy to be retried. The signal matters because the deadline is consulted only
+ * BETWEEN attempts and Node's fetch applies no timeout of its own, so a call that never settles would
+ * keep the loop from re-testing it — which Docker's userland port proxy makes reachable, by accepting
+ * the TCP connection while the app behind it is still starting.
  *
  * Returns `{ settled, value, note }` rather than throwing, so each caller raises an error naming its
  * own operation. `note` carries whatever the last attempt recorded about itself.
  *
- * `timeoutMs` is required, because how long an operation may take is a property of the instance
- * under test rather than of this loop. It is rejected rather than coerced: a non-finite deadline
- * exits before the first attempt, and a gate that inspected nothing must say so.
+ * A non-finite `timeoutMs` throws rather than being coerced: it would exit the loop before the first
+ * attempt, so the gate would report a timeout it never ran.
  *
  * @param {(signal: AbortSignal|undefined, note: (text: string) => void) => Promise<{value: unknown}|null|undefined>} attempt
  * @param {{timeoutMs: number, intervalMs: number, attemptTimeoutMs?: number, label: string}} options

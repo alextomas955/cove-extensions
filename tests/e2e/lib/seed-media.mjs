@@ -1,8 +1,9 @@
-// Seeds a real, disposable test media file into a running harness instance and registers it with
-// Cove via the real API, so Renamer's planner has a genuine file+DB row to act on. Cove requires
-// an on-disk file for video/image import (no "create a fake row with no file" endpoint exists) —
-// copying a tiny real fixture via the container's own copyFilesToContainer (not a host bind-mount)
-// keeps this environment-independent.
+// Seeds a disposable media file into a running instance and registers it through Cove's own import
+// API, so a spec has a genuine file plus DB row to act on.
+//
+// Cove has no "create a row with no file" endpoint: video and image import require the file to exist
+// on disk first. The copy goes through the container's own API rather than a host bind-mount, so the
+// host's Docker file-sharing configuration does not enter into it.
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";

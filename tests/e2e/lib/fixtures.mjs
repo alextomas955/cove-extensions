@@ -1,6 +1,5 @@
-// Playwright fixture wiring the harness lifecycle into `test`. One harness instance per worker
-// (not per test) — booting a fresh Cove container per test would make suites slow; instead each
-// test is responsible for using its own uniquely-named seed data so tests don't collide.
+// Playwright fixture wiring the harness lifecycle into `test`. One harness instance per WORKER, not
+// per test, so each test must name its own seed data uniquely or collide with its neighbours.
 //
 // Usage in a test file:
 //   import { test, expect } from '../../lib/fixtures.mjs';
@@ -10,31 +9,25 @@ import { test as base, expect } from "@playwright/test";
 import { startHarness } from "./harness.mjs";
 import { createApiClient } from "./apiClient.mjs";
 
-// Re-exported so a spec keeps one import site for everything the fixtures module offers; the client
-// itself lives in its own module because harness.mjs uses it too and importing it from here would
-// close a cycle.
+// Re-exported so a spec has one import site for everything the fixtures module offers.
 export { createApiClient };
 
 /**
  * A per-TEST harness fixture with `extension` already installed — its own Cove instance, torn down
  * after the test.
  *
- * Use it for a test that changes a GLOBAL extension setting, or the extension's installed state:
- * the worker-scoped `harness` above is shared, so such a change leaks into every other test in that
- * worker and silently alters their behaviour. It costs a container boot per test, so reach for it
- * only when isolation is the point.
- *
- * Takes the extension rather than closing over one, so this stays extension-agnostic; each
- * extension's own fixtures module binds it (see `renamer-fixtures.mjs`).
+ * Use it for a test that changes a GLOBAL extension setting, or the extension's installed state. The
+ * worker-scoped `harness` is shared, so such a change leaks into every other test in that worker and
+ * silently alters its behaviour. This costs a container boot per test.
  */
 export function isolatedHarnessFixture(extension) {
   return [
     async ({}, use) => {
-      // The container pair exists from startHarness() onward, so every later step is inside the
-      // try: a bootstrap or install failure would otherwise unwind past stop() and strand a Cove
-      // instance, a Postgres instance and their compose network until Ryuk reaps them. Enough of
-      // those in one run exhausts Docker's address pool, which fails later tests for a reason that
-      // names neither this fixture nor the test that actually broke.
+      // The container pair exists from startHarness() onward, so every later step belongs inside the
+      // try: a bootstrap or install failure would unwind past stop() and strand a Cove instance, a
+      // Postgres instance and their compose network until Ryuk reaps them. Enough of those in one run
+      // exhausts Docker's address pool, and the tests that then fail name neither this fixture nor
+      // the one that actually broke.
       const isolatedHarness = await startHarness();
       try {
         isolatedHarness.owner = await isolatedHarness.bootstrapOwner();
@@ -55,9 +48,8 @@ export const test = base.extend({
     async ({}, use) => {
       const harness = await startHarness();
       // Cove's frontend hard-gates the ENTIRE app behind a first-run setup wizard until an owner
-      // account exists — there is no way to dismiss it otherwise (confirmed directly). Every
-      // browser-driven test needs this done once per instance, so it happens here rather than
-      // per-test. Runs even for API-only test files (cheap, harmless if the page fixture is unused).
+      // account exists, and that wizard cannot be dismissed. Every browser-driven test needs it done
+      // once per instance; an API-only file pays nothing it would notice.
       harness.owner = await harness.bootstrapOwner();
       await use(harness);
       await harness.stop();
@@ -73,16 +65,13 @@ export const test = base.extend({
   },
 
   page: async ({ page, baseUrl }, use) => {
-    // Two independent gates hide the real app behind a first-run wizard (App.tsx `showSetupWizard`):
-    // `ownerMissing` (fixed by bootstrapOwner() in the `harness` fixture — confirmed via GET
-    // /api/auth/bootstrap-status returning ownerExists:true after it runs) and `needsSetup`, which
-    // the host may raise for its own reasons on a container whose library is empty. Pre-seeding the
-    // dismissal covers that second gate without depending on why it was raised. `needsSetup` is
-    // gated on
-    // `!setupDismissed`, and `setupDismissed` is a plain `useState` seeded from
-    // `sessionStorage.getItem("cove-setup-dismissed")` — pre-seeding it via addInitScript (so it's
-    // present before the app's first render, matching how a returning user who already dismissed
-    // it would experience it) avoids depending on a wizard button existing/working at all.
+    // Two independent gates hide the real app behind the first-run wizard (App.tsx
+    // `showSetupWizard`). `ownerMissing` is closed by the `harness` fixture's bootstrapOwner().
+    // `needsSetup` the host may raise for its own reasons on a container whose library is empty, and
+    // it is gated on `!setupDismissed` — a plain `useState` seeded from
+    // `sessionStorage.getItem("cove-setup-dismissed")`. Seeding that key here lands it before the
+    // app's first render, so no wizard button has to exist or work, and the reason the host raised
+    // the gate does not matter.
     await page.addInitScript(() => {
       sessionStorage.setItem("cove-setup-dismissed", "true");
     });
@@ -90,12 +79,11 @@ export const test = base.extend({
     await use(page);
   },
 
-  // Reads both the address and the credential through the handle rather than taking either as a
-  // value: `installExtension` restarts the instance, which re-mints the token and can republish the
-  // container on a different host port, and a spec may restart again mid-test.
+  // Both are read through the handle as getters, for the reason createApiClient documents: a restart
+  // re-mints the token and can republish the container on a different host port.
   //
-  // `baseUrl` is depended on but not read — it is the fixture that installs the extension, and an
-  // api client handed out ahead of that install would address an instance without it.
+  // `baseUrl` is depended on but not read. It is the fixture that installs the extension, so a
+  // client handed out ahead of it would address an instance without the extension.
   api: async ({ harness, baseUrl: _baseUrl }, use) => {
     await use(
       createApiClient(
@@ -110,12 +98,9 @@ export const test = base.extend({
  * Signs in through Cove's own login form, the way a user does, so the host frontend populates its
  * own auth store and every later request the app makes carries a real credential.
  *
- * There is nothing to navigate to: the auth gate renders the login form IN PLACE of the app (a
- * render branch, not a route), so the page only has to already be on the base URL. Defaults match
- * `bootstrapOwner`'s. Returns the login response status, which the caller may record.
- *
- * Waits on the login response rather than on browser storage: it names the failure ("login answered
- * 401") instead of timing out on a symptom, and it does not depend on which view renders next.
+ * There is nothing to navigate to: the auth gate renders the login form IN PLACE of the app, as a
+ * render branch rather than a route, so the page only has to be on the base URL already. Defaults
+ * match `bootstrapOwner`'s.
  */
 export async function loginThroughUi(
   page,
@@ -136,7 +121,7 @@ export async function loginThroughUi(
     `POST /api/auth/login answered ${response.status()} — the browser is not authenticated, so anything asserted after this would be measuring the wrong thing`,
   ).toBe(200);
 
-  // Only now the form's own unmount, which is the gate handing the app over.
+  // The form's unmount is what confirms the app rendered in its place.
   await expect(page.locator("#login-username")).toHaveCount(0);
 
   return response.status();

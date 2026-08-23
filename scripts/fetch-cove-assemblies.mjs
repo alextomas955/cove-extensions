@@ -400,10 +400,9 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
  * `minCoveVersion` is NOT a catalog field — it lives in the manifest the catalog's `manifestPath`
  * points at. Nothing here names an extension: a second one needs a catalog entry and no edit.
  *
- * `select` narrows which entries are read AT ALL, which is stronger than filtering the result: a
- * manifest that is absent or declares no floor throws, so an entry a caller does not care about
- * would otherwise be able to fail that caller. Omitted, every entry is read — what the CI version
- * matrix wants, since it resolves legs for the whole catalog.
+ * `select` narrows which entries are read AT ALL, not which results come back: a manifest that is
+ * absent or declares no floor throws, so an entry a caller does not care about could otherwise fail
+ * that caller. Omitted, every entry is read, which is what the CI version matrix wants.
  *
  * @param {(entry: object) => boolean} [select]
  * @param {string} [catalogPath]

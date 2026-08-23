@@ -109,7 +109,7 @@ function entryManifestPath(absoluteRoot, entry) {
  * The manifest file `assemblePackage` would ship for `idOrName`, or null when no entry matches.
  *
  * Exported so a caller that reads a manifest by some other route can assert the two are the same
- * file, rather than discovering the divergence as a package built under the wrong identity.
+ * file.
  */
 export function resolveEntryManifestPath(root, idOrName) {
   const absoluteRoot = path.resolve(root);

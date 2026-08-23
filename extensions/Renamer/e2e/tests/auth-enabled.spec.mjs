@@ -1,14 +1,12 @@
 // Covers the harness against an instance that actually enforces authentication.
 //
 // Every other spec in this suite runs with `COVE__Auth__Enabled=false`, where the host resolves each
-// request to a bypass principal holding every permission. That makes them blind to a whole class of
-// harness defect: any bootstrap or poll that reaches a permission-gated route without a credential
-// still succeeds there, and fails only once a deployment turns authentication on. Turning it on is
-// instance-global, so this file provisions its own instance per test rather than sharing the
-// worker's.
+// request to a bypass principal holding every permission. That leaves them blind to one class of
+// harness defect: a bootstrap or poll that reaches a permission-gated route without a credential
+// still succeeds there, and fails only once a deployment turns authentication on.
 //
-// What each assertion is here to falsify is stated at the assertion, because a green run against an
-// auth-DISABLED instance would look identical while proving nothing.
+// Turning it on is instance-global, so this file provisions its own instance per test rather than
+// sharing the worker's.
 import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
@@ -33,8 +31,8 @@ test("an auth-enabled instance can be bootstrapped and then driven with the owne
   authHarness,
 }) => {
   // The bootstrap itself is the subject. On an auth-enabled instance there is no credential yet and
-  // no owner to mint one from, so any step here that consults a permission-gated route cannot
-  // succeed — it can only spend the startup budget and fail.
+  // no owner to mint one from, so any step inside it that consults a permission-gated route cannot
+  // succeed.
   authHarness.owner = await authHarness.bootstrapOwner();
   expect(authHarness.token, "bootstrapOwner returned without minting a token").toBeTruthy();
 
@@ -44,9 +42,8 @@ test("an auth-enabled instance can be bootstrapped and then driven with the owne
     () => authHarness.token,
   );
 
-  // Proves the instance is genuinely enforcing authentication. Without this the rest of the file
-  // would pass unchanged against the auth-off default, where every route answers a bypass principal
-  // — a spec that cannot fail for the reason it exists.
+  // The discriminating control: without it, everything below would pass unchanged against the
+  // auth-off default, where every route answers a bypass principal.
   const anonymousRead = await anonymous.get("/api/extensions");
   expect(
     anonymousRead.status,

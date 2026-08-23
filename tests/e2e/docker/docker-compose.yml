@@ -3,14 +3,12 @@
 # Never touches the developer's local native Cove install (%LOCALAPPDATA%\cove / COVE_HOME) — all
 # state is ephemeral, scoped to this compose project, and removed on teardown.
 #
-# Extension install: NOT a host bind-mount. Host bind-mounts depend on the host's Docker file-
-# sharing configuration (e.g. Docker Desktop's drive-sharing allowlist on Windows) — a test suite
-# that only works when the host happens to have the right drive shared is not something every
-# contributor or CI runner can rely on. Instead, `lib/install-extension.mjs` stages the extension
-# on the host, then copies it into the running container's /config/extensions/<id>/ via
-# Testcontainers' own container API (see `lib/harness.mjs`), which works identically regardless of
-# host file-sharing config. This is the same on-disk shape Cove's own bind-mount install method
-# produces (cove/docker/README.md) — only the delivery mechanism differs.
+# Extension install is NOT a host bind-mount. A bind-mount depends on the host's Docker file-sharing
+# configuration (on Windows, Docker Desktop's drive-sharing allowlist), so the suite would run only
+# where the right drive happens to be shared. `lib/install-extension.mjs` stages the extension on the
+# host and copies it into the running container's /config/extensions/<id>/ through Testcontainers'
+# own container API instead. The on-disk shape is the one Cove's bind-mount install produces
+# (cove/docker/README.md); only the delivery differs.
 #
 # Not driven directly via `docker compose` CLI — `lib/harness.mjs`'s `startHarness()` (Testcontainers'
 # DockerComposeEnvironment) is the actual entry point; see tests/e2e/README.md.
@@ -53,19 +51,18 @@ services:
       COVE__GeneratedPath: /generated
       COVE__CachePath: /cache
       COVE__BackupPath: /backups
-      # The two media directories, declared as Cove's own library paths. Cove seeds none by default
-      # and the specs create their file rows through /api/videos/from-file — an import that takes an
-      # explicit path and never consults this list — so without these the instance ran with NO library
-      # path at all, which no real install does. That gap is not cosmetic: an extension asking "which
-      # library path holds this file" gets no answer here and behaves as it would for a file genuinely
-      # outside the library, which is a different code path from the one the specs mean to drive.
-      # /data2 is listed beside /data because the cross-device spec moves files there.
+      # The two media directories, declared as Cove's own library paths. Cove seeds none by default,
+      # and /api/videos/from-file takes an explicit path without consulting this list, so without
+      # these the instance runs with NO library path — which no real install does. An extension
+      # asking which library path holds a file then gets no answer, and behaves as it would for a
+      # file genuinely outside the library, a different code path from the one the specs drive.
+      # /data2 is listed because the cross-device spec moves files there.
       COVE__CovePaths__0__Path: /data
       COVE__CovePaths__1__Path: /data2
-      # Authentication is OFF by default: every existing spec runs against the bypass principal and
-      # must keep doing so. A suite that needs a real credential flow opts in per instance with
-      # `startHarness({ env: { COVE_E2E_AUTH_ENABLED: 'true' } })` — flipping it is instance-global,
-      # so it belongs to an isolated harness, never to a worker-shared one.
+      # Authentication is OFF by default, which is what every spec but the auth one runs against. A
+      # spec needing a real credential flow opts in with
+      # `startHarness({ env: { COVE_E2E_AUTH_ENABLED: 'true' } })`. The flip is instance-global, so it
+      # belongs to an isolated harness and never to a worker-shared one.
       COVE__Auth__Enabled: "${COVE_E2E_AUTH_ENABLED:-false}"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5073/health"]

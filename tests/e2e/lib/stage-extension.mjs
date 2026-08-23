@@ -1,10 +1,9 @@
 // Stages an extension into a folder shaped the way Cove's bind-mount install expects:
 // <stagingRoot>/<extensionId>/{extension.json, *.dll, index.mjs, ...}.
 //
-// The staged folder is produced by the repo's own package assembler, the same one a release and a
-// local dev deploy run, so what a test installs is the declared package rather than an approximation
-// of it — a file that would not ship cannot reach a passing test, and one that must ship cannot be
-// missing from it.
+// The folder is produced by the repo's own package assembler, the same one a release and a local dev
+// deploy run, so a test installs the declared package: a file that would not ship cannot reach a
+// passing test, and one that must ship cannot be missing from it.
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { assemblePackage, resolveEntryManifestPath } from "../../../scripts/assemble-package.mjs";
@@ -25,11 +24,10 @@ export function stageExtension({ repoRoot, publishDir, manifestPath, stagingRoot
     throw new Error(`stageExtension: manifest at ${manifestPath} has no "version" field`);
   }
 
-  // The manifest read above names the staged directory and stamps the version, but assemblePackage
-  // resolves the manifest to SHIP independently, from the catalog entry's own manifestPath. Two
-  // readers of one fact: let them diverge and the container receives a directory named for this
-  // manifest's id holding the other one's document, with nothing failing. Asserting they are the
-  // same file is what keeps the second reader from being a second declaration.
+  // The manifest read above names the staged directory and stamps the version, while assemblePackage
+  // resolves the manifest to SHIP independently, from the catalog entry's own manifestPath. Should
+  // those two diverge, the container receives a directory named for this manifest's id holding the
+  // other one's document, and nothing fails.
   const packagedManifestPath = resolveEntryManifestPath(repoRoot, manifest.id);
   if (packagedManifestPath === null) {
     throw new Error(

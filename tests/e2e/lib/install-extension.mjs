@@ -1,10 +1,8 @@
-// Installs a staged extension into a running Testcontainers-managed container, sidestepping host
-// bind-mount file-sharing configuration entirely — this must work identically on any contributor's
-// machine and any CI runner, not just ones with a particular Docker Desktop drive-sharing setup.
+// Copies a staged extension into `/config/extensions/<id>` in a running container, which mirrors
+// Cove's own bind-mount install without the mount: the host's Docker file-sharing configuration
+// never enters into it, so this behaves the same on any contributor's machine and any CI runner.
 //
-// One install path: copies files into /config/extensions/<id>, requiring a
-// container (re)start to be discovered (mirrors Cove's own bind-mount install method, minus the
-// mount).
+// Cove discovers what is there at startup, so the container must be (re)started afterwards.
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

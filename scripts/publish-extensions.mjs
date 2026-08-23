@@ -1,15 +1,11 @@
-// Produces the build output the E2E harness installs, for every extension the catalog declares an
-// e2e suite for — the natural pair of assemble-package.mjs, which consumes a publishDir and refuses
-// a missing one.
+// Produces the build output the E2E harness installs, for every extension whose catalog entry
+// declares an e2e suite. assemble-package.mjs consumes that output and refuses a missing one.
 //
-// Nothing else in the repository produces it: the only other producers are the `dotnet publish`
-// steps in build.yml, which a local checkout never runs, so a fresh clone could not run the harness.
+// The only other producers are the `dotnet publish` steps in build.yml, which a local checkout never
+// runs, so without this a fresh clone cannot run the harness. It is wired as tests/e2e's `pretest`.
 //
-// Wired as tests/e2e's `pretest`, so the prerequisite is satisfied by mechanism rather than by a
-// reader remembering a README line.
-// Catalog-driven, and no extension is named anywhere below. The selection predicate is the one
-// playwright.config.mjs derives its projects from, so an extension that gains an e2e suite gains its
-// publish step with no edit here.
+// No extension is named below. The selection predicate is the one playwright.config.mjs derives its
+// projects from, so an extension that gains an e2e suite gains its publish step with no edit here.
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -21,9 +17,9 @@ import { checkRelativePath } from "./catalog-paths.mjs";
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const catalogPath = path.join(repoRoot, "extensions", "catalog.json");
 
-// Where the output has to land is not this script's choice: tests/e2e/lib/resolve-extension.mjs derives
-// <extension>/artifacts/publish from an extension's own fixtures module, and the harness looks nowhere
-// else. Publishing anywhere else would leave the harness failing exactly as it did before.
+// Where the output lands is not this script's choice: tests/e2e/lib/resolve-extension.mjs derives
+// <extension>/artifacts/publish from an extension's own fixtures module, and the harness looks
+// nowhere else.
 const PUBLISH_SEGMENTS = ["artifacts", "publish"];
 
 // Built from its code point rather than written as a literal, so this file's own source stays plain
@@ -36,9 +32,9 @@ function readCatalogEntries() {
   return Array.isArray(catalog.extensions) ? catalog.extensions : [];
 }
 
-// No shell, so an argument stays one argv element and never becomes text something else parses. stdio is
-// inherited rather than piped: the child's own output is the log, and a status read off the end of a
-// pipe is the classic way a failure gets reported as a success.
+// No shell, so an argument stays one argv element and never becomes text something else parses. stdio
+// is inherited rather than piped: the child's own output is the log, and a status read off the end of
+// a pipe is the pipe's, not the child's.
 function run(command, args, cwd, label) {
   const result = spawnSync(command, args, { cwd, stdio: "inherit" });
   if (result.error) {
@@ -83,10 +79,9 @@ function publishEntry(entry, label) {
 
   console.log(`publish-extensions: ${label} -> ${path.relative(repoRoot, publishDir)}`);
 
-  // Emptied before publishing, not merely published into. `dotnet publish` overwrites what it produces
-  // and deletes nothing else, so a file from an earlier build survives — and a manifest left behind by a
-  // reverted change is exactly how a spec pinning what an extension ships reddens as a regression that
-  // does not exist. Cleaning removes that failure mode instead of leaving it to be remembered.
+  // Emptied before publishing, not merely published into. `dotnet publish` overwrites what it
+  // produces and deletes nothing else, so a file from an earlier build survives — and a stale
+  // manifest is enough to redden a spec that pins what an extension ships.
   fs.rmSync(publishDir, { recursive: true, force: true });
 
   // Mirrors the e2e job's own publish step in .github/workflows/build.yml, flags included. CoveSourceMode
@@ -118,9 +113,8 @@ function publishEntry(entry, label) {
       return `no npm CLI could be located, so the UI bundle cannot be built; looked at: ${candidates.join(", ")}`;
     }
 
-    // `npm ci` only when the UI has no install yet, which is the fresh-checkout half of this fix.
-    // Running it on every invocation would reinstall a tree the developer already owns and keeps
-    // current; an absent one is nobody's, and its absence is the failure this branch exists for.
+    // `npm ci` only when the UI has no install yet, which is the fresh-checkout case. Running it
+    // every time would reinstall a tree the developer already owns and keeps current.
     if (!fs.existsSync(path.join(uiDir, "node_modules"))) {
       const installFailure = run(
         process.execPath,
@@ -153,8 +147,8 @@ function main() {
     `publish-extensions: examined ${entries.length} catalog entries, of which ${selected.length} declared both e2ePath and e2eProject.`,
   );
 
-  // The refusal playwright.config.mjs makes, for the same reason: a publish step that published nothing
-  // and exited 0 reads as a satisfied prerequisite while providing none.
+  // The same refusal playwright.config.mjs makes: a publish step that published nothing and exited 0
+  // reads as a satisfied prerequisite while providing none.
   if (selected.length === 0) {
     console.error(
       `publish-extensions: nothing to publish — examined ${entries.length} catalog entries, of which 0 declared both e2ePath and e2eProject.`,
