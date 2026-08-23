@@ -401,24 +401,6 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     },
   };
 
-  // The access token is `token` — NOT `accessToken`. Reading the wrong field yields
-  // `Bearer undefined`, which the host rejects identically to sending no header at all, so a spec
-  // would go red for a broken fixture rather than for the behavior it means to prove. Asserted here,
-  // at the one place any login response's field name is spelled, so that failure names itself.
-  //
-  // Returns the token instead of storing it: the handle's `token` is the owner's by contract, and a
-  // helper that mints a second, deliberately less privileged one must not be able to overwrite it —
-  // silently swapping the owner's credential for a restricted one turns every later fixture call into
-  // a permission failure a long way from its cause.
-  function readToken(response, source) {
-    if (typeof response?.token !== "string" || response.token.length === 0) {
-      throw new Error(
-        `${source}: response carried no usable token (top-level keys: ${Object.keys(response ?? {}).join(", ") || "<none>"})`,
-      );
-    }
-    return response.token;
-  }
-
   return handle;
 }
 
@@ -530,11 +512,23 @@ async function tailContainerLog(container, { lines = 60, timeoutMs = 5000 } = {}
 function requireId(payload, field, source) {
   const value = payload?.[field];
   if (typeof value !== "number") {
-    throw new Error(
+    throw new TypeError(
       `${source}: response carried no numeric "${field}" (top-level keys: ${Object.keys(payload ?? {}).join(", ") || "<none>"})`,
     );
   }
   return value;
+}
+
+// The access token is `token`, NOT `accessToken`: the wrong field yields `Bearer undefined`, which
+// the host rejects exactly as it rejects no header at all. Returns the token rather than storing it,
+// so a helper minting a deliberately under-privileged one cannot overwrite the owner's.
+function readToken(response, source) {
+  if (typeof response?.token !== "string" || response.token.length === 0) {
+    throw new TypeError(
+      `${source}: response carried no usable token (top-level keys: ${Object.keys(response ?? {}).join(", ") || "<none>"})`,
+    );
+  }
+  return response.token;
 }
 
 // The restart's own wait strategy is a health check, but that probe runs INSIDE the container and
