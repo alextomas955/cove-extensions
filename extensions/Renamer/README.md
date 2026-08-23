@@ -60,8 +60,9 @@ need to build or commit the bundle for a normal source change.
 
 ## Local dev deploy
 
-`scripts/deploy-dev.ps1` runs the full build → strip-verify → frontend-build → deploy → restart
-loop against a local Cove dev instance (Windows). It builds against a local sibling `../cove`
+`scripts/deploy-dev.ps1` runs the full build → frontend-build → assemble → deploy → restart
+loop against a local Cove dev instance (Windows). The assemble step is the shared
+`scripts/assemble-package.mjs`, so the package it deploys is the package a release ships. It builds against a local sibling `../cove`
 checkout (or `$COVE_REPO`) so the extension is ABI-identical to the running host.
 
 ## Releasing

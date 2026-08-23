@@ -27,9 +27,9 @@ old single-extension-repo scheme, which used a flat `v*` tag with no extension p
     `versionSourcePath` — not hardcoded to one extension. Adding a new extension's release
     capability requires only a correct `catalog.json` entry; the workflow logic itself does not
     need editing.
-  - The strip-verify gate (no host-provided assemblies, no leaked absolute paths) runs on every
-    build, before packaging, for every extension in the matrix — so any asset that reaches a
-    release has already passed it.
+  - Packaging copies only the names the entry's `artifacts` array declares, so whatever else the
+    build emits alongside them — debug symbols, XML docs, a host-provided assembly — cannot reach
+    a release. Every shipped `.json` is also refused if it carries an absolute path.
   - The packaged `extension.json` has its `version` field stamped with the tag's version before
     zipping, so the shipped manifest always agrees with the release it came from.
 - **release** — triggers only on a tag push, downloads every build job's artifact, and attaches
