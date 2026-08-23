@@ -14,6 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
+import { checkRelativePath } from "./catalog-paths.mjs";
 
 // import.meta.dirname, never a filesystem path read off a module URL's path component: on Windows that
 // yields a leading-slash form which resolves to a doubled drive prefix.
@@ -33,26 +34,6 @@ function readCatalogEntries() {
   const text = fs.readFileSync(catalogPath, "utf8");
   const catalog = JSON.parse(text.startsWith(BYTE_ORDER_MARK) ? text.slice(1) : text);
   return Array.isArray(catalog.extensions) ? catalog.extensions : [];
-}
-
-// A catalog path field is repo-relative by contract, and this checks that before the value is used
-// rather than after. This script empties a directory it derives from these fields, and a path that
-// escapes the repository cannot be made safe by happening to resolve somewhere harmless — the reasoning
-// assemble-package.mjs states at greater length, having been written after a path-math slip wiped a
-// source tree.
-function checkRelativePath(field, value) {
-  if (typeof value !== "string" || value === "") {
-    return `${field} must be a non-empty string, found: ${JSON.stringify(value)}`;
-  }
-  // path.isAbsolute answers for the platform it runs on, so the drive-letter form is tested separately:
-  // a Windows-absolute value is not absolute to a Linux runner and would otherwise pass here.
-  if (path.isAbsolute(value) || /^[A-Za-z]:/.test(value)) {
-    return `${field} must be repo-relative, found an absolute path: ${value}`;
-  }
-  if (value.split(/[/\\]/).includes("..")) {
-    return `${field} must contain no ".." segment, found: ${value}`;
-  }
-  return null;
 }
 
 // No shell, so an argument stays one argv element and never becomes text something else parses. stdio is

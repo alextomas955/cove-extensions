@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { checkRelativePath } from "../../scripts/catalog-paths.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, "..", "..");
@@ -21,7 +22,15 @@ const catalog = JSON.parse(
 const catalogEntries = Array.isArray(catalog.extensions) ? catalog.extensions : [];
 const e2eProjects = catalogEntries
   .filter((entry) => entry.e2ePath && entry.e2eProject)
-  .map((entry) => ({ name: entry.e2eProject, testDir: join(repoRoot, entry.e2ePath, "tests") }));
+  .map((entry) => {
+    // Validated before the join, not after: an absolute or `..`-bearing value silently relocates
+    // testDir outside the checkout, where the run either collects specs nobody reviewed or collects
+    // nothing at all — and collecting nothing still passes the guard below, because the entry itself
+    // resolved. Same contract, same check, as every other reader of a catalog path field.
+    const reason = checkRelativePath(`catalog entry ${entry.e2eProject}'s e2ePath`, entry.e2ePath);
+    if (reason) throw new Error(`Refusing to derive a Playwright project: ${reason}`);
+    return { name: entry.e2eProject, testDir: join(repoRoot, entry.e2ePath, "tests") };
+  });
 
 // A runner configured with no projects collects nothing and still exits 0, so a mis-shaped catalog
 // would read as a green E2E tier that inspected nothing.
