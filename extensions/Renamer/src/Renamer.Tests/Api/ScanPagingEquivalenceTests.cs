@@ -10,7 +10,7 @@ namespace Renamer.Tests.Api;
 /// The proof the whole store-aggregates-serve-rows-on-demand design rests on: a paged walk must return
 /// exactly what a single full-library plan would have returned, so that serving a slice on demand is not
 /// a different answer from the one the old whole-library pass produced. It holds because
-/// <see cref="RenamerPlanner.PlanLoadedEntity"/> carries no cross-entity state; the one place a same-run
+/// <see cref="RenamerPlanner.PlanLoadedEntityAsync"/> carries no cross-entity state; the one place a same-run
 /// coupling could have hidden is the collision suffix loop, and that resolves against the database
 /// rather than against this run's own planned targets, so the answer does not depend on which entities
 /// happen to share a page. Two entities in ONE run that would collide with each other are consequently
@@ -32,13 +32,14 @@ public sealed class ScanPagingEquivalenceTests
     // Per-platform roots keep the resolved target equal to the path the route asked for.
     private static readonly string LibRoot = OperatingSystem.IsWindows() ? "C:/lib" : "/lib";
     private static readonly string DestRoot = OperatingSystem.IsWindows() ? "C:/dest" : "/dest";
-    private static readonly string RoutedDest = $"{DestRoot}/routed";
+    private static readonly Destination RoutedDest = Dests.At(DestRoot, "routed");
+    private static readonly string RoutedDestPath = $"{DestRoot}/routed";
 
     /// <summary>
     /// A title-only filename template with a studio-driven folder, so one fixture reaches both an
     /// in-place rename and a folder move; the allowed roots admit the source tree and the routed one.
-    /// The only-organized gate is on so an unorganized entity reaches the gate branch — an empty title
-    /// would not, because <see cref="RenamerOptions.FilenameAsTitle"/> falls back to the basename.
+    /// The gate branch is reached through the only-organized gate rather than through a missing title,
+    /// which keeps it independent of what <see cref="RenamerOptions.FilenameAsTitle"/> defaults to.
     /// </summary>
     private static readonly RenamerOptions Options = new()
     {
@@ -48,12 +49,15 @@ public sealed class ScanPagingEquivalenceTests
         OnlyOrganized = true,
     };
 
+    private const int RoutedTagId = 71;
+    private const int SkipTagId = 72;
+
     private static readonly RouteLookups Lookups = new(
-        StudioIdToDest: new Dictionary<int, string>(),
-        TagNameToDest: new Dictionary<string, string> { ["routed"] = RoutedDest },
-        PathExactToDest: new Dictionary<string, string>(),
+        StudioIdToDest: new Dictionary<int, Destination>(),
+        TagIdToDest: new Dictionary<int, Destination> { [RoutedTagId] = RoutedDest },
+        PathExactToDest: new Dictionary<string, Destination>(),
         PathRegexRules: [],
-        ExcludeTagNames: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "skipme" });
+        ExcludeTagIds: new HashSet<int> { SkipTagId });
 
     /// <summary>
     /// Seeds a fixture that reaches every planner branch: a plain rename, a multi-file rename, a folder
@@ -63,6 +67,8 @@ public sealed class ScanPagingEquivalenceTests
     private static FakeRenamerDataPort BuildFixture()
     {
         var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot(LibRoot);    // the anchor a default-destination folder template resolves against
+        port.SeedLibraryRoot(DestRoot);   // the routed rule chooses this one, so it must still be a library path
 
         foreach (var kind in AllKinds)
         {
@@ -83,7 +89,7 @@ public sealed class ScanPagingEquivalenceTests
                 string? title = $"Title{id}";
                 string? studio = null;
                 bool organized = true;
-                var tags = new List<string>();
+                var tagRefs = new List<(int Id, string Name)>();
                 string basename = $"raw{id}.mkv";
                 int fileCount = 1;
 
@@ -98,7 +104,7 @@ public sealed class ScanPagingEquivalenceTests
                         basename = $"Title{id}.mkv";                  // already at its computed destination
                         break;
                     case 4:
-                        tags.Add("skipme");                           // excluded
+                        tagRefs.Add((SkipTagId, "skipme"));           // excluded
                         break;
                     case 5:
                         organized = false;                            // fails the only-organized gate
@@ -113,7 +119,7 @@ public sealed class ScanPagingEquivalenceTests
                         studio = "Acme";                              // folder template renders a subfolder
                         break;
                     default:
-                        tags.Add("routed");                           // routed to another root
+                        tagRefs.Add((RoutedTagId, "routed"));         // routed to another root
                         break;
                 }
 
@@ -126,7 +132,7 @@ public sealed class ScanPagingEquivalenceTests
 
                 port.SeedEntity(new RenamerEntity(
                     id, kind, title, Code: null, studio, Date: null, organized,
-                    Performers: [], Tags: tags, Files: files));
+                    Performers: [], TagRefs: tagRefs, Files: files));
             }
 
             // Seeded out of ascending order on purpose: the walk's order must come from the port's
@@ -160,8 +166,14 @@ public sealed class ScanPagingEquivalenceTests
             {
                 if (byId.TryGetValue(id, out var entity))
                 {
-                    var plan = await planner.PlanLoadedEntity(entity, Options, Lookups, default);
-                    rows.AddRange(plan.Items.Select(item => ScanRow.From(kind, plan.EntityId, item)));
+                    var plan = await planner.PlanLoadedEntityAsync(entity, Options, Lookups, default);
+                    // The overflow flag is sourced exactly as the pager sources it — the same predicate,
+                    // the same budget out of the same options, and no mount table on either side — so a
+                    // difference between the two sequences can only be the traversal, which is what this
+                    // class compares.
+                    rows.AddRange(plan.Items.Select(item => ScanRow.From(
+                        kind, plan.EntityId, item,
+                        BatchPreview.InFlightPathOverflows(item, Options.FullPathMax))));
                 }
             }
         }
@@ -216,14 +228,14 @@ public sealed class ScanPagingEquivalenceTests
         var rows = await FullPlanAsync(port);
 
         var statuses = rows.Select(r => r.Status).ToHashSet();
-        Assert.Contains(RenamerStatus.Renamer, statuses);
+        Assert.Contains(RenamerStatus.Rename, statuses);
         Assert.Contains(RenamerStatus.Move, statuses);
         Assert.Contains(RenamerStatus.NoOp, statuses);
         Assert.Contains(RenamerStatus.SkipExcluded, statuses);
         Assert.Contains(RenamerStatus.SkipGated, statuses);
         Assert.Contains(RenamerStatus.SkipMissingSource, statuses);
         Assert.Contains(rows, r => r.Suffixed);
-        Assert.Contains(rows, r => r.NewFullPath.StartsWith(RoutedDest, StringComparison.Ordinal));
+        Assert.Contains(rows, r => r.NewFullPath.StartsWith(RoutedDestPath, StringComparison.Ordinal));
         Assert.Contains(rows, r => r.NewFullPath.Contains("/Acme/", StringComparison.Ordinal));
     }
 

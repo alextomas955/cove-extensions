@@ -157,7 +157,7 @@ public abstract class ExtensionOpenApiDocumentTests
     // The catalog is the one place an extension's directory is written down. The walk up to it beats a
     // counted-out "..": the test assembly's depth below the repo root varies with configuration and
     // target framework.
-    private static (string Absolute, string Relative) ResolveDocumentPath(string extensionId)
+    protected static (string Absolute, string Relative) ResolveDocumentPath(string extensionId)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {

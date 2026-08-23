@@ -2,33 +2,7 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
 
-import {
-  filterByText,
-  isRegexValid,
-  isAbsolutePathShape,
-  extensionShapeAdvisory,
-} from "./primitivesLogic";
-
-const items = [{ name: "Alpha" }, { name: "beta" }, { name: "Gamma" }, { name: "alphabet" }];
-const byName = (item: { name: string }) => item.name;
-
-test("a blank query returns the full list in original order", () => {
-  assert.deepEqual(filterByText("", items, byName), items);
-  assert.deepEqual(filterByText("   ", items, byName), items);
-});
-
-test("the filter matches case-insensitively as a substring", () => {
-  const result = filterByText("alph", items, byName);
-  assert.deepEqual(result.map(byName), ["Alpha", "alphabet"]);
-});
-
-test("the query is trimmed before comparing", () => {
-  assert.deepEqual(filterByText("  gamma  ", items, byName).map(byName), ["Gamma"]);
-});
-
-test("a query that matches nothing returns an empty list", () => {
-  assert.deepEqual(filterByText("zzz", items, byName), []);
-});
+import { isRegexValid, isAbsolutePathShape, extensionShapeAdvisory } from "./primitivesLogic";
 
 test("a well-formed pattern is valid", () => {
   assert.deepEqual(isRegexValid("^C:/in/.*$"), { valid: true });

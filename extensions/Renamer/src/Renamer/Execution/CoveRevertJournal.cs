@@ -27,9 +27,8 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
     /// <summary>How many rows an undo reads at a time when it is not told otherwise.</summary>
     /// <remarks>
     /// A READ GRANULARITY, never a ceiling on what an undo restores: the run pages until a page comes
-    /// back empty, so the whole batch comes back however many pages that takes. Stopping at one page
-    /// instead would convert a hard failure into a silently partial undo. What limits how large a batch
-    /// can be at all is <see cref="IRevertJournal.MaxJournalledFiles"/>, applied before it opens.
+    /// back empty, so a batch of any size is restored in full. A cap would be the wrong shape here — it
+    /// converts a hard failure into a silently truncated answer, which is worse than the memory it saves.
     /// <para>
     /// 500 because it is the same number <see cref="JournalBlobMigration.LinesPerChunk"/> already uses
     /// for the other place journal rows are handled in bulk, so the codebase has one answer to "how many
@@ -50,11 +49,10 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
     /// weeks after, and a longer window recovers nothing a shorter one lost. One number that is always the
     /// same is also one number a panel can state plainly.
     /// <para>
-    /// What it bounds is how many BATCHES the table accumulates, which is the half
-    /// <see cref="IRevertJournal.MaxJournalledFiles"/> does not reach: the auto-renamer opens a batch per
-    /// metadata edit, so under a per-batch cap alone the table still grows with how much the library is
-    /// edited. A batch is either wholly inside the window or wholly gone, never partly — a sweep that
-    /// could leave half a batch would make a later undo quietly partial.
+    /// It bounds the journal in TIME rather than in row count. A row cap would convert a hard failure into a
+    /// silently truncated answer — a rename partly journalled reads exactly like one fully journalled, and
+    /// the undo that follows is quietly partial. Time cannot do that: a batch is either wholly inside the
+    /// window or wholly gone.
     /// </para>
     /// </remarks>
     public static readonly TimeSpan RetentionWindow = TimeSpan.FromDays(7);
@@ -69,11 +67,6 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
     // Minted here rather than by the database: an auto-numbering column would be provider-specific,
     // and the shipped schema has to run unchanged on every provider this extension is tested against.
     private long _lastSeq;
-
-    // Latched by SuppressAsync. The instance is shared by every parallel worker's executor, so latching
-    // it here is what makes "an over-cap batch writes no row" structural rather than a caller's
-    // discipline. Read and written under _writes with every other mutation.
-    private bool _suppressed;
 
     public CoveRevertJournal(DbContext db) => _db = db;
 
@@ -107,35 +100,11 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
         }
     }
 
-    public async Task SuppressAsync(CancellationToken ct = default)
-    {
-        await _writes.WaitAsync(ct);
-        try
-        {
-            _suppressed = true;
-
-            // Two set-based statements, never a materialized id list: how much the journal is holding is
-            // itself unbounded input, so a delete per batch or per row would make the refusal the
-            // O(library) work the refusal exists to avoid. Rows first, while their batch is still there.
-            await _db.Set<RevertRowEntity>().ExecuteDeleteAsync(ct);
-            await _db.Set<RevertBatchEntity>().ExecuteDeleteAsync(ct);
-        }
-        finally
-        {
-            _writes.Release();
-        }
-    }
-
     public async Task AppendAsync(RevertRow row, CancellationToken ct = default)
     {
         await _writes.WaitAsync(ct);
         try
         {
-            if (_suppressed)
-            {
-                return;
-            }
-
             var entity = new RevertRowEntity
             {
                 RunId = row.RunId,
@@ -155,8 +124,9 @@ public sealed class CoveRevertJournal : IRevertJournal, IDisposable
 
             await _db.SaveChangesAsync(ct);
 
-            // One context lives for the whole batch, so leaving each saved row tracked would make the
-            // change tracker grow with the batch; detaching keeps this instance's memory flat.
+            // Library size is unbounded input, so a whole-library rename appends unboundedly many rows
+            // through this one long-lived context. Leaving each saved row tracked would make the change
+            // tracker grow with the library; detaching keeps this instance's memory flat.
             _db.Entry(entity).State = EntityState.Detached;
         }
         finally

@@ -28,21 +28,21 @@ public static class MetadataProjector
     /// (so <c>$performers</c> rendering and the title-performer drop stay name-based).
     /// <c>performers</c>: the per-performer records carried alongside the names so the engine can
     /// order/filter performers by id/favorite/gender before the max-count limit.
+    /// <c>tagRefs</c>: the entity's <c>(int Id, string Name)</c> tag pairs, the tag counterpart of
+    /// <c>performers</c>, so the engine can apply the id-keyed tag whitelist/blacklist. Always present:
+    /// an entity cannot be constructed without them, and the engine's name-only arm belongs to the
+    /// preview samples, which have no entity behind them.
     /// </returns>
     public static (IReadOnlyDictionary<string, string> tokens,
                    IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
-                   IReadOnlyList<RenamerPerformer> performers)
+                   IReadOnlyList<RenamerPerformer> performers,
+                   IReadOnlyList<(int Id, string Name)> tagRefs)
         Project(RenamerEntity entity, RenamerFile file, RenamerOptions options)
     {
         var tokens = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         // --- Entity-level scalar tokens (omit when empty so {} groups degrade). ---
-        // The fallback derives the title from the CURRENT source basename without re-applying the
-        // template's own decorations, so re-projecting an already-renamed item yields the same title —
-        // no progressive re-append, no drift; a stable name then hits the executor's no-op-renamer skip.
-        var title = string.IsNullOrEmpty(entity.Title) && options.FilenameAsTitle
-            ? BasenameStem(file.Basename)
-            : entity.Title;
+        var title = string.IsNullOrEmpty(entity.Title) ? DerivedTitle(entity, options) : entity.Title;
         Put(tokens, Tokens.Title, title);
         Put(tokens, Tokens.StudioCode, entity.Code);
         Put(tokens, Tokens.Studio, entity.StudioName);
@@ -92,7 +92,9 @@ public static class MetadataProjector
 
         if (file.Duration is double dur)
         {
-            Put(tokens, Tokens.Duration, dur.ToString(CultureInfo.InvariantCulture));
+            // $duration honors the configured DurationFormat, like $date above; see FormatDuration for
+            // what a malformed format or a nonsense stored duration degrades to.
+            Put(tokens, Tokens.Duration, FormatDuration(dur, options.DurationFormat));
         }
 
         // $bitrate: the file's stored overall bitrate, rendered in kbps (Cove stores bits/sec on
@@ -107,14 +109,68 @@ public static class MetadataProjector
 
         // --- Multi-value side-input: performer/tag NAME lists (already JOIN-resolved upstream). ---
         // $performers keeps a plain name list so rendering and the title-performer drop stay
-        // name-based; the per-performer records travel as a separate channel for ordering/filtering.
+        // name-based; the per-performer records and the tag id/name pairs travel as separate
+        // channels for ordering/filtering.
         var multi = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
         {
             [Tokens.Performers] = [.. entity.Performers.Select(p => p.Name)],
             [Tokens.Tags] = entity.Tags,
         };
 
-        return (tokens, multi, entity.Performers);
+        return (tokens, multi, entity.Performers, entity.TagRefs);
+    }
+
+    /// <summary>
+    /// The title an item with none falls back to: its FIRST file's basename without the extension, or
+    /// <c>null</c> when the item has a title or the <c>FilenameAsTitle</c> fallback is off.
+    /// </summary>
+    /// <remarks>
+    /// THE CANONICAL STATEMENT of why this fallback must be recorded rather than repeated; the other
+    /// sites that touch it (<c>RenamerPlanItem.DerivedTitle</c>, <c>RenamerEntityTitleWrite</c>,
+    /// <c>CoveRenamerDataPort.ApplyDerivedTitleAsync</c>) point here.
+    /// <para>
+    /// Derived per run, the title is a function of the basename the PREVIOUS run wrote, and the rename
+    /// is a function of the title — so any template rendering more than a bare <c>$title</c> wraps its
+    /// own decorations again on every pass and the name grows without bound. There is no cure that
+    /// keeps both directions live: parsing the template back out of its own output is the post-hoc
+    /// cleanup this design refuses, and refusing the fallback for a decorated template only converts
+    /// the runaway into a required-fields skip. So the derivation is broken instead — the executor
+    /// records this value on the entity in the same save as the rename, after which the item HAS a
+    /// title and this path never runs for it again.
+    /// </para>
+    /// <para>
+    /// Entity-level, not per-file: a title belongs to the ITEM, so deriving it from the file being
+    /// projected gave a multi-file item as many titles as it had files, and left the one that got
+    /// recorded decided by which file the executor happened to save last.
+    /// </para>
+    /// </remarks>
+    internal static string? DerivedTitle(RenamerEntity entity, RenamerOptions options)
+        => string.IsNullOrEmpty(entity.Title) && options.FilenameAsTitle && entity.Files.Count > 0
+            ? BasenameStem(entity.Files[0].Basename)
+            : null;
+
+    /// <summary>
+    /// Renders a stored duration in seconds through the user-configured <c>DurationFormat</c>.
+    /// </summary>
+    /// <remarks>
+    /// Both inputs are untrusted and this runs once per file of every item in a plan, so a throw here
+    /// would abort a whole plan or batch over one bad setting instead of spoiling one token: a malformed
+    /// format string throws <see cref="FormatException"/>, and a non-finite or out-of-range stored
+    /// duration throws out of <see cref="TimeSpan.FromSeconds(double)"/>. Either way the token degrades
+    /// to the raw invariant seconds — the shape this projection emitted before the format was honored,
+    /// and the one rendering that cannot itself fail for any <see cref="double"/>. The format is NOT
+    /// pre-validated: only actually formatting it can decide whether .NET accepts it.
+    /// </remarks>
+    private static string FormatDuration(double seconds, string format)
+    {
+        try
+        {
+            return TimeSpan.FromSeconds(seconds).ToString(format, CultureInfo.InvariantCulture);
+        }
+        catch (Exception ex) when (ex is FormatException or ArgumentException or OverflowException)
+        {
+            return seconds.ToString(CultureInfo.InvariantCulture);
+        }
     }
 
     /// <summary>Adds <paramref name="value"/> under <paramref name="key"/> only when non-empty (omit-not-blank).</summary>

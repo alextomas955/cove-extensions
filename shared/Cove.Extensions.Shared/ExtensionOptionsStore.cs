@@ -23,7 +23,8 @@ public class ExtensionOptionsStore<TOptions>(
     ILogger logger)
     where TOptions : class
 {
-    private const string Key = "options";
+    /// <summary>The single store key the whole options blob lives under.</summary>
+    public const string Key = "options";
 
     /// <summary>
     /// Loads the persisted options. Returns defaults when the key is absent (first run) or when the
@@ -46,12 +47,30 @@ public class ExtensionOptionsStore<TOptions>(
             // Loud, because this is the one place a whole stored configuration can be discarded with
             // nothing observable happening: defaults are indistinguishable from a correct empty
             // configuration at every layer above, so the symptom is settings that read as unset and a
-            // panel, an API response and an end-to-end test that all agree on the wrong answer. The blob
-            // itself is never logged — it is the user's configuration.
+            // panel, an API response and an end-to-end test that all agree on the wrong answer. The
+            // silent version of this line cost a review lane three separate "routing bugs" that were one
+            // failed bind. The blob itself is never logged — it is the user's configuration.
             ExtensionOptionsStoreLog.StoredOptionsDiscarded(logger, typeof(TOptions).Name, ex);
             return defaultFactory();
         }
     }
+
+    /// <summary>
+    /// The stored blob verbatim, or <c>null</c> when the key is absent.
+    /// </summary>
+    /// <remarks>
+    /// The seam a one-time schema conversion needs: a blob written under an older shape may not bind to
+    /// the current <typeparamref name="TOptions"/> at all, and <see cref="LoadAsync"/> answers that with
+    /// DEFAULTS — so a converter that went through it would convert defaults and then persist them over
+    /// the user's settings. Reading raw also lets a converter carry through keys it does not model.
+    /// </remarks>
+    public Task<string?> LoadRawAsync(CancellationToken ct = default) => store.GetAsync(Key, ct);
+
+    /// <summary>
+    /// Overwrites the stored blob with <paramref name="json"/> verbatim, bypassing serialization.
+    /// </summary>
+    /// <remarks>The write half of <see cref="LoadRawAsync"/>; same one-time-conversion rationale.</remarks>
+    public Task SaveRawAsync(string json, CancellationToken ct = default) => store.SetAsync(Key, json, ct);
 
     /// <summary>Serializes the options to the single <c>"options"</c> JSON blob.</summary>
     public async Task SaveAsync(TOptions options, CancellationToken ct = default)

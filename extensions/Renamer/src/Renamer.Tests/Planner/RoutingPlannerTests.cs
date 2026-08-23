@@ -6,22 +6,29 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Planner;
 
 /// <summary>
-/// Proves the resolver is wired into <c>RenamerPlanner.PlanAsync</c>: a routed entity produces
-/// a Move whose <see cref="RenamerPlanItem.ResolvedDestinationRoot"/> / <see cref="RenamerPlanItem.MatchedRule"/>
-/// / <see cref="RenamerPlanItem.TargetVolume"/> reflect the matched route, and confinement is anchored
-/// on the routed root (so the move lands on the destination volume). A no-route entity (empty maps)
-/// stays source-confined exactly as before. Default-relocate is proven DISABLED end-to-end through
-/// the planner. PURE — no disk, no DB; every test asserts zero <c>SaveAsync</c> calls.
+/// Proves the resolver is wired into <c>RenamerPlanner.PlanAsync</c>: a matched entity produces a Move
+/// whose <see cref="RenamerPlanItem.ResolvedDestinationRoot"/> / <see cref="RenamerPlanItem.MatchedRule"/> /
+/// <see cref="RenamerPlanItem.TargetVolume"/> reflect the matched rule, and the destination is the
+/// rule's own root plus its own relative template — nothing else joined to it. An entity no rule
+/// matched takes the DEFAULT destination instead. PURE — no disk, no DB; every test asserts zero
+/// <c>SaveAsync</c> calls.
 /// </summary>
 [Trait("Tier", "L0")]
 public sealed class RoutingPlannerTests
 {
-    // OS-aware absolute roots (path-syntax valid on the current OS), mirroring PathConfinementAllowlistTests.
+    // OS-aware absolute roots (path-syntax valid on the current OS), mirroring PathConfinementTests.
     private static string SrcRoot => OperatingSystem.IsWindows() ? @"C:\library\incoming" : "/srv/library/incoming";
     private static string StudioRoot => OperatingSystem.IsWindows() ? @"D:\studios\acme" : "/mnt/studios/acme";
     private static string TagRoot => OperatingSystem.IsWindows() ? @"E:\by-tag\anime" : "/mnt/by-tag/anime";
+    // The one tag id the fixture uses; the entity carries it as an (id, name) pair so a rule can
+    // key on the id while the preview reason still renders "anime".
+    private const int AnimeTagId = 11;
+
+    // The folder holding StudioRoot: what Cove's list shows after the user broadens that library path
+    // by one level, which is the shape a RENAMED library path arrives in.
+    private static string StudioRootParent => OperatingSystem.IsWindows() ? @"D:\studios" : "/mnt/studios";
+
     private static string PathRoot => OperatingSystem.IsWindows() ? @"F:\by-source" : "/mnt/by-source";
-    private static string DefaultRoot => OperatingSystem.IsWindows() ? @"G:\overflow" : "/mnt/overflow";
     private static string UnorgRoot => OperatingSystem.IsWindows() ? @"H:\unsorted" : "/mnt/unsorted";
 
     private static string Fwd(string p) => p.Replace('\\', '/');
@@ -35,116 +42,121 @@ public sealed class RoutingPlannerTests
         params RenamerFile[] files) =>
         new(EntityId: 10, Kind: RenamerFileKind.Video, Title: "My Film", Code: "ABC-1", StudioName: "Acme",
             Date: new DateOnly(2024, 3, 2), Organized: true,
-            Performers: [new RenamerPerformer(1, "Bob", false, null)], Tags: ["anime"], Files: files);
+            Performers: [new RenamerPerformer(1, "Bob", false, null)],
+            TagRefs: [(AnimeTagId, "anime")], Files: files);
 
-    // A move-producing render: a non-empty folder template makes isMove true, so the routed root is
-    // the confinement anchor and the absolute target lands on the destination volume.
+    // The DEFAULT template, which a matched rule replaces rather than adds to — non-empty here so a
+    // rule silently falling through to it would change the destination and be caught rather than
+    // measured as a pass.
     private static RenamerOptions MoveOptions(List<string> roots) =>
         new() { FilenameTemplate = "$title", FolderTemplate = "Sorted", AllowedRoots = roots };
 
     private static RouteLookups Lookups(
-        IReadOnlyDictionary<int, string>? studio = null,
-        IReadOnlyDictionary<string, string>? tag = null,
-        IReadOnlyDictionary<string, string>? exact = null,
-        IReadOnlyList<(Regex, string)>? regex = null,
-        IReadOnlySet<string>? excludeTags = null,
+        IReadOnlyDictionary<int, Destination>? studio = null,
+        IReadOnlyDictionary<int, Destination>? tag = null,
+        IReadOnlyDictionary<string, Destination>? exact = null,
+        IReadOnlyList<(Regex, Destination)>? regex = null,
+        IReadOnlySet<int>? excludeTags = null,
         IReadOnlySet<int>? excludeStudios = null,
         IReadOnlySet<string>? excludePathsExact = null,
         IReadOnlyList<Regex>? excludePathRegex = null) =>
         new(
-            studio ?? new Dictionary<int, string>(),
-            tag ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-            exact ?? new Dictionary<string, string>(StringComparer.Ordinal),
-            regex ?? Array.Empty<(Regex, string)>(),
+            studio ?? RouteLookupsFixtures.RoutingNeutral.StudioIdToDest,
+            tag ?? RouteLookupsFixtures.RoutingNeutral.TagIdToDest,
+            exact ?? RouteLookupsFixtures.RoutingNeutral.PathExactToDest,
+            regex ?? RouteLookupsFixtures.RoutingNeutral.PathRegexRules,
             excludeTags, excludeStudios, excludePathsExact, excludePathRegex);
 
     [Fact]
     public async Task StudioRouted_CarriesRootRuleAndVolume()
     {
         var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, Tags = [] });
+        port.SeedLibraryRoot(StudioRoot);
+        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
         var planner = new RenamerPlanner(port);
         var opts = MoveOptions([SrcRoot, StudioRoot]);
-        var lk = Lookups(studio: new Dictionary<int, string> { [42] = StudioRoot });
+        var lk = Lookups(studio: new Dictionary<int, Destination> { [42] = Dests.At(StudioRoot) });
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
-        Assert.Equal(StudioRoot, item.ResolvedDestinationRoot);
+        Assert.Equal(Fwd(StudioRoot), item.ResolvedDestinationRoot);
         Assert.Equal("Studio:42(direct)", item.MatchedRule);
         Assert.Equal(Path.GetPathRoot(StudioRoot), item.TargetVolume);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
-    public async Task StudioRouted_EmptyFolderTemplate_StillMovesToRoutedRoot()
+    public async Task StudioRouted_BareRootTemplate_LandsAtThatRoot_NotUnderTheSource()
     {
-        // A matched route relocates the file even when the folder template is empty: the user wants
-        // the routed studio's files dropped at the root of the destination, with no subfolder. The
-        // move must land on the destination volume's root, not silently renamer in place under the
-        // source folder. (Every other routed test here pairs the route with a non-empty folder
-        // template, which is why this empty-template path needs its own guard.)
+        // A rule whose template is a bare root drops the file at that root with no subfolder — the whole
+        // path asserted, which the sibling tests above do not do. The move must land on the destination
+        // volume's root, not silently rename in place under the source folder.
         var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, Tags = [] });
+        port.SeedLibraryRoot(StudioRoot);
+        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
         {
             FilenameTemplate = "$title",
-            FolderTemplate = "",                 // no subfolder — the route alone must drive the move
+            FolderTemplate = "",                 // no default subfolder — the rule alone drives the move
             AllowedRoots = [SrcRoot, StudioRoot],
         };
-        var lk = Lookups(studio: new Dictionary<int, string> { [42] = StudioRoot });
+        var lk = Lookups(studio: new Dictionary<int, Destination> { [42] = Dests.At(StudioRoot) });
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
-        Assert.Equal(StudioRoot, item.ResolvedDestinationRoot);
+        Assert.Equal(Fwd(StudioRoot), item.ResolvedDestinationRoot);
         Assert.Equal("Studio:42(direct)", item.MatchedRule);
         Assert.Equal(Path.GetPathRoot(StudioRoot), item.TargetVolume);
         // The file lands at the ROOT of the routed destination (no subfolder), NOT under its source.
         Assert.Equal(Fwd(StudioRoot) + "/My Film.mkv", item.NewFullPath);
         Assert.DoesNotContain("incoming", item.NewFullPath);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
-    public async Task TagRouted_CaseInsensitive_CarriesRootAndRule()
+    public async Task TagRouted_ById_CarriesRootAndRule()
     {
         var port = new FakeRenamerDataPort();
-        // Entity tag is "anime"; the rule key is "ANIME" — OrdinalIgnoreCase lookup matches.
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { Tags = ["anime"] });
+        // The rule is keyed on the tag id; the reason string still renders the tag's name.
+        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { TagRefs = [(AnimeTagId, "anime")] });
         var planner = new RenamerPlanner(port);
         var opts = MoveOptions([SrcRoot, TagRoot]);
-        var lk = Lookups(tag: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["ANIME"] = TagRoot });
+        port.SeedLibraryRoot(TagRoot);
+        var lk = Lookups(tag: new Dictionary<int, Destination> { [AnimeTagId] = Dests.At(TagRoot) });
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
-        Assert.Equal(TagRoot, item.ResolvedDestinationRoot);
+        Assert.Equal(Fwd(TagRoot), item.ResolvedDestinationRoot);
         Assert.Equal("Tag:anime", item.MatchedRule);
         Assert.Equal(Path.GetPathRoot(TagRoot), item.TargetVolume);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
     public async Task SourcePathRouted_Exact_CarriesRootAndRule()
     {
         var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { Tags = [] });
+        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { TagRefs = [] });
         var planner = new RenamerPlanner(port);
         var opts = MoveOptions([SrcRoot, PathRoot]);
-        var lk = Lookups(exact: new Dictionary<string, string>(StringComparer.Ordinal) { [Fwd(SrcRoot)] = PathRoot });
+        port.SeedLibraryRoot(PathRoot);
+        var lk = Lookups(
+            exact: new Dictionary<string, Destination>(StringComparer.Ordinal) { [Fwd(SrcRoot)] = Dests.At(PathRoot) });
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
-        Assert.Equal(PathRoot, item.ResolvedDestinationRoot);
+        Assert.Equal(Fwd(PathRoot), item.ResolvedDestinationRoot);
         Assert.Equal("SourcePath:exact", item.MatchedRule);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -152,74 +164,244 @@ public sealed class RoutingPlannerTests
     {
         var port = new FakeRenamerDataPort();
         // Organized=false + an UnorganizedDestination set → routes to it, does not gate to a skip.
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { Organized = false, Tags = [] });
+        port.SeedLibraryRoot(UnorgRoot);
+        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { Organized = false, TagRefs = [] });
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
         {
             FilenameTemplate = "$title",
             FolderTemplate = "Sorted",
             AllowedRoots = [SrcRoot, UnorgRoot],
-            UnorganizedDestination = UnorgRoot,
+            UnorganizedDestination = Dests.At(UnorgRoot),
         };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
-        Assert.Equal(UnorgRoot, item.ResolvedDestinationRoot);
+        Assert.Equal(Fwd(UnorgRoot), item.ResolvedDestinationRoot);
         Assert.Equal("Unorganized", item.MatchedRule);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
-    public async Task SourceConfine_EmptyMaps_LegacyAnchor_NullRoot()
+    public async Task NoRuleMatched_TheDefaultTemplateRenders_AnchoredOnTheLibraryPath()
     {
         var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, Tags = [] });
+        port.SeedLibraryRoot(SrcRoot);
+        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
         var planner = new RenamerPlanner(port);
-        // Empty lookups + empty maps + no allowed roots → legacy source-confine: anchored on the file's
-        // own folder, ResolvedDestinationRoot null.
+        // Empty lookups + empty maps + no allowed roots → no rule matched, so the DEFAULT template
+        // renders, anchored on the CONTAINING Cove library path.
         var opts = new RenamerOptions { FilenameTemplate = "$title", FolderTemplate = "Sorted" };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
-        Assert.Null(item.ResolvedDestinationRoot);
-        Assert.Equal("InPlace", item.MatchedRule);
-        // The move lands under the file's own source folder, exactly as before this phase.
+        // No rule matched, so the default destination measured from the library path holding the file.
+        Assert.Equal(Fwd(SrcRoot), item.ResolvedDestinationRoot);
+        Assert.Equal("Default", item.MatchedRule);
+        // The file sits AT its library path here, so the rendered folder lands one level below it —
+        // and, unlike the parent-relative arrangement this replaced, lands in the same place on a
+        // second run.
         Assert.EndsWith("library/incoming/Sorted/My Film.mkv", item.NewFullPath);
-        // A source-confine item has no destination volume of interest (in-place move), so
-        // TargetVolume is empty — never the fictitious synthetic-anchor root.
+        // An anchored item has no destination volume of interest, so TargetVolume is empty — never the
+        // fictitious synthetic-anchor root.
         Assert.Equal("", item.TargetVolume);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
-    public async Task DefaultRelocateDisabled_NoRelocate_StaysSourceConfined()
+    public async Task AMatchedRule_RendersOnlyItsOwnTemplate_TheDefaultIsNotAppended()
+    {
+        // The crux of one-lookup-one-template, pinned where routing is decided, and the shape that
+        // produced a library path repeated inside itself on a real library: a rule's destination and the
+        // default template BOTH answered "where does this file go", and joining the two appended the
+        // default's own path to the rule's. Here the two name the same tree — the case that made the
+        // repetition visible — and the destination must be the rule's template alone.
+        var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot(SrcRoot);
+        port.SeedLibraryRoot(StudioRoot);
+        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
+        var planner = new RenamerPlanner(port);
+        var opts = new RenamerOptions
+        {
+            FilenameTemplate = "$title",
+            // Spelled to overlap the rule deliberately: appended, this used to produce
+            // "D:/studios/acme/videos/videos".
+            FolderTemplate = "videos",
+            FolderRoot = StudioRoot,
+        };
+        var lk = Lookups(studio: new Dictionary<int, Destination> { [42] = Dests.At(StudioRoot, "videos") });
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
+
+        var item = Assert.Single(plan.Items);
+        Assert.Equal(RenamerStatus.Move, item.Status);
+        Assert.Equal(Fwd(StudioRoot) + "/videos/My Film.mkv", item.NewFullPath);
+        Assert.Equal(Fwd(StudioRoot), item.ResolvedDestinationRoot);
+        Assert.Empty(port.ApplyAndSaveCalls);
+    }
+
+    // ── A rule's chosen root, re-checked against Cove's library paths on every plan ────────────────
+    //
+    // The first pair below is one boundary and is written as one. Either half alone passes against code
+    // that is wrong in the other direction: the skip case alone passes against a planner that skips
+    // every routed item, and the present-root case alone passes against one that never checks. The two
+    // fixtures differ ONLY in whether the chosen root was declared a library path.
+    //
+    // Those two also answer what happens when the user ADDS a library path: the list already holds a
+    // path that is not the rule's — SrcRoot, the one holding the file, which is the strongest candidate
+    // for a planner that re-anchored on something other than the rule's own answer — and the rule still
+    // decides. For a destination set to "(the file's own library path)" the answer is the innermost
+    // containing path, pinned at PathConfinementTests.ContainingRoot_WhenLibraryPathsNest_TheLongestWins.
+
+    [Fact]
+    public async Task ARulesChosenRoot_NoLongerALibraryPath_SkipsAndNamesTheRule()
     {
         var port = new FakeRenamerDataPort();
-        // Unmatched entity (no studio/tag/path rule), a DefaultDestination set, but the flag OFF.
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 999, Tags = [] });
+        port.SeedLibraryRoot(SrcRoot);   // …but NOT StudioRoot, which the rule chose.
+        port.SeedEntity(Entity(
+            VideoFile(1, "a.mkv", SrcRoot),
+            VideoFile(2, "b.mkv", SrcRoot)) with
+        { StudioId = 42, TagRefs = [] });
+        var planner = new RenamerPlanner(port);
+        var opts = new RenamerOptions { FilenameTemplate = "$title" };
+        var lk = Lookups(studio: new Dictionary<int, Destination> { [42] = Dests.At(StudioRoot) });
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
+
+        // EVERY file of the item, so a multi-file entity is not half-moved.
+        Assert.Equal(2, plan.Items.Count);
+        Assert.All(plan.Items, item =>
+        {
+            Assert.Equal(RenamerStatus.SkipRootMissing, item.Status);
+            Assert.Equal(item.OldFullPath, item.NewFullPath);
+            Assert.Contains(StudioRoot, item.Reason);
+            Assert.Contains("Studio:42(direct)", item.Reason);
+        });
+        Assert.Empty(port.ApplyAndSaveCalls);
+    }
+
+    [Fact]
+    public async Task ARulesChosenRoot_StillALibraryPath_DoesNotSkip()
+    {
+        // The negative side: the SAME rule, the same options, the one difference being that the chosen
+        // root is still declared. It must move — never fall through to the default, and never skip.
+        var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot(SrcRoot);
+
+        // The two sides are spelled DIFFERENTLY on purpose, and that difference is the subject: the
+        // library root arrives in the canonical form the real port emits, while the rule keeps the raw
+        // form the panel wrote. Seeding both from one spelling would make the fixture supply both sides
+        // of the comparison, so the membership check could be narrowed to string equality with nothing
+        // going red — measured, and it is why this line does not read StudioRoot directly.
+        port.SeedLibraryRoot(Fwd(StudioRoot));
+        port.SeedEntity(Entity(VideoFile(1, "a.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
+        var planner = new RenamerPlanner(port);
+        var opts = new RenamerOptions { FilenameTemplate = "$title" };
+        var lk = Lookups(studio: new Dictionary<int, Destination> { [42] = Dests.At(StudioRoot) });
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
+
+        var item = Assert.Single(plan.Items);
+        Assert.Equal(RenamerStatus.Move, item.Status);
+        Assert.Equal(Fwd(StudioRoot) + "/My Film.mkv", item.NewFullPath);
+        Assert.Empty(port.ApplyAndSaveCalls);
+    }
+
+    // These literals are UNCONDITIONAL rather than the OS-switched roots the rest of this file uses, and
+    // that is the whole point of the case. The still-a-library-path test above diverges only on Windows:
+    // Fwd() is the identity wherever the separator is already a forward slash, so on Linux it hands the
+    // membership check both sides in one spelling and the tolerance is never exercised. The leg that gates
+    // a merge runs Linux, so the tolerance had no pin able to block a merge — the divergence, not the
+    // comparison, was what no test could see.
+    //
+    // The divergence has to live on the STORED side because the fake canonicalises what it is seeded with,
+    // mirroring the real port's single-spelling emission. That is also the real-world shape: the endpoint
+    // emits one spelling while an older store still holds Cove's platform spelling. Both values were
+    // transcribed from a running host, where the store held 'I:\Downloads\P' under a rule the one-time
+    // conversion had written as 'I:/Downloads/P'.
+    //
+    // Asserting the STATUS rather than NewFullPath is required, not stylistic. On Linux a
+    // backslash-spelled Windows path is not rooted, so it resolves as a relative segment under the
+    // synthetic anchor and the resulting path string is platform-dependent — while the membership verdict
+    // is not. Asserting the path would re-introduce the OS-dependence this case exists to remove.
+    [Theory]
+    [InlineData(@"I:\Downloads\P")]  // Cove's own platform spelling, as an older store holds it
+    [InlineData("I:/Downloads/P/")]  // the canonical spelling with a trailing separator
+    public async Task ARootStoredInAnotherSpelling_StillNamesItsLibraryPath_OnEveryPlatform(string stored)
+    {
+        const string Configured = "I:/Downloads/P";  // the one spelling the endpoint emits
+
+        var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot(SrcRoot);
+        port.SeedLibraryRoot(Configured);
+        port.SeedEntity(Entity(VideoFile(1, "a.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
+        var planner = new RenamerPlanner(port);
+        var opts = new RenamerOptions { FilenameTemplate = "$title" };
+        var lk = Lookups(studio: new Dictionary<int, Destination> { [42] = Dests.At(stored) });
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
+
+        var item = Assert.Single(plan.Items);
+        Assert.Equal(RenamerStatus.Move, item.Status);
+        Assert.Empty(port.ApplyAndSaveCalls);
+    }
+
+    [Fact]
+    public async Task ARulesChosenRoot_NowMerelyINSIDEALibraryPath_SkipsLikeAnyOtherMissingRoot()
+    {
+        // Renaming a library path in Cove is not an event Renamer can follow: it is handed the CURRENT
+        // list, never a history of edits, so a rename reads as one path removed and another added. The
+        // hardest form of that is a rename which leaves the old root still INSIDE the new one — broaden
+        // 'D:/studios/acme' to 'D:/studios' and every stored root is still contained by a library path.
+        // The check is MEMBERSHIP of the list, so the rule still skips and the user re-picks; a
+        // containment test would keep writing into a folder Cove no longer declares, and would do it
+        // silently. This is the sole pin on that direction — the removal case above uses an unrelated
+        // root, which a containment test refuses too.
+        var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot(SrcRoot);
+        port.SeedLibraryRoot(StudioRootParent);   // the rule's root is now one level below a library path
+        port.SeedEntity(Entity(VideoFile(1, "a.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
+        var planner = new RenamerPlanner(port);
+        var opts = new RenamerOptions { FilenameTemplate = "$title" };
+        var lk = Lookups(studio: new Dictionary<int, Destination> { [42] = Dests.At(StudioRoot) });
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
+
+        var item = Assert.Single(plan.Items);
+        Assert.Equal(RenamerStatus.SkipRootMissing, item.Status);
+        Assert.Equal(item.OldFullPath, item.NewFullPath);
+        Assert.Contains("Studio:42(direct)", item.Reason);
+        Assert.Empty(port.ApplyAndSaveCalls);
+    }
+
+    [Fact]
+    public async Task TheDefaultDestinationsChosenRoot_NoLongerALibraryPath_SkipsToo()
+    {
+        // The default is a destination like any other, so the same re-check applies to it. Named
+        // separately because its label is "Default" rather than a rule's, and a user reading the dry run
+        // has to be told WHICH destination broke.
+        var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot(SrcRoot);
+        port.SeedEntity(Entity(VideoFile(1, "a.mkv", SrcRoot)) with { TagRefs = [] });
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
         {
             FilenameTemplate = "$title",
             FolderTemplate = "Sorted",
-            AllowedRoots = [SrcRoot, DefaultRoot],
-            DefaultDestination = DefaultRoot,
-            EnableDefaultRelocate = false,
+            FolderRoot = UnorgRoot,   // never declared a library path
         };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), default);
+        var plan = await planner.PlanAsync(
+            RenamerFileKind.Video, 10, opts, RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.Move, item.Status);
-        // Disabled guard: no relocate — source-confined, ResolvedDestinationRoot null, under the source folder.
-        Assert.Null(item.ResolvedDestinationRoot);
-        Assert.Equal("InPlace", item.MatchedRule);
-        Assert.EndsWith("library/incoming/Sorted/My Film.mkv", item.NewFullPath);
-        Assert.Empty(port.SaveCalls);
+        Assert.Equal(RenamerStatus.SkipRootMissing, item.Status);
+        Assert.Contains("Default", item.Reason);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -232,10 +414,10 @@ public sealed class RoutingPlannerTests
         port.SeedEntity(Entity(
             VideoFile(1, "a.mkv", SrcRoot),
             VideoFile(2, "b.mkv", SrcRoot)) with
-        { Tags = ["anime"] });
+        { TagRefs = [(AnimeTagId, "anime")] });
         var planner = new RenamerPlanner(port);
         var opts = MoveOptions([SrcRoot]);
-        var lk = Lookups(excludeTags: new HashSet<string>(["anime"], StringComparer.OrdinalIgnoreCase));
+        var lk = Lookups(excludeTags: new HashSet<int> { AnimeTagId });
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
 
@@ -246,7 +428,7 @@ public sealed class RoutingPlannerTests
             Assert.NotEqual(RenamerStatus.SkipGated, item.Status);
             Assert.Contains("Exclude:Tag:anime", item.Reason);
         });
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -256,7 +438,7 @@ public sealed class RoutingPlannerTests
         // matches an exclude rule is attributed to the exclude: excludes are evaluated before the
         // gate, so the preview/log shows the real reason (SkipExcluded) rather than the gate.
         var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity(VideoFile(1, "a.mkv", SrcRoot)) with { Organized = false, Tags = ["anime"] });
+        port.SeedEntity(Entity(VideoFile(1, "a.mkv", SrcRoot)) with { Organized = false, TagRefs = [(AnimeTagId, "anime")] });
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
         {
@@ -264,9 +446,9 @@ public sealed class RoutingPlannerTests
             FolderTemplate = "Sorted",
             AllowedRoots = [SrcRoot],
             OnlyOrganized = true,            // would gate the unorganized item …
-            UnorganizedDestination = "",     // … and no unorganized route to fall through to.
+            UnorganizedDestination = null,   // … and no unorganized route to fall through to.
         };
-        var lk = Lookups(excludeTags: new HashSet<string>(["anime"], StringComparer.OrdinalIgnoreCase));
+        var lk = Lookups(excludeTags: new HashSet<int> { AnimeTagId });
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
 
@@ -274,7 +456,7 @@ public sealed class RoutingPlannerTests
         Assert.Equal(RenamerStatus.SkipExcluded, item.Status);
         Assert.NotEqual(RenamerStatus.SkipGated, item.Status);
         Assert.Contains("Exclude:Tag:anime", item.Reason);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
@@ -283,52 +465,29 @@ public sealed class RoutingPlannerTests
         // The move-to-itself bug: with a destination configured, EVERY file is a "move" (isMove
         // true). If the route resolves the file back to the folder it already lives in AND the
         // rendered name equals its current basename, nothing changes on disk — it must be NoOp, not
-        // a Move reported (and executed) as a rename to its own identical path. Here the default
-        // root IS the file's source root, no subfolder, and the filename template reproduces the
+        // a Move reported (and executed) as a rename to its own identical path. Here a source-path
+        // rule routes the file to its OWN root, no subfolder, and the filename template reproduces the
         // current basename stem — so target full path == current full path.
         var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity(VideoFile(1, "My Film.mkv", SrcRoot)) with { StudioId = 999, Tags = [] });
+        port.SeedLibraryRoot(SrcRoot);
+        port.SeedEntity(Entity(VideoFile(1, "My Film.mkv", SrcRoot)) with { StudioId = 999, TagRefs = [] });
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions
         {
             FilenameTemplate = "$title",     // renders "My Film" → "My Film.mkv" == current basename
             FolderTemplate = "",             // no subfolder …
             AllowedRoots = [SrcRoot],
-            DefaultDestination = SrcRoot,    // … and the destination IS the file's own folder
-            EnableDefaultRelocate = true,
         };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), default);
+        // … and the routed destination IS the file's own folder.
+        var lk = Lookups(
+            exact: new Dictionary<string, Destination>(StringComparer.Ordinal) { [Fwd(SrcRoot)] = Dests.At(SrcRoot) });
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.NoOp, item.Status);
         Assert.Equal(item.OldFullPath, item.NewFullPath);
-        Assert.Empty(port.SaveCalls);
-    }
-
-    [Fact]
-    public async Task DefaultRelocateEnabled_RoutesToDefaultRoot()
-    {
-        var port = new FakeRenamerDataPort();
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 999, Tags = [] });
-        var planner = new RenamerPlanner(port);
-        var opts = new RenamerOptions
-        {
-            FilenameTemplate = "$title",
-            FolderTemplate = "Sorted",
-            AllowedRoots = [SrcRoot, DefaultRoot],
-            DefaultDestination = DefaultRoot,
-            EnableDefaultRelocate = true,
-        };
-
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), default);
-
-        var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.Move, item.Status);
-        // Flag ON: the same unmatched item now routes to the default root (proving the flag is the guard).
-        Assert.Equal(DefaultRoot, item.ResolvedDestinationRoot);
-        Assert.Equal("Default", item.MatchedRule);
-        Assert.Equal(Path.GetPathRoot(DefaultRoot), item.TargetVolume);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 }

@@ -1,10 +1,9 @@
 {
   "name": "@cove-extensions/renamer-ui",
   "private": true,
-  "version": "0.4.0",
   "type": "module",
-  "description": "RenameSettingsPanel \u2014 the Cove Renamer extension's settings + live-preview frontend (Vite library bundle \u2192 index.mjs).",
-  "license": "AGPL-3.0",
+  "description": "RenameSettingsPanel — the Cove Renamer extension's settings + live-preview frontend (Vite library bundle → index.mjs).",
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit",
@@ -22,12 +21,10 @@
   "devDependencies": {
     "@types/node": "26.2.0",
     "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "6.0.5",
     "lucide-react": "1.28.0",
     "prettier": "3.9.6",
     "react": "19.2.8",
-    "react-dom": "19.2.8",
     "typescript": "6.0.3",
     "vite": "8.2.1",
     "vitest": "4.1.10"

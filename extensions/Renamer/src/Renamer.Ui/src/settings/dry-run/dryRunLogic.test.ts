@@ -1,10 +1,15 @@
 /** Behavior contract for the pure dry-run logic. */
 import { test } from "vitest";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 import {
   classifyItem,
   bucketWireValue,
+  inFlightOverflowLabel,
+  IN_FLIGHT_OVERFLOW_LABEL,
+  shouldContinueWalk,
   summaryCounts,
   assetHref,
   clampProgress,
@@ -12,9 +17,6 @@ import {
   isFinalizing,
   formatEta,
   etaFromSamples,
-  ETA_SMOOTHING,
-  ETA_MIN_RATES,
-  type DryRunBucket,
 } from "./dryRunLogic";
 
 /**
@@ -25,13 +27,16 @@ import {
  * the two sides drifted, and a drift means a row appearing in a segment it was never counted in.
  * Re-check this table against that C# file if either side changes.
  *
- * Declared as a list of PAIRS rather than a list of string lists: the array literal alone widens to
- * `string[][]`, under which nothing holds the row shape the assertions below read. The status side
- * stays a bare `string` on purpose — this is a hand transcription, and typing it against the wire
- * union would let the two agree by construction.
+ * Whether it is COMPLETE is not checked here at all — that expectation comes from the wire document
+ * below, which the server emits.
  */
-const SERVER_BUCKETS: readonly (readonly [string, DryRunBucket])[] = [
-  ["renamer", "will-change"],
+// Declared as a list of PAIRS, not a list of string lists: the array literal alone widens to
+// string[][], under which destructuring a row hands back `string | undefined` and every use below
+// has to re-establish a shape the table already guarantees. The element type stays `string` rather
+// than the generated status union on purpose — this table is a hand transcription, and typing it
+// against the union the assertion below compares it to would let the two agree by construction.
+const SERVER_BUCKETS: readonly (readonly [string, string])[] = [
+  ["rename", "will-change"],
   ["move", "will-change"],
   ["noOp", "no-change"],
   ["skipCollision", "attention"],
@@ -42,10 +47,42 @@ const SERVER_BUCKETS: readonly (readonly [string, DryRunBucket])[] = [
   ["skipNoSpace", "attention"],
   ["skipBlocked", "attention"],
   ["failed", "attention"],
+  ["skipPermissionDenied", "attention"],
+  ["skipVerifyFailed", "attention"],
+  ["skipCancelled", "attention"],
+  ["skipUnanchored", "attention"],
+  ["skipRootMissing", "attention"],
+  ["skipNotAllowed", "attention"],
+  ["skipTooLong", "attention"],
 ];
 
+/**
+ * The committed OpenAPI document, which the server generates from its own types. Resolved from this
+ * file's own directory and NEVER from the module URL's pathname property — on Windows that yields a
+ * leading-slash form resolving to a doubled drive prefix, which has silently disabled gates here before.
+ */
+const WIRE_DOCUMENT = path.join(import.meta.dirname, "../../../../../wire/openapi.json");
+
 test("classifyItem agrees with ScanBucket.Of on every status the server can emit", () => {
-  assert.equal(SERVER_BUCKETS.length, 11, "RenamerStatus has 11 members — pin them all");
+  // The enum path is spelled out as a type so the read is checked rather than riding on `any`. It
+  // describes only the one branch this test needs; a document that stopped carrying it yields
+  // undefined here and fails loudly on the next line instead of comparing an empty set.
+  const document = JSON.parse(readFileSync(WIRE_DOCUMENT, "utf8")) as {
+    components: { schemas: { RenamerStatus: { enum: string[] } } };
+  };
+  const emitted = new Set(document.components.schemas.RenamerStatus.enum);
+  const tabled = new Set(SERVER_BUCKETS.map(([status]) => status));
+  const untabled = [...emitted].filter((s) => !tabled.has(s));
+  const retired = [...tabled].filter((s) => !emitted.has(s));
+  assert.deepEqual(
+    { untabled, retired },
+    { untabled: [], retired: [] },
+    `The table above is transcribed by hand and this expectation comes from the document the SERVER ` +
+      `emits, so the two cannot agree with each other by construction the way a hand-written member ` +
+      `count could — that one was checked against the very table it was counting. Emitted but not ` +
+      `tabled: ${JSON.stringify(untabled)}. Tabled but no longer emitted: ${JSON.stringify(retired)}. ` +
+      `Re-check the table against ScanBucket.Of, then regenerate the wire types.`,
+  );
   for (const [status, bucket] of SERVER_BUCKETS) {
     assert.equal(classifyItem({ status }), bucket, `status ${status}`);
   }
@@ -68,10 +105,87 @@ test("bucketWireValue emits the camelCase ScanBucketKind names the server parses
   assert.equal(bucketWireValue("all"), "all");
 });
 
+/**
+ * The walk state at the moment a real stall happened, derived from two consecutive `/scan-rows`
+ * responses captured against a live 7,459-entity library on a bucket 1.4% of it matches:
+ *
+ *   page 2 → { rows: 6, entitiesExamined: 500, budgetExhausted: true, next: { kind: "video", afterEntityId: 500 } }
+ *   page 3 → { rows: 0, entitiesExamined: 500, budgetExhausted: true, next: { kind: "video", afterEntityId: 1000 } }
+ *
+ * So: six rows accumulated, a cursor still live, and a page that added nothing at all — the responses
+ * are what makes this state a real one rather than a composed one. `targetRows` is what the viewport
+ * and its prefetch window ask for at an unscrolled open. Each case below flips exactly one field, so
+ * the field it flipped is what decided the answer.
+ */
+const STALLED_WALK = {
+  loadedRows: 6,
+  targetRows: 35,
+  hasMore: true,
+  loading: false,
+  hasError: false,
+} as const;
+
+test("a page that returned no rows while the cursor is still live continues the walk", () => {
+  // The zero-row page is the whole defect: it changes no row count, so anything watching the counts
+  // sees a finished walk and stops six rows into a hundred and two.
+  assert.equal(shouldContinueWalk(STALLED_WALK), true);
+});
+
+test("a walk whose cursor has gone null does not continue, however few rows it loaded", () => {
+  // The end of the library is the one honest reason to stop short of the target.
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, hasMore: false }), false);
+});
+
+test("a walk that has covered its row target does not continue", () => {
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 35 }), false);
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 36 }), false);
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 34 }), true);
+});
+
+test("a failed page does not continue, so a failing server is not asked without end", () => {
+  // A failure leaves the cursor live and clears the in-flight flag, so every other input still reads
+  // as "more to fetch, nothing in flight" — this arm is the only thing standing between that state
+  // and an unbounded retry.
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, hasError: true }), false);
+});
+
+test("a page already in flight does not continue", () => {
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loading: true }), false);
+});
+
+/**
+ * The wire field name the server spells for the in-flight overflow flag, TRANSCRIBED BY HAND from
+ * `extensions/Renamer/src/Renamer/Contracts/PreviewContracts.cs` (`PreviewItemView.InFlightPathOverflow`,
+ * camel-cased by the response serializer). Written out here rather than read from the generated wire types,
+ * because a key spelled wrong reads `undefined` — falsy — so the badge would simply never render and
+ * nothing would fail: not the type-check, not the request, not this suite if it asked the module for the
+ * name it already uses.
+ */
+const OVERFLOW_WIRE_FIELD = "inFlightPathOverflow";
+
+test("a row the server flagged earns the overflow label, and an unflagged row earns none", () => {
+  assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: true }), IN_FLIGHT_OVERFLOW_LABEL);
+  assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: false }), null);
+});
+
+test("the overflow label carries words, so the badge is never colour alone", () => {
+  // The badge leads with a lucide glyph, and the glyph is not the message: a red pill with no text tells a
+  // colour-blind or screen-reader user nothing about what is wrong with the row.
+  assert.match(IN_FLIGHT_OVERFLOW_LABEL, /[A-Za-z]{3}/);
+});
+
+test("a row from a wire shape that has no overflow field reads as unflagged, not as flagged", () => {
+  // Both wire shapes declare this field, so the case is not a wire that lacks one — it is how a row
+  // that arrives without one must read. A missing field is `undefined`, and
+  // treating that as truthy would put a red pill on every row of the dry-run table.
+  assert.equal(inFlightOverflowLabel({}), null);
+  assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: undefined }), null);
+});
+
 test("summaryCounts partitions the aggregate's status counts into three buckets summing to the total", () => {
   const counts = summaryCounts({
     statusCounts: [
-      { status: "renamer", count: 3 },
+      { status: "rename", count: 3 },
       { status: "move", count: 4 },
       { status: "noOp", count: 5 },
       { status: "skipGated", count: 2 },
@@ -96,7 +210,7 @@ test("summaryCounts over an empty status list returns all zeros", () => {
 test("summaryCounts counts an unknown status as attention and still sums correctly", () => {
   const counts = summaryCounts({
     statusCounts: [
-      { status: "renamer", count: 2 },
+      { status: "rename", count: 2 },
       { status: "skipInvented", count: 3 },
     ],
   });
@@ -168,12 +282,15 @@ test("formatEta renders seconds/minutes/hours, null when there's nothing to show
 
 test("etaFromSamples is an EWMA of the rate; a warmed steady rate gives the plain projection", () => {
   // Two identical-rate pairs → EWMA of a constant is that constant. 0.1/s, remaining 0.4 → 4s.
-  const warmed = etaFromSamples([
-    { timeMs: 0, progress: 0.4 },
-    { timeMs: 1000, progress: 0.5 },
-    { timeMs: 2000, progress: 0.6 },
-  ]);
-  assert.ok(warmed !== null && Math.abs(warmed - 4) < 1e-6);
+  assert.ok(
+    Math.abs(
+      etaFromSamples([
+        { timeMs: 0, progress: 0.4 },
+        { timeMs: 1000, progress: 0.5 },
+        { timeMs: 2000, progress: 0.6 },
+      ])! - 4,
+    ) < 1e-6,
+  );
 
   // Display-confidence gate: a SINGLE rate (one pair) is withheld (unsmoothed seed) → null.
   assert.equal(
@@ -220,8 +337,8 @@ test("etaFromSamples EWMA decays the cold-start rate instead of flashing a bogus
   // WITHOUT dropping any samples (recency-weighting is the principled fix, not a magic threshold).
   const samples = [
     { timeMs: 0, progress: 0.01 },
-    { timeMs: 7200, progress: 0.02 }, // slow warmup pair
-  ];
+    { timeMs: 7200, progress: 0.02 },
+  ]; // slow warmup pair
   for (let i = 1; i <= 8; i++) {
     samples.push({ timeMs: 7200 + i * 200, progress: Math.min(0.99, 0.02 + i * 0.1) }); // fast phase
   }
@@ -246,7 +363,6 @@ test("etaFromSamples EWMA decays the cold-start rate instead of flashing a bogus
 test("etaFromSamples withholds the estimate until it has ETA_MIN_RATES smoothed rates", () => {
   // Exactly one rate observation (unsmoothed seed) → null, no matter how clean the pair looks. This
   // is the fix for the intermittent one-poll "~2m" flash: never DISPLAY off a single raw seed.
-  assert.equal(ETA_MIN_RATES, 2);
   assert.equal(
     etaFromSamples([
       { timeMs: 0, progress: 0.2 },
@@ -271,8 +387,4 @@ test("etaFromSamples withholds the estimate until it has ETA_MIN_RATES smoothed 
       { timeMs: 2000, progress: 0.4 },
     ]) !== null,
   );
-});
-
-test("ETA_SMOOTHING is tqdm's 0.3 default", () => {
-  assert.equal(ETA_SMOOTHING, 0.3);
 });

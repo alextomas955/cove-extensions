@@ -274,7 +274,7 @@ public sealed class UndoSidecarRestoreTests
         using var journal = new CoveRevertJournal(db);
         await journal.BeginBatchAsync(runId, RenamerFileKind.Video, Opened);
 
-        var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
+        var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, RouteLookupsFixtures.RoutingNeutral, default);
         var forward = await new RenamerExecutor(port, new CapturingEventBus(), journal, runId, new DiskMover())
             .ExecuteAsync(plan, options, default);
         Assert.Single(forward.Renamed);

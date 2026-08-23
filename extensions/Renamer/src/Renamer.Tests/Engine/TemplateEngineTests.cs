@@ -353,6 +353,45 @@ public class TemplateEngineTests
         Assert.Equal("Acme/2026", r.FolderPath);
     }
 
+    // ---- FolderTemplate: always relative, whatever the template looks like ----
+
+    [Theory]
+    [InlineData("G:/media/$studio", "G/media/Acme")]
+    [InlineData(@"G:\media\$studio", "G/media/Acme")]      // a Windows user's own spelling
+    [InlineData("/srv/media/$studio", "srv/media/Acme")]
+    [InlineData("//nas/share/$studio", "nas/share/Acme")]
+    public void FolderTemplate_ThatLooksRooted_StillRendersRelative(string template, string expected)
+    {
+        // A destination names its root by CHOOSING one of Cove's library paths, so a template never
+        // does: the per-segment sanitizer strips ':' and empty segments drop, which leaves a typed root
+        // as ordinary folder names under whichever root the destination chose. Confined by construction
+        // — there is no rendered folder shape the gate has to refuse a permission for.
+        var tokens = new Dictionary<string, string> { ["studio"] = "Acme" };
+
+        Assert.Equal(expected, Render("x", tokens, folder: template).FolderPath);
+    }
+
+    [Fact]
+    public void FolderTemplate_ABackslash_IsReadAsTheSeparator_NotDeletedIntoOneName()
+    {
+        // Separator tolerance, which is NOT the deleted rootedness: it decides no root and permits no
+        // escape, it only stops a Windows user's backslash-separated template collapsing into one folder
+        // called "AcmeSorted2026" because a backslash is an illegal character the sanitizer removes.
+        var tokens = new Dictionary<string, string> { ["studio"] = "Acme", ["year"] = "2026" };
+
+        Assert.Equal("Acme/Sorted/2026", Render("x", tokens, folder: @"$studio\Sorted\$year").FolderPath);
+    }
+
+    [Fact]
+    public void FolderTemplate_ATokenValue_CannotMakeTheDestinationAbsolute()
+    {
+        // The load-bearing half of "decided from the template": a studio name is metadata, and metadata
+        // choosing a drive is a path-injection. The value is sanitized into one ordinary segment.
+        var tokens = new Dictionary<string, string> { ["studio"] = @"C:\Windows" };
+
+        Assert.Equal("Archive/CWindows", Render("x", tokens, folder: "Archive/$studio").FolderPath);
+    }
+
     // ---- FIELD-01: squeeze_studio_names (engine) ----
 
     [Fact]

@@ -25,9 +25,7 @@
     "eslint-config-prettier": "10.1.8",
     "eslint-import-resolver-typescript": "4.4.5",
     "eslint-plugin-boundaries": "7.2.0",
-    "eslint-plugin-import-x": "4.17.1",
     "eslint-plugin-react-hooks": "7.1.1",
-    "eslint-plugin-react-refresh": "0.5.4",
     "globals": "17.11.0",
     "jscpd": "5.0.16",
     "knip": "6.32.2",
@@ -46,9 +44,6 @@
     "openapi-typescript": {
       "typescript": "$typescript"
     }
-  },
-  "engines": {
-    "node": ">=22.18"
   },
   "volta": {
     "node": "24.11.0"

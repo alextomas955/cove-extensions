@@ -22,7 +22,7 @@ public sealed class TierTraitCoverageTests
     // inspecting nothing. It is NOT a coverage floor, and reading it as one is the mistake to avoid: it
     // sits below the truth by construction. Never raise or lower it reactively when it goes red — a red
     // is either a mass deletion or broken discovery, and both are worth the build.
-    private const int MinimumTestClasses = 37;
+    private const int MinimumTestClasses = 50;
 
     [Fact]
     public void AllTestClassesCarryATierTrait()

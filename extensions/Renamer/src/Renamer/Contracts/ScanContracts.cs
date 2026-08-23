@@ -154,9 +154,6 @@ public sealed record ScanSummaryView(
 
         int crossCount = kinds.Sum(k => k.BlastRadius.CrossVolumeCount);
         long crossBytes = kinds.Sum(k => k.BlastRadius.CrossVolumeBytes);
-        // Undoable is an UPPER BOUND here: a whole-library run renames one batch PER KIND, so a
-        // mixed-kind library can read "not undoable" while its largest single kind still fits.
-        // Over-warning ahead of a destructive run is the safe direction.
         var blastRadius = new PreviewSummary(
             TotalCount: kinds.Sum(k => k.BlastRadius.TotalCount),
             SameVolumeCount: kinds.Sum(k => k.BlastRadius.SameVolumeCount),
@@ -164,7 +161,7 @@ public sealed record ScanSummaryView(
             CrossVolumeBytes: crossBytes,
             VolumePairs: merged,
             ConfirmLevel: BatchPreview.ClassifyConfirm(crossCount, crossBytes, merged),
-            Undoable: kinds.All(k => k.BlastRadius.Undoable));
+            InFlightPathOverflowCount: kinds.Sum(k => k.BlastRadius.InFlightPathOverflowCount));
 
         int Bucket(ScanBucketKind bucket) => statusCounts
             .Where(c => ScanBucket.Of(c.Status) == bucket)
@@ -188,8 +185,9 @@ public sealed record ScanSummaryView(
 /// One planned file of a whole-library dry run, served by <c>/scan-rows</c> a page at a time.
 /// </summary>
 /// <remarks>
-/// Deliberately narrower than <see cref="PreviewItemView"/>: <c>ResolvedDestinationRoot</c>,
-/// <c>MatchedRule</c> and <c>TargetVolume</c> have no reader, and the new basename and target folder are
+/// Deliberately narrower than <see cref="PreviewItemView"/>:
+/// <see cref="PreviewItemView.ResolvedDestinationRoot"/>, <see cref="PreviewItemView.MatchedRule"/> and
+/// <see cref="PreviewItemView.TargetVolume"/> have no reader, and the new basename and target folder are
 /// both <paramref name="NewFullPath"/> split at its last separator, which the client already does. The
 /// trim is for wire weight and dead surface — it is NOT what makes the dry run scale. What makes it
 /// scale is that this row is never persisted: it is planned on demand for the page being read.
@@ -203,6 +201,18 @@ public sealed record ScanSummaryView(
 /// <param name="Reason">Human-readable reason for a skip/no-op; null for a plain rename or move.</param>
 /// <param name="Suffixed">True iff the collision suffix loop ran.</param>
 /// <param name="Sanitized">True iff the engine cleaned the rendered name.</param>
+/// <param name="InFlightPathOverflow">
+/// True iff this row's cross-volume copy would overrun the path budget while it is in flight (see
+/// <see cref="BatchPreview.InFlightPathOverflows"/>). It IS read — it drives the same red warning badge
+/// the preview's per-item flag drives, which is the table a user reads before approving a bulk rename —
+/// so it earns its place on a row that multiplies by library size.
+/// </param>
+/// <param name="OffLibraryDestination">
+/// True iff this row will act and the file is renamed where it already sits, in a folder under none of
+/// Cove's library paths (see <see cref="RenamerPlanItem.OffLibraryDestination"/>). It IS read — it
+/// drives the same badge the preview's per-item flag drives — and the dry-run table is the one surface
+/// that names WHICH files Cove will stop seeing, which no aggregate can.
+/// </param>
 public sealed record ScanRow(
     RenamerFileKind Kind,
     int EntityId,
@@ -212,10 +222,18 @@ public sealed record ScanRow(
     RenamerStatus Status,
     string? Reason,
     bool Suffixed,
-    bool Sanitized)
+    bool Sanitized,
+    bool InFlightPathOverflow,
+    bool OffLibraryDestination)
 {
     /// <summary>Projects a planned <paramref name="item"/> of entity <paramref name="entityId"/> onto its wire shape.</summary>
-    public static ScanRow From(RenamerFileKind kind, int entityId, RenamerPlanItem item)
+    /// <remarks>
+    /// <paramref name="inFlightPathOverflow"/> is handed in rather than classified here: the caller holds
+    /// the options, so the budget this row is measured against is the same one the planner used, and this
+    /// projection stays a pure mapping.
+    /// </remarks>
+    public static ScanRow From(
+        RenamerFileKind kind, int entityId, RenamerPlanItem item, bool inFlightPathOverflow)
     {
         ArgumentNullException.ThrowIfNull(item);
         return new ScanRow(
@@ -227,7 +245,9 @@ public sealed record ScanRow(
             item.Status,
             item.Reason,
             item.Suffixed,
-            item.Sanitized);
+            item.Sanitized,
+            inFlightPathOverflow,
+            item.OffLibraryDestination);
     }
 }
 
@@ -246,12 +266,14 @@ public sealed record ScanCursor(RenamerFileKind Kind, int AfterEntityId);
 /// <param name="Rows">The rows of this page, in walk order.</param>
 /// <param name="Next">
 /// Where to resume, or null once the walk has observed the end of the last readable kind. A non-null
-/// cursor means "there may be more" — the following request is what proves it either way.
+/// cursor means "there may be more" — the following request is what proves it either way, so a final
+/// empty page is normal rather than an error.
 /// </param>
 /// <param name="EntitiesExamined">Entities planned to fill this page, whether or not their rows survived the filters.</param>
 /// <param name="BudgetExhausted">
 /// True iff the request hit its per-request entity budget before filling the page — the honest signal
 /// that more of the library is unexamined, which a narrow filter over a large library hits routinely.
+/// It NEVER means there are no more results.
 /// </param>
 public sealed record ScanRowsPage(
     IReadOnlyList<ScanRow> Rows,
@@ -264,9 +286,9 @@ public sealed record ScanRowsPage(
 /// </summary>
 /// <remarks>
 /// Bound typed rather than parsed from the raw <c>HttpContext</c> (the treatment <c>/preview-sample</c>
-/// needs) because every member is a string or an int — the host's minimal-API serializer lacks a
-/// string-enum converter, so only a body carrying a bare enum value would fail typed binding. The
-/// options blob travels as a string for exactly that reason, as it does on <c>/scan-library</c>.
+/// needs) because every member is a string or an int, and only a bare enum value defeats the host's
+/// binder (see <c>RenamerOptions.JsonOptions</c>). The options blob travels as a string for exactly
+/// that reason, as it does on <c>/scan-library</c>.
 /// </remarks>
 /// <param name="Options">The caller's current options as a PascalCase JSON blob, or null to plan with the saved options.</param>
 /// <param name="Kind">The cursor's kind (<c>video</c>/<c>image</c>/<c>audio</c>), or null to start at the first readable kind.</param>
@@ -281,3 +303,14 @@ public sealed record ScanRowsRequest(
     int? Take,
     string? Query,
     string? Bucket);
+
+/// <summary>
+/// The <c>/library-paths</c> response: the roots a destination may be measured from.
+/// </summary>
+/// <remarks>
+/// A reference the panel READS rather than a list a user types, which is the whole point of the
+/// current destination model: Cove owns these paths, so a copy of one in the extension's own settings
+/// would go stale the moment the user edits them in Cove.
+/// </remarks>
+/// <param name="Paths">Cove's configured library paths, in the order the host declares them; empty when it supplied no configuration.</param>
+public sealed record LibraryPathsView(IReadOnlyList<string> Paths);

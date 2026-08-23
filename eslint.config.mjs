@@ -1,10 +1,10 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
-import reactRefresh from "eslint-plugin-react-refresh";
 import prettier from "eslint-config-prettier";
-import importX from "eslint-plugin-import-x";
 import boundaries from "eslint-plugin-boundaries";
 
 // The single ESLint config for the whole monorepo — every extension's React/TS UI bundle AND every
@@ -23,6 +23,23 @@ const noUnusedVars = [
 // e2e specs pass browser-context callbacks to page.evaluate(...), so those files legitimately name
 // browser globals (document/window) alongside the Node globals every script uses.
 const scriptGlobals = { ...globals.node, ...globals.browser };
+
+// The raw-HTML React prop, banned on both UI surfaces. Hoisted so the three selectors below share
+// one wording.
+const noRawHtml =
+  "Raw-HTML rendering is banned: filenames, diffs and flags must render as escaped text nodes, never as parsed HTML.";
+
+// Every catalog UI bundle's tsconfig, for the boundaries block's TypeScript resolver below. Read
+// from `catalog.json` rather than written down here: naming one extension's tsconfig inside config
+// whose whole point is being extension-generic is what got the boundary rule deleted once already,
+// and a glob would fix only the drift while leaving the registry unread. A catalog entry without a
+// UI declares no `uiPath` and contributes nothing.
+const uiTsconfigProjects = JSON.parse(
+  readFileSync(path.join(import.meta.dirname, "extensions/catalog.json"), "utf8"),
+)
+  .extensions.filter((entry) => entry.uiPath)
+  .map((entry) => `${entry.uiPath}/tsconfig.json`);
+
 const scriptRules = {
   ...js.configs.recommended.rules,
   "no-unused-vars": noUnusedVars,
@@ -32,17 +49,13 @@ const scriptRules = {
   "no-empty-pattern": "off",
 };
 
-// The raw-HTML React prop, banned on both UI surfaces. Hoisted so its three selectors share one wording.
-const noRawHtml =
-  "Raw-HTML rendering is banned: filenames, diffs and flags must render as escaped text nodes, never as parsed HTML.";
-
 export default tseslint.config(
   {
     ignores: [
-      // Generated from the committed wire document; a program input, not lint's subject.
-      "**/src/wire/**",
       "**/node_modules/**",
       "**/dist/**",
+      // Generated from the committed wire document; still a program input, just not lint's subject.
+      "**/src/wire/**",
       "**/bin/**",
       "**/obj/**",
       "**/artifacts/**",
@@ -78,11 +91,9 @@ export default tseslint.config(
     },
     plugins: {
       "react-hooks": reactHooks,
-      "react-refresh": reactRefresh,
     },
     rules: {
       ...reactHooks.configs["recommended-latest"].rules,
-      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": noUnusedVars,
       // The UIs deliberately build strings from template tokens like `$title`; allow numbers/booleans
       // in template expressions rather than forcing String(...) everywhere.
@@ -114,59 +125,20 @@ export default tseslint.config(
     },
     plugins: {
       "react-hooks": reactHooks,
-      "react-refresh": reactRefresh,
     },
     rules: {
       ...reactHooks.configs["recommended-latest"].rules,
-      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": noUnusedVars,
       // overlay.ts uses the intentional "latest ref" pattern (writing optsRef.current during render
       // to keep the newest options without forcing a re-render); react-hooks/refs flags it. Whether
-      // to rework it is a product-code call, not a lint-config one — advisory here (U-35), since this
-      // plan is behavior-neutral and only closes the shared-TS lint-scope gap.
+      // to rework it is a product-code call, not a lint-config one — advisory here, since widening
+      // the lint scope to shared TS was meant to be behavior-neutral.
       "react-hooks/refs": "warn",
     },
   },
 
-  // --- MF-44 import-enforcement layer (both UI surfaces: extensions + the shared package) ---
-  // R8 named-exports + R13 no-internal-barrels. Uses eslint-plugin-import-x (the maintained fork;
-  // eslint-plugin-import is peer-disqualified at ESLint 10).
-  {
-    files: ["extensions/*/src/**/*.{ts,tsx}", "shared/ui-shared/**/*.{ts,tsx}"],
-    plugins: { "import-x": importX },
-    rules: {
-      // Named exports only, so every import follows one uniform, greppable pattern. The two extension
-      // entries and the two vite configs legitimately default-export (defineExtension / Vite's config
-      // contract) and are exempted in the override block below.
-      "import-x/no-default-export": "error",
-      // No internal barrels: import the concrete module, not an index re-export. The pattern matches
-      // ONLY index-file names — deliberately NOT ".", "./", ".." (a group containing those degenerates
-      // via minimatch into match-everything, 127 false positives; CITATION-RECHECK §2). The alias
-      // `@cove-extensions/ui-shared` is unaffected — that specifier does not end in `index`, and its
-      // src/index.ts is the one sanctioned barrel (the package's public entry).
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              group: ["**/index", "**/index.js", "**/index.ts", "**/index.mjs"],
-              message:
-                "No internal barrels: import the concrete module, not an index re-export (Wave-1 slice architecture).",
-            },
-          ],
-        },
-      ],
-    },
-  },
-
-  // The only files that may default-export: each extension's entry (defineExtension) and each Vite
-  // config (Vite requires a default export). Everything else is named-export-only above.
-  {
-    files: ["extensions/*/src/**/index.ts", "extensions/*/src/**/vite.config.ts"],
-    rules: { "import-x/no-default-export": "off" },
-  },
-
-  // --- The raw-HTML ban (both UI surfaces) ---
+  // --- Cross-surface rules (both UI surfaces: extensions + the shared package) ---
+  // The raw-HTML ban — the one rule both UI surfaces share.
   {
     files: ["extensions/*/src/**/*.{ts,tsx}", "shared/ui-shared/**/*.{ts,tsx}"],
     rules: {
@@ -195,16 +167,21 @@ export default tseslint.config(
   },
 
   // --- `*Logic.ts` purity: relative imports only ---
-  // These modules are the L0 tier — pure and testable with no environment. Nothing here may reach for
-  // react, the SDK, the shared barrel, or a node: builtin; a logic module needing one of those is doing
-  // I/O and belongs in an INFRA or FEAT module. Until this rule the constraint held only as a side
-  // effect of the offline logic gate, which compiled each module in an isolated temp dir where such an
-  // import failed to resolve; the suite runs under vitest now, which resolves everything.
+  // These modules are the L0 tier — pure, mock-free, deterministic, and unit-testable with no
+  // environment. Nothing here may reach for react, a host runtime module, the shared barrel, or even
+  // node: builtins; a logic module that needs one of those is doing I/O and belongs in an INFRA or
+  // FEAT module instead. Until this rule existed the constraint was enforced only as a side effect of
+  // the old offline logic gate, which compiled each module in an isolated temp dir where a runtime
+  // import simply failed to resolve. The gate is gone (its suite runs under vitest, which resolves
+  // everything), so the constraint is now stated directly rather than emerging from a sandbox.
   //
-  // The no-internal-barrels group is restated rather than inherited: a later `no-restricted-imports`
-  // entry REPLACES the earlier one for a matching file, so omitting it would switch the barrels ban off
-  // for exactly the modules this block covers. It still bites after the `^[^.]` regex, which stops only
-  // non-relative specifiers — the relative barrel hop (`./foo/index`) is the group's half.
+  // This block is the no-internal-barrels ban's only home, so the ban reaches `*Logic.ts` and
+  // nothing else: weakening the group below drops it outright rather than falling back on some
+  // other statement of it. The group matches ONLY index-file names — deliberately NOT ".", "./",
+  // ".." (a group containing those degenerates via minimatch into match-everything, 127 false
+  // positives; CITATION-RECHECK §2). It is the half that still bites after the `^[^.]` regex below:
+  // that regex already stops every non-relative specifier, so what the group adds is the RELATIVE
+  // barrel hop (`./foo/index`) that regex would otherwise let past.
   {
     files: ["extensions/*/src/**/*Logic.ts", "shared/ui-shared/**/*Logic.ts"],
     rules: {
@@ -220,7 +197,7 @@ export default tseslint.config(
             {
               regex: "^[^.]",
               message:
-                "A *Logic.ts module stays pure (L0): relative imports only — no react, no SDK, no shared barrel, no node: builtin. Move the I/O to an INFRA module and pass its result in.",
+                "A *Logic.ts module stays pure (L0): relative imports only — no react, no host runtime, no shared barrel, no node: builtin. Move the I/O to an INFRA module and pass its result in.",
             },
           ],
         },
@@ -228,25 +205,38 @@ export default tseslint.config(
     },
   },
 
-  // --- MF-44 architectural boundaries (eslint-plugin-boundaries v7, `boundaries/dependencies`) ---
-  // Encodes the Wave-1 slice isolation over both UIs: each feature slice folder is an element, its
-  // sibling slices are off-limits (route through common/ or the entry), and common/ is importable by
-  // any slice. The src-root index.ts (each extension's defineExtension entry, the one legitimate
-  // barrel) is intentionally left unclassified — the rule does not constrain an unknown source, which
-  // is exactly the entry's role: it may import any slice. The TS resolver classifies the
-  // `@cove-extensions/ui-shared` alias (via each extension's tsconfig paths) so shared imports land as
-  // the `shared` element, not an unclassified external. Authored against the v7 `policies`/object-
-  // selector syntax (not the deprecated `element-types`/`rules` shape). BLOCKING (error) per U-35:
-  // the sibling-slice imports it once flagged are resolved, so a cross-slice import now fails lint.
+  // The shared barrel carries a triple-slash reference to the ambient host-runtime declarations, and
+  // the rule's suggested `import` is not a substitute: that file declares modules and emits nothing,
+  // so importing it would add a runtime import of a module that does not exist. TypeScript honors a
+  // reference directive only above the first statement, which also leaves no room for an inline
+  // disable comment — hence the override here rather than at the call site.
+  {
+    files: ["shared/ui-shared/src/index.ts"],
+    rules: { "@typescript-eslint/triple-slash-reference": "off" },
+  },
+
+  // --- Architectural boundaries (eslint-plugin-boundaries, `boundaries/dependencies`) ---
+  // The taxonomy's one dependency rule, stated as a lint rather than left to review: a feature slice
+  // may depend downward onto `wire`, sideways onto `common/` and the shared package, and never
+  // across onto a sibling slice. Routing between two features goes through `common/` or the entry.
+  //
+  // This block was deleted once and is restored deliberately. The deletion's reasoning was
+  // sound about the defect and wrong about the remedy: the resolver named ONE extension's tsconfig
+  // by path, inside config that claims to be extension-generic, so a second extension would have
+  // silently gone unclassified. That is fixed at its source above — `uiTsconfigProjects` reads the
+  // catalog — rather than by removing the rule. Everything else here was already generic.
+  //
+  // The src-root index.ts (each extension's defineExtension entry, the one sanctioned barrel) is
+  // intentionally left unclassified: the rule does not constrain an unknown source, which is exactly
+  // the entry's role — it may import any slice.
   {
     files: ["extensions/*/src/**/*.{ts,tsx}", "shared/ui-shared/**/*.{ts,tsx}"],
     plugins: { boundaries },
     settings: {
+      // Classifies the `@cove-extensions/ui-shared` alias through each UI's tsconfig paths, so a
+      // shared import lands as the `shared` element instead of an unclassified external.
       "import/resolver": {
-        typescript: {
-          noWarnOnMultipleProjects: true,
-          project: ["extensions/Renamer/src/Renamer.Ui/tsconfig.json"],
-        },
+        typescript: { noWarnOnMultipleProjects: true, project: uiTsconfigProjects },
       },
       "boundaries/elements": [
         // common/ is one element (incl. its ui/ and lib/); stopMatching keeps the broader slice glob
@@ -254,6 +244,15 @@ export default tseslint.config(
         {
           type: "common",
           pattern: "extensions/*/src/*.Ui/src/common",
+          capture: ["extension", "ui"],
+          stopMatching: true,
+        },
+        // The generated wire module is a data shape, not a feature: derived from the extension's own
+        // OpenAPI document, type-only, importing nothing. Every layer may depend downward onto it, so
+        // classifying it as a sibling slice would forbid the one import it exists for.
+        {
+          type: "wire",
+          pattern: "extensions/*/src/*.Ui/src/wire",
           capture: ["extension", "ui"],
           stopMatching: true,
         },
@@ -269,18 +268,18 @@ export default tseslint.config(
       "boundaries/dependencies": [
         "error",
         {
-          // External npm packages (react, @cove/extension-sdk, …) are governed by boundaries/external,
-          // not this rule; only import between local elements is constrained here.
+          // External npm packages (react, @cove/extension-sdk, …) are governed by
+          // boundaries/external, not this rule; only imports between local elements are constrained.
           default: "disallow",
           policies: [
             {
               from: { element: { type: "common" } },
-              allow: { to: { element: { types: { anyOf: ["common", "shared"] } } } },
+              allow: { to: { element: { types: { anyOf: ["common", "shared", "wire"] } } } },
             },
-            // A feature slice may reach common/ and the shared package, but NOT a sibling slice.
+            // A feature slice may reach common/, the shared package and wire — but NOT a sibling.
             {
               from: { element: { type: "slice" } },
-              allow: { to: { element: { types: { anyOf: ["common", "shared"] } } } },
+              allow: { to: { element: { types: { anyOf: ["common", "shared", "wire"] } } } },
             },
             {
               from: { element: { type: "shared" } },

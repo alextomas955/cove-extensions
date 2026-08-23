@@ -19,21 +19,27 @@ namespace Renamer.Tests.Concurrency;
 /// sequential PHASE A and hands the resolved id to each worker, so the parallel PHASE B never does a
 /// check-then-act create on a shared <see cref="Folder"/> row. Duplicate-path lock: a duplicate <c>OldFullPath</c>
 /// across acting units must not make the PHASE B lookup throw and abort the whole batch after the
-/// journal batch is open.
+/// RevertLog header is open.
 /// </summary>
 [Trait("Tier", "L1")]
 public sealed class ParallelFolderCreationTests
 {
     private static async Task<(global::Renamer.Renamer ext, ConcurrentFakeStore store, CapturingEventBus bus)>
-        BuildAsync(SharedCacheSqlite shared, RenamerOptions options)
+        BuildAsync(SharedCacheSqlite shared, RenamerOptions options, params string[] libraryRoots)
     {
         var services = new ServiceCollection();
         services.AddScoped<DbContext>(_ => shared.NewContext());
         var bus = new CapturingEventBus();
         services.AddSingleton<IEventBus>(bus);
+        // Registered only when a caller names one — see Library.LibraryConfig for the whole statement.
+        if (libraryRoots.Length > 0)
+        {
+            services.AddSingleton(Library.LibraryConfig(libraryRoots));
+        }
+
         var provider = services.BuildServiceProvider();
 
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         var store = new ConcurrentFakeStore();
         await new OptionsStore(store).SaveAsync(options);
         ((IStatefulExtension)ext).SetStore(store);
@@ -77,12 +83,14 @@ public sealed class ParallelFolderCreationTests
             var options = new RenamerOptions
             {
                 FilenameTemplate = "$title",
-                FolderTemplate = "sorted",
                 AllowedRoots = [destRootFwd],
                 PathDestinations =
-                    [new PathDestinationRule { Pattern = sourceFolderFwd, Dest = destRootFwd, IsRegex = false }],
+                    [new PathDestinationRule
+                    {
+                        Pattern = sourceFolderFwd, Dest = Dests.At(destRootFwd, "sorted"), IsRegex = false,
+                    }],
             };
-            var (ext, store, _) = await BuildAsync(shared, options);
+            var (ext, _, _) = await BuildAsync(shared, options, destRootFwd);
             var progress = new FakeJobProgress();
 
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
@@ -105,10 +113,9 @@ public sealed class ParallelFolderCreationTests
 
             // The journal recorded one row per moved file under one batch (no torn/lost append).
             await using var readDb = shared.NewContext();
-            using var journal = new CoveRevertJournal(readDb);
-            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(new CoveRevertJournal(readDb));
             Assert.NotNull(batch);
-            Assert.Equal(k, batch!.Rows.Count);
+            Assert.Equal(k, batch.Rows.Count);
         }
         finally
         {
@@ -161,7 +168,7 @@ public sealed class ParallelFolderCreationTests
             // duplicate id — Decode does NOT dedupe) plans the SAME file twice, producing two acting
             // units with the IDENTICAL OldFullPath. PHASE B used to build its move→unit lookup with
             // ToDictionary, which throws ArgumentException on the duplicate key and aborts the WHOLE
-            // batch AFTER the journal batch was opened (violating classify-not-throw and masking the
+            // batch AFTER the RevertLog header was opened (violating classify-not-throw and masking the
             // prior undoable batch from /undo). The defensive group/keep-first build must tolerate the
             // duplicate: the batch must complete (final 1.0) with no unhandled throw.
             string folderFwd = dir.Root.Replace('\\', '/');

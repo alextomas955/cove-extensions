@@ -1,4 +1,4 @@
-# lefthook — one pre-commit gate spanning the mixed C# + TypeScript repo (plan §4.3).
+# lefthook — one pre-commit gate spanning the mixed C# + TypeScript repo.
 #
 # Why lefthook (not husky+lint-staged): a single language-agnostic YAML runs the .NET and Node
 # checks together. ESLint is one repo-root config (eslint.config.mjs) covering every extension's UI
@@ -18,13 +18,6 @@ pre-commit:
       glob: "*.{ts,tsx,mjs,cjs,json,jsonc,css,md,mdx,yml,yaml}"
       run: npx prettier --write {staged_files}
       stage_fixed: true
-    # A response type declared in PascalCase against its camelCase wire typechecks, so every field
-    # reads undefined at runtime with nothing failing anywhere. Retire this when the UI reads the
-    # generated wire module instead of a hand-written one.
-    check-response-casing:
-      glob: "*.{ts,tsx}"
-      run: node scripts/check-response-casing.mjs
-
     check-classes-renamer:
       root: extensions/Renamer/src/Renamer.Ui/
       glob: "*.tsx"

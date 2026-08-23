@@ -12,24 +12,6 @@ export interface RegexValidity {
 }
 
 /**
- * Case-insensitive substring filter over an arbitrary item list. The label accessor keeps it generic
- * so the studio/tag picker and any future list reuse it without forking. A blank query yields the
- * whole list (a no-op filter, not an empty result) and input order is preserved.
- *
- * Diacritic-naive on purpose: a plain lowercased substring match mirrors the host's own simple
- * filtering — locale collation would diverge from what Cove does elsewhere.
- */
-export function filterByText<T>(
-  query: string,
-  items: readonly T[],
-  label: (item: T) => string,
-): T[] {
-  const q = query.trim().toLowerCase();
-  if (q.length === 0) return [...items];
-  return items.filter((item) => label(item).toLowerCase().includes(q));
-}
-
-/**
  * Validate a rule pattern as best a browser can: `new RegExp` is the only validator available in the
  * bundle, so it catches obvious parse errors (an unbalanced group, a dangling quantifier) but is NOT
  * full .NET parity — the rename engine is .NET, so a JS-valid pattern is not a guarantee of .NET
@@ -95,6 +77,20 @@ export function extensionShapeAdvisory(value: string): string | null {
   return null;
 }
 
+/**
+ * `list` with the items at `i` and `j` exchanged, or unchanged when either index is empty. Returns a
+ * copy; the caller decides whether to publish it.
+ */
+export function swapped<T>(list: readonly T[], i: number, j: number): T[] {
+  const next = [...list];
+  const a = next[i];
+  const b = next[j];
+  if (a === undefined || b === undefined) return next;
+  next[i] = b;
+  next[j] = a;
+  return next;
+}
+
 /** Move/remove for an ordered list, bound to one `values`/`onChange`. An out-of-range move does nothing. */
 export function listEditors<T>(
   values: readonly T[],
@@ -104,9 +100,7 @@ export function listEditors<T>(
     move(i, dir) {
       const j = i + dir;
       if (j < 0 || j >= values.length) return;
-      const next = [...values];
-      [next[i], next[j]] = [next[j], next[i]];
-      onChange(next);
+      onChange(swapped(values, i, j));
     },
     remove(i) {
       onChange(values.filter((_, idx) => idx !== i));

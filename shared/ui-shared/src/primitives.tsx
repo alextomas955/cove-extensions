@@ -14,11 +14,24 @@
  * pages import it directly. The barrel offers entity-browsing (`ListPage`, `VideoCard`,
  * `DetailListToolbar`, `Pager`), dialog (`ConfirmDialog`, `EditModal`), and formatting
  * (`TagBadge`, `formatDuration`, `formatFileSize`, `formatDate`, `getResolutionLabel`,
- * `CustomFieldsDisplay`/`Editor`) utilities, none of which overlap a settings-field primitive's
- * shape. `TagBadge` is a tag/label pill with color and provenance — this codebase's status pills
+ * `CustomFieldsDisplay`/`Editor`) utilities. Only the dialog entry overlaps a settings-field
+ * primitive's shape: alongside `EditModal` the barrel re-exports six field primitives whose names
+ * collide with the ones here — `Field`, `TextInput`, `TextArea`, `NumberInput`, `SelectInput`,
+ * `SaveButton`. They are still not the swap, on two counts. Geometry: the host keeps two field
+ * idioms and exports only the MODAL one, whose input string differs from {@link INPUT_CLASS} in
+ * exactly one utility (`rounded` against `rounded-xl`), so adopting it would change the panel's
+ * corner radius and defeat the byte-for-byte match above. Props: the exported shapes are narrower
+ * than the panel needs — no input ref for the token picker to insert through, no monospace flag for
+ * template fields — and the exported `Field` has no equivalent for the helper slot or the
+ * empty-label branch this file's `Field` carries across its call sites.
+ * `TagBadge` is a tag/label pill with color and provenance — this codebase's status pills
  * (`WarningBadge.tsx`) key off a rename-status enum instead, a different concept, not a swap.
- * `formatDuration`/`formatFileSize`/`formatDate`/`getResolutionLabel` have no local counterpart
- * anywhere in this directory: nothing here renders a raw duration, file size, or date value, and
+ * `formatDuration`/`formatFileSize`/`formatDate`/`getResolutionLabel` have no counterpart in this
+ * directory — nothing here renders a raw duration, file size or date value — but the repository does
+ * have two, one directory over: a byte formatter in the bulk-rename confirm builder and a date
+ * formatter in the undo panel's logic module. Neither imports the host's, and each says at its own site
+ * why: the confirm builder is pure so its wording can be unit-tested without a running host, and the
+ * undo module is bound by the `*Logic.ts` import rule and needs a different contract anyway.
  * `CustomFieldsDisplay`/`Editor` render Cove's custom-fields feature, which this extension has no
  * UI for. The bare `react`/`react-dom`/`lucide-react`/`@tanstack/react-query` import specifiers
  * used throughout this codebase are not a migration gap either: the host's `legacySpecifiers`
@@ -27,13 +40,24 @@
  * reason to change the specifier string. See `Dialog.tsx`'s header for why `ConfirmDialog` isn't a
  * swap for `Dialog` either.
  */
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useId, useRef, useState, useEffect } from "react";
 import { Loader2, X, ChevronUp, ChevronDown } from "lucide-react";
-import { isRegexValid, isAbsolutePathShape, listEditors } from "./primitivesLogic";
+import { isRegexValid, isAbsolutePathShape, listEditors, swapped } from "./primitivesLogic";
 import { availableOptions, type ValueOption } from "./entityPickerLogic";
 
-const INPUT_CLASS =
+/**
+ * The shared text-input class, also handed to host components that take a `className` for their own
+ * input so an embedded host control matches these primitives.
+ *
+ * Append only utilities touching a property this string does not already set. Appending a CONFLICTING
+ * color utility (an error border over its `border-border`, say) silently loses and renders as the
+ * default: the host resolves two utilities on one property by its stylesheet's source order, never by
+ * the order in the class attribute, and this bundle ships no CSS of its own to override with. See
+ * {@link CHIP_BASE} for the same conflict as a shipped bug, and its mutually-exclusive color sets for
+ * the shape that avoids it.
+ */
+export const INPUT_CLASS =
   "w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none";
 
 /**
@@ -439,43 +463,6 @@ export function SegmentedReplace({
   );
 }
 
-export function Checkbox({
-  label,
-  checked,
-  onChange,
-  helper,
-  ariaLabel,
-}: {
-  label?: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  helper?: string;
-  ariaLabel?: string;
-}) {
-  const id = useId();
-  // A label-less checkbox (an overlay control with no visible text) names itself through aria-label on the
-  // input, mirroring Toggle — otherwise the visible label span carries the accessible name.
-  const hasVisibleLabel = Boolean(label);
-  return (
-    <div>
-      <label htmlFor={id} className="flex items-center gap-2 text-sm text-secondary" title={helper}>
-        <input
-          id={id}
-          type="checkbox"
-          checked={checked}
-          aria-label={hasVisibleLabel ? undefined : ariaLabel}
-          onChange={(e) => {
-            onChange(e.target.checked);
-          }}
-          className="h-4 w-4 rounded border-border bg-card text-accent focus:ring-0"
-        />
-        {hasVisibleLabel ? <span>{label}</span> : null}
-      </label>
-      {helper ? <p className="mt-1 text-xs text-secondary">{helper}</p> : null}
-    </div>
-  );
-}
-
 export function Toggle({
   label,
   checked,
@@ -525,6 +512,16 @@ export function Toggle({
   );
 }
 
+/**
+ * A copy of `list` with the entries at `i` and `j` exchanged, or an unchanged copy when either index
+ * is out of range.
+ *
+ * @remarks
+ * The three reordering controls below shared one destructuring swap, which reads both slots before
+ * it writes either and so can put an `undefined` into the array it is reordering when an index is
+ * stale. Doing it once here means the bound is established in one place instead of being re-assumed
+ * at each call site.
+ */
 /**
  * String-list editor: chips above an add-on-Enter input. Used for Whitelist / Blacklist /
  * RequiredFields / DropOrder. DropOrder additionally gets up/down reordering (`ordered`).
@@ -906,14 +903,8 @@ export function ObjectArrayEditor<T>({
   function move(i: number, dir: -1 | 1) {
     const j = i + dir;
     if (j < 0 || j >= rows.length) return;
-    const next = [...rows];
-    [next[i], next[j]] = [next[j], next[i]];
-    onChange(next);
-    setKeys((ks) => {
-      const nk = [...ks];
-      [nk[i], nk[j]] = [nk[j], nk[i]];
-      return nk;
-    });
+    onChange(swapped(rows, i, j));
+    setKeys((ks) => swapped(ks, i, j));
   }
 
   function add() {
@@ -988,32 +979,48 @@ export function ObjectArrayEditor<T>({
  * pending key/value are local draft state; only a successful add commits them through `onChange`.
  * Keys render as React text nodes (auto-escaped).
  */
-export function KeyValueMapEditor({
+export function KeyValueMapEditor<TValue>({
   map,
   onChange,
+  emptyValue,
   renderKey,
   renderValue,
   renderKeyLabel,
   addLabel,
 }: {
-  map: Record<string, string>;
-  onChange: (map: Record<string, string>) => void;
+  map: Record<string, TValue>;
+  onChange: (map: Record<string, TValue>) => void;
+  // What the add row starts from, and what it returns to after a commit. Supplied rather than assumed
+  // because a value is not always a string: an editor whose rows hold a composite would otherwise have
+  // to invent an empty one, and two places would then disagree about what "not filled in yet" is.
+  emptyValue: TValue;
   renderKey: (
     draftKey: string,
     setDraftKey: (key: string) => void,
     existingKeys: readonly string[],
   ) => ReactNode;
-  renderValue: (value: string, setValue: (value: string) => void) => ReactNode;
-  // How a committed row's key displays. Defaults to the raw key; an opaque-id key (e.g. a studio id)
-  // supplies this to show a human label so a saved rule reads "Studio Name → …" not "42 → …".
-  renderKeyLabel?: (key: string) => string;
+  renderValue: (value: TValue, setValue: (value: TValue) => void) => ReactNode;
+  // How a committed row's key displays. An opaque-id key (e.g. a studio id) supplies this to show a
+  // human label so a saved rule reads "Studio Name → …" not "42 → …". A nullish result falls back to
+  // the raw key: a renderer resolving an id it cannot find must not blank the cell, which would leave
+  // the row unidentifiable and so unremovable.
+  renderKeyLabel?: (key: string) => ReactNode;
   addLabel: string;
 }) {
   const [draftKey, setDraftKey] = useState("");
-  const [draftValue, setDraftValue] = useState("");
-  const keys = Object.keys(map);
+  // The draft holds UNDEFINED until the user edits it, and `emptyValue` is read at the moment it is
+  // needed rather than copied at mount. Seeding the state with `emptyValue` instead would freeze the
+  // caller's FIRST one forever: `useState` reads its argument on the first render only, so a value
+  // derived from data still being fetched — a destination root derived from Cove's library paths, say
+  // — would commit the placeholder the caller had before the fetch landed, on the first row added.
+  const [draftValue, setDraftValue] = useState<TValue | undefined>(undefined);
+  const pendingValue = draftValue ?? emptyValue;
+  // Rows render from the entries rather than from the keys, so each row's value arrives paired with
+  // its key out of one traversal instead of being looked back up by index.
+  const entries = Object.entries(map);
+  const keys = entries.map(([key]) => key);
 
-  function setValue(key: string, value: string) {
+  function setValue(key: string, value: TValue) {
     onChange({ ...map, [key]: value });
   }
 
@@ -1025,25 +1032,25 @@ export function KeyValueMapEditor({
     const k = draftKey.trim();
     // Refuse a blank or duplicate key — a duplicate add must not clobber the existing mapping.
     if (k.length === 0 || k in map) return;
-    onChange({ ...map, [k]: draftValue });
+    onChange({ ...map, [k]: pendingValue });
     setDraftKey("");
-    setDraftValue("");
+    setDraftValue(undefined);
   }
 
   const duplicate = draftKey.trim().length > 0 && draftKey.trim() in map;
 
   return (
     <div className="space-y-2">
-      {keys.map((key) => (
+      {entries.map(([key, value]) => (
         <div
           key={key}
           className="flex items-center gap-2 rounded-xl border border-border bg-card p-3"
         >
           <span className="min-w-0 flex-1 truncate font-mono text-sm text-foreground">
-            {renderKeyLabel ? renderKeyLabel(key) : key}
+            {renderKeyLabel?.(key) ?? key}
           </span>
           <span className="flex-1">
-            {renderValue(map[key], (v) => {
+            {renderValue(value, (v) => {
               setValue(key, v);
             })}
           </span>
@@ -1061,7 +1068,7 @@ export function KeyValueMapEditor({
       ))}
       <div className="flex items-start gap-2 rounded-xl border border-border bg-card p-3">
         <span className="min-w-0 flex-1">{renderKey(draftKey, setDraftKey, keys)}</span>
-        <span className="min-w-0 flex-1">{renderValue(draftValue, setDraftValue)}</span>
+        <span className="min-w-0 flex-1">{renderValue(pendingValue, setDraftValue)}</span>
         <Button onClick={add} disabled={draftKey.trim().length === 0 || duplicate}>
           {addLabel}
         </Button>
@@ -1086,14 +1093,23 @@ export function RegexValidity({ pattern, isRegex }: { pattern: string; isRegex: 
 }
 
 /**
- * Advisory-only, non-blocking hint that a destination-path field doesn't look like an absolute path.
- * Mirrors {@link RegexValidity}'s presentational shape exactly: pure, stateless, renders nothing when
- * the value looks fine or is blank (blank already means "no route" for every field this wraps).
+ * Advisory-only, non-blocking hint that a field meant to hold a RELATIVE folder template has been
+ * given something that looks like a typed path. Mirrors {@link RegexValidity}'s presentational shape
+ * exactly: pure, stateless, and renders nothing when the value looks fine or is blank.
+ *
+ * A typed path is not refused — it renders as ordinary folder names under whichever root the field's
+ * owner chose, which is confined and harmless but almost never what the author meant.
+ *
+ * `message` is the REMEDY, and it is the caller's because only the caller knows what it is. Wording
+ * it here would put one extension's panel layout inside a business-agnostic package, where no import
+ * records the dependency and so nothing can detect it — and the next extension would inherit advice
+ * describing a control its own screen does not have. What stays shared is
+ * {@link isAbsolutePathShape}, which is a fact about a string and true everywhere.
  */
-export function PathShapeHint({ value }: { value: string }) {
+export function PathShapeHint({ value, message }: { value: string; message: string }) {
   if (value.trim().length === 0) return null;
-  if (isAbsolutePathShape(value)) return null;
-  return <StatusText kind="warning">Doesn't look like an absolute path.</StatusText>;
+  if (!isAbsolutePathShape(value)) return null;
+  return <StatusText kind="warning">{message}</StatusText>;
 }
 
 /** One of the five field groups. Matches Cove sub-card styling. */
@@ -1146,21 +1162,52 @@ export function Badge({ children, mono = false }: { children: ReactNode; mono?: 
 
 export type StatusPillVariant = "accent" | "amber" | "red" | "green" | "gray";
 
-// Each triple is lifted verbatim from the pre-existing pills so the host Tailwind JIT still emits
-// every class; a consumer whose text color rides on inner spans overrides the triple's `text-*`.
-const STATUS_PILL_VARIANT: Record<StatusPillVariant, string> = {
-  accent: "border-accent/40 bg-accent/10 text-accent",
-  amber: "border-amber-400/40 bg-amber-400/10 text-amber-400",
-  red: "border-red-700/50 bg-red-950/40 text-red-400",
-  green: "border-green-500/40 bg-green-500/10 text-green-400",
-  gray: "border-border bg-card text-muted",
-};
+/** A theme colour at partial alpha, in the same form the host's own stylesheet emits. */
+const tint = (variable: string, percent: number) =>
+  `color-mix(in oklab, var(${variable}) ${percent}%, transparent)`;
+
+// Split per variant into the utilities the host stylesheet actually contains and the ones it does
+// not. As classes, the absent ones rendered nothing at all — no border, no fill, and no error to
+// notice. Cove defines the underlying colour scale as custom properties even for the utilities it
+// never emits, so inlining from those variables keeps the pills following the host theme instead of
+// freezing a literal. A consumer whose text colour rides on inner spans still overrides the `text-*`
+// class, as before.
+//
+// Four are genuinely absent at the floor — `bg-amber-400/10`, `bg-red-950/40`, `border-green-500/40`
+// and `bg-green-500/10`. `border-amber-400/40` is emitted at the floor and is inlined anyway, which
+// costs nothing because an inline style beats the class either way.
+//
+// Measure any host-absent claim against the floor `extension.json` declares, never against the host
+// extraction checked into this repo: that extraction is pinned to an OLDER tag, and
+// `border-amber-400/40` is absent there while present at the floor.
+const STATUS_PILL_VARIANT: Record<StatusPillVariant, { className: string; style?: CSSProperties }> =
+  {
+    accent: { className: "border-accent/40 bg-accent/10 text-accent" },
+    amber: {
+      className: "text-amber-400",
+      style: {
+        borderColor: tint("--color-amber-400", 40),
+        backgroundColor: tint("--color-amber-400", 10),
+      },
+    },
+    red: {
+      className: "border-red-700/50 text-red-400",
+      style: { backgroundColor: tint("--color-red-950", 40) },
+    },
+    green: {
+      className: "text-green-400",
+      style: {
+        borderColor: tint("--color-green-500", 40),
+        backgroundColor: tint("--color-green-500", 10),
+      },
+    },
+    gray: { className: "border-border bg-card text-muted" },
+  };
 
 /**
  * A status-tinted pill — the badge family the single-accent `$token` {@link Badge} does not cover.
  * `variant` selects the tint, `shape` the corner radius (`pill` fully rounded | `tag` `rounded-md`),
- * `icon` a caller-supplied leading glyph so status never rides on color alone. Host-compiled classes
- * only.
+ * `icon` a caller-supplied leading glyph so status never rides on color alone.
  */
 export function StatusPill({
   variant,
@@ -1179,29 +1226,16 @@ export function StatusPill({
   // gap-1, the rounded-md status tags at gap-1.5.
   const gap = shape === "pill" ? "gap-1" : "gap-1.5";
   const rounded = shape === "pill" ? "rounded-full" : "rounded-md";
+  const tone = STATUS_PILL_VARIANT[variant];
   return (
     <span
       title={title}
-      className={`inline-flex items-center ${gap} ${rounded} border px-2 py-0.5 text-xs ${STATUS_PILL_VARIANT[variant]}`}
+      className={`inline-flex items-center ${gap} ${rounded} border px-2 py-0.5 text-xs ${tone.className}`}
+      style={tone.style}
     >
       {icon}
       {children}
     </span>
-  );
-}
-
-/**
- * A section-group divider header: an uppercase label, a hairline rule that fills the row, and an
- * optional muted hint on the right. Groups the flat cards beneath it (What gets renamed, Run &
- * automation, Token settings, Destination routing, Advanced) without being a collapsible itself.
- */
-export function SectionGroupHeader({ title, hint }: { title: string; hint?: string }) {
-  return (
-    <div className="flex items-center gap-3">
-      <h2 className="text-xs font-bold uppercase tracking-wider text-secondary">{title}</h2>
-      <div className="h-px flex-1 bg-border" />
-      {hint ? <span className="text-xs text-muted">{hint}</span> : null}
-    </div>
   );
 }
 
@@ -1227,13 +1261,12 @@ export function SectionCard({
   children: ReactNode;
 }) {
   const hasHeader = Boolean(title) || badge != null || headerRight != null;
+  // The shadow resolves as a class because Cove's own settings card carries this exact string
+  // (`SettingsPrimitives.tsx`), so the host stylesheet emits it — measured present at the floor host,
+  // alongside seven other arbitrary shadows it also emits. What decides whether an arbitrary-value
+  // class works here is whether COVE uses it, not whether its value is arbitrary.
   return (
-    <section
-      className="rounded-2xl border border-border bg-surface p-5"
-      // The host Tailwind JIT never scans this bundle, so an arbitrary `shadow-[…]` class renders nothing;
-      // the computed shadow goes in an inline style (the same rule as the ProgressBar fill / Toggle knob).
-      style={{ boxShadow: "0 12px 30px -20px rgba(0,0,0,0.7)" }}
-    >
+    <section className="rounded-2xl border border-border bg-surface p-5 shadow-[0_12px_30px_-20px_rgba(0,0,0,0.7)]">
       {hasHeader ? (
         <header className="mb-4 flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
@@ -1359,21 +1392,43 @@ export function CollapsibleSection({
   );
 }
 
+/**
+ * The panel's button, mirroring the behaviours of Cove's own `SettingsButton`.
+ *
+ * The shared class string is behaviour rather than decoration: `min-h-10` with `sm:min-h-0`/`sm:py-1.5`
+ * keeps a touch-sized target on a narrow viewport and shrinks it on a wide one; `transition-colors`
+ * animates hover rather than snapping it; `disabled:cursor-not-allowed` reads as disabled rather than
+ * merely dim; `justify-center` centres the label within that minimum height. `danger` is Cove's third
+ * variant, for a destructive action that must not read as an ordinary confirm.
+ *
+ * Every class here is emitted by the floor host — measured — so this needs no shipped stylesheet and
+ * contributes nothing to one.
+ */
 export function Button({
   variant = "primary",
   children,
   onClick,
   disabled,
 }: {
-  variant?: "primary" | "ghost";
+  variant?: "primary" | "danger" | "ghost";
   children: ReactNode;
   onClick: () => void;
   disabled?: boolean;
 }) {
-  const className =
-    variant === "ghost"
-      ? "inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-secondary hover:border-accent/50 hover:bg-card-hover hover:text-foreground disabled:opacity-60"
-      : "inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-60";
+  // Appended to each variant's existing string, deliberately NOT the host's base string wholesale:
+  // that would also move this button's padding and gap.
+  const shared =
+    "min-h-10 justify-center transition-colors disabled:cursor-not-allowed sm:min-h-0 sm:py-1.5";
+  const variantClasses = {
+    ghost:
+      "inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-secondary hover:border-accent/50 hover:bg-card-hover hover:text-foreground disabled:opacity-60",
+    danger:
+      "inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-60",
+    primary:
+      "inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-60",
+  };
+  const variantClass = variantClasses[variant];
+  const className = `${variantClass} ${shared}`;
   return (
     <button type="button" onClick={onClick} disabled={disabled} className={className}>
       {children}

@@ -6,9 +6,10 @@ User-facing changes, newest first.
 
 - **A rename no longer erases the undo of the one before it.** The undo record moved out of Cove's
   extension-data store and into a table Renamer owns, so a background auto-rename no longer destroys
-  the record of a deliberate 500-file run. Each rename is kept for 7 days and then expires. The
-  5,000-file limit is unchanged: a rename past it is still not recorded, and the confirmation dialog
-  and the dry-run footer still say so before it runs.
+  the record of a deliberate 500-file run. Each rename is kept for 7 days and then expires.
+- **The 5,000-file limit on what can be undone is gone.** A rename is now recorded whatever its
+  size, so a whole-library run is undoable like any other. The 7-day window, not a file count, is
+  what bounds the record — and the dry run is the check to make before that window closes.
 - **A file that can't go back stays pending instead of spending the whole undo.** Undoing used to
   mark a rename spent as soon as one file came back, so files blocked by an occupied name or an
   unmounted drive could never be retried. Now each file is retired only when it is actually settled;

@@ -54,8 +54,8 @@ public sealed class UndoRetryTests
             var undo = UndoValue(await ext.UndoAsync(Write, default));
 
             Assert.Equal(1, undo.Undone);
-            Assert.Single(undo.Skipped);
-            Assert.Empty(undo.Failed);
+            Assert.Equal(1, undo.SkippedCount);
+            Assert.Equal(0, undo.FailedCount);
             Assert.True(File.Exists(comes.OldFull), "the restorable file is back");
             Assert.True(File.Exists(stays.NewFull), "the blocked file never moved");
 
@@ -97,8 +97,8 @@ public sealed class UndoRetryTests
             // ONE, not two: the row the first run retired is not offered again, so the second run acts
             // only on what the first left behind.
             Assert.Equal(1, second.Undone);
-            Assert.Empty(second.Skipped);
-            Assert.Empty(second.Failed);
+            Assert.Equal(0, second.SkippedCount);
+            Assert.Equal(0, second.FailedCount);
             Assert.True(File.Exists(stays.OldFull), "the blocked file is back after the retry");
             Assert.False(File.Exists(stays.NewFull));
             Assert.True(File.Exists(comes.OldFull), "and the first run's file was not disturbed");
@@ -133,7 +133,10 @@ public sealed class UndoRetryTests
 
             Assert.Equal(1, undo.Undone);
             // The COUNT is what the response states and what a caller reads; the sample is only where
-            var stopped = Assert.Single(undo.Skipped);
+            // the entry's identity comes from. Both are asserted, because a count that disagreed with
+            // its own sample is exactly the failure the pairing exists to make visible.
+            Assert.Equal(1, undo.SkippedCount);
+            var stopped = Assert.Single(undo.SkippedSample);
             Assert.Equal(gone.FileId, stopped.FileId);
 
             using var journal = new CoveRevertJournal(db);
@@ -270,7 +273,7 @@ public sealed class UndoRetryTests
             foreach (var s in seeded)
             {
                 var plan = await new RenamerPlanner(port)
-                    .PlanAsync(RenamerFileKind.Video, s.VideoId, options, default);
+                    .PlanAsync(RenamerFileKind.Video, s.VideoId, options, RouteLookupsFixtures.RoutingNeutral, default);
                 var forward = await new RenamerExecutor(
                         port, new CapturingEventBus(), journal, RunId, new DiskMover())
                     .ExecuteAsync(plan, options, default);
