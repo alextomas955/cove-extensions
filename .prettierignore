@@ -29,11 +29,6 @@
 # rather than tidying it. They carry their own WIRE_SNAPSHOT_UPDATE path for the deliberate case.
 **/Renamer.Tests/Contracts/fixtures/
 
-# The check-classes guard is its own verify gate. The nested .prettierignore beside it covers the
-# run made from inside that package; this covers a run made from the repo root, since Prettier reads
-# an ignore file only from its own working directory and never a nested one.
-**/Renamer.Ui/scripts/
-
 # Written verbatim by the emitter and diffed by CI; reformatting it makes that diff permanent.
 **/wire/openapi.json
 

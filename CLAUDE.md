@@ -6,7 +6,7 @@ This is the Cove extensions monorepo — a single git repository holding one or 
 extensions, following [yourcove](https://github.com/yourcove)'s official
 `multi-extension-repo-template` pattern. Today it ships one extension — **Renamer**
 (`extensions/Renamer/`, metadata-driven rename/relocate) — plus first-party shared modules
-(`shared/Cove.Extensions.Shared` for C#, `shared/cove-extensions-ui` for the UI bundles) it
+(`shared/Cove.Extensions.Shared` for C#, `shared/ui-shared` for the UI bundles) it
 consumes. See `README.md` for the extension list and dev setup.
 
 ## Registry and CI
@@ -57,7 +57,7 @@ Every extension in this monorepo is a dynamically-loaded `Cove.Sdk` plugin. The 
 all of them (Renamer today, more later); an extension's own `CLAUDE.md` adds only
 what is specific to it. Shared first-party code lives in `shared/` — `Cove.Extensions.Shared` (a
 `ProjectReference` that ships bundled, since it is first-party and not host-provided) and
-`cove-extensions-ui` (resolved into each UI bundle from raw TS source via a Vite alias).
+`ui-shared` (resolved into each UI bundle from raw TS source via a Vite alias).
 
 - **Implement `IExtension` from `Cove.Plugins`** (`using Cove.Plugins;`) — typically by subclassing
   `FullExtensionBase`. `extension.json` is the load manifest (`id`, `name`, `entryDll`, `jsBundle`,
@@ -107,7 +107,7 @@ Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ 
   inside a slice — the suffix carries it. Folder-per-section only when a section holds more than one
   file.
 - **Two-level shared — "shared" is repo-level only.** Repo-level `shared/` = cross-extension only:
-  exactly `shared/cove-extensions-ui` (FE) + `shared/Cove.Extensions.Shared` (BE). The FE package's
+  exactly `shared/ui-shared` (FE) + `shared/Cove.Extensions.Shared` (BE). The FE package's
   `src/` is **flat** — `index.ts` beside `primitives.tsx`, `primitivesLogic.ts`, `actions.ts`,
   `postAction.ts`, `overlay.ts`, `entityPickerLogic.ts` — because at seven files the suffix already
   carries the kind and a `ui/`/`lib/` split would only restate it (the suffix-as-kind rule above).
@@ -115,7 +115,7 @@ Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ 
   it is business-agnostic _and_ reusable by every extension unchanged. Extension-local multi-feature
   code lives in that extension's own `common/`, which **is** split (`common/ui` + `common/lib`, as
   Renamer's is today), and is **never** called "shared" — anything carrying one extension's branding or
-  domain vocabulary belongs in its `common/ui`, not in `cove-extensions-ui`.
+  domain vocabulary belongs in its `common/ui`, not in `ui-shared`.
 - **Models live with their behavior; only wire contracts get a home.** Do not strip behavior into a
   data-only "models layer" (anemic-domain anti-pattern). C# wire DTOs → a `Contracts/` unit in the
   SAME assembly, cross-cutting enums defined once in a neutral `Vocabulary.cs`. TS wire types are
@@ -128,7 +128,7 @@ Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ 
   `[JsonConverter(typeof(CamelCaseStringEnumConverter))]`, never on an options object — an options-level
   converter OUTRANKS a type attribute, so a second declaration can drift and win silently. The C#
   handler signatures are the source of truth: the emit test derives `wire/openapi.json` from the shipped
-  registrations and fails on drift, so that document is the drift check rather than the offline gates.
+  registrations and fails on drift, so that document is the drift check rather than a hand-kept mirror.
 - **UI conventions.** Named exports only (the `defineExtension` default in `index.ts` is the one
   default export); no barrels bar `index.ts` + the curated `shared/` public barrel; data access
   through a named `use*` hook beside its `*Store.ts`, never a raw `request()` in `useEffect`; no
@@ -276,7 +276,8 @@ code explains the what; comments explain the why.** Default to no comment; earn 
 - **AI tools (Claude Code / Copilot / Cursor):** match the surrounding comment density; never narrate
   the edit; never restate a name.
 - The `check-classes` gate guards host-JIT Tailwind-class validity and XSS (no
-  `dangerouslySetInnerHTML`), **not** comment presence — it manufactures no doc filler, and no
+  `dangerouslySetInnerHTML`), which an ESLint `no-restricted-syntax` rule bans across both UI
+  surfaces too. Neither guards comment presence — they manufacture no doc filler, and no
   doc-presence lint should be added on the TS side either.
 
 ## Documentation upkeep

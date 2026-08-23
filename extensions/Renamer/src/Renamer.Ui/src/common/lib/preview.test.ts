@@ -1,18 +1,16 @@
 /**
- * Behavior contract for the pure bulk-rename confirm builder. The runner compiles preview.ts and
- * passes the compiled module path in PREVIEW_CONFIRM_MODULE; importing the exact compiled artifact
- * keeps the test honest about what ships.
+ * Behavior contract for the pure bulk-rename confirm builder.
  *
  * The claim under test is the one a user acts on: the confirm shown BEFORE a rename touches disk must
  * promise an undo only when the server says the batch will be journalled.
  */
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 
-const mod = await import(process.env.PREVIEW_CONFIRM_MODULE);
-const { buildConfirmSummary } = mod;
+import { buildConfirmSummary } from "./preview";
+import type { ConfirmLevel, PreviewItem, PreviewSummary } from "../../contracts";
 
-const RENAME_ITEM = {
+const RENAME_ITEM: PreviewItem = {
   fileId: 1,
   oldFullPath: "/lib/raw.mkv",
   newFullPath: "/lib/Film.mkv",
@@ -25,7 +23,7 @@ const RENAME_ITEM = {
   targetVolume: "/",
 };
 
-function summary(overrides) {
+function summary(overrides: Partial<PreviewSummary>): PreviewSummary {
   return {
     totalCount: 1,
     sameVolumeCount: 1,
@@ -46,7 +44,9 @@ test("a batch the server will not journal says so, promises no undo, and names t
   assert.doesNotMatch(text, /You can undo/);
 });
 
-for (const level of ["light", "standard", "heavy"]) {
+const CONFIRM_LEVELS: readonly ConfirmLevel[] = ["light", "standard", "heavy"];
+
+for (const level of CONFIRM_LEVELS) {
   test(`the ${level} call-to-action drops the undo promise when undoable is false`, () => {
     const undoable = buildConfirmSummary([RENAME_ITEM], summary({ confirmLevel: level }));
     assert.match(undoable.text, /You can undo this afterwards\./);

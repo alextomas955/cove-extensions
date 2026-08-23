@@ -1,8 +1,8 @@
 /**
  * Pure, DOM-free logic behind the fixed-option add control. Kept import-free (no React, no DOM, no
- * SDK) so each extension's offline test runner can compile it in isolation, exactly like
- * primitivesLogic.ts. This is the subset genuinely shared across bundles; entity-reference picker
- * helpers that only one extension uses stay in that extension.
+ * SDK) so it stays L0 — testable with no environment — exactly like primitivesLogic.ts. This is the
+ * subset genuinely shared across bundles; entity-reference picker helpers that only one extension uses
+ * stay in that extension.
  */
 
 /** A fixed option offered by a pick-to-add / multiselect control: the stored value plus its label. */

@@ -13,8 +13,5 @@
     "./entityPickerLogic": "./src/entityPickerLogic.ts",
     "./actions": "./src/actions.ts",
     "./postAction": "./src/postAction.ts"
-  },
-  "scripts": {
-    "test": "node scripts/run-logic-gate.mjs --manifest scripts/gates.json"
   }
 }

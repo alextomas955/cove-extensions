@@ -1,6 +1,6 @@
-// Zero-import: the offline logic gate compiles this module with `types: []` and no node_modules on
-// the path, so any SDK import would fail to resolve. The SDK-touching `postAction` is a separate
-// module for that reason.
+// Zero-import: the route builder is pure string work, so it stays free of the SDK and can be
+// re-exported from the barrel without dragging a dependency along. The SDK-touching `postAction` is a
+// separate module for that reason.
 
 /** Host bulk-action payload (ExtensionSelectionActions.buildActionPayload). */
 export interface ActionPayload {

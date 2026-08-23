@@ -1,19 +1,14 @@
-/**
- * Behavior contract for the pure entity-picker logic. The runner compiles studioFilterLogic.ts and
- * passes the compiled module path in PICKER_LOGIC_MODULE; importing the exact compiled artifact keeps
- * the test honest about what ships.
- */
-import test from "node:test";
+/** Behavior contract for the pure entity-picker logic. */
+import { test } from "vitest";
 import assert from "node:assert/strict";
 
-const mod = await import(process.env.PICKER_LOGIC_MODULE);
-const {
+import {
   filterEntities,
   resolveStudioLabel,
   isResolvedStudioId,
   canonicalTagName,
   excludeEntities,
-} = mod;
+} from "./studioFilterLogic";
 
 const studios = [
   { id: 10, name: "Alpha Studio" },
@@ -71,7 +66,7 @@ test("a tag the picker has not seen is stored as the trimmed typed name", () => 
 
 test("the filter does not mutate its input list", () => {
   const input = [...studios];
-  const snapshot = JSON.parse(JSON.stringify(studios));
+  const snapshot = structuredClone(studios);
   filterEntities("alph", input);
   assert.deepEqual(input, snapshot);
 });
@@ -96,7 +91,7 @@ test("excludeEntities drops rows by canonical name when the map keys on names", 
 });
 
 test("excludeEntities with nothing excluded returns the full list unmutated", () => {
-  const snapshot = JSON.parse(JSON.stringify(studios));
+  const snapshot = structuredClone(studios);
   const out = excludeEntities(studios, [], (e) => e.id);
   assert.deepEqual(out, studios);
   assert.deepEqual(studios, snapshot);
