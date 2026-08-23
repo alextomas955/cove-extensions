@@ -85,6 +85,7 @@ jobs:
   # Promoting the leg to required is a branch-protection edit, not a change here. ----
   macos-build-test:
     runs-on: macos-latest
+    timeout-minutes: 30
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
@@ -112,7 +113,7 @@ jobs:
           test -s "$RUNNER_TEMP/test-projects.txt" || { echo "no test projects read from the catalog"; exit 1; }
           while read -r test; do
             echo "::group::dotnet test $test"
-            dotnet test "$test" -c Release --no-build
+            dotnet test --project "$test" -c Release --no-build
             echo "::endgroup::"
           done < "$RUNNER_TEMP/test-projects.txt"
 

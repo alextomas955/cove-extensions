@@ -89,6 +89,7 @@ jobs:
     needs: build
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # The only job that can publish. deploy-pages authenticates the deployment with an OIDC token,
     # so id-token:write is inseparable from pages:write here. No contents scope — it checks nothing
     # out.

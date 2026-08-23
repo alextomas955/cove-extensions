@@ -237,13 +237,18 @@ jobs:
       # test-cove-present below. Before Publish, so a test failure blocks packaging. Skipped for an entry
       # with no testProjectPath.
       #
-      # .runsettings sets TreatNoTestsAsError repo-wide, so a run that executes nothing fails rather than
-      # reporting success having asserted nothing.
+      # A run that executes nothing fails rather than reporting success having asserted nothing: the
+      # Microsoft Testing Platform exits 8 on zero tests, with no configuration needed.
+      #
+      # The version properties have to match the Build step's. The test project references the
+      # extension, so a differing property set rebuilds the extension assembly unstamped, and the
+      # Publish step below ships whatever is in bin/ without recompiling it.
       - name: Test (unit tier)
         if: ${{ !matrix.extension.manifestOnly && matrix.extension.testProjectPath != '' }}
-        run: dotnet test "$TEST_PROJECT_PATH" -c Release -p:CoveSourceMode=none
+        run: dotnet test --project "$TEST_PROJECT_PATH" -c Release -p:CoveSourceMode=none "-p:Version=$EXTENSION_VERSION" -p:ContinuousIntegrationBuild=true
         env:
           TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
+          EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
       # Publishes to a throwaway directory, NOT the package directory: the package receives only what
       # the assemble step below copies into it, so nothing the build happens to emit alongside the
@@ -353,6 +358,7 @@ jobs:
   test-cove-present:
     needs: validate
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.validate.outputs.coveMatrix) }}
@@ -426,11 +432,11 @@ jobs:
       # smaller green run. AssertCoveLocation refuses that case at build time, and the extraction
       # staleness guard refuses assemblies pulled from a tag other than the one under test — so an
       # incomplete extraction is caught where it happens, not inferred afterwards from a test count.
-      # An empty run still fails, via TreatNoTestsAsError in .runsettings.
+      # An empty run still fails: the Microsoft Testing Platform exits 8 on zero tests.
       - name: Test (cove-present tier, assemblies from the released image)
         if: steps.check.outputs.has_tier == 'true'
         run: |
-          dotnet test "$TEST_PROJECT_PATH" -c Release \
+          dotnet test --project "$TEST_PROJECT_PATH" -c Release \
             -p:CoveSourceMode=assemblies \
             -p:CoveTestImageTag="$COVE_TAG" \
             -p:CoveAssembliesDir=artifacts/cove-assemblies
