@@ -395,12 +395,19 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
 }
 
 /**
- * Reads every catalog entry's declared floor, reaching it through that entry's own manifest.
+ * Reads each catalog entry's declared floor, reaching it through that entry's own manifest.
  *
  * `minCoveVersion` is NOT a catalog field — it lives in the manifest the catalog's `manifestPath`
  * points at. Nothing here names an extension: a second one needs a catalog entry and no edit.
+ *
+ * `select` narrows which entries are read AT ALL, not which results come back: a manifest that is
+ * absent or declares no floor throws, so an entry a caller does not care about could otherwise fail
+ * that caller. Omitted, every entry is read, which is what the CI version matrix wants.
+ *
+ * @param {(entry: object) => boolean} [select]
+ * @param {string} [catalogPath]
  */
-export function readExtensionFloors(catalogPath = DEFAULT_CATALOG_PATH) {
+export function readExtensionFloors(select, catalogPath = DEFAULT_CATALOG_PATH) {
   if (!fs.existsSync(catalogPath)) {
     throw new Error(`${catalogPath} does not exist, so no extension floor can be read.`);
   }
@@ -411,7 +418,8 @@ export function readExtensionFloors(catalogPath = DEFAULT_CATALOG_PATH) {
   }
 
   const catalogDir = path.dirname(catalogPath);
-  return entries.map((entry) => {
+  const selected = select ? entries.filter(select) : entries;
+  return selected.map((entry) => {
     const manifestPath = entry.manifestPath ?? path.posix.join(entry.path ?? "", "extension.json");
     const absolute = path.resolve(catalogDir, "..", manifestPath);
     if (!fs.existsSync(absolute)) {

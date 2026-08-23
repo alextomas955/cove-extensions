@@ -97,6 +97,27 @@ function resolveEntry(catalog, idOrName) {
   return catalog.extensions.find((entry) => entry.id === idOrName || entry.name === idOrName);
 }
 
+// Where a catalog entry's load manifest lives. Named once and used by both the assembly below and
+// any caller that has to agree with it about which file will be shipped.
+function entryManifestPath(absoluteRoot, entry) {
+  return entry.manifestPath
+    ? path.join(absoluteRoot, entry.manifestPath)
+    : path.join(absoluteRoot, entry.path, MANIFEST_BY_CONVENTION);
+}
+
+/**
+ * The manifest file `assemblePackage` would ship for `idOrName`, or null when no entry matches.
+ *
+ * Exported so a caller that reads a manifest by some other route can assert the two are the same
+ * file.
+ */
+export function resolveEntryManifestPath(root, idOrName) {
+  const absoluteRoot = path.resolve(root);
+  const catalog = readJson(path.join(absoluteRoot, "extensions", "catalog.json"));
+  const entry = resolveEntry(catalog, idOrName);
+  return entry ? entryManifestPath(absoluteRoot, entry) : null;
+}
+
 function checkArtifactName(name, failures) {
   if (typeof name !== "string" || name === "") {
     failures.push(
@@ -265,9 +286,7 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
   // The packaged manifest is sourced from the entry's declared manifestPath rather than from the
   // publish output, because the publish output's copy is a build side effect: the manifest the host
   // reads at install time must be the one under source control, stamped with this release.
-  const manifestSource = entry.manifestPath
-    ? path.join(absoluteRoot, entry.manifestPath)
-    : path.join(absoluteRoot, entry.path, MANIFEST_BY_CONVENTION);
+  const manifestSource = entryManifestPath(absoluteRoot, entry);
   const manifestName = path.basename(manifestSource);
 
   let sourceManifest = null;

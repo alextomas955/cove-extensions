@@ -1,9 +1,9 @@
-// Seeds a real, disposable test media file into a running harness instance and registers it with
-// Cove via the real API, so Renamer's planner has a genuine file+DB row to act on. Cove requires
-// an on-disk file for video/image import (no "create a fake row with no file" endpoint exists —
-// see extensions/.planning/ or extensions/Renamer/.planning/ research notes) — copying a tiny real
-// fixture via the container's own copyFilesToContainer (not a host bind-mount) keeps this
-// environment-independent.
+// Seeds a disposable media file into a running instance and registers it through Cove's own import
+// API, so a spec has a genuine file plus DB row to act on.
+//
+// Cove has no "create a row with no file" endpoint: video and image import require the file to exist
+// on disk first. The copy goes through the container's own API rather than a host bind-mount, so the
+// host's Docker file-sharing configuration does not enter into it.
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -14,10 +14,14 @@ const FIXTURES_DIR = join(__dirname, "fixtures-media");
 /**
  * Copies fixtures-media/<fixtureName> into the container at <destDir>/<destName> (default /data)
  * and registers it as a video via POST /api/videos/from-file. Returns the created video's id.
+ *
+ * `token` is required only against an auth-enabled instance (pass `harness.token`); the import
+ * route answers 401 there without it.
  */
 export async function seedVideo({
   container,
   baseUrl,
+  token,
   fixtureName = "test-video.mp4",
   destName,
   destDir = "/data",
@@ -31,7 +35,10 @@ export async function seedVideo({
 
   const res = await fetch(`${baseUrl}/api/videos/from-file`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({ filePath: containerPath }),
   });
 

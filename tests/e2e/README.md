@@ -17,6 +17,8 @@ so every run starts from the same clean state and touches nothing on your machin
 - Docker (Docker Desktop on Windows/macOS, or native Docker on Linux) — running, with the daemon
   reachable from your shell.
 - Node.js 22+ and npm (already required elsewhere in this repo).
+- The .NET SDK this repo builds with — `npm test` publishes each extension before the browser starts,
+  and that is a `dotnet publish`.
 
 No host-specific Docker configuration is required — extension install works by copying files
 directly into the running container (via Testcontainers' `copyFilesToContainer`/`exec`, not a host
@@ -36,31 +38,42 @@ That's it — `npm test` runs every project in [`playwright.config.mjs`](playwri
 "One Playwright install, many extensions" below) across 4 parallel workers by default, each spec
 file provisioning and tearing down its own isolated Cove instance.
 
+`npm test` also builds what it installs: a `pretest` hook runs
+[`scripts/publish-extensions.mjs`](../../scripts/publish-extensions.mjs), which publishes every
+extension whose catalog entry declares an e2e suite. Do not add a manual publish step back — the one
+non-obvious cost of not having one is that a first run is slow, because it also installs and builds
+each extension's UI bundle.
+
 ## One Playwright install, many extensions
 
 There is exactly **one** `node_modules`/`@playwright/test` install for the whole monorepo. This
 harness lives at `tests/e2e/` and is published as the npm-workspace package `@cove-extensions/e2e`;
 a root `npm install` hoists the single `@playwright/test` to the repo-root `node_modules` and
-symlinks the harness there by name. Each extension's E2E suite is registered as a Playwright
-**project** in [`playwright.config.mjs`](playwright.config.mjs) pointing `testDir` at that
-extension's own test directory (e.g. `extensions/Renamer/e2e/tests/`) — the test _files_ live next
-to the extension they test, and each imports the harness **by name** (`@cove-extensions/e2e`), never
-by a relative `../../../e2e/...` path.
+symlinks the harness there by name. Each extension's E2E suite runs as a Playwright **project** that
+[`playwright.config.mjs`](playwright.config.mjs) derives from `extensions/catalog.json` — one per
+entry declaring both `e2ePath` and `e2eProject`, with `testDir` at `<e2ePath>/tests` (e.g.
+`extensions/Renamer/e2e/tests/`). The test _files_ live next to the extension they test, and each
+imports the harness **by name** (`@cove-extensions/e2e`), never by a relative `../../../e2e/...`
+path.
 
 **This matters, not just a style preference:** two separate `@playwright/test` installs in the same
 process break Playwright's internal module singleton (`Requiring @playwright/test second time`) the
 moment one test file imports a fixture module from the other install. Because the extension's own
 `e2e/package.json` depends on `@cove-extensions/e2e` (and never on `@playwright/test` directly),
 workspace hoisting enforces the single install structurally — adding a new extension's suite means
-adding one `projects` entry here, not running `npm install`/`npx playwright install` inside the
+declaring it in the catalog, not running `npm install`/`npx playwright install` inside the
 extension's folder.
 
 Run a single extension's suite with `--project`:
 
 ```sh
 cd tests/e2e
-npx playwright test --project=renamer
+npm test -- --project=renamer
 ```
+
+Go through `npm test` rather than calling Playwright directly: the publish hook above is a `pretest`
+script, so a direct `npx playwright test` skips it and installs whatever publish output happens to
+be on disk.
 
 Each extension's own directory (e.g. `extensions/Renamer/e2e/`) has a minimal `package.json` that
 declares `@cove-extensions/e2e` as a dependency and whose `test` script shells out to this pattern,
@@ -108,25 +121,17 @@ docker network ls --filter "name=testcontainers" --format "{{.Name}}" | xargs -r
 
 ## Writing your first test
 
-See [Authoring E2E tests](https://alextomas955.github.io/cove-extensions/contributing/authoring-e2e)
-for the full 3-step add-a-suite guide.
-In short:
-
-1. Build your extension the normal way (whatever produces its publish output + `extension.json` +
-   optional UI bundle — e.g. Renamer's own `scripts/deploy-dev.ps1` build step, minus the deploy).
-2. Copy [`tests/template.spec.mjs`](tests/template.spec.mjs) into your own extension's directory
-   (e.g. `extensions/<YourExtension>/e2e/tests/`) and add a thin
-   `extensions/<YourExtension>/e2e/lib/<yourextension>-fixtures.mjs` that imports the harness by name
-   and uses `resolveExtensionPaths` — see Renamer's `extensions/Renamer/e2e/lib/renamer-fixtures.mjs`
-   for the exact shape. Give the new `extensions/<YourExtension>/e2e/package.json` a
-   `{ "dependencies": { "@cove-extensions/e2e": "*" } }` entry (never its own `@playwright/test`).
-3. Add a `projects` entry for your extension in this directory's `playwright.config.mjs`, and add
-   `e2ePath`/`e2eProject` to that extension's `catalog.json` entry. Then run `npm install` at the
-   repo root once (the workspace glob registers your suite automatically).
+[Authoring E2E tests](https://alextomas955.github.io/cove-extensions/contributing/authoring-e2e) is
+the add-a-suite guide, and the only one — it carries the folder to create and the two catalog fields
+that register it. Start from [`tests/template.spec.mjs`](tests/template.spec.mjs);
+`extensions/Renamer/e2e/` is the reference implementation. What follows here is harness reference:
+what the fixtures give a test once the suite exists.
 
 The `extension` fixture option is filled by `resolveExtensionPaths(import.meta.url, …)`, which
-derives `publishDir`/`manifestPath`/`uiBundlePath` from the fixture file's own location — no
-hand-rolled repo-root paths.
+derives `repoRoot`/`publishDir`/`manifestPath` from the fixture file's own location — no
+hand-rolled repo-root paths. The harness then assembles the package your extension's `catalog.json`
+entry declares in its `artifacts` array and installs that, so a test runs against the same file set a
+release ships.
 
 ```js
 // from e.g. extensions/<YourExtension>/e2e/tests/your-test.spec.mjs
@@ -136,7 +141,6 @@ import { resolveExtensionPaths } from "@cove-extensions/e2e/resolve-extension";
 test.use({
   extension: resolveExtensionPaths(import.meta.url, {
     srcProject: "YourProject", // → src/YourProject/extension.json
-    uiProject: "YourProject.Ui", // → src/YourProject.Ui/dist/index.mjs (omit usage if no frontend)
   }),
 });
 
@@ -173,12 +177,12 @@ container) doesn't block every UI test either. You don't need to do anything for
 
 ### Available fixtures
 
-| Fixture   | What it gives you                                                                                                                          |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `baseUrl` | The running instance's URL (e.g. `http://localhost:54321`) — a fresh random port every run                                                 |
-| `api`     | `{ get, post, put, delete }` helpers for calling the instance's REST API directly, no browser                                              |
-| `page`    | A real Playwright `Page`, already navigated to `baseUrl` and already signed in                                                             |
-| `harness` | The raw harness handle, if you need lower-level control (`installExtensionFromUrl`, `container` for direct `exec`/file copy, `stop`, etc.) |
+| Fixture   | What it gives you                                                                                                          |
+| --------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `baseUrl` | The running instance's URL (e.g. `http://localhost:54321`) — a fresh random port every run                                 |
+| `api`     | `{ get, post, put, delete }` helpers for calling the instance's REST API directly, no browser                              |
+| `page`    | A real Playwright `Page`, already navigated to `baseUrl` and already signed in                                             |
+| `harness` | The raw harness handle, if you need lower-level control (`container` for direct `exec`/file copy, `restart`, `stop`, etc.) |
 
 One Cove instance is shared per Playwright **worker** (not per test) to keep the suite fast —
 booting a fresh container per test would make even a small suite slow. This means your tests must
@@ -189,15 +193,17 @@ the shared one — see `extension-lifecycle.spec.mjs` for the pattern.
 
 ## Running locally vs CI
 
-Locally: `npm test` (runs every project, 4 parallel workers) or `npx playwright test
---project=<name>` for one extension — see Quick start and "One Playwright install, many
-extensions" above.
+Locally: `npm test` (runs every project, 4 parallel workers) or `npm test -- --project=<name>` for
+one extension — see Quick start and "One Playwright install, many extensions" above.
 
-CI: the `.github/workflows/build.yml` `e2e` job runs `npx playwright test --project=<name>` for
-each catalog entry that declares an `e2ePath`/`e2eProject`, against that entry's just-built
-`artifacts/<name>/` output (not a downloaded zip) — see that workflow for the exact steps. There is
-no CI-only fork of the harness itself; the same `docker-compose.yml`, install helpers, and fixtures
-run in both places.
+CI: the `.github/workflows/build.yml` `e2e` job runs `npm test -- --project=<name>` for each
+catalog entry that declares an `e2ePath`/`e2eProject`, against that entry's own just-built publish
+output (not a downloaded zip), which the harness assembles as above. It runs that command once per
+Cove version the workflow's axis resolves, passing the image tag in `COVE_E2E_TAG` — so which Cove a
+run boots is CI's choice, and locally it is the declared floor. One axis leg runs a `@smoke`
+selection rather than the whole suite; `build.yml` states which and why, and that file is the place
+to read it rather than here. There is no CI-only fork of the harness itself; the same
+`docker-compose.yml`, install helpers, and fixtures run in both places.
 
 ## When a test fails
 
@@ -220,17 +226,17 @@ the cleanup command.
   [Testcontainers-node](https://node.testcontainers.org/)'s `DockerComposeEnvironment` (not a
   hand-rolled `docker compose` child_process wrapper — Testcontainers' Ryuk sidecar guarantees
   cleanup even on a killed process, and it owns port resolution + health-check waiting natively).
-  Returns a handle with `baseUrl`, `container` (the raw Testcontainers container object),
-  `installExtension`, `installExtensionFromUrl`, `bootstrapOwner`, `exec`, and `stop`.
-- [`lib/stage-extension.mjs`](lib/stage-extension.mjs) — copies a build's publish output +
-  manifest + UI bundle into the on-disk shape Cove expects (`<id>/extension.json` + DLLs + optional
-  `index.mjs`).
-- [`lib/install-extension.mjs`](lib/install-extension.mjs) — two install paths:
-  - `installViaContainerCopy` — stages the extension, then copies it into the running container's
-    `/config/extensions/<id>/` via Testcontainers' own container API and restarts (mirrors Cove's
-    documented bind-mount install, without depending on host file-sharing config).
-  - `installViaUrl` — calls the real `POST /api/extensions/install-from-url` REST endpoint against
-    a running instance; hot-installs, no restart.
+  Returns a handle with `baseUrl`, `container` (the raw Testcontainers container object), and the
+  install / auth / exec / teardown methods the fixtures drive — read that file for the current set
+  rather than a list here, which is free to fall behind it.
+- [`lib/stage-extension.mjs`](lib/stage-extension.mjs) — assembles the package that extension's
+  `catalog.json` entry declares, with the repo's shared packer, into the on-disk shape Cove expects
+  (`<id>/extension.json` + DLLs + optional `index.mjs`). It runs the same packer a release and a
+  local dev deploy run, so a test installs the file set a release ships, not an approximation.
+- [`lib/install-extension.mjs`](lib/install-extension.mjs) — `installViaContainerCopy`, the one
+  install path: stages the extension, then copies it into the running container's
+  `/config/extensions/<id>/` via Testcontainers' own container API and restarts (mirrors Cove's
+  documented bind-mount install, without depending on host file-sharing config).
 - [`lib/fixtures.mjs`](lib/fixtures.mjs) — wires the harness into Playwright's `test`/`expect`,
   including owner bootstrap and setup-wizard bypass for every `page` use.
 - [`lib/seed-media.mjs`](lib/seed-media.mjs) — Cove has no "create a fake DB row with no file"
@@ -242,18 +248,33 @@ the cleanup command.
   consistent reads. Some write paths are not read-your-writes on the very next request (observed
   directly: a `GET` immediately after a `200` from an undo endpoint can still return the pre-undo
   value) — poll instead of asserting on the first read, and never paper over this with a fixed
-  `sleep()`, which is either flaky (too short) or slows every run for no reason (too long).
+  `sleep()`, which is either flaky (too short) or slows every run for no reason (too long). Both are
+  built on `attemptUntil()`, the one retry loop the harness's own waits also run through; a spec
+  wanting a per-attempt abort bound can use it directly.
 
 ## Scope
 
-This harness verifies extension install/lifecycle + behavior against a real Cove instance. It does
-not (yet):
+This harness verifies extension install/lifecycle + behavior against a real Cove instance. It is also
+the **L3 gate** for the C# tier taxonomy: that taxonomy reserves L3 for containerized end-to-end, no
+xUnit class in this repo carries the trait, and this suite is what fills the role instead. See
+[`Renamer.Tests/README.md`](../../extensions/Renamer/src/Renamer.Tests/README.md) for the taxonomy
+itself.
 
-- Support the GitHub-registry-backed install flow (only `install-from-url` and container-copy).
-- Test Cove's own authentication/permission system. `COVE__Auth__Enabled=false` is the default for
-  every test in this suite (the auth-bypass principal always carries wildcard permissions in that
-  mode — confirmed by direct source read) — this harness exists to test EXTENSIONS, not Cove's own
-  auth model, so permission-enforcement testing was deliberately scoped out rather than built as a
-  second harness mode.
-- Run true Windows containers (Cove ships no Windows container image, so the containerized suite is
-  Linux-only; the Windows CI job builds and unit-tests instead of running the full E2E suite).
+**Authentication is off by default, and a spec that needs it on provisions its own instance.** The
+worker-shared instances run `COVE__Auth__Enabled=false`, where every request resolves to a bypass
+principal carrying wildcard permissions — so nothing about credentials or row-level authorization is
+falsifiable there. The flag is instance-global, hence
+`startHarness({ env: { COVE_E2E_AUTH_ENABLED: 'true' } })` per test rather than per worker;
+`createRestrictedUser()` then mints the non-owner principal Cove's row-level filters actually apply
+to, which the owner's own token bypasses — pass its token to `createApiClient` to drive a spec as
+that user while the harness handle keeps the owner's. Renamer's `auth-enabled.spec.mjs` is the worked
+example of the instance setup, including the anonymous-read assertion that keeps such a spec from
+passing for the trivial reason that authentication was never on.
+
+It does not (yet):
+
+- Support the GitHub-registry-backed install flow (container-copy is the only install path).
+- Run anywhere but on Linux containers. Cove ships no Windows container image, so the containerized
+  suite is Linux-only, and the Windows and macOS CI jobs build and run the unit tiers instead. On a
+  GitHub-hosted macOS runner that is permanent rather than pending — those runners ship no Docker
+  daemon at all.
