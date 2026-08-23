@@ -12,14 +12,6 @@
     -->
     <PackageVersion Include="Cove.Sdk" Version="$(CoveSdkVersion)" />
     <PackageVersion Include="Cove.Plugins" Version="$(CoveSdkVersion)" />
-    <!--
-      Cove.Core normally arrives transitively through Cove.Sdk and is never referenced directly, which
-      is why this repo declared no version for it. It has one consumer now, and only one: the test
-      project's `assemblies` mode names it in an ExcludeAssets="all" reference, so that the image's
-      Cove.Core is what compiles and runs instead of the NuGet one. Central package management requires
-      a declared version even for a reference whose whole purpose is to bring in nothing.
-    -->
-    <PackageVersion Include="Cove.Core" Version="$(CoveSdkVersion)" />
 
     <PackageVersion Include="System.IO.Hashing" Version="10.0.11" />
 
