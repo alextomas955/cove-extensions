@@ -248,7 +248,9 @@ the cleanup command.
   consistent reads. Some write paths are not read-your-writes on the very next request (observed
   directly: a `GET` immediately after a `200` from an undo endpoint can still return the pre-undo
   value) — poll instead of asserting on the first read, and never paper over this with a fixed
-  `sleep()`, which is either flaky (too short) or slows every run for no reason (too long).
+  `sleep()`, which is either flaky (too short) or slows every run for no reason (too long). Both are
+  built on `attemptUntil()`, the one retry loop the harness's own waits also run through; a spec
+  wanting a per-attempt abort bound can use it directly.
 
 ## Scope
 
