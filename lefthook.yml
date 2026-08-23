@@ -32,7 +32,7 @@ pre-commit:
 
     # Every host import-map external (lucide-react) resolved against the module the HOST actually
     # serves, not the one in node_modules. Those differ: a name can typecheck, build and pass every
-    # offline gate while the shipped bundle fails to load in the browser and every surface renders
+    # other check while the shipped bundle fails to load in the browser and every surface renders
     # "Extension component not found". That shipped once. Local-only by construction — it reads the
     # host's generated shim, so it skips with a notice when no ../cove sibling is present (the
     # sdk-drift-check precedent), which also means CI cannot run it.

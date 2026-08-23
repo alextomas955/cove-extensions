@@ -1,14 +1,17 @@
 /**
- * Round-trip + preservation contract for the options model. The runner compiles options.ts and
- * passes the compiled module path in OPTIONS_MODULE; importing the exact compiled artifact keeps the
- * test honest about what ships. The save merge is reproduced as `{ ...extras, ...options }` — the
- * literal merge RenameSettingsPanel.saveOptions uses — so a pass proves the SAME merge the panel runs.
+ * Round-trip + preservation contract for the options model. The save merge is reproduced as
+ * `{ ...extras, ...options }` — the literal merge RenameSettingsPanel.saveOptions uses — so a pass
+ * proves the SAME merge the panel runs.
  */
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 
-const mod = await import(process.env.OPTIONS_MODULE);
-const { normalizeOptions, extractUnmodeledFields, cloneDefaults, DEFAULT_OPTIONS } = mod;
+import {
+  normalizeOptions,
+  extractUnmodeledFields,
+  cloneDefaults,
+  DEFAULT_OPTIONS,
+} from "./options";
 
 // A blob with every modeled field at a value distinct from its default, in PascalCase (the wire
 // spelling). The round-trip must return all of these unchanged.
@@ -112,7 +115,7 @@ test("every modeled field survives load → no-op edit → save value-equal", ()
 });
 
 test("cloneDefaults isolates every mutable collection from DEFAULT_OPTIONS", () => {
-  const before = JSON.parse(JSON.stringify(DEFAULT_OPTIONS));
+  const before = structuredClone(DEFAULT_OPTIONS);
   const clone = cloneDefaults();
 
   clone.StudioDestinations[1] = "x";
@@ -150,7 +153,10 @@ test("FreeSpaceHeadroomBytes stays the only unmodeled knob; concurrency is model
   assert.ok(!("CrossVolumeConcurrency" in extras));
   assert.ok(!("SameVolumeConcurrency" in extras));
 
-  const persisted = { ...extras, ...normalizeOptions(blob) };
+  // Annotated because a spread of an index-signature type into a concrete one keeps only the
+  // concrete keys, which would leave the carried-through extra unreadable here — the very thing
+  // under test.
+  const persisted: Record<string, unknown> = { ...extras, ...normalizeOptions(blob) };
   assert.equal(persisted.FreeSpaceHeadroomBytes, UNMODELED_KNOB.FreeSpaceHeadroomBytes);
   assert.equal(persisted.CrossVolumeConcurrency, 4);
   assert.equal(persisted.SameVolumeConcurrency, 16);
@@ -159,7 +165,7 @@ test("FreeSpaceHeadroomBytes stays the only unmodeled knob; concurrency is model
   const extras2 = extractUnmodeledFields(persisted);
   assert.ok(!("CrossVolumeConcurrency" in extras2));
   assert.ok(!("SameVolumeConcurrency" in extras2));
-  const persisted2 = { ...extras2, ...normalizeOptions(persisted) };
+  const persisted2: Record<string, unknown> = { ...extras2, ...normalizeOptions(persisted) };
   assert.equal(persisted2.FreeSpaceHeadroomBytes, UNMODELED_KNOB.FreeSpaceHeadroomBytes);
   assert.equal(persisted2.CrossVolumeConcurrency, 4);
   assert.equal(persisted2.SameVolumeConcurrency, 16);

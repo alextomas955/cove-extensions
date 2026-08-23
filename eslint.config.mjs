@@ -32,6 +32,10 @@ const scriptRules = {
   "no-empty-pattern": "off",
 };
 
+// The raw-HTML React prop, banned on both UI surfaces. Hoisted so its three selectors share one wording.
+const noRawHtml =
+  "Raw-HTML rendering is banned: filenames, diffs and flags must render as escaped text nodes, never as parsed HTML.";
+
 export default tseslint.config(
   {
     ignores: [
@@ -101,7 +105,7 @@ export default tseslint.config(
   // findings. Syntactic linting (recommended + dead-code + the MF-44 import rules) is the correct
   // scope for code that is type-checked downstream where its types actually resolve.
   {
-    files: ["shared/cove-extensions-ui/**/*.{ts,tsx}"],
+    files: ["shared/ui-shared/**/*.{ts,tsx}"],
     extends: [tseslint.configs.recommended],
     languageOptions: {
       ecmaVersion: 2024,
@@ -128,7 +132,7 @@ export default tseslint.config(
   // R8 named-exports + R13 no-internal-barrels. Uses eslint-plugin-import-x (the maintained fork;
   // eslint-plugin-import is peer-disqualified at ESLint 10).
   {
-    files: ["extensions/*/src/**/*.{ts,tsx}", "shared/cove-extensions-ui/**/*.{ts,tsx}"],
+    files: ["extensions/*/src/**/*.{ts,tsx}", "shared/ui-shared/**/*.{ts,tsx}"],
     plugins: { "import-x": importX },
     rules: {
       // Named exports only, so every import follows one uniform, greppable pattern. The two extension
@@ -162,6 +166,68 @@ export default tseslint.config(
     rules: { "import-x/no-default-export": "off" },
   },
 
+  // --- The raw-HTML ban (both UI surfaces) ---
+  {
+    files: ["extensions/*/src/**/*.{ts,tsx}", "shared/ui-shared/**/*.{ts,tsx}"],
+    rules: {
+      // Core `no-restricted-syntax` rather than eslint-plugin-react's `no-danger`: that plugin
+      // declares `eslint: ^3 … ^9.7` and so is peer-disqualified at the ESLint major this repo runs.
+      // The three selectors are the three ways the prop can reach React — a JSX attribute, and an
+      // object property under either an identifier or a string-literal key. The last two cover the
+      // spread form (`<div {...{ dangerouslySetInnerHTML: … }} />`) and createElement props, which a
+      // JSX-attribute-only check walks straight past.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: 'JSXAttribute[name.name="dangerouslySetInnerHTML"]',
+          message: noRawHtml,
+        },
+        {
+          selector: 'Property[key.name="dangerouslySetInnerHTML"]',
+          message: noRawHtml,
+        },
+        {
+          selector: 'Property[key.value="dangerouslySetInnerHTML"]',
+          message: noRawHtml,
+        },
+      ],
+    },
+  },
+
+  // --- `*Logic.ts` purity: relative imports only ---
+  // These modules are the L0 tier — pure and testable with no environment. Nothing here may reach for
+  // react, the SDK, the shared barrel, or a node: builtin; a logic module needing one of those is doing
+  // I/O and belongs in an INFRA or FEAT module. Until this rule the constraint held only as a side
+  // effect of the offline logic gate, which compiled each module in an isolated temp dir where such an
+  // import failed to resolve; the suite runs under vitest now, which resolves everything.
+  //
+  // The no-internal-barrels group is restated rather than inherited: a later `no-restricted-imports`
+  // entry REPLACES the earlier one for a matching file, so omitting it would switch the barrels ban off
+  // for exactly the modules this block covers. It still bites after the `^[^.]` regex, which stops only
+  // non-relative specifiers — the relative barrel hop (`./foo/index`) is the group's half.
+  {
+    files: ["extensions/*/src/**/*Logic.ts", "shared/ui-shared/**/*Logic.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/index", "**/index.js", "**/index.ts", "**/index.mjs"],
+              message:
+                "No internal barrels: import the concrete module, not an index re-export (Wave-1 slice architecture).",
+            },
+            {
+              regex: "^[^.]",
+              message:
+                "A *Logic.ts module stays pure (L0): relative imports only — no react, no SDK, no shared barrel, no node: builtin. Move the I/O to an INFRA module and pass its result in.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // --- MF-44 architectural boundaries (eslint-plugin-boundaries v7, `boundaries/dependencies`) ---
   // Encodes the Wave-1 slice isolation over both UIs: each feature slice folder is an element, its
   // sibling slices are off-limits (route through common/ or the entry), and common/ is importable by
@@ -173,7 +239,7 @@ export default tseslint.config(
   // selector syntax (not the deprecated `element-types`/`rules` shape). BLOCKING (error) per U-35:
   // the sibling-slice imports it once flagged are resolved, so a cross-slice import now fails lint.
   {
-    files: ["extensions/*/src/**/*.{ts,tsx}", "shared/cove-extensions-ui/**/*.{ts,tsx}"],
+    files: ["extensions/*/src/**/*.{ts,tsx}", "shared/ui-shared/**/*.{ts,tsx}"],
     plugins: { boundaries },
     settings: {
       "import/resolver": {
@@ -196,7 +262,7 @@ export default tseslint.config(
           pattern: "extensions/*/src/*.Ui/src/*",
           capture: ["extension", "ui", "slice"],
         },
-        { type: "shared", pattern: "shared/cove-extensions-ui/src" },
+        { type: "shared", pattern: "shared/ui-shared/src" },
       ],
     },
     rules: {

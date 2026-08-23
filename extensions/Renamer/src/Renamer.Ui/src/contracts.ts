@@ -1,7 +1,8 @@
 /**
  * The Renamer UI's wire-type home: the camelCase shapes the extension's endpoints emit, declared once
- * and consumed via `import type` (erased at runtime, so a consuming `*Logic.ts` module stays offline-gate
- * clean). The literal values mirror the C# wire contract; the offline gates are the drift check.
+ * and consumed via `import type` (erased at runtime, so a consuming `*Logic.ts` module stays free of
+ * a value import). The literal values mirror the C# wire contract; the suite's hand-transcribed status
+ * table is the drift check.
  */
 
 /**

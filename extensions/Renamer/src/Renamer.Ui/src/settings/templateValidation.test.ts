@@ -1,13 +1,8 @@
-/**
- * Behavior contract for templateUsesToken. The runner compiles templateValidation.ts and passes
- * the compiled module path in TEMPLATE_VALIDATION_MODULE; importing the exact compiled artifact
- * keeps the test honest about what ships.
- */
-import test from "node:test";
+/** Behavior contract for templateUsesToken. */
+import { test } from "vitest";
 import assert from "node:assert/strict";
 
-const mod = await import(process.env.TEMPLATE_VALIDATION_MODULE);
-const { templateUsesToken } = mod;
+import { templateUsesToken } from "./templateValidation";
 
 test("a token wrapped in an optional group is detected in the filename template", () => {
   assert.equal(templateUsesToken("performers", "$title { - $performers}", ""), true);
