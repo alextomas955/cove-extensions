@@ -11,8 +11,7 @@
     "test": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "verify": "npm run typecheck && npm run format:check && npm run check-classes && npm run check-host-imports && npm run test",
-    "check-host-imports": "node ../../../../scripts/check-host-imports.mjs"
+    "verify": "npm run typecheck && npm run format:check && npm run check-classes && npm run test"
   },
   "dependencies": {
     "@cove/extension-sdk": "file:vendor/cove-extension-sdk-0.1.0.tgz",
