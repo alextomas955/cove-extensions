@@ -700,6 +700,31 @@ test("a write that fails partway is a reported WRITE failure, not a throw, and s
   );
 });
 
+// The case above plants a .dll, which the pre-write json scan skips. A declared .json reaches that
+// scan first, and it reads the source rather than only testing that it exists — so the same planted
+// directory arrives at a read instead of at a copy, on the path that runs BEFORE anything is written.
+test("a declared json whose source cannot be read is a reported failure, not a throw", () => {
+  const planted = "Fixture.deps.json";
+  const fixture = fixtureRoot();
+  fs.rmSync(path.join(fixture.publishDir, planted));
+  fs.mkdirSync(path.join(fixture.publishDir, planted));
+
+  // No try/catch, for the reason the case above states.
+  const r = assemble(fixture);
+
+  assert.equal(r.ok, false, "a json that could not be read must not report success");
+  assert.ok(
+    r.failures.some((f) => f.startsWith("UNREADABLE:") && f.includes(planted)),
+    "expected an UNREADABLE failure naming " + planted + ", got: " + r.failures.join("; "),
+  );
+  assert.deepEqual(r.copied, [], "the refusal happens before the first write");
+  assert.equal(
+    fs.existsSync(fixture.packageDir),
+    false,
+    "a run refused before writing must leave no package directory behind",
+  );
+});
+
 // ── CLI leg ─────────────────────────────────────────────────────────────────────────────────────
 
 function runCli(fixture, argv, script = scriptPath) {
@@ -758,6 +783,33 @@ test("CLI: two runs over identical input print byte-identical output", () => {
   assert.equal(first.status, 0, first.stdout + first.stderr);
   assert.equal(second.status, 0, second.stdout + second.stderr);
   assert.equal(second.stdout, first.stdout);
+});
+
+// The exported function reports what landed, and the command line has to say the same thing. A write
+// that fails partway is the one refusal that leaves files behind, and the next run is refused for a
+// directory that is not empty — so a caller told nothing was written has no account of what put them
+// there.
+test("CLI: a write that fails partway names what it wrote, and does not claim it wrote nothing", () => {
+  const planted = "Fixture.Extra.dll";
+  const fixture = fixtureRoot();
+  fs.rmSync(path.join(fixture.publishDir, planted));
+  fs.mkdirSync(path.join(fixture.publishDir, planted));
+
+  const run = runCli(fixture, fullArgv(fixture));
+
+  assert.equal(run.status, 1, run.stdout + run.stderr);
+  assert.match(run.stderr, /^WRITE: /m);
+  assert.doesNotMatch(
+    run.stderr,
+    /nothing was written/,
+    "files were written, so the summary must not say otherwise: " + run.stderr,
+  );
+  assert.match(run.stderr, /INCOMPLETE/);
+  assert.deepEqual(
+    fs.readdirSync(fixture.packageDir).sort(),
+    ["Fixture.dll", "bundle.mjs", "extension.json"],
+    "the assertion above is only meaningful while these files really are on disk",
+  );
 });
 
 // One directory has many spellings, and which one a caller uses must not decide whether the script

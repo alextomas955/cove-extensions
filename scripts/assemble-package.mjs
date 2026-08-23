@@ -354,7 +354,26 @@ export function assemblePackage({ root, publishDir, packageDir, idOrName, versio
 
   for (const item of staged) {
     if (!item.name.endsWith(".json")) continue;
-    checkNoAbsolutePath(item.name, item.text ?? fs.readFileSync(item.source, "utf8"), failures);
+    let text = item.text;
+    if (text == null) {
+      try {
+        text = fs.readFileSync(item.source, "utf8");
+      } catch (error) {
+        // Resolution is an existence check, which a directory and an unreadable file both satisfy, so
+        // this is the first read of a source's contents and the first place either shows up. Reported
+        // like every other refusal: an exception here would escape the exported function instead.
+        failures.push(
+          "UNREADABLE: declared artifact " +
+            item.name +
+            " could not be read from " +
+            item.source +
+            ": " +
+            error.message,
+        );
+        continue;
+      }
+    }
+    checkNoAbsolutePath(item.name, text, failures);
   }
 
   if (failures.length > 0) return done();
@@ -427,17 +446,29 @@ function main(argv) {
   }
 
   const root = options.get("--root") ? path.resolve(options.get("--root")) : scriptRoot;
+  const packageDir = path.resolve(options.get("--package-dir"));
   const result = assemblePackage({
     root,
     publishDir: path.resolve(options.get("--publish-dir")),
-    packageDir: path.resolve(options.get("--package-dir")),
+    packageDir,
     idOrName: options.get("--extension"),
     version: options.get("--version"),
   });
 
   if (!result.ok) {
     for (const failure of result.failures) console.error(failure);
-    console.error("Assemble FAILED — nothing was written.");
+    // Every refusal but one happens before the first write, so "nothing" holds for all of them except
+    // a write that failed partway. Reporting nothing there sends the caller into the next run's
+    // not-empty refusal with no account of what left the files behind.
+    console.error(
+      result.copied.length === 0
+        ? "Assemble FAILED — nothing was written."
+        : "Assemble FAILED after writing " +
+            result.copied.length +
+            " file(s). " +
+            packageDir +
+            " is INCOMPLETE, and this packer never deletes: clear it before retrying.",
+    );
     return 1;
   }
 
@@ -447,7 +478,7 @@ function main(argv) {
       " " +
       options.get("--version") +
       " into " +
-      path.relative(root, path.resolve(options.get("--package-dir"))) +
+      path.relative(root, packageDir) +
       " — " +
       result.copied.length +
       " file(s):",
