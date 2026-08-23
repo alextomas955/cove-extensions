@@ -10,6 +10,7 @@
 import { join } from "node:path";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
 import { installViaContainerCopy } from "./install-extension.mjs";
+import { createApiClient } from "./apiClient.mjs";
 // The repository the image lives in and the floor each extension declares both already have exactly
 // one reader, and a second parse of either here would be free to disagree with the one CI resolves
 // against.
@@ -70,10 +71,17 @@ export function resolveCoveImage(image) {
   return `${registry}/${repository}:${process.env.COVE_E2E_TAG || highestDeclaredFloor()}`;
 }
 
-/** The highest `minCoveVersion` any catalog entry declares, reached through that entry's own manifest. */
+/**
+ * The highest `minCoveVersion` declared by a catalog entry that has an e2e suite.
+ *
+ * Narrowed to those entries because only they can be installed into an instance this harness boots.
+ * A catalog entry with no suite reaching this decision would let an extension nothing here installs
+ * raise the host every suite runs against, or fail the whole tier over a manifest no spec reads.
+ */
 function highestDeclaredFloor() {
   let highest = null;
-  for (const { entry, floor, manifestPath } of readExtensionFloors()) {
+  const withSuite = (entry) => Boolean(entry.e2ePath && entry.e2eProject);
+  for (const { entry, floor, manifestPath } of readExtensionFloors(undefined, withSuite)) {
     const parsed = parseSemver(floor);
     if (parsed === null) {
       throw new Error(
@@ -81,6 +89,11 @@ function highestDeclaredFloor() {
       );
     }
     if (highest === null || compareSemver(parsed, highest) > 0) highest = parsed;
+  }
+  if (highest === null) {
+    throw new Error(
+      "No catalog entry declares both e2ePath and e2eProject, so no Cove image can be resolved from a floor. Name one in COVE_E2E_IMAGE, or register the suite in extensions/catalog.json.",
+    );
   }
   return highest.tag;
 }
@@ -121,6 +134,16 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
   // the caller having to hold on to the credentials.
   let credentials = null;
 
+  // Both read the address through the handle, because a restart can republish the container on a
+  // different host port. `api` also carries whatever token the handle currently holds; `anonymous`
+  // deliberately carries none, since the endpoints that MINT a credential are the ones that must not
+  // present a stale one.
+  const api = createApiClient(
+    () => handle.baseUrl,
+    () => handle.token,
+  );
+  const anonymous = createApiClient(() => handle.baseUrl);
+
   const handle = {
     /**
      * The bootstrapped owner's bearer token, set by `bootstrapOwner()`. Undefined until then, which
@@ -147,7 +170,7 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
         manifestPath,
       });
       await handle.restart();
-      await waitForExtensionEnabled(handle.baseUrl, result.id, { timeoutMs, token: handle.token });
+      await waitForExtensionEnabled(api, result.id, { timeoutMs });
       return result;
     },
 
@@ -173,10 +196,10 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
     async restart() {
       await coveContainer.restart();
       await waitForHostReachable(handle.baseUrl, { timeoutMs });
-      // An access token does NOT survive the restart: measured against 1.1.0, a token that answered
-      // 200 before it answers 401 after, while a fresh login on the restarted instance answers 200.
-      // So the token is re-minted here, or every later call in an auth-enabled instance fails as an
-      // authentication error.
+      // An access token does not survive the restart, so it is re-minted here; otherwise every later
+      // call against an auth-enabled instance fails as an authentication error. `login` retries a
+      // transient of its own, which matters here: reachability is a weaker condition than readiness,
+      // so this call can land while the host is still answering its maintenance status.
       if (handle.token) {
         await handle.login();
       }
@@ -224,29 +247,37 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
      * browser-driven E2E test needs this, so it lives here rather than being copy-pasted per test.
      */
     async bootstrapOwner({ username = "e2e-owner", password = "E2eTestPassword123!" } = {}) {
-      await waitForBuiltinRoles(handle.baseUrl, { timeoutMs });
+      const { response, lastError } = await postUntilSettled(
+        anonymous,
+        "/api/auth/bootstrap-owner",
+        { username, password },
+        { timeoutMs },
+      );
 
-      const res = await fetch(`${handle.baseUrl}/api/auth/bootstrap-owner`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-      if (!res.ok) {
-        const body = await res.text().catch(() => "<unreadable body>");
+      // The host refuses a second bootstrap with a conflict, so reaching one means an owner already
+      // exists under these credentials — an attempt that completed on the server after its
+      // client-side bound expired. Signing in finishes what this call promised rather than failing
+      // over work that already succeeded.
+      if (response?.status === 409) {
+        credentials = { username, password };
+        return await handle.login({ username, password });
+      }
+
+      if (!response?.ok) {
         // Cove answers an unhandled exception with a bare 500 and an empty body, so the failure as
         // thrown says nothing about its own cause. Carry the server's own log.
         throw new Error(
           [
-            `bootstrapOwner: POST /api/auth/bootstrap-owner failed (${res.status}): ${body}`,
+            `bootstrapOwner: POST /api/auth/bootstrap-owner did not succeed within ${timeoutMs}ms (last: ${describeAttempt(response, lastError)})`,
             "--- cove container log (tail) ---",
             await tailContainerLog(coveContainer),
           ].join("\n"),
         );
       }
+
       credentials = { username, password };
-      const payload = await res.json();
-      handle.token = readToken(payload, "bootstrapOwner");
-      return payload;
+      handle.token = readToken(response.json, "bootstrapOwner");
+      return response.json;
     },
 
     /**
@@ -257,19 +288,20 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
       if (!username || !password) {
         throw new Error("login: no credentials — call bootstrapOwner() first, or pass them here");
       }
-      const res = await fetch(`${handle.baseUrl}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-      if (!res.ok) {
-        const body = await res.text().catch(() => "<unreadable body>");
-        throw new Error(`login: POST /api/auth/login failed (${res.status}): ${body}`);
+      const { response, lastError } = await postUntilSettled(
+        anonymous,
+        "/api/auth/login",
+        { username, password },
+        { timeoutMs },
+      );
+      if (!response?.ok) {
+        throw new Error(
+          `login: POST /api/auth/login did not succeed within ${timeoutMs}ms (last: ${describeAttempt(response, lastError)})`,
+        );
       }
       credentials = { username, password };
-      const payload = await res.json();
-      handle.token = readToken(payload, "login");
-      return payload;
+      handle.token = readToken(response.json, "login");
+      return response.json;
     },
 
     /**
@@ -312,27 +344,21 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
       // Every call below is made as the OWNER: creating a role, a content rule and a user require
       // RolesWrite/UsersWrite, which at this point only the bootstrapped owner holds.
       const asOwner = async (path, body) => {
-        const res = await fetch(`${handle.baseUrl}${path}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(handle.token ? { Authorization: `Bearer ${handle.token}` } : {}),
-          },
-          body: JSON.stringify(body),
-        });
-        const text = await res.text().catch(() => "<unreadable body>");
+        const res = await api.post(path, body);
         if (!res.ok) {
           throw new Error(
-            `createRestrictedUser: POST ${path} failed (${res.status}): ${text || "<empty body>"}`,
+            `createRestrictedUser: POST ${path} failed (${res.status}): ${res.text || "<empty body>"}`,
           );
         }
-        try {
-          return text ? JSON.parse(text) : undefined;
-        } catch {
+        // The shared client reports an unparseable body as `undefined` json, which every other
+        // caller treats as "nothing returned". Here a missing object is a failure: the ids read out
+        // of it are what the rest of this helper is built on.
+        if (res.text && res.json === undefined) {
           throw new Error(
-            `createRestrictedUser: POST ${path} answered ${res.status} with a body that is not JSON: ${text}`,
+            `createRestrictedUser: POST ${path} answered ${res.status} with a body that is not JSON: ${res.text}`,
           );
         }
+        return res.json;
       };
 
       const role = await asOwner("/api/roles", {
@@ -396,37 +422,77 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
   return handle;
 }
 
+// Both auth endpoints this harness posts sit behind the host's strict authentication rate limiter,
+// keyed by client address, so a sub-second retry would spend that budget on the wait itself and turn
+// the outcome into a refusal indistinguishable from the failure being waited out.
+const AUTH_RETRY_INTERVAL_MS = 2_000;
+
+// Deliberately generous: an attempt that is merely slow (the host hashing a password while it also
+// migrates its schema) is one to let finish, not one to reabandon. A bound that fires anyway is not
+// lost work — the 409 path in bootstrapOwner adopts an attempt the server completed after this gave
+// up on it.
+const AUTH_ATTEMPT_TIMEOUT_MS = 15_000;
+
+/** A status the host may answer while still coming up, as opposed to a verdict on the request. */
+function isTransientStatus(status) {
+  return status >= 500 || status === 429;
+}
+
+/** Renders whichever of the two outcomes actually happened, for an error message. */
+function describeAttempt(response, lastError) {
+  if (!response) return lastError;
+  return `HTTP ${response.status}: ${response.text || "<empty body>"}`;
+}
+
 /**
- * Blocks until Cove has seeded its built-in roles. A healthy container is NOT enough:
- * `BootstrapAuthService.StartAsync` pushes the seeding onto a background `Task.Run` and returns, so it
- * is neither awaited by host startup nor covered by the 503 maintenance gate, and `/health` answers 200
- * while it runs.
+ * POSTs until the host answers something that is a verdict rather than a symptom of still starting,
+ * or the deadline passes. Returns the last response seen (null if none ever arrived) — never throws
+ * on a status, so each caller raises an error naming its own operation.
  *
- * `POST /api/auth/bootstrap-owner` inserts the Owner role itself when absent, so inside that window two
- * writers race one unique role name and the loser escapes as a bare 500. Waiting for the role removes
- * the second writer instead of retrying into the collision.
+ * <remarks>
+ * Cove seeds its built-in roles on a background task that host startup neither awaits nor covers
+ * with its maintenance gate, so `/health` answers 200 while it runs. `POST /api/auth/bootstrap-owner`
+ * inserts the Owner role itself when it is absent, so inside that window two writers race one unique
+ * role name and the loser escapes as a bare 500. Retrying is what resolves it: the role exists by the
+ * next attempt.
+ *
+ * Retrying rather than first waiting for the role to appear, because there is no way to observe that
+ * from here. Listing roles requires a permission, an auth-enabled instance answers 401 to the
+ * anonymous caller this necessarily is, and no owner yet exists for a token to be minted from — so
+ * such a poll cannot succeed on precisely the instances that enforce authentication.
+ *
+ * Each attempt carries its own abort signal: the deadline is consulted only BETWEEN attempts and
+ * Node's fetch applies no timeout of its own, so one call that never settles would keep the loop from
+ * ever re-testing it.
+ * </remarks>
  */
-async function waitForBuiltinRoles(baseUrl, { timeoutMs = 60_000, intervalMs = 250 } = {}) {
+async function postUntilSettled(
+  api,
+  path,
+  body,
+  { timeoutMs, intervalMs = AUTH_RETRY_INTERVAL_MS },
+) {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error(`postUntilSettled: timeoutMs must be a positive number, got ${timeoutMs}`);
+  }
   const deadline = Date.now() + timeoutMs;
-  let lastSeen = "no response yet";
-  while (Date.now() < deadline) {
-    const res = await fetch(`${baseUrl}/api/roles`).catch(() => null);
-    if (res?.ok) {
-      const roles = await res.json().catch(() => null);
-      if (Array.isArray(roles)) {
-        if (roles.some((role) => role?.name === "Owner")) return;
-        lastSeen = `${roles.length} role(s), none named Owner`;
-      } else {
-        lastSeen = "GET /api/roles did not return an array";
-      }
-    } else if (res) {
-      lastSeen = `GET /api/roles -> ${res.status}`;
+  let response = null;
+  let lastError = "never attempted";
+  for (;;) {
+    const res = await api
+      .post(path, body, { signal: AbortSignal.timeout(AUTH_ATTEMPT_TIMEOUT_MS) })
+      .catch((err) => {
+        lastError = err?.message ?? String(err);
+        return null;
+      });
+    if (res) {
+      response = res;
+      if (!isTransientStatus(res.status)) return { response, lastError };
+      lastError = describeAttempt(res, lastError);
     }
+    if (Date.now() + intervalMs >= deadline) return { response, lastError };
     await new Promise((r) => setTimeout(r, intervalMs));
   }
-  throw new Error(
-    `waitForBuiltinRoles: the Owner role was not seeded within ${timeoutMs}ms at ${baseUrl}/api/roles (last seen: ${lastSeen})`,
-  );
 }
 
 /**
@@ -491,9 +557,9 @@ function requireId(payload, field, source) {
 //
 // `timeoutMs` is REQUIRED, and stated by the caller rather than defaulted here: how long a restart may
 // take is a property of the instance under test, not of this helper, so no one value is right for every
-// call site. Absent, it produced a NaN deadline the `while` never entered — zero attempts, then a
-// failure blaming `undefinedms` and a "last error" of never having tried. A gate that inspects nothing
-// must say so, not report a timeout it never ran.
+// call site. It is rejected rather than coerced because a non-finite deadline makes the loop exit
+// before its first attempt — a gate that inspects nothing must say so, not report a timeout it never
+// ran.
 async function waitForHostReachable(baseUrl, { timeoutMs, intervalMs = 500 }) {
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     throw new Error(`waitForHostReachable: timeoutMs must be a positive number, got ${timeoutMs}`);
@@ -516,20 +582,16 @@ async function waitForHostReachable(baseUrl, { timeoutMs, intervalMs = 500 }) {
   );
 }
 
-// `GET /api/extensions` carries a permission requirement, so under an auth-enabled instance this
-// poll answers 401 forever without a token — and it runs inside installExtension(), before any test
-// body. Hence the token parameter: an auth-on suite cannot reach its first assertion without it.
+// Takes the token-carrying client, because `GET /api/extensions` requires a permission: under an
+// auth-enabled instance an anonymous poll answers 401 forever, and this runs inside
+// installExtension(), before any test body, so such a suite could never reach its first assertion.
 //
 // Per-attempt abort bound and required `timeoutMs` for the same reasons spelled out above
 // waitForHostReachable, and this poll runs immediately after the very restart that function was
 // bounded for — the container's port proxy is accepting connections the app is not yet answering.
 // The bound covers reading the body too, not just the headers: an abort landing mid-read rejects,
 // and a rejection escaping the loop would fail the suite blaming the abort rather than the wait.
-async function waitForExtensionEnabled(
-  baseUrl,
-  extensionId,
-  { timeoutMs, intervalMs = 1000, token },
-) {
+async function waitForExtensionEnabled(api, extensionId, { timeoutMs, intervalMs = 1000 }) {
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     throw new Error(
       `waitForExtensionEnabled: timeoutMs must be a positive number, got ${timeoutMs}`,
@@ -539,16 +601,18 @@ async function waitForExtensionEnabled(
   const deadline = Date.now() + timeoutMs;
   let lastPoll = "never attempted";
   while (Date.now() < deadline) {
-    const match = await fetch(`${baseUrl}/api/extensions`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      signal: AbortSignal.timeout(attemptTimeoutMs),
-    })
-      .then(async (res) => {
+    const match = await api
+      .get("/api/extensions", { signal: AbortSignal.timeout(attemptTimeoutMs) })
+      .then((res) => {
         if (!res.ok) {
           lastPoll = `HTTP ${res.status}`;
           return null;
         }
-        const found = (await res.json()).find((e) => e.id === extensionId) ?? null;
+        if (!Array.isArray(res.json)) {
+          lastPoll = "GET /api/extensions did not return an array";
+          return null;
+        }
+        const found = res.json.find((e) => e.id === extensionId) ?? null;
         lastPoll = found ? `present, enabled=${found.enabled}` : "not present in the list";
         return found;
       })
@@ -560,6 +624,6 @@ async function waitForExtensionEnabled(
     await new Promise((r) => setTimeout(r, intervalMs));
   }
   throw new Error(
-    `waitForExtensionEnabled: extension "${extensionId}" was not found/enabled within ${timeoutMs}ms at ${baseUrl}/api/extensions (last poll: ${lastPoll})`,
+    `waitForExtensionEnabled: extension "${extensionId}" was not found/enabled within ${timeoutMs}ms at ${api.baseUrl}/api/extensions (last poll: ${lastPoll})`,
   );
 }
