@@ -1,22 +1,67 @@
-// Generic poll-until helper. Some Cove/extension write paths (job completion, undo's DB write)
-// are not guaranteed read-your-writes on the very next request — a `POST /undo` returning 200 does
-// not guarantee a subsequent `GET` reflects it on the first try. Poll instead of sleeping a fixed
-// duration: fixed sleeps are either flaky (too short) or slow every run for no reason (too long).
+// The one retry loop in this harness. Some Cove/extension write paths (job completion, undo's DB
+// write) are not read-your-writes on the very next request, and a restarted container answers before
+// its host-side port binding is back. Poll instead of sleeping a fixed duration: fixed sleeps are
+// either flaky (too short) or slow every run for no reason (too long).
+
+/**
+ * Runs `attempt` until it settles or the deadline passes.
+ *
+ * `attempt` receives a per-attempt `AbortSignal` and a `note` callback, and returns `{ value }` to
+ * settle or anything falsy to be retried. The signal is load-bearing: the deadline is consulted only
+ * BETWEEN attempts and Node's fetch applies no timeout of its own, so one call that never settles
+ * would keep the loop from ever re-testing it. Docker's userland port proxy makes that concrete by
+ * accepting the TCP connection while the app behind it is still starting.
+ *
+ * Returns `{ settled, value, note }` rather than throwing, so each caller raises an error naming its
+ * own operation. `note` carries whatever the last attempt recorded about itself.
+ *
+ * `timeoutMs` is required, because how long an operation may take is a property of the instance
+ * under test rather than of this loop. It is rejected rather than coerced: a non-finite deadline
+ * exits before the first attempt, and a gate that inspected nothing must say so.
+ *
+ * @param {(signal: AbortSignal|undefined, note: (text: string) => void) => Promise<{value: unknown}|null|undefined>} attempt
+ * @param {{timeoutMs: number, intervalMs: number, attemptTimeoutMs?: number, label: string}} options
+ */
+export async function attemptUntil(
+  attempt,
+  { timeoutMs, intervalMs, attemptTimeoutMs, label = "attemptUntil" },
+) {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new TypeError(`${label}: timeoutMs must be a positive number, got ${timeoutMs}`);
+  }
+  const deadline = Date.now() + timeoutMs;
+  let note = "never attempted";
+  const record = (text) => {
+    note = text;
+  };
+  for (;;) {
+    const signal =
+      attemptTimeoutMs === undefined ? undefined : AbortSignal.timeout(attemptTimeoutMs);
+    const settled = await attempt(signal, record);
+    if (settled) return { settled: true, value: settled.value, note };
+    if (Date.now() + intervalMs >= deadline) return { settled: false, note };
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+}
+
+/** Calls `fn` until `predicate` accepts its result, then returns that result. */
 export async function pollUntil(
   fn,
   predicate,
   { timeoutMs = 30_000, intervalMs = 300, label = "condition" } = {},
 ) {
-  const deadline = Date.now() + timeoutMs;
-  let last;
-  while (Date.now() < deadline) {
-    last = await fn();
-    if (predicate(last)) return last;
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-  throw new Error(
-    `pollUntil: "${label}" was not met within ${timeoutMs}ms. Last value: ${JSON.stringify(last)}`,
+  const { settled, value, note } = await attemptUntil(
+    async (_signal, note) => {
+      const last = await fn();
+      note(JSON.stringify(last));
+      return predicate(last) ? { value: last } : null;
+    },
+    { timeoutMs, intervalMs, label: "pollUntil" },
   );
+  if (!settled) {
+    throw new Error(`pollUntil: "${label}" was not met within ${timeoutMs}ms. Last value: ${note}`);
+  }
+  return value;
 }
 
 export async function pollJob(api, jobId, { timeoutMs = 60_000 } = {}) {

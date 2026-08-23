@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
 import { installViaContainerCopy } from "./install-extension.mjs";
 import { createApiClient } from "./apiClient.mjs";
+import { attemptUntil } from "./poll.mjs";
 // The repository the image lives in and the floor each extension declares both already have exactly
 // one reader, and a second parse of either here would be free to disagree with the one CI resolves
 // against.
@@ -428,25 +429,17 @@ function describeAttempt(response, lastError) {
 
 /**
  * POSTs until the host answers something that is a verdict rather than a symptom of still starting,
- * or the deadline passes. Returns the last response seen (null if none ever arrived) — never throws
- * on a status, so each caller raises an error naming its own operation.
+ * or the deadline passes. Returns the settled response (null if none arrived) — never throws on a
+ * status, so each caller raises an error naming its own operation.
  *
- * <remarks>
  * Cove seeds its built-in roles on a background task that host startup neither awaits nor covers
  * with its maintenance gate, so `/health` answers 200 while it runs. `POST /api/auth/bootstrap-owner`
  * inserts the Owner role itself when it is absent, so inside that window two writers race one unique
- * role name and the loser escapes as a bare 500. Retrying is what resolves it: the role exists by the
- * next attempt.
+ * role name and the loser escapes as a bare 500. The role exists by the next attempt.
  *
- * Retrying rather than first waiting for the role to appear, because there is no way to observe that
- * from here. Listing roles requires a permission, an auth-enabled instance answers 401 to the
- * anonymous caller this necessarily is, and no owner yet exists for a token to be minted from — so
- * such a poll cannot succeed on precisely the instances that enforce authentication.
- *
- * Each attempt carries its own abort signal: the deadline is consulted only BETWEEN attempts and
- * Node's fetch applies no timeout of its own, so one call that never settles would keep the loop from
- * ever re-testing it.
- * </remarks>
+ * Retrying rather than first waiting for the role to appear, because that is not observable from
+ * here: listing roles requires a permission, an auth-enabled instance answers 401 to the anonymous
+ * caller this necessarily is, and no owner yet exists to mint a token from.
  */
 async function postUntilSettled(
   api,
@@ -454,27 +447,25 @@ async function postUntilSettled(
   body,
   { timeoutMs, intervalMs = AUTH_RETRY_INTERVAL_MS },
 ) {
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    throw new Error(`postUntilSettled: timeoutMs must be a positive number, got ${timeoutMs}`);
-  }
-  const deadline = Date.now() + timeoutMs;
-  let response = null;
-  let lastError = "never attempted";
-  for (;;) {
-    const res = await api
-      .post(path, body, { signal: AbortSignal.timeout(AUTH_ATTEMPT_TIMEOUT_MS) })
-      .catch((err) => {
-        lastError = err?.message ?? String(err);
+  const { value, note } = await attemptUntil(
+    async (signal, note) => {
+      const res = await api.post(path, body, { signal }).catch((err) => {
+        note(err?.message ?? String(err));
         return null;
       });
-    if (res) {
-      response = res;
-      if (!isTransientStatus(res.status)) return { response, lastError };
-      lastError = describeAttempt(res, lastError);
-    }
-    if (Date.now() + intervalMs >= deadline) return { response, lastError };
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
+      if (!res) return null;
+      if (!isTransientStatus(res.status)) return { value: res };
+      note(describeAttempt(res));
+      return null;
+    },
+    {
+      timeoutMs,
+      intervalMs,
+      attemptTimeoutMs: AUTH_ATTEMPT_TIMEOUT_MS,
+      label: "postUntilSettled",
+    },
+  );
+  return { response: value ?? null, lastError: note };
 }
 
 /**
@@ -538,86 +529,73 @@ function readToken(response, source) {
 // rejection there fails every test in the suite while naming neither the restart nor the gap.
 //
 // Any status counts as reachable. The container's health check already gated the app being up, so
-// the only open question here is whether the host can reach it at all — answering that without
-// assuming which statuses /health may return keeps this independent of whether the instance
-// enforces authentication.
-//
-// Each attempt carries its own abort signal, because the deadline below is only consulted BETWEEN
-// attempts and Node's fetch has no default timeout of its own. Docker's userland port proxy accepts
-// the TCP connection while the app inside is still starting, so an attempt that lands in the gap
-// connects and then waits for a response that never comes — with no per-attempt bound that single
-// call never settles, the loop never re-tests its deadline, and the run hangs until the outer job
-// timeout kills it without naming the restart.
-//
-// `timeoutMs` is REQUIRED, and stated by the caller rather than defaulted here: how long a restart may
-// take is a property of the instance under test, not of this helper, so no one value is right for every
-// call site. It is rejected rather than coerced because a non-finite deadline makes the loop exit
-// before its first attempt — a gate that inspects nothing must say so, not report a timeout it never
-// ran.
+// the only open question here is whether the host can reach it at all, and not assuming which
+// statuses /health may return keeps this independent of whether the instance enforces
+// authentication.
 async function waitForHostReachable(baseUrl, { timeoutMs, intervalMs = 500 }) {
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    throw new Error(`waitForHostReachable: timeoutMs must be a positive number, got ${timeoutMs}`);
-  }
-  const attemptTimeoutMs = Math.min(intervalMs * 4, 5_000);
-  const deadline = Date.now() + timeoutMs;
-  let lastError = "never attempted";
-  while (Date.now() < deadline) {
-    const res = await fetch(`${baseUrl}/health`, {
-      signal: AbortSignal.timeout(attemptTimeoutMs),
-    }).catch((err) => {
-      lastError = err?.message ?? String(err);
-      return null;
-    });
-    if (res) return;
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-  throw new Error(
-    `waitForHostReachable: ${baseUrl}/health did not answer from the host within ${timeoutMs}ms (last error: ${lastError})`,
+  const { settled, note } = await attemptUntil(
+    async (signal, note) => {
+      const res = await fetch(`${baseUrl}/health`, { signal }).catch((err) => {
+        note(err?.message ?? String(err));
+        return null;
+      });
+      return res ? { value: res } : null;
+    },
+    {
+      timeoutMs,
+      intervalMs,
+      attemptTimeoutMs: Math.min(intervalMs * 4, 5_000),
+      label: "waitForHostReachable",
+    },
   );
+  if (!settled) {
+    throw new Error(
+      `waitForHostReachable: ${baseUrl}/health did not answer from the host within ${timeoutMs}ms (last error: ${note})`,
+    );
+  }
 }
 
 // Takes the token-carrying client, because `GET /api/extensions` requires a permission: under an
 // auth-enabled instance an anonymous poll answers 401 forever, and this runs inside
 // installExtension(), before any test body, so such a suite could never reach its first assertion.
 //
-// Per-attempt abort bound and required `timeoutMs` for the same reasons spelled out above
-// waitForHostReachable, and this poll runs immediately after the very restart that function was
-// bounded for — the container's port proxy is accepting connections the app is not yet answering.
-// The bound covers reading the body too, not just the headers: an abort landing mid-read rejects,
-// and a rejection escaping the loop would fail the suite blaming the abort rather than the wait.
+// The per-attempt bound covers reading the body too, not just the headers: an abort landing mid-read
+// rejects, and a rejection escaping the loop would blame the abort rather than the wait.
 async function waitForExtensionEnabled(api, extensionId, { timeoutMs, intervalMs = 1000 }) {
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+  const { settled, value, note } = await attemptUntil(
+    async (signal, note) => {
+      const found = await api
+        .get("/api/extensions", { signal })
+        .then((res) => {
+          if (!res.ok) {
+            note(`HTTP ${res.status}`);
+            return null;
+          }
+          if (!Array.isArray(res.json)) {
+            note("GET /api/extensions did not return an array");
+            return null;
+          }
+          const match = res.json.find((e) => e.id === extensionId) ?? null;
+          note(match ? `present, enabled=${match.enabled}` : "not present in the list");
+          return match;
+        })
+        .catch((err) => {
+          note(err?.message ?? String(err));
+          return null;
+        });
+      return found?.enabled ? { value: found } : null;
+    },
+    {
+      timeoutMs,
+      intervalMs,
+      attemptTimeoutMs: Math.min(intervalMs * 4, 5_000),
+      label: "waitForExtensionEnabled",
+    },
+  );
+  if (!settled) {
     throw new Error(
-      `waitForExtensionEnabled: timeoutMs must be a positive number, got ${timeoutMs}`,
+      `waitForExtensionEnabled: extension "${extensionId}" was not found/enabled within ${timeoutMs}ms at ${api.baseUrl}/api/extensions (last poll: ${note})`,
     );
   }
-  const attemptTimeoutMs = Math.min(intervalMs * 4, 5_000);
-  const deadline = Date.now() + timeoutMs;
-  let lastPoll = "never attempted";
-  while (Date.now() < deadline) {
-    const match = await api
-      .get("/api/extensions", { signal: AbortSignal.timeout(attemptTimeoutMs) })
-      .then((res) => {
-        if (!res.ok) {
-          lastPoll = `HTTP ${res.status}`;
-          return null;
-        }
-        if (!Array.isArray(res.json)) {
-          lastPoll = "GET /api/extensions did not return an array";
-          return null;
-        }
-        const found = res.json.find((e) => e.id === extensionId) ?? null;
-        lastPoll = found ? `present, enabled=${found.enabled}` : "not present in the list";
-        return found;
-      })
-      .catch((err) => {
-        lastPoll = err?.message ?? String(err);
-        return null;
-      });
-    if (match?.enabled) return match;
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-  throw new Error(
-    `waitForExtensionEnabled: extension "${extensionId}" was not found/enabled within ${timeoutMs}ms at ${api.baseUrl}/api/extensions (last poll: ${lastPoll})`,
-  );
+  return value;
 }
