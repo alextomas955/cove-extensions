@@ -61,7 +61,7 @@ public sealed class TransportSmokeTests
             req.Content = JsonContent.Create(new { entityType = "video", entityIds = Array.Empty<int>() });
         }
 
-        var resp = await host.Client.SendAsync(req, TestContext.Current.CancellationToken);
+        var resp = await host.Client.SendAsync(req);
 
         Assert.NotEqual(HttpStatusCode.NotFound, resp.StatusCode);
         Assert.NotEqual(HttpStatusCode.MethodNotAllowed, resp.StatusCode);
@@ -73,7 +73,7 @@ public sealed class TransportSmokeTests
         // The host's [RequiresPermission] filter is inert on minimal-API routes, so the handler enforces
         // the read permission itself. Prove the gate fires at the real transport boundary.
         await using var host = await TransportHost.BootAsync(FakePrincipalAccessor.None());
-        var resp = await host.Client.GetAsync(Base + "/last-batch", TestContext.Current.CancellationToken);
+        var resp = await host.Client.GetAsync(Base + "/last-batch");
         Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
     }
 
@@ -82,10 +82,10 @@ public sealed class TransportSmokeTests
     {
         await using var host = await TransportHost.BootAsync(FakePrincipalAccessor.WithPermissions(Permissions.VideosRead));
 
-        var resp = await host.Client.GetAsync(Base + "/last-batch", TestContext.Current.CancellationToken);
+        var resp = await host.Client.GetAsync(Base + "/last-batch");
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
 
-        var json = await resp.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var json = await resp.Content.ReadAsStringAsync();
         var summary = JsonSerializer.Deserialize<LastBatchSummary>(json, Web);
         Assert.NotNull(summary);
         Assert.False(summary.HasBatch); // fresh store: no batch to undo
@@ -106,15 +106,17 @@ public sealed class TransportSmokeTests
     public async Task LastScan_WritesCamelCaseProperties_AndCamelCaseStringEnums()
     {
         var store = new FakeStore();
-        await store.SetAsync(global::Renamer.Renamer.LastScanSummaryKey, JsonSerializer.Serialize(SeededScanSummary(), PreviewContracts.PreviewResponseJsonOptions), TestContext.Current.CancellationToken);
+        await store.SetAsync(
+            global::Renamer.Renamer.LastScanSummaryKey,
+            JsonSerializer.Serialize(SeededScanSummary(), PreviewContracts.PreviewResponseJsonOptions));
 
         await using var host = await TransportHost.BootAsync(
             FakePrincipalAccessor.WithPermissions(Permissions.VideosRead), store);
 
-        var resp = await host.Client.GetAsync(Base + "/last-scan", TestContext.Current.CancellationToken);
+        var resp = await host.Client.GetAsync(Base + "/last-scan");
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
 
-        var body = await resp.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var body = await resp.Content.ReadAsStringAsync();
 
         Assert.Contains("\"totalFiles\":", body, StringComparison.Ordinal);
         Assert.Contains("\"completedAtUtcTicks\":", body, StringComparison.Ordinal);

@@ -25,7 +25,7 @@ public sealed class MultiFileTests
             Files: [File(1, "part1.mkv"), File(2, "part2.mkv")]));
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), TestContext.Current.CancellationToken);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions(), default);
 
         Assert.Equal(2, plan.Items.Count);
         Assert.Contains(plan.Items, i => i.FileId == 1);

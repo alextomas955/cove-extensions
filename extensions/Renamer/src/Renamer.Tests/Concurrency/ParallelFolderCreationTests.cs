@@ -57,15 +57,15 @@ public sealed class ParallelFolderCreationTests
 
             await using var seedDb = shared.NewContext();
             var (folderId, firstVideo, _) =
-                await ExecutorTestSeed.SeedVideoAsync(seedDb, sourceFolderFwd, "raw 0.mkv", "Film 0", ct: TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(seedDb, sourceFolderFwd, "raw 0.mkv", "Film 0");
             var ids = new List<int> { firstVideo };
             File.WriteAllText(Path.Combine(dir.Root, "raw 0.mkv"), "bytes-0");
             for (int i = 1; i < k; i++)
             {
                 var video = new Video { Title = $"Film {i}", Organized = true };
                 seedDb.Set<Video>().Add(video);
-                await seedDb.SaveChangesAsync(TestContext.Current.CancellationToken);
-                await ExecutorTestSeed.SeedAdditionalFileAsync(seedDb, folderId, video.Id, $"raw {i}.mkv", TestContext.Current.CancellationToken);
+                await seedDb.SaveChangesAsync();
+                await ExecutorTestSeed.SeedAdditionalFileAsync(seedDb, folderId, video.Id, $"raw {i}.mkv");
                 ids.Add(video.Id);
                 File.WriteAllText(Path.Combine(dir.Root, $"raw {i}.mkv"), $"bytes-{i}");
             }
@@ -85,14 +85,14 @@ public sealed class ParallelFolderCreationTests
             var (ext, store, _) = await BuildAsync(shared, options);
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, TestContext.Current.CancellationToken);
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
 
             // EXACTLY ONE Folder row for the shared destination path — no duplicate rows from a racing
             // check-then-act create across parallel workers.
             await using var verifyDb = shared.NewContext();
             int folderRows = await verifyDb.Set<Folder>()
                 .AsNoTracking()
-                .CountAsync(f => f.Path == destFolderFwd, cancellationToken: TestContext.Current.CancellationToken);
+                .CountAsync(f => f.Path == destFolderFwd);
             Assert.Equal(1, folderRows);
 
             // Every file landed in the one routed folder on disk and the batch completed.
@@ -104,7 +104,7 @@ public sealed class ParallelFolderCreationTests
             Assert.Equal(1d, progress.LastPercent);
 
             // The RevertLog recorded one row per moved file under one batch (no torn/lost append).
-            var batch = await new RevertLog(store).ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
+            var batch = await new RevertLog(store).ReadLastOpenBatchAsync();
             Assert.NotNull(batch);
             Assert.Equal(k, batch!.Entries.Count);
         }
@@ -123,22 +123,22 @@ public sealed class ParallelFolderCreationTests
         {
             string folderFwd = dir.Root.Replace('\\', '/');
             await using var seedDb = shared.NewContext();
-            await ExecutorTestSeed.SeedVideoAsync(seedDb, folderFwd, "raw.mkv", "My Film", ct: TestContext.Current.CancellationToken);
+            await ExecutorTestSeed.SeedVideoAsync(seedDb, folderFwd, "raw.mkv", "My Film");
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
-            int videoId = await seedDb.Set<Video>().AsNoTracking().Select(v => v.Id).FirstAsync(cancellationToken: TestContext.Current.CancellationToken);
+            int videoId = await seedDb.Set<Video>().AsNoTracking().Select(v => v.Id).FirstAsync();
 
             // No routing, no folder template => an in-place renamer (same parent folder, no new folder).
             var (ext, _, _) = await BuildAsync(shared, new RenamerOptions { FilenameTemplate = "$title" });
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), progress, TestContext.Current.CancellationToken);
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), progress, default);
 
             Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.mkv")));
             Assert.False(File.Exists(Path.Combine(dir.Root, "raw.mkv")));
 
             // No spurious second Folder row was created for the in-place case (only the seeded one).
             await using var verifyDb = shared.NewContext();
-            int folderRows = await verifyDb.Set<Folder>().AsNoTracking().CountAsync(cancellationToken: TestContext.Current.CancellationToken);
+            int folderRows = await verifyDb.Set<Folder>().AsNoTracking().CountAsync();
             Assert.Equal(1, folderRows);
             Assert.Equal(1d, progress.LastPercent);
         }
@@ -164,14 +164,14 @@ public sealed class ParallelFolderCreationTests
             // duplicate: the batch must complete (final 1.0) with no unhandled throw.
             string folderFwd = dir.Root.Replace('\\', '/');
             await using var seedDb = shared.NewContext();
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(seedDb, folderFwd, "raw.mkv", "My Film", ct: TestContext.Current.CancellationToken);
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(seedDb, folderFwd, "raw.mkv", "My Film");
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
 
             var (ext, _, _) = await BuildAsync(shared, new RenamerOptions { FilenameTemplate = "$title" });
             var progress = new FakeJobProgress();
 
             // The duplicate id => two acting units with the same OldFullPath. Must NOT throw; completes.
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId, videoId]), progress, TestContext.Current.CancellationToken);
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId, videoId]), progress, default);
 
             Assert.Equal(1d, progress.LastPercent);
             Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.mkv")));

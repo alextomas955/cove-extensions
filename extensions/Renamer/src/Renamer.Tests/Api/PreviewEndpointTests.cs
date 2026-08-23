@@ -41,14 +41,16 @@ public sealed class PreviewEndpointTests
             // Preview probes the source on disk, so the seeded row needs a matching on-disk file for
             // the item to classify as a real Renamer (a gone source would be SkipMissingSource).
             string folderPath = dir.Root.Replace('\\', '/');
-            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw one.mkv", "First Film", ct: TestContext.Current.CancellationToken);
+            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(
+                db, folderPath, "raw one.mkv", "First Film");
             File.WriteAllText(Path.Combine(dir.Root, "raw one.mkv"), "video-bytes");
-            var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
+            var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
 
             var ext = await BuildExtensionAsync();
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-            var result = await ext.PreviewAsync(new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, TestContext.Current.CancellationToken);
+            var result = await ext.PreviewAsync(
+                new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
             var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var item = Assert.Single(ok.Value!.Items);
@@ -69,7 +71,7 @@ public sealed class PreviewEndpointTests
             Assert.DoesNotContain("\"Status\":", json);
 
             // Zero mutation: the seeded row is byte-for-byte unchanged after the preview.
-            var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
+            var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal(beforeName, afterName);
             Assert.Equal(beforePath, afterPath);
         }
@@ -86,13 +88,15 @@ public sealed class PreviewEndpointTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (folderId, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "part1.mkv", "Two Part Film", ct: TestContext.Current.CancellationToken);
-            await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "part2.mkv", TestContext.Current.CancellationToken);
+            var (folderId, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
+                db, "/library/films", "part1.mkv", "Two Part Film");
+            await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "part2.mkv");
 
             var ext = await BuildExtensionAsync();
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-            var result = await ext.PreviewAsync(new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, TestContext.Current.CancellationToken);
+            var result = await ext.PreviewAsync(
+                new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
             var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             // one plan item per physical file of the entity, never just the first file.

@@ -25,7 +25,7 @@ public sealed class CrossVolumeMoverTests
         var dest = Path.Combine(dir.Root, "sub", "Renamed.mkv");
         var mover = new CrossVolumeMover();
 
-        var result = await mover.MoveAsync(old, dest, sidecars: null, TestContext.Current.CancellationToken);
+        var result = await mover.MoveAsync(old, dest, sidecars: null, CancellationToken.None);
 
         Assert.True(result.Moved);
         Assert.Equal(CrossVolumeMover.MoveOutcome.Moved, result.Outcome);
@@ -43,7 +43,7 @@ public sealed class CrossVolumeMoverTests
         var dest = dir.Touch("Taken.mkv", "original");
         var mover = new CrossVolumeMover();
 
-        var result = await mover.MoveAsync(old, dest, sidecars: null, TestContext.Current.CancellationToken);
+        var result = await mover.MoveAsync(old, dest, sidecars: null, CancellationToken.None);
 
         Assert.False(result.Moved);
         Assert.Equal(CrossVolumeMover.MoveOutcome.LockedOrExists, result.Outcome);
@@ -72,7 +72,7 @@ public sealed class CrossVolumeMoverTests
             return Task.CompletedTask;
         });
 
-        var result = await mover.MoveAsync(old, dest, sidecars: null, TestContext.Current.CancellationToken);
+        var result = await mover.MoveAsync(old, dest, sidecars: null, CancellationToken.None);
 
         Assert.False(result.Moved);
         Assert.Equal(CrossVolumeMover.MoveOutcome.VerifyFailed, result.Outcome);
@@ -93,7 +93,7 @@ public sealed class CrossVolumeMoverTests
         // Hold the SOURCE open exclusively so the copy's source FileStream throws IOException.
         using (new FileStream(old, FileMode.Open, FileAccess.Read, FileShare.None))
         {
-            var result = await mover.MoveAsync(old, dest, sidecars: null, TestContext.Current.CancellationToken);
+            var result = await mover.MoveAsync(old, dest, sidecars: null, CancellationToken.None);
 
             Assert.False(result.Moved);
             Assert.Equal(CrossVolumeMover.MoveOutcome.LockedOrExists, result.Outcome);
@@ -126,7 +126,7 @@ public sealed class CrossVolumeMoverTests
         };
         var mover = new CrossVolumeMover();
 
-        var result = await mover.MoveAsync(old, dest, sidecars, TestContext.Current.CancellationToken);
+        var result = await mover.MoveAsync(old, dest, sidecars, CancellationToken.None);
 
         Assert.True(result.Moved);
         Assert.Equal(CrossVolumeMover.MoveOutcome.Moved, result.Outcome);
@@ -182,7 +182,7 @@ public sealed class CrossVolumeMoverTests
         File.WriteAllText(stalePartial, "STALE UNVERIFIED GARBAGE - must never be promoted");
 
         var mover = new CrossVolumeMover();
-        var result = await mover.MoveAsync(old, dest, sidecars: null, TestContext.Current.CancellationToken);
+        var result = await mover.MoveAsync(old, dest, sidecars: null, CancellationToken.None);
 
         Assert.True(result.Moved);
         Assert.Equal(CrossVolumeMover.MoveOutcome.Moved, result.Outcome);

@@ -39,6 +39,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     outputs:
@@ -102,6 +103,7 @@ jobs:
   build:
     needs: validate
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.validate.outputs.matrix) }}
@@ -266,6 +268,7 @@ jobs:
   e2e:
     needs: [validate, build]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.validate.outputs.matrix) }}
@@ -428,6 +431,7 @@ jobs:
     needs: [validate, build, e2e]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     # No token at all: this job only reads the other jobs' results and echoes them. An empty mapping
     # grants nothing, where omitting the block would inherit the workflow default.
     permissions: {}
@@ -448,6 +452,7 @@ jobs:
     needs: build
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:

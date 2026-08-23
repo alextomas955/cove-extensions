@@ -147,7 +147,7 @@ public sealed class EmptySourceFolderCleanerTests
             string dstFolder = Path.Combine(dir.Root, "dst").Replace('\\', '/');
             Directory.CreateDirectory(dstFolder.Replace('/', Path.DirectorySeparatorChar));
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film", ct: TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
 
             string oldFull = Path.Combine(dir.Root, "src", "clip.mkv");
             Directory.CreateDirectory(Path.GetDirectoryName(oldFull)!);
@@ -163,7 +163,7 @@ public sealed class EmptySourceFolderCleanerTests
                     RenamerStatus.Move, "My Film.mkv", dstFolder),
             ]);
 
-            var result = await executor.ExecuteAsync(plan, options, default, TestContext.Current.CancellationToken);
+            var result = await executor.ExecuteAsync(plan, options, default);
 
             var moved = Assert.Single(result.Renamed);
             Assert.Equal(RenamerStatus.Move, moved.Status);
@@ -193,7 +193,7 @@ public sealed class EmptySourceFolderCleanerTests
             Directory.CreateDirectory(dstRoot.Replace('/', Path.DirectorySeparatorChar));
             string srcFolder = Path.Combine(dir.Root, "src").Replace('\\', '/');
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film", ct: TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
 
             string oldFull = Path.Combine(dir.Root, "src", "clip.mkv");
             Directory.CreateDirectory(Path.GetDirectoryName(oldFull)!);
@@ -212,7 +212,7 @@ public sealed class EmptySourceFolderCleanerTests
                     RenamerStatus.Move, "My Film.mkv", dstRoot),
             ]);
 
-            var result = await executor.ExecuteAsync(plan, options, default, TestContext.Current.CancellationToken);
+            var result = await executor.ExecuteAsync(plan, options, default);
 
             // The move still reports moved — a cleanup refusal never flips it to failed.
             var moved = Assert.Single(result.Renamed);
@@ -240,7 +240,7 @@ public sealed class EmptySourceFolderCleanerTests
             string dstFolder = Path.Combine(dir.Root, "dst").Replace('\\', '/');
             Directory.CreateDirectory(dstFolder.Replace('/', Path.DirectorySeparatorChar));
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film", ct: TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
 
             string oldFull = Path.Combine(dir.Root, "src", "clip.mkv");
             Directory.CreateDirectory(Path.GetDirectoryName(oldFull)!);
@@ -255,7 +255,7 @@ public sealed class EmptySourceFolderCleanerTests
                     RenamerStatus.Move, "My Film.mkv", dstFolder),
             ]);
 
-            var result = await executor.ExecuteAsync(plan, options, default, TestContext.Current.CancellationToken);
+            var result = await executor.ExecuteAsync(plan, options, default);
 
             Assert.Single(result.Renamed);
             Assert.True(File.Exists(Path.Combine(dir.Root, "dst", "My Film.mkv")));
@@ -286,7 +286,7 @@ public sealed class EmptySourceFolderCleanerTests
             // is intact and the move stayed in-place.
             string folder = dir.Root.Replace('\\', '/');
             var (_, videoId, _) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folder, "raw clip.mkv", "My Film", ct: TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, folder, "raw clip.mkv", "My Film");
 
             string oldFull = Path.Combine(dir.Root, "raw clip.mkv");
             File.WriteAllText(oldFull, "video-bytes");
@@ -295,7 +295,7 @@ public sealed class EmptySourceFolderCleanerTests
             var options = new RenamerOptions { FilenameTemplate = "$title", RemoveEmptyFolder = true };
 
             var plan = await new RenamerPlanner(new CoveRenamerDataPort(db))
-                .PlanAsync(RenamerFileKind.Video, videoId, options, TestContext.Current.CancellationToken);
+                .PlanAsync(RenamerFileKind.Video, videoId, options, default);
             var item = Assert.Single(plan.Items);
             Assert.Equal(RenamerStatus.Renamer, item.Status); // an in-place renamer, not a move
 
@@ -304,7 +304,7 @@ public sealed class EmptySourceFolderCleanerTests
             Assert.False(item.Status == RenamerStatus.Move, "an in-place renamer is not a move → cleanup never fires");
             Assert.Equal(DirOf(item.OldFullPath), DirOf(item.NewFullPath));
 
-            var result = await executor.ExecuteAsync(plan, options, default, TestContext.Current.CancellationToken);
+            var result = await executor.ExecuteAsync(plan, options, default);
 
             Assert.Single(result.Renamed);
             Assert.True(Directory.Exists(dir.Root), "the source folder must survive a same-folder renamer");
@@ -330,7 +330,7 @@ public sealed class EmptySourceFolderCleanerTests
             string dstFolder = Path.Combine(dir.Root, "dst").Replace('\\', '/');
             Directory.CreateDirectory(dstFolder.Replace('/', Path.DirectorySeparatorChar));
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film", ct: TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
 
             string oldFull = Path.Combine(dir.Root, "src", "clip.mkv");
             Directory.CreateDirectory(Path.GetDirectoryName(oldFull)!);
@@ -340,22 +340,22 @@ public sealed class EmptySourceFolderCleanerTests
             var revertLog = new RevertLog(new FakeStore());
             var options = new RenamerOptions { RemoveEmptyFolder = true };
 
-            await revertLog.BeginBatchAsync("RUN-1", RenamerFileKind.Video, TestContext.Current.CancellationToken);
+            await revertLog.BeginBatchAsync("RUN-1", RenamerFileKind.Video);
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileId, srcFolder + "/clip.mkv", dstFolder + "/My Film.mkv",
                     RenamerStatus.Move, "My Film.mkv", dstFolder),
             ]);
             var fwd = await new RenamerExecutor(port, new CapturingEventBus(), revertLog, new DiskMover())
-                .ExecuteAsync(plan, options, default, TestContext.Current.CancellationToken);
+                .ExecuteAsync(plan, options, default);
             Assert.Single(fwd.Renamed);
             Assert.False(Directory.Exists(Path.Combine(dir.Root, "src")), "the move + cleanup deleted the source dir");
 
             // Undo the batch: the original directory is gone, so the restore SKIPS — it is NOT recreated.
-            var batch = await revertLog.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
+            var batch = await revertLog.ReadLastOpenBatchAsync();
             Assert.NotNull(batch);
             var replayer = new UndoReplayer(port, new CapturingEventBus(), new DiskMover());
-            var undo = await replayer.RevertAsync(batch!, TestContext.Current.CancellationToken);
+            var undo = await replayer.RevertAsync(batch!, default);
 
             Assert.Equal(0, undo.Undone);
             var skip = Assert.Single(undo.Skipped);
@@ -364,7 +364,7 @@ public sealed class EmptySourceFolderCleanerTests
             // The file is NEVER lost: it stays at its verified destination, and the DB still agrees.
             Assert.True(File.Exists(Path.Combine(dir.Root, "dst", "My Film.mkv")),
                 "the file remains at the destination — undo did not move it back, but it is not lost");
-            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
+            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal("My Film.mkv", basename);
             Assert.Equal(dstFolder + "/My Film.mkv", path);
         }

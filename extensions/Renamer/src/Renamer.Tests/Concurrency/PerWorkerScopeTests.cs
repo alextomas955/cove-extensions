@@ -54,15 +54,15 @@ public sealed class PerWorkerScopeTests
         const int n = 6;
         string folderPath = dir.Root.Replace('\\', '/');
         var (folderId, firstVideo, _) =
-            await ExecutorTestSeed.SeedVideoAsync(seedDb, folderPath, "raw 0.mkv", "Film 0", ct: TestContext.Current.CancellationToken);
+            await ExecutorTestSeed.SeedVideoAsync(seedDb, folderPath, "raw 0.mkv", "Film 0");
         var ids = new List<int> { firstVideo };
         File.WriteAllText(Path.Combine(dir.Root, "raw 0.mkv"), "bytes-0");
         for (int i = 1; i < n; i++)
         {
             var video = new Cove.Core.Entities.Video { Title = $"Film {i}", Organized = true };
             seedDb.Set<Cove.Core.Entities.Video>().Add(video);
-            await seedDb.SaveChangesAsync(TestContext.Current.CancellationToken);
-            await ExecutorTestSeed.SeedAdditionalFileAsync(seedDb, folderId, video.Id, $"raw {i}.mkv", TestContext.Current.CancellationToken);
+            await seedDb.SaveChangesAsync();
+            await ExecutorTestSeed.SeedAdditionalFileAsync(seedDb, folderId, video.Id, $"raw {i}.mkv");
             ids.Add(video.Id);
             File.WriteAllText(Path.Combine(dir.Root, $"raw {i}.mkv"), $"bytes-{i}");
         }
@@ -74,12 +74,12 @@ public sealed class PerWorkerScopeTests
         var ext = new global::Renamer.Renamer();
         var store = new ConcurrentFakeStore();
         await new global::Renamer.Options.OptionsStore(store)
-            .SaveAsync(new global::Renamer.Options.RenamerOptions { FilenameTemplate = "$title" }, TestContext.Current.CancellationToken);
+            .SaveAsync(new global::Renamer.Options.RenamerOptions { FilenameTemplate = "$title" });
         ((IStatefulExtension)ext).SetStore(store);
-        await ext.InitializeAsync(provider, TestContext.Current.CancellationToken);
+        await ext.InitializeAsync(provider);
 
         var progress = new FakeJobProgress();
-        await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, TestContext.Current.CancellationToken);
+        await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);
 
         // STRUCTURAL proof: PHASE A opens one read scope; PHASE B opens one scope per acting unit.
         // The distinct-instance count must be at least the worker count (n acting items), and every

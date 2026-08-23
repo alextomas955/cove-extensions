@@ -48,9 +48,10 @@ public sealed class PreviewWholeBatchTests
         try
         {
             string srcFolder = srcDir.Root.Replace('\\', '/');
-            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "raw.mkv", "My Film", ct: TestContext.Current.CancellationToken);
+            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(
+                db, srcFolder, "raw.mkv", "My Film");
             File.WriteAllText(Path.Combine(srcDir.Root, "raw.mkv"), "video-bytes");
-            var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
+            var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
 
             // An exact source-path rule + an allowed dest root on a DIFFERENT volume → a routed Move
             // that the aggregate classifies as cross-volume.
@@ -65,7 +66,8 @@ public sealed class PreviewWholeBatchTests
             var ext = await BuildExtensionAsync(options);
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-            var result = await ext.PreviewAsync(new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, TestContext.Current.CancellationToken);
+            var result = await ext.PreviewAsync(
+                new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
             var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var response = ok.Value!;
@@ -104,7 +106,7 @@ public sealed class PreviewWholeBatchTests
             Assert.DoesNotContain("\"ConfirmLevel\":", json);
 
             // Zero mutation.
-            var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
+            var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal(beforeName, afterName);
             Assert.Equal(beforePath, afterPath);
         }
@@ -125,8 +127,9 @@ public sealed class PreviewWholeBatchTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, Fwd(SrcRoot), "raw.mkv", "My Film", ct: TestContext.Current.CancellationToken);
-            var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
+            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(
+                db, Fwd(SrcRoot), "raw.mkv", "My Film");
+            var (beforeName, beforePath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
 
             // An EXACT source-path exclude on the seeded folder → the item is excluded FIRST.
             var options = new RenamerOptions
@@ -138,7 +141,8 @@ public sealed class PreviewWholeBatchTests
             var ext = await BuildExtensionAsync(options);
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-            var result = await ext.PreviewAsync(new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, TestContext.Current.CancellationToken);
+            var result = await ext.PreviewAsync(
+                new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
             var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var response = ok.Value!;
@@ -158,7 +162,7 @@ public sealed class PreviewWholeBatchTests
             Assert.Contains("\"status\":\"skipExcluded\"", json);
 
             // Zero mutation.
-            var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
+            var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal(beforeName, afterName);
             Assert.Equal(beforePath, afterPath);
         }
@@ -179,13 +183,15 @@ public sealed class PreviewWholeBatchTests
             // Preview probes the source on disk, so give the seeded row a real on-disk file — a gone
             // source would be SkipMissingSource instead of the same-volume Renamer this test asserts.
             string folderPath = dir.Root.Replace('\\', '/');
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw one.mkv", "First Film", ct: TestContext.Current.CancellationToken);
+            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(
+                db, folderPath, "raw one.mkv", "First Film");
             File.WriteAllText(Path.Combine(dir.Root, "raw one.mkv"), "video-bytes");
 
             var ext = await BuildExtensionAsync(new RenamerOptions { FilenameTemplate = "$title" });
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-            var result = await ext.PreviewAsync(new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, TestContext.Current.CancellationToken);
+            var result = await ext.PreviewAsync(
+                new global::Renamer.Api.RenamerRequest("video", [videoId]), db, principal, default);
 
             var ok = Assert.IsType<Ok<global::Renamer.Contracts.PreviewResponse>>(Unwrap(result));
             var response = ok.Value!;

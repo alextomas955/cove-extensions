@@ -34,7 +34,7 @@ public sealed class AutoRenamerRevertLogBatchTests
             // so distinct ids are what prove the row parsed as the correct 4-field shape.
             await SeedDecoyVideoAsync(db);
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film", ct: TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film");
             Assert.NotEqual(videoId, fileId);
 
             string oldFull = Path.Combine(dir.Root, "raw.mkv");
@@ -48,20 +48,20 @@ public sealed class AutoRenamerRevertLogBatchTests
             var (ext, _, store) = await EventTestHarness.BuildAsync(db, options);
 
             // Drive the hook for the one entity that WILL act: raw.mkv → My Film.mkv.
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), TestContext.Current.CancellationToken);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
             Assert.True(File.Exists(newFull));
             Assert.False(File.Exists(oldFull));
 
             // (a) The stored blob carries a header line (no orphan rows) ...
-            var blob = await store.GetAsync(RevertLog.Key, TestContext.Current.CancellationToken);
+            var blob = await store.GetAsync(RevertLog.Key);
             Assert.NotNull(blob);
             Assert.Contains("#batch", blob!);
 
             // ... and a fresh reader sees exactly one open batch with the correct kind.
             var readBack = new RevertLog(store);
-            var batch = await readBack.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
+            var batch = await readBack.ReadLastOpenBatchAsync();
             Assert.NotNull(batch);
             Assert.Equal(RenamerFileKind.Video, batch!.Kind);
 
@@ -75,7 +75,7 @@ public sealed class AutoRenamerRevertLogBatchTests
             // (c) Reverse-replay the batch restores disk + DB.
             var port = new CoveRenamerDataPort(db);
             var undoBus = new CapturingEventBus();
-            var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch, TestContext.Current.CancellationToken);
+            var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch, default);
 
             Assert.Equal(1, result.Undone);
             Assert.Empty(result.Failed);
@@ -85,7 +85,7 @@ public sealed class AutoRenamerRevertLogBatchTests
             Assert.False(File.Exists(newFull), "new path gone after undo");
             Assert.Equal("video-bytes", File.ReadAllText(oldFull));
 
-            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
+            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal("raw.mkv", basename);
             Assert.Equal(folderPath + "/raw.mkv", path);
 

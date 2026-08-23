@@ -24,16 +24,16 @@ public sealed class RevertLogBatchTests
         var log = NewLog(store);
 
         // Run 1 (kind=Video): two rows.
-        await log.BeginBatchAsync("R1", RenamerFileKind.Video, TestContext.Current.CancellationToken);
-        await log.AppendAsync(entityId: 7, fileId: 70, oldPath: "media/a.mkv", ct: TestContext.Current.CancellationToken);
-        await log.AppendAsync(entityId: 8, fileId: 80, oldPath: "media/b.mkv", ct: TestContext.Current.CancellationToken);
+        await log.BeginBatchAsync("R1", RenamerFileKind.Video);
+        await log.AppendAsync(entityId: 7, fileId: 70, oldPath: "media/a.mkv");
+        await log.AppendAsync(entityId: 8, fileId: 80, oldPath: "media/b.mkv");
 
         // Run 2 (kind=Video): one row.
-        await log.BeginBatchAsync("R2", RenamerFileKind.Video, TestContext.Current.CancellationToken);
-        await log.AppendAsync(entityId: 9, fileId: 90, oldPath: "media/c.mkv", ct: TestContext.Current.CancellationToken);
+        await log.BeginBatchAsync("R2", RenamerFileKind.Video);
+        await log.AppendAsync(entityId: 9, fileId: 90, oldPath: "media/c.mkv");
 
         // Reading the last open batch returns ONLY R2's one entry, with R2's kind.
-        var batch = await log.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
+        var batch = await log.ReadLastOpenBatchAsync();
         Assert.NotNull(batch);
         Assert.Equal(RenamerFileKind.Video, batch!.Kind);
         var only = Assert.Single(batch.Entries);
@@ -49,11 +49,11 @@ public sealed class RevertLogBatchTests
         var store = new FakeStore();
         var log = NewLog(store);
 
-        await log.BeginBatchAsync("R1", RenamerFileKind.Video, TestContext.Current.CancellationToken);
-        await log.AppendAsync(entityId: 7, fileId: 70, oldPath: "media/a.mkv", ct: TestContext.Current.CancellationToken);
-        await log.AppendAsync(entityId: 8, fileId: 80, oldPath: "media/b.mkv", ct: TestContext.Current.CancellationToken);
+        await log.BeginBatchAsync("R1", RenamerFileKind.Video);
+        await log.AppendAsync(entityId: 7, fileId: 70, oldPath: "media/a.mkv");
+        await log.AppendAsync(entityId: 8, fileId: 80, oldPath: "media/b.mkv");
 
-        var batch = await log.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
+        var batch = await log.ReadLastOpenBatchAsync();
         Assert.NotNull(batch);
         Assert.Equal(2, batch!.Entries.Count);
 
@@ -73,12 +73,12 @@ public sealed class RevertLogBatchTests
         var store = new FakeStore();
         var log = NewLog(store);
 
-        await log.BeginBatchAsync("R1", RenamerFileKind.Video, TestContext.Current.CancellationToken);
-        await log.AppendAsync(entityId: 1, fileId: 11, oldPath: "x/1.mkv", ct: TestContext.Current.CancellationToken);
-        await log.AppendAsync(entityId: 2, fileId: 22, oldPath: "x/2.mkv", ct: TestContext.Current.CancellationToken);
-        await log.AppendAsync(entityId: 3, fileId: 33, oldPath: "x/3.mkv", ct: TestContext.Current.CancellationToken);
+        await log.BeginBatchAsync("R1", RenamerFileKind.Video);
+        await log.AppendAsync(entityId: 1, fileId: 11, oldPath: "x/1.mkv");
+        await log.AppendAsync(entityId: 2, fileId: 22, oldPath: "x/2.mkv");
+        await log.AppendAsync(entityId: 3, fileId: 33, oldPath: "x/3.mkv");
 
-        var batch = await log.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
+        var batch = await log.ReadLastOpenBatchAsync();
         Assert.NotNull(batch);
         // Newest-first (reverse append order): last appended (entity 3) is first.
         Assert.Equal([3, 2, 1], batch!.Entries.Select(e => e.EntityId).ToArray());
@@ -89,10 +89,11 @@ public sealed class RevertLogBatchTests
     {
         var store = new FakeStore();
         // An old flat blob: id|old|new rows, NO #batch headers.
-        await store.SetAsync(RevertLog.Key, "70|media/a.mkv|media/A.mkv\n80|media/b.mkv|media/B.mkv", TestContext.Current.CancellationToken);
+        await store.SetAsync(RevertLog.Key,
+            "70|media/a.mkv|media/A.mkv\n80|media/b.mkv|media/B.mkv");
         var log = NewLog(store);
 
-        var batch = await log.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
+        var batch = await log.ReadLastOpenBatchAsync();
         Assert.NotNull(batch);
         Assert.Equal(RenamerFileKind.Video, batch!.Kind);
         Assert.Equal(2, batch.Entries.Count);
@@ -113,15 +114,15 @@ public sealed class RevertLogBatchTests
         var log = NewLog(store);
 
         // Empty blob → null summary.
-        Assert.Null(await log.ReadLastBatchSummaryAsync(TestContext.Current.CancellationToken));
+        Assert.Null(await log.ReadLastBatchSummaryAsync());
 
-        await log.BeginBatchAsync("R1", RenamerFileKind.Video, TestContext.Current.CancellationToken);
-        await log.AppendAsync(entityId: 7, fileId: 70, oldPath: "a", ct: TestContext.Current.CancellationToken);
-        await log.BeginBatchAsync("R2", RenamerFileKind.Video, TestContext.Current.CancellationToken);
-        await log.AppendAsync(entityId: 8, fileId: 80, oldPath: "b", ct: TestContext.Current.CancellationToken);
-        await log.AppendAsync(entityId: 9, fileId: 90, oldPath: "c", ct: TestContext.Current.CancellationToken);
+        await log.BeginBatchAsync("R1", RenamerFileKind.Video);
+        await log.AppendAsync(entityId: 7, fileId: 70, oldPath: "a");
+        await log.BeginBatchAsync("R2", RenamerFileKind.Video);
+        await log.AppendAsync(entityId: 8, fileId: 80, oldPath: "b");
+        await log.AppendAsync(entityId: 9, fileId: 90, oldPath: "c");
 
-        var summary = await log.ReadLastBatchSummaryAsync(TestContext.Current.CancellationToken);
+        var summary = await log.ReadLastBatchSummaryAsync();
         Assert.NotNull(summary);
         Assert.Equal("R2", summary!.Value.RunId);
         Assert.Equal(2, summary.Value.Count);          // R2's data-row count
@@ -135,22 +136,22 @@ public sealed class RevertLogBatchTests
         var store = new FakeStore();
         var log = NewLog(store);
 
-        await log.BeginBatchAsync("R1", RenamerFileKind.Video, TestContext.Current.CancellationToken);
-        await log.AppendAsync(entityId: 7, fileId: 70, oldPath: "a", ct: TestContext.Current.CancellationToken);
-        await log.BeginBatchAsync("R2", RenamerFileKind.Video, TestContext.Current.CancellationToken);
-        await log.AppendAsync(entityId: 9, fileId: 90, oldPath: "c", ct: TestContext.Current.CancellationToken);
+        await log.BeginBatchAsync("R1", RenamerFileKind.Video);
+        await log.AppendAsync(entityId: 7, fileId: 70, oldPath: "a");
+        await log.BeginBatchAsync("R2", RenamerFileKind.Video);
+        await log.AppendAsync(entityId: 9, fileId: 90, oldPath: "c");
 
         // R1 was superseded when R2 opened.
-        var open = await log.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
+        var open = await log.ReadLastOpenBatchAsync();
         Assert.NotNull(open);
         Assert.Equal(9, Assert.Single(open!.Entries).EntityId);
 
-        await log.MarkLastBatchConsumedAsync("R2", TestContext.Current.CancellationToken);
+        await log.MarkLastBatchConsumedAsync("R2");
 
-        Assert.Null(await log.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken));
+        Assert.Null(await log.ReadLastOpenBatchAsync());
 
         // The summary survives the consume — the panel shows the outcome of the rename just undone.
-        var summary = await log.ReadLastBatchSummaryAsync(TestContext.Current.CancellationToken);
+        var summary = await log.ReadLastBatchSummaryAsync();
         Assert.NotNull(summary);
         Assert.Equal("R2", summary!.Value.RunId);
         Assert.True(summary.Value.Consumed);
@@ -167,11 +168,11 @@ public sealed class RevertLogBatchTests
             "#batch|R1|123456789|Video|open",       // valid open header
             "notanint|x|y|z",                        // non-int entityId → skipped
             "7|short",                               // too few fields → skipped
-            "7|70|media/a.mkv|media/A.mkv"), TestContext.Current.CancellationToken);        // valid row
+            "7|70|media/a.mkv|media/A.mkv"));        // valid row
 
         var log = NewLog(store);
 
-        var batch = await log.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);   // must not throw
+        var batch = await log.ReadLastOpenBatchAsync();   // must not throw
         Assert.NotNull(batch);
         var only = Assert.Single(batch!.Entries);
         Assert.Equal(7, only.EntityId);

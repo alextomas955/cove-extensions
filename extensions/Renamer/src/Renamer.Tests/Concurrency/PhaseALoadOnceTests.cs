@@ -35,7 +35,7 @@ public sealed class PhaseALoadOnceTests
 
         for (int i = 1; i <= n; i++)
         {
-            _ = await planner.PlanWithEntityAsync(RenamerFileKind.Video, i, new RenamerOptions(), TestContext.Current.CancellationToken);
+            _ = await planner.PlanWithEntityAsync(RenamerFileKind.Video, i, new RenamerOptions(), default);
         }
 
         Assert.Equal(n, port.LoadEntityCallCount);
@@ -51,7 +51,8 @@ public sealed class PhaseALoadOnceTests
             Files: [File(1, "part1.mkv", sizeBytes: 1234), File(2, "part2.mkv", sizeBytes: 5678)]));
         var planner = new RenamerPlanner(port);
 
-        var (_, entity) = await planner.PlanWithEntityAsync(RenamerFileKind.Video, 10, new RenamerOptions(), TestContext.Current.CancellationToken);
+        var (_, entity) = await planner.PlanWithEntityAsync(
+            RenamerFileKind.Video, 10, new RenamerOptions(), default);
 
         Assert.Equal(1, port.LoadEntityCallCount);
         Assert.NotNull(entity);
@@ -68,7 +69,8 @@ public sealed class PhaseALoadOnceTests
         var port = new FakeRenamerDataPort();
         var planner = new RenamerPlanner(port);
 
-        var (plan, entity) = await planner.PlanWithEntityAsync(RenamerFileKind.Video, 42, new RenamerOptions(), TestContext.Current.CancellationToken);
+        var (plan, entity) = await planner.PlanWithEntityAsync(
+            RenamerFileKind.Video, 42, new RenamerOptions(), default);
 
         Assert.Equal(1, port.LoadEntityCallCount);
         Assert.Null(entity);

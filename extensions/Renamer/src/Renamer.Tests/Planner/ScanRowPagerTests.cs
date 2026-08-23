@@ -231,10 +231,10 @@ public sealed class ScanRowPagerTests
         var port = new FakeRenamerDataPort();
         port.SeedAllIds(RenamerFileKind.Video, 5, 1, 9, 7);
 
-        Assert.Equal([1, 5, 7], await port.LoadEntityIdPageAsync(RenamerFileKind.Video, 0, 3, TestContext.Current.CancellationToken));
-        Assert.Equal([7, 9], await port.LoadEntityIdPageAsync(RenamerFileKind.Video, 5, 3, TestContext.Current.CancellationToken));
-        Assert.Empty(await port.LoadEntityIdPageAsync(RenamerFileKind.Video, 0, 0, TestContext.Current.CancellationToken));
-        Assert.Empty(await port.LoadEntityIdPageAsync(RenamerFileKind.Gallery, 0, 10, TestContext.Current.CancellationToken));
-        Assert.Empty(await port.LoadAllEntityIdsAsync(RenamerFileKind.Gallery, TestContext.Current.CancellationToken));
+        Assert.Equal([1, 5, 7], await port.LoadEntityIdPageAsync(RenamerFileKind.Video, 0, 3));
+        Assert.Equal([7, 9], await port.LoadEntityIdPageAsync(RenamerFileKind.Video, 5, 3));
+        Assert.Empty(await port.LoadEntityIdPageAsync(RenamerFileKind.Video, 0, 0));
+        Assert.Empty(await port.LoadEntityIdPageAsync(RenamerFileKind.Gallery, 0, 10));
+        Assert.Empty(await port.LoadAllEntityIdsAsync(RenamerFileKind.Gallery));
     }
 }

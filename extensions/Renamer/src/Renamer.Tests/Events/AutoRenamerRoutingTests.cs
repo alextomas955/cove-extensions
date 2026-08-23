@@ -33,7 +33,7 @@ public sealed class AutoRenamerRoutingTests
             string destRootFwd = destRoot.Replace('\\', '/');
 
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, srcPathFwd, "raw.mkv", "My Film", ct: TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, srcPathFwd, "raw.mkv", "My Film");
             File.WriteAllText(Path.Combine(srcFolder, "raw.mkv"), "bytes");
 
             var options = new RenamerOptions
@@ -47,14 +47,14 @@ public sealed class AutoRenamerRoutingTests
             };
             var (ext, bus, _) = await EventTestHarness.BuildAsync(db, options);
 
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), TestContext.Current.CancellationToken);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
             // The matched route relocated the file to destRoot/Films/My Film.mkv — NOT in place.
             string expected = Path.Combine(destRoot, "Films", "My Film.mkv");
             Assert.True(File.Exists(expected), $"expected routed file at {expected}");
             Assert.False(File.Exists(Path.Combine(srcFolder, "raw.mkv")));
 
-            var (_, pathAfter) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
+            var (_, pathAfter) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Contains("sorted/Films/My Film.mkv", pathAfter.Replace('\\', '/'));
             Assert.Single(bus.Published); // one acting move → one re-raised event
         }
@@ -75,7 +75,7 @@ public sealed class AutoRenamerRoutingTests
             string srcFolder = dir.Root;
             string srcPathFwd = srcFolder.Replace('\\', '/');
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, srcPathFwd, "raw.mkv", "My Film", ct: TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, srcPathFwd, "raw.mkv", "My Film");
             File.WriteAllText(Path.Combine(srcFolder, "raw.mkv"), "bytes");
 
             // No matching rule + default-relocate OFF → the item must NOT relocate; an in-place renamer
@@ -89,11 +89,11 @@ public sealed class AutoRenamerRoutingTests
             };
             var (ext, _, _) = await EventTestHarness.BuildAsync(db, options);
 
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), TestContext.Current.CancellationToken);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
             // Renamed in place, never relocated to the default destination (the gate held).
             Assert.True(File.Exists(Path.Combine(srcFolder, "My Film.mkv")));
-            var (_, pathAfter) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
+            var (_, pathAfter) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.DoesNotContain("overflow", pathAfter.Replace('\\', '/'));
         }
         finally

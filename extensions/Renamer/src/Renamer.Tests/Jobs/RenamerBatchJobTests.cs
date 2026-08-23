@@ -72,12 +72,12 @@ public sealed class RenamerBatchJobTests
             // Two distinct videos sharing ONE folder (a second SeedVideoAsync would re-insert the
             // folder and trip the folders.Path unique index). Seed the folder+video once, then add
             // a second video + file in the same folder.
-            var (folderId, v1, file1) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw one.mkv", "First Film", ct: TestContext.Current.CancellationToken);
+            var (folderId, v1, file1) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw one.mkv", "First Film");
 
             var video2 = new Cove.Core.Entities.Video { Title = "Second Film", Organized = true };
             db.Set<Cove.Core.Entities.Video>().Add(video2);
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-            var file2 = await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, video2.Id, "raw two.mkv", TestContext.Current.CancellationToken);
+            await db.SaveChangesAsync();
+            var file2 = await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, video2.Id, "raw two.mkv");
             var v2 = video2.Id;
 
             // Real on-disk sources matching the seeded rows.
@@ -88,7 +88,7 @@ public sealed class RenamerBatchJobTests
             var ext = await BuildExtensionAsync(conn, bus);
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [v1, v2]), progress, TestContext.Current.CancellationToken);
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [v1, v2]), progress, default);
 
             // Disk: both renamed to "$title.mkv", old gone, content intact.
             Assert.True(File.Exists(Path.Combine(dir.Root, "First Film.mkv")));
@@ -98,8 +98,8 @@ public sealed class RenamerBatchJobTests
             Assert.Equal("bytes-1", File.ReadAllText(Path.Combine(dir.Root, "First Film.mkv")));
 
             // DB: basenames updated.
-            var (b1, _) = await ExecutorTestSeed.ReadFileAsync(db, file1, TestContext.Current.CancellationToken);
-            var (b2, _) = await ExecutorTestSeed.ReadFileAsync(db, file2, TestContext.Current.CancellationToken);
+            var (b1, _) = await ExecutorTestSeed.ReadFileAsync(db, file1);
+            var (b2, _) = await ExecutorTestSeed.ReadFileAsync(db, file2);
             Assert.Equal("First Film.mkv", b1);
             Assert.Equal("Second Film.mkv", b2);
 
@@ -124,14 +124,14 @@ public sealed class RenamerBatchJobTests
         try
         {
             string folderPath = dir.Root.Replace('\\', '/');
-            await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "keep me.mkv", "Untouched", ct: TestContext.Current.CancellationToken);
+            await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "keep me.mkv", "Untouched");
             File.WriteAllText(Path.Combine(dir.Root, "keep me.mkv"), "stay");
 
             var bus = new CapturingEventBus();
             var ext = await BuildExtensionAsync(conn, bus);
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", []), progress, TestContext.Current.CancellationToken);
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", []), progress, default);
 
             // Untouched on disk; no renamer event published; only a final 1.0 reported.
             Assert.True(File.Exists(Path.Combine(dir.Root, "keep me.mkv")));
@@ -156,7 +156,7 @@ public sealed class RenamerBatchJobTests
             var ext = await BuildExtensionAsync(conn, bus);
             var progress = new FakeJobProgress();
 
-            await ext.RunRenamerBatchAsync(RenamerJob.Encode("gallery", [1, 2]), progress, TestContext.Current.CancellationToken);
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("gallery", [1, 2]), progress, default);
 
             Assert.Empty(bus.Published);
             Assert.Equal(1d, progress.LastPercent);

@@ -83,7 +83,7 @@ public abstract class ExtensionOpenApiDocumentTests
         // MANDATORY. A WebApplication's route registrations are not folded into the DI
         // EndpointDataSource until routing middleware is built at start, so without this the data
         // source is empty and the provider still returns a valid document with ZERO paths.
-        await app.StartAsync(TestContext.Current.CancellationToken);
+        await app.StartAsync();
 
         var routes = app.Services
             .GetRequiredService<EndpointDataSource>()
@@ -93,7 +93,7 @@ public abstract class ExtensionOpenApiDocumentTests
         Assert.NotEmpty(routes);
 
         var provider = app.Services.GetRequiredKeyedService<IOpenApiDocumentProvider>(DocumentName);
-        var document = await provider.GetOpenApiDocumentAsync(TestContext.Current.CancellationToken);
+        var document = await provider.GetOpenApiDocumentAsync(CancellationToken.None);
 
         var operations = document.Paths
             .Where(path => path.Value.Operations is not null)

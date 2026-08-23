@@ -31,7 +31,7 @@ public sealed class RenamerExecutorIntegrationTests
             // The Folder.Path is the real temp-dir root so disk + DB align on one absolute location.
             string folderPath = dir.Root.Replace('\\', '/');
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw clip.mkv", "My Film", ct: TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw clip.mkv", "My Film");
 
             // Real on-disk source matching the seeded row.
             string oldFull = Path.Combine(dir.Root, "raw clip.mkv");
@@ -45,8 +45,8 @@ public sealed class RenamerExecutorIntegrationTests
             var options = new RenamerOptions { FilenameTemplate = "$title" }; // → "My Film.mkv"
 
             // Plan via the live port (read-only), then execute.
-            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, TestContext.Current.CancellationToken);
-            var result = await executor.ExecuteAsync(plan, options, default, TestContext.Current.CancellationToken);
+            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
+            var result = await executor.ExecuteAsync(plan, options, default);
 
             // (a) disk: new exists, old gone, content intact.
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
@@ -55,7 +55,7 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Equal("video-bytes", File.ReadAllText(newFull));
 
             // (b) DB: basename updated; Path RECOMPUTED (not set) to folder + new basename.
-            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
+            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal("My Film.mkv", basename);
             Assert.Equal(folderPath + "/My Film.mkv", path);
 
@@ -101,20 +101,20 @@ public sealed class RenamerExecutorIntegrationTests
         {
             string folderPath = dir.Root.Replace('\\', '/');
             var (_, videoId, _) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw clip.mkv", "My Film", ct: TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw clip.mkv", "My Film");
 
             string oldFull = Path.Combine(dir.Root, "raw clip.mkv");
             File.WriteAllText(oldFull, "video-bytes");
 
             var options = new RenamerOptions { FilenameTemplate = "$title" }; // → "My Film.mkv"
             var plan = await new RenamerPlanner(new CoveRenamerDataPort(db))
-                .PlanAsync(RenamerFileKind.Video, videoId, options, TestContext.Current.CancellationToken);
+                .PlanAsync(RenamerFileKind.Video, videoId, options, default);
 
             var executor = new RenamerExecutor(
                 new CancelOnSaveDataPort(db), new CapturingEventBus(), new RevertLog(new FakeStore()), new DiskMover());
 
             // The cancel flows out as cancellation (the batch ends), never a Failed row.
-            await Assert.ThrowsAsync<OperationCanceledException>(() => executor.ExecuteAsync(plan, options, default, TestContext.Current.CancellationToken));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => executor.ExecuteAsync(plan, options, default));
 
             // The post-move rollback still ran on the cancel path: the file is back at OLD, none at NEW.
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
@@ -145,7 +145,7 @@ public sealed class RenamerExecutorIntegrationTests
             // Seed the Folder + VideoFile on the real temp-dir root, but write NO on-disk source file.
             string folderPath = dir.Root.Replace('\\', '/');
             var (_, videoId, _) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "gone.mkv", "My Film", ct: TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "gone.mkv", "My Film");
 
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
@@ -154,8 +154,8 @@ public sealed class RenamerExecutorIntegrationTests
 
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
-            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, TestContext.Current.CancellationToken);
-            var result = await executor.ExecuteAsync(plan, options, default, TestContext.Current.CancellationToken);
+            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
+            var result = await executor.ExecuteAsync(plan, options, default);
 
             // Classified as SkipMissingSource — not SkipLocked — with a missing-source reason.
             var skippedItem = Assert.Single(result.Skipped);
@@ -196,7 +196,7 @@ public sealed class RenamerExecutorIntegrationTests
             string srcFolder = src.Root.Replace('\\', '/');
             string dstFolder = dst.Root.Replace('\\', '/').TrimEnd('/'); // "P:" (root, distinct from src)
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film", ct: TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
 
             string oldFull = Path.Combine(src.Root, "clip.mkv");
             File.WriteAllText(oldFull, "cross-bytes");
@@ -219,7 +219,7 @@ public sealed class RenamerExecutorIntegrationTests
                     RenamerStatus.Move, "My Film.mkv", dstFolder),
             ]);
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default, TestContext.Current.CancellationToken);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
             // Disk: dest present with original content, source gone, no .partial left behind.
             string newOnDisk = Path.Combine(dst.Root, "My Film.mkv");
@@ -236,7 +236,7 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Single(result.RevertLog);
 
             // DB: Basename updated, ParentFolderId moved to the (new) dest folder, recomputed Path matches.
-            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
+            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal("My Film.mkv", basename);
             Assert.Equal(dstFolder + "/My Film.mkv", path);
 
@@ -273,15 +273,15 @@ public sealed class RenamerExecutorIntegrationTests
             string dstFolder = dst.Root.Replace('\\', '/').TrimEnd('/');
 
             var (_, videoId, fileA) =
-                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "a.mkv", "Film A", ct: TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "a.mkv", "Film A");
 
             // Pre-seed the DEST folder (same Path the executor will GetOrCreate) holding a row that
             // already occupies "taken.mkv", so the cross-move's save of (destFolderId, "taken.mkv")
             // hits the unique index and throws — AFTER the verified cross move has happened.
             var destFolder = new Cove.Core.Entities.Folder { Path = dstFolder, ModTime = DateTime.UtcNow };
             db.Set<Cove.Core.Entities.Folder>().Add(destFolder);
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-            await ExecutorTestSeed.SeedAdditionalFileAsync(db, destFolder.Id, videoId, "taken.mkv", TestContext.Current.CancellationToken);
+            await db.SaveChangesAsync();
+            await ExecutorTestSeed.SeedAdditionalFileAsync(db, destFolder.Id, videoId, "taken.mkv");
 
             string oldA = Path.Combine(src.Root, "a.mkv");
             File.WriteAllText(oldA, "A-bytes");
@@ -302,7 +302,7 @@ public sealed class RenamerExecutorIntegrationTests
                 new CollisionBlindDataPort(db), new CapturingEventBus(), new RevertLog(new FakeStore()),
                 new DiskMover(), new CrossVolumeMover());
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default, TestContext.Current.CancellationToken);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
             // The save threw after the verified cross move → item failed with a rollback reason.
             var failedItem = Assert.Single(result.Failed);
@@ -319,7 +319,7 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.False(File.Exists(newOnDisk + ".renamer-partial"), "no leftover .partial after rollback");
 
             // (c) the DB row still carries the OLD basename + source folder — disk and DB consistent.
-            var (basenameA, pathA) = await ExecutorTestSeed.ReadFileAsync(db, fileA, TestContext.Current.CancellationToken);
+            var (basenameA, pathA) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
             Assert.Equal("a.mkv", basenameA);
             Assert.Equal(srcFolder + "/a.mkv", pathA);
         }
@@ -351,7 +351,7 @@ public sealed class RenamerExecutorIntegrationTests
             string dstFolder = dst.Root.Replace('\\', '/').TrimEnd('/');
 
             var (_, videoId, fileA) =
-                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "a.mkv", "Film A", ct: TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "a.mkv", "Film A");
 
             string oldA = Path.Combine(src.Root, "a.mkv");
             File.WriteAllText(oldA, "A-bytes");
@@ -373,7 +373,7 @@ public sealed class RenamerExecutorIntegrationTests
                 port, new CapturingEventBus(), new RevertLog(new FakeStore()),
                 new DiskMover(), new CrossVolumeMover());
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default, TestContext.Current.CancellationToken);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
             var failedItem = Assert.Single(result.Failed);
             Assert.Equal(RenamerStatus.Failed, failedItem.Status);

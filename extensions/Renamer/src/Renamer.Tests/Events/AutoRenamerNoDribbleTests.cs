@@ -36,7 +36,7 @@ public sealed class AutoRenamerNoDribbleTests
             string defaultRootFwd = defaultRoot.Replace('\\', '/');
 
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, srcPathFwd, "raw.mkv", "My Film", ct: TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, srcPathFwd, "raw.mkv", "My Film");
             File.WriteAllText(Path.Combine(srcFolder, "raw.mkv"), "bytes");
 
             // EnableDefaultRelocate = TRUE + a configured DefaultDestination under an allowed root, and
@@ -52,7 +52,7 @@ public sealed class AutoRenamerNoDribbleTests
             };
             var (ext, bus, _) = await EventTestHarness.BuildAsync(db, options);
 
-            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), TestContext.Current.CancellationToken);
+            await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
             // The item was NOT relocated to the default destination: nothing exists under the default
             // root, and the file is still in its source folder. (Because the item's ONLY acting outcome
@@ -67,7 +67,7 @@ public sealed class AutoRenamerNoDribbleTests
 
             // DB path confirms no relocate: the recorded path stays under the source folder and never
             // contains the default-destination segment.
-            var (_, pathAfter) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
+            var (_, pathAfter) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             string pathFwd = pathAfter.Replace('\\', '/');
             Assert.Contains("incoming", pathFwd);
             Assert.DoesNotContain("overflow", pathFwd);

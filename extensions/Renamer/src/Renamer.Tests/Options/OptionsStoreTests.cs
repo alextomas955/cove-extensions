@@ -10,7 +10,7 @@ public sealed class OptionsStoreTests
     {
         var store = new OptionsStore(new FakeStore());
 
-        var loaded = await store.LoadAsync(TestContext.Current.CancellationToken);
+        var loaded = await store.LoadAsync();
 
         Assert.Equal(new RenamerOptions(), loaded); // first run → defaults
     }
@@ -29,8 +29,8 @@ public sealed class OptionsStoreTests
             DropOrder = ["tags", "title"],
         };
 
-        await store.SaveAsync(custom, TestContext.Current.CancellationToken);
-        var loaded = await store.LoadAsync(TestContext.Current.CancellationToken);
+        await store.SaveAsync(custom);
+        var loaded = await store.LoadAsync();
 
         Assert.Equal(custom, loaded);
     }
@@ -39,10 +39,10 @@ public sealed class OptionsStoreTests
     public async Task LoadAsync_CorruptBlob_ReturnsDefaults()
     {
         var fake = new FakeStore();
-        await fake.SetAsync("options", "this is not json {{{", TestContext.Current.CancellationToken);
+        await fake.SetAsync("options", "this is not json {{{");
         var store = new OptionsStore(fake);
 
-        var loaded = await store.LoadAsync(TestContext.Current.CancellationToken);
+        var loaded = await store.LoadAsync();
 
         Assert.Equal(new RenamerOptions(), loaded); // catches JsonException → defaults
     }
@@ -53,9 +53,9 @@ public sealed class OptionsStoreTests
         var fake = new FakeStore();
         var store = new OptionsStore(fake);
 
-        await store.SaveAsync(new RenamerOptions { FilenameTemplate = "$title - $studio" }, TestContext.Current.CancellationToken);
+        await store.SaveAsync(new RenamerOptions { FilenameTemplate = "$title - $studio" });
 
-        var all = await fake.GetAllAsync(TestContext.Current.CancellationToken);
+        var all = await fake.GetAllAsync();
         Assert.Single(all);                       // exactly one entry (single JSON blob)
         Assert.True(all.ContainsKey("options"));  // under the "options" key
     }

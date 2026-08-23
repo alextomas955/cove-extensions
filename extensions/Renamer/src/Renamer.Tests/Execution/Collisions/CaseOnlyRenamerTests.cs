@@ -33,7 +33,7 @@ public sealed class CaseOnlyRenamerTests
         {
             string folderPath = dir.Root.Replace('\\', '/');
             var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "movie.mkv", "My Film", ct: TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "movie.mkv", "My Film");
 
             // Disk: only the lower-case source exists. On a case-insensitive volume File.Exists of the
             // case-variant target is True, but it is the SOURCE occupying its own slot — not a clobber.
@@ -51,7 +51,7 @@ public sealed class CaseOnlyRenamerTests
             var bus = new CapturingEventBus();
             var executor = new RenamerExecutor(port, bus, new RevertLog(new FakeStore()), new DiskMover());
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default, TestContext.Current.CancellationToken);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
             // Clean Renamer: exactly one renamed, nothing skipped or failed, and the new name is the
             // case-corrected target — NOT a suffixed Movie (1).mkv.
@@ -64,7 +64,7 @@ public sealed class CaseOnlyRenamerTests
 
             // DB read-back confirms the corrected basename (asserted via the row, not a case-blind
             // File.Exists which would be True for both spellings on this volume).
-            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId, TestContext.Current.CancellationToken);
+            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal("Movie.mkv", basename);
             Assert.Equal(folderPath + "/Movie.mkv", path);
         }
@@ -87,9 +87,9 @@ public sealed class CaseOnlyRenamerTests
             // Seed three distinct files in one folder: the lower-case "movie.mkv", a DIFFERENT
             // "Movie.mkv" already occupying the case-variant name, and the source we will renamer.
             var (folderId, videoId, _) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "movie.mkv", "My Film", ct: TestContext.Current.CancellationToken);
-            await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "Movie.mkv", TestContext.Current.CancellationToken);
-            var sourceId = await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "other.mkv", TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "movie.mkv", "My Film");
+            await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "Movie.mkv");
+            var sourceId = await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "other.mkv");
 
             File.WriteAllText(Path.Combine(dir.Root, "movie.mkv"), "lower-bytes");
             File.WriteAllText(Path.Combine(dir.Root, "Movie.mkv"), "different-file-bytes");
@@ -106,7 +106,7 @@ public sealed class CaseOnlyRenamerTests
             var bus = new CapturingEventBus();
             var executor = new RenamerExecutor(port, bus, new RevertLog(new FakeStore()), new DiskMover());
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default, TestContext.Current.CancellationToken);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
             // No clobber: the source did NOT land on the existing Movie.mkv. It was either suffixed to a
             // free name (Renamed, not "Movie.mkv") or skip-collisioned.

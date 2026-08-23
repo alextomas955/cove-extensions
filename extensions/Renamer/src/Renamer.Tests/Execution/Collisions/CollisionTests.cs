@@ -26,8 +26,8 @@ public sealed class CollisionTests
         {
             string folderPath = dir.Root.Replace('\\', '/');
             var (folderId, videoId, fileA) =
-                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A", ct: TestContext.Current.CancellationToken);
-            var fileB = await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "b.mkv", TestContext.Current.CancellationToken);
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A");
+            var fileB = await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "b.mkv");
 
             // Disk: only "a.mkv" exists ("b.mkv" the DB-occupied target is NOT on disk, so the disk
             // move SUCCEEDS and the save is what hits the unique index).
@@ -46,7 +46,7 @@ public sealed class CollisionTests
             var bus = new CapturingEventBus();
             var executor = new RenamerExecutor(port, bus, new RevertLog(new FakeStore()), new DiskMover());
 
-            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default, TestContext.Current.CancellationToken);
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
             // The save threw on the unique index → item failed, caught (not propagated).
             var failedItem = Assert.Single(result.Failed);
@@ -60,8 +60,8 @@ public sealed class CollisionTests
             Assert.Empty(bus.Published);
 
             // DB rows unchanged.
-            var (basenameA, _) = await ExecutorTestSeed.ReadFileAsync(db, fileA, TestContext.Current.CancellationToken);
-            var (basenameB, _) = await ExecutorTestSeed.ReadFileAsync(db, fileB, TestContext.Current.CancellationToken);
+            var (basenameA, _) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
+            var (basenameB, _) = await ExecutorTestSeed.ReadFileAsync(db, fileB);
             Assert.Equal("a.mkv", basenameA);
             Assert.Equal("b.mkv", basenameB);
         }

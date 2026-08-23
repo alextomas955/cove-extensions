@@ -31,7 +31,7 @@ public sealed class RenamerPlannerTests
         var planner = new RenamerPlanner(port);
 
         // Pin the title-only template (this test exercises planner renamer detection, not the default).
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions { FilenameTemplate = "$title" }, TestContext.Current.CancellationToken);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions { FilenameTemplate = "$title" }, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Renamer, item.Status);
@@ -49,7 +49,7 @@ public sealed class RenamerPlannerTests
         port.SeedEntity(VideoEntity("raw", VideoFile(1, "raw.mkv")));
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions { FilenameTemplate = "$title" }, TestContext.Current.CancellationToken);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, new RenamerOptions { FilenameTemplate = "$title" }, default);
 
         Assert.Equal(RenamerStatus.NoOp, Assert.Single(plan.Items).Status);
         Assert.Empty(port.SaveCalls);
@@ -68,7 +68,7 @@ public sealed class RenamerPlannerTests
         // Pin the title-only filename template — this test asserts folder-template confinement, not the default name shape.
         var opts = new RenamerOptions { FilenameTemplate = "$title", FolderTemplate = "../../escape" };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, TestContext.Current.CancellationToken);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
@@ -87,7 +87,7 @@ public sealed class RenamerPlannerTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { FullPathMax = 50 };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, TestContext.Current.CancellationToken);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipCollision, item.Status);
@@ -101,7 +101,7 @@ public sealed class RenamerPlannerTests
         var port = new FakeRenamerDataPort();
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 999, new RenamerOptions(), TestContext.Current.CancellationToken);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 999, new RenamerOptions(), default);
 
         Assert.Empty(plan.Items);
         Assert.Empty(port.SaveCalls);
@@ -122,8 +122,8 @@ public sealed class RenamerPlannerTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { FilenameTemplate = "$title" };
 
-        var loaded = await planner.PlanLoadedEntity(entity, opts, EmptyLookups, TestContext.Current.CancellationToken);
-        var viaLoad = (await planner.PlanWithEntityAsync(RenamerFileKind.Video, 10, opts, TestContext.Current.CancellationToken)).Plan;
+        var loaded = await planner.PlanLoadedEntity(entity, opts, EmptyLookups, default);
+        var viaLoad = (await planner.PlanWithEntityAsync(RenamerFileKind.Video, 10, opts, default)).Plan;
 
         Assert.Equal(viaLoad.EntityId, loaded.EntityId);
         Assert.Equal(viaLoad.Kind, loaded.Kind);
@@ -138,7 +138,7 @@ public sealed class RenamerPlannerTests
         var port = new FakeRenamerDataPort();  // NOT seeded — proves no load is attempted
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanLoadedEntity(entity, new RenamerOptions { FilenameTemplate = "$title" }, EmptyLookups, TestContext.Current.CancellationToken);
+        var plan = await planner.PlanLoadedEntity(entity, new RenamerOptions { FilenameTemplate = "$title" }, EmptyLookups, default);
 
         Assert.Single(plan.Items);
         Assert.Equal(0, port.LoadEntityCallCount);
@@ -156,8 +156,8 @@ public sealed class RenamerPlannerTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { FilenameTemplate = "$title", OnlyOrganized = true };
 
-        var loaded = await planner.PlanLoadedEntity(entity, opts, EmptyLookups, TestContext.Current.CancellationToken);
-        var viaLoad = (await planner.PlanWithEntityAsync(RenamerFileKind.Video, 10, opts, TestContext.Current.CancellationToken)).Plan;
+        var loaded = await planner.PlanLoadedEntity(entity, opts, EmptyLookups, default);
+        var viaLoad = (await planner.PlanWithEntityAsync(RenamerFileKind.Video, 10, opts, default)).Plan;
 
         Assert.Equal(RenamerStatus.SkipGated, Assert.Single(loaded.Items).Status);
         Assert.Equal(viaLoad.Items, loaded.Items);

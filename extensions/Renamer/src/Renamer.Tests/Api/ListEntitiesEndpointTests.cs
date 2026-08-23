@@ -42,7 +42,7 @@ public sealed class ListEntitiesEndpointTests
             var ext = NewExtension();
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-            var result = await ext.ListStudiosAsync(db, principal, TestContext.Current.CancellationToken);
+            var result = await ext.ListStudiosAsync(db, principal, default);
 
             var ok = Assert.IsType<Ok<global::Renamer.Renamer.EntityRef[]>>(Unwrap(result));
             var rows = ok.Value!;
@@ -71,7 +71,7 @@ public sealed class ListEntitiesEndpointTests
             var ext = NewExtension();
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-            var result = await ext.ListTagsAsync(db, principal, TestContext.Current.CancellationToken);
+            var result = await ext.ListTagsAsync(db, principal, default);
 
             var ok = Assert.IsType<Ok<global::Renamer.Renamer.EntityRef[]>>(Unwrap(result));
             var rows = ok.Value!;
@@ -97,7 +97,7 @@ public sealed class ListEntitiesEndpointTests
         {
             var ext = NewExtension();
 
-            var result = await ext.ListStudiosAsync(db, FakePrincipalAccessor.None(), TestContext.Current.CancellationToken);
+            var result = await ext.ListStudiosAsync(db, FakePrincipalAccessor.None(), default);
 
             Assert.Equal(403, StatusOf(result));
         }
@@ -116,7 +116,7 @@ public sealed class ListEntitiesEndpointTests
         {
             var ext = NewExtension();
 
-            var result = await ext.ListTagsAsync(db, FakePrincipalAccessor.None(), TestContext.Current.CancellationToken);
+            var result = await ext.ListTagsAsync(db, FakePrincipalAccessor.None(), default);
 
             Assert.Equal(403, StatusOf(result));
         }
@@ -135,7 +135,7 @@ public sealed class ListEntitiesEndpointTests
         {
             var ext = NewExtension();
 
-            var result = await ext.ListStudiosAsync(db, FakePrincipalAccessor.NullPrincipal(), TestContext.Current.CancellationToken);
+            var result = await ext.ListStudiosAsync(db, FakePrincipalAccessor.NullPrincipal(), default);
 
             Assert.Equal(403, StatusOf(result));
         }
@@ -154,7 +154,7 @@ public sealed class ListEntitiesEndpointTests
         {
             var ext = NewExtension();
 
-            var result = await ext.ListTagsAsync(db, FakePrincipalAccessor.NullPrincipal(), TestContext.Current.CancellationToken);
+            var result = await ext.ListTagsAsync(db, FakePrincipalAccessor.NullPrincipal(), default);
 
             Assert.Equal(403, StatusOf(result));
         }
@@ -176,7 +176,7 @@ public sealed class ListEntitiesEndpointTests
             var ext = NewExtension();
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-            var result = await ext.ListPerformersAsync(db, principal, TestContext.Current.CancellationToken);
+            var result = await ext.ListPerformersAsync(db, principal, default);
 
             var ok = Assert.IsType<Ok<global::Renamer.Renamer.EntityRef[]>>(Unwrap(result));
             var rows = ok.Value!;
@@ -202,7 +202,7 @@ public sealed class ListEntitiesEndpointTests
         {
             var ext = NewExtension();
 
-            var result = await ext.ListPerformersAsync(db, FakePrincipalAccessor.None(), TestContext.Current.CancellationToken);
+            var result = await ext.ListPerformersAsync(db, FakePrincipalAccessor.None(), default);
 
             Assert.Equal(403, StatusOf(result));
         }
@@ -221,7 +221,7 @@ public sealed class ListEntitiesEndpointTests
         {
             var ext = NewExtension();
 
-            var result = await ext.ListPerformersAsync(db, FakePrincipalAccessor.NullPrincipal(), TestContext.Current.CancellationToken);
+            var result = await ext.ListPerformersAsync(db, FakePrincipalAccessor.NullPrincipal(), default);
 
             Assert.Equal(403, StatusOf(result));
         }
@@ -243,12 +243,12 @@ public sealed class ListEntitiesEndpointTests
             var ext = NewExtension();
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-            await ext.ListPerformersAsync(db, principal, TestContext.Current.CancellationToken);
+            await ext.ListPerformersAsync(db, principal, default);
 
             Assert.DoesNotContain(
                 db.ChangeTracker.Entries(),
                 e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
-            Assert.Equal(0, await db.SaveChangesAsync(TestContext.Current.CancellationToken));
+            Assert.Equal(0, await db.SaveChangesAsync());
         }
         finally
         {
@@ -268,7 +268,7 @@ public sealed class ListEntitiesEndpointTests
             var ext = NewExtension();
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-            var result = await ext.ListStudiosAsync(db, principal, TestContext.Current.CancellationToken);
+            var result = await ext.ListStudiosAsync(db, principal, default);
 
             var ok = Assert.IsType<Ok<global::Renamer.Renamer.EntityRef[]>>(Unwrap(result));
             var json = JsonSerializer.Serialize(ok.Value!, global::Renamer.Contracts.PreviewContracts.PreviewResponseJsonOptions);
@@ -295,7 +295,7 @@ public sealed class ListEntitiesEndpointTests
             var ext = NewExtension();
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-            await ext.ListStudiosAsync(db, principal, TestContext.Current.CancellationToken);
+            await ext.ListStudiosAsync(db, principal, default);
 
             // The read is AsNoTracking, so it leaves no pending writes: no entry sits in a dirty
             // state and SaveChanges persists nothing. (Seeding leaves the rows tracked as Unchanged
@@ -304,7 +304,7 @@ public sealed class ListEntitiesEndpointTests
             Assert.DoesNotContain(
                 db.ChangeTracker.Entries(),
                 e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
-            Assert.Equal(0, await db.SaveChangesAsync(TestContext.Current.CancellationToken));
+            Assert.Equal(0, await db.SaveChangesAsync());
         }
         finally
         {

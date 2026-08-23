@@ -18,11 +18,11 @@ public sealed class LoadAllEntityIdsAsyncTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            var (_, video1Id, _) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films/one", "one.mkv", "One", ct: TestContext.Current.CancellationToken);
-            var (_, video2Id, _) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films/two", "two.mkv", "Two", ct: TestContext.Current.CancellationToken);
+            var (_, video1Id, _) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films/one", "one.mkv", "One");
+            var (_, video2Id, _) = await ExecutorTestSeed.SeedVideoAsync(db, "/library/films/two", "two.mkv", "Two");
 
             var port = new CoveRenamerDataPort(db);
-            var ids = await port.LoadAllEntityIdsAsync(RenamerFileKind.Video, TestContext.Current.CancellationToken);
+            var ids = await port.LoadAllEntityIdsAsync(RenamerFileKind.Video, default);
 
             Assert.Equal(new[] { video1Id, video2Id }.OrderBy(x => x), ids.OrderBy(x => x));
         }
@@ -39,12 +39,12 @@ public sealed class LoadAllEntityIdsAsyncTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One", ct: TestContext.Current.CancellationToken);
-            var (_, imageId, _) = await ExecutorTestSeed.SeedImageAsync(db, "/library/pics", "pic.jpg", "Pic", ct: TestContext.Current.CancellationToken);
-            await ExecutorTestSeed.SeedAudioAsync(db, "/library/music", "song.mp3", "Song", ct: TestContext.Current.CancellationToken);
+            await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One");
+            var (_, imageId, _) = await ExecutorTestSeed.SeedImageAsync(db, "/library/pics", "pic.jpg", "Pic");
+            await ExecutorTestSeed.SeedAudioAsync(db, "/library/music", "song.mp3", "Song");
 
             var port = new CoveRenamerDataPort(db);
-            var ids = await port.LoadAllEntityIdsAsync(RenamerFileKind.Image, TestContext.Current.CancellationToken);
+            var ids = await port.LoadAllEntityIdsAsync(RenamerFileKind.Image, default);
 
             Assert.Equal([imageId], ids);
         }
@@ -61,10 +61,10 @@ public sealed class LoadAllEntityIdsAsyncTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One", ct: TestContext.Current.CancellationToken);
+            await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One");
 
             var port = new CoveRenamerDataPort(db);
-            var ids = await port.LoadAllEntityIdsAsync(RenamerFileKind.Gallery, TestContext.Current.CancellationToken);
+            var ids = await port.LoadAllEntityIdsAsync(RenamerFileKind.Gallery, default);
 
             Assert.Empty(ids);
         }
@@ -81,9 +81,9 @@ public sealed class LoadAllEntityIdsAsyncTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One", ct: TestContext.Current.CancellationToken);
-            await ExecutorTestSeed.SeedImageAsync(db, "/library/pics", "pic.jpg", "Pic", ct: TestContext.Current.CancellationToken);
-            await ExecutorTestSeed.SeedAudioAsync(db, "/library/music", "song.mp3", "Song", ct: TestContext.Current.CancellationToken);
+            await ExecutorTestSeed.SeedVideoAsync(db, "/library/films", "one.mkv", "One");
+            await ExecutorTestSeed.SeedImageAsync(db, "/library/pics", "pic.jpg", "Pic");
+            await ExecutorTestSeed.SeedAudioAsync(db, "/library/music", "song.mp3", "Song");
 
             // SeedXAsync leaves its own rows tracked as Unchanged from the seeding SaveChangesAsync
             // calls; clear the tracker first so this assertion isolates LoadAllEntityIdsAsync's own
@@ -91,9 +91,9 @@ public sealed class LoadAllEntityIdsAsyncTests
             db.ChangeTracker.Clear();
 
             var port = new CoveRenamerDataPort(db);
-            await port.LoadAllEntityIdsAsync(RenamerFileKind.Video, TestContext.Current.CancellationToken);
-            await port.LoadAllEntityIdsAsync(RenamerFileKind.Image, TestContext.Current.CancellationToken);
-            await port.LoadAllEntityIdsAsync(RenamerFileKind.Audio, TestContext.Current.CancellationToken);
+            await port.LoadAllEntityIdsAsync(RenamerFileKind.Video, default);
+            await port.LoadAllEntityIdsAsync(RenamerFileKind.Image, default);
+            await port.LoadAllEntityIdsAsync(RenamerFileKind.Audio, default);
 
             Assert.Empty(db.ChangeTracker.Entries());
         }

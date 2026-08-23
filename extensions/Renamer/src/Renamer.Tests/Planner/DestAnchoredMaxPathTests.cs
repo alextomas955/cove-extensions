@@ -68,7 +68,7 @@ public sealed class DestAnchoredMaxPathTests
             FullPathMax = Max,
         };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, StudioLookup(DeepRoot), TestContext.Current.CancellationToken);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, StudioLookup(DeepRoot), default);
 
         var item = Assert.Single(plan.Items);
         // Re-anchored on the deep routed root → the absolute path overflows → skip-with-reason at preview.
@@ -94,7 +94,7 @@ public sealed class DestAnchoredMaxPathTests
         };
 
         // Empty lookups → SourceConfine → anchored on the short source folder.
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, EmptyLookup(), TestContext.Current.CancellationToken);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, EmptyLookup(), default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);

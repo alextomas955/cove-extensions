@@ -28,7 +28,7 @@ public sealed class GatingTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { OnlyOrganized = true };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, TestContext.Current.CancellationToken);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         Assert.Equal(2, plan.Items.Count);
         Assert.All(plan.Items, i =>
@@ -49,7 +49,7 @@ public sealed class GatingTests
         // is gated rather than rescued by the basename fallback (which now defaults on) — this case
         // exercises the require-fields gate, not the fallback.
         var opts = new RenamerOptions { FilenameAsTitle = false };
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, TestContext.Current.CancellationToken);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipGated, item.Status);
@@ -66,7 +66,7 @@ public sealed class GatingTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { RequiredFields = ["zzznope"] };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, TestContext.Current.CancellationToken);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.SkipGated, item.Status);
@@ -97,7 +97,7 @@ public sealed class GatingTests
             UnorganizedDestination = unorgRoot,
         };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, TestContext.Current.CancellationToken);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         var item = Assert.Single(plan.Items);
         Assert.NotEqual(RenamerStatus.SkipGated, item.Status);
@@ -117,7 +117,7 @@ public sealed class GatingTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { OnlyOrganized = true }; // UnorganizedDestination = "" (default)
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, TestContext.Current.CancellationToken);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         Assert.Equal(RenamerStatus.SkipGated, Assert.Single(plan.Items).Status);
         Assert.Empty(port.SaveCalls);
@@ -131,7 +131,7 @@ public sealed class GatingTests
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions { OnlyOrganized = true };
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, TestContext.Current.CancellationToken);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         Assert.NotEqual(RenamerStatus.SkipGated, Assert.Single(plan.Items).Status);
         Assert.Empty(port.SaveCalls);

@@ -24,7 +24,7 @@ public sealed class RevertLogConcurrencyTests
         var store = new ConcurrentFakeStore();
         var log = new RevertLog(store);
 
-        await log.BeginBatchAsync("R-concurrent", RenamerFileKind.Video, TestContext.Current.CancellationToken);
+        await log.BeginBatchAsync("R-concurrent", RenamerFileKind.Video);
 
         // Fire N appends concurrently with a yield so the read-modify-write windows overlap and a
         // missing gate would reliably drop rows. Distinct entityId/fileId/paths per item.
@@ -34,11 +34,10 @@ public sealed class RevertLogConcurrencyTests
             await log.AppendAsync(
                 entityId: 1000 + i,
                 fileId: 5000 + i,
-                oldPath: $"media/old-{i}.mkv",
-                ct: TestContext.Current.CancellationToken);
+                oldPath: $"media/old-{i}.mkv");
         }));
 
-        var batch = await log.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
+        var batch = await log.ReadLastOpenBatchAsync();
         Assert.NotNull(batch);
         Assert.Equal(RenamerFileKind.Video, batch!.Kind);
 
@@ -73,25 +72,25 @@ public sealed class RevertLogConcurrencyTests
         const int perJob = 100;
 
         // One shared open-batch header, written once before the parallel appends.
-        await jobA.BeginBatchAsync("R-shared", RenamerFileKind.Video, TestContext.Current.CancellationToken);
+        await jobA.BeginBatchAsync("R-shared", RenamerFileKind.Video);
 
         var appendsA = Enumerable.Range(0, perJob).Select(async i =>
         {
             await Task.Yield();
             await jobA.AppendAsync(entityId: 2000 + i, fileId: 6000 + i,
-                oldPath: $"media/a-old-{i}.mkv", ct: TestContext.Current.CancellationToken);
+                oldPath: $"media/a-old-{i}.mkv");
         });
         var appendsB = Enumerable.Range(0, perJob).Select(async i =>
         {
             await Task.Yield();
             await jobB.AppendAsync(entityId: 3000 + i, fileId: 7000 + i,
-                oldPath: $"media/b-old-{i}.mkv", ct: TestContext.Current.CancellationToken);
+                oldPath: $"media/b-old-{i}.mkv");
         });
 
         await Task.WhenAll(appendsA.Concat(appendsB));
 
         // The shared blob's open batch must contain ALL 200 rows from both instances, no torn/lost.
-        var batch = await jobA.ReadLastOpenBatchAsync(TestContext.Current.CancellationToken);
+        var batch = await jobA.ReadLastOpenBatchAsync();
         Assert.NotNull(batch);
         Assert.Equal(2 * perJob, batch!.Entries.Count);
 

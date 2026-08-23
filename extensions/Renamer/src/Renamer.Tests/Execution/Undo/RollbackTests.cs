@@ -42,7 +42,7 @@ public sealed class RollbackTests
                 RenamerStatus.Renamer, "b.mkv", folderPath),
         ]);
 
-        var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default, TestContext.Current.CancellationToken);
+        var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
         // The save was reached (proving the move already happened) and it threw → the item is Failed
         // with a rolled-back reason, not renamed, and produced no undo row / no reindex event.
@@ -85,7 +85,7 @@ public sealed class RollbackTests
                 RenamerStatus.Renamer, "b.mkv", folderPath),
         ]);
 
-        var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default, TestContext.Current.CancellationToken);
+        var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
         // The save-seam received the mutation and reported success → the item is renamed on disk with a
         // revert-log row and a reindex event, and the DB write carried the new basename.
