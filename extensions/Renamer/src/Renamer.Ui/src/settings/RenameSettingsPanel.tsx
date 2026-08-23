@@ -2,9 +2,10 @@
  * RenameSettingsPanel — the extension's settings + live-preview page, as a composition root.
  *
  * Rendered by the host with NO props inside its own SectionCard, so the panel ROOT is a plain
- * <div> — no outer card, no page title. The data layer lives in three R9 hooks (useRenamerOptions
+ * <div> — no outer card, no page title. The data layer lives in R9 hooks (useRenamerOptions
  * for load/save, useRenamePreview for the debounced /preview-sample fetch, useRenameLibrary for the
- * scan+rename-library job); this body wires those hooks to the presentational per-section children
+ * scan+rename-library job, useLibraryPaths for Cove's configured library paths); this body wires
+ * those hooks to the presentational per-section children
  * (FilenameSection, LivePreviewPane, WhatGetsRenamedSection, RunAutomationSection,
  * TokenSettingsSection, DestinationRoutingSection, AdvancedSection) plus the DryRunModal, UndoSection,
  * and the fixed save bar. It owns only cross-section glue: the template-input refs used for at-caret
@@ -25,6 +26,7 @@ import { AdvancedSection } from "./AdvancedSection";
 import { useRenamerOptions } from "./useRenamerOptions";
 import { useRenamePreview } from "./useRenamePreview";
 import { useRenameLibrary } from "./useRenameLibrary";
+import { useLibraryPaths } from "./useLibraryPaths";
 
 /**
  * The fixed-bottom global save bar — reachable from anywhere on the page, visible only while
@@ -49,6 +51,9 @@ function SaveBar({
   onDiscard: () => void;
 }) {
   if (!dirty) return null;
+  // An error paints its fill inline (see below), so the class is empty in that arm.
+  const statusDotClass = saveError ? "" : savedFlash ? "bg-green-400" : "bg-amber-400";
+
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 py-4">
       {/* py-3.5 is host-absent (Cove's own UI never uses it, so its prebuilt bundle omits it);
@@ -57,10 +62,12 @@ function SaveBar({
         className="pointer-events-auto flex w-full max-w-3xl items-center gap-4 rounded-2xl border border-border bg-card px-5 shadow-lg"
         style={{ paddingTop: "0.875rem", paddingBottom: "0.875rem" }}
       >
+        {/* The error dot's `bg-red-400` is host-absent (Cove's stylesheet carries red-400 only at
+            partial alpha), so it drew no fill; inline it from the theme variable. The saved and
+            dirty dots are host-emitted classes and stay as they are. */}
         <span
-          className={`h-2 w-2 shrink-0 rounded-full ${
-            saveError ? "bg-red-400" : savedFlash ? "bg-green-400" : "bg-amber-400"
-          }`}
+          className={`h-2 w-2 shrink-0 rounded-full ${statusDotClass}`}
+          style={saveError ? { backgroundColor: "var(--color-red-400)" } : undefined}
         />
         <div className="min-w-0 flex-1">
           {saveError ? (
@@ -106,6 +113,7 @@ export function RenamePanelBody() {
     saveError,
     savedFlash,
     recoveredFromBadBlob,
+    pendingNameMigration,
     dirty,
     canSave,
     load,
@@ -124,6 +132,10 @@ export function RenamePanelBody() {
     renameProgress,
     renameLibrary,
   } = useRenameLibrary();
+  // Fetched HERE rather than in the two sections that need it, so the request starts on the panel's
+  // first render instead of after its own loading gate clears — the sections below are withheld
+  // behind that gate, so a leaf call could not even begin until the spinner went away.
+  const library = useLibraryPaths();
 
   // Last-focused template input, so a token chip inserts at its caret.
   const filenameRef = useRef<HTMLInputElement>(null);
@@ -188,7 +200,8 @@ export function RenamePanelBody() {
         col-span-2) + the live preview (1/3) sticky on lg+. The other 5 panels render as full-width
         siblings below this grid, so the preview's sticky containing block is that first card's own
         height, not the whole page. Standard grid-cols-3 + col-span-2 only — the host Tailwind never
-        compiles arbitrary [..] values for this bundle (verified live). */}
+        compiles arbitrary [..] values for this bundle (verified live; nothing checks this
+        automatically, so weigh any new utility against the host stylesheet by hand). */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <FilenameSection
           options={options}
@@ -199,6 +212,8 @@ export function RenamePanelBody() {
           activeTemplateRef={activeTemplateRef}
           emptySamples={emptySamples}
           recoveredFromBadBlob={recoveredFromBadBlob}
+          pendingNameMigration={pendingNameMigration}
+          library={library}
         />
         <LivePreviewPane preview={preview} previewError={previewError} />
       </div>
@@ -236,7 +251,7 @@ export function RenamePanelBody() {
         insertToken={insertToken}
       />
 
-      <DestinationRoutingSection options={options} set={set} />
+      <DestinationRoutingSection options={options} set={set} library={library} />
 
       <AdvancedSection options={options} set={set} />
 

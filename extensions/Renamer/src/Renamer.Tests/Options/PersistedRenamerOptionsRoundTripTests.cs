@@ -20,7 +20,10 @@ public sealed class PersistedRenamerOptionsRoundTripTests
     public void OldPascalCaseBlob_WithPascalCaseEnumValues_StillLoads()
     {
         // A blob shaped exactly as the shipped panel wrote it: PascalCase property names and PascalCase
-        // enum values (Case, the multi-value Sort / OnOverflow).
+        // enum values (Case, the multi-value Sort / OnOverflow) — plus the two default-relocate keys a
+        // real install's stored blob still carries after they were retired from the record. Those keys
+        // are what makes this case the unknown-key tolerance proof: a stored blob from before the
+        // deletion must still load, with the retired keys ignored and every surviving option intact.
         const string blob =
             """
             {
@@ -29,8 +32,9 @@ public sealed class PersistedRenamerOptionsRoundTripTests
               "Performers": { "Separator": " ", "Sort": "FavoriteFirst", "OnOverflow": "KeepFirst" },
               "Tags": { "Sort": "NameAsc" },
               "RequiredFields": ["title"],
-              "FilenameMax": 200,
-              "EnableDefaultRelocate": true
+              "DefaultDestination": "D:/sorted",
+              "EnableDefaultRelocate": true,
+              "FilenameMax": 200
             }
             """;
 
@@ -41,7 +45,9 @@ public sealed class PersistedRenamerOptionsRoundTripTests
         Assert.Equal(SortOrder.FavoriteFirst, loaded.Performers.Sort);
         Assert.Equal(OverflowPolicy.KeepFirst, loaded.Performers.OnOverflow);
         Assert.Equal(SortOrder.NameAsc, loaded.Tags.Sort);
+        // The tolerance proof, and why FilenameMax is read LAST in the blob rather than first: the two
+        // retired keys sit immediately before it, so this assertion fails if the loader stops, throws or
+        // skips ahead on an unknown key. A modeled value read only from BEFORE them would pass either way.
         Assert.Equal(200, loaded.FilenameMax);
-        Assert.True(loaded.EnableDefaultRelocate);
     }
 }

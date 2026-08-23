@@ -108,6 +108,16 @@
         "tags": [
           "Renamer"
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewSampleRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -186,102 +196,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LastBatchSummary"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/extensions/com.alextomas955.renamer/list-studios": {
-      "get": {
-        "tags": [
-          "Renamer"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EntityRef"
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/extensions/com.alextomas955.renamer/list-tags": {
-      "get": {
-        "tags": [
-          "Renamer"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EntityRef"
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/extensions/com.alextomas955.renamer/list-performers": {
-      "get": {
-        "tags": [
-          "Renamer"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EntityRef"
-                  }
                 }
               }
             }
@@ -459,10 +373,46 @@
           }
         }
       }
+    },
+    "/api/extensions/com.alextomas955.renamer/library-paths": {
+      "get": {
+        "tags": [
+          "Renamer"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryPathsView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "CaseTransform": {
+        "enum": [
+          "none",
+          "lower",
+          "title"
+        ]
+      },
       "ConfirmLevel": {
         "enum": [
           "light",
@@ -470,14 +420,13 @@
           "heavy"
         ]
       },
-      "EntityRef": {
+      "Destination": {
         "type": "object",
         "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int32"
+          "root": {
+            "type": "string"
           },
-          "name": {
+          "template": {
             "type": "string"
           }
         }
@@ -500,6 +449,31 @@
           }
         }
       },
+      "ExcludeRule": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string"
+          },
+          "isRegex": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FieldReplaceRule": {
+        "type": "object",
+        "properties": {
+          "targetToken": {
+            "type": "string"
+          },
+          "find": {
+            "type": "string"
+          },
+          "replace": {
+            "type": "string"
+          }
+        }
+      },
       "JobEnqueued": {
         "required": [
           "jobId"
@@ -515,6 +489,8 @@
         "required": [
           "hasBatch",
           "count",
+          "remainingCount",
+          "unrestorableCount",
           "writtenAtUtcTicks",
           "consumed"
         ],
@@ -527,11 +503,97 @@
             "type": "integer",
             "format": "int32"
           },
+          "remainingCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unrestorableCount": {
+            "type": "integer",
+            "format": "int32"
+          },
           "writtenAtUtcTicks": {
             "type": "integer",
             "format": "int64"
           },
           "consumed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "LibraryPathsView": {
+        "required": [
+          "paths"
+        ],
+        "type": "object",
+        "properties": {
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "MultiValueOptions": {
+        "type": "object",
+        "properties": {
+          "separator": {
+            "type": "string"
+          },
+          "maxCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "onOverflow": {
+            "$ref": "#/components/schemas/OverflowPolicy"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortOrder"
+          },
+          "whitelistIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "blacklistIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "ignoreGenders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "genderOrder": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "OverflowPolicy": {
+        "enum": [
+          "dropAll",
+          "keepFirst"
+        ]
+      },
+      "PathDestinationRule": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string"
+          },
+          "dest": {
+            "$ref": "#/components/schemas/Destination"
+          },
+          "isRegex": {
             "type": "boolean"
           }
         }
@@ -547,9 +609,11 @@
           "reason",
           "suffixed",
           "sanitized",
+          "inFlightPathOverflow",
           "resolvedDestinationRoot",
           "matchedRule",
-          "targetVolume"
+          "targetVolume",
+          "offLibraryDestination"
         ],
         "type": "object",
         "properties": {
@@ -584,6 +648,9 @@
           "sanitized": {
             "type": "boolean"
           },
+          "inFlightPathOverflow": {
+            "type": "boolean"
+          },
           "resolvedDestinationRoot": {
             "type": [
               "null",
@@ -595,6 +662,9 @@
           },
           "targetVolume": {
             "type": "string"
+          },
+          "offLibraryDestination": {
+            "type": "boolean"
           }
         }
       },
@@ -613,6 +683,24 @@
           },
           "summary": {
             "$ref": "#/components/schemas/PreviewSummary"
+          }
+        }
+      },
+      "PreviewSampleRequest": {
+        "required": [
+          "options"
+        ],
+        "type": "object",
+        "properties": {
+          "options": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RenamerOptions"
+              }
+            ]
           }
         }
       },
@@ -661,7 +749,7 @@
           "crossVolumeBytes",
           "volumePairs",
           "confirmLevel",
-          "undoable"
+          "inFlightPathOverflowCount"
         ],
         "type": "object",
         "properties": {
@@ -690,8 +778,9 @@
           "confirmLevel": {
             "$ref": "#/components/schemas/ConfirmLevel"
           },
-          "undoable": {
-            "type": "boolean"
+          "inFlightPathOverflowCount": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -699,9 +788,183 @@
         "enum": [
           "video",
           "image",
-          "audio",
-          "gallery"
+          "audio"
         ]
+      },
+      "RenamerOptions": {
+        "type": "object",
+        "properties": {
+          "filenameTemplate": {
+            "type": "string"
+          },
+          "folderTemplate": {
+            "type": "string"
+          },
+          "folderRoot": {
+            "type": "string"
+          },
+          "dateFormat": {
+            "type": "string"
+          },
+          "durationFormat": {
+            "type": "string"
+          },
+          "performers": {
+            "$ref": "#/components/schemas/MultiValueOptions"
+          },
+          "tags": {
+            "$ref": "#/components/schemas/MultiValueOptions"
+          },
+          "illegalReplacement": {
+            "type": "string"
+          },
+          "spaceReplacement": {
+            "type": "string"
+          },
+          "case": {
+            "$ref": "#/components/schemas/CaseTransform"
+          },
+          "removeCharacters": {
+            "type": "string"
+          },
+          "filenameAsTitle": {
+            "type": "boolean"
+          },
+          "removeEmptyFolder": {
+            "type": "boolean"
+          },
+          "asciiTransliterate": {
+            "type": "boolean"
+          },
+          "normalizePunctuation": {
+            "type": "boolean"
+          },
+          "filenameMax": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fullPathMax": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dropOrder": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowedRoots": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "associatedExtensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "onlyOrganized": {
+            "type": "boolean"
+          },
+          "requiredFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "duplicateSuffixFormat": {
+            "type": "string"
+          },
+          "autoRenamerOnUpdate": {
+            "type": "boolean"
+          },
+          "squeezeStudioNames": {
+            "type": "boolean"
+          },
+          "fieldReplacers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldReplaceRule"
+            }
+          },
+          "stripLeadingArticles": {
+            "type": "boolean"
+          },
+          "articles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "preventTitlePerformer": {
+            "type": "boolean"
+          },
+          "preventConsecutiveSegments": {
+            "type": "boolean"
+          },
+          "studioDestinations": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Destination"
+            }
+          },
+          "tagDestinations": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Destination"
+            }
+          },
+          "pathDestinations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PathDestinationRule"
+            }
+          },
+          "excludeTagIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "excludeStudioIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "excludePaths": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExcludeRule"
+            }
+          },
+          "unorganizedDestination": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Destination"
+              }
+            ]
+          },
+          "freeSpaceHeadroomBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "crossVolumeConcurrency": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sameVolumeConcurrency": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
       },
       "RenamerRequest": {
         "required": [
@@ -724,7 +987,7 @@
       },
       "RenamerStatus": {
         "enum": [
-          "renamer",
+          "rename",
           "move",
           "noOp",
           "skipCollision",
@@ -734,7 +997,14 @@
           "skipMissingSource",
           "skipNoSpace",
           "skipBlocked",
-          "failed"
+          "failed",
+          "skipPermissionDenied",
+          "skipVerifyFailed",
+          "skipCancelled",
+          "skipUnanchored",
+          "skipRootMissing",
+          "skipNotAllowed",
+          "skipTooLong"
         ]
       },
       "ScanCursor": {
@@ -777,7 +1047,9 @@
           "status",
           "reason",
           "suffixed",
-          "sanitized"
+          "sanitized",
+          "inFlightPathOverflow",
+          "offLibraryDestination"
         ],
         "type": "object",
         "properties": {
@@ -811,6 +1083,12 @@
             "type": "boolean"
           },
           "sanitized": {
+            "type": "boolean"
+          },
+          "inFlightPathOverflow": {
+            "type": "boolean"
+          },
+          "offLibraryDestination": {
             "type": "boolean"
           }
         }
@@ -975,6 +1253,14 @@
           }
         }
       },
+      "SortOrder": {
+        "enum": [
+          "nameAsc",
+          "none",
+          "idAsc",
+          "favoriteFirst"
+        ]
+      },
       "UndoEntryError": {
         "required": [
           "fileId",
@@ -999,11 +1285,31 @@
           }
         }
       },
+      "UndoEntryWarning": {
+        "required": [
+          "fileId",
+          "detail"
+        ],
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
       "UndoResult": {
         "required": [
           "undone",
-          "failed",
-          "skipped"
+          "failedCount",
+          "failedSample",
+          "skippedCount",
+          "skippedSample",
+          "warningCount",
+          "warningSample"
         ],
         "type": "object",
         "properties": {
@@ -1011,16 +1317,34 @@
             "type": "integer",
             "format": "int32"
           },
-          "failed": {
+          "failedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failedSample": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/UndoEntryError"
             }
           },
-          "skipped": {
+          "skippedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "skippedSample": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/UndoEntryError"
+            }
+          },
+          "warningCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "warningSample": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UndoEntryWarning"
             }
           }
         }

@@ -1,4 +1,5 @@
 using Cove.Core.Entities;
+using Cove.Core.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Planner;
 
@@ -30,10 +31,82 @@ namespace Renamer.Execution;
 public class CoveRenamerDataPort : IRenamerDataPort
 {
     private readonly DbContext _db;
+    private readonly CoveConfiguration? _config;
 
-    public CoveRenamerDataPort(DbContext db) => _db = db;
+    /// <summary>Wraps one scope's context, and the host configuration the library anchor is read from.</summary>
+    /// <param name="db">The scope's context (the real <c>CoveContext</c> at runtime).</param>
+    /// <param name="config">
+    /// Cove's own configuration singleton, the source of <see cref="LibraryRoots"/>. Optional so a
+    /// caller with no library map — every DB-only test fixture — constructs the port unchanged; the
+    /// consequence of omitting it in production is visible rather than silent, since a source-confined
+    /// item with a folder template then plans as <see cref="RenamerStatus.SkipUnanchored"/> and says so.
+    /// </param>
+    public CoveRenamerDataPort(DbContext db, CoveConfiguration? config = null)
+    {
+        _db = db;
+        _config = config;
+    }
 
     // ── IRenamerDataPort (planner read seam) ──────────────────────────────────
+
+    /// <inheritdoc />
+    public IReadOnlyList<string> LibraryRoots => ReadLibraryRoots(_config);
+
+    /// <summary>
+    /// The ONE reading of <c>CoveConfiguration.CovePaths</c> into the library paths this extension
+    /// works from: blank entries dropped, each survivor spelled canonically, absent configuration an
+    /// empty list.
+    /// </summary>
+    /// <remarks>
+    /// Static and shared because the port is not the only caller — the one-time options conversion runs
+    /// at initialize, before any scope or port exists, and has to place stored rules under the SAME
+    /// paths the planner will later anchor on. A second projection there could disagree about a blank
+    /// entry, which is the difference between preserving a rule and dropping it.
+    /// </remarks>
+    public static IReadOnlyList<string> ReadLibraryRoots(CoveConfiguration? config) =>
+        config is null
+            ? []
+            : [.. config.CovePaths
+                .Select(p => p.Path)
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Select(Canonical)];
+
+    /// <summary>
+    /// The one spelling of a Cove library path this extension uses: forward slashes, no trailing
+    /// separator.
+    /// </summary>
+    /// <remarks>
+    /// Cove hands its paths back in the platform's own spelling — a Windows host gives
+    /// <c>G:\Downloads\P</c> — and every comparison INSIDE Renamer normalizes before comparing
+    /// (<c>PathConfinement.IsUnderRoot</c>), so the raw form was harmless here and stopped being
+    /// harmless the moment the list left over the wire. The settings panel stores a destination root as
+    /// the very string this list gave it and re-checks membership by exact equality, while the one-time
+    /// conversion writes the root <see cref="Planner.PathConfinement.ContainingRoot"/> returns, which is
+    /// normalized. Two spellings of one folder then read as two folders: every converted rule rendered
+    /// as pointing somewhere Cove no longer has, while the planner went on applying it correctly.
+    /// Normalizing at this boundary — the one place the host's value enters — is what leaves a single
+    /// spelling for the panel to store and the planner to re-check, rather than a comparison somewhere
+    /// downstream that tolerates a divergence the next writer would widen again.
+    /// <para>
+    /// The guarantee holds AT THIS BOUNDARY only, and one downstream site knowingly departs from it:
+    /// <see cref="Planner.PathConfinement.ContainingRoot"/> re-trims the entry it returns, so a
+    /// root-only library path spelled <c>"/"</c> here comes back from it as <c>""</c> — the sentinel
+    /// this method exists to avoid emitting. The re-trim is not removable: that same return is written
+    /// into the stored destination root by the one-time conversion, which is handed raw host spellings
+    /// by its own callers and needs them normalized. So the divergence is real, and it is stated rather
+    /// than fixed because reaching it needs a Cove library path spelled exactly <c>/</c>, <c>\</c> or
+    /// <c>//</c>, and any longer sibling root wins the longest match first.
+    /// </para>
+    /// </remarks>
+    private static string Canonical(string path)
+    {
+        string normalized = PathOps.NormalizeSlash(path).TrimEnd('/');
+
+        // A path of nothing but separators trims away entirely, and the empty string is not a spelling
+        // of a root here — it is how a destination says "the file's own library path", which is a
+        // different answer. Keep the separator so a root can never be mistaken for that sentinel.
+        return normalized.Length == 0 ? "/" : normalized;
+    }
 
     /// <summary>
     /// Loads a media item's full file graph (via the EF Include chain) and maps it into the
@@ -65,7 +138,8 @@ public class CoveRenamerDataPort : IRenamerDataPort
                     return a is null ? null : MapAudioEntity(a);
                 }
             default:
-                // Gallery is not yet a renamable kind.
+                // Defensive: every declared kind is renamable, so this arm is reached only by an
+                // out-of-range cast, which a C# enum permits. Absent rather than a throw.
                 return null;
         }
     }
@@ -81,7 +155,8 @@ public class CoveRenamerDataPort : IRenamerDataPort
     // The single source of truth for studio-hierarchy depth. Two things MUST stay bound to it: the
     // WalkParentStudios ancestor-hop bound, and — because EF's Studio→Studio .ThenInclude cannot be
     // parameterized by a runtime count — the literal number of ".ThenInclude(s => s!.Parent)" hops each
-    // per-kind query below carries after ".Include(x => x.Studio)". StudioDepthLockstepTests seeds
+    // per-kind query below carries after ".Include(x => x.Studio)". The studio-depth lockstep cases in
+    // CoveDataPortRoutingFieldsTests seed
     // MaxParentDepth+1 ancestors and asserts exactly MaxParentDepth load through the real chain, so
     // changing this constant OR a query's hop count without the other fails that test — the coupling is
     // enforced mechanically, not by memory.
@@ -120,7 +195,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
                 }
                 break;
             default:
-                // Gallery is not yet a renamable kind.
+                // Defensive: see LoadEntityAsync — only an out-of-range cast lands here.
                 return [];
         }
 
@@ -130,8 +205,8 @@ public class CoveRenamerDataPort : IRenamerDataPort
     // ── Per-kind query + mapper: single-load and batch-load share BOTH so their DTOs cannot drift. ──
 
     // Each query's ancestor Include hop count is bound to MaxParentDepth (== 3) and guarded by
-    // StudioDepthLockstepTests — add or drop a ".ThenInclude(s => s!.Parent)" here without matching the
-    // constant and that test fails.
+    // CoveDataPortRoutingFieldsTests' MaxDepthChain_* cases — add or drop a ".ThenInclude(s => s!.Parent)"
+    // here without matching the constant and those tests fail.
     private IQueryable<Video> VideoQuery() => _db.Set<Video>()
         .AsNoTracking()
         .Include(x => x.Studio).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent).ThenInclude(s => s!.Parent)
@@ -154,41 +229,65 @@ public class CoveRenamerDataPort : IRenamerDataPort
         .Include(x => x.AudioPerformers).ThenInclude(ap => ap.Performer)
         .Include(x => x.AudioTags).ThenInclude(at => at.Tag);
 
-    private static RenamerEntity MapVideoEntity(Video v) => new(
-        v.Id, RenamerFileKind.Video, v.Title, v.Code, v.Studio?.Name, v.Date, v.Organized,
-        [.. v.VideoPerformers
-            .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
-            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
-        [.. v.VideoTags.Select(t => t.Tag?.Name ?? "").Where(n => n.Length > 0)],
-        [.. v.Files.Select(MapVideoFile)],
-        StudioId: v.StudioId,
-        ParentStudios: WalkParentStudios(v.Studio),
-        Director: v.Director);
+    private static RenamerEntity MapVideoEntity(Video v)
+    {
+        var tagRefs = TagPairs(v.VideoTags.Select(t => t.Tag));
+        return new(
+            v.Id, RenamerFileKind.Video, v.Title, v.Code, v.Studio?.Name, v.Date, v.Organized,
+            [.. v.VideoPerformers
+                .Where(p => p.Performer is not null)
+                .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
+            tagRefs,
+            [.. v.Files.Select(MapVideoFile)],
+            StudioId: v.StudioId,
+            ParentStudios: WalkParentStudios(v.Studio),
+            Director: v.Director);
+    }
 
-    private static RenamerEntity MapImageEntity(Image i) => new(
-        i.Id, RenamerFileKind.Image, i.Title, i.Code, i.Studio?.Name, i.Date, i.Organized,
-        [.. i.ImagePerformers
-            .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
-            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
-        [.. i.ImageTags.Select(t => t.Tag?.Name ?? "").Where(n => n.Length > 0)],
-        [.. i.Files.Select(MapImageFile)],
-        StudioId: i.StudioId,
-        ParentStudios: WalkParentStudios(i.Studio));
+    private static RenamerEntity MapImageEntity(Image i)
+    {
+        var tagRefs = TagPairs(i.ImageTags.Select(t => t.Tag));
+        return new(
+            i.Id, RenamerFileKind.Image, i.Title, i.Code, i.Studio?.Name, i.Date, i.Organized,
+            [.. i.ImagePerformers
+                .Where(p => p.Performer is not null)
+                .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
+            tagRefs,
+            [.. i.Files.Select(MapImageFile)],
+            StudioId: i.StudioId,
+            ParentStudios: WalkParentStudios(i.Studio));
+    }
 
-    private static RenamerEntity MapAudioEntity(Audio a) => new(
-        a.Id, RenamerFileKind.Audio, a.Title, a.Code, a.Studio?.Name, a.Date, a.Organized,
-        [.. a.AudioPerformers
-            .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
-            .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
-        [.. a.AudioTags.Select(t => t.Tag?.Name ?? "").Where(n => n.Length > 0)],
-        [.. a.Files.Select(MapAudioFile)],
-        StudioId: a.StudioId,
-        ParentStudios: WalkParentStudios(a.Studio));
+    private static RenamerEntity MapAudioEntity(Audio a)
+    {
+        var tagRefs = TagPairs(a.AudioTags.Select(t => t.Tag));
+        return new(
+            a.Id, RenamerFileKind.Audio, a.Title, a.Code, a.Studio?.Name, a.Date, a.Organized,
+            [.. a.AudioPerformers
+                .Where(p => p.Performer is not null)
+                .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
+            tagRefs,
+            [.. a.Files.Select(MapAudioFile)],
+            StudioId: a.StudioId,
+            ParentStudios: WalkParentStudios(a.Studio));
+    }
 
     /// <summary>
-    /// An <c>AsNoTracking</c> id-only bulk query over the kind's table — Gallery (and any other
-    /// non-renamable kind) returns empty rather than throwing, mirroring <see cref="LoadEntityAsync"/>'s
-    /// own treatment of Gallery as "not yet a renamable kind."
+    /// The single source of an item's tag id/name pairs: a join row with no tag is dropped once here.
+    /// </summary>
+    /// <remarks>
+    /// Dropping once is what keeps the ids and the rendered names in step — tag routing takes the FIRST
+    /// tag in this order whose id has a rule, so a filter applied separately to each list and kept in
+    /// agreement by hand across three mappers is the same pairing footgun the tuple list exists to
+    /// remove, just moved one level up.
+    /// </remarks>
+    private static IReadOnlyList<(int Id, string Name)> TagPairs(IEnumerable<Tag?> tags) =>
+        [.. tags.Where(t => t is not null).Select(t => (t!.Id, t.Name))];
+
+    /// <summary>
+    /// An <c>AsNoTracking</c> id-only bulk query over the kind's table. An out-of-range cast — the only
+    /// value <see cref="RenamerFileKind"/> holds that no arm names — returns empty rather than throwing,
+    /// mirroring <see cref="LoadEntityAsync"/>'s own fallthrough.
     /// </summary>
     public async Task<IReadOnlyList<int>> LoadAllEntityIdsAsync(RenamerFileKind kind, CancellationToken ct = default)
     {
@@ -243,6 +342,51 @@ public class CoveRenamerDataPort : IRenamerDataPort
         => (await GetOrCreateFolderAsync(folderPath, ct)).Id;
 
     /// <summary>
+    /// The GUARDED row-creation seam: canonically checks <paramref name="folderPathFwd"/> against
+    /// <paramref name="allowedRoots"/> and resolves-or-creates its <see cref="Folder"/> row ONLY on
+    /// acceptance. Every FORWARD caller that creates a destination folder row — the batch's
+    /// destination pre-create and the executor's own fallback resolve — goes through here rather than
+    /// through the raw <see cref="GetOrCreateFolderIdAsync"/> above.
+    /// </summary>
+    /// <remarks>
+    /// CANONICAL ALLOWLIST GUARD — PRE-MUTATION. This MUST precede
+    /// <see cref="GetOrCreateFolderIdAsync"/> (which persists a Folder DB row), so a destination the
+    /// allowlist will reject never materializes a DB folder row pointing outside the allowlist. We
+    /// canonically resolve the destination FOLDER's real on-disk target (following any junction/symlink
+    /// and expanding 8.3) and reject when it escapes every configured root.
+    /// <para>
+    /// Only guards when an allowlist is configured — with empty <paramref name="allowedRoots"/> the
+    /// source-confine path is byte-identical and there is no allowlist to canonically re-check, so the
+    /// create runs exactly as it did before. A reject is a classification carrying the guard's own
+    /// reason string, NEVER a throw: both call sites turn it into a SkipBlocked item, and the reason
+    /// they report is this one, so a skipped item is attributable rather than generic.
+    /// </para>
+    /// <para>
+    /// The raw create remains reachable — this seam reduces the bypass risk rather than removing it —
+    /// which is why it sits directly beside the member it guards: a future caller reading the raw
+    /// create meets this one first.
+    /// </para>
+    /// </remarks>
+    /// <returns>
+    /// <c>Accepted</c> with the resolved <c>FolderId</c>, or a rejection carrying the guard's
+    /// <c>Reason</c> and no row created.
+    /// </returns>
+    internal static async Task<(bool Accepted, int FolderId, string? Reason)> GuardedGetOrCreateFolderIdAsync(
+        IRenamerDataPort port, string folderPathFwd, IReadOnlyList<string> allowedRoots, CancellationToken ct = default)
+    {
+        if (allowedRoots.Count > 0)
+        {
+            var guard = CanonicalPathGuard.Check(folderPathFwd, allowedRoots);
+            if (!guard.Accepted)
+            {
+                return (false, 0, guard.Reason);
+            }
+        }
+
+        return (true, await port.GetOrCreateFolderIdAsync(folderPathFwd, ct), null);
+    }
+
+    /// <summary>
     /// Read-only counterpart to <see cref="GetOrCreateFolderIdAsync"/>: returns the existing folder's
     /// id or <c>null</c> when absent. Same path normalization and lookup as
     /// <see cref="GetOrCreateFolderAsync"/>, but it never <c>Add</c>s or
@@ -263,14 +407,6 @@ public class CoveRenamerDataPort : IRenamerDataPort
         var native = fullPath.Replace('/', Path.DirectorySeparatorChar);
         return Task.FromResult(System.IO.File.Exists(native));
     }
-
-    /// <summary>
-    /// Persists a planned set of mutations via <see cref="ApplyAndSaveAsync"/>. Provided so the
-    /// planner-facing seam is complete; the executor uses the richer <see cref="ApplyAndSaveAsync"/>
-    /// directly so it can read back the recomputed paths.
-    /// </summary>
-    public async Task<int> SaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
-        => (await ApplyAndSaveAsync(mutations, ct)).Count;
 
     // ── Executor-facing primitives ───────────────────────────────────────────
 
@@ -343,12 +479,63 @@ public class CoveRenamerDataPort : IRenamerDataPort
                 }
             }
 
+            if (m.EntityTitle is RenamerEntityTitleWrite titleWrite)
+            {
+                await ApplyDerivedTitleAsync(titleWrite, ct);
+            }
+
             touched.Add(file);
         }
 
         await _db.SaveChangesAsync(ct);  // ComputeFilePaths recomputes every touched file's Path here.
 
         return [.. touched.Select(f => new SavedFile(f.Id, f.Path))];
+    }
+
+    /// <summary>
+    /// Records a filename-derived title on its media entity, and only on one that still has none.
+    /// </summary>
+    /// <remarks>
+    /// This is the ONE place this extension writes metadata rather than location, and the emptiness
+    /// re-check against the TRACKED row is what keeps that safe: the planner derives a title only for a
+    /// title-less item, but a person can type one between the preview and the run, and a rename must
+    /// never overwrite what they wrote. The same check makes the write idempotent across the files of a
+    /// multi-file item, which save one at a time. No <c>SaveChangesAsync</c> here — the caller's single
+    /// save carries it, so a recorded title and its rename cannot come apart.
+    /// Why record it at all: <c>MetadataProjector.DerivedTitle</c>.
+    /// </remarks>
+    private async Task ApplyDerivedTitleAsync(RenamerEntityTitleWrite write, CancellationToken ct)
+    {
+        switch (write.Kind)
+        {
+            case RenamerFileKind.Video:
+                var video = await _db.Set<Video>().FirstOrDefaultAsync(x => x.Id == write.EntityId, ct);
+                if (video is not null && string.IsNullOrEmpty(video.Title))
+                {
+                    video.Title = write.Title;
+                }
+
+                break;
+            case RenamerFileKind.Image:
+                var image = await _db.Set<Image>().FirstOrDefaultAsync(x => x.Id == write.EntityId, ct);
+                if (image is not null && string.IsNullOrEmpty(image.Title))
+                {
+                    image.Title = write.Title;
+                }
+
+                break;
+            case RenamerFileKind.Audio:
+                var audio = await _db.Set<Audio>().FirstOrDefaultAsync(x => x.Id == write.EntityId, ct);
+                if (audio is not null && string.IsNullOrEmpty(audio.Title))
+                {
+                    audio.Title = write.Title;
+                }
+
+                break;
+            default:
+                // Defensive: see LoadEntityAsync — only an out-of-range cast lands here.
+                break;
+        }
     }
 
     // ── DTO mapping ──────────────────────────────────────────────────────────

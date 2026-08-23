@@ -4,42 +4,45 @@ namespace Renamer.Planner;
 
 /// <summary>
 /// The pure routing brain: maps one <see cref="RenamerEntity"/> to a <see cref="RouteResult"/>
-/// (a routed destination-root template, or source-confine) by the deterministic precedence.
+/// (the matched rule's own destination, or no rule at all) by the deterministic precedence.
 /// Called ONCE per entity in the planner, mirroring how <c>MetadataProjector.Project</c>
 /// is called once per file.
 ///
 /// PURE: no <c>System.IO</c>, no <c>Cove.*</c> types, no DB. The cascade is classify-not-throw — a
-/// null <see cref="RenamerEntity.StudioId"/>, an empty <see cref="RenamerEntity.ParentStudios"/>, or
-/// empty destination maps all fall straight through to <see cref="RouteCategory.SourceConfine"/>.
+/// null <see cref="RenamerEntity.StudioId"/>, an empty <see cref="RenamerEntity.ParentStudios"/>, an
+/// empty <see cref="RenamerEntity.TagRefs"/>, or empty destination maps all fall straight through to
+/// <see cref="RouteCategory.Unmatched"/>.
 /// The source-path regex set arrives PRE-PARSED in <see cref="RouteLookups.PathRegexRules"/> (built
 /// once per batch); this resolver only calls <c>IsMatch</c> — it never compiles a regex.
 ///
 /// Precedence (first CATEGORY that produces a match wins):
-/// <c>Excludes → Unorganized → Tag → Studio (incl. parent) → Source-path → Default</c>; within a
+/// <c>Excludes → Unorganized → Tag → Studio (incl. parent) → Source-path</c>; within a
 /// category the first user-ordered rule wins, and within Studio a DIRECT match outranks an ANCESTOR.
 ///
-/// Excludes run FIRST and beat every routing category including Unorganized: a matching tag name,
+/// Excludes run FIRST and beat every routing category including Unorganized: a matching tag id,
 /// studio id (direct or any ParentStudios ancestor id), or source-path (exact then regex)
 /// short-circuits to <see cref="RouteCategory.Excluded"/> (the planner then produces a
 /// <c>SkipExcluded</c> for every file). The exclude lookups arrive PRE-PARSED in the
 /// <see cref="RouteLookups"/> (a null/empty member = no excludes = legacy behavior, no regression);
-/// an exclude regex match-time timeout is treated as no-match, never thrown. Default-relocate is
-/// implemented but GATED — the <see cref="RouteCategory.Default"/> branch is reachable ONLY when
-/// <see cref="RenamerOptions.EnableDefaultRelocate"/> is true; the off branch returns
-/// <see cref="RouteCategory.SourceConfine"/> as a code-level guard, not merely a config default.
+/// an exclude regex match-time timeout is treated as no-match, never thrown. An item that matches no
+/// rule falls through to <see cref="RouteCategory.Unmatched"/>, where the planner renders the DEFAULT
+/// destination instead of a rule's.
 /// </summary>
 public static class DestinationResolver
 {
     /// <summary>
     /// The OS-aware string comparer for EXACT source-path matching — <see cref="StringComparer.OrdinalIgnoreCase"/>
-    /// on Windows (where paths are case-insensitive, the primary platform) and
-    /// <see cref="StringComparer.Ordinal"/> elsewhere, mirroring <c>VolumeClassifier</c> /
-    /// <c>PathConfinement.IsUnderRoot</c>. The exact-path lookup dictionary is built with this comparer
-    /// so an exact rule for <c>media/incoming</c> matches a stored <c>Media/Incoming</c> on Windows
-    /// instead of silently falling through.
+    /// where the default filesystem folds case (Windows, macOS) and <see cref="StringComparer.Ordinal"/>
+    /// elsewhere, matching <c>PathOps.PathsEqual</c> and <c>PathConfinement.IsUnderRoot</c> (the case
+    /// rule and its caveats are stated once at <c>PathOps.PathsEqual</c>; note <c>VolumeClassifier</c> is
+    /// NOT part of that set — it compares volume keys, not filenames). The exact-path lookup dictionary
+    /// is built with this comparer so an exact rule for <c>media/incoming</c> matches a stored
+    /// <c>Media/Incoming</c> on such a filesystem instead of silently falling through.
     /// </summary>
     public static StringComparer SourcePathComparer =>
-        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
 
     /// <summary>
     /// Normalizes a source path for EXACT-match keying/lookup — trims a single trailing
@@ -51,18 +54,10 @@ public static class DestinationResolver
     public static string NormalizeSourcePath(string path) => path.TrimEnd('/');
 
     /// <summary>
-    /// The matched-rule label this resolver emits for the GATED default-relocate category
-    /// (<see cref="RouteCategory.Default"/>). Exposed as the single source of truth so the auto-renamer
-    /// hook can detect a default-relocate route off <see cref="RenamerPlanItem.MatchedRule"/> without
-    /// duplicating the literal string.
-    /// </summary>
-    public const string DefaultRouteLabel = "Default";
-
-    /// <summary>
     /// Resolves <paramref name="e"/> to a <see cref="RouteResult"/> by the locked precedence.
     /// </summary>
     /// <param name="e">The entity to route (read-only; only routing-relevant fields are read).</param>
-    /// <param name="o">The renamer options carrying the destination maps + the default-relocate gate.</param>
+    /// <param name="o">The renamer options carrying the destination maps.</param>
     /// <param name="lk">The per-batch hoisted lookups (studio-id, tag-name, path-exact, pre-parsed regex).</param>
     public static RouteResult Resolve(RenamerEntity e, RenamerOptions o, RouteLookups lk)
     {
@@ -73,18 +68,19 @@ public static class DestinationResolver
         }
 
         // 2. Unorganized: its own route, BEFORE the tag/studio/path cascade.
-        if (!e.Organized && !string.IsNullOrEmpty(o.UnorganizedDestination))
+        if (!e.Organized && o.UnorganizedDestination is { } unorganized)
         {
-            return new RouteResult(RouteCategory.Unorganized, "Unorganized", o.UnorganizedDestination);
+            return new RouteResult(RouteCategory.Unorganized, "Unorganized", unorganized);
         }
 
         // 3. Cascade — first CATEGORY that produces a match wins.
-        // 3a. Tag: first tag in entity list order whose name (OrdinalIgnoreCase) has a rule.
-        foreach (var tag in e.Tags)
+        // 3a. Tag: first tag in entity list order whose stable id has a rule. The name is carried out
+        //     of the pair only to build the label — matching never touches it.
+        foreach (var (tagId, tagName) in e.TagRefs)
         {
-            if (lk.TagNameToDest.TryGetValue(tag, out var tagDest))
+            if (lk.TagIdToDest.TryGetValue(tagId, out var tagDest))
             {
-                return new RouteResult(RouteCategory.Tag, $"Tag:{tag}", tagDest);
+                return new RouteResult(RouteCategory.Tag, $"Tag:{tagName}", tagDest);
             }
         }
 
@@ -113,9 +109,9 @@ public static class DestinationResolver
         {
             var sourcePath = e.Files[0].ParentFolderPath;
 
-            // Normalize the source path the SAME way the exact map keys were normalized (OS-aware case
-            // via SourcePathComparer baked into the dict + trailing-slash trim here) so a stored
-            // "media/incoming/" matches a rule for "media/incoming" on Windows.
+            // Normalize the source path the SAME way the exact map keys were normalized (case via
+            // SourcePathComparer baked into the dict + trailing-slash trim here) so a stored
+            // "media/incoming/" matches a rule for "media/incoming".
             if (lk.PathExactToDest.TryGetValue(NormalizeSourcePath(sourcePath), out var exactDest))
             {
                 return new RouteResult(RouteCategory.SourcePath, "SourcePath:exact", exactDest);
@@ -147,21 +143,14 @@ public static class DestinationResolver
             }
         }
 
-        // 4. Default — GATED: reachable ONLY when the flag is on AND a default is set. A code-level
-        //    guard, NOT just a config default — an unmatched item NEVER silently relocates while
-        //    EnableDefaultRelocate is false (it stays gated until volume-aware undo exists).
-        if (o.EnableDefaultRelocate && !string.IsNullOrEmpty(o.DefaultDestination))
-        {
-            return new RouteResult(RouteCategory.Default, DefaultRouteLabel, o.DefaultDestination);
-        }
-
-        // 5. No route → source-confine. The default-relocate-disabled false branch lands HERE, so an
-        //    unmatched item keeps its own parent-folder anchor and does not relocate.
-        return new RouteResult(RouteCategory.SourceConfine, "InPlace", null);
+        // 4. No rule matched. The item's destination is the DEFAULT, which the planner reads from the
+        //    options — this resolver carries none for it, because a rule that did not match has none
+        //    to carry.
+        return new RouteResult(RouteCategory.Unmatched, "Default", null);
     }
 
     /// <summary>
-    /// The exclude cascade — tag NAME, studio id (direct OR any ParentStudios ancestor id), then
+    /// The exclude cascade — tag id, studio id (direct OR any ParentStudios ancestor id), then
     /// source-path (exact FIRST, then the first matching pre-parsed regex). Returns the
     /// <see cref="RouteCategory.Excluded"/> result on the first match, or <c>null</c> when nothing
     /// excludes the entity.
@@ -173,14 +162,14 @@ public static class DestinationResolver
     /// </remarks>
     private static RouteResult? ResolveExclusion(RenamerEntity e, RouteLookups lk)
     {
-        // Tag exclude (case-insensitive on the tag NAME, mirroring tag routing).
-        if (lk.ExcludeTagNames is { Count: > 0 } excludeTags)
+        // Tag exclude (on the stable tag id, mirroring tag routing; the name only builds the label).
+        if (lk.ExcludeTagIds is { Count: > 0 } excludeTags)
         {
-            foreach (var tag in e.Tags)
+            foreach (var (tagId, tagName) in e.TagRefs)
             {
-                if (excludeTags.Contains(tag))
+                if (excludeTags.Contains(tagId))
                 {
-                    return new RouteResult(RouteCategory.Excluded, $"Exclude:Tag:{tag}", null);
+                    return new RouteResult(RouteCategory.Excluded, $"Exclude:Tag:{tagName}", null);
                 }
             }
         }

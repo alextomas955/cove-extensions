@@ -16,6 +16,15 @@
     -->
     <CoveHostProvidedAssemblies>;__cove_extensions_shared_testing_no_strip__;</CoveHostProvidedAssemblies>
     <!--
+      The inherited test-project flag arrives from the xunit package reference below, not from anything
+      this repo sets, so VSTest treats this assembly as a test container and a solution-level
+      `dotnet test` launches a testhost for it. There is nothing for that host to run: the only [Fact]-bearing class here is
+      abstract and executes solely through Renamer.Tests' derivation of it. The launch does not merely
+      waste time — it aborts the whole run when the testhost cannot resolve, taking the real suite with
+      it. See the ItemGroup below for why xunit is referenced here at all.
+    -->
+    <IsTestProject>false</IsTestProject>
+    <!--
       CA1716 flags the "Shared" namespace segment as a VB reserved keyword (a cross-language-interop
       concern). This is a C#-only test-support assembly consumed solely by the *.Tests projects, never
       from VB, so the rule does not apply; scoped here (not root config) to keep the chosen namespace name.
@@ -23,6 +32,7 @@
     -->
     <NoWarn>$(NoWarn);CA1716</NoWarn>
   </PropertyGroup>
+
   <ItemGroup>
     <!--
       The OpenAPI emit lives HERE rather than in each consuming test project because the StartAsync

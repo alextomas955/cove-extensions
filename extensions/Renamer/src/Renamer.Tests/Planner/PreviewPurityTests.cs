@@ -12,6 +12,11 @@ namespace Renamer.Tests.Planner;
 /// the candidate name is collision-free and the item still plans as a Move. Folder creation is the
 /// executor's job, exercised only on a real renamer.
 /// </summary>
+/// <remarks>
+/// The "saved nothing" half asserts on <c>ApplyAndSaveCalls</c> because that is the port's ONLY write
+/// seam, and therefore the only one a planner could reach: an assertion on a seam the interface no
+/// longer declares would hold no matter what the planner did.
+/// </remarks>
 [Trait("Tier", "L0")]
 public sealed class PreviewPurityTests
 {
@@ -21,7 +26,15 @@ public sealed class PreviewPurityTests
 
     private static RenamerEntity Entity(params RenamerFile[] files) =>
         new(EntityId: 10, Kind: RenamerFileKind.Video, Title: "My Film", Code: null, StudioName: null,
-            Date: null, Organized: true, Performers: [], Tags: [], Files: files);
+            Date: null, Organized: true, Performers: [], TagRefs: [], Files: files);
+
+    /// <summary>A port whose library declares the folder these files sit in, so the move has an anchor.</summary>
+    private static FakeRenamerDataPort Port()
+    {
+        var port = new FakeRenamerDataPort();
+        port.SeedLibraryRoot("media/videos");
+        return port;
+    }
 
     // A folder-template move: the rendered subfolder makes this a Move whose destination folder
     // ("media/videos/Archive") is NOT seeded in the fake port, so a get-or-create would mint+record it.
@@ -31,11 +44,11 @@ public sealed class PreviewPurityTests
     [Fact]
     public async Task Preview_MoveToMissingFolder_CreatesNoFolderRow()
     {
-        var port = new FakeRenamerDataPort();
+        var port = Port();
         port.SeedEntity(Entity(File(1, "raw.mkv")));
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, MoveOptions(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, MoveOptions(), RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         // It still plans as a Move to the (not-yet-existing) destination folder...
@@ -43,19 +56,19 @@ public sealed class PreviewPurityTests
         Assert.EndsWith("Archive/My Film.mkv", item.NewFullPath);
         // ...but planning created NO folder and saved NOTHING — the preview-mutation bug is gone.
         Assert.Empty(port.CreatedFolderPaths);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
     public async Task Preview_MissingSource_ClassifiedSkipMissingSource_NoMutation()
     {
-        var port = new FakeRenamerDataPort();
+        var port = Port();
         port.SeedEntity(Entity(File(1, "raw.mkv")));
         // Declare the file's current source (ParentFolderPath + Basename) absent on disk.
         port.SeedMissingSource("media/videos/raw.mkv");
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, MoveOptions(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, MoveOptions(), RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         // The gone source is classified SkipMissingSource, keeping the file at its current path...
@@ -64,26 +77,26 @@ public sealed class PreviewPurityTests
         Assert.Contains("missing", item.Reason);
         // ...detected through the read-only port seam, so preview still mutates nothing.
         Assert.Empty(port.CreatedFolderPaths);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 
     [Fact]
     public async Task Preview_MoveToExistingFolder_StillDetectsCollision_WithoutCreating()
     {
-        var port = new FakeRenamerDataPort();
+        var port = Port();
         port.SeedEntity(Entity(File(1, "raw.mkv")));
         // The destination folder already exists (id 42) AND already holds "My Film.mkv" (file 99).
         port.SeedFolder("media/videos/Archive", 42);
         port.SeedOccupied(folderId: 42, basename: "My Film.mkv", fileId: 99);
         var planner = new RenamerPlanner(port);
 
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, MoveOptions(), default);
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, MoveOptions(), RouteLookupsFixtures.RoutingNeutral, default);
 
         var item = Assert.Single(plan.Items);
         // Collision against the existing folder's real contents → suffix applied, still no creation.
         Assert.Equal(RenamerStatus.Move, item.Status);
         Assert.EndsWith("Archive/My Film (1).mkv", item.NewFullPath);
         Assert.Empty(port.CreatedFolderPaths);
-        Assert.Empty(port.SaveCalls);
+        Assert.Empty(port.ApplyAndSaveCalls);
     }
 }

@@ -116,4 +116,34 @@ public sealed class VolumeClassifierTests
         UnixOnly();
         Assert.Equal(string.Empty, VolumeClassifier.VolumeKey("relative/a.mkv", Mounts));
     }
+
+    /// <summary>
+    /// The one case here that does NOT hand the classifier a mount table.
+    /// </summary>
+    /// <remarks>
+    /// Every case above passes <see cref="Mounts"/>, so all of them hold whatever the REAL table says
+    /// — and the real table is the input production actually routes on. That made the environment's own
+    /// contribution the single untested part of this class, which is the same shape as the defect
+    /// behind issue #108: a test that supplies the value the environment owns cannot notice the real
+    /// one being wrong.
+    /// <para>
+    /// <c>/dev/shm</c> is a tmpfs and therefore a distinct mount, measured present and writable with
+    /// no privilege in a Linux container. If the production table ever stops seeing past <c>/</c>, this
+    /// reds while every injected case stays green — which is exactly the split worth having.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void TheProductionMountTable_SeesPastRoot_AndSeparatesTwoRealMounts()
+    {
+        UnixOnly();
+        Assert.SkipUnless(Directory.Exists("/dev/shm"), "needs /dev/shm as a second real mount");
+
+        // No mountPoints argument anywhere below — this is the production default path.
+        Assert.Equal("/dev/shm", VolumeClassifier.VolumeKey("/dev/shm/clip.mkv"));
+        Assert.False(
+            VolumeClassifier.SameVolume("/tmp/clip.mkv", "/dev/shm/clip.mkv"),
+            "the real mount table collapsed two genuinely different filesystems onto one volume key, "
+                + "so a cross-device move would take the atomic fast path and skip the free-space "
+                + "pre-check, the copy verification and the heavy-batch warning");
+    }
 }

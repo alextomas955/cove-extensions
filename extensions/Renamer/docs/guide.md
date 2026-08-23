@@ -77,10 +77,8 @@ If a rename batch wasn't what you wanted, open the **Undo** section and click **
 Undo is deliberately small, so know what it covers:
 
 - Only the **most recent** rename is offered — starting another rename supersedes it.
-- A rename of more than **5,000 files** is **not recorded at all**, and both the rename confirmation
-  and the dry-run footer say so before it runs. A whole-library rename usually lands here. It also
-  clears any undo that was still pending, because a rename that large may have moved those files too.
-- A recorded rename is kept for **7 days** and then expires.
+- A rename is recorded whatever its size, and is kept for **7 days** before it expires. The dry run
+  is the check to make before that window closes.
 - A file that cannot go back — its original folder is gone, or something else now occupies the old
   name — stays pending, so undoing again after you fix the cause finishes the job.
 - Undo does **not** re-create a source folder that ["Delete the source folder when a move leaves it

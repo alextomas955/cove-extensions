@@ -40,7 +40,7 @@ public sealed class RollbackTests
         var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
         [
             new RenamerPlanItem(fileId, folderPath + "/a.mkv", folderPath + "/b.mkv",
-                RenamerStatus.Renamer, "b.mkv", folderPath),
+                RenamerStatus.Rename, "b.mkv", folderPath),
         ]);
 
         var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
@@ -84,17 +84,17 @@ public sealed class RollbackTests
         var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
         [
             new RenamerPlanItem(fileId, folderPath + "/a.mkv", folderPath + "/b.mkv",
-                RenamerStatus.Renamer, "b.mkv", folderPath),
+                RenamerStatus.Rename, "b.mkv", folderPath),
         ]);
 
         var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
         // The save-seam received the mutation and reported success → the item is renamed on disk with a
-        // revert-log row and a reindex event, and the DB write carried the new basename.
+        // journal row and a reindex event, and the DB write carried the new basename.
         var savedCall = Assert.Single(fake.ApplyAndSaveCalls);
         Assert.Equal("b.mkv", Assert.Single(savedCall).NewBasename);
         var renamedItem = Assert.Single(result.Renamed);
-        Assert.Equal(RenamerStatus.Renamer, renamedItem.Status);
+        Assert.Equal(RenamerStatus.Rename, renamedItem.Status);
         Assert.Empty(result.Failed);
         Assert.Single(journal.Rows);
         Assert.Single(bus.Published);
@@ -110,7 +110,7 @@ public sealed class RollbackTests
         var file = new RenamerFile(fileId, RenamerFileKind.Video, basename, ParentFolderId: 1, ParentFolderPath: folderPath);
         fake.SeedEntity(new RenamerEntity(
             entityId, RenamerFileKind.Video, "Film A", Code: null, StudioName: null, Date: null,
-            Organized: true, Performers: [], Tags: [], Files: [file]));
+            Organized: true, Performers: [], TagRefs: [], Files: [file]));
         return fake;
     }
 }

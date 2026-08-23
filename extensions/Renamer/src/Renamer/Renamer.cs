@@ -15,29 +15,43 @@ namespace Renamer;
 
 public sealed partial class Renamer : FullExtensionBase
 {
-    public override string Id => "com.alextomas955.renamer";
-    public override string Name => "Renamer";
-
-    // Repo-committed dev placeholders, not release-stamped: the published artifact's real version
-    // comes from the release tag (build.yml's -p:Version= and the packaged extension.json stamp).
-    public override string Version => "0.4.0";
-    public override string? Description => "Bulk-renames Cove library items using configurable patterns.";
-    public override string? Author => "alextomas955";
-    public override string? Url => "https://github.com/alextomas955/renamer";
-    public override IReadOnlyList<string> Categories => [ExtensionCategories.Tools, ExtensionCategories.Automation];
-    public override string? MinCoveVersion => "1.3.0";
+    // No metadata is declared here. Identity comes from extension.json, which the host hands to this
+    // instance (IManifestAware.ApplyManifest) before anything reads Id.
+    //
+    // Do NOT add Id, Name, Version, MinCoveVersion, Description, Author, Url or Categories. The host
+    // reads each straight off the property, so a copy here silently wins over the manifest — which is
+    // how a dead repository URL and a truncated description both reached users, and how a hand-written
+    // version would go on advertising a number the release tag never stamped.
 
     // ── Executor wiring ───────────────────────────────────────────────────────
     // The executor needs a SCOPED CoveContext per run (a DbContext is scoped, not singleton) and the
     // host IEventBus for the post-renamer reindex event. Capture the scope factory + event bus
-    // in InitializeAsync; a run opens its own scope via CreateAsyncScope() and resolves the scoped
-    // DbContext there.
+    // in InitializeAsync.
 
     // Resolved once at load and never null afterwards. The fields are nullable only because they are
     // assigned in InitializeAsync rather than the ctor; every use site is reached only after init, so
     // the non-null accessors below are the single, guarded way the rest of the extension reads them.
     private IServiceScopeFactory? _scopeFactory;
     private IEventBus? _eventBus;
+
+    /// <summary>
+    /// Cove's own configuration, the source of the library paths an unrouted folder template anchors on.
+    /// </summary>
+    /// <remarks>
+    /// Captured once because the host registers ONE mutable singleton every consumer shares, so reading
+    /// it per scope would return the same instance and a later edit in Cove's own settings is picked up
+    /// through the reference either way. Nullable, and its absence is survivable rather than fatal: a
+    /// rename that only changes a name still works, and an unrouted folder template plans as
+    /// <c>SkipUnanchored</c> with a reason instead of the extension refusing to load.
+    /// <para>
+    /// Fully qualified rather than imported: <c>Cove.Core.Interfaces</c> also declares an
+    /// <c>IJobProgress</c> that would collide with <c>Cove.Plugins</c>' at the job seams below.
+    /// </para>
+    /// </remarks>
+    private Cove.Core.Interfaces.CoveConfiguration? _coveConfig;
+
+    /// <summary>Cove's configured library paths, read through the port's single projection of them.</summary>
+    private IReadOnlyList<string> LibraryRoots => CoveRenamerDataPort.ReadLibraryRoots(_coveConfig);
 
     /// <summary>
     /// The host logger, writing to Cove's normal log. Renames and moves change files on disk, so every
@@ -63,8 +77,19 @@ public sealed partial class Renamer : FullExtensionBase
     {
         // Resolve the captured seams with GetRequiredService so a missing host registration fails
         // clearly here, at load, instead of surfacing as a NullReferenceException at first use.
+        //
+        // The SDK says to inject IExtensionServiceScopeFactory rather than the container engine's
+        // IServiceScopeFactory. Verified against the host (Cove.Plugins/ExtensionServiceOverlay.cs:565-568,
+        // 547-555): the provider handed to InitializeAsync answers BOTH service types with the same
+        // TrackedScopeFactory, so this capture is already the retirement-tracked instance.
         _scopeFactory = services.GetRequiredService<IServiceScopeFactory>();
         _eventBus = services.GetRequiredService<IEventBus>();
+        _coveConfig = services.GetService<Cove.Core.Interfaces.CoveConfiguration>();
+        if (_coveConfig is null)
+        {
+            LogNoCoveConfiguration();
+        }
+
         // Logging is optional: the host forwards ILogger into the extension scope, but treat its
         // absence as non-fatal (GetService, not GetRequiredService) — a renamer must still run. Keep the
         // NullLogger default when the host supplies none.
@@ -114,6 +139,25 @@ public sealed partial class Renamer : FullExtensionBase
             LogJournalBlobMigrationFailed(ex);
         }
 
+        // ONE-TIME stored-options conversions, both riding one stamp rather than repeating on every
+        // deploy, restart and reboot. A blob written before the identity migration keys its tag and
+        // performer rules on NAMES, which the current model cannot bind at all, so until that half runs
+        // every settings read falls back to defaults; a blob written before the path-template release
+        // holds destination ROOTS, which the planner would now read as whole destinations and so drop
+        // the folder arrangement from every routed item.
+        try
+        {
+            await MigrateStoredOptionsAsync(ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Everything that can throw AFTER the settings write is caught closer in, so reaching this
+            // means no conversion was recorded. That is as far as the claim goes: if the settings write
+            // itself is what threw, whether it landed is the store's business and not knowable here.
+            // Reported and stepped over rather than blocking the load; the next load retries.
+            LogOptionsMigrationFailed(ex);
+        }
+
         await base.InitializeAsync(services, ct);
     }
 
@@ -139,13 +183,11 @@ public sealed partial class Renamer : FullExtensionBase
     {
         try
         {
-            await using var scope = ScopeFactory.CreateAsyncScope();
-
             // A filtered read that returns nothing is the failure mode this whole check exists to make
             // impossible to mistake for success, so the scope must be the elevated one.
-            await RunAsSystem.RunAsSystemAsync(scope.ServiceProvider, () =>
+            await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, services =>
             {
-                var db = scope.ServiceProvider.GetRequiredService<DbContext>();
+                var db = services.GetRequiredService<DbContext>();
                 return db.Set<RevertBatchEntity>().AsNoTracking().AnyAsync(ct);
             });
         }
@@ -163,10 +205,9 @@ public sealed partial class Renamer : FullExtensionBase
     /// <summary>Moves the legacy stored journal into the journal table exactly once, then clears it.</summary>
     private async Task MigrateStoredJournalAsync(CancellationToken ct)
     {
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        int moved = await RunAsSystem.RunAsSystemAsync(scope.ServiceProvider, async () =>
+        int moved = await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
         {
-            var db = scope.ServiceProvider.GetRequiredService<DbContext>();
+            var db = services.GetRequiredService<DbContext>();
             using var journal = new CoveRevertJournal(db);
             return await JournalBlobMigration.RunAsync(Store, journal, DateTime.UtcNow, ct);
         });
@@ -175,6 +216,200 @@ public sealed partial class Renamer : FullExtensionBase
         {
             LogJournalBlobMigrated(moved);
         }
+    }
+
+    /// <summary>The id/name pairs a stored rule name is resolved against.</summary>
+    private readonly record struct EntityNames(
+        IReadOnlyList<(int Id, string Name)> Tags,
+        IReadOnlyList<(int Id, string Name)> Performers);
+
+    /// <summary>
+    /// Brings the stored options blob to the current schema exactly once: name-keyed rules become
+    /// id-keyed (writing only when the library read it resolves against came back with at least one row
+    /// of each kind the blob actually needs), and typed destination roots become a Cove library path
+    /// plus a relative template.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The stamp records a REWRITE, so a blob that needed neither conversion leaves no stamp and is
+    /// re-examined on the next load — which costs two store reads and two parses of the blob (the schema
+    /// key and the blob itself; <see cref="OptionsMigration.Scan"/> and
+    /// <see cref="OptionsMigration.ConvertDestinationsToRoots"/> each parse what they are handed), and is
+    /// what keeps this method honest: it
+    /// never has to claim a blob is current on the strength of a stamp somebody could have written for
+    /// the other half. Each conversion recognizes its own input rather than trusting the stamp (a legacy
+    /// rule is name-keyed; a legacy destination is a JSON string where the current one is an object), so
+    /// running twice converts once. The deferral paths below deliberately write no stamp either,
+    /// converting nothing precisely so the next load can retry.
+    /// </para>
+    /// <para>
+    /// The at-least-one-row rule is the whole safety argument, and it is stronger than "do not write
+    /// when the read failed": an under-privileged background read returns ZERO ROWS successfully, with
+    /// no exception (see <see cref="RunAsSystem"/>), indistinguishable from a library that genuinely
+    /// has no tags. The conversion keeps no copy of the originals, so
+    /// writing after such a read would erase every tag and performer rule the user has. An empty library
+    /// has nothing to convert, so refusing to write costs nothing and makes that outcome structurally
+    /// impossible. The stamp is not advanced either, so the next load retries.
+    /// </para>
+    /// <para>
+    /// "Needs" is measured in NAMES awaiting an id, per half, and never in legacy keys present — see
+    /// <see cref="OptionsMigration.LegacyNames"/>. A half with nothing to resolve converts as a pure
+    /// no-op (it rewrites an empty list and drops the legacy spelling), so letting it through against an
+    /// empty table costs nothing, while demanding rows for it would strand a library that has tags but no
+    /// performers on the legacy blob permanently.
+    /// </para>
+    /// </remarks>
+    private async Task MigrateStoredOptionsAsync(CancellationToken ct)
+    {
+        if (await Store.GetAsync(OptionsMigration.SchemaKey, ct) == OptionsMigration.CurrentSchema)
+        {
+            return;
+        }
+
+        var optionsStore = new OptionsStore(Store, _log);
+        string? stored = await optionsStore.LoadRawAsync(ct);
+        if (stored is null)
+        {
+            return;
+        }
+
+        bool rewrote = false;
+        var legacy = OptionsMigration.Scan(stored);
+        if (legacy.Any)
+        {
+            string? resolved = await ResolveStoredNamesToIdsAsync(stored, legacy, ct);
+            if (resolved is null)
+            {
+                // Deferred, and deliberately unstamped — see the remarks. The destination half is
+                // skipped with it rather than run on its own: a blob whose names are still unresolved is
+                // not one this release's shape can be written onto coherently, and the next load retries
+                // both together.
+                return;
+            }
+
+            stored = resolved;
+            rewrote = true;
+        }
+
+        var destinations = OptionsMigration.ConvertDestinationsToRoots(stored, LibraryRoots);
+        if (destinations.Deferred)
+        {
+            // Deferred, and deliberately unstamped, for the same reason the half above defers: a
+            // destination can only be placed under a library path Cove supplies, and an empty list is
+            // indistinguishable from a host that has not supplied one yet. Converting anyway would DROP
+            // every rule the user has.
+            LogOptionsMigrationDeferred(
+                "the stored destination rules must be placed under Cove's library paths and the host "
+                    + "supplied none");
+            return;
+        }
+
+        if (destinations.Changed)
+        {
+            stored = destinations.Json;
+            rewrote = true;
+            if (destinations.Rewritten.Count > 0)
+            {
+                string rewritten = string.Join("; ", destinations.Rewritten.Select(
+                    r => $"{r.Rule}: '{r.From}' -> root '{r.ToRoot}' + '{r.ToTemplate}'"));
+                LogOptionsMigrationDestinationsRewritten(destinations.Rewritten.Count, rewritten);
+            }
+
+            if (destinations.Dropped.Count > 0)
+            {
+                string droppedRules = string.Join("; ", destinations.Dropped.Select(
+                    d => $"{d.Rule}: '{d.Stored}'"));
+                LogOptionsMigrationDestinationsDropped(destinations.Dropped.Count, droppedRules);
+            }
+        }
+
+        if (!rewrote)
+        {
+            // Nothing to make one-time. A blob already in the current shape is left exactly as it is,
+            // including its stamp state, so a fresh install pays for no store write at all.
+            return;
+        }
+
+        // Both halves log BEFORE this, not after: the rewrite keeps no copy of the originals, so those
+        // log lines are the only record of what it discarded or rewrote, and a settings write that
+        // throws must not take that record with it.
+        await optionsStore.SaveRawAsync(stored, ct);
+
+        try
+        {
+            await Store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Caught here rather than at the initialize-time seam so the failure can say that the
+            // settings WERE rewritten — the seam's own catch covers everything before the write and
+            // must not make that claim.
+            LogOptionsMigrationStampFailed(ex);
+        }
+    }
+
+    /// <summary>
+    /// Resolves the blob's name-keyed rules against the live tag/performer tables, returning the
+    /// converted JSON — or <c>null</c> when the read came back empty for a half that still has names to
+    /// resolve, which defers the whole conversion to the next load. Writes nothing; the caller persists.
+    /// </summary>
+    private async Task<string?> ResolveStoredNamesToIdsAsync(
+        string stored, OptionsMigration.LegacyNames legacy, CancellationToken ct)
+    {
+        // Every DETACHED body in this extension — this conversion, the job bodies and the auto-rename
+        // hook — takes its scope from the elevating seam, because none of them carries a principal of its
+        // own. The request-path scopes (/undo, /scan-rows and /last-batch) deliberately do not: they must
+        // stay on the caller's principal, and elevating them would bypass that caller's authorization.
+        var names = await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
+        {
+            var db = services.GetRequiredService<DbContext>();
+            var tagRows = await db.Set<Cove.Core.Entities.Tag>()
+                .AsNoTracking().Select(t => new { t.Id, t.Name }).ToListAsync(ct);
+            var performerRows = await db.Set<Cove.Core.Entities.Performer>()
+                .AsNoTracking().Select(p => new { p.Id, p.Name }).ToListAsync(ct);
+            return new EntityNames(
+                [.. tagRows.Select(r => (r.Id, r.Name))],
+                [.. performerRows.Select(r => (r.Id, r.Name))]);
+        });
+
+        if (legacy.Tags > 0 && names.Tags.Count == 0)
+        {
+            LogOptionsMigrationDeferred(
+                $"{legacy.Tags} stored tag name(s) need resolving and the library read returned no tags");
+            return null;
+        }
+
+        if (legacy.Performers > 0 && names.Performers.Count == 0)
+        {
+            LogOptionsMigrationDeferred(
+                $"{legacy.Performers} stored performer name(s) need resolving and the library read returned no performers");
+            return null;
+        }
+
+        var converted = OptionsMigration.Convert(stored, names.Tags, names.Performers);
+
+        LogOptionsMigrationConverted(names.Tags.Count, names.Performers.Count, converted.DroppedNames.Count);
+        if (converted.DroppedNames.Count > 0)
+        {
+            string dropped = string.Join(", ", converted.DroppedNames);
+            LogOptionsMigrationDroppedNames(converted.DroppedNames.Count, dropped);
+        }
+
+        if (converted.CaseCollapses.Count > 0)
+        {
+            string collapsed = string.Join("; ", converted.CaseCollapses.Select(
+                c => $"'{c.Name}' now matches only {c.MatchedId}, no longer {string.Join(" or ", c.AlsoMatchedIds)}"));
+            LogOptionsMigrationNarrowedNames(converted.CaseCollapses.Count, collapsed);
+        }
+
+        if (converted.DiscardedDestinations.Count > 0)
+        {
+            string discarded = string.Join("; ", converted.DiscardedDestinations.Select(
+                d => $"'{d.Key}' resolved to {d.Id}, already routed by '{d.ClaimedBy}'"));
+            LogOptionsMigrationDiscardedDestinations(converted.DiscardedDestinations.Count, discarded);
+        }
+
+        return converted.Json;
     }
 
     // ── Shared batch core ─────────────────────────────────────────────────────
@@ -203,8 +438,8 @@ public sealed partial class Renamer : FullExtensionBase
     /// Maps a <see cref="RenamerFileKind"/> to the host read/write permission pair that gates operating
     /// on that entity kind. Cove models entity permissions per-kind (<c>videos.*</c>/<c>images.*</c>/
     /// <c>audios.*</c>), so a renamer of an image must require <c>images.write</c> — not the video
-    /// permission. <c>Gallery</c> is not a renamable kind; it is mapped to the video pair only so the
-    /// switch is total, and it never reaches an endpoint (<see cref="TryParseKind"/> rejects it).
+    /// permission. The fallthrough carries <see cref="RenamerFileKind.Video"/> so the switch is total
+    /// for an out-of-range cast, which is the only value no arm names.
     /// </summary>
     internal static (string Read, string Write) PermissionsFor(RenamerFileKind kind) => kind switch
     {
@@ -235,9 +470,9 @@ public sealed partial class Renamer : FullExtensionBase
 
     /// <summary>
     /// The fraction of the progress bar the PHASE A planning pass owns. Planning every id in a large
-    /// library is slow and reported nothing before, so the bar sat at 0% for the whole pass; splitting
-    /// the bar (planning 0 → this, executing this → 1.0) keeps it moving throughout. 0.5 splits it evenly;
-    /// the exact split is cosmetic — both phases scale linearly, so the bar only ever advances.
+    /// library is slow, so splitting the bar (planning 0 → this, executing this → 1.0) keeps it moving
+    /// throughout instead of sitting at 0% for the whole pass. 0.5 splits it evenly; the exact split is
+    /// cosmetic — both phases scale linearly, so the bar only ever advances.
     /// </summary>
     private const double PlanningProgressShare = 0.5;
 
@@ -251,8 +486,9 @@ public sealed partial class Renamer : FullExtensionBase
     /// not thread-safe and Cove disables EF's thread-safety checks, so a shared context would corrupt
     /// silently; per-worker scopes make isolation structural. The ONE shared object is the
     /// <see cref="CoveRevertJournal"/>, which is shared because it mints each row's sequence number,
-    /// and whose writes are serialized so the undo record never tears. Bad/empty/unsupported input is a
-    /// clean no-op that still reports the final <c>1.0</c> — never throws on untrusted job parameters.
+    /// and which therefore owns its own scope and serializes its own writes. Bad/empty/unsupported
+    /// input is a clean no-op that still reports the final <c>1.0</c> — never throws on untrusted job
+    /// parameters.
     /// </summary>
     /// <param name="parameters">The host's string-only job parameter map (entity type + id list).</param>
     /// <param name="progress">The job-progress sink reported during PHASE B and a final <c>1.0</c>.</param>
@@ -270,7 +506,7 @@ public sealed partial class Renamer : FullExtensionBase
 
         if (!TryParseKind(entityType, out var kind) || ids.Length == 0)
         {
-            progress.Report(1d, "Nothing to renamer.");
+            progress.Report(1d, "Nothing to rename.");
             return;
         }
 
@@ -309,11 +545,10 @@ public sealed partial class Renamer : FullExtensionBase
         // One action click = one selection = one /renamer = one job = one batch, all one kind.
         // Mint a fresh runId AFTER the kind/ids validation passed (so the early no-op return above
         // opens no batch). The batch is NOT opened yet: a batch opened before PHASE A knows whether
-        // anything acts would leave an EMPTY batch behind, shadowing a genuinely-replayable earlier
-        // batch from /undo. We defer BeginBatchAsync until PHASE A has produced at least one acting
-        // unit AND the batch cleared the free-space refusal, so an all-skip or refused batch opens
-        // nothing at all. The same runId + journal is then passed into EVERY worker's executor so
-        // every per-success AppendAsync row accumulates under this single batch.
+        // anything acts would leave an EMPTY batch behind. We defer BeginBatchAsync until PHASE A has
+        // produced at least one acting unit AND the batch cleared the free-space refusal, so an
+        // all-skip or refused batch opens nothing at all. The same runId + journal is then passed into
+        // EVERY worker's executor so every per-success AppendAsync row accumulates under this one batch.
         var runId = Guid.NewGuid().ToString("N");
 
         LogBatchStarted(runId, kind, ids.Length);
@@ -327,14 +562,25 @@ public sealed partial class Renamer : FullExtensionBase
         var acting = new List<BatchUnit>();
         var folderIdByPath = new Dictionary<string, int>(DestinationResolver.SourcePathComparer);
 
+        // The destinations the canonical allowlist guard REFUSED during the pre-create, with the guard's
+        // own reason. It rides beside the folder-id map because it is the same decision seen from the
+        // other side: the pre-create is the single source of folder creation for the batch, so it is
+        // also the only place the batch can refuse a destination BEFORE a row exists. Without the reason
+        // recorded here a refused destination would reach the worker as nothing but a missing map entry,
+        // and the worker would have to guess why — so a skip a user cannot act on.
+        var rejectedDestinations = new Dictionary<string, string>(DestinationResolver.SourcePathComparer);
+
         // PHASE A reports no progress percentage (that starts in PHASE B), so trace the planning loop to
         // the log — otherwise a large library sits at 0% here with no signal that it is still planning.
         LogPlanningStarted(runId, kind, ids.Length);
 
-        await using (var readScope = ScopeFactory.CreateAsyncScope())
+        // ONE elevated span for the whole of PHASE A, rather than one per planned entity plus one for the
+        // folder pre-create. Nothing between the reads touches the database, so this widens no query's
+        // reach, and a single span cannot run half its work elevated and half not.
+        await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
         {
-            var readDb = readScope.ServiceProvider.GetRequiredService<DbContext>();
-            var port = new CoveRenamerDataPort(readDb);
+            var readDb = services.GetRequiredService<DbContext>();
+            var port = new CoveRenamerDataPort(readDb, _coveConfig);
             var planner = new RenamerPlanner(port);
 
             int planIndex = 0;
@@ -352,7 +598,7 @@ public sealed partial class Renamer : FullExtensionBase
                 int actingThisItem = 0;
                 foreach (var item in plan.Items)
                 {
-                    if (item.Status is not (RenamerStatus.Renamer or RenamerStatus.Move))
+                    if (item.Status is not (RenamerStatus.Rename or RenamerStatus.Move))
                     {
                         continue;
                     }
@@ -390,18 +636,29 @@ public sealed partial class Renamer : FullExtensionBase
                     continue;
                 }
 
-                if (!folderIdByPath.ContainsKey(planItem.TargetFolderPath))
+                if (!folderIdByPath.ContainsKey(planItem.TargetFolderPath)
+                    && !rejectedDestinations.ContainsKey(planItem.TargetFolderPath))
                 {
-                    folderIdByPath[planItem.TargetFolderPath] =
-                        await port.GetOrCreateFolderIdAsync(planItem.TargetFolderPath, ct);
+                    // Through the GUARDED seam, never the raw create: this is where a batch persists a
+                    // destination Folder row, so it is where the canonical allowlist check belongs.
+                    var resolved = await CoveRenamerDataPort.GuardedGetOrCreateFolderIdAsync(
+                        port, planItem.TargetFolderPath, options.AllowedRoots, ct);
+                    if (resolved.Accepted)
+                    {
+                        folderIdByPath[planItem.TargetFolderPath] = resolved.FolderId;
+                    }
+                    else
+                    {
+                        rejectedDestinations[planItem.TargetFolderPath] = resolved.Reason ?? "no reason given";
+                    }
                 }
             }
-        }
+        });
 
         // UP-FRONT free-space refusal: sum the projected cross-volume bytes per destination volume and
         // refuse the whole batch before touching disk if a volume would not fit. Same-volume moves are
         // excluded from the sum by the guard. This runs BEFORE BeginBatchAsync, so a refused batch
-        // opens no journal batch (and can never shadow a prior replayable batch).
+        // opens no batch at all.
         var moves = acting.Select(u => u.Move).ToList();
         var shortfall = FreeSpaceGuard.Shortfall(moves, options.FreeSpaceHeadroomBytes, freeSpaceProbe);
         if (shortfall.Count > 0)
@@ -413,29 +670,34 @@ public sealed partial class Renamer : FullExtensionBase
             return;
         }
 
-        // Nothing acts → open NO batch (an empty batch would shadow the previous replayable one from
-        // /undo). Report the final 1.0 and return as a clean no-op.
+        // Nothing acts → open NO batch. Report the final 1.0 and return as a clean no-op.
         if (acting.Count == 0)
         {
             LogBatchDone(runId, 0, 0, 0);
-            progress.Report(1d, "Nothing to renamer.");
+            progress.Report(1d, "Nothing to rename.");
             return;
         }
 
         // The journal gets its OWN scope, and therefore its own DbContext, for the whole batch: it is
-        // shared by every parallel worker because it mints each row's sequence number, and a DbContext
-        // is not thread-safe, so it cannot ride on a worker's scope. What makes its writes need no
-        // elevation is that the journal's two tables are extension-owned and carry none of
-        // CoveContext's per-principal query filters.
+        // the one object every parallel worker shares (it mints each row's sequence number), and the
+        // per-worker contexts are exactly what must not be shared. It serializes its own writes; the
+        // rename work those writes follow stays parallel.
+        //
+        // This scope is NOT elevated, unlike every scope that reads Cove's own entities. The reason it
+        // needs no elevation is that the journal's two tables are extension-owned and carry none of
+        // Cove's per-principal query filters — which is a measured fact, not an assumption: the
+        // journal's own suite appends and reads those rows through a real CoveContext under no
+        // principal at all. There is nothing here for System to unlock.
         await using var journalScope = ScopeFactory.CreateAsyncScope();
         using var journal = new CoveRevertJournal(journalScope.ServiceProvider.GetRequiredService<DbContext>());
 
-        // Now — and only now — open exactly one batch: PHASE A produced acting work and the batch
-        // fits. Opened ONCE here, single-threaded, never per worker.
-        //
-        // acting.Count is the FILE count (one unit per acting file); the id array counts entities, so
-        // the cap is applied to the former.
-        await OpenOrSuppressBatchAsync(journal, runId, kind, acting.Count, DateTime.UtcNow, ct);
+        // Now — and only now — open exactly one batch: PHASE A produced acting work and the batch fits.
+        // A later ReadUndoTargetAsync names this run while it still has pending rows, and /undo pages
+        // those rows back out of it. Opened ONCE here, single-threaded, never per worker. There is no
+        // file-count ceiling: rows are appended one at a time and read back a page at a time, so a
+        // rename of any size is journalled in full and undone in full without either side holding the
+        // whole of it in memory.
+        await journal.BeginBatchAsync(runId, kind, DateTime.UtcNow, ct);
 
         // Marks the PHASE A → PHASE B boundary in the log: PHASE B's percentage now advances per
         // completed file, so a later stall is legible as "stuck partway through {Acting}", not silence.
@@ -468,6 +730,24 @@ public sealed partial class Renamer : FullExtensionBase
 
         async ValueTask RunUnitAsync(BatchUnit unit, CancellationToken token)
         {
+            // FIRST, before any other work for the unit: a destination the pre-create's allowlist guard
+            // refused has no folder row and never will, so there is nothing for this unit to move into.
+            // Classify it exactly as the in-flight free-space skip below does — count, log with the
+            // guard's OWN reason, advance, return — and never throw: classify-not-throw is the rule at
+            // this boundary. The unit deliberately stays in `acting`, so the progress denominator and
+            // the batch-done counts are the same as they would be with no adversarial destination in
+            // the batch at all.
+            var blockedItem = unit.Plan.Items[0];
+            if (blockedItem.Status == RenamerStatus.Move
+                && rejectedDestinations.TryGetValue(blockedItem.TargetFolderPath, out var blockedReason))
+            {
+                Interlocked.Increment(ref totalSkipped);
+                LogItemSkipped(runId, kind, unit.EntityId, RenamerStatus.SkipBlocked, blockedReason);
+                Interlocked.Increment(ref done);
+                ReportProgress((double)Volatile.Read(ref done) / totalUnits);
+                return;
+            }
+
             // Cross-volume only: re-check free space just before the copy so a concurrent scanner that
             // shrank the destination since PHASE A skips this item gracefully instead of filling the
             // disk. Same-volume moves consume ~no space and are excluded by the guard, so this is a
@@ -486,7 +766,7 @@ public sealed partial class Renamer : FullExtensionBase
             }
 
             // OWN scope per worker → OWN DbContext → OWN port + executor. The shared journal is
-            // passed in (its writes are serialized). The executor classifies-not-throws, so a per-item
+            // passed in (its appends are serialized). The executor classifies-not-throws, so a per-item
             // fault is a skip/failure recorded below — only a genuine cancellation propagates. The
             // pre-resolved folderIdByPath is handed in so the executor reads each Move's destination
             // folder id from the map instead of doing a check-then-act create on a shared Folder row.
@@ -499,12 +779,13 @@ public sealed partial class Renamer : FullExtensionBase
             LogItemStarting(runId, doneNow, totalUnits, kind, unit.EntityId,
                 crossVolume, sizeMb, unit.Move.OldFullPath);
 
-            await using var scope = ScopeFactory.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-            var exec = new RenamerExecutor(
-                new CoveRenamerDataPort(db), EventBus, journal, runId, new DiskMover());
-
-            var result = await exec.ExecuteAsync(unit.Plan, options, folderIdByPath, token);
+            var result = await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, services =>
+            {
+                var db = services.GetRequiredService<DbContext>();
+                var exec = new RenamerExecutor(
+                    new CoveRenamerDataPort(db, _coveConfig), EventBus, journal, runId, new DiskMover());
+                return exec.ExecuteAsync(unit.Plan, options, folderIdByPath, token);
+            });
             LogBatchItem(runId, kind, unit.EntityId, result);
 
             // Thread-safe tally: a racing `+=` would lose increments under parallel workers.
@@ -540,8 +821,9 @@ public sealed partial class Renamer : FullExtensionBase
             // guard — same-drive moves are instant metadata renames). A value <= 0 means unbounded
             // (legacy behavior), mapped to Parallel's -1 sentinel. Each cross-volume (src,dst) pair is
             // bounded by the configured per-pair concurrency.
+            int sameVolumeDegree = options.SameVolumeConcurrency > 0 ? options.SameVolumeConcurrency : -1;
             int degree = pair == FreeSpaceGuard.SameVolumePair
-                ? (options.SameVolumeConcurrency > 0 ? options.SameVolumeConcurrency : -1)
+                ? sameVolumeDegree
                 : options.CrossVolumeConcurrency;
             var units = pairMoves.Select(m => unitByOldPath[m.OldFullPath]).ToList();
 
@@ -551,42 +833,9 @@ public sealed partial class Renamer : FullExtensionBase
         }
 
         LogBatchDone(runId, totalRenamed, totalSkipped, totalFailed);
-        progress.Report(1d, "Renamer complete.");
+        progress.Report(1d, "Rename complete.");
     }
 
-    /// <summary>
-    /// Opens <paramref name="runId"/>'s journal batch, or suppresses journalling for the whole batch
-    /// when <paramref name="actingFiles"/> is past the row cap.
-    /// </summary>
-    /// <remarks>
-    /// Suppressing takes the whole batch out rather than recording part of it — a partly-journalled
-    /// rename reads exactly like a whole one, and the undo after it is quietly partial.
-    /// <para>
-    /// Both the manual batch and the per-edit auto-renamer decide this, and a decision that differed
-    /// between them would make a rename's undoability depend on which path performed it. One method
-    /// also gives the branch a seam a test can reach: the cap is thousands of files, so driving the
-    /// suppressed side through either caller would mean seeding that many files on disk.
-    /// </para>
-    /// </remarks>
-    internal async Task OpenOrSuppressBatchAsync(
-        IRevertJournal journal,
-        string runId,
-        RenamerFileKind kind,
-        int actingFiles,
-        DateTime nowUtc,
-        CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(journal);
-
-        if (IRevertJournal.ExceedsCap(actingFiles))
-        {
-            await journal.SuppressAsync(ct);
-            LogBatchNotJournalled(runId, actingFiles, IRevertJournal.MaxJournalledFiles);
-            return;
-        }
-
-        await journal.BeginBatchAsync(runId, kind, nowUtc, ct);
-    }
 
     /// <summary>
     /// A bound on a single source-path regex match, applied at build time so a catastrophic-backtracking
@@ -596,8 +845,8 @@ public sealed partial class Renamer : FullExtensionBase
     private static readonly TimeSpan RouteRegexMatchTimeout = TimeSpan.FromMilliseconds(100);
 
     /// <summary>
-    /// Builds the per-batch <see cref="RouteLookups"/> ONCE: the studio-id and exact-source-path
-    /// dictionaries pass through; the tag map is rebuilt with <see cref="StringComparer.OrdinalIgnoreCase"/>;
+    /// Builds the per-batch <see cref="RouteLookups"/> ONCE: the studio-id, tag-id and
+    /// exact-source-path dictionaries pass through;
     /// each <see cref="PathDestinationRule.IsRegex"/> rule is PRE-PARSED here with a bounded match
     /// timeout (NOT <c>RegexOptions.Compiled</c> — overkill for a short batch). An invalid user pattern
     /// is caught at THIS build step and skipped-with-a-log (classify, don't throw at the batch
@@ -605,14 +854,13 @@ public sealed partial class Renamer : FullExtensionBase
     /// </summary>
     private RouteLookups BuildLookups(RenamerOptions o)
     {
-        // Exact source-path match must mirror the rest of the codebase's OS-aware path
-        // semantics (VolumeClassifier / PathConfinement.IsUnderRoot use OrdinalIgnoreCase on Windows),
-        // so a Windows user's exact rule for "media/incoming" matches a stored "Media/Incoming". Build
-        // the map with the OS-aware comparer and NORMALIZE keys (trim a trailing '/') so a rule for
-        // "media/incoming" also matches a stored "media/incoming/"; the resolver normalizes the source
-        // path the same way before lookup.
-        var exact = new Dictionary<string, string>(DestinationResolver.SourcePathComparer);
-        var regexRules = new List<(Regex Pattern, string Dest)>();
+        // Exact source-path match uses the one case policy (DestinationResolver.SourcePathComparer,
+        // stated at PathOps.PathsEqual), so on a filesystem that folds case an exact rule for
+        // "media/incoming" matches a stored "Media/Incoming". Keys are also NORMALIZED (trim a
+        // trailing '/') so a rule for "media/incoming" matches a stored "media/incoming/"; the
+        // resolver normalizes the source path the same way before lookup.
+        var exact = new Dictionary<string, Destination>(DestinationResolver.SourcePathComparer);
+        var regexRules = new List<(Regex Pattern, Destination Dest)>();
 
         foreach (var rule in o.PathDestinations)
         {
@@ -635,12 +883,11 @@ public sealed partial class Renamer : FullExtensionBase
             }
         }
 
-        // Pre-parse the exclude lookups ONCE beside the routing sets. The exact tag-name set is
-        // case-insensitive (mirroring tag routing); the exact path set uses the same
+        // Pre-parse the exclude lookups ONCE beside the routing sets. The exact path set uses the same
         // OS-aware comparer + NormalizeSourcePath keys as the routing exact map; each exclude regex is
         // compiled ONCE with the SAME RouteRegexMatchTimeout and the SAME classify-not-throw shape, so
         // an invalid exclude pattern is skipped-with-a-log at build time and never aborts the batch.
-        var excludeTags = new HashSet<string>(o.ExcludeTags, StringComparer.OrdinalIgnoreCase);
+        var excludeTags = new HashSet<int>(o.ExcludeTagIds);
         var excludeStudios = new HashSet<int>(o.ExcludeStudioIds);
         var excludePathsExact = new HashSet<string>(DestinationResolver.SourcePathComparer);
         var excludePathRegex = new List<Regex>();
@@ -664,15 +911,18 @@ public sealed partial class Renamer : FullExtensionBase
             }
         }
 
+        // Named, because studio and tag are type-identical on both the destination-map pair and the
+        // exclude pair: a transposition compiles clean and mis-targets silently (tag rules routing to
+        // studio destinations), where it used to be a compile error.
         return new RouteLookups(
-            o.StudioDestinations,
-            new Dictionary<string, string>(o.TagDestinations, StringComparer.OrdinalIgnoreCase),
-            exact,
-            regexRules,
-            excludeTags,
-            excludeStudios,
-            excludePathsExact,
-            excludePathRegex);
+            StudioIdToDest: o.StudioDestinations,
+            TagIdToDest: o.TagDestinations,
+            PathExactToDest: exact,
+            PathRegexRules: regexRules,
+            ExcludeTagIds: excludeTags,
+            ExcludeStudioIds: excludeStudios,
+            ExcludePathsExact: excludePathsExact,
+            ExcludePathRegex: excludePathRegex);
     }
 
     /// <summary>

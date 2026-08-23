@@ -38,11 +38,11 @@ The revert journal lives in two tables the extension owns, created by a migratio
 load. A row records only what reversal needs — the entity, the file, the path it came from, and what
 moved alongside it. The file's current path is not stored, because Cove's database is authoritative
 for it. Rows are read a page at a time, so neither writing nor replaying a batch holds all of it in
-memory. Two things bound the journal: a batch of more than 5,000 files is not recorded at all, and
-the preview says so before the rename runs, so a rename is either fully reversible or plainly not —
-never half-restorable; and a recorded batch expires WHOLE after seven days, which is what keeps the
-table from growing with how much the library is edited. An installation upgrading from the stored
-journal has it moved into the table once, on first load, after which both legacy keys are gone.
+memory. A batch is recorded whatever its size, and expires WHOLE after seven days: the retention
+window, rather than a row cap, is what keeps the table from growing with how much the library is
+edited, and expiring a batch entire is what keeps an undo from ever being half-restorable. An
+installation upgrading from the stored journal has it moved into the table once, on first load,
+after which both legacy keys are gone.
 
 ## Layer by layer
 

@@ -10,7 +10,7 @@ namespace Renamer.Execution;
 /// The mutating half of the renamer slice. Consumes a <see cref="RenamerPlan"/> and applies each item
 /// INDEPENDENTLY (one failure never aborts the batch) with the safety spine: execution-time
 /// collision re-check (disk + DB) → disk move FIRST → set Basename/ParentFolderId (+ caption.Filename)
-/// and a single save → assert the recomputed Path matches the on-disk path → revert-log + event; on a
+/// and a single save → assert the recomputed Path matches the on-disk path → journal row + event; on a
 /// post-move save failure, roll the disk back.
 ///
 /// It NEVER assigns <c>BaseFileEntity.Path</c> (that is <c>CoveRenamerDataPort</c>'s job, and it
@@ -53,7 +53,7 @@ public sealed class RenamerExecutor
     /// <param name="FileId">The file row.</param>
     /// <param name="OldPath">The path before execution.</param>
     /// <param name="NewPath">The path after execution (or the intended/attempted path on skip/fail).</param>
-    /// <param name="Status">The terminal status (Renamer/Move/NoOp/SkipGated/SkipCollision/SkipLocked/SkipMissingSource/SkipBlocked/Failed).</param>
+    /// <param name="Status">The terminal status.</param>
     /// <param name="Reason">A human-readable note for a skip/fail; null on success.</param>
     public sealed record ItemResult(int FileId, string OldPath, string NewPath, RenamerStatus Status, string? Reason);
 
@@ -131,7 +131,7 @@ public sealed class RenamerExecutor
         CancellationToken ct)
     {
         // (1) Carry planner skips/no-ops straight into the skipped bucket (act only on Renamer/Move).
-        if (item.Status is not (RenamerStatus.Renamer or RenamerStatus.Move))
+        if (item.Status is not (RenamerStatus.Rename or RenamerStatus.Move))
         {
             skipped.Add(new ItemResult(item.FileId, item.OldFullPath, item.NewFullPath, item.Status, item.Reason));
             return;
@@ -141,8 +141,9 @@ public sealed class RenamerExecutor
         //      BEFORE the allowlist guard, the folder resolve, the collision loop, and the mover.
         //      A source that is in the DB but gone from disk would otherwise fall through to the mover
         //      and surface as a swallowed FileNotFoundException/DirectoryNotFoundException — both
-        //      derive from IOException, which the mover buckets as LockedOrExists → SkipLocked, so a
-        //      genuinely-gone file would be mislabeled "in use". Pre-empting the mover here classifies
+        //      derive from IOException, and with the destination absent the mover's own destination test
+        //      resolves that to Locked → SkipLocked, so a genuinely-gone file would be mislabeled
+        //      "in use". Pre-empting the mover here classifies
         //      it as SkipMissingSource instead. This is a safe no-op skip (nothing moves/saves).
         if (!System.IO.File.Exists(ToNative(item.OldFullPath)))
         {
@@ -153,43 +154,36 @@ public sealed class RenamerExecutor
 
         bool isMove = item.Status == RenamerStatus.Move;
 
-        // (1b) CANONICAL ALLOWLIST GUARD — PRE-MUTATION. This MUST precede GetOrCreateFolderIdAsync
-        //      (which persists a Folder DB row) and the collision loop (which calls File.Exists),
-        //      so a destination the allowlist will reject never materializes a DB folder row pointing
-        //      outside the allowlist nor touches disk. We canonically resolve the destination FOLDER's
-        //      real on-disk target (following any junction/symlink and expanding 8.3) and reject when
-        //      it escapes every configured root. Only runs on a destination move with a configured
-        //      allowlist — with empty AllowedRoots the source-confine path is byte-identical and
-        //      there is no allowlist to canonically re-check. A reject is a SkipBlocked skip
-        //      carrying the guard reason (never a throw); the source then stays put as the fallback.
-        //      The FINAL full destination path is re-checked again at (4b) once the candidate basename
-        //      settles, so the leaf is guarded too — belt-and-suspenders for the security boundary.
-        if (isMove && options.AllowedRoots.Count > 0)
-        {
-            var folderGuard = CanonicalPathGuard.Check(item.TargetFolderPath, options.AllowedRoots);
-            if (!folderGuard.Accepted)
-            {
-                skipped.Add(new ItemResult(item.FileId, item.OldFullPath, item.NewFullPath,
-                    RenamerStatus.SkipBlocked, folderGuard.Reason));
-                return;
-            }
-        }
-
         // (2) Resolve the destination folder id. For an in-place renamer it is the source folder.
         //     For a Move, prefer the folder id the caller PRE-RESOLVED once in its sequential
         //     phase (keyed by TargetFolderPath) so no parallel worker does a check-then-act create on a
         //     shared Folder row. Fall back to resolving here only when no pre-resolved map is supplied
         //     (single-threaded callers / tests) — never on the parallel batch path, which always passes
-        //     the map.
+        //     the map. That fallback goes through the GUARDED seam, never the raw create: it is the
+        //     point at which this call path can persist a destination Folder row, so it is where the
+        //     canonical allowlist check has to run.
         var srcFile = filesById.GetValueOrDefault(item.FileId);
         int targetFolderId;
         if (isMove)
         {
-            targetFolderId =
-                preResolvedFolderIds is not null
-                && preResolvedFolderIds.TryGetValue(item.TargetFolderPath, out var preId)
-                    ? preId
-                    : await _port.GetOrCreateFolderIdAsync(item.TargetFolderPath, ct);
+            if (preResolvedFolderIds is not null
+                && preResolvedFolderIds.TryGetValue(item.TargetFolderPath, out var preId))
+            {
+                targetFolderId = preId;
+            }
+            else
+            {
+                var resolved = await CoveRenamerDataPort.GuardedGetOrCreateFolderIdAsync(
+                    _port, item.TargetFolderPath, options.AllowedRoots, ct);
+                if (!resolved.Accepted)
+                {
+                    skipped.Add(new ItemResult(item.FileId, item.OldFullPath, item.NewFullPath,
+                        RenamerStatus.SkipBlocked, resolved.Reason));
+                    return;
+                }
+
+                targetFolderId = resolved.FolderId;
+            }
         }
         else
         {
@@ -223,15 +217,44 @@ public sealed class RenamerExecutor
             newFull = JoinPath(targetFolder, candidate);
         }
 
+        // (3b) Re-measure the absolute-path budget against the SETTLED candidate. The planner performs the
+        //      same re-check on its own suffixed name, and this site is NOT redundant with it: the loop
+        //      above re-suffixes against a fresher snapshot than the plan saw, so it can reach a longer
+        //      name than any the planner measured. An item previewed at exactly the budget with no suffix
+        //      lands over it once this loop appends one, which no plan-time check can see.
+        //
+        //      Measured against the real absolute path about to be written, where the planner measures the
+        //      gate's resolved folder. That asymmetry is correct: the planner may hold a non-absolute
+        //      anchor and its gate resolves under a synthetic root for the length arithmetic, while by
+        //      here the folder is the actual destination.
+        //
+        //      This refusal is visible to the user only after the confirm gate, which is accepted: nothing
+        //      has been mutated at this point — it precedes the sidecar plan, the canonical guard and every
+        //      disk write — so refusing is strictly safer than writing a path the budget forbids.
+        var recheck = PathConfinement.WithinBudget(targetFolder, candidate, options);
+        if (!recheck.Accepted)
+        {
+            skipped.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.SkipTooLong,
+                recheck.Reason!));
+            return;
+        }
+
         // (4) Sidecar moves: DB-tracked captions + configured same-stem neighbors that ride with the primary.
         var (plannedSidecars, captionRenames) = PlanSidecarMoves(srcFile, item.OldFullPath, targetFolder, candidate, options);
 
-        // (4b) CANONICAL ALLOWLIST RE-CHECK on the FINAL FULL DESTINATION PATH — the latest point
-        //      before disk is touched, now that the candidate basename has settled. Unlike the
-        //      pre-mutation folder check at (1b), this resolves the REAL on-disk target of the WHOLE
-        //      path Move() actually writes to (folder + candidate), so a reparse point / 8.3 alias /
-        //      separator introduced at the LEAF level — including a check/use swap of the leaf into a
-        //      junction-to-elsewhere between (1b) and here — is re-resolved and re-contained.
+        // (4b) CANONICAL ALLOWLIST RE-CHECK on the FINAL FULL DESTINATION PATH — the DISK boundary, and
+        //      the latest point before disk is touched, now that the candidate basename has settled.
+        //      It is one of the two surviving canonical seams and the only one on this side of the
+        //      folder resolve. The other is the ROW-CREATION guard at
+        //      CoveRenamerDataPort.GuardedGetOrCreateFolderIdAsync, which every forward caller that can
+        //      persist a destination Folder row goes through — including (2) above.
+        //
+        //      The two do NOT overlap, which is why both exist. The row-creation guard reads the
+        //      destination FOLDER as it stands before the row is written; this one resolves the REAL
+        //      on-disk target of the WHOLE path Move() actually writes to (folder + candidate). So a
+        //      reparse point / 8.3 alias / separator introduced at the LEAF level — including a
+        //      check/use swap of the leaf into a junction-to-elsewhere AFTER the folder was resolved —
+        //      is re-resolved and re-contained here and nowhere else.
         //      ResolveRealTargetFolder stacks the non-existent leaf, so passing the file path is safe.
         //      A reject is a SkipBlocked skip carrying the guard reason (never a throw); the source
         //      then stays put as the durable fallback.
@@ -247,7 +270,7 @@ public sealed class RenamerExecutor
 
         // (5) DISK MOVE FIRST — move on disk before touching the DB, so a failed move leaves the
         //     database untouched (the DB stays authoritative and never points at a missing file).
-        //     VOLUME BRANCH (runs STRICTLY AFTER the allowlist guards at (1b)/(4b)): a
+        //     VOLUME BRANCH (runs STRICTLY AFTER the final-path allowlist guard at (4b)): a
         //     same-volume renamer takes the atomic synchronous DiskMover.Move fast path; a
         //     cross-volume move takes the verified copy→verify→promote→delete-source-last
         //     CrossVolumeMover.MoveAsync. Both return the identical MoveResult shape, so the skip
@@ -257,15 +280,14 @@ public sealed class RenamerExecutor
         string nativeNew = ToNative(newFull);
         bool sameVolume = VolumeClassifier.SameVolume(item.OldFullPath, newFull);
 
-        var (moved, moveReason, movedSidecars) = await MoveOnDisk(sameVolume, nativeOld, nativeNew, plannedSidecars, ct);
+        var (moved, moveReason, moveOutcome, movedSidecars) =
+            await MoveOnDisk(sameVolume, nativeOld, nativeNew, plannedSidecars, ct);
 
         if (!moved)
         {
-            // Locked source / existing destination / failed verify at move time → skip+report.
-            // The cross MoveResult shape matches DiskMover's, so VerifyFailed/LockedOrExists/
-            // PermissionDenied all flow into the SkipLocked bucket exactly as today —
-            // one item's failure never aborts the batch. Never force the lock.
-            skipped.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.SkipLocked, moveReason));
+            // One item's failure never aborts the batch, and the lock is never forced.
+            skipped.Add(new ItemResult(item.FileId, item.OldFullPath, newFull,
+                MoveOutcomeClassifier.StatusFor(moveOutcome), moveReason));
             return;
         }
 
@@ -277,10 +299,15 @@ public sealed class RenamerExecutor
             .Where(cr => movedCaptionNames.Contains(cr.NewFilename))
             .ToList();
 
-        // (6) DB SAVE second; on a save throw, ROLLBACK the disk.
+        // (6) DB SAVE second; on a save throw, ROLLBACK the disk. The filename-derived title rides in
+        //     the SAME save as the rename that produced it — see MetadataProjector.DerivedTitle for why
+        //     recording it at all is what makes the rename converge.
         var mutation = new RenamerFileMutation(
             item.FileId, candidate, isMove ? targetFolderId : null,
-            appliedCaptionRenames.Count > 0 ? appliedCaptionRenames : null);
+            appliedCaptionRenames.Count > 0 ? appliedCaptionRenames : null,
+            item.DerivedTitle is { Length: > 0 } derived
+                ? new RenamerEntityTitleWrite(plan.Kind, plan.EntityId, derived)
+                : null);
 
         try
         {
@@ -297,7 +324,7 @@ public sealed class RenamerExecutor
                 // through the SAME mover the move used (and the catch below uses), capturing rollback
                 // warnings so an INCOMPLETE rollback is surfaced rather than falsely claiming "rolled
                 // back" — mirroring the save-throw catch and the UndoReplayer's assertion branch. Do NOT
-                // write a revert-log row or publish an event on this path: the move is being undone, so
+                // write a journal row or publish an event on this path: the move is being undone, so
                 // there is nothing to reindex or to offer /undo.
                 //
                 // WHY this remains a reported inconsistency: the DB save already COMMITTED (the row now
@@ -401,16 +428,11 @@ public sealed class RenamerExecutor
             captionRenames.Add((cap.CaptionId, newCaptionName));
         }
 
-        // Only the exact stem plus a listed extension is taken, so the candidate set is the stem's own
-        // neighbours and never a directory sweep. The extension compare is ordinal-ignore-case in code
-        // rather than delegated to File.Exists on a composed path: File.Exists answers
-        // case-insensitively only where the filesystem does, so a listed `SRT` silently misses an
-        // on-disk `clip.srt` on a case-sensitive volume, which is what the host runs on.
+        // Probe the PRECISE per-extension path (never a glob/EnumerateFiles) so only the exact stem +
+        // a listed extension is taken.
         if (srcFile is not null && options.AssociatedExtensions.Count > 0)
         {
             string srcStem = StemOf(srcFile.Basename);
-            var neighborExtensions = SameStemExtensions(oldDir, srcStem);
-
             foreach (var raw in options.AssociatedExtensions)
             {
                 string normExt = raw.StartsWith('.') ? raw[1..] : raw;
@@ -427,15 +449,31 @@ public sealed class RenamerExecutor
                     continue;
                 }
 
-                if (!neighborExtensions.TryGetValue(normExt, out string? diskExt))
+                // Case-insensitive matching is the intent, but File.Exists needs the exact bytes on a
+                // case-SENSITIVE filesystem — so a configured "SRT" silently matched nothing against
+                // clip.srt on Linux, while Windows matched it by accident of its filesystem. Linux is
+                // Cove's usual host, so the platform that failed is the one users run.
+                string? source = null;
+                string? matchedExt = null;
+                foreach (string extCasing in ExtensionCasingCandidates(normExt))
+                {
+                    string probe = JoinPath(oldDir, srcStem + "." + extCasing);
+                    if (System.IO.File.Exists(ToNative(probe)))
+                    {
+                        source = probe;
+                        matchedExt = extCasing;
+                        break;
+                    }
+                }
+
+                if (source is null)
                 {
                     continue;
                 }
 
-                // The on-disk spelling on both sides, so a moved sidecar keeps the extension casing it
-                // had rather than taking the casing whoever typed the setting used.
-                string source = JoinPath(oldDir, srcStem + "." + diskExt);
-                string target = JoinPath(targetFolder, newStem + "." + diskExt);
+                // The on-disk casing, not the configured casing: a rename must not silently change a
+                // sidecar's extension from .srt to .SRT because that is how the option was typed.
+                string target = JoinPath(targetFolder, newStem + "." + matchedExt);
 
                 // An in-place / case-only renamer leaves source == target; skipping it mirrors the
                 // primary's self-path discipline and avoids a spurious skip-not-clobber warning.
@@ -456,47 +494,6 @@ public sealed class RenamerExecutor
         }
 
         return (plannedSidecars, captionRenames);
-    }
-
-    /// <summary>
-    /// The extensions of the files in <paramref name="dir"/> whose stem is exactly
-    /// <paramref name="stem"/>, keyed ordinal-ignore-case with the on-disk spelling as the value.
-    /// </summary>
-    /// <remarks>
-    /// The filesystem filter is the stem, so the candidate set is the primary's own neighbours and does
-    /// not grow with the folder. A wildcard character inside a stem widens that filter, which costs
-    /// extra candidates and changes nothing that is taken: the exact stem comparison here is what
-    /// decides. When one extension is present in more than one casing, the ordinal-smallest spelling
-    /// wins, so the choice does not depend on the order the filesystem returned.
-    /// </remarks>
-    private static Dictionary<string, string> SameStemExtensions(string dir, string stem)
-    {
-        var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        string nativeDir = ToNative(dir);
-        if (!System.IO.Directory.Exists(nativeDir))
-        {
-            return found;
-        }
-
-        foreach (string path in System.IO.Directory.EnumerateFiles(nativeDir, stem + ".*"))
-        {
-            string name = System.IO.Path.GetFileName(path);
-            if (name.Length <= stem.Length + 1
-                || name[stem.Length] != '.'
-                || !name.AsSpan(0, stem.Length).Equals(stem, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            string ext = name[(stem.Length + 1)..];
-            if (!found.TryGetValue(ext, out string? existing)
-                || string.CompareOrdinal(ext, existing) < 0)
-            {
-                found[ext] = ext;
-            }
-        }
-
-        return found;
     }
 
     /// <summary>
@@ -545,12 +542,49 @@ public sealed class RenamerExecutor
     }
 
     /// <summary>
+    /// The bounded set of extension casings to probe for a sidecar: as configured, then lower, then
+    /// upper, without repeats.
+    /// </summary>
+    /// <remarks>
+    /// Bounded on purpose. True case-insensitive matching on a case-sensitive filesystem needs the
+    /// directory enumerated and names compared, which is O(directory) for EVERY renamed file — and a
+    /// media folder is unbounded input, so that cost is not acceptable here. Three exact probes keep it
+    /// O(1) per sidecar and cover the casings that occur in practice (.srt / .SRT).
+    /// <para>
+    /// LIMIT, stated rather than implied: a mixed-case on-disk extension such as <c>.Srt</c> is matched
+    /// only when the option is typed with that same casing.
+    /// </para>
+    /// </remarks>
+    private static IEnumerable<string> ExtensionCasingCandidates(string ext)
+    {
+        yield return ext;
+
+        string lower = ext.ToLowerInvariant();
+        if (!string.Equals(lower, ext, StringComparison.Ordinal))
+        {
+            yield return lower;
+        }
+
+        string upper = ext.ToUpperInvariant();
+        if (!string.Equals(upper, ext, StringComparison.Ordinal)
+            && !string.Equals(upper, lower, StringComparison.Ordinal))
+        {
+            yield return upper;
+        }
+    }
+
+    /// <summary>
     /// Performs the primary move on the volume tier the source/destination imply: a same-volume renamer
     /// takes the atomic <see cref="DiskMover.Move"/>; a cross-volume move takes the verified
     /// copy→verify→promote→delete-source-last <see cref="CrossVolumeMover.MoveAsync"/>. Both tiers return
     /// the identical shape.
     /// </summary>
-    private async Task<(bool moved, string? reason, IReadOnlyList<(string From, string To)> movedSidecars)> MoveOnDisk(
+    /// <returns>
+    /// Whether the PRIMARY moved, the skip reason when it did not — both as prose for the run output and
+    /// as the classification the reported status is derived from — and the sidecars that ACTUALLY moved.
+    /// </returns>
+    private async Task<(bool moved, string? reason, MoveOutcome outcome,
+        IReadOnlyList<(string From, string To)> movedSidecars)> MoveOnDisk(
         bool sameVolume, string nativeOld, string nativeNew,
         IReadOnlyList<DiskMover.SidecarMove> plannedSidecars, CancellationToken ct)
     {
@@ -558,12 +592,12 @@ public sealed class RenamerExecutor
         {
             var move = _disk.Move(nativeOld, nativeNew,
                 [.. plannedSidecars.Select(s => new DiskMover.SidecarMove(ToNative(s.From), ToNative(s.To)))]);
-            return (move.Moved, move.Reason, [.. move.MovedSidecars.Select(s => (s.From, s.To))]);
+            return (move.Moved, move.Reason, move.Outcome, [.. move.MovedSidecars.Select(s => (s.From, s.To))]);
         }
 
         var cross = await _cross.MoveAsync(nativeOld, nativeNew,
             [.. plannedSidecars.Select(s => new CrossVolumeMover.SidecarMove(ToNative(s.From), ToNative(s.To)))], ct);
-        return (cross.Moved, cross.Reason, [.. cross.MovedSidecars.Select(s => (s.From, s.To))]);
+        return (cross.Moved, cross.Reason, cross.Outcome, [.. cross.MovedSidecars.Select(s => (s.From, s.To))]);
     }
 
     /// <summary>
@@ -582,7 +616,14 @@ public sealed class RenamerExecutor
 
     // ── event mapping ────────────────────────────────────────────────────────
 
-    private static EventType EventTypeFor(RenamerFileKind kind) => kind switch
+    /// <summary>The host event a renamed file of this kind publishes.</summary>
+    /// <remarks>
+    /// Internal rather than private because <see cref="UndoReplayer"/> publishes through this same
+    /// method. Undo must announce exactly what the forward rename announced, or an undone rename is
+    /// indistinguishable to the host from one that never happened — so the forward owner holds the one
+    /// map and undo calls it, which makes that equivalence structural instead of a promise in prose.
+    /// </remarks>
+    internal static EventType EventTypeFor(RenamerFileKind kind) => kind switch
     {
         RenamerFileKind.Video => EventType.VideoUpdated,
         RenamerFileKind.Image => EventType.ImageUpdated,
@@ -590,13 +631,16 @@ public sealed class RenamerExecutor
         _ => EventType.VideoUpdated,
     };
 
-    private static string EntityTypeName(RenamerFileKind kind) => kind switch
+    /// <summary>The entity-type name that event carries. Internal for the same reason as <see cref="EventTypeFor"/>.</summary>
+    internal static string EntityTypeName(RenamerFileKind kind) => kind switch
     {
         RenamerFileKind.Video => "Video",
         RenamerFileKind.Image => "Image",
         RenamerFileKind.Audio => "Audio",
         _ => "Video",
     };
+
+    // ── path/name helpers (pure string math) ─────────────────────────────────
 
     /// <summary>
     /// Retargets a caption basename from the old stem to the new stem. A caption "video.en.vtt"

@@ -28,7 +28,7 @@ internal static class CoveDataExtensionScope
     /// <summary>The xUnit collection that serializes the suites which mutate the registration set.</summary>
     internal const string CollectionName = "Cove data extension registration";
 
-    private static readonly global::Renamer.Renamer Registered = new();
+    private static readonly global::Renamer.Renamer Registered = RenamerFixture.Create();
 
     [ModuleInitializer]
     internal static void RegisterForTheRun() => CoveContext.SetDataExtensions([Registered]);

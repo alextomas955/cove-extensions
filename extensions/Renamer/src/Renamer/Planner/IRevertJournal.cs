@@ -18,29 +18,6 @@ namespace Renamer.Planner;
 /// </summary>
 public interface IRevertJournal
 {
-    /// <summary>The hard cap on how many FILES one batch may journal.</summary>
-    /// <remarks>
-    /// FILES, not entities: the request-level <c>MaxEntityIdsPerRequest</c> bounds a selection to 1000
-    /// ENTITIES, and one entity can hold many files, so an entity cap bounds nothing here. A
-    /// whole-library run takes no id array and is bounded by nothing at all.
-    /// <para>
-    /// What it bounds is the undo RESPONSE, not the storage: the table takes a batch of any size, but
-    /// <c>/undo</c> answers with one entry per file it could not put back, and a library here reaches
-    /// millions of files — so an uncapped batch is a response that grows with the library.
-    /// </para>
-    /// <para>
-    /// It is a refusal, never a trim. A batch past the cap journals NOTHING and the preview says so
-    /// before the rename runs, so a rename is either fully reversible or plainly not; trimming instead
-    /// would make a partly-journalled rename read exactly like a whole one and the undo after it
-    /// quietly partial.
-    /// </para>
-    /// </remarks>
-    const int MaxJournalledFiles = 5000;
-
-    /// <summary>True when a batch of <paramref name="fileCount"/> files is too large to journal.</summary>
-    /// <remarks>The one definition of "over cap", read by both the preview and the batch core.</remarks>
-    static bool ExceedsCap(int fileCount) => fileCount > MaxJournalledFiles;
-
     /// <summary>
     /// Opens a batch: records <paramref name="runId"/>, its entity <paramref name="kind"/> and the
     /// moment it opened, with all three counters at zero.
@@ -63,23 +40,6 @@ public interface IRevertJournal
     /// back, where it is half of that row's identity.
     /// </remarks>
     Task AppendAsync(RevertRow row, CancellationToken ct = default);
-
-    /// <summary>
-    /// Refuses to journal this run: every later <see cref="AppendAsync"/> on this instance does
-    /// nothing, and whatever the journal already held is dropped.
-    /// </summary>
-    /// <remarks>
-    /// The over-cap path, and what makes <see cref="MaxJournalledFiles"/> a refusal rather than a trim.
-    /// Latching the instance is what makes "an over-cap batch writes no row" structural: one journal is
-    /// shared by every parallel worker of a run, and those workers are already in flight.
-    /// <para>
-    /// Dropping what the journal held is not collateral damage. A run large enough to be refused can
-    /// touch any file in the library, so every row still pending may name a file that run has just
-    /// moved — offering one of those batches afterwards as "the last rename" would put back the wrong
-    /// thing.
-    /// </para>
-    /// </remarks>
-    Task SuppressAsync(CancellationToken ct = default);
 
     /// <summary>
     /// The batch an undo would act on: the newest batch that still has rows to restore, or — when no
@@ -107,14 +67,14 @@ public interface IRevertJournal
     /// below <paramref name="belowSeq"/>, newest-first. Empty when the batch has no such row left.
     /// </summary>
     /// <remarks>
-    /// There is deliberately NO read that returns every row of a batch: an undo holds one page at a
-    /// time, whatever the cap on a batch is. Pass <see cref="long.MaxValue"/> for the first page and
-    /// the lowest sequence the previous page returned for each one after it.
+    /// There is deliberately NO read that returns every row of a batch. A batch is as large as the
+    /// library — a whole-library rename is undoable by design — so materializing one would make memory
+    /// grow with the library. Pass <see cref="long.MaxValue"/> for the first page and the lowest
+    /// sequence the previous page returned for each one after it.
     /// <para>
     /// A KEYSET cursor, never a skip-and-take offset: rows are deleted as they restore, and an offset
     /// over a shrinking table silently skips work. <paramref name="limit"/> bounds one read and never
-    /// the run — an undo pages until a page comes back empty, so it restores the whole batch however many
-    /// pages that takes.
+    /// the run — an undo pages until a page comes back empty, so it restores a batch of any size.
     /// </para>
     /// <para>
     /// The newest-first order is a correctness requirement, not a presentation one: one run can rename

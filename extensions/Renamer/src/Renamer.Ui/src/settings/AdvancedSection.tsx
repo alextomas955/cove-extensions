@@ -26,7 +26,7 @@ import {
   ExampleSelect,
   type ExampleOption,
 } from "@cove-extensions/ui-shared";
-import { StudioPicker, TagPicker } from "./EntityPicker";
+import { EntitySelectField } from "./EntitySelectField";
 import { BARE_TOKENS } from "./templateValidation";
 import { TokenAdvisory } from "./templateAdvisories";
 
@@ -39,7 +39,9 @@ const CASE_OPTIONS: readonly { value: CaseTransform; label: string }[] = [
 // The 18 canonical token names a FieldReplaceRule may target, mirroring Engine/TemplateEngine.cs
 // `Tokens`. The value is the canonical spelling the backend matches (case-insensitive); offering the
 // closed set keeps a rule from targeting a token the engine never resolves.
-const TOKEN_OPTIONS: readonly { value: string; label: string }[] = [
+// Declared as a tuple, not an array, so the first element is a known-present literal: the
+// `makeRow` default below reads it directly rather than asserting an in-range index.
+const TOKEN_NAMES = [
   "title",
   "studio",
   "parentStudio",
@@ -58,7 +60,12 @@ const TOKEN_OPTIONS: readonly { value: string; label: string }[] = [
   "performers",
   "tags",
   "ext",
-].map((t) => ({ value: t, label: t }));
+] as const;
+
+const TOKEN_OPTIONS: readonly { value: string; label: string }[] = TOKEN_NAMES.map((t) => ({
+  value: t,
+  label: t,
+}));
 
 // Common duplicate-suffix patterns; {n} = collision counter, shown via example.
 const SUFFIX_FORMAT_OPTIONS: readonly ExampleOption[] = [
@@ -252,11 +259,13 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           title="Exclude by tag"
           description="An item carrying any of these tags is skipped — never renamed, never moved. Evaluated before any routing rule."
         >
-          <TagPicker
+          <EntitySelectField
+            entityType="tag"
             label="Tags"
-            values={options.ExcludeTags}
+            helper="Type to search."
+            values={options.ExcludeTagIds}
             onChange={(v) => {
-              set("ExcludeTags", v);
+              set("ExcludeTagIds", v);
             }}
             placeholder="Search tags…"
           />
@@ -266,8 +275,10 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           title="Exclude by studio"
           description="An item under any of these studios — or under a child of one — is skipped entirely. Evaluated before any routing rule."
         >
-          <StudioPicker
+          <EntitySelectField
+            entityType="studio"
             label="Studios"
+            helper="Type to search."
             values={options.ExcludeStudioIds}
             onChange={(v) => {
               set("ExcludeStudioIds", v);
@@ -330,7 +341,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             onChange={(rows) => {
               set("FieldReplacers", rows);
             }}
-            makeRow={() => ({ TargetToken: TOKEN_OPTIONS[0].value, Find: "", Replace: "" })}
+            makeRow={() => ({ TargetToken: TOKEN_NAMES[0], Find: "", Replace: "" })}
             renderRow={(row, _i, update) => {
               // A rule saved before this dropdown existed (or via a hand-edited blob) may hold a
               // token outside the 18 — surface it as an extra option so the Select shows the real

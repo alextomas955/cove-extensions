@@ -25,15 +25,27 @@ public sealed class ScanAggregator
         public int Files;
         public int ActingFiles;
         public int CrossVolumeFiles;
+        public int InFlightPathOverflowFiles;
         public readonly int[] ByStatus = new int[Enum.GetValues<RenamerStatus>().Length];
         public readonly Dictionary<(string From, string To), (int Count, long Bytes)> Pairs = [];
     }
 
     private readonly Dictionary<RenamerFileKind, KindTally> _byKind = [];
+    private readonly int _fullPathMax;
     private readonly IReadOnlyCollection<string>? _mountPoints;
 
+    /// <param name="fullPathMax">
+    /// The caller's <see cref="Options.RenamerOptions.FullPathMax"/>, for the in-flight overflow count.
+    /// Required and first rather than optional and last: a default would let a construction site fold a
+    /// whole library against a budget nobody configured, silently, which is the class of defect this
+    /// count exists to surface.
+    /// </param>
     /// <param name="mountPoints">Mount table to resolve Unix volumes against; omit for the real one.</param>
-    public ScanAggregator(IReadOnlyCollection<string>? mountPoints = null) => _mountPoints = mountPoints;
+    public ScanAggregator(int fullPathMax, IReadOnlyCollection<string>? mountPoints = null)
+    {
+        _fullPathMax = fullPathMax;
+        _mountPoints = mountPoints;
+    }
 
     /// <summary>Total files folded so far, across every kind.</summary>
     public int TotalFiles => _byKind.Values.Sum(t => t.Files);
@@ -60,7 +72,7 @@ public sealed class ScanAggregator
             tally.Files++;
             tally.ByStatus[(int)item.Status]++;
 
-            if (item.Status is not (RenamerStatus.Renamer or RenamerStatus.Move))
+            if (item.Status is not (RenamerStatus.Rename or RenamerStatus.Move))
             {
                 continue;
             }
@@ -72,6 +84,18 @@ public sealed class ScanAggregator
             }
 
             tally.CrossVolumeFiles++;
+
+            // Counted here, on the pass that already visits every file, rather than derived afterwards:
+            // deriving it would mean retaining the items or planning the library a second time, and this
+            // class exists to keep the scan's cost independent of library size. The predicate is CALLED
+            // rather than restated — its comparison has one declaration, and a copy of it here could
+            // report a count with no flagged row under it. Its status and same-volume arms are redundant
+            // at this point in the fold, which is the price of reading the one comparison.
+            if (BatchPreview.InFlightPathOverflows(item, _fullPathMax, _mountPoints))
+            {
+                tally.InFlightPathOverflowFiles++;
+            }
+
             var key = (
                 From: VolumeClassifier.VolumeKey(item.OldFullPath, _mountPoints),
                 To: VolumeClassifier.VolumeKey(item.NewFullPath, _mountPoints));
@@ -112,7 +136,11 @@ public sealed class ScanAggregator
                     CrossVolumeBytes: crossBytes,
                     VolumePairs: pairs,
                     ConfirmLevel: BatchPreview.ClassifyConfirm(crossCount, crossBytes, untruncated),
-                    Undoable: !IRevertJournal.ExceedsCap(tally.ActingFiles));
+                    // A count, and never the offending paths: this aggregate is stored and served for a
+                    // library of unbounded size, and a per-file collection under one key is the shape that
+                    // has already broken an extension's settings page here. The rows carry their own flag
+                    // on the page that serves them, which is where a user needs to see WHICH file.
+                    InFlightPathOverflowCount: tally.InFlightPathOverflowFiles);
 
                 return new ScanKindSummary(
                     kv.Key,

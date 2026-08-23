@@ -24,8 +24,8 @@ public sealed class JournalStartupAssertionTests
     [Fact]
     public async Task WithTheJournalPresent_TheLoadCompletes()
     {
-        await using var library = await LibraryDatabase.CreateAsync();
-        var ext = new global::Renamer.Renamer();
+        await using var library = await Library.CreateAsync();
+        var ext = RenamerFixture.Create();
         ((IStatefulExtension)ext).SetStore(new FakeStore());
 
         var ex = await Record.ExceptionAsync(() => ext.InitializeAsync(library.BuildProvider()));
@@ -36,7 +36,7 @@ public sealed class JournalStartupAssertionTests
     public async Task WithTheJournalTableGone_TheLoadRefuses_NamingTheTableAndTheConsequence()
     {
         await using var db = await LibraryWithNoJournalAsync();
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         ((IStatefulExtension)ext).SetStore(new FakeStore());
 
         var refusal = await Assert.ThrowsAsync<InvalidOperationException>(

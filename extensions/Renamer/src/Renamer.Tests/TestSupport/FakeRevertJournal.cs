@@ -18,7 +18,6 @@ public sealed class FakeRevertJournal : IRevertJournal
     private readonly ConcurrentDictionary<(string RunId, long Seq), bool> _retired = new();
     private readonly ConcurrentQueue<DateTime> _purgeCalls = new();
     private long _lastSeq;
-    private bool _suppressed;
 
     /// <summary>Every appended row, in append order, whether or not it has since been retired.</summary>
     public IReadOnlyList<RevertRow> Rows => [.. _appended];
@@ -40,26 +39,12 @@ public sealed class FakeRevertJournal : IRevertJournal
 
     public Task AppendAsync(RevertRow row, CancellationToken ct = default)
     {
-        if (Volatile.Read(ref _suppressed))
-        {
-            return Task.CompletedTask;
-        }
-
         _appended.Enqueue(row with { Seq = Interlocked.Increment(ref _lastSeq) });
         if (_batches.TryGetValue(row.RunId, out var batch))
         {
             batch.CountAppended();
         }
 
-        return Task.CompletedTask;
-    }
-
-    public Task SuppressAsync(CancellationToken ct = default)
-    {
-        Volatile.Write(ref _suppressed, true);
-        _batches.Clear();
-        _appended.Clear();
-        _retired.Clear();
         return Task.CompletedTask;
     }
 

@@ -20,7 +20,7 @@ namespace Renamer.Tests.Api;
 /// enqueues, and <c>RunRenamerLibraryJobAsync</c> calls the EXISTING <c>RunRenamerBatchAsync</c> once per
 /// kind that has at least one candidate id — never a synthetic combined kind. Exercised as plain
 /// methods (no HTTP host) with a real SQLite <c>CoveContext</c> and real on-disk files, mirroring
-/// <c>RenamerBatchJobTests</c>/<c>EntityIdsCapTests</c>.
+/// <c>RenamerExecutorIntegrationTests</c>' batch cases and <c>EntityIdsCapTests</c>.
 /// </summary>
 [Trait("Tier", "L1")]
 public sealed class RenamerLibraryEndpointTests
@@ -54,7 +54,7 @@ public sealed class RenamerLibraryEndpointTests
         services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
         var provider = services.BuildServiceProvider();
 
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         var store = new FakeStore();
         // Pin a stable title-only template so seeded (height-less) rows render a deterministic name,
         // independent of the shipped default template.
@@ -64,7 +64,10 @@ public sealed class RenamerLibraryEndpointTests
         return (ext, store);
     }
 
-    private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
+    // Unwrapped first: a handler declaring Results<…> hands back a union that carries no status of its
+    // own and converts implicitly to IResult, so an un-unwrapped read throws instead of reporting one.
+    private static int StatusOf(IResult result) =>
+        Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
     [Fact]
     public async Task RenamerLibraryEnqueue_WithAnyWritePermission_Returns202_AndEnqueuesExclusiveOnce()
@@ -127,7 +130,7 @@ public sealed class RenamerLibraryEndpointTests
             File.WriteAllText(Path.Combine(dir.Root, "videos", "raw.mkv"), "video-bytes");
             File.WriteAllText(Path.Combine(dir.Root, "images", "raw.jpg"), "image-bytes");
 
-            var (ext, store) = await NewExtensionAsync(conn);
+            var (ext, _) = await NewExtensionAsync(conn);
             var progress = new FakeJobProgress();
 
             await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
@@ -141,21 +144,24 @@ public sealed class RenamerLibraryEndpointTests
             Assert.Equal("Film.mkv", videoBasename);
             Assert.Equal("Pic.jpg", imageBasename);
 
-            // One batch PER KIND, never one combined batch across kinds: two batch rows, each naming
-            // one kind and holding that kind's file alone. A combined batch would instead be a single
-            // row carrying BOTH files.
-            var batches = await db.Set<RevertBatchEntity>().AsNoTracking()
-                .OrderBy(b => b.Kind).ToListAsync();
-            Assert.Equal(
-                [nameof(RenamerFileKind.Image), nameof(RenamerFileKind.Video)],
-                batches.Select(b => b.Kind));
-            Assert.All(batches, b => Assert.Equal(1, b.OriginalCount));
+            // One batch PER KIND, never one combined batch across kinds. The newest batch is the second
+            // kind's, carrying its kind alone and only that kind's row; a combined batch would carry BOTH
+            // files. Retiring that row then surfaces the FIRST kind's batch, still intact — opening the
+            // second batch never cost the first its rows.
+            var journal = new CoveRevertJournal(db);
 
-            var imageBatch = batches.Single(b => b.Kind == nameof(RenamerFileKind.Image));
-            using var journal = new CoveRevertJournal(db);
-            var imageRow = Assert.Single(
-                await journal.ReadBatchPageAsync(imageBatch.RunId, long.MaxValue, 10));
+            var imageBatch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
+            Assert.NotNull(imageBatch);
+            Assert.Equal(RenamerFileKind.Image, imageBatch.Kind);
+            var imageRow = Assert.Single(imageBatch.Rows);
             Assert.Equal(imageFileId, imageRow.FileId);
+
+            await journal.DeleteRowAsync(imageRow.RunId, imageRow.Seq, unrestorable: false);
+
+            var videoBatch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
+            Assert.NotNull(videoBatch);
+            Assert.Equal(RenamerFileKind.Video, videoBatch.Kind);
+            Assert.Equal(videoFileId, Assert.Single(videoBatch.Rows).FileId);
 
             Assert.Equal(1d, progress.LastPercent);
         }
@@ -178,7 +184,7 @@ public sealed class RenamerLibraryEndpointTests
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "video-bytes");
             // No image/audio rows seeded at all.
 
-            var (ext, store) = await NewExtensionAsync(conn);
+            var (ext, _) = await NewExtensionAsync(conn);
             var progress = new FakeJobProgress();
 
             // Caller only holds videos.write + images.write (no audios.write) and there ARE zero
@@ -187,9 +193,15 @@ public sealed class RenamerLibraryEndpointTests
             await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
 
             // Only Video opened a batch — Image had zero candidates, so RunRenamerBatchAsync was never
-            // called for it and no empty batch opened.
-            var batch = Assert.Single(await db.Set<RevertBatchEntity>().AsNoTracking().ToListAsync());
-            Assert.Equal(nameof(RenamerFileKind.Video), batch.Kind);
+            // called for it and no empty batch opened. Counted on the TABLE rather than inferred from
+            // the undo target: that read names the newest batch with rows left, so an empty Image batch
+            // opened after the Video one would be passed over silently and leave the assertion below
+            // reading exactly as it does now.
+            Assert.Equal(1, await db.Set<RevertBatchEntity>().AsNoTracking().CountAsync());
+
+            var summary = await new CoveRevertJournal(db).ReadUndoTargetAsync();
+            Assert.NotNull(summary);
+            Assert.Equal(1, summary.Value.OriginalCount);
         }
         finally
         {

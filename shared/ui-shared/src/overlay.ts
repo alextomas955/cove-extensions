@@ -1,15 +1,13 @@
 /**
  * The hand-rolled overlay foundation shared by the extensions' popovers and dialogs: a focus +
- * keyboard + outside-click hook, and an imperative mounter for overlays opened from a bulk-action
- * handler that owns no React tree.
+ * keyboard + outside-click hook.
  *
  * Deliberately hand-rolled (not Radix, not a native `<dialog>` `showModal()`): the two nav modes
  * below keep semantics that differ for real reasons, and a library would either flatten them or pull
  * in a second focus manager. See each mode's inline note.
  */
 import { useEffect, useLayoutEffect, useRef } from "react";
-import type { ReactElement, RefObject } from "react";
-import { createRoot } from "react-dom/client";
+import type { RefObject } from "react";
 
 // The tab-order set for the dialog focus trap: the same query the Renamer Dialog used.
 const FOCUSABLE =
@@ -123,10 +121,10 @@ export function useOverlayKeys(
       const active = document.activeElement as HTMLElement | null;
       if (e.shiftKey && active === firstEl) {
         e.preventDefault();
-        lastEl.focus();
+        lastEl?.focus();
       } else if (!e.shiftKey && active === lastEl) {
         e.preventDefault();
-        firstEl.focus();
+        firstEl?.focus();
       }
     }
 
@@ -149,31 +147,4 @@ export function useOverlayKeys(
       document.removeEventListener("pointerdown", onPointerDown, capture);
     };
   }, [ref, nav, itemSelector, closeOnOutsideClick]);
-}
-
-/**
- * Imperatively mount an overlay outside any React tree — for bulk-action handlers, which own no tree
- * of their own. Renders `render(finish)` into a body-attached root; `finish` is single-shot (a
- * settled guard), unmounts the root, removes the container, and resolves the promise. `null` is the
- * cancel value.
- */
-export function presentOverlay<T>(
-  render: (finish: (result: T | null) => void) => ReactElement,
-): Promise<T | null> {
-  return new Promise<T | null>((resolve) => {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const root = createRoot(container);
-
-    let settled = false;
-    function finish(result: T | null) {
-      if (settled) return;
-      settled = true;
-      root.unmount();
-      container.remove();
-      resolve(result);
-    }
-
-    root.render(render(finish));
-  });
 }

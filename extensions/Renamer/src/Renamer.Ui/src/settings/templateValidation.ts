@@ -71,7 +71,7 @@ export function unknownTokens(s: string): string[] {
     }
     // Scan the token name: [A-Za-z0-9_]+
     let j = i + 1;
-    while (j < s.length && /[A-Za-z0-9_]/.test(s[j])) j++;
+    while (j < s.length && /[A-Za-z0-9_]/.test(s.charAt(j))) j++;
     if (j === i + 1) continue; // lone `$` (no name) — the engine emits a literal `$`, not a token
     const name = s.slice(i + 1, j);
     const lower = name.toLowerCase();
@@ -97,7 +97,7 @@ function scanForToken(s: string, wantLower: string): boolean {
       continue;
     }
     let j = i + 1;
-    while (j < s.length && /[A-Za-z0-9_]/.test(s[j])) j++;
+    while (j < s.length && /[A-Za-z0-9_]/.test(s.charAt(j))) j++;
     if (j === i + 1) continue; // lone `$` (no name) — the engine emits a literal `$`, not a token
     if (s.slice(i + 1, j).toLowerCase() === wantLower) return true;
     i = j - 1; // advance past the consumed name
@@ -118,21 +118,32 @@ export function templateUsesToken(
   return scanForToken(filenameTemplate, wantLower) || scanForToken(folderTemplate, wantLower);
 }
 
+// Reads one DP cell. The row below is allocated with n + 1 entries and never resized, and every
+// index used is in 0..n, so an out-of-range read is impossible by construction. Stating that as a
+// throw rather than a non-null assertion keeps the invariant checkable: if the allocation and the
+// loop bounds ever disagree, this fails loudly instead of yielding an undefined that arithmetic
+// silently turns into NaN.
+function cell(row: readonly number[], j: number): number {
+  const v = row[j];
+  if (v === undefined) throw new RangeError(`edit-distance row index ${j} is out of range`);
+  return v;
+}
+
 /** Levenshtein edit distance (small strings only). */
 function editDistance(a: string, b: string): number {
   const m = a.length;
   const n = b.length;
   const row = Array.from({ length: n + 1 }, (_, j) => j);
   for (let i = 1; i <= m; i++) {
-    let prev = row[0];
+    let prev = cell(row, 0);
     row[0] = i;
     for (let j = 1; j <= n; j++) {
-      const tmp = row[j];
-      row[j] = a[i - 1] === b[j - 1] ? prev : Math.min(prev, row[j - 1], row[j]) + 1;
+      const tmp = cell(row, j);
+      row[j] = a[i - 1] === b[j - 1] ? prev : Math.min(prev, cell(row, j - 1), cell(row, j)) + 1;
       prev = tmp;
     }
   }
-  return row[n];
+  return cell(row, n);
 }
 
 /**

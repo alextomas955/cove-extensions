@@ -295,19 +295,19 @@ public sealed class EmptySourceFolderCleanerTests
             var options = new RenamerOptions { FilenameTemplate = "$title", RemoveEmptyFolder = true };
 
             var plan = await new RenamerPlanner(new CoveRenamerDataPort(db))
-                .PlanAsync(RenamerFileKind.Video, videoId, options, default);
+                .PlanAsync(RenamerFileKind.Video, videoId, options, RouteLookupsFixtures.RoutingNeutral, default);
             var item = Assert.Single(plan.Items);
-            Assert.Equal(RenamerStatus.Renamer, item.Status); // an in-place renamer, not a move
+            Assert.Equal(RenamerStatus.Rename, item.Status); // an in-place rename, not a move
 
             // The trigger predicate's two independent reasons to skip both hold for this item:
             // it is not a move, AND the parent dir does not change.
-            Assert.False(item.Status == RenamerStatus.Move, "an in-place renamer is not a move → cleanup never fires");
+            Assert.False(item.Status == RenamerStatus.Move, "an in-place rename is not a move → cleanup never fires");
             Assert.Equal(DirOf(item.OldFullPath), DirOf(item.NewFullPath));
 
             var result = await executor.ExecuteAsync(plan, options, default);
 
             Assert.Single(result.Renamed);
-            Assert.True(Directory.Exists(dir.Root), "the source folder must survive a same-folder renamer");
+            Assert.True(Directory.Exists(dir.Root), "the source folder must survive a same-folder rename");
             Assert.True(File.Exists(Path.Combine(dir.Root, "My Film.mkv")), "the renamed file stays in the folder");
         }
         finally
@@ -340,13 +340,13 @@ public sealed class EmptySourceFolderCleanerTests
             var journal = new FakeRevertJournal();
             var options = new RenamerOptions { RemoveEmptyFolder = true };
 
-            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
+            await journal.BeginBatchAsync("RUN-1", RenamerFileKind.Video, DateTime.UtcNow);
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileId, srcFolder + "/clip.mkv", dstFolder + "/My Film.mkv",
                     RenamerStatus.Move, "My Film.mkv", dstFolder),
             ]);
-            var fwd = await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
+            var fwd = await new RenamerExecutor(port, new CapturingEventBus(), journal, "RUN-1", new DiskMover())
                 .ExecuteAsync(plan, options, default);
             Assert.Single(fwd.Renamed);
             Assert.False(Directory.Exists(Path.Combine(dir.Root, "src")), "the move + cleanup deleted the source dir");
@@ -355,7 +355,7 @@ public sealed class EmptySourceFolderCleanerTests
             var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var replayer = new UndoReplayer(port, new CapturingEventBus(), new DiskMover());
-            var undo = await replayer.RevertAsync(batch!, default);
+            var undo = await replayer.RevertAsync(batch, default);
 
             Assert.Equal(0, undo.Undone);
             var skip = Assert.Single(undo.Skipped);
