@@ -19,11 +19,9 @@ Always:
 
 Describe what you actually ran and observed.
 
-The C# safety tier is gated by the `test-cove-present` job, not by a box here — a box a contributor can
-skip is not a gate. Running `dotnet test` locally with the `../cove` sibling checked out is still worth
-doing for one reason CI cannot cover: it compiles against whatever branch that sibling happens to be on,
-where CI compiles against the released image, so a regression on your fork branch is visible locally and
-nowhere else.
+Run `dotnet test` locally with the `../cove` sibling checked out. That covers what CI cannot: it compiles
+against whatever branch the sibling happens to be on, so a regression on your fork branch is visible
+there and nowhere else. CI's own C# leg compiles the cove-absent set.
 
 ## Safety check
 

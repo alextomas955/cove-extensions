@@ -9,7 +9,7 @@
 # filtering anywhere, so every catalog entry is built on every pull request.
 #
 # Required-check model: the `required-checks` aggregation job is the single status check to mark
-# required in branch protection; it transitively gates on `build`, `test-cove-present` and `e2e`. No
+# required in branch protection; it transitively gates on `build` and `e2e`. No
 # job runs an extension's own node:test specs, because no catalog entry declares an `e2eNodeTestsPath`
 # to subscribe one; the field is still accepted, so a future subscriber restores the steps here.
 
@@ -44,7 +44,7 @@ jobs:
       contents: read
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
-      # A SECOND output, deliberately: `build`, `test-cove-present` and `e2e` all read `matrix`, so
+      # A SECOND output, deliberately: `build` and `e2e` both read `matrix`, so widening that one
       # widening that one would multiply `build` — which compiles against CoveSourceMode=none and has
       # nothing to do with a host version.
       coveMatrix: ${{ steps.coveMatrix.outputs.coveMatrix }}
@@ -233,9 +233,8 @@ jobs:
 
       # Cove-absent tier: CoveSourceMode=none Compile-Removes the cove-referencing sources, leaving every
       # test that needs no Cove source type. The mode is DECLARED, never inferred from whether a ../cove
-      # sibling is on disk, or a smaller run reads as a pass. The rest of the suite runs in
-      # test-cove-present below. Before Publish, so a test failure blocks packaging. Skipped for an entry
-      # with no testProjectPath.
+      # sibling is on disk, or a smaller run reads as a pass. Before Publish, so a test failure blocks
+      # packaging. Skipped for an entry with no testProjectPath.
       #
       # A run that executes nothing fails rather than reporting success having asserted nothing: the
       # Microsoft Testing Platform exits 8 on zero tests, with no configuration needed.
@@ -342,21 +341,20 @@ jobs:
           name: package-${{ matrix.extension.id }}-${{ steps.check.outputs.version }}
           path: ${{ matrix.extension.id }}-${{ steps.check.outputs.version }}.zip
 
-  # ---- The cove-present C# tier: the whole test suite, compiled and run against Cove taken from the
-  # RELEASED cove-app image rather than from a source checkout. This is what closes the gap where the
-  # bare `build` leg above compiles only the pure-core tests — every rollback / undo / ingest /
-  # loop-safety assertion that needs a real CoveContext runs here, in process, and blocks a merge.
-  #
-  # Catalog-driven like every other leg: a second extension gains this job through its catalog entry,
-  # with no edit here. No Cove version is named in this file either — each leg's tag arrives resolved
-  # from validate's version axis, which reads it off the registry against the floor the extension
-  # declares in its own manifest, and the repository half still comes from Directory.Build.props.
+  # ---- E2E: rebuilds each extension (a separate job from build/matrix.extension — GitHub Actions
+  # jobs don't share a filesystem, so this job publishes its own fresh copy rather than trying to
+  # reuse the build job's disk state) and installs the result into a containerized, official Cove
+  # instance via tests/e2e's shared harness, then runs its Playwright suite against it.
+  # Extensions without their own e2e suite are skipped via the catalog's optional
+  # `e2ePath`/`e2eProject` fields (absent = no suite yet, not a failure).
   #
   # This job's matrix is the version axis (coveMatrix), so its combos are flat: `matrix.extension` is
   # still the catalog entry and `matrix.cove` is the leg. A cross product would have paired one
   # extension with another's floor, which is correct with one extension and silently wrong with two.
-  test-cove-present:
-    needs: validate
+  # It takes that axis rather than the floor alone so a host version this leg alone would notice (a
+  # load refusal, a changed route) is examined.
+  e2e:
+    needs: [validate, build]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -366,105 +364,6 @@ jobs:
     # than blocks. An advisory leg that fails still draws a red cross; branch protection keys on the
     # aggregate status below, which reports success for it. act does not implement job-level
     # continue-on-error, so a local run failing on an advisory leg is a runner artefact.
-    continue-on-error: ${{ matrix.cove.advisory }}
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v7
-
-      # An entry with no test project skips the tier entirely, matching the unit-tier opt-out.
-      - name: Check for a cove-present tier
-        id: check
-        shell: bash
-        run: |
-          if [[ "$MANIFEST_ONLY" == "true" || -z "$TEST_PROJECT_PATH" ]]; then
-            echo "has_tier=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::$EXTENSION_NAME declares no testProjectPath — skipping the cove-present tier."
-            exit 0
-          fi
-          echo "has_tier=true" >> "$GITHUB_OUTPUT"
-        env:
-          EXTENSION_NAME: ${{ matrix.extension.name }}
-          MANIFEST_ONLY: ${{ matrix.extension.manifestOnly }}
-          TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
-
-      # The fetcher is Node, and it deliberately shells out to nothing — no docker, no curl, no tar —
-      # so this and the .NET SDK are the whole toolchain.
-      - uses: actions/setup-node@v7
-        if: steps.check.outputs.has_tier == 'true'
-        with:
-          node-version: "24.11.0"
-
-      - name: Setup .NET
-        if: steps.check.outputs.has_tier == 'true'
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      # A leg's tag reaches BOTH consumers from the one env entry below: --tag here, because the
-      # fetcher text-parses Directory.Build.props and cannot see an MSBuild global property, and
-      # -p:CoveTestImageTag on the test step, because the build's staleness guard compares what the
-      # extraction recorded against what this leg was told to test. They are two consumers of one
-      # value, and the guard's whole job is to fail when they disagree.
-      #
-      # A resolved registry tag is third-party input, so it arrives through the environment for the
-      # reason the build job's first step states.
-      - name: Fetch Cove assemblies from the released image
-        if: steps.check.outputs.has_tier == 'true'
-        shell: bash
-        run: |
-          set -o pipefail
-          node scripts/fetch-cove-assemblies.mjs --tag "$COVE_TAG" --out artifacts/cove-assemblies | tee /tmp/fetch.log
-          digest=$(grep -E '^manifest digest: ' /tmp/fetch.log | tail -1)
-          assembly=$(grep -E '^Cove\.Data\.dll assembly version: ' /tmp/fetch.log | tail -1)
-          informational=$(grep -E '^Cove\.Data\.dll informational version: ' /tmp/fetch.log | tail -1)
-          if [[ -z "$digest" || -z "$assembly" ]]; then
-            echo "::error::The fetcher reported no manifest digest or no assembly version, so there is nothing to attribute a later failure to."
-            exit 1
-          fi
-          echo "::notice::Cove under test ($COVE_ROLE $COVE_TAG) — $digest; $assembly; $informational"
-        env:
-          COVE_TAG: ${{ matrix.cove.tag }}
-          COVE_ROLE: ${{ matrix.cove.role }}
-
-      # -p:CoveSourceMode=assemblies is stated EXPLICITLY: an infrastructure failure that left the
-      # extraction empty must fail this job, not quietly select the cove-absent branch and report a
-      # smaller green run. AssertCoveLocation refuses that case at build time, and the extraction
-      # staleness guard refuses assemblies pulled from a tag other than the one under test — so an
-      # incomplete extraction is caught where it happens, not inferred afterwards from a test count.
-      # An empty run still fails: the Microsoft Testing Platform exits 8 on zero tests.
-      - name: Test (cove-present tier, assemblies from the released image)
-        if: steps.check.outputs.has_tier == 'true'
-        run: |
-          dotnet test --project "$TEST_PROJECT_PATH" -c Release \
-            -p:CoveSourceMode=assemblies \
-            -p:CoveTestImageTag="$COVE_TAG" \
-            -p:CoveAssembliesDir=artifacts/cove-assemblies
-        env:
-          TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
-          COVE_TAG: ${{ matrix.cove.tag }}
-
-  # ---- E2E: rebuilds each extension (a separate job from build/matrix.extension — GitHub Actions
-  # jobs don't share a filesystem, so this job publishes its own fresh copy rather than trying to
-  # reuse the build job's disk state) and installs the result into a containerized, official Cove
-  # instance via tests/e2e's shared harness, then runs its Playwright suite against it.
-  # Extensions without their own e2e suite are skipped via the catalog's optional
-  # `e2ePath`/`e2eProject` fields (absent = no suite yet, not a failure).
-  #
-  # This job's matrix is the version axis (coveMatrix), the same one test-cove-present takes and with
-  # the same flat shape stated there. It takes that axis rather than the floor alone because the two
-  # safety legs see different things — one runs the suite in process against the image's assemblies,
-  # this one installs the assembled package into the running host and drives it — so a host version
-  # that only the second would notice (a load refusal, a changed route) is examined.
-  e2e:
-    needs: [validate, build]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.validate.outputs.coveMatrix) }}
-    # Advisory on the forward-looking leg, for the reason and with the caveats stated once on
-    # test-cove-present above.
     continue-on-error: ${{ matrix.cove.advisory }}
     permissions:
       contents: read
@@ -624,16 +523,10 @@ jobs:
   # job's `needs:` AND by having its result tested in the shell body below. Listing a job in `needs:`
   # alone would let it fail while this gate still reported success.
   #
-  # There are two safety legs, each stating its own subject where it is defined, and neither substitutes
-  # for the other: test-cove-present sees seams no containerized run can reach — which principal a
-  # database command executed under, a rollback's intermediate state, an event hook's re-entrancy —
-  # while e2e is the only check that would notice a package the host cannot load. A green here means
-  # both were observed, not that one stood in for the other.
-  #
-  # Cove.Data is on no feed, and that is why the image is the route for it; Cove.Core, Cove.Plugins and
-  # Cove.Sdk are published on nuget.org. Neither fact makes the cove-present leg optional.
+  # `e2e` is the only leg here that installs the assembled package into a running host, so it is the
+  # one check that would notice a package the host refuses to load.
   required-checks:
-    needs: [validate, build, test-cove-present, e2e]
+    needs: [validate, build, e2e]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -644,12 +537,11 @@ jobs:
       - name: Assert the required legs succeeded
         shell: bash
         run: |
-          echo "validate=${{ needs.validate.result }} build=${{ needs.build.result }} test-cove-present=${{ needs.test-cove-present.result }} e2e=${{ needs.e2e.result }}"
+          echo "validate=${{ needs.validate.result }} build=${{ needs.build.result }} e2e=${{ needs.e2e.result }}"
           if [ "${{ needs.validate.result }}" != "success" ] \
             || [ "${{ needs.build.result }}" != "success" ] \
-            || [ "${{ needs.test-cove-present.result }}" != "success" ] \
             || [ "${{ needs.e2e.result }}" != "success" ]; then
-            echo "::error::A required leg failed or was skipped — validate/build/test-cove-present/e2e must all be green."
+            echo "::error::A required leg failed or was skipped — validate/build/e2e must all be green."
             exit 1
           fi
           echo "All required legs green."
