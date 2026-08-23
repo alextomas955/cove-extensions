@@ -1,5 +1,6 @@
 <Project>
 
+
   <!--
     Cove.Sdk + Cove.Core wiring, centralized here so individual extension .csproj files under
     extensions/<Name>/src/<Name>/ don't each restate the local-vs-package selection or the
@@ -22,14 +23,23 @@
     matching the single-extension-repo template's original per-project (not root-centralized) wiring.
   -->
 
-  <ItemGroup Condition="'$(UseLocalCoveSource)' == 'true' AND !$(MSBuildProjectName.EndsWith('.Tests'))">
-    <ProjectReference Include="$(MSBuildThisFileDirectory)..\cove\src\Cove.Sdk\Cove.Sdk.csproj" Condition="Exists('$(MSBuildThisFileDirectory)..\cove\src\Cove.Sdk\Cove.Sdk.csproj')">
+  <ItemGroup Condition="'$(CoveSourceMode)' == 'source' AND !$(MSBuildProjectName.EndsWith('.Tests'))">
+    <ProjectReference Include="$(CoveSdkProjectPath)" Condition="Exists('$(CoveSdkProjectPath)')">
       <Private>false</Private>
       <ExcludeAssets>runtime</ExcludeAssets>
     </ProjectReference>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(UseLocalCoveSource)' == 'false' AND !$(MSBuildProjectName.EndsWith('.Tests'))">
+  <!--
+    Both non-source modes take the SAME NuGet Cove.Sdk, and `assemblies` mode deliberately does not
+    swap it for an image reference: a raw assembly reference carries no NuGet dependency graph, so
+    Cove.Plugins' Microsoft.EntityFrameworkCore.Relational stops being supplied and the shipping
+    project loses DbContext. Measured, as is the narrower variant — cutting the package's flow to
+    consumers with PrivateAssets, so a test project sees only its own image references — which fails
+    the compile instead with CS1705: the image's Cove.Data binds a different EF Core patch than this
+    repo pins, and the NuGet path is what was reconciling the two.
+  -->
+  <ItemGroup Condition="'$(CoveSourceMode)' != 'source' AND !$(MSBuildProjectName.EndsWith('.Tests'))">
     <PackageReference Include="Cove.Sdk" />
   </ItemGroup>
 
@@ -42,7 +52,123 @@
     project is never published/deployed, so it must keep its full runtime closure and never import
     the host-provided-assembly strip target at all.
   -->
-  <Import Project="$(MSBuildThisFileDirectory)..\cove\src\Cove.Sdk\buildTransitive\Cove.Sdk.targets"
-          Condition="'$(UseLocalCoveSource)' == 'true' AND !$(MSBuildProjectName.EndsWith('.Tests')) AND Exists('$(MSBuildThisFileDirectory)..\cove\src\Cove.Sdk\buildTransitive\Cove.Sdk.targets')" />
+  <Import Project="$(CoveSdkTargetsPath)"
+          Condition="'$(CoveSourceMode)' == 'source' AND !$(MSBuildProjectName.EndsWith('.Tests')) AND Exists('$(CoveSdkTargetsPath)')" />
+
+  <!--
+    The gate on the Cove location. Directory.Build.props can only COMPUTE the mode; stopping a build
+    needs a target, and this one runs BeforeTargets="PrepareForBuild" so it lands ahead of the
+    compiler and a wrong location reports as one plain error rather than as a wall of CS0234.
+
+    Printing the resolved ABSOLUTE path is a requirement of the design, not a courtesy: it is the only
+    thing that made Git Bash's MSYS rewriting of a POSIX COVE_REPO into a drive-lettered path visible
+    at all, and that class of silent path mangling has already disabled gates in this repo.
+
+    Absence stays a legitimate state — `none` is the clean-clone default and builds happily. What is
+    refused is a mode that cannot deliver what it names: falling back from one of these would compile
+    a smaller test set and still report success, which is the whole defect this seam exists to remove.
+  -->
+  <!--
+    The extraction's own record of what it pulled: the tag, the manifest digest, and a SHA-256 per
+    guarded assembly, written by scripts/fetch-cove-assemblies.mjs into the directory it extracted
+    into. Imported under Exists() because absence is a legitimate state for every mode but
+    `assemblies`; in that mode the guards below refuse an empty expectation rather than compare
+    nothing, which is what keeps a missing or unimported file loud.
+  -->
+  <PropertyGroup>
+    <CoveExtractionPropsPath Condition="'$(CoveAssembliesDirResolved)' != ''">$([System.IO.Path]::Combine('$(CoveAssembliesDirResolved)', 'CoveExtraction.props'))</CoveExtractionPropsPath>
+  </PropertyGroup>
+
+  <Import Project="$(CoveExtractionPropsPath)"
+          Condition="'$(CoveExtractionPropsPath)' != '' AND Exists('$(CoveExtractionPropsPath)')" />
+
+  <!--
+    The companion gate to AssertCoveLocation, and the one that catches what no warning does. In
+    `assemblies` mode a test project resolves Cove twice — once from the image references it declares,
+    once from the NuGet packages that reach it through the extension project's graph — and both are
+    copied to the same output file names. The image copy currently wins, but nothing SAYS so — copy
+    order decides it, not any declared rule. When the NuGet copy won instead, most of the suite failed
+    at run time with TypeLoadException on entity types the older Cove.Core does not carry, against a
+    build that reported zero errors and zero warnings. Measured, not theorised, which is why this
+    target exists at all. Comparing the output's CONTENT against what the extraction recorded turns
+    "right by copy order" into "checked", and the failure is then one line naming the assembly
+    instead of a wall of unrelated-looking test failures.
+
+    The comparison is a content hash rather than an assembly version because it is strictly stronger:
+    it detects displacement even when both copies stamp the same version, which a version-equality
+    guard cannot — and it needs no hand-maintained expectation, so it does not go red on every
+    upstream release for a change that is wanted.
+  -->
+  <Target Name="AssertCoveOutputClosure"
+          AfterTargets="Build"
+          Condition="'$(CoveSourceMode)' == 'assemblies' AND $(MSBuildProjectName.EndsWith('.Tests'))">
+    <ItemGroup>
+      <_CoveOutputAssembly Include="$(TargetDir)Cove.Core.dll;$(TargetDir)Cove.Data.dll;$(TargetDir)Cove.Plugins.dll;$(TargetDir)Cove.Sdk.dll" />
+    </ItemGroup>
+
+    <Error Condition="!Exists('%(_CoveOutputAssembly.Identity)')"
+           Text="Cove assemblies mode was selected but '%(_CoveOutputAssembly.Identity)' is not in the test output, so the suite would fail to load rather than fail an assertion." />
+
+    <!-- Empty input is a hard failure, not a quiet pass: without this arm a missing or unimported
+         CoveExtraction.props leaves the comparison below with nothing to compare, and a guard that
+         inspects zero assemblies reads as coverage while providing none. -->
+    <Error Condition="'@(CoveExtractedAssembly)' == ''"
+           Text="Cove assemblies mode was selected but no extraction expectation was imported from '$(CoveExtractionPropsPath)', so this guard would compare zero assemblies and report success. Re-run 'node scripts/fetch-cove-assemblies.mjs --out &lt;dir&gt;', which writes that file beside the assemblies it extracts." />
+
+    <!-- Retargeting the recorded items onto $(TargetDir) carries their Sha256 metadata along, and
+         GetFileHash preserves input metadata on its output — which is what lets ONE batched Error
+         compare the pair. MSBuild's != is case-insensitive, so the lowercase hex the fetcher writes
+         needs no normalising against the task's uppercase output. -->
+    <ItemGroup>
+      <_CoveOutputExpectation Include="@(CoveExtractedAssembly->'$(TargetDir)%(Identity)')" />
+    </ItemGroup>
+
+    <GetFileHash Files="@(_CoveOutputExpectation)" Algorithm="SHA256" HashEncoding="hex">
+      <Output TaskParameter="Items" ItemName="_CoveOutputHashed" />
+    </GetFileHash>
+
+    <Error Condition="'%(_CoveOutputHashed.Sha256)' != '%(_CoveOutputHashed.FileHash)'"
+           Text="'%(_CoveOutputHashed.Filename)%(_CoveOutputHashed.Extension)' in the test output is not the file the extraction wrote (expected SHA-256 %(_CoveOutputHashed.Sha256), found %(_CoveOutputHashed.FileHash)). The NuGet copy of a Cove assembly has displaced the image one, which produces type-load failures at run time and no warning at build time. Re-run 'node scripts/fetch-cove-assemblies.mjs' to re-extract and re-record — never edit CoveMinVersion to make this pass, which means something else entirely." />
+  </Target>
+
+  <Target Name="AssertCoveLocation" BeforeTargets="PrepareForBuild">
+    <Message Importance="high"
+             Text="Cove: mode=$(CoveSourceMode) repoRoot='$(CoveRepoRootResolved)' assembliesDir='$(CoveAssembliesDirResolved)'" />
+
+    <Error Condition="'$(CoveSourceMode)' != 'source' AND '$(CoveSourceMode)' != 'assemblies' AND '$(CoveSourceMode)' != 'none'"
+           Text="CoveSourceMode is '$(CoveSourceMode)', which is not one of source, assemblies or none. Set -p:CoveSourceMode (or COVE_SOURCE_MODE) to one of those three; an unrecognised mode wires up neither references nor exclusions and would fail far from its cause." />
+
+    <Error Condition="'$(CoveSourceMode)' == 'source' AND !Exists('$(CoveDataProjectPath)')"
+           Text="Cove source mode was selected but Cove.Data.csproj is not at '$(CoveDataProjectPath)' (resolved CoveRepoRoot='$(CoveRepoRootResolved)'). Point COVE_REPO or -p:CoveRepoRoot at a Cove checkout, or select another mode. Refusing to fall back — a silent fallback would compile a smaller test set and still report success." />
+
+    <Error Condition="'$(CoveSourceMode)' == 'assemblies' AND !Exists('$(CoveDataAssemblyPath)')"
+           Text="Cove assemblies mode was selected but Cove.Data.dll is not at '$(CoveDataAssemblyPath)' (resolved CoveAssembliesDir='$(CoveAssembliesDirResolved)'). Run 'node scripts/fetch-cove-assemblies.mjs --out &lt;dir&gt;' and point COVE_ASSEMBLIES or -p:CoveAssembliesDir at it. Refusing to fall back — a silent fallback would compile a smaller test set and still report success." />
+
+    <!-- The belt on the precedence above: today no arm can reach `none` while a location was supplied
+         explicitly, so this cannot fire. It is here so that a future edit which reintroduces the
+         fall-through is a build error rather than a quietly smaller run. A caller who pinned the mode
+         (or the older UseLocalCoveSource spelling) said `none` on purpose and is left alone. -->
+    <Error Condition="'$(CoveSourceMode)' == 'none' AND '$(_CoveLocationWasExplicit)' == 'true' AND '$(_CoveModeWasPinned)' != 'true'"
+           Text="A Cove location was supplied explicitly (resolved CoveRepoRoot='$(CoveRepoRootResolved)', CoveAssembliesDir='$(CoveAssembliesDirResolved)') but the resolved mode is 'none'. Refusing to fall back to the cove-absent branch — it would compile a smaller test set and still report success." />
+
+    <!--
+      The stale-extraction half, which asks a DIFFERENT question from the output-closure guard above:
+      is this extraction from the image this leg is supposed to test? A path that resolves can still
+      hold last month's assemblies, and the only symptom would be type-load failures far from the
+      cause.
+
+      A content hash cannot answer it. Comparing the extracted file against a manifest the extraction
+      itself wrote is a comparison of a file with itself, which passes forever — so the subject here is
+      the TAG the extraction recorded against the tag this build was told to test. On the version axis
+      those two arrive from one resolved value by two routes: the fetcher's own tag argument, because
+      it text-parses this repo's props file and cannot see an MSBuild global property, and
+      -p:CoveTestImageTag on the build. This arm is what fails when they disagree.
+
+      The recorded tag being absent is not this arm's business — the output-closure guard refuses an
+      empty expectation where it would otherwise compare nothing.
+    -->
+    <Error Condition="'$(CoveSourceMode)' == 'assemblies' AND '$(CoveExtractionImageTag)' != '' AND '$(CoveExtractionImageTag)' != '$(CoveTestImageTag)'"
+           Text="The extraction at '$(CoveAssembliesDirResolved)' was pulled from tag '$(CoveExtractionImageTag)' (manifest $(CoveExtractionManifestDigest)), but this build tests against '$(CoveTestImageTag)'. Re-run 'node scripts/fetch-cove-assemblies.mjs --tag $(CoveTestImageTag) --out &lt;dir&gt;' so the assemblies match the version under test. Do NOT edit CoveMinVersion to satisfy this: that property is the floor the extension advertises, not the version CI tests against." />
+  </Target>
 
 </Project>
