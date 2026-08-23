@@ -265,7 +265,9 @@ falsifiable there. The flag is instance-global, hence
 `startHarness({ env: { COVE_E2E_AUTH_ENABLED: 'true' } })` per test rather than per worker;
 `createRestrictedUser()` then mints the non-owner principal Cove's row-level filters actually apply
 to, which the owner's own token bypasses — pass its token to `createApiClient` to drive a spec as
-that user while the harness handle keeps the owner's.
+that user while the harness handle keeps the owner's. Renamer's `auth-enabled.spec.mjs` is the worked
+example of the instance setup, including the anonymous-read assertion that keeps such a spec from
+passing for the trivial reason that authentication was never on.
 
 It does not (yet):
 
