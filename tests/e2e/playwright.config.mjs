@@ -7,15 +7,16 @@ import { checkRelativePath } from "../../scripts/catalog-paths.mjs";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, "..", "..");
 
-// The catalog is this monorepo's single declaration of which extensions exist, so a suite is
-// registered by declaring it there rather than here, where the same fact would then live twice and be
-// free to disagree with itself. Two things the derivation below cannot show. There is exactly one
-// shared @playwright/test install for the whole monorepo: a second install breaks Playwright's
-// module singleton the moment a test file imports a fixture module across the two, so an extension
-// gets a project here rather than an install of its own (see tests/e2e/README.md). And this
-// harness's own `tests/` directory is deliberately not a catalog entry — `template.spec.mjs` there
-// is a copyable starting point rather than a live suite, and it resolves extension paths
-// self-relatively, so it addresses a real extension only once it has been copied into one.
+// A suite is registered in the catalog, not here. Two things the derivation below cannot show:
+//
+// There is exactly one shared @playwright/test install for the whole monorepo. A second install
+// breaks Playwright's module singleton the moment a test file imports a fixture module across the
+// two, so an extension gets a project here rather than an install of its own (see
+// tests/e2e/README.md).
+//
+// This harness's own `tests/` directory is deliberately not a catalog entry. `template.spec.mjs`
+// there resolves extension paths self-relatively, so it addresses a real extension only once it has
+// been copied into one.
 const catalog = JSON.parse(
   readFileSync(join(repoRoot, "extensions", "catalog.json"), "utf8").replace(/^\uFEFF/, ""),
 );

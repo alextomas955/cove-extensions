@@ -38,27 +38,21 @@ const DEFAULT_STARTUP_TIMEOUT_MS = process.env.CI ? 240_000 : 180_000;
 /**
  * The Cove image an instance boots, resolved from the most specific input available.
  *
- * <remarks>
- * In order: a reference the caller states outright (a locally built host, say); a complete reference in
- * `COVE_E2E_IMAGE`; a version in `COVE_E2E_TAG`, placed on the repository the build properties declare;
- * and failing all three the highest floor the catalog's extensions declare in their own manifests. The
- * compose file holds no default of its own, so this is the only thing that decides.
+ * In order: a reference the caller states outright (a locally built host, say); a complete reference
+ * in `COVE_E2E_IMAGE`; a version in `COVE_E2E_TAG`, placed on the repository the build properties
+ * declare; and failing all three the highest floor the catalog's extensions declare in their own
+ * manifests. The compose file holds no default, so this is the only thing that decides.
  *
- * The tag-only form is what a CI leg has to give: a version leg resolves a VERSION, and the repository
- * is declared once in the build properties — which is why the fetcher and the build's version guard
- * take a tag too, rather than each being handed a whole reference to get wrong.
+ * A CI leg can only supply the tag-only form, because a version leg resolves a VERSION while the
+ * repository is declared once in the build properties.
  *
- * Every path is derived, never written down. A version literal here would be a second declaration of a
- * number that already lives in a manifest, free to fall behind it — and a host BELOW an extension's
- * floor does not error: its version gate silently refuses to LOAD the extension, so the routes 404 and
- * every browser spec fails against a Settings page that never gains the extension's tab. The floor
- * taken is the HIGHEST declared, because one instance serves whichever extensions a run installs into
- * it and the lowest would boot a host beneath somebody's floor. Nothing here names an extension: a
- * second one arrives through the catalog and needs no edit in this file.
+ * A host BELOW an extension's floor does not error: its version gate silently refuses to LOAD the
+ * extension, so the routes 404 and every browser spec fails against a Settings page that never gains
+ * the extension's tab. The floor taken is the HIGHEST declared, since one instance serves whichever
+ * extensions a run installs into it.
  *
- * Throws rather than falling back when a floor cannot be read or is not strict semver. An image nobody
- * chose is how a suite passes against the wrong host.
- * </remarks>
+ * Throws rather than falling back when a floor cannot be read or is not strict semver.
+ *
  * @param {string} [image] - an explicit complete reference, which wins over both environment forms.
  * @returns {string} a complete image reference, e.g. `ghcr.io/yourcove/cove-app:1.1.0`.
  */
@@ -410,10 +404,9 @@ export async function startHarness({ image, env, timeoutMs = DEFAULT_STARTUP_TIM
 // the outcome into a refusal indistinguishable from the failure being waited out.
 const AUTH_RETRY_INTERVAL_MS = 2_000;
 
-// Deliberately generous: an attempt that is merely slow (the host hashing a password while it also
-// migrates its schema) is one to let finish, not one to reabandon. A bound that fires anyway is not
-// lost work — the 409 path in bootstrapOwner adopts an attempt the server completed after this gave
-// up on it.
+// Generous, because an attempt that is merely slow (the host hashing a password while it also
+// migrates its schema) is one to let finish. A bound that fires anyway loses no work: the 409 path in
+// bootstrapOwner adopts an attempt the server completed after this gave up on it.
 const AUTH_ATTEMPT_TIMEOUT_MS = 15_000;
 
 /** A status the host may answer while still coming up, as opposed to a verdict on the request. */

@@ -5,12 +5,9 @@ import path from "node:path";
 /**
  * Checks that a catalog path field is repo-relative, returning a reason or null.
  *
- * <remarks>
- * A catalog path field is repo-relative by contract, and this checks that before the value is used
- * rather than after. Consumers derive a directory from these fields and then empty it, collect test
- * files out of it, or copy from it; a path that escapes the repository cannot be made safe by
- * happening to resolve somewhere harmless.
- * </remarks>
+ * Consumers derive a directory from these fields and then empty it, collect test files out of it, or
+ * copy from it, so the check has to happen before the value is used: a path that escapes the
+ * repository cannot be made safe by happening to resolve somewhere harmless.
  */
 export function checkRelativePath(field, value) {
   if (typeof value !== "string" || value === "") {
