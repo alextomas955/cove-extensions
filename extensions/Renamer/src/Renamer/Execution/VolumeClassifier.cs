@@ -93,7 +93,7 @@ public static class VolumeClassifier
         {
             return [.. DriveInfo.GetDrives().Select(d => d.RootDirectory.FullName)];
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // An unreadable mount table degrades to root-only, which is the pre-existing classification.
             return [UnixRoot];

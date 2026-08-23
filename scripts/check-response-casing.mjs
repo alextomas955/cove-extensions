@@ -5,9 +5,8 @@
 // The bug class it exists for: this wire is asymmetric on purpose — request bodies are PascalCase,
 // responses are camelCase. A response type declared with the request's casing still typechecks,
 // because the interface is DECLARED rather than inferred from the wire, so every field silently
-// reads undefined at runtime. Neither tsc, nor eslint, nor check-wire-usage.mjs can see it:
-// check-wire-usage only asks whether a field NAME appears somewhere in the UI text, which says
-// nothing about casing.
+// reads undefined at runtime, where neither tsc nor eslint can see it: both read the declaration,
+// which is self-consistent, and neither compares it against the wire.
 //
 // SCOPE IS DELIBERATELY NOT REPO-WIDE — it is per-extension, because one extension can serve BOTH
 // casings. Renamer does: its response endpoints serialize through PreviewResponseJsonOptions

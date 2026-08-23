@@ -46,5 +46,11 @@
     "openapi-typescript": {
       "typescript": "$typescript"
     }
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "volta": {
+    "node": "24.11.0"
   }
 }

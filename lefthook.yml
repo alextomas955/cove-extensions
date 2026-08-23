@@ -18,6 +18,13 @@ pre-commit:
       glob: "*.{ts,tsx,mjs,cjs,json,jsonc,css,md,mdx,yml,yaml}"
       run: npx prettier --write {staged_files}
       stage_fixed: true
+    # A response type declared in PascalCase against its camelCase wire typechecks, so every field
+    # reads undefined at runtime with nothing failing anywhere. Retire this when the UI reads the
+    # generated wire module instead of a hand-written one.
+    check-response-casing:
+      glob: "*.{ts,tsx}"
+      run: node scripts/check-response-casing.mjs
+
     check-classes-renamer:
       root: extensions/Renamer/src/Renamer.Ui/
       glob: "*.tsx"
@@ -32,15 +39,6 @@ pre-commit:
     check-host-imports:
       glob: "*.{ts,tsx}"
       run: node scripts/check-host-imports.mjs
-
-    # A response type declared in PascalCase against its camelCase wire. It typechecks,
-    # so every field reads undefined at runtime with no error anywhere — the settings quality-profile
-    # picker shipped four days that way. BLOCKING from the start, which is the exception to the repo's
-    # land-warn-then-flip rule: that rule exists for tools that land red on main, and this one lands
-    # green because both known sites are fixed in the same change.
-    check-response-casing:
-      glob: "*.{ts,tsx}"
-      run: node scripts/check-response-casing.mjs
 
     # Single monorepo-wide ESLint (root eslint.config.mjs): every extension's TS/React UI + all
     # first-party .mjs/.cjs helper/build/test scripts. Type-aware, so it resolves each UI's installed
@@ -58,20 +56,3 @@ pre-commit:
       glob: "*.cs"
       run: dotnet format CoveExtensions.slnx --severity warn --include {staged_files}
       stage_fixed: true
-
-    # Local-only: warns when the committed vendor/cove-extension-sdk-*.tgz drifts from the
-    # sibling ../cove checkout's frontend SDK version. Cannot run in CI (no ../cove there) — it
-    # no-ops there and on any clean clone lacking the sibling. Unconditional (not glob-scoped):
-    # the script itself no-ops fast when the sibling is absent, which is cheaper and safer than
-    # a multi-path glob pattern here. Runs with --warn so it never blocks a commit (informational
-    # only); drop --warn to make it a hard fail once the maintainer wants drift to block commits.
-    sdk-drift-check:
-      run: node extensions/Renamer/scripts/check-sdk-drift.mjs --warn
-
-    # Flags added comments in the staged diff that read as narrative (change-story, consumer-behavior,
-    # author voice) instead of a non-obvious why (the CLAUDE.md rule). Heuristic, so it WARNS only; drop
-    # --warn to make narrative comments a hard fail. This hook carries no glob, so on a doc-only commit
-    # the diff is empty and the gate reports NO INPUT — --warn is what keeps that from blocking. To audit
-    # a branch rather than one commit: node scripts/check-comment-hygiene.mjs --range main..HEAD
-    comment-hygiene:
-      run: node scripts/check-comment-hygiene.mjs --warn

@@ -199,7 +199,8 @@ These are the guarantees the design exists to protect. Preserve them when you ch
   a local file.
 - **No host assemblies shipped.** The extension must never bundle host-provided assemblies
   (`Cove.Core` / `Cove.Plugins` / `Cove.Sdk`, EF Core, Npgsql, …). They're stripped from the publish
-  set, and the deploy script's strip-verify gate refuses to deploy if any leak in. Bundling them
+  set, and the packer copies only the names the catalog entry's `artifacts` array declares, so an
+  assembly that is not declared cannot reach a package however the build emits it. Bundling them
   would cause load-context type-identity mismatches at runtime.
 - **ABI-matched local-source build.** When building against a local Cove checkout, the extension
   references the host's own Cove projects so it's binary-compatible with the running host. This is the

@@ -4,20 +4,52 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <EnableDynamicLoading>true</EnableDynamicLoading>
-    <CoveSdkVersion Condition="'$(CoveSdkVersion)' == ''">1.0.0</CoveSdkVersion>
+    <!-- The single declared host floor, from which the SDK package version derives. The floor follows a
+         host capability the extensions use: entity events published for bulk mutations, without which a
+         multi-item edit renames one item and stays silent about the rest. -->
+    <CoveMinVersion Condition="'$(CoveMinVersion)' == ''">1.3.0</CoveMinVersion>
+    <CoveSdkVersion Condition="'$(CoveSdkVersion)' == ''">$(CoveMinVersion)</CoveSdkVersion>
 
-    <!-- Local-Cove source selector precedence (highest wins):
-         1. Explicit -p:UseLocalCoveSource=true|false (set before this file evaluates) — honored as-is.
-         2. COVE_REPO env var pointing at a Cove checkout — opt in by configuration on any machine.
-         3. The conventional ..\cove sibling checkout relative to this monorepo root — auto-detect
-            convenience fallback.
-         4. Published NuGet packages (UseLocalCoveSource=false) — the clean-clone default.
-         Only the boolean is decided here; the local ProjectReference paths live in
-         Directory.Build.targets, anchored at $(MSBuildThisFileDirectory) (the monorepo root), not a
-         per-project relative literal. -->
-    <UseLocalCoveSource Condition="'$(UseLocalCoveSource)' == '' and '$(COVE_REPO)' != '' and Exists('$(COVE_REPO)\src\Cove.Sdk\Cove.Sdk.csproj')">true</UseLocalCoveSource>
-    <UseLocalCoveSource Condition="'$(UseLocalCoveSource)' == '' and Exists('$(MSBuildThisFileDirectory)..\cove\src\Cove.Sdk\Cove.Sdk.csproj')">true</UseLocalCoveSource>
-    <UseLocalCoveSource Condition="'$(UseLocalCoveSource)' == ''">false</UseLocalCoveSource>
+    <!-- Which released Cove the CI safety legs run against. This must never share a value with
+         $(CoveMinVersion) above: that one is the floor the extension advertises and
+         validate-extension-repo.mjs compares extension.json's minCoveVersion to, so editing it to
+         satisfy a version guard would re-advertise a different floor to every user. These name a moving
+         upstream build instead. scripts/fetch-cove-assemblies.mjs reads the image reference out of this
+         file rather than taking it as an argument, and a CI leg overrides the tag per version axis. -->
+    <CoveTestImageRepository Condition="'$(CoveTestImageRepository)' == ''">ghcr.io/yourcove/cove-app</CoveTestImageRepository>
+    <CoveTestImageTag Condition="'$(CoveTestImageTag)' == ''">nightly</CoveTestImageTag>
+  </PropertyGroup>
+
+  <!--
+    Where Cove is. One seam, read by this file and Directory.Build.targets.
+
+      $(CoveSourceMode)   source | none
+      $(COVE_REPO)        root of a Cove source checkout (holds src/Cove.Data/Cove.Data.csproj)
+
+    Precedence, highest first: an explicit CoveSourceMode; a COVE_REPO that resolves to a checkout; the
+    conventional ..\cove sibling checkout; otherwise `none`, the published NuGet packages.
+
+    Both inputs take an environment variable or a -p: switch, with no second property name for either:
+    MSBuild exposes an environment variable as a property, and a -p: global of the same name outranks it.
+  -->
+  <PropertyGroup>
+    <!-- Resolution lands in a PRIVATE property rather than back onto COVE_REPO, because a value that
+         arrived by -p: is an MSBuild global and a PropertyGroup assignment to a global is discarded, so
+         the write would look correct and change nothing. Combine against the monorepo root, so a
+         relative value means the same thing however deep the project sits and wherever msbuild was
+         launched from; Combine returns an already-rooted second argument unchanged. -->
+    <_CoveRepoRootFull Condition="'$(COVE_REPO)' != ''">$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '$(COVE_REPO)'))))</_CoveRepoRootFull>
+    <_CoveRepoDataProject Condition="'$(_CoveRepoRootFull)' != ''">$([System.IO.Path]::Combine('$(_CoveRepoRootFull)', 'src', 'Cove.Data', 'Cove.Data.csproj'))</_CoveRepoDataProject>
+    <_CoveSiblingRoot>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '..', 'cove'))))</_CoveSiblingRoot>
+    <_CoveSiblingDataProject>$([System.IO.Path]::Combine('$(_CoveSiblingRoot)', 'src', 'Cove.Data', 'Cove.Data.csproj'))</_CoveSiblingDataProject>
+
+    <CoveSourceMode Condition="'$(CoveSourceMode)' == '' and Exists('$(_CoveRepoDataProject)')">source</CoveSourceMode>
+    <CoveSourceMode Condition="'$(CoveSourceMode)' == '' and Exists('$(_CoveSiblingDataProject)')">source</CoveSourceMode>
+    <CoveSourceMode Condition="'$(CoveSourceMode)' == ''">none</CoveSourceMode>
+
+    <!-- The derived boolean the wiring in Directory.Build.targets reads. -->
+    <UseLocalCoveSource Condition="'$(CoveSourceMode)' == 'source'">true</UseLocalCoveSource>
+    <UseLocalCoveSource Condition="'$(CoveSourceMode)' != 'source'">false</UseLocalCoveSource>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -31,7 +63,7 @@
 
     <!-- Needed so IDE0005 (dead usings) is reported on build. CS1591 (missing XML doc) is silenced:
          we want dead-using detection, not a doc-comment mandate. Docs are earned by judgment, not
-         forced — see the "C# Comments & XML docs" policy in CLAUDE.md. -->
+         forced — see the "Comments and doc tags" policy in CLAUDE.md. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>

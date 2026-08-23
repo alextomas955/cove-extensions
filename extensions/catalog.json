@@ -10,8 +10,18 @@
       "testProjectPath": "extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj",
       "manifestPath": "extensions/Renamer/src/Renamer/extension.json",
       "uiPath": "extensions/Renamer/src/Renamer.Ui",
-      "versionSourcePath": "extensions/Renamer/src/Renamer/Renamer.cs",
-      "requiredBundledDlls": ["System.IO.Hashing"],
+      "registryManifestPath": "extensions/Renamer/registry/com.alextomas955.renamer.json",
+      "artifacts": [
+        "extension.json",
+        "index.mjs",
+        "Renamer.dll",
+        "Cove.Extensions.Shared.dll",
+        "System.IO.Hashing.dll",
+        "Renamer.deps.json",
+        "Renamer.runtimeconfig.json",
+        "README.md",
+        "LICENSE"
+      ],
       "e2ePath": "extensions/Renamer/e2e",
       "e2eProject": "renamer"
     }

@@ -1,9 +1,9 @@
 # CodeQL security analysis.
 #
 # C# is built on a bare runner with no Cove monorepo, so the build leg uses the same NuGet path the
-# main build uses (UseLocalCoveSource=false): Cove.Sdk (and its transitive Cove.Plugins/Cove.Core)
-# restore from nuget.org. The local-source build property is deliberately NOT used here — it needs
-# a Cove checkout the runner does not have.
+# main build uses (CoveSourceMode=none): Cove.Sdk (and its transitive Cove.Plugins/Cove.Core)
+# restore from nuget.org. The `source` mode is deliberately NOT used here — it needs a Cove
+# checkout the runner does not have.
 #
 # The C# leg builds every catalog extension's project (skipping manifestOnly entries), reading the
 # project paths from extensions/catalog.json, so CodeQL's manual build traces each extension's
@@ -11,10 +11,17 @@
 
 name: CodeQL
 
+# Analysis runs on proposals, on what lands, and on a clock. The pull-request leg is the one that
+# pays: a finding it reports can still be edited out of an unmerged branch, where the same finding
+# on `main` costs a follow-up commit and stays in history either way. It is kept even though this
+# repo is single-maintainer, because analysing a proposal mostly catches the author's own mistakes
+# rather than a hostile fork's — and because the leg is free, runs in parallel and gates nothing
+# else, so there is no saving to weigh against it. The push leg then covers anything reaching `main`
+# by another route, and the weekly cron re-analyses unchanged code against updated queries.
 on:
+  pull_request:
   push:
     branches: [main]
-  pull_request:
   schedule:
     # Weekly, so analysis runs even when no new commits land.
     - cron: "23 4 * * 1"
@@ -70,7 +77,7 @@ jobs:
           ')
           for project in "${projects[@]}"; do
             echo "::group::dotnet build $project"
-            dotnet build "$project" -c Release -p:UseLocalCoveSource=false
+            dotnet build "$project" -c Release -p:CoveSourceMode=none
             echo "::endgroup::"
           done
 

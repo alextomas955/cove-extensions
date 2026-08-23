@@ -1,7 +1,6 @@
 # Style, analyzer, docs-lint, and Windows build/unit-test signal — independent checks with no
 # `needs:` link to build.yml's validate/build/e2e/release chain, split out so they (a) run on
-# direct pushes to main (build.yml only triggers on pull_request + tag push, matching codeql.yml's
-# push+PR+schedule trigger here instead), (b) get their own minimal permissions rather than
+# direct pushes to main, which build.yml does not, (b) get their own minimal permissions rather than
 # inheriting build.yml's release-scoped `contents: write`, and (c) can be re-run independently of
 # the release pipeline (GitHub's re-run-failed-jobs action is scoped per workflow run).
 
@@ -19,10 +18,10 @@ permissions:
   contents: read
 
 jobs:
-  # ---- C# style + analyzer gate (monorepo-wide, run once against the shared .slnx). This job
-  # assumes every extension's projects are added to the root CoveExtensions.slnx as a process convention
-  # (RESEARCH.md's Open Decision #3) — a future extension not added to the .slnx would silently
-  # skip this gate. ----
+  # ---- C# style + analyzer gate, run once against the shared .slnx, which is this gate's whole
+  # subject list. Adding an extension's projects to it stays manual because a .slnx is an explicit
+  # project list by design; an omission fails rather than passes, because validate-extension-repo.mjs
+  # asserts every catalog-implied project is declared there. ----
   csharp-format:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -32,26 +31,25 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      # Formatting/style check — reads root .editorconfig.
+      # Formatting/style check — reads root .editorconfig. Same invocation as `npm run
+      # format:cs:check`, so a contributor's local run and this job cannot disagree. The exclude is a
+      # no-op here (CI has no ../cove sibling, so Cove arrives from NuGet); it earns its place locally,
+      # where Directory.Build.props auto-detects the sibling and dotnet format then walks the
+      # ProjectReference graph into Cove's own source. A path that does not exist is accepted silently.
       - name: dotnet format (verify)
-        run: dotnet format CoveExtensions.slnx --verify-no-changes --severity warn
+        run: dotnet format CoveExtensions.slnx --verify-no-changes --severity warn --exclude ../cove/
       # Analyzer gate: a Release build with TreatWarningsAsErrors=true (root Directory.Build.props)
       # fails on any CA/IDE warning.
       - name: Build with analyzers (warnings = errors)
-        run: dotnet build CoveExtensions.slnx -c Release -p:UseLocalCoveSource=false
+        run: dotnet build CoveExtensions.slnx -c Release -p:CoveSourceMode=none
 
-  # ---- Windows build + unit-test signal (monorepo-wide). The whole-slnx Build step below compiles
-  # every solution member; the unit-test step then runs each catalog entry's testProjectPath, read
-  # from extensions/catalog.json, so adding an extension is a catalog edit. Scoped to .NET build/test only, NOT the full
-  # containerized E2E suite: GitHub-hosted windows-latest runners' Docker daemon is fixed to Windows
-  # containers mode, with no supported way to switch to Linux containers (would need nested
-  # virtualization, which the standard hosted fleet does not enable) — so Testcontainers'
-  # DockerComposeEnvironment, which starts Linux-only images (the Cove app image + Postgres), cannot
-  # run there at all, on any hosted Windows runner, not just as a config issue. This job instead
-  # verifies the actual, achievable Windows signal: the solution builds and its unit tier
-  # (the pure-core tests that don't need a live Cove checkout — see Renamer.Tests.csproj's
-  # cove-absent Compile-Remove group) passes on Windows. A full Windows-hosted E2E run would need a
-  # self-hosted Windows runner with Docker Desktop configured for Linux containers, out of scope here. ----
+  # ---- Windows build + unit-test signal. Compiles every solution member, then runs each catalog
+  # entry's testProjectPath, so adding an extension is a catalog edit.
+  #
+  # No E2E here, and this will not change: GitHub-hosted windows-latest runners fix Docker to Windows
+  # containers with no supported switch to Linux ones, so Testcontainers cannot start the Cove app and
+  # Postgres images at all. What is achievable is verified instead — the solution builds and the
+  # cove-absent unit tier passes on Windows. A full Windows E2E would need a self-hosted runner. ----
   windows-build-test:
     runs-on: windows-latest
     timeout-minutes: 25
@@ -62,7 +60,7 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - name: Build
-        run: dotnet build CoveExtensions.slnx -c Release -p:UseLocalCoveSource=false
+        run: dotnet build CoveExtensions.slnx -c Release -p:CoveSourceMode=none
       # The whole-slnx Build above already compiled every test project, so --no-build still holds.
       - name: Test (unit tier)
         shell: bash
@@ -81,8 +79,11 @@ jobs:
             echo "::endgroup::"
           done
 
-  # ---- Markdown docs (repo-wide). Scoped to README.md only — no CHANGELOG.md/docs/**/*.md exist
-  # yet at the monorepo root; widen this glob when root-level docs land. ----
+  # ---- Markdown docs. The file list lives in .markdownlint-cli2.jsonc and only there, because
+  # markdownlint-cli2 APPENDS its config's globs to the command line: a glob passed here can only
+  # widen the set while reading as a narrowing. The action's `globs` input has a non-empty default
+  # (`*.{md,markdown}`, root-only), so an explicitly EMPTY value is the one spelling that leaves the
+  # config as the single source. ----
   markdown-lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -91,14 +92,11 @@ jobs:
       - name: markdownlint
         uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff # v24.2.0
         with:
-          globs: "README.md"
+          globs: ""
 
-  # ---- Monorepo-wide ESLint (single root config at eslint.config.mjs): every extension's TS/React
-  # UI bundle plus all first-party .mjs/.cjs helper/build/test scripts. The type-aware UI rules need
-  # each extension's UI deps installed to build the TypeScript program, so this installs the root
-  # lint tooling and each catalog `uiPath` before running `eslint .` once from the repo root. There
-  # is no per-extension ESLint config — adding an extension needs no change here beyond its catalog
-  # entry. ----
+  # ---- Monorepo-wide ESLint from one root config. The type-aware UI rules need each extension's UI
+  # deps installed to build the TypeScript program, hence the installs below before a single
+  # `eslint .` from the repo root. Adding an extension needs no change here. ----
   js-lint:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -109,6 +107,11 @@ jobs:
           node-version: "24.11.0"
       - name: Install root lint tooling
         run: npm ci --no-workspaces
+      # build.yml's format:check covers only the Renamer.Ui bundle, so without this nothing blocking
+      # checked the root set. lefthook formats staged files locally, but a local hook is advice a
+      # contributor can skip. Placed before the UI installs so a formatting miss fails in seconds.
+      - name: Prettier (whole monorepo)
+        run: npm run format:check
       - name: Install each extension's UI deps (type-aware program inputs)
         shell: bash
         run: |
@@ -124,48 +127,46 @@ jobs:
             (cd "$ui" && npm ci)
             echo "::endgroup::"
           done
+      # Every UI's wire types are gitignored and generated from its committed OpenAPI document, so on a
+      # fresh checkout the module a UI imports does not exist yet — and the type-aware rules below then
+      # report every read off it as an error-typed value. No --extension argument: neither Node job here
+      # is matrix-driven, so the generator walks the whole catalog, which is the same catalog-driven
+      # property stated once instead of once per extension.
+      - name: Generate wire types
+        run: node scripts/generate-wire-types.mjs
+
       - name: ESLint (whole monorepo)
         run: npm run lint
 
-  # ---- Standing merge gates: copy-paste (jscpd), dead exports (knip), and dependency-version
-  # drift (syncpack). Configs live at the repo root (.jscpd.json / .knip.json / .syncpackrc.json).
-  # knip builds a TypeScript program per UI, so this mirrors js-lint's install of the root tooling
-  # plus each catalog `uiPath`'s deps. All four architectural gates are now blocking: jscpd/knip/
-  # syncpack here, and the slice-boundary gate (eslint-plugin-boundaries) via the js-lint job's
-  # `npm run lint` — its `boundaries/dependencies` rule is `error`, so a cross-slice import fails
-  # that job and blocks the PR. Each was confirmed green on the branch before being made failing, so
-  # a gate never blocks the first PR on a pre-existing finding; the boundaries gate reached that
-  # point once the sibling-slice imports it flagged were resolved. ----
-  merge-gates:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "24.11.0"
-      # Full install (root + the e2e workspaces) so knip can resolve the Playwright/testcontainers/
-      # @cove-extensions/e2e imports in the e2e specs; --no-workspaces would leave them unresolved.
-      - name: Install root gate tooling + workspaces
-        run: npm ci
-      - name: Install each extension's UI deps (knip TypeScript program inputs)
-        shell: bash
-        run: |
-          mapfile -t uiPaths < <(node -e '
-            const fs = require("fs");
-            const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
-            for (const entry of catalog.extensions) {
-              if (entry.uiPath) console.log(entry.uiPath);
-            }
-          ')
-          for ui in "${uiPaths[@]}"; do
-            echo "::group::npm ci $ui"
-            (cd "$ui" && npm ci)
-            echo "::endgroup::"
-          done
+      # Dependency-version drift (.syncpackrc.json), and the one standing architectural gate this repo
+      # still runs. It lives in this job because it needs only the root install already done above, and
+      # it lives in a workflow rather than in lefthook because a local hook would not be a gate —
+      # lefthook is silently absent whenever npm withholds its install script, and only a check a
+      # workflow runs can block a merge. Its `source` globs, not npm workspace discovery, decide the
+      # subject set: discovery reads the root plus the two e2e workspaces and would silently skip every
+      # UI bundle and the docs site.
       - name: syncpack (dependency-version drift)
         run: npm run syncpack
+
+      # Dead files, unused exports and unused dependencies on the TypeScript side. The C# side gates
+      # the same class as a build error (IDE0051/0052/0060 in .editorconfig), so dropping this would
+      # gate dead code on one tier and not the other. Runs after the UI installs and the wire-type
+      # generation above: without those, knip reads a UI whose imported modules do not exist and
+      # reports most of the tree as unused.
+      # knip reads tests/e2e/playwright.config.mjs, which imports @playwright/test, so it needs the
+      # workspaces the root install above deliberately skips. Installed here rather than by widening
+      # that install: eslint and prettier do not need them, and this keeps the extra cost on the one
+      # step that does.
+      - name: Install workspaces (knip resolves their configs)
+        run: npm ci
+
       - name: knip (dead files / exports / dependencies)
         run: npm run knip
+
+      # Copy-paste, thresholded rather than absolute: .jscpd.json fails the run above 5% duplicated
+      # lines, and the tree sits at 3.75%. The point is to stop NEW accidental duplication entering
+      # silently, which is cheapest to fix while the pull request is still open -- a duplication check
+      # that only runs nightly is one nobody acts on. Generated and vendored code is excluded via
+      # gitignore:true and the ignore list, since both duplicate by construction.
       - name: jscpd (copy-paste)
         run: npm run jscpd

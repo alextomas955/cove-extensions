@@ -42,12 +42,12 @@ public sealed class SubstDrive : IDisposable
         if (_mapped)
         {
             try { Run($"{_letter}: /d"); }
-            catch { /* best-effort unmap */ }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { /* best-effort unmap */ }
             _mapped = false;
         }
 
         try { Directory.Delete(_backing, recursive: true); }
-        catch { /* best-effort cleanup; a leaked temp dir is harmless */ }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* best-effort cleanup; a leaked temp dir is harmless */ }
     }
 
     /// <summary>
@@ -77,7 +77,7 @@ public sealed class SubstDrive : IDisposable
                 Run($"{candidate.Value}: \"{backing}\"");
                 return candidate.Value;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
             {
                 // The letter was taken between the probe and the subst (or otherwise failed); try the next.
                 last = ex;

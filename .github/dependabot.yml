@@ -12,10 +12,12 @@ updates:
     # Host-provided / host-ABI-critical packages are hand-bumped in lockstep with the deployed Cove
     # host, NEVER by Dependabot: Cove.Sdk/Cove.Plugins/Cove.Core ARE the host SDK (version pinned to
     # the $(CoveSdkVersion) property and coupled to each extension's minCoveVersion), and EF Core is
-    # referenced Private=false so its version MUST equal the host's runtime (a mismatch is an
-    # AssemblyLoadContext type-identity break). Dependabot does not respect the $(CoveSdkVersion)
-    # property indirection — it rewrote the property + injected a VersionOverride — so it opened
-    # exactly these wrong PRs (#62/#82/#83) until this explicit ignore.
+    # referenced Private=false so its version MUST match the host's runtime: the host's own copy is
+    # what loads (ExtensionLoadContext.Load resolves it from the default context), so an API the
+    # extension compiled against but the host's version lacks is simply not there at run time.
+    # Dependabot does not respect the $(CoveSdkVersion) property indirection — it rewrote the
+    # property + injected a VersionOverride — so it opened exactly these wrong PRs (#62/#82/#83)
+    # until this explicit ignore.
     ignore:
       - dependency-name: "Cove.Sdk"
       - dependency-name: "Cove.Plugins"

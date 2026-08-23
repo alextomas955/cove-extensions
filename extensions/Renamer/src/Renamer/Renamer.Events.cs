@@ -135,12 +135,15 @@ public sealed partial class Renamer
             // per-item transaction boundary.
             throw;
         }
+#pragma warning disable CA1031 // Host event-dispatch boundary: nothing may escape into the host.
         catch (Exception ex)
         {
             // Contain the failure with enough context to diagnose it, then stop. Auto-renamer is
-            // best-effort; the next update (or a manual renamer) gets a fresh attempt.
+            // best-effort; the next update (or a manual renamer) gets a fresh attempt. Cancellation
+            // never reaches here — the catch above rethrows it.
             LogAutoRenamerError(ex, kind, entityId);
         }
+#pragma warning restore CA1031
     }
 
     /// <summary>

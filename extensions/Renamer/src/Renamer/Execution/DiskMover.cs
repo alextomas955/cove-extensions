@@ -164,7 +164,7 @@ public sealed class DiskMover
             EnsureParentDir(to);
             System.IO.File.Move(from, to);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             warnings.Add($"rollback move failed {from} -> {to}: {ex.Message}");
         }

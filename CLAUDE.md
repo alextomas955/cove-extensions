@@ -43,9 +43,10 @@ version-less `<PackageReference>`s. `Cove.Sdk`/`Cove.Plugins` are the one except
 source of truth `scripts/validate-extension-repo.mjs` reads as the host-SDK version floor), so the
 host SDK stays hand-bumped in lockstep with the local `../cove` host rather than Dependabot-managed.
 
-**Cove source selection precedence:** an explicit `-p:UseLocalCoveSource=true` > a `COVE_REPO`
+**Cove source selection precedence:** an explicit `-p:CoveSourceMode=source|none` > a `COVE_REPO`
 checkout > the `../cove` sibling auto-detect (relative to the monorepo root) > the published NuGet
-packages (pinned `CoveSdkVersion`). On a local ProjectReference the `Cove.Sdk` host-assembly
+packages (pinned `CoveSdkVersion`). `COVE_REPO` takes an environment variable or a `-p:` switch;
+there is no second property name for it. On a local ProjectReference the `Cove.Sdk` host-assembly
 stripping rules (which ship in the package's `buildTransitive/`) are not auto-imported, so the root
 `Directory.Build.targets` explicitly imports `Cove.Sdk.targets` to strip the transitive
 `Cove.Core.dll`; on the NuGet path that import comes transitively from the package.

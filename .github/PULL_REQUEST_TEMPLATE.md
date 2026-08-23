@@ -8,20 +8,20 @@ Tick only the boxes for the extensions this PR touches.
 
 If this PR touches **Renamer**:
 
-- [ ] `dotnet test --project extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj` passes
+- [ ] `dotnet test extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj` passes
 - [ ] `cd extensions/Renamer/src/Renamer.Ui && npm run verify` passes
 
 Always:
 
 - [ ] `dotnet build CoveExtensions.slnx` (the whole monorepo) succeeds
-- [ ] **Cove-present safety gate (required local pre-merge):** with the `../cove` sibling checked out,
-      `dotnet test` from the repo root passes — green modulo the documented Windows-only skipped cases on
-      macOS/Linux. CI's bare leg Compile-Removes the rollback/undo/ingest/loop-safety tests (Cove.Data is
-      source-only), and the containerized e2e job is their CI backstop; this local run gates the C# tier.
 - [ ] Built and checked in a running Cove (if the change affects runtime/UI behavior)
 - [ ] Docs updated for any settings, config, public API, or user-facing behavior change (or none needed)
 
 Describe what you actually ran and observed.
+
+Run `dotnet test` locally with the `../cove` sibling checked out. That covers what CI cannot: it compiles
+against whatever branch the sibling happens to be on, so a regression on your fork branch is visible
+there and nowhere else. CI's own C# leg compiles the cove-absent set.
 
 ## Safety check
 

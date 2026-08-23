@@ -18,15 +18,13 @@ public sealed partial class Renamer : FullExtensionBase
     public override string Name => "Renamer";
 
     // Repo-committed dev placeholders, not release-stamped: the published artifact's real version
-    // comes from the release tag (build.yml's -p:Version= and the packaged extension.json/
-    // package.json stamps). scripts/check-version-parity.mjs reconciles these against
-    // extension.json, package.json, and the catalog registry manifest so they can't drift.
-    public override string Version => "0.3.0";
+    // comes from the release tag (build.yml's -p:Version= and the packaged extension.json stamp).
+    public override string Version => "0.4.0";
     public override string? Description => "Bulk-renames Cove library items using configurable patterns.";
     public override string? Author => "alextomas955";
     public override string? Url => "https://github.com/alextomas955/renamer";
     public override IReadOnlyList<string> Categories => [ExtensionCategories.Tools, ExtensionCategories.Automation];
-    public override string? MinCoveVersion => "1.0.0";
+    public override string? MinCoveVersion => "1.3.0";
 
     // ── Executor wiring ───────────────────────────────────────────────────────
     // The executor needs a SCOPED CoveContext per run (a DbContext is scoped, not singleton) and the
@@ -82,10 +80,11 @@ public sealed partial class Renamer : FullExtensionBase
         {
             await Store.DeleteAsync(LastScanResultKey, ct);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Best-effort recovery: a load that refuses to complete because the cleanup failed leaves the
-            // user worse off than the oversized value did. Reported once, then continue.
+            // user worse off than the oversized value did. Reported once, then continue. Cancellation is
+            // NOT a purge failure, so it is left to propagate.
             LogLegacyScanPurgeFailed(ex);
         }
 
@@ -102,10 +101,10 @@ public sealed partial class Renamer : FullExtensionBase
                 await Store.SetAsync(RevertLog.SchemaKey, RevertLog.CurrentSchema, ct);
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // A failed stamp write only costs one more discard on the next load, so this is reported
-            // and stepped over rather than blocking the load.
+            // and stepped over rather than blocking the load. Cancellation propagates instead.
             LogRevertLogPurgeFailed(ex);
         }
 

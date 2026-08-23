@@ -37,8 +37,8 @@
     reference wiring (now centralized in the root Directory.Build.targets) so it ships on BOTH the
     local-source ProjectReference path and the published-NuGet PackageReference path. It is NOT
     marked <Private>false</Private> (that is only for the host-provided Cove refs) — it must
-    copy-local and ship. The deploy-dev.ps1 strip-verify gate asserts System.IO.Hashing.dll IS
-    present in the publish set.
+    copy-local and ship, and the catalog entry's artifacts array declares it so the packer copies
+    it into the shipped package.
   -->
   <ItemGroup>
     <PackageReference Include="System.IO.Hashing" />

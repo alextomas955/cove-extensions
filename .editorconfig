@@ -85,14 +85,39 @@ dotnet_naming_style.underscore_camel_style.capitalization = camel_case
 dotnet_naming_style.underscore_camel_style.required_prefix = _
 
 # ---------- Analyzer category tuning ----------
-# Only relax rules latest-Recommended actually enables (the SDK's analysislevel_<n>_recommended
-# .globalconfig lists them) — an entry for an off-by-default rule is dead config, not a relaxation.
+# Only list rules latest-Recommended actually enables — the SDK's analysislevel_<n>_recommended
+# .globalconfig is that list. An entry for a rule that mode leaves off suppresses nothing while
+# reading as though it holds something back.
+[*.cs]
+# Dead code must block a merge, not whisper. IDE0051 (unused private member), IDE0052 (unread private
+# member) and IDE0060 (unused parameter) DO run in a command-line build via EnforceCodeStyleInBuild,
+# but ship at SUGGESTION severity, which TreatWarningsAsErrors never sees — so dead code was
+# invisible to CI while looking covered.
+#
+# These MUST sit under a [*.cs] section. At the end of this file they would land in the last, narrower
+# section and apply to almost nothing.
+dotnet_diagnostic.IDE0051.severity = error
+dotnet_diagnostic.IDE0052.severity = error
+dotnet_diagnostic.IDE0060.severity = error
 
-# CA1707 vs xUnit's deliberate Method_Scenario_Expectation naming. Keyed on the *.Tests shape, not
+# CA1031 (do not catch general Exception) is enforced repo-wide with no per-file relaxations. The rule
+# guards against swallowing a DEFECT, not against best-effort recovery: a boundary that must not
+# rethrow still only expects IOException / UnauthorizedAccessException from the disk, so catching
+# Exception there converts a NullReferenceException in its own code into a warning string. Catch the
+# set you can actually handle. Where the operation is genuinely open-ended, an exception filter
+# (`catch (Exception ex) when (ex is not OperationCanceledException)`) both keeps cancellation
+# flowing and satisfies the rule.
+dotnet_diagnostic.CA1031.severity = warning
+
+# Tests: xUnit's Method_Scenario_Expectation naming is deliberate, and CA1707 governs public API
+# naming for cross-language consumers — which a test method is not. Keyed on the *.Tests shape, not
 # one extension's path, so a second extension needs no edit.
 [**/*.Tests/**.cs]
 dotnet_diagnostic.CA1707.severity = none
-
+# CA1861 (hoist constant array args to static readonly fields) is a micro-perf rule that fights
+# inline literal arrays in test arrange/assert (e.g. Assert.Equal(new[] { 3, 2, 1 }, ...)); test
+# readability wins over a non-measurable allocation in a unit test.
+dotnet_diagnostic.CA1861.severity = none
 # xUnit1051 asks every call accepting a CancellationToken to be handed
 # TestContext.Current.CancellationToken. In xUnit v3 a timeout does not stop a test, it only signals
 # that token, so the rule buys cancellation and nothing else — and no test here declares a Timeout.
