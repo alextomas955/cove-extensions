@@ -148,5 +148,9 @@
     <Compile Remove="Preview\**\*.cs" />
     <Compile Remove="TestSupport\CapturingEventBus.cs" />
     <Compile Remove="TestSupport\SharedCacheSqlite.cs" />
+    <Compile Remove="TestSupport\CoveDataExtensionScope.cs" />
+    <Compile Remove="TestSupport\ExtensionHarness.cs" />
+    <Compile Remove="TestSupport\JournalOnlyDatabase.cs" />
+    <Compile Remove="TestSupport\LibraryDatabase.cs" />
   </ItemGroup>
 </Project>

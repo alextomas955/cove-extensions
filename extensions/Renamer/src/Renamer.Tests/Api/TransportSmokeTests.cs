@@ -200,12 +200,16 @@ public sealed class TransportSmokeTests
             builder.Services.AddSingleton(principal);
             builder.Services.AddSingleton<DbContext>(db);
             builder.Services.AddSingleton<IJobService>(new RecordingJobService());
+            builder.Services.AddSingleton<Cove.Core.Events.IEventBus>(new TestSupport.CapturingEventBus());
             builder.Services.AddRouting();
 
             var ext = new global::Renamer.Renamer();
             ((IStatefulExtension)ext).SetStore(store ?? new FakeStore());
 
             var app = builder.Build();
+            // Initialized the way the host does: the undo endpoints resolve a scope of their own now,
+            // so a handler reached without this throws before it can answer.
+            await ext.InitializeAsync(app.Services);
             ext.MapEndpoints(app);
             await app.StartAsync();
 

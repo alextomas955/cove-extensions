@@ -95,26 +95,25 @@ public sealed partial class Renamer
                 return;
             }
 
-            // Open exactly one batch header for this per-edit rename, mirroring the manual batch
-            // (RunRenamerBatchAsync): mint a runId and call BeginBatchAsync only now, on the acting path,
-            // so nothing-acts writes no header (an empty open header would shadow a prior replayable
-            // batch from /undo). WITHOUT a header the executor's success rows are headerless, and /undo
-            // misparses them as pre-header rows (entityId→fileId), corrupting the restore. The SAME
-            // revertLog instance is handed to the executor so its AppendAsync rows land under this header.
-            // The row cap applies here too — one entity can hold more files than the journal takes.
+            // Open exactly one batch for this per-edit rename, mirroring the manual batch
+            // (RunRenamerBatchAsync): mint a runId and call BeginBatchAsync only now, on the acting
+            // path, so nothing-acts opens no batch (an empty batch would shadow a prior replayable one
+            // from /undo). The SAME journal instance is handed to the executor so its AppendAsync rows
+            // land under this batch. The row cap applies here too — one entity can hold more files than
+            // the journal takes.
             var runId = Guid.NewGuid().ToString("N");
-            var revertLog = new RevertLog(Store);
-            if (RevertLog.ExceedsCap(actingFiles))
+            using var journal = new CoveRevertJournal(db);
+            if (IRevertJournal.ExceedsCap(actingFiles))
             {
-                await revertLog.SuppressAsync(ct);
-                LogBatchNotJournalled(runId, actingFiles, RevertLog.MaxJournalledFiles);
+                await journal.SuppressAsync(ct);
+                LogBatchNotJournalled(runId, actingFiles, IRevertJournal.MaxJournalledFiles);
             }
             else
             {
-                await revertLog.BeginBatchAsync(runId, kind, ct);
+                await journal.BeginBatchAsync(runId, kind, DateTime.UtcNow, ct);
             }
 
-            var executor = new RenamerExecutor(port, EventBus, revertLog, new DiskMover());
+            var executor = new RenamerExecutor(port, EventBus, journal, runId, new DiskMover());
             // Single-entity hook path (no batch concurrency): no pre-resolved folder map — the executor
             // resolves the destination folder itself, safe because this call is not parallelized.
             var result = await executor.ExecuteAsync(plan, options, ct: ct);

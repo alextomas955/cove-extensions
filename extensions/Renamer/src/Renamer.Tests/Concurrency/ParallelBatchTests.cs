@@ -12,13 +12,13 @@ namespace Renamer.Tests.Concurrency;
 
 /// <summary>
 /// Parallel-batch correctness under the two-phase rewrite. Proves: every acting item
-/// renames and the shared RevertLog blob holds exactly one well-formed row per success (no torn/lost
+/// renames and the shared journal holds exactly one well-formed row per success (no torn/lost
 /// append under real parallel workers); a per-item fault is an isolated skip while the rest succeed
 /// and the batch still reports the final <c>1.0</c> (classify-not-throw under parallelism); a
 /// same-volume-only batch runs despite a tiny free-space probe (same-volume is excluded from the
 /// free-space sum); and an in-flight free-space drop skips a cross-volume item gracefully. Cove
 /// disables EF thread-safety checks, so every assertion is on observable outcomes (files, DB rows,
-/// the parsed RevertLog blob) — never on an EF exception. The store is a thread-safe
+/// the journal rows) — never on an EF exception. The store is a thread-safe
 /// <see cref="ConcurrentFakeStore"/> so it is not a confounder.
 /// </summary>
 [Trait("Tier", "L1")]
@@ -43,7 +43,7 @@ public sealed class ParallelBatchTests
     }
 
     [Fact]
-    public async Task ParallelBatch_AllItemsRenamed_RevertLogRowsEqualSuccesses()
+    public async Task ParallelBatch_AllItemsRenamed_JournalRowsEqualSuccesses()
     {
         using var dir = new TempDir();
         var shared = await SharedCacheSqlite.CreateAsync();
@@ -79,13 +79,14 @@ public sealed class ParallelBatchTests
                 Assert.False(File.Exists(Path.Combine(dir.Root, $"raw {i}.mkv")), $"raw {i}.mkv lingered");
             }
 
-            // The shared RevertLog blob (read fresh from the store) holds exactly K well-formed rows.
-            var log = new RevertLog(store);
-            var batch = await log.ReadLastOpenBatchAsync();
+            // The shared journal (read fresh from the database) holds exactly K well-formed rows.
+            await using var readDb = shared.NewContext();
+            using var journal = new CoveRevertJournal(readDb);
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
-            Assert.Equal(k, batch!.Entries.Count);
-            Assert.Equal(k, batch.Entries.Select(e => e.FileId).Distinct().Count());
-            Assert.All(batch.Entries, e =>
+            Assert.Equal(k, batch!.Rows.Count);
+            Assert.Equal(k, batch.Rows.Select(e => e.FileId).Distinct().Count());
+            Assert.All(batch.Rows, e =>
             {
                 Assert.NotEqual(0, e.FileId);
                 Assert.False(string.IsNullOrEmpty(e.OldPath));

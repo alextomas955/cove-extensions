@@ -141,21 +141,21 @@ public sealed class RenamerLibraryEndpointTests
             Assert.Equal("Film.mkv", videoBasename);
             Assert.Equal("Pic.jpg", imageBasename);
 
-            // One batch PER KIND, never one combined batch across kinds. The journal retains only the
-            // newest batch, so what survives is the second kind's: one header, its kind alone, and only
-            // that kind's row. A combined batch would instead show one header carrying BOTH files.
-            var blob = await store.GetAsync(RevertLog.Key);
-            Assert.NotNull(blob);
-            var lines = blob!.Split('\n');
-            int headerCount = lines.Count(line => line.StartsWith("#batch", StringComparison.Ordinal));
-            Assert.Equal(1, headerCount);
-            Assert.StartsWith("#batch|", lines[0]);
-            Assert.Equal("Image", lines[0].Split('|')[3]);
+            // One batch PER KIND, never one combined batch across kinds: two batch rows, each naming
+            // one kind and holding that kind's file alone. A combined batch would instead be a single
+            // row carrying BOTH files.
+            var batches = await db.Set<RevertBatchEntity>().AsNoTracking()
+                .OrderBy(b => b.Kind).ToListAsync();
+            Assert.Equal(
+                [nameof(RenamerFileKind.Image), nameof(RenamerFileKind.Video)],
+                batches.Select(b => b.Kind));
+            Assert.All(batches, b => Assert.Equal(1, b.OriginalCount));
 
-            var batch = await new RevertLog(store).ReadLastOpenBatchAsync();
-            Assert.NotNull(batch);
-            Assert.Equal(RenamerFileKind.Image, batch!.Kind);
-            Assert.Equal(imageFileId, Assert.Single(batch.Entries).FileId);
+            var imageBatch = batches.Single(b => b.Kind == nameof(RenamerFileKind.Image));
+            using var journal = new CoveRevertJournal(db);
+            var imageRow = Assert.Single(
+                await journal.ReadBatchPageAsync(imageBatch.RunId, long.MaxValue, 10));
+            Assert.Equal(imageFileId, imageRow.FileId);
 
             Assert.Equal(1d, progress.LastPercent);
         }
@@ -186,12 +186,10 @@ public sealed class RenamerLibraryEndpointTests
             // land on a kind that opens no batch.
             await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
 
-            var blob = await store.GetAsync(RevertLog.Key);
-            Assert.NotNull(blob);
-            int headerCount = blob!.Split('\n').Count(line => line.StartsWith("#batch", StringComparison.Ordinal));
             // Only Video opened a batch — Image had zero candidates, so RunRenamerBatchAsync was never
-            // called for it and no empty header opened.
-            Assert.Equal(1, headerCount);
+            // called for it and no empty batch opened.
+            var batch = Assert.Single(await db.Set<RevertBatchEntity>().AsNoTracking().ToListAsync());
+            Assert.Equal(nameof(RenamerFileKind.Video), batch.Kind);
         }
         finally
         {

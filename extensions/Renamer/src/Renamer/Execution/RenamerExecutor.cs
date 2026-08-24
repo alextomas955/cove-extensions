@@ -21,23 +21,30 @@ public sealed class RenamerExecutor
 {
     private readonly IRenamerDataPort _port;
     private readonly IEventBus _eventBus;
-    private readonly RevertLog _revertLog;
+    private readonly IRevertJournal _journal;
+    private readonly string _runId;
     private readonly DiskMover _disk;
     private readonly CrossVolumeMover _cross;
 
     /// <summary>Bound on the execution-time collision suffix loop before giving up with a skip.</summary>
     private const int MaxSuffixAttempts = 1000;
 
+    // The <paramref name="runId"/> names the batch every journalled row belongs to, and is required
+    // rather than defaulted: a row that names no batch is one the journal can store but never read
+    // back, so an undo would silently find nothing. The caller passes the SAME run id it opened the
+    // batch with.
+    //
     // The optional <paramref name="cross"/> mover is used when a move crosses volumes (different path
-    // roots). It defaults to a fresh CrossVolumeMover() when omitted, so every existing 4-arg
-    // construction site (production wiring + the test suite) stays source-compatible; a test may
-    // inject a fault-seam / recording mover via this parameter.
-    public RenamerExecutor(IRenamerDataPort port, IEventBus eventBus, RevertLog revertLog, DiskMover disk,
-        CrossVolumeMover? cross = null)
+    // roots). It defaults to a fresh CrossVolumeMover() when omitted, so every existing construction
+    // site (production wiring + the test suite) stays source-compatible; a test may inject a
+    // fault-seam / recording mover via this parameter.
+    public RenamerExecutor(IRenamerDataPort port, IEventBus eventBus, IRevertJournal journal, string runId,
+        DiskMover disk, CrossVolumeMover? cross = null)
     {
         _port = port;
         _eventBus = eventBus;
-        _revertLog = revertLog;
+        _journal = journal;
+        _runId = runId;
         _disk = disk;
         _cross = cross ?? new CrossVolumeMover();
     }
@@ -52,14 +59,19 @@ public sealed class RenamerExecutor
 
     /// <summary>
     /// The result of executing a plan: the items that renamed/moved, the items skipped (gated /
-    /// collision / locked / no-op), the items that failed (save threw → disk rolled back), and the
-    /// revert-log rows written for the successes.
+    /// collision / locked / no-op), and the items that failed (save threw → disk rolled back).
     /// </summary>
+    /// <remarks>
+    /// It deliberately carries NO copy of the journalled rows. The journal table is the durable record
+    /// of what can be put back, so a second in-memory list of the same facts could only drift from it —
+    /// and it would have to be thread-safe as well, since one result object is built per worker while
+    /// one journal is shared by all of them. A caller that wants to know what was journalled reads the
+    /// journal.
+    /// </remarks>
     public sealed record RenamerRunResult(
         IReadOnlyList<ItemResult> Renamed,
         IReadOnlyList<ItemResult> Skipped,
-        IReadOnlyList<ItemResult> Failed,
-        IReadOnlyList<RevertLog.RevertEntry> RevertLog);
+        IReadOnlyList<ItemResult> Failed);
 
     /// <summary>
     /// Executes every item of <paramref name="plan"/> independently. Items the planner already
@@ -108,7 +120,7 @@ public sealed class RenamerExecutor
             }
         }
 
-        return new RenamerRunResult(renamed, skipped, failed, _revertLog.Rows);
+        return new RenamerRunResult(renamed, skipped, failed);
     }
 
     private async Task ExecuteItemAsync(
@@ -304,10 +316,21 @@ public sealed class RenamerExecutor
                 return;
             }
 
-            // (8) Success: revert-log row + reindex event. The logged row carries plan.EntityId —
-            //     the SAME value published on the next line — so the logged id and the event id are
-            //     identical by construction (undo reconstructs the exact forward event from the row).
-            await _revertLog.AppendAsync(plan.EntityId, item.FileId, item.OldFullPath, ct);
+            // (8) Success: journal row + reindex event. The row carries plan.EntityId — the SAME value
+            //     published on the next line — so the journalled id and the event id are identical by
+            //     construction (undo reconstructs the exact forward event from the row).
+            //     Seq is passed as 0 because the journal mints it on append.
+            //
+            //     The delta is built from what ACTUALLY moved, never from what was planned, and it is
+            //     RECORDED rather than left to be recomputed at undo time. Two reasons, neither of them
+            //     stylistic: RetargetCaption only rewrites a caption whose name starts with the old
+            //     stem, so the forward transform is not invertible in general; and a caption rename is
+            //     applied only for a sidecar whose file really moved on disk (see the moved-only filter
+            //     above), which is a runtime fact no string arithmetic recovers afterwards. One row and
+            //     one delta at this single append site, so a crash cannot leave the two disagreeing.
+            var delta = BuildRevertDelta(srcFile, movedSidecars, appliedCaptionRenames);
+            await _journal.AppendAsync(
+                new RevertRow(_runId, Seq: 0, plan.EntityId, item.FileId, item.OldFullPath, delta.Serialize()), ct);
             _eventBus.Publish(new EntityEvent(EventTypeFor(plan.Kind), EntityTypeName(plan.Kind), plan.EntityId));
 
             // (9) Opt-in empty-source-folder cleanup, AFTER the save + assertion pass — never before
@@ -426,6 +449,51 @@ public sealed class RenamerExecutor
         }
 
         return (plannedSidecars, captionRenames);
+    }
+
+    /// <summary>
+    /// Builds the reverse-replay payload for one journalled file from what the mover and the save
+    /// actually did: the sidecar moves that happened, and each renamed caption's ORIGINAL stored
+    /// filename.
+    /// </summary>
+    /// <remarks>
+    /// The caption's ORIGINAL filename is what goes in, not the new one: the reverse direction needs
+    /// the value it restores TO, and deriving it later would reintroduce the non-invertible transform
+    /// this whole payload exists to avoid. A rename that carried nothing yields
+    /// <see cref="RevertDelta.Empty"/>, which serializes to the journal column's existing empty marker.
+    /// </remarks>
+    private static RevertDelta BuildRevertDelta(
+        RenamerFile? srcFile,
+        IReadOnlyList<(string From, string To)> movedSidecars,
+        List<(int CaptionId, string NewFilename)> appliedCaptionRenames)
+    {
+        if (movedSidecars.Count == 0 && appliedCaptionRenames.Count == 0)
+        {
+            return RevertDelta.Empty;
+        }
+
+        // The names as they stood BEFORE the save rewrote them — the loaded entity is the only place
+        // they still exist by the time this runs.
+        var originalCaptionNames = new Dictionary<int, string>();
+        foreach (var cap in srcFile?.Captions ?? [])
+        {
+            originalCaptionNames[cap.CaptionId] = cap.Filename;
+        }
+
+        var captions = new List<RevertCaptionDelta>(appliedCaptionRenames.Count);
+        foreach (var (captionId, _) in appliedCaptionRenames)
+        {
+            if (originalCaptionNames.TryGetValue(captionId, out var originalFilename))
+            {
+                captions.Add(new RevertCaptionDelta(captionId, originalFilename));
+            }
+        }
+
+        // The movers speak native separators; the journal speaks forward-slash, as every other path it
+        // stores does.
+        return new RevertDelta(
+            [.. movedSidecars.Select(s => new RevertSidecarDelta(NormalizeSlash(s.From), NormalizeSlash(s.To)))],
+            captions);
     }
 
     /// <summary>
