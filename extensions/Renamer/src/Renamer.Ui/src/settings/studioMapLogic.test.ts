@@ -1,13 +1,8 @@
-/**
- * Behavior contract for the pure studio-map coercion. The runner compiles studioMapLogic.ts and passes the
- * compiled module path in STUDIO_MAP_MODULE; importing the exact compiled artifact keeps the test
- * honest about what ships.
- */
-import test from "node:test";
+/** Behavior contract for the pure studio-map coercion. */
+import { test } from "vitest";
 import assert from "node:assert/strict";
 
-const mod = await import(process.env.STUDIO_MAP_MODULE);
-const { toStringKeyed, fromStringKeyed } = mod;
+import { toStringKeyed, fromStringKeyed } from "./studioMapLogic";
 
 test("a number-keyed map becomes a string-keyed map preserving values", () => {
   assert.deepEqual(toStringKeyed({ 3: "/a", 12: "/b" }), { 3: "/a", 12: "/b" });
@@ -33,6 +28,8 @@ test("a non-integer key is dropped rather than producing a NaN key", () => {
 });
 
 test("a non-string value is dropped on back-conversion", () => {
-  const back = fromStringKeyed({ 4: 12, 5: "/ok" });
+  // Cast because the drop is exactly what a hand-edited or legacy blob makes reachable, and the
+  // parameter type is what forbids it — a well-typed caller cannot get here.
+  const back = fromStringKeyed({ 4: 12, 5: "/ok" } as unknown as Record<string, string>);
   assert.deepEqual(back, { 5: "/ok" });
 });

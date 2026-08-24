@@ -1,8 +1,8 @@
 /**
  * Pure, DOM-free logic behind the Dry Run modal: the status→bucket classification the table and the
  * server's filter share, the reduction of a scan aggregate to display counts, and the scan-progress
- * ETA maths. Kept import-free (no React, no DOM, no SDK) so the offline test runner can compile it in
- * isolation exactly like studioFilterLogic.ts/options.ts.
+ * ETA maths. Kept import-free (no React, no DOM, no SDK) so it stays L0 — testable with no
+ * environment — exactly like studioFilterLogic.ts/options.ts.
  */
 
 /**
@@ -24,7 +24,7 @@ export type DryRunFilter = "all" | DryRunBucket;
  *
  * Its server twin is `Planner/ScanBucket.Of`, and the two MUST agree on every status: this map drives
  * the row styling and the segment labels, while that one answers `/scan-rows`' bucket filter, so a
- * divergence would show a row in a segment it was not counted in. The offline gate pins the agreement
+ * divergence would show a row in a segment it was not counted in. The suite pins the agreement
  * against a transcription of the C# map.
  */
 export function classifyItem(item: { status: string }): DryRunBucket {
@@ -62,7 +62,7 @@ export interface DryRunCounts {
 /**
  * Reduce a scan aggregate's per-status counts to the header + filter-segment display counts.
  *
- * The invariant this holds, and the one the offline gate pins: `willChange`, `attention` and
+ * The invariant this holds, and the one the suite pins: `willChange`, `attention` and
  * `noChange` partition `scanned` exactly once, because every status classifies into exactly one
  * bucket and an unrecognised status still lands in `attention` rather than vanishing from the total.
  */

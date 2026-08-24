@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // Asserts every `lucide-react` named import in every extension UI exists in the module the HOST serves.
 //
-// lucide-react is a host import-map external (shared/cove-extensions-ui/vite/createExtensionViteConfig.ts),
+// lucide-react is a host import-map external (shared/ui-shared/vite/createExtensionViteConfig.ts),
 // so the bundle never carries it: at runtime the name is resolved against the host's generated re-export
 // shim, not against the version installed here for typechecking. Those two can diverge, and lucide renames
 // icons between releases, so a name that exists only in the local copy typechecks, builds, and passes every
-// offline gate — then throws an ESM SyntaxError at load that kills the WHOLE bundle, so every surface of
+// check — then throws an ESM SyntaxError at load that kills the WHOLE bundle, so every surface of
 // the extension renders "component not found".
 //
 // The host's list is authoritative and generated from its own package exports, so it is read from the

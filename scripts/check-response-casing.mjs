@@ -183,7 +183,7 @@ function importSourceFor(src, name) {
 
 // The UI bundles resolve this one package from raw TS source through a Vite alias rather than
 // node_modules, so following it is a source hop like any relative import.
-const ALIASES = [["@cove-extensions/ui-shared", "shared/cove-extensions-ui/src"]];
+const ALIASES = [["@cove-extensions/ui-shared", "shared/ui-shared/src"]];
 
 function resolveSpec(fromFile, spec) {
   let base;
