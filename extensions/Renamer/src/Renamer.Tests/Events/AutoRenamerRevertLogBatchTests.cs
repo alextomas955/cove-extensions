@@ -12,12 +12,9 @@ namespace Renamer.Tests.Events;
 
 /// <summary>
 /// The data-recovery spine for the auto-renamer hook: a rename driven by the <c>video.updated</c> event
-/// must open a proper batch HEADER so its revert-log rows are the 4-field <c>entityId|fileId|old|new</c>
-/// shape and /undo can restore them. The regression this guards: the hook used to run the executor with
-/// a fresh headerless <c>RevertLog</c>, so a headerless blob was misparsed on undo as legacy 3-field
-/// rows (entityId→fileId), and a prior manual header would silently swallow the auto rows. The decoy
-/// video makes <c>videoId ≠ fileId</c>, so the misparsed-legacy shape (EntityId == FileId) is
-/// distinguishable from the correct one.
+/// must open its own journal batch, and the row it writes must carry the PARENT entity id alongside the
+/// file id so /undo can publish the forward-equivalent event. The decoy video makes
+/// <c>videoId ≠ fileId</c>, so a row that confused the two is distinguishable from a correct one.
 /// </summary>
 [Trait("Tier", "L1")]
 public sealed class AutoRenamerRevertLogBatchTests
@@ -54,20 +51,15 @@ public sealed class AutoRenamerRevertLogBatchTests
             Assert.True(File.Exists(newFull));
             Assert.False(File.Exists(oldFull));
 
-            // (a) The stored blob carries a header line (no orphan rows) ...
-            var blob = await store.GetAsync(RevertLog.Key);
-            Assert.NotNull(blob);
-            Assert.Contains("#batch", blob!);
-
-            // ... and a fresh reader sees exactly one open batch with the correct kind.
-            var readBack = new RevertLog(store);
-            var batch = await readBack.ReadLastOpenBatchAsync();
+            // (a) A fresh reader sees exactly one batch with the correct kind.
+            using var readBack = new CoveRevertJournal(db);
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(readBack);
             Assert.NotNull(batch);
             Assert.Equal(RenamerFileKind.Video, batch!.Kind);
 
-            // (b) The row parsed as the 4-field shape: EntityId is the VIDEO id and FileId is the FILE
-            // id, and they differ — the misparsed legacy shape would have EntityId == FileId.
-            var entry = Assert.Single(batch.Entries);
+            // (b) EntityId is the VIDEO id and FileId is the FILE id, and they differ — a row that
+            // confused the two would have EntityId == FileId.
+            var entry = Assert.Single(batch.Rows);
             Assert.Equal(videoId, entry.EntityId);
             Assert.Equal(fileId, entry.FileId);
             Assert.NotEqual(entry.EntityId, entry.FileId);

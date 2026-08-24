@@ -337,22 +337,22 @@ public sealed class EmptySourceFolderCleanerTests
             File.WriteAllText(oldFull, "video-bytes");
 
             var port = new CoveRenamerDataPort(db);
-            var revertLog = new RevertLog(new FakeStore());
+            var journal = new FakeRevertJournal();
             var options = new RenamerOptions { RemoveEmptyFolder = true };
 
-            await revertLog.BeginBatchAsync("RUN-1", RenamerFileKind.Video);
+            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
             [
                 new RenamerPlanItem(fileId, srcFolder + "/clip.mkv", dstFolder + "/My Film.mkv",
                     RenamerStatus.Move, "My Film.mkv", dstFolder),
             ]);
-            var fwd = await new RenamerExecutor(port, new CapturingEventBus(), revertLog, new DiskMover())
+            var fwd = await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
                 .ExecuteAsync(plan, options, default);
             Assert.Single(fwd.Renamed);
             Assert.False(Directory.Exists(Path.Combine(dir.Root, "src")), "the move + cleanup deleted the source dir");
 
             // Undo the batch: the original directory is gone, so the restore SKIPS — it is NOT recreated.
-            var batch = await revertLog.ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var replayer = new UndoReplayer(port, new CapturingEventBus(), new DiskMover());
             var undo = await replayer.RevertAsync(batch!, default);
@@ -378,7 +378,7 @@ public sealed class EmptySourceFolderCleanerTests
     private static RenamerExecutor NewExecutor(Cove.Data.CoveContext db, out CapturingEventBus bus)
     {
         bus = new CapturingEventBus();
-        return new RenamerExecutor(new CoveRenamerDataPort(db), bus, new RevertLog(new FakeStore()), new DiskMover());
+        return new RenamerExecutor(new CoveRenamerDataPort(db), bus, new FakeRevertJournal(), "run-test", new DiskMover());
     }
 
     private static string DirOf(string fullPath)

@@ -19,7 +19,7 @@ namespace Renamer.Tests.Concurrency;
 /// sequential PHASE A and hands the resolved id to each worker, so the parallel PHASE B never does a
 /// check-then-act create on a shared <see cref="Folder"/> row. Duplicate-path lock: a duplicate <c>OldFullPath</c>
 /// across acting units must not make the PHASE B lookup throw and abort the whole batch after the
-/// RevertLog header is open.
+/// journal batch is open.
 /// </summary>
 [Trait("Tier", "L1")]
 public sealed class ParallelFolderCreationTests
@@ -103,10 +103,12 @@ public sealed class ParallelFolderCreationTests
             }
             Assert.Equal(1d, progress.LastPercent);
 
-            // The RevertLog recorded one row per moved file under one batch (no torn/lost append).
-            var batch = await new RevertLog(store).ReadLastOpenBatchAsync();
+            // The journal recorded one row per moved file under one batch (no torn/lost append).
+            await using var readDb = shared.NewContext();
+            using var journal = new CoveRevertJournal(readDb);
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
-            Assert.Equal(k, batch!.Entries.Count);
+            Assert.Equal(k, batch!.Rows.Count);
         }
         finally
         {
@@ -159,7 +161,7 @@ public sealed class ParallelFolderCreationTests
             // duplicate id — Decode does NOT dedupe) plans the SAME file twice, producing two acting
             // units with the IDENTICAL OldFullPath. PHASE B used to build its move→unit lookup with
             // ToDictionary, which throws ArgumentException on the duplicate key and aborts the WHOLE
-            // batch AFTER the RevertLog header was opened (violating classify-not-throw and masking the
+            // batch AFTER the journal batch was opened (violating classify-not-throw and masking the
             // prior undoable batch from /undo). The defensive group/keep-first build must tolerate the
             // duplicate: the batch must complete (final 1.0) with no unhandled throw.
             string folderFwd = dir.Root.Replace('\\', '/');

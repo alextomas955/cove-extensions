@@ -43,13 +43,13 @@ public sealed class UndoReplayerTests
             File.WriteAllText(oldFull, "video-bytes");
 
             var port = new CoveRenamerDataPort(db);
-            var revertLog = new RevertLog(new FakeStore());
+            var journal = new FakeRevertJournal();
             var options = new RenamerOptions { FilenameTemplate = "$title" }; // → "My Film.mkv"
 
             // Forward: plan + execute through the real spine, opening a batch first (the endpoint's job).
-            await revertLog.BeginBatchAsync("RUN-1", RenamerFileKind.Video);
+            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
-            var fwd = await new RenamerExecutor(port, new CapturingEventBus(), revertLog, new DiskMover())
+            var fwd = await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
                 .ExecuteAsync(plan, options, default);
             Assert.Single(fwd.Renamed);
 
@@ -58,7 +58,7 @@ public sealed class UndoReplayerTests
             Assert.False(File.Exists(oldFull));
 
             // Reverse-replay the logged batch.
-            var batch = await revertLog.ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var undoBus = new CapturingEventBus();
             var replayer = new UndoReplayer(port, undoBus, new DiskMover());
@@ -114,20 +114,20 @@ public sealed class UndoReplayerTests
             File.WriteAllText(Path.Combine(dir.Root, "two.mkv"), "2");
 
             var port = new CoveRenamerDataPort(db);
-            var revertLog = new RevertLog(new FakeStore());
+            var journal = new FakeRevertJournal();
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
-            await revertLog.BeginBatchAsync("RUN-1", RenamerFileKind.Video);
+            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
             foreach (var vid in new[] { video1, video2 })
             {
                 var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, vid, options, default);
-                await new RenamerExecutor(port, new CapturingEventBus(), revertLog, new DiskMover())
+                await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
                     .ExecuteAsync(plan, options, default);
             }
 
-            var batch = await revertLog.ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
-            Assert.Equal(2, batch!.Entries.Count);
+            Assert.Equal(2, batch!.Rows.Count);
 
             var undoBus = new CapturingEventBus();
             var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch, default);
@@ -160,21 +160,21 @@ public sealed class UndoReplayerTests
             File.WriteAllText(Path.Combine(dir.Root, "two.mkv"), "2");
 
             var port = new CoveRenamerDataPort(db);
-            var revertLog = new RevertLog(new FakeStore());
+            var journal = new FakeRevertJournal();
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
-            await revertLog.BeginBatchAsync("RUN-1", RenamerFileKind.Video);
+            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
             foreach (var vid in new[] { video1, video2 })
             {
                 var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, vid, options, default);
-                await new RenamerExecutor(port, new CapturingEventBus(), revertLog, new DiskMover())
+                await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
                     .ExecuteAsync(plan, options, default);
             }
 
             // Pre-occupy the OLD slot of "one.mkv" (video1) on disk so its reverse move must skip.
             File.WriteAllText(Path.Combine(dir.Root, "one.mkv"), "squatter");
 
-            var batch = await revertLog.ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             var undoBus = new CapturingEventBus();
             var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch!, default);
@@ -213,18 +213,18 @@ public sealed class UndoReplayerTests
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
 
             var port = new CoveRenamerDataPort(db);
-            var revertLog = new RevertLog(new FakeStore());
+            var journal = new FakeRevertJournal();
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
-            await revertLog.BeginBatchAsync("RUN-1", RenamerFileKind.Video);
+            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
-            await new RenamerExecutor(port, new CapturingEventBus(), revertLog, new DiskMover())
+            await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
                 .ExecuteAsync(plan, options, default);
 
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
             Assert.True(File.Exists(newFull));
 
-            var batch = await revertLog.ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
 
             // A port that throws on the reverse save forces the rollback path.
@@ -266,18 +266,18 @@ public sealed class UndoReplayerTests
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
 
             var port = new CoveRenamerDataPort(db);
-            var revertLog = new RevertLog(new FakeStore());
+            var journal = new FakeRevertJournal();
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
-            await revertLog.BeginBatchAsync("RUN-1", RenamerFileKind.Video);
+            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
-            await new RenamerExecutor(port, new CapturingEventBus(), revertLog, new DiskMover())
+            await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
                 .ExecuteAsync(plan, options, default);
 
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
             Assert.True(File.Exists(newFull));
 
-            var batch = await revertLog.ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
 
             // A reverse save that cancels forces the OCE path: rollback to NEW, then propagate.
@@ -312,16 +312,16 @@ public sealed class UndoReplayerTests
             File.WriteAllText(oldFull, "video-bytes");
 
             var port = new CoveRenamerDataPort(db);
-            var revertLog = new RevertLog(new FakeStore());
+            var journal = new FakeRevertJournal();
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
             // Forward renamer under ONE root → an in-place same-volume pair.
-            await revertLog.BeginBatchAsync("RUN-1", RenamerFileKind.Video);
+            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
             var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
-            await new RenamerExecutor(port, new CapturingEventBus(), revertLog, new DiskMover())
+            await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
                 .ExecuteAsync(plan, options, default);
 
-            var batch = await revertLog.ReadLastOpenBatchAsync();
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
             Assert.True(VolumeClassifier.SameVolume(newFull, oldFull),
@@ -367,7 +367,7 @@ public sealed class UndoReplayerTests
         {
             var port = new CoveRenamerDataPort(db);
             var undoBus = new CapturingEventBus();
-            var batch = new RevertLog.RevertBatch(RenamerFileKind.Video, Array.Empty<RevertLog.RevertEntry>());
+            var batch = new RevertBatch("run-test", RenamerFileKind.Video, Array.Empty<RevertRow>());
 
             var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch, default);
 
@@ -384,7 +384,7 @@ public sealed class UndoReplayerTests
     }
 
     [Fact]
-    public async Task LegacyV3Blob_ReplaysWithoutMigration()
+    public async Task AStoredJournalMigratedIntoTheTable_StillReplays()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -399,23 +399,26 @@ public sealed class UndoReplayerTests
             string newFull = Path.Combine(dir.Root, "My Film.mkv");
             File.WriteAllText(newFull, "legacy-bytes");
 
-            // Hand-build a LEGACY v1.3 blob: flat `fileId|old|new` rows with NO #batch header and NO
-            // trailing volume field. The tolerant RevertLog parser reads it as one implicit Video batch
-            // (EntityId := FileId). This is the exact on-disk shape v1.3 wrote — proving zero migration.
+            // Hand-build the STORED journal an installation upgrading into the table still carries: flat
+            // `fileId|old|new` rows with no batch header. The migration reads it as one implicit Video
+            // batch (EntityId := FileId) and moves it into the table, which is where undo now looks.
             string oldPath = oldFull.Replace('\\', '/');
             string newPath = newFull.Replace('\\', '/');
             var store = new FakeStore();
+            await store.SetAsync(RevertLog.SchemaKey, RevertLog.CurrentSchema);
             await store.SetAsync(RevertLog.Key, $"{fileId}|{oldPath}|{newPath}");
 
-            var revertLog = new RevertLog(store);
-            var batch = await revertLog.ReadLastOpenBatchAsync();
+            using var journal = new CoveRevertJournal(db);
+            Assert.Equal(1, await JournalBlobMigration.RunAsync(store, journal, DateTime.UtcNow));
+
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
             Assert.NotNull(batch);
-            Assert.Single(batch!.Entries);
-            // The legacy row carries no entityId field; the parser sets EntityId = FileId as documented.
-            Assert.Equal(fileId, batch.Entries[0].FileId);
+            Assert.Single(batch!.Rows);
+            // The stored row carries no entityId field; the parser sets EntityId = FileId as documented.
+            Assert.Equal(fileId, batch.Rows[0].FileId);
 
             // Replay: the volume class is DERIVED from the recorded old/new path roots (same dir → same
-            // volume) — no stored field is read. A legacy blob replays UNCHANGED.
+            // volume) — no stored field is read.
             var port = new CoveRenamerDataPort(db);
             var undoBus = new CapturingEventBus();
             var result = await new UndoReplayer(port, undoBus, new DiskMover()).RevertAsync(batch, default);
@@ -424,8 +427,8 @@ public sealed class UndoReplayerTests
             Assert.Empty(result.Failed);
             Assert.Empty(result.Skipped);
 
-            // Disk restored to OLD; NEW gone — the legacy replay behaves exactly like a fresh same-drive undo.
-            Assert.True(File.Exists(oldFull), "legacy v3 blob restores to OLD with zero migration");
+            // Disk restored to OLD; NEW gone — a migrated batch behaves exactly like a fresh one.
+            Assert.True(File.Exists(oldFull), "a migrated stored journal restores to OLD");
             Assert.False(File.Exists(newFull));
             Assert.Equal("legacy-bytes", File.ReadAllText(oldFull));
         }

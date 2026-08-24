@@ -11,7 +11,7 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// <see cref="RenamerExecutor"/>) so the NEW→OLD direction is exercised. Each test sets up a
 /// cross-volume pair via the <see cref="SubstDrive"/> helper (a distinct path root on the same
 /// physical disk — no second drive; a live two-drive run is a manual cross-platform check), seeds a file at
-/// the NEW (subst) location and a hand-built <see cref="RevertLog.RevertBatch"/> whose entry records
+/// the NEW (subst) location and a hand-built <see cref="RevertBatch"/> whose entry records
 /// OldPath on the temp root and NewPath on the subst root, then reverse-replays it.
 ///
 /// (a) <see cref="CrossDrive_Undo_RestoresByteForByte"/> — after undo the file is back at OLD
@@ -319,11 +319,11 @@ public sealed class CrossVolumeUndoTests
 
     /// <summary>
     /// Seeds the DB so the file CURRENTLY sits at NEW (subst root, "My Film.mkv") and builds a
-    /// <see cref="RevertLog.RevertBatch"/> whose single entry records OldPath on the temp root and
+    /// <see cref="RevertBatch"/> whose single entry records OldPath on the temp root and
     /// NewPath on the subst root. The OLD folder is pre-seeded too so the reverse save's recomputed
     /// Path resolves to the OLD path. Returns the live port, the batch, and (videoId, fileId).
     /// </summary>
-    private static async Task<(CoveRenamerDataPort Port, RevertLog.RevertBatch Batch, (int VideoId, int FileId) Ids)>
+    private static async Task<(CoveRenamerDataPort Port, RevertBatch Batch, (int VideoId, int FileId) Ids)>
         SeedReverseBatchAsync(CoveContext db, string oldRoot, string newRoot, string oldFull, string newFull)
     {
         string oldFolder = oldRoot.Replace('\\', '/').TrimEnd('/');
@@ -344,8 +344,8 @@ public sealed class CrossVolumeUndoTests
             await ExecutorTestSeed.SeedVideoAsync(db, newFolder, "My Film.mkv", "My Film");
 
         var oldPath = oldFull.Replace('\\', '/');
-        var entry = new RevertLog.RevertEntry(videoId, fileId, oldPath);
-        var batch = new RevertLog.RevertBatch(RenamerFileKind.Video, [entry]);
+        var entry = new RevertRow("run-test", 1, videoId, fileId, oldPath, "");
+        var batch = new RevertBatch("run-test", RenamerFileKind.Video, [entry]);
 
         return (new CoveRenamerDataPort(db), batch, (videoId, fileId));
     }

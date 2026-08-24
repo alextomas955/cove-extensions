@@ -32,15 +32,17 @@ Rename is a Cove extension in two halves:
 ```
 
 A **preview** runs Options → Engine → Planner and stops — zero mutation. A **rename** runs the whole
-chain through Execution. **Undo** replays the Execution layer's revert log in reverse.
+chain through Execution. **Undo** replays the Execution layer's revert journal in reverse.
 
-The revert log is bounded by design rather than by circumstance: it holds one batch, of at most 5,000
-files, and a row records only what reversal needs — the entity, the file, and the path it came from.
-The file's current path is not stored, because Cove's database is authoritative for it. A batch over
-the cap is not recorded at all and the preview says so before the rename runs, so a rename is either
-fully reversible or plainly not — never half-restorable. A journal written before this shape is
-discarded once, on the first load that finds a stale schema stamp — a separate few-byte key, so the
-oversized value goes without ever being read.
+The revert journal lives in two tables the extension owns, created by a migration the host applies at
+load. A row records only what reversal needs — the entity, the file, the path it came from, and what
+moved alongside it. The file's current path is not stored, because Cove's database is authoritative
+for it. Rows are read a page at a time, so neither writing nor replaying a batch holds all of it in
+memory. Two things bound the journal: a batch of more than 5,000 files is not recorded at all, and
+the preview says so before the rename runs, so a rename is either fully reversible or plainly not —
+never half-restorable; and a recorded batch expires WHOLE after seven days, which is what keeps the
+table from growing with how much the library is edited. An installation upgrading from the stored
+journal has it moved into the table once, on first load, after which both legacy keys are gone.
 
 ## Layer by layer
 
@@ -101,15 +103,28 @@ The only layer that mutates anything. It moves the file and updates Cove's datab
 the two never drift.
 
 - `RenamerExecutor.cs` — runs a plan: for each file, move on disk, update the Cove record, and record
-  the change in the revert log. Move-first-then-DB with rollback so a failure leaves the file and the
-  database consistent.
+  the change in the revert journal. Move-first-then-DB with rollback so a failure leaves the file and
+  the database consistent.
 - `DiskMover.cs` — the actual filesystem move, including sidecar files (captions/subtitles sharing
   the stem) and collision-safe behavior.
 - `CoveRenamerDataPort.cs` — the concrete `IRenamerDataPort` backed by Cove's DbContext.
-- `RevertLog.cs` — the bounded single-batch log that makes undo possible: one batch, a hard row cap,
-  and a refusal path that journals nothing when a batch exceeds it.
-- `UndoReplayer.cs` — reverse-replays the most recent batch from the revert log, reading each file's
-  current location from the database rather than from the log.
+- `Planner/IRevertJournal.cs` — the undo seam: the only surface between the rename and undo paths
+  and where the journal is stored. A row exists exactly while its file still needs restoring, so what
+  remains in the journal IS the work left.
+- `CoveRevertJournal.cs` — the journal over two tables the extension owns (`renamer_revert_batches`,
+  `renamer_revert_rows`), created by the migration in `RevertJournalStorage.cs` and applied by the
+  host. Rows are read a page at a time through a keyset cursor, so an undo restores a batch without
+  holding it in memory. A batch expires whole after a fixed retention window, and a batch offered
+  over the row cap is refused outright rather than recorded in part.
+- `RevertDelta.cs` — the sidecar and caption moves that rode along with one renamed file, recorded in
+  the forward direction so undo replays what happened rather than recomputing a target from the names.
+- `UndoStopReason.cs` — why one entry stopped short, as a value; exactly one reason is terminal, so
+  every other leaves its row pending for a later retry.
+- `RevertLog.cs` — the legacy stored journal, kept only as a one-way migration source.
+- `JournalBlobMigration.cs` — moves an upgrading installation's stored journal into the table exactly
+  once, then deletes both legacy keys.
+- `UndoReplayer.cs` — reverse-replays one page of a batch, reading each file's current location from
+  the database rather than from the journal.
 
 ### Api — `src/Renamer/Renamer.Api.cs` (+ `src/Renamer/Api/`)
 

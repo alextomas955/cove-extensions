@@ -112,7 +112,7 @@ public sealed class ScanAggregator
                     CrossVolumeBytes: crossBytes,
                     VolumePairs: pairs,
                     ConfirmLevel: BatchPreview.ClassifyConfirm(crossCount, crossBytes, untruncated),
-                    Undoable: !RevertLog.ExceedsCap(tally.ActingFiles));
+                    Undoable: !IRevertJournal.ExceedsCap(tally.ActingFiles));
 
                 return new ScanKindSummary(
                     kv.Key,

@@ -44,7 +44,7 @@ public sealed class CollisionTests
 
             var port = new CollisionBlindDataPort(db);
             var bus = new CapturingEventBus();
-            var executor = new RenamerExecutor(port, bus, new RevertLog(new FakeStore()), new DiskMover());
+            var executor = new RenamerExecutor(port, bus, new FakeRevertJournal(), "run-test", new DiskMover());
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
 
