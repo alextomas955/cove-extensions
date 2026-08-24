@@ -232,7 +232,7 @@ public sealed partial class Renamer : FullExtensionBase
             }
         };
 
-        var options = await new OptionsStore(Store).LoadAsync(ct);
+        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
 
         // Hoist the routing lookups ONCE per batch: the studio-id / tag-name / exact-path dicts and
         // the PRE-PARSED source-path regex set, so the resolver never re-walks/re-compiles per entity.

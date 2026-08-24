@@ -141,10 +141,6 @@ public sealed class UndoReplayer
         return new UndoRunResult(undone, failed, skipped);
     }
 
-    /// <summary>Joins a parent folder path and a basename into the forward-slash full path.</summary>
-    private static string JoinPath(string folderPath, string basename) =>
-        NormalizeSlash(folderPath).TrimEnd('/') + "/" + basename;
-
     private async Task<RevertOutcome> RevertEntryAsync(
         RenamerFileKind kind, RevertLog.RevertEntry entry, string currentPath, CancellationToken ct)
     {
