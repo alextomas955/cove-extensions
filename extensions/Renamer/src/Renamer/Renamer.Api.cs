@@ -231,7 +231,7 @@ public sealed partial class Renamer
             return TypedResults.BadRequest(new ErrorCode("TOO_MANY_IDS", MaxEntityIdsPerRequest));
         }
 
-        var options = await new OptionsStore(Store).LoadAsync(ct);
+        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
         var port = new CoveRenamerDataPort(db);
         var planner = new RenamerPlanner(port);
 
@@ -375,7 +375,7 @@ public sealed partial class Renamer
         // unauthorized or no-op request still short-circuits without the load), mirroring PreviewAsync.
         // The undo RE-GATES each restore target against options.AllowedRoots — the same write boundary
         // the forward move used — so a restore can never land outside the allowed roots.
-        var options = await new OptionsStore(Store).LoadAsync(ct);
+        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
 
         // Open a scope the SAME way RunRenamerBatchAsync does and resolve the scoped DbContext.
         await using var scope = ScopeFactory.CreateAsyncScope();
@@ -733,7 +733,7 @@ public sealed partial class Renamer
             cursor = new ScanCursor(cursorKind, Math.Max(body.AfterEntityId ?? 0, 0));
         }
 
-        var options = TryParseOptionsOverride(body?.Options) ?? await new OptionsStore(Store).LoadAsync(ct);
+        var options = TryParseOptionsOverride(body?.Options) ?? await new OptionsStore(Store, _log).LoadAsync(ct);
         var lookups = BuildLookups(options);
         var readableKinds = RenamableKinds.Where(k => principal.Current!.Has(PermissionsFor(k).Read)).ToArray();
 
@@ -770,7 +770,7 @@ public sealed partial class Renamer
     {
         // A dry run previews the caller's CURRENT (possibly unsaved) options when they were sent;
         // otherwise it scans the saved options — the original behavior.
-        var options = overrideOptions ?? await new OptionsStore(Store).LoadAsync(ct);
+        var options = overrideOptions ?? await new OptionsStore(Store, _log).LoadAsync(ct);
 
         await using var scope = ScopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DbContext>();

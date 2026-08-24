@@ -29,7 +29,7 @@ public sealed class LockedFileTests
             var result = mover.Move(old, dest);
 
             Assert.False(result.Moved);
-            Assert.Equal(DiskMover.MoveOutcome.LockedOrExists, result.Outcome);
+            Assert.Equal(MoveOutcome.LockedOrExists, result.Outcome);
             Assert.NotNull(result.Reason);
         }
 
@@ -50,7 +50,7 @@ public sealed class LockedFileTests
         var result = mover.Move(old, dest);
 
         Assert.True(result.Moved);
-        Assert.Equal(DiskMover.MoveOutcome.Moved, result.Outcome);
+        Assert.Equal(MoveOutcome.Moved, result.Outcome);
         Assert.False(File.Exists(old), "old path must no longer exist after a move");
         Assert.True(File.Exists(dest), "new path must exist after a move (parent dir auto-created)");
         Assert.Equal("hello", File.ReadAllText(dest));
@@ -68,7 +68,7 @@ public sealed class LockedFileTests
 
         // The 2-arg File.Move throws when the destination exists; the helper surfaces a skip.
         Assert.False(result.Moved);
-        Assert.Equal(DiskMover.MoveOutcome.LockedOrExists, result.Outcome);
+        Assert.Equal(MoveOutcome.LockedOrExists, result.Outcome);
         // The pre-existing destination is left untouched (never clobbered) and the source survives.
         Assert.Equal("original", File.ReadAllText(dest));
         Assert.True(File.Exists(old));
