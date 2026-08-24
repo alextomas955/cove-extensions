@@ -9,17 +9,6 @@ namespace Renamer.Execution;
 /// contract, not of this type: an atomic same-volume rename has no copy to read back and no
 /// cancellation point, so <see cref="DiskMover"/> never returns <see cref="VerifyFailed"/> or
 /// <see cref="Cancelled"/> — its own <c>Move</c> summary says so.
-/// <para>
-/// One type rather than one per tier, so that a switch over an outcome is total over every outcome the
-/// executor can meet. With an enum per mover, a member added to one is guarded only by the switch that
-/// happens to name that mover's type, and the compiler's totality check is bought per switch rather
-/// than outright.
-/// </para>
-/// <para>
-/// The ordinals are pinned so that merging the two tiers' enums into this one could not silently
-/// renumber either of them; nothing persists or transmits this value, but a renumber would have been
-/// invisible at the call sites the merge moved.
-/// </para>
 /// </remarks>
 public enum MoveOutcome
 {
