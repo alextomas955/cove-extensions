@@ -170,8 +170,6 @@ export default tseslint.config(
   {
     files: ["extensions/*/src/**/*.{ts,tsx}", "shared/ui-shared/**/*.{ts,tsx}"],
     rules: {
-      // Core `no-restricted-syntax` rather than eslint-plugin-react's `no-danger`: that plugin
-      // declares `eslint: ^3 … ^9.7` and so is peer-disqualified at the ESLint major this repo runs.
       // The three selectors are the three ways the prop can reach React — a JSX attribute, and an
       // object property under either an identifier or a string-literal key. The last two cover the
       // spread form (`<div {...{ dangerouslySetInnerHTML: … }} />`) and createElement props, which a
@@ -194,19 +192,24 @@ export default tseslint.config(
     },
   },
 
-  // --- `*Logic.ts` purity: relative imports only ---
+  // --- Pure-logic modules: relative imports only ---
   // These modules are the L0 tier — pure and testable with no environment. Nothing here may reach for
   // react, the SDK, the shared barrel, or a node: builtin; a logic module needing one of those is doing
-  // I/O and belongs in an INFRA or FEAT module. Until this rule the constraint held only as a side
-  // effect of the offline logic gate, which compiled each module in an isolated temp dir where such an
-  // import failed to resolve; the suite runs under vitest now, which resolves everything.
+  // I/O and belongs in an INFRA or FEAT module.
   //
   // The no-internal-barrels group is restated rather than inherited: a later `no-restricted-imports`
   // entry REPLACES the earlier one for a matching file, so omitting it would switch the barrels ban off
   // for exactly the modules this block covers. It still bites after the `^[^.]` regex, which stops only
   // non-relative specifiers — the relative barrel hop (`./foo/index`) is the group's half.
   {
-    files: ["extensions/*/src/**/*Logic.ts", "shared/ui-shared/**/*Logic.ts"],
+    files: [
+      "extensions/*/src/**/*Logic.ts",
+      "shared/ui-shared/**/*Logic.ts",
+      // Pure modules whose names predate the *Logic.ts suffix.
+      "extensions/*/src/**/options.ts",
+      "extensions/*/src/**/preview.ts",
+      "shared/ui-shared/**/actions.ts",
+    ],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -220,7 +223,7 @@ export default tseslint.config(
             {
               regex: "^[^.]",
               message:
-                "A *Logic.ts module stays pure (L0): relative imports only — no react, no SDK, no shared barrel, no node: builtin. Move the I/O to an INFRA module and pass its result in.",
+                "A pure-logic module stays pure (L0): relative imports only — no react, no SDK, no shared barrel, no node: builtin. Move the I/O to an INFRA module and pass its result in.",
             },
           ],
         },

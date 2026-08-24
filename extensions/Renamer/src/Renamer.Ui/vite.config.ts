@@ -13,9 +13,9 @@ export default defineConfig({
   test: {
     projects: [
       {
-        // `extends: true` only becomes the default in vitest 5. On 4.x an inline project inherits
-        // neither the react plugin nor the `@cove-extensions/ui-shared` alias without it, and every
-        // test whose module graph reaches the shared barrel fails to resolve.
+        // Without `extends: true` an inline project inherits neither the react plugin nor the
+        // `@cove-extensions/ui-shared` alias, and every test whose module graph reaches the shared
+        // barrel fails to resolve.
         extends: true,
         test: {
           name: "renamer-ui",
