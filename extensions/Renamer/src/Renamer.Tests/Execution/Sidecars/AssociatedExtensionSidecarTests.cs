@@ -27,7 +27,7 @@ public sealed class AssociatedExtensionSidecarTests
         ]);
 
     private static RenamerExecutor RealExecutor(Cove.Data.CoveContext db)
-        => new(new CoveRenamerDataPort(db), new CapturingEventBus(), new RevertLog(new FakeStore()), new DiskMover());
+        => new(new CoveRenamerDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
 
     [Fact]
     public async Task SameStemListedExtension_MovesAndTracksNewStem()
@@ -253,7 +253,7 @@ public sealed class AssociatedExtensionSidecarTests
             Assert.False(File.Exists(Path.Combine(dir.Root, "taken.mkv")), "precondition: disk target free so the move happens first");
 
             var executor = new RenamerExecutor(
-                new CollisionBlindDataPort(db), new CapturingEventBus(), new RevertLog(new FakeStore()), new DiskMover());
+                new CollisionBlindDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
             var options = new RenamerOptions { AssociatedExtensions = ["srt"] };
             var result = await executor.ExecuteAsync(
                 RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "taken.mkv"), options, default);

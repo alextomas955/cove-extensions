@@ -2,6 +2,27 @@
 
 User-facing changes, newest first.
 
+## Unreleased — Undo you can retry, and one that survives the next rename
+
+- **A rename no longer erases the undo of the one before it.** The undo record moved out of Cove's
+  extension-data store and into a table Renamer owns, so a background auto-rename no longer destroys
+  the record of a deliberate 500-file run. Each rename is kept for 7 days and then expires. The
+  5,000-file limit is unchanged: a rename past it is still not recorded, and the confirmation dialog
+  and the dry-run footer still say so before it runs.
+- **A file that can't go back stays pending instead of spending the whole undo.** Undoing used to
+  mark a rename spent as soon as one file came back, so files blocked by an occupied name or an
+  unmounted drive could never be retried. Now each file is retired only when it is actually settled;
+  fix the cause and undo again, and it finishes exactly the work that is left.
+- **Subtitles and other companion files come back with their video.** An undo replays the companion
+  moves the rename actually made, and writes each caption's original filename back only when its file
+  really moved back. A companion that cannot be restored no longer blocks its video's undo — the
+  video is restored and the companion is reported.
+- **A companion file's stored name is now really written on rename.** The caption rename in the
+  forward direction silently did nothing outside tests, leaving Cove's record naming a file the move
+  had just taken away.
+- **An undo pending from an earlier version is carried over, not thrown away.** The first load after
+  this upgrade moves it into the new table and removes the two old keys. It runs once.
+
 ## 0.3.0 — Undo that cannot grow without bound
 
 - **Undo no longer grows without limit, and says up front when it won't cover a rename.** The undo

@@ -316,27 +316,41 @@ public sealed partial class Renamer
 
     /// <summary>
     /// Reverse-replays the most recent renamer batch. Enforces <c>videos.write</c>
-    /// in-handler and returns 403 BEFORE any RevertLog read / scope open / disk touch (the
+    /// in-handler and returns 403 BEFORE any journal read / scope open / disk touch (the
     /// host's <c>[RequiresPermission]</c> filter is inert on minimal-API endpoints; mirrors
-    /// <see cref="RenamerEnqueue"/>). Takes no body — it always targets "the last open batch".
+    /// <see cref="RenamerEnqueue"/>). Takes no body — it always targets "the batch with rows left".
     /// <para>
-    /// Reads the last still-open batch (its <see cref="RenamerFileKind"/> from the <c>#batch</c>
-    /// header, its entityId-bearing rows newest-first), reverse-replays it via
-    /// <see cref="UndoReplayer"/> (kind from the header, entityId from each row — there is NO
-    /// hardcoded Video default on this path), then marks the batch consumed so a SECOND <c>/undo</c>
-    /// finds no open batch and returns <c>{undone:0}</c>. The batch is marked consumed even
-    /// on a partial failure: undo is not retried per-entry;
-    /// the failed/skipped buckets report what was left behind. A null/empty batch (no batch, empty
-    /// log, or already-consumed) is a clean <c>{undone:0}</c> no-op.
+    /// Names its target through <see cref="IRevertJournal.ReadUndoTargetAsync"/> — the same read the
+    /// panel's summary uses, so the batch described and the batch acted on cannot be different ones —
+    /// then reads that batch's rows A PAGE AT A TIME and reverse-replays each page via
+    /// <see cref="UndoReplayer"/> (kind from the batch, entityId from each row — there is NO hardcoded
+    /// Video default on this path). Every row whose outcome is settled is RETIRED: one that was
+    /// restored, and one that stopped for the single reason no retry can improve on. A row that stopped
+    /// for any other reason stays in the journal, so a later <c>/undo</c> retries exactly the work that
+    /// is still outstanding, and a batch with nothing left is not offered again. A null/empty batch is a
+    /// clean <c>{undone:0}</c> no-op.
+    /// </para>
+    /// <para>
+    /// Paging bounds this handler's READ memory by the page size rather than by the batch. Each page is
+    /// handed to the replayer wrapped in the same <see cref="RevertBatch"/> record it already consumed:
+    /// the replayer's signature, its per-entity path cache and its whole restore spine are deliberately
+    /// untouched here. That spine is the destructive path, and a storage change has no business
+    /// rewriting it.
+    /// </para>
+    /// <para>
+    /// What bounds the RESPONSE is <see cref="IRevertJournal.MaxJournalledFiles"/>. The two error
+    /// buckets accumulate across every page, and the cursor strictly decreases so each row reaches them
+    /// at most once — so the reply carries at most one entry per file the batch journalled, and a batch
+    /// past the cap journalled none.
     /// </para>
     /// </summary>
     internal async Task<Results<Ok<UndoResult>, ForbiddenCode>> UndoAsync(
         ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
-        // 403 FIRST for a caller holding NO renamer-write permission of any kind — before any RevertLog
+        // 403 FIRST for a caller holding NO renamer-write permission of any kind — before any journal
         // read or disk touch, so an unauthorized caller cannot even learn whether a batch exists. The
-        // SPECIFIC kind's write permission is re-checked below once the batch header reveals the kind;
-        // this coarse gate only preserves the "no read/disk work for the wholly-unauthorized" property.
+        // SPECIFIC kind's write permission is re-checked below once the batch reveals the kind; this
+        // coarse gate only preserves the "no read/disk work for the wholly-unauthorized" property.
         bool canWriteAny = principal.Current is not null
             && (principal.Current.Has(Permissions.VideosWrite)
                 || principal.Current.Has(Permissions.ImagesWrite)
@@ -346,26 +360,35 @@ public sealed partial class Renamer
             return new ForbiddenCode();
         }
 
-        var revertLog = new RevertLog(Store);
+        // Open a scope the SAME way RunRenamerBatchAsync does and resolve the scoped DbContext. It is
+        // opened before the batch read because the journal now lives in the database rather than in the
+        // extension store — a scope open is not a mutation, so the "an under-permissioned caller
+        // changes nothing" property the per-kind re-gate below protects is unaffected.
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<DbContext>();
+        using var journal = new CoveRevertJournal(db);
 
-        // The summary carries the runId we mark consumed after the replay.
-        var summary = await revertLog.ReadLastBatchSummaryAsync(ct);
-        var batch = await revertLog.ReadLastOpenBatchAsync(ct);
-        // Guard `summary` explicitly rather than relying on the implicit (and non-atomic)
-        // coupling that `batch != null` forces `summary != null`. The two reads are separate store
-        // reads; treating a missing summary as a clean no-op makes the nullability safe instead of
-        // `!`-suppressed, so a future parser change (e.g. a header-only batch returning a null summary)
-        // can never turn the `summary.Value.RunId` dereferences below into a runtime NRE.
-        if (batch is null || batch.Entries.Count == 0 || summary is null)
+        var target = await journal.ReadUndoTargetAsync(ct);
+        if (target is null)
         {
             return TypedResults.Ok(new UndoResult(0, [], []));
         }
 
-        // Re-gate on the WRITE permission of the kind that was actually renamed (the batch header
-        // carries it) — undoing an image renamer requires images.write, not videos.write. This is
-        // checked after the batch read (needed to learn the kind) but BEFORE the options load, scope
-        // open, or any disk touch, so an under-permissioned caller still mutates nothing.
-        var (_, undoWritePermission) = PermissionsFor(batch.Kind);
+        // The first page is read BEFORE the per-kind re-gate, exactly where the whole-batch read used to
+        // sit: a settled batch is the "nothing to undo" answer for every caller holding any renamer
+        // write permission, not a 403 that would also disclose which kind the settled batch was.
+        var page = await journal.ReadBatchPageAsync(
+            target.Value.RunId, belowSeq: long.MaxValue, CoveRevertJournal.DefaultPageSize, ct);
+        if (page.Count == 0)
+        {
+            return TypedResults.Ok(new UndoResult(0, [], []));
+        }
+
+        // Re-gate on the WRITE permission of the kind that was actually renamed (the batch carries it)
+        // — undoing an image renamer requires images.write, not videos.write. This is checked after the
+        // batch read (needed to learn the kind) but BEFORE the options load and any disk touch, so an
+        // under-permissioned caller still mutates nothing.
+        var (_, undoWritePermission) = PermissionsFor(target.Value.Kind);
         if (Forbidden(principal, undoWritePermission) is { } denied)
         {
             return denied;
@@ -377,62 +400,80 @@ public sealed partial class Renamer
         // the forward move used — so a restore can never land outside the allowed roots.
         var options = await new OptionsStore(Store, _log).LoadAsync(ct);
 
-        // Open a scope the SAME way RunRenamerBatchAsync does and resolve the scoped DbContext.
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-
         var replayer = new UndoReplayer(new CoveRenamerDataPort(db), EventBus, new DiskMover(),
             cross: new CrossVolumeMover(), allowedRoots: options.AllowedRoots);
-        var run = await replayer.RevertAsync(batch, ct);
 
-        LogUndo(summary.Value.RunId, batch, run);
+        int undone = 0;
+        var failed = new List<UndoEntryError>();
+        var skipped = new List<UndoEntryError>();
 
-        // Consume the batch only when at least one entry was actually restored. A run that restored
-        // nothing — every entry skipped or failed — must leave the batch OPEN so the operation can be
-        // retried after the cause is corrected (e.g. an allowlist that didn't yet cover the original
-        // location, an offline source drive, a temporarily-locked file). Marking an all-skipped run
-        // spent would permanently foreclose the only recovery path and strand the file at its new
-        // location. Re-running undo is inherently safe: each already-restored row finds its old slot
-        // occupied and skips (no clobber), so a retry only acts on the entries that still need it.
-        if (run.Undone > 0)
+        while (page.Count > 0)
         {
-            await revertLog.MarkLastBatchConsumedAsync(summary.Value.RunId, ct);
+            var pageBatch = new RevertBatch(target.Value.RunId, target.Value.Kind, page);
+            var run = await replayer.RevertAsync(pageBatch, ct);
+
+            LogUndoEntries(target.Value.RunId, pageBatch, run);
+
+            undone += run.Undone;
+            failed.AddRange(
+                run.Failed.Select(f => new UndoEntryError(f.FileId, f.OldPath, f.NewPath, f.Reason)));
+            skipped.AddRange(
+                run.Skipped.Select(sk => new UndoEntryError(sk.FileId, sk.OldPath, sk.NewPath, sk.Reason)));
+
+            // Retire each row whose file actually came back. A row that stopped for a reason the world
+            // can clear STAYS, so it is offered again on the next undo — which is what makes a retry act
+            // on exactly the work still outstanding after the cause is corrected (an allowlist that
+            // didn't yet cover the original location, an offline source drive, a locked file).
+            foreach (var row in run.Restored)
+            {
+                await journal.DeleteRowAsync(row.RunId, row.Seq, unrestorable: false, ct);
+            }
+
+            // A row that can NEVER be restored is retired too, on the other counter. Leaving it would
+            // keep the batch offering an undo that cannot complete, and the panel promising work that
+            // will never happen; the aggregate still records that it ended unrestorable, and the reason
+            // was already surfaced in this very response. The decision reads the TYPED stop reason — the
+            // same fact as the note beside it, but as a value, so rewording a message for a human cannot
+            // change which rows get deleted for good.
+            foreach (var stopped in run.Failed.Concat(run.Skipped)
+                .Where(stopped => UndoTerminalClassifier.IsTerminal(stopped.Stop)))
+            {
+                await journal.DeleteRowAsync(stopped.RunId, stopped.Seq, unrestorable: true, ct);
+            }
+
+            // The cursor is the LOWEST sequence this page returned, and the next page returns only rows
+            // strictly below it — so the cursor strictly decreases and the loop terminates whatever the
+            // outcomes were. A cursor that failed to advance would re-read the same page forever, which
+            // is a hang rather than an error, so it is pinned by a test rather than left to review.
+            page = await journal.ReadBatchPageAsync(
+                target.Value.RunId, page[^1].Seq, CoveRevertJournal.DefaultPageSize, ct);
         }
 
-        return TypedResults.Ok(new UndoResult(
-            run.Undone,
-            [.. run.Failed.Select(f => new UndoEntryError(f.FileId, f.OldPath, f.NewPath, f.Reason))],
-            [.. run.Skipped.Select(s => new UndoEntryError(s.FileId, s.OldPath, s.NewPath, s.Reason))]));
+        LogUndoDone(target.Value.RunId, undone, skipped.Count, failed.Count);
+
+        return TypedResults.Ok(new UndoResult(undone, failed, skipped));
     }
 
     /// <summary>
-    /// Records the outcome of reverse-replaying a batch to the host log: a line per restored file
-    /// (current → original), per skip/failure (with reason), and a summary. The restored entries are
-    /// the batch rows that are NOT in the failed/skipped buckets (the run result only returns the
-    /// restored COUNT, so they are derived here by difference).
-    /// <para>
-    /// The difference is keyed on the ROW IDENTITY <c>(FileId, OldPath)</c> — NOT on FileId alone. A
-    /// single batch can legitimately contain two rows with the same FileId (a file renamed twice within
-    /// one run, or a duplicated row the tolerant parser admits); keying on FileId alone would drop BOTH
-    /// such rows from the restored log when only one was a problem (under-reporting restores), or
-    /// mislabel a failed duplicate as restored. Two rows for one file necessarily differ in their old
-    /// path — the second row's old path is where the first row's rename left it — so the pair is the
-    /// row's unique identity within the batch and each row is bucketed exactly once.
-    /// </para>
+    /// Records the outcome of reverse-replaying ONE PAGE of a batch to the host log: a line per
+    /// restored file (current → original) and one per skip/failure (with reason).
     /// </summary>
-    private void LogUndo(string runId, RevertLog.RevertBatch batch, UndoReplayer.UndoRunResult run)
+    /// <remarks>
+    /// The run's closing summary line is deliberately NOT written here: an undo replays as many pages
+    /// as the batch has, and a "done" line per page would report a fraction of the run as the whole of
+    /// it. The caller writes it once, from the totals.
+    /// <para>
+    /// The restored rows are the ones the replayer reports, never a set derived by subtracting the
+    /// problem buckets from the batch. A single batch can legitimately hold two rows for the same file
+    /// (renamed twice within one run), so a derived set has to reconstruct each row's identity from its
+    /// paths to bucket it once — and get that reconstruction exactly right. The replayer already knows
+    /// which rows it restored.
+    /// </para>
+    /// </remarks>
+    private void LogUndoEntries(string runId, RevertBatch batch, UndoReplayer.UndoRunResult run)
     {
-        var problemRows = run.Failed.Select(f => (f.FileId, f.OldPath))
-            .Concat(run.Skipped.Select(s => (s.FileId, s.OldPath)))
-            .ToHashSet();
-
-        foreach (var entry in batch.Entries)
+        foreach (var entry in run.Restored)
         {
-            if (problemRows.Contains((entry.FileId, entry.OldPath)))
-            {
-                continue;
-            }
-
             LogUndoRestored(runId, batch.Kind, entry.EntityId, entry.OldPath);
         }
 
@@ -446,15 +487,29 @@ public sealed partial class Renamer
             LogUndoFailed(runId, f.FileId, f.Reason);
         }
 
-        LogUndoDone(runId, run.Undone, run.Skipped.Count, run.Failed.Count);
+        // Entries that were restored anyway, minus a companion file. They are in no counted bucket, so
+        // this loop is the only place a partial restore surfaces in the log.
+        foreach (var w in run.Warnings)
+        {
+            LogUndoSidecarStranded(runId, w.FileId, w.Detail);
+        }
     }
 
     /// <summary>
-    /// Returns the paths-free summary of the most recent batch for the undo panel: its
-    /// row count, open timestamp, and consumed flag — no paths. Enforces <c>videos.read</c>
-    /// in-handler (403-first; minimal-API <c>[RequiresPermission]</c> is inert). An empty log
+    /// Returns the paths-free summary of the batch an undo would act on: its original file count, open
+    /// timestamp, and spent flag — no paths. Enforces <c>videos.read</c>
+    /// in-handler (403-first; minimal-API <c>[RequiresPermission]</c> is inert). An empty journal
     /// returns <see cref="LastBatchSummary"/> with <c>HasBatch:false</c>.
     /// </summary>
+    /// <remarks>
+    /// A batch is spent when it has no rows left to restore, which is derived from the aggregate rather
+    /// than stored: a row exists exactly while its file still needs restoring, so "nothing remains" and
+    /// "already undone" are the same fact and cannot disagree.
+    /// <para>
+    /// Reads the batch row only. It never touches the row table, so the response stays O(1) whatever the
+    /// batch's size — which is also what keeps this endpoint's coarse permission gate defensible.
+    /// </para>
+    /// </remarks>
     internal async Task<Results<Ok<LastBatchSummary>, ForbiddenCode>> LastBatchAsync(
         ICurrentPrincipalAccessor principal, CancellationToken ct)
     {
@@ -471,12 +526,21 @@ public sealed partial class Renamer
             return new ForbiddenCode();
         }
 
-        var summary = await new RevertLog(Store).ReadLastBatchSummaryAsync(ct);
+        // The journal is a database read now, so this endpoint needs the scope it never had.
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<DbContext>();
+
+        using var journal = new CoveRevertJournal(db);
+
+        // The SAME read /undo names its target with, which is what makes the line this endpoint feeds
+        // describe the batch the button will act on. Two reads that merely agreed today drifted the
+        // moment a newer batch could settle while an older one still held rows.
+        var summary = await journal.ReadUndoTargetAsync(ct);
         return TypedResults.Ok(new LastBatchSummary(
             HasBatch: summary is not null,
-            Count: summary?.Count ?? 0,
+            Count: summary?.OriginalCount ?? 0,
             WrittenAtUtcTicks: summary?.WrittenAtUtcTicks ?? 0,
-            Consumed: summary?.Consumed ?? false));
+            Consumed: summary is not null && summary.Value.Remaining == 0));
     }
 
     /// <summary>The lightweight id+name projection a routing/exclude picker resolves a name to a stable id against.</summary>

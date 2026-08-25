@@ -210,4 +210,25 @@ public sealed class ScanAggregatorTests
         Assert.True(large.Length - small.Length < 32,
             $"aggregate grew by {large.Length - small.Length} bytes over 3 orders of magnitude more entities");
     }
+
+    [Theory]
+    [InlineData(IRevertJournal.MaxJournalledFiles, true)]
+    [InlineData(IRevertJournal.MaxJournalledFiles + 1, false)]
+    public void ToSummary_Undoable_TurnsOffOneActingFilePastTheCap(int actingFiles, bool undoable)
+    {
+        // A whole-library dry run reaches the same warning through this fold rather than through
+        // BatchPreview.Summarize, so the two derive the flag from separate expressions and can drift.
+        var aggregator = new ScanAggregator(Mounts);
+        var items = Enumerable.Range(1, actingFiles)
+            .Select(i => Acting(i, OnVol("C", $"{i}.mkv"), OnVol("C", $"r{i}.mkv")))
+            .ToArray();
+
+        aggregator.Fold(
+            RenamerFileKind.Video, Plan(RenamerFileKind.Video, 1, items), new Dictionary<int, long>());
+
+        var kind = Assert.Single(aggregator.ToSummary(0L).Kinds);
+
+        Assert.Equal(actingFiles, kind.BlastRadius.TotalCount);
+        Assert.Equal(undoable, kind.BlastRadius.Undoable);
+    }
 }

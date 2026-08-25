@@ -76,5 +76,5 @@ public sealed class CaptionRowWriteTests
         ]);
 
     private static RenamerExecutor RealExecutor(Cove.Data.CoveContext db)
-        => new(new CoveRenamerDataPort(db), new CapturingEventBus(), new RevertLog(new FakeStore()), new DiskMover());
+        => new(new CoveRenamerDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
 }

@@ -39,8 +39,8 @@ public sealed class RenamerExecutorIntegrationTests
 
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
-            var revertLog = new RevertLog(new FakeStore());
-            var executor = new RenamerExecutor(port, bus, revertLog, new DiskMover());
+            var journal = new FakeRevertJournal();
+            var executor = new RenamerExecutor(port, bus, journal, "run-test", new DiskMover());
 
             var options = new RenamerOptions { FilenameTemplate = "$title" }; // → "My Film.mkv"
 
@@ -64,7 +64,7 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Equal(RenamerStatus.Renamer, renamedItem.Status);
             Assert.Empty(result.Failed);
             Assert.Empty(result.Skipped);
-            var revert = Assert.Single(result.RevertLog);
+            var revert = Assert.Single(journal.Rows);
             Assert.Equal(fileId, revert.FileId);
             Assert.EndsWith("raw clip.mkv", revert.OldPath);
 
@@ -111,7 +111,7 @@ public sealed class RenamerExecutorIntegrationTests
                 .PlanAsync(RenamerFileKind.Video, videoId, options, default);
 
             var executor = new RenamerExecutor(
-                new CancelOnSaveDataPort(db), new CapturingEventBus(), new RevertLog(new FakeStore()), new DiskMover());
+                new CancelOnSaveDataPort(db), new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
 
             // The cancel flows out as cancellation (the batch ends), never a Failed row.
             await Assert.ThrowsAsync<OperationCanceledException>(() => executor.ExecuteAsync(plan, options, default));
@@ -149,8 +149,8 @@ public sealed class RenamerExecutorIntegrationTests
 
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
-            var revertLog = new RevertLog(new FakeStore());
-            var executor = new RenamerExecutor(port, bus, revertLog, new DiskMover());
+            var journal = new FakeRevertJournal();
+            var executor = new RenamerExecutor(port, bus, journal, "run-test", new DiskMover());
 
             var options = new RenamerOptions { FilenameTemplate = "$title" };
 
@@ -165,7 +165,7 @@ public sealed class RenamerExecutorIntegrationTests
             // A missing source is a safe no-op skip: nothing moved/failed, no revert-log, no event.
             Assert.Empty(result.Renamed);
             Assert.Empty(result.Failed);
-            Assert.Empty(result.RevertLog);
+            Assert.Empty(journal.Rows);
             Assert.Empty(bus.Published);
         }
         finally
@@ -208,9 +208,9 @@ public sealed class RenamerExecutorIntegrationTests
 
             var port = new CoveRenamerDataPort(db);
             var bus = new CapturingEventBus();
-            var revertLog = new RevertLog(new FakeStore());
+            var journal = new FakeRevertJournal();
             // Inject a real CrossVolumeMover (the production mover) so the cross branch runs end-to-end.
-            var executor = new RenamerExecutor(port, bus, revertLog, new DiskMover(), new CrossVolumeMover());
+            var executor = new RenamerExecutor(port, bus, journal, "run-test", new DiskMover(), new CrossVolumeMover());
 
             // Explicit MOVE plan: source on the temp drive, target folder on the subst drive.
             var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
@@ -233,7 +233,7 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Equal(RenamerStatus.Move, movedItem.Status);
             Assert.Empty(result.Failed);
             Assert.Empty(result.Skipped);
-            Assert.Single(result.RevertLog);
+            Assert.Single(journal.Rows);
 
             // DB: Basename updated, ParentFolderId moved to the (new) dest folder, recomputed Path matches.
             var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
@@ -298,8 +298,9 @@ public sealed class RenamerExecutorIntegrationTests
                     RenamerStatus.Move, "taken.mkv", dstFolder),
             ]);
 
+            var journal = new FakeRevertJournal();
             var executor = new RenamerExecutor(
-                new CollisionBlindDataPort(db), new CapturingEventBus(), new RevertLog(new FakeStore()),
+                new CollisionBlindDataPort(db), new CapturingEventBus(), journal, "run-test",
                 new DiskMover(), new CrossVolumeMover());
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
@@ -309,7 +310,7 @@ public sealed class RenamerExecutorIntegrationTests
             Assert.Equal(RenamerStatus.Failed, failedItem.Status);
             Assert.Contains("rolled back", failedItem.Reason);
             Assert.Empty(result.Renamed);
-            Assert.Empty(result.RevertLog);
+            Assert.Empty(journal.Rows);
 
             // (a) the source is RESTORED across the volume (copy-back) with its original content.
             Assert.True(File.Exists(oldA), "cross rollback must copy the file back to its old path");
@@ -370,7 +371,7 @@ public sealed class RenamerExecutorIntegrationTests
             // target taken → "rollback target re-occupied" warning) and then throws.
             var port = new ReoccupyOldSlotThenThrowDataPort(db, oldA);
             var executor = new RenamerExecutor(
-                port, new CapturingEventBus(), new RevertLog(new FakeStore()),
+                port, new CapturingEventBus(), new FakeRevertJournal(), "run-test",
                 new DiskMover(), new CrossVolumeMover());
 
             var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);

@@ -46,8 +46,9 @@ public sealed record VolumePairDelta(string From, string To, int Count, long Byt
 /// <param name="VolumePairs">One <see cref="VolumePairDelta"/> per (source,destination) volume pair touched by a cross-volume move.</param>
 /// <param name="ConfirmLevel">How loud the confirm must be, derived from the blast radius.</param>
 /// <param name="Undoable">
-/// False past <see cref="RevertLog.MaxJournalledFiles"/>: the batch will not be journalled. Carried on
-/// the preview because the user has to learn it BEFORE the rename runs.
+/// Whether the batch will be journalled, and so can be reversed afterwards. False past
+/// <see cref="IRevertJournal.MaxJournalledFiles"/>. Carried on the preview because the user has to
+/// learn it BEFORE the rename runs.
 /// </param>
 public sealed record PreviewSummary(
     int TotalCount,
@@ -139,7 +140,7 @@ public static class BatchPreview
 
         return new PreviewSummary(
             totalCount, sameCount, crossCount, crossBytes, volumePairs, level,
-            Undoable: !RevertLog.ExceedsCap(totalCount));
+            Undoable: !IRevertJournal.ExceedsCap(totalCount));
     }
 
     /// <remarks>

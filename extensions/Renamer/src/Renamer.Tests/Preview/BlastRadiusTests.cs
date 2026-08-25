@@ -190,4 +190,22 @@ public sealed class BlastRadiusTests
 
         Assert.Equal(ConfirmLevel.Heavy, summary.ConfirmLevel);
     }
+
+    [Theory]
+    [InlineData(IRevertJournal.MaxJournalledFiles, true)]
+    [InlineData(IRevertJournal.MaxJournalledFiles + 1, false)]
+    public void Undoable_TurnsOffOneActingFilePastTheCap(int actingFiles, bool undoable)
+    {
+        // The preview is the only place a user learns a rename will not be recorded, and they learn it
+        // BEFORE it runs — so the boundary shown here has to be the one the batch core suppresses at.
+        var items = Enumerable.Range(1, actingFiles)
+            .Select(i => Item(i, OnVol("C", $"{i}.mkv"), OnVol("C", $"r{i}.mkv"),
+                RenamerStatus.Renamer, RootOf("C")))
+            .ToList();
+
+        var summary = BatchPreview.Summarize(items, new Dictionary<int, long>(), Mounts);
+
+        Assert.Equal(actingFiles, summary.TotalCount);
+        Assert.Equal(undoable, summary.Undoable);
+    }
 }
