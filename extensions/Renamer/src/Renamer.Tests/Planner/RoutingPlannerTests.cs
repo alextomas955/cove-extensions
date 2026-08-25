@@ -307,6 +307,43 @@ public sealed class RoutingPlannerTests
     }
 
     [Fact]
+    public async Task RoutedToSameFolder_SameName_IsNoOp_WhenTheHostSuppliedABackslashPath()
+    {
+        // Cove does not guarantee a forward-slash Folder.Path — its own tests build
+        // `new Folder { Path = "C:\\library" }` — so on a Windows host ParentFolderPath arrives with
+        // backslashes while the confinement gate returns its target forward-slashed. The no-op check
+        // compares the two ORDINALLY, so a file already sitting at its routed destination read as a
+        // Move to its own path. This seeds the raw host shape deliberately: every other test here
+        // goes through Fwd(), which normalizes away the one input that reproduces it.
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "asserts Windows backslash Folder.Path semantics");
+
+        var rawSrcRoot = @"C:\library\incoming";
+        var file = new RenamerFile(
+            FileId: 1, Kind: RenamerFileKind.Video, Basename: "My Film.mkv", ParentFolderId: 5,
+            ParentFolderPath: rawSrcRoot, Format: "mkv", Width: 1920, Height: 1080,
+            Duration: 3600, VideoCodec: "h264", AudioCodec: "aac", FrameRate: 30);
+
+        var port = new FakeRenamerDataPort();
+        port.SeedEntity(Entity(file) with { StudioId = 999, Tags = [] });
+        var planner = new RenamerPlanner(port);
+        var opts = new RenamerOptions
+        {
+            FilenameTemplate = "$title",
+            FolderTemplate = "",
+            AllowedRoots = [rawSrcRoot],
+            DefaultDestination = rawSrcRoot,
+            EnableDefaultRelocate = true,
+        };
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, Lookups(), default);
+
+        var item = Assert.Single(plan.Items);
+        Assert.Equal(RenamerStatus.NoOp, item.Status);
+        Assert.Equal(item.OldFullPath, item.NewFullPath);
+        Assert.Empty(port.SaveCalls);
+    }
+
+    [Fact]
     public async Task DefaultRelocateEnabled_RoutesToDefaultRoot()
     {
         var port = new FakeRenamerDataPort();
