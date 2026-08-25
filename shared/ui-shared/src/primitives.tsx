@@ -27,7 +27,7 @@
  * reason to change the specifier string. See `Dialog.tsx`'s header for why `ConfirmDialog` isn't a
  * swap for `Dialog` either.
  */
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useId, useRef, useState, useEffect } from "react";
 import { Loader2, X, ChevronUp, ChevronDown } from "lucide-react";
 import { isRegexValid, isAbsolutePathShape, listEditors } from "./primitivesLogic";
@@ -1146,21 +1146,35 @@ export function Badge({ children, mono = false }: { children: ReactNode; mono?: 
 
 export type StatusPillVariant = "accent" | "amber" | "red" | "green" | "gray";
 
-// Each triple is lifted verbatim from the pre-existing pills so the host Tailwind JIT still emits
-// every class; a consumer whose text color rides on inner spans overrides the triple's `text-*`.
-const STATUS_PILL_VARIANT: Record<StatusPillVariant, string> = {
-  accent: "border-accent/40 bg-accent/10 text-accent",
-  amber: "border-amber-400/40 bg-amber-400/10 text-amber-400",
-  red: "border-red-700/50 bg-red-950/40 text-red-400",
-  green: "border-green-500/40 bg-green-500/10 text-green-400",
-  gray: "border-border bg-card text-muted",
-};
+/** A theme color at partial alpha, in the same form the host's own stylesheet emits. */
+const tint = (variable: string, percent: number) =>
+  `color-mix(in oklab, var(${variable}) ${percent}%, transparent)`;
+
+// A utility the host's prebuilt stylesheet never emits renders as nothing at all - no fill, and no
+// error anywhere - because the host Tailwind JIT does not scan this bundle. Cove defines the color
+// scale as custom properties even for the utilities it never emits, so a `style` follows the host
+// theme rather than freezing a literal. Anything the host does emit stays a class; measure a
+// candidate against the floor `extension.json` declares before inlining it. A consumer whose text
+// color rides on inner spans overrides the `text-*` class.
+const STATUS_PILL_VARIANT: Record<StatusPillVariant, { className: string; style?: CSSProperties }> =
+  {
+    accent: { className: "border-accent/40 bg-accent/10 text-accent" },
+    amber: {
+      className: "border-amber-400/40 text-amber-400",
+      style: { backgroundColor: tint("--color-amber-400", 10) },
+    },
+    red: {
+      className: "border-red-700/50 text-red-400",
+      style: { backgroundColor: tint("--color-red-950", 40) },
+    },
+    green: { className: "border-green-500/40 bg-green-500/10 text-green-400" },
+    gray: { className: "border-border bg-card text-muted" },
+  };
 
 /**
  * A status-tinted pill — the badge family the single-accent `$token` {@link Badge} does not cover.
  * `variant` selects the tint, `shape` the corner radius (`pill` fully rounded | `tag` `rounded-md`),
- * `icon` a caller-supplied leading glyph so status never rides on color alone. Host-compiled classes
- * only.
+ * `icon` a caller-supplied leading glyph so status never rides on color alone.
  */
 export function StatusPill({
   variant,
@@ -1179,10 +1193,12 @@ export function StatusPill({
   // gap-1, the rounded-md status tags at gap-1.5.
   const gap = shape === "pill" ? "gap-1" : "gap-1.5";
   const rounded = shape === "pill" ? "rounded-full" : "rounded-md";
+  const tone = STATUS_PILL_VARIANT[variant];
   return (
     <span
       title={title}
-      className={`inline-flex items-center ${gap} ${rounded} border px-2 py-0.5 text-xs ${STATUS_PILL_VARIANT[variant]}`}
+      className={`inline-flex items-center ${gap} ${rounded} border px-2 py-0.5 text-xs ${tone.className}`}
+      style={tone.style}
     >
       {icon}
       {children}
