@@ -15,17 +15,9 @@ namespace Renamer;
 
 public sealed partial class Renamer : FullExtensionBase
 {
-    public override string Id => "com.alextomas955.renamer";
-    public override string Name => "Renamer";
-
-    // Repo-committed dev placeholders, not release-stamped: the published artifact's real version
-    // comes from the release tag (build.yml's -p:Version= and the packaged extension.json stamp).
-    public override string Version => "0.4.0";
-    public override string? Description => "Bulk-renames Cove library items using configurable patterns.";
-    public override string? Author => "alextomas955";
-    public override string? Url => "https://github.com/alextomas955/renamer";
-    public override IReadOnlyList<string> Categories => [ExtensionCategories.Tools, ExtensionCategories.Automation];
-    public override string? MinCoveVersion => "1.3.0";
+    // Identity and metadata come from extension.json, which the host applies to this instance
+    // (IManifestAware.ApplyManifest) before it reads any of them. The host reads each value straight
+    // off the property, so an override declared here overrides the manifest silently.
 
     // ── Executor wiring ───────────────────────────────────────────────────────
     // The executor needs a SCOPED CoveContext per run (a DbContext is scoped, not singleton) and the

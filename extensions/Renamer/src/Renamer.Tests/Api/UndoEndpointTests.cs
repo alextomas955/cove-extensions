@@ -42,7 +42,7 @@ public sealed class UndoEndpointTests
         var provider = services.BuildServiceProvider();
 
         var store = new FakeStore();
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         ((IStatefulExtension)ext).SetStore(store);
         await ext.InitializeAsync(provider); // captures IServiceScopeFactory + IEventBus from DI
         return (ext, store);

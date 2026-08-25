@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Cove.Plugins;
+using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests;
 
@@ -7,8 +8,8 @@ namespace Renamer.Tests;
 /// Guards the shipped <c>extension.json</c> against the host's real <see cref="ExtensionManifestFile"/>
 /// contract: it deserializes the same file the host loads, using the same case-insensitive options the
 /// host uses, so a field the loader would reject (or a renamed/typo'd key) fails here instead of
-/// silently dropping at install time. It also pins the runtime-permissions posture and the richer
-/// admin-facing description.
+/// silently dropping at install time. It also pins the runtime-permissions posture, the richer
+/// admin-facing description, and that the extension instance the host builds answers from this file.
 /// </summary>
 [Trait("Tier", "L0")]
 public sealed class ExtensionManifestFileTests
@@ -69,5 +70,29 @@ public sealed class ExtensionManifestFileTests
         Assert.Contains("database", description, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("videos.read", description, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("videos.write", description, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The metadata an operator sees in Cove's extension list is the shipped manifest's, declared
+    /// nowhere in code.
+    /// </summary>
+    /// <remarks>
+    /// The host reads each of these straight off the property on the instance, so an override declared
+    /// on the extension class wins over the file and the manifest stops being read at all.
+    /// </remarks>
+    [Fact]
+    public void Extension_AnswersItsMetadataFromTheShippedManifest()
+    {
+        var manifest = Load();
+        var extension = RenamerFixture.Create();
+
+        Assert.Equal(manifest.Id, extension.Id);
+        Assert.Equal(manifest.Name, extension.Name);
+        Assert.Equal(manifest.Version, extension.Version);
+        Assert.Equal(manifest.Description, extension.Description);
+        Assert.Equal(manifest.Author, extension.Author);
+        Assert.Equal(manifest.Url, extension.Url);
+        Assert.Equal(manifest.MinCoveVersion, extension.MinCoveVersion);
+        Assert.Equal(manifest.Categories, extension.Categories);
     }
 }

@@ -60,7 +60,7 @@ public sealed class RevertJournalCapTests
     {
         var journal = new FakeRevertJournal();
 
-        await new global::Renamer.Renamer().OpenOrSuppressBatchAsync(
+        await RenamerFixture.Create().OpenOrSuppressBatchAsync(
             journal, "run", RenamerFileKind.Video, actingFiles, Opened, default);
 
         await journal.AppendAsync(new RevertRow("run", Seq: 0, 11, 21, "/media/old/a.mkv", ""));
@@ -78,7 +78,7 @@ public sealed class RevertJournalCapTests
     {
         var journal = new FakeRevertJournal();
 
-        await new global::Renamer.Renamer().OpenOrSuppressBatchAsync(
+        await RenamerFixture.Create().OpenOrSuppressBatchAsync(
             journal, "run", RenamerFileKind.Video, actingFiles, Opened, default);
 
         // Workers already in flight when the decision was taken still call AppendAsync.

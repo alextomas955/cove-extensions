@@ -28,7 +28,7 @@ public sealed class PreviewWholeBatchTests
 
     private static async Task<global::Renamer.Renamer> BuildExtensionAsync(RenamerOptions options)
     {
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         var store = new FakeStore();
         await new OptionsStore(store).SaveAsync(options);
         ((Cove.Plugins.IStatefulExtension)ext).SetStore(store);

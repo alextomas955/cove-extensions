@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Contracts;
 using Renamer.Planner;
+using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Api;
 
@@ -203,7 +204,7 @@ public sealed class TransportSmokeTests
             builder.Services.AddSingleton<Cove.Core.Events.IEventBus>(new TestSupport.CapturingEventBus());
             builder.Services.AddRouting();
 
-            var ext = new global::Renamer.Renamer();
+            var ext = RenamerFixture.Create();
             ((IStatefulExtension)ext).SetStore(store ?? new FakeStore());
 
             var app = builder.Build();

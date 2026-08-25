@@ -22,6 +22,11 @@ User-facing changes, newest first.
   had just taken away.
 - **An undo pending from an earlier version is carried over, not thrown away.** The first load after
   this upgrade moves it into the new table and removes the two old keys. It runs once.
+- **Renamer's entry in Cove's extension list now shows the right link and the full description.** The
+  link pointed at a repository that does not hold this extension, and the description was a single
+  sentence that left out which permissions a rename needs and the fact that Renamer makes no network
+  calls. Both were duplicated in code, where they silently won over the manifest that had the correct
+  text; the manifest is now the only place either is written.
 
 ## 0.3.0 — Undo that cannot grow without bound
 

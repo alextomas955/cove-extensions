@@ -53,7 +53,7 @@ public sealed class ScanAggregateScaleTests
     /// </summary>
     private static (global::Renamer.Renamer Ext, FakeStore Store) NewExtension()
     {
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         var store = new FakeStore();
         ((IStatefulExtension)ext).SetStore(store);
         return (ext, store);

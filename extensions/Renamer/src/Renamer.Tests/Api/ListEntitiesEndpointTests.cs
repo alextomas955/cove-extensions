@@ -5,6 +5,7 @@ using Cove.Data;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using Renamer.Tests.TestSupport;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace Renamer.Tests.Api;
@@ -20,7 +21,7 @@ public sealed class ListEntitiesEndpointTests
 {
     private static global::Renamer.Renamer NewExtension()
     {
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         ((Cove.Plugins.IStatefulExtension)ext).SetStore(new FakeStore());
         return ext;
     }

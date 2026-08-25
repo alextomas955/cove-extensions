@@ -47,7 +47,7 @@ public sealed class AutoRenamerFailureContainmentTests
             services.AddSingleton<IEventBus>(new CapturingEventBus());
             var provider = services.BuildServiceProvider();
 
-            var ext = new global::Renamer.Renamer();
+            var ext = RenamerFixture.Create();
             ((IStatefulExtension)ext).SetStore(new ThrowingStore()); // first store read throws.
             await ext.InitializeAsync(provider);
 
