@@ -46,6 +46,14 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     /// <summary>Number of <see cref="LoadEntitiesAsync"/> calls — one per CALL (not per id), so a scan test can prove batching issues far fewer than N loads.</summary>
     public int LoadEntitiesCallCount { get; private set; }
 
+    /// <summary>The library paths the fake declares; empty by default, so a test opts in to an anchor.</summary>
+    public List<string> LibraryPathList { get; } = [];
+
+    /// <summary>Declares <paramref name="paths"/> as Cove's configured library paths.</summary>
+    public void SeedLibraryPaths(params string[] paths) => LibraryPathList.AddRange(paths);
+
+    public IReadOnlyList<string> LibraryRoots => LibraryPathList;
+
     /// <summary>Rows <see cref="ResolveNamesAsync"/> resolves against, per entity table.</summary>
     private readonly Dictionary<RenamerEntityKind, List<(int Id, string Name)>> _namedEntities = new();
 

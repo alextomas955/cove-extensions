@@ -135,9 +135,49 @@ public sealed record FieldReplaceRule
 }
 
 /// <summary>
+/// Where a matched item lands: a <see cref="Root"/> chosen from Cove's own library paths, plus a
+/// relative <see cref="Template"/> rendered underneath it. Every destination in this extension has
+/// this one shape, so there is nothing to combine and no precedence to teach.
+/// </summary>
+/// <remarks>
+/// <see cref="Root"/> is a REFERENCE into Cove's library paths rather than a typed path, and it is
+/// re-read on every plan: a root the user has since removed from Cove stops the rule with
+/// <see cref="Planner.RenamerStatus.SkipRootMissing"/> instead of writing somewhere nobody chose.
+/// <para>
+/// The two empty values are defaults, not two spellings of "unset". An empty <see cref="Root"/>
+/// means the library path CONTAINING the file, so a rule can tidy each library path in place. An
+/// empty <see cref="Template"/> means the root itself. Both empty moves nothing.
+/// </para>
+/// <para>
+/// Hand-written structural <c>Equals</c>/<c>GetHashCode</c> for the same reason
+/// <see cref="PathDestinationRule"/> has them: a JSON round-trip allocates a fresh instance and the
+/// settings panel's dirty check compares by value.
+/// </para>
+/// </remarks>
+public sealed record Destination
+{
+    /// <summary>The chosen Cove library path, or <c>""</c> = the library path containing the file.</summary>
+    public string Root { get; init; } = "";
+
+    /// <summary>The relative folder template rendered under <see cref="Root"/>; <c>""</c> = the root itself.</summary>
+    public string Template { get; init; } = "";
+
+    public bool Equals(Destination? other)
+        => other is not null && Root == other.Root && Template == other.Template;
+
+    public override int GetHashCode()
+    {
+        var hc = new HashCode();
+        hc.Add(Root);
+        hc.Add(Template);
+        return hc.ToHashCode();
+    }
+}
+
+/// <summary>
 /// One source-path destination rule: when the entity's source path matches
-/// <see cref="Pattern"/>, the item routes to <see cref="Dest"/> (an absolute destination-root
-/// template). <see cref="IsRegex"/> selects how <see cref="Pattern"/> is interpreted:
+/// <see cref="Pattern"/>, the item routes to <see cref="Dest"/>.
+/// <see cref="IsRegex"/> selects how <see cref="Pattern"/> is interpreted:
 /// <c>false</c> = an EXACT source-path match (the common, safe case); <c>true</c> = the pattern is
 /// a .NET regex matched against the source path.
 ///
@@ -155,8 +195,8 @@ public sealed record PathDestinationRule
     /// <summary>Source-path pattern: an exact path when <see cref="IsRegex"/> is false, else a .NET regex (pre-parsed/validated at build time).</summary>
     public string Pattern { get; init; } = "";
 
-    /// <summary>Absolute destination-root template the matched item routes to.</summary>
-    public string Dest { get; init; } = "";
+    /// <summary>Where a matched item lands: a library root plus a relative template.</summary>
+    public Destination Dest { get; init; } = new();
 
     /// <summary>When <c>true</c>, <see cref="Pattern"/> is interpreted as a regex; otherwise an exact source-path match.</summary>
     public bool IsRegex { get; init; }
@@ -222,7 +262,22 @@ public sealed record ExcludeRule
 public sealed record RenamerOptions
 {
     public string FilenameTemplate { get; init; } = "{$date - }$title{ [$resolution]}";
-    public string FolderTemplate { get; init; } = "";        // empty = no folder move
+    /// <summary>
+    /// The DEFAULT destination's relative folder template, applied to an item no destination rule
+    /// matched. Rendered under <see cref="FolderRoot"/>; empty = the root itself.
+    /// </summary>
+    /// <remarks>
+    /// Also the effective template the engine renders: the planner substitutes a matched rule's own
+    /// template into it, so every downstream consumer reads the one value rather than each deciding
+    /// for itself which template applies.
+    /// </remarks>
+    public string FolderTemplate { get; init; } = "";
+
+    /// <summary>
+    /// The DEFAULT destination's root: a Cove library path, or <c>""</c> = the library path containing
+    /// the file. Pairs with <see cref="FolderTemplate"/> to make one <see cref="Destination"/>.
+    /// </summary>
+    public string FolderRoot { get; init; } = "";
     public string DateFormat { get; init; } = "yyyy-MM-dd";
     public string DurationFormat { get; init; } = @"hh\-mm\-ss";
     public MultiValueOptions Performers { get; init; } = new() { Separator = " " };
@@ -278,13 +333,16 @@ public sealed record RenamerOptions
         ["videoCodec", "audioCodec", "frameRate", "resolution", "tags", "studioCode", "studio", "performers", "date"];
 
     /// <summary>
-    /// The set of absolute directories a renamer is permitted to write into. A target folder
-    /// (including one produced by a rooted folder template) is accepted only when it normalizes
-    /// to a path inside one of these roots; a target under no listed root is rejected. The empty
-    /// default keeps the original behavior where a renamer can only stay within the file's own
-    /// source folder and a rooted folder template is refused outright — so adding a root is an
-    /// explicit, opt-in widening of where files may move.
+    /// An optional NARROWING of where a rename may write: when non-empty, a resolved target folder
+    /// is accepted only if it also lies inside one of these absolute directories. Empty (the shipped
+    /// default) applies no narrowing.
     /// </summary>
+    /// <remarks>
+    /// It cannot widen. A destination is a Cove library path plus a relative, sanitized template, so
+    /// every target is inside the library by construction; drawing this list narrower than a library
+    /// path is the only thing it can express. It never decides where a relative template is PLACED:
+    /// that is the destination's own root.
+    /// </remarks>
     public List<string> AllowedRoots { get; init; } = [];
 
     /// <summary>
@@ -379,20 +437,19 @@ public sealed record RenamerOptions
     public bool PreventConsecutiveSegments { get; init; } = true;
 
     /// <summary>
-    /// Studio routing map: stable studio <c>Id</c> → absolute destination-root template. The studio
+    /// Studio routing map: stable studio <c>Id</c> → <see cref="Destination"/>. The studio
     /// cascade keys on this id (never the name) so a name typo/sanitization variant can never split
-    /// one studio across two destination trees. Default empty = no studio routing (legacy
-    /// source-confine behavior).
+    /// one studio across two destination trees. Default empty = no studio routing.
     /// </summary>
-    public Dictionary<int, string> StudioDestinations { get; init; } = [];
+    public Dictionary<int, Destination> StudioDestinations { get; init; } = [];
 
     /// <summary>
-    /// Tag routing map: stable tag <c>Id</c> → absolute destination-root template. The tag cascade
+    /// Tag routing map: stable tag <c>Id</c> → <see cref="Destination"/>. The tag cascade
     /// keys on this id (never the name), exactly like <see cref="StudioDestinations"/>, so renaming a
     /// tag in Cove cannot break its rule and two case variants of one name cannot route to two
-    /// destination trees. Default empty = no tag routing (legacy source-confine behavior).
+    /// destination trees. Default empty = no tag routing.
     /// </summary>
-    public Dictionary<int, string> TagDestinations { get; init; } = [];
+    public Dictionary<int, Destination> TagDestinations { get; init; } = [];
 
     /// <summary>
     /// Source-path routing rules, in user order. Each <see cref="PathDestinationRule"/> is an exact OR
@@ -429,32 +486,22 @@ public sealed record RenamerOptions
     public List<ExcludeRule> ExcludePaths { get; init; } = [];
 
     /// <summary>
-    /// Default destination: the absolute root for an item that matched NO rule. Honored ONLY when
-    /// <see cref="EnableDefaultRelocate"/> is <c>true</c> (a hard gate). Default <c>""</c> = no
-    /// default route.
-    /// </summary>
-    public string DefaultDestination { get; init; } = "";
-
-    /// <summary>
     /// Unorganized destination: the route for an item whose <c>Organized</c> flag is false. Resolved
     /// at the unorganized precedence slot (before the tag/studio/path cascade), so an unorganized item
-    /// routes here rather than being skipped. Default <c>""</c> = no unorganized route.
+    /// routes here rather than being skipped. Default <c>null</c> = no unorganized route.
     /// <para>
     /// When set, this OVERRIDES <see cref="OnlyOrganized"/> for unorganized items — the item routes
     /// here instead of being gated out, so the unorganized route is never silently nullified by the
     /// only-organized gate.
     /// </para>
+    /// <para>
+    /// Nullable rather than a <see cref="Destination"/> whose emptiness means "off", because the two
+    /// states answer different questions: <c>null</c> is "there is no unorganized route", while a
+    /// present destination naming neither root nor folder is a route that moves nothing. Only the
+    /// first falls through to the only-organized gate.
+    /// </para>
     /// </summary>
-    public string UnorganizedDestination { get; init; } = "";
-
-    /// <summary>
-    /// Hard-gate flag: default-relocate of an UNMATCHED item to <see cref="DefaultDestination"/> is
-    /// enabled ONLY when this is <c>true</c>. It ships <c>false</c> and STAYS disabled until
-    /// volume-aware undo is delivered — because a runaway default-relocate has whole-library blast
-    /// radius and undo is the only recovery. The resolver enforces this as a code path (the off branch
-    /// returns SourceConfine), not merely a config default.
-    /// </summary>
-    public bool EnableDefaultRelocate { get; init; }
+    public Destination? UnorganizedDestination { get; init; }
 
     /// <summary>
     /// Free-space safety margin: the number of bytes left FREE on each destination volume
@@ -501,6 +548,7 @@ public sealed record RenamerOptions
     {
         yield return FilenameTemplate;
         yield return FolderTemplate;
+        yield return FolderRoot;
         yield return DateFormat;
         yield return DurationFormat;
         yield return Performers;
@@ -534,9 +582,7 @@ public sealed record RenamerOptions
         yield return StructuralEquality.Sequence(ExcludeTagIds);
         yield return StructuralEquality.Sequence(ExcludeStudioIds);
         yield return StructuralEquality.Sequence(ExcludePaths);
-        yield return DefaultDestination;
         yield return UnorganizedDestination;
-        yield return EnableDefaultRelocate;
         yield return FreeSpaceHeadroomBytes;
         yield return CrossVolumeConcurrency;
         yield return SameVolumeConcurrency;
@@ -582,8 +628,8 @@ internal static class StructuralEquality
     public static object Sequence<T>(IReadOnlyCollection<T> items) => new SeqKey<T>(items);
 
     /// <summary>Wraps a map so equality is an ORDER-INDEPENDENT compare under <paramref name="keyComparer"/> (a round-trip may reorder keys).</summary>
-    public static object Map<TKey>(Dictionary<TKey, string> map, IEqualityComparer<TKey> keyComparer)
-        where TKey : notnull => new MapKey<TKey>(map, keyComparer);
+    public static object Map<TKey, TValue>(Dictionary<TKey, TValue> map, IEqualityComparer<TKey> keyComparer)
+        where TKey : notnull => new MapKey<TKey, TValue>(map, keyComparer);
 
     private readonly struct SeqKey<T> : IEquatable<SeqKey<T>>
     {
@@ -605,19 +651,19 @@ internal static class StructuralEquality
         }
     }
 
-    private readonly struct MapKey<TKey> : IEquatable<MapKey<TKey>>
+    private readonly struct MapKey<TKey, TValue> : IEquatable<MapKey<TKey, TValue>>
         where TKey : notnull
     {
-        private readonly Dictionary<TKey, string> _map;
+        private readonly Dictionary<TKey, TValue> _map;
         private readonly IEqualityComparer<TKey> _keyComparer;
 
-        public MapKey(Dictionary<TKey, string> map, IEqualityComparer<TKey> keyComparer)
+        public MapKey(Dictionary<TKey, TValue> map, IEqualityComparer<TKey> keyComparer)
         {
             _map = map;
             _keyComparer = keyComparer;
         }
 
-        public bool Equals(MapKey<TKey> other)
+        public bool Equals(MapKey<TKey, TValue> other)
         {
             if (_map.Count != other._map.Count)
             {
@@ -627,7 +673,7 @@ internal static class StructuralEquality
             // Build the lookup by assignment (last write wins on a key collision under the comparer),
             // matching the prior hand-rolled comparison rather than the throwing dictionary(source,
             // comparer) constructor.
-            var lookup = new Dictionary<TKey, string>(other._map.Count, _keyComparer);
+            var lookup = new Dictionary<TKey, TValue>(other._map.Count, _keyComparer);
             foreach (var kv in other._map)
             {
                 lookup[kv.Key] = kv.Value;
@@ -635,7 +681,8 @@ internal static class StructuralEquality
 
             foreach (var kv in _map)
             {
-                if (!lookup.TryGetValue(kv.Key, out var value) || value != kv.Value)
+                if (!lookup.TryGetValue(kv.Key, out var value)
+                    || !EqualityComparer<TValue>.Default.Equals(value, kv.Value))
                 {
                     return false;
                 }
@@ -644,7 +691,7 @@ internal static class StructuralEquality
             return true;
         }
 
-        public override bool Equals(object? obj) => obj is MapKey<TKey> other && Equals(other);
+        public override bool Equals(object? obj) => obj is MapKey<TKey, TValue> other && Equals(other);
 
         public override int GetHashCode()
         {

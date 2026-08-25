@@ -25,10 +25,11 @@ namespace Renamer.Tests.Concurrency;
 public sealed class ParallelFolderCreationTests
 {
     private static async Task<(global::Renamer.Renamer ext, ConcurrentFakeStore store, CapturingEventBus bus)>
-        BuildAsync(SharedCacheSqlite shared, RenamerOptions options)
+        BuildAsync(SharedCacheSqlite shared, RenamerOptions options, params string[] libraryPaths)
     {
         var services = new ServiceCollection();
         services.AddScoped<DbContext>(_ => shared.NewContext());
+        services.AddLibraryPaths(libraryPaths);
         var bus = new CapturingEventBus();
         services.AddSingleton<IEventBus>(bus);
         var provider = services.BuildServiceProvider();
@@ -80,9 +81,14 @@ public sealed class ParallelFolderCreationTests
                 FolderTemplate = "sorted",
                 AllowedRoots = [destRootFwd],
                 PathDestinations =
-                    [new PathDestinationRule { Pattern = sourceFolderFwd, Dest = destRootFwd, IsRegex = false }],
+                [
+                    new PathDestinationRule
+                    {
+                        Pattern = sourceFolderFwd, Dest = Dest.At(destRootFwd, "sorted"), IsRegex = false,
+                    },
+                ],
             };
-            var (ext, store, _) = await BuildAsync(shared, options);
+            var (ext, store, _) = await BuildAsync(shared, options, destRootFwd);
             var progress = new FakeJobProgress();
 
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);

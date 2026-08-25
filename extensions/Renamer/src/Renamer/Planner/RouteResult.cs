@@ -1,11 +1,13 @@
 using System.Text.RegularExpressions;
 
+using Renamer.Options;
+
 namespace Renamer.Planner;
 
 /// <summary>
 /// The routing classification for one entity, in the locked precedence order the
 /// <c>DestinationResolver</c> evaluates: <c>Excludes → Unorganized → Tag → Studio (incl. parent)
-/// → Source-path → Default</c>, with <see cref="SourceConfine"/> as the no-route fallback. The
+/// → Source-path</c>, with <see cref="Unmatched"/> as the no-rule fallback. The
 /// first category that produces a match wins.
 /// </summary>
 public enum RouteCategory
@@ -26,45 +28,45 @@ public enum RouteCategory
     SourcePath,
 
     /// <summary>
-    /// The GATED default-relocate: an unmatched item routed to the configured default root. Reachable
-    /// ONLY when <c>EnableDefaultRelocate</c> is true — the flag ships off because a runaway
-    /// default-relocate has whole-library blast radius and volume-aware undo is the recovery path.
+    /// No rule matched, so the item takes the DEFAULT destination
+    /// (<c>RenamerOptions.FolderRoot</c> + <c>RenamerOptions.FolderTemplate</c>).
+    /// <see cref="RouteResult.Destination"/> is null for this category: no rule supplied a
+    /// destination, and the default is the planner's to read.
     /// </summary>
-    Default,
-
-    /// <summary>
-    /// No route matched (or default-relocate is disabled): the file keeps its OWN parent-folder
-    /// anchor — the legacy, non-relocating behavior. <see cref="RouteResult.DestinationRootTemplate"/>
-    /// is null for this category.
-    /// </summary>
-    SourceConfine,
+    Unmatched,
 }
 
 /// <summary>
 /// The result of routing one entity: the matched <see cref="Category"/>, a short human label for
-/// the preview/log, and the destination-root template the planner anchors the move against.
+/// the preview/log, and the one destination that decides where the item lands.
 /// </summary>
 /// <param name="Category">The winning precedence category.</param>
 /// <param name="MatchedRule">
 /// A short human label for preview/log: e.g. <c>"Tag:anime"</c>, <c>"Studio:42(direct)"</c>,
 /// <c>"Studio:7(ancestor)"</c>, <c>"SourcePath:exact"</c>, <c>"SourcePath:regex"</c>,
-/// <c>"Unorganized"</c>, <c>"Default"</c>, <c>"Exclude"</c>, <c>"InPlace"</c>.
+/// <c>"Unorganized"</c>, <c>"Exclude"</c>, <c>"Default"</c>.
 /// </param>
-/// <param name="DestinationRootTemplate">
-/// The absolute destination-root template to anchor the move against, or <c>null</c> for
-/// <see cref="RouteCategory.SourceConfine"/>/<see cref="RouteCategory.Excluded"/> (the planner then
-/// keeps the file's own <c>ParentFolderPath</c> anchor).
+/// <param name="Destination">
+/// The matched rule's whole answer, root and relative template together, not a root some other
+/// setting is then rendered underneath. <c>null</c> for
+/// <see cref="RouteCategory.Unmatched"/>/<see cref="RouteCategory.Excluded"/>: an unmatched item
+/// takes the default destination instead, and an excluded one is never rendered at all.
 /// </param>
-public sealed record RouteResult(RouteCategory Category, string MatchedRule, string? DestinationRootTemplate);
+/// <remarks>
+/// One lookup, one destination. The planner asks where a file goes exactly once and renders a single
+/// answer, which is what makes a destination stable under the move it names: two user-authored
+/// folder expressions are never joined, so no run can append one to the other.
+/// </remarks>
+public sealed record RouteResult(RouteCategory Category, string MatchedRule, Destination? Destination);
 
 /// <summary>
 /// The per-batch routing lookups, hoisted ONCE per batch and handed to the pure
 /// <c>DestinationResolver</c> so it never re-walks/re-parses per entity. Built by the planner from
 /// <c>RenamerOptions</c>; this is a pure model — the resolver only reads it.
 /// </summary>
-/// <param name="StudioIdToDest">Stable studio id → destination-root template (keyed on the id, not the name).</param>
-/// <param name="TagIdToDest">Stable tag id → destination-root template (keyed on the id, not the name).</param>
-/// <param name="PathExactToDest">Exact source-path → destination-root template; tried before the regex rules.</param>
+/// <param name="StudioIdToDest">Stable studio id → destination (keyed on the id, not the name).</param>
+/// <param name="TagIdToDest">Stable tag id → destination (keyed on the id, not the name).</param>
+/// <param name="PathExactToDest">Exact source-path → destination; tried before the regex rules.</param>
 /// <param name="PathRegexRules">
 /// The pre-parsed source-path regex rules, in user order: each <c>Pattern</c> is compiled and
 /// validated ONCE at build time (NOT <c>RegexOptions.Compiled</c> — overkill for a short batch),
@@ -91,10 +93,10 @@ public sealed record RouteResult(RouteCategory Category, string MatchedRule, str
 /// item is never moved. The resolver only calls <c>IsMatch</c>. Empty = none.
 /// </param>
 public sealed record RouteLookups(
-    IReadOnlyDictionary<int, string> StudioIdToDest,
-    IReadOnlyDictionary<int, string> TagIdToDest,
-    IReadOnlyDictionary<string, string> PathExactToDest,
-    IReadOnlyList<(Regex Pattern, string Dest)> PathRegexRules,
+    IReadOnlyDictionary<int, Destination> StudioIdToDest,
+    IReadOnlyDictionary<int, Destination> TagIdToDest,
+    IReadOnlyDictionary<string, Destination> PathExactToDest,
+    IReadOnlyList<(Regex Pattern, Destination Dest)> PathRegexRules,
     IReadOnlySet<int>? ExcludeTagIds = null,
     IReadOnlySet<int>? ExcludeStudioIds = null,
     IReadOnlySet<string>? ExcludePathsExact = null,

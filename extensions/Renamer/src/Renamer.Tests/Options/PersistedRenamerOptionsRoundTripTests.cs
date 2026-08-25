@@ -30,7 +30,7 @@ public sealed class PersistedRenamerOptionsRoundTripTests
               "Tags": { "Sort": "NameAsc" },
               "RequiredFields": ["title"],
               "FilenameMax": 200,
-              "EnableDefaultRelocate": true
+              "FolderRoot": "G:/Media"
             }
             """;
 
@@ -42,6 +42,6 @@ public sealed class PersistedRenamerOptionsRoundTripTests
         Assert.Equal(OverflowPolicy.KeepFirst, loaded.Performers.OnOverflow);
         Assert.Equal(SortOrder.NameAsc, loaded.Tags.Sort);
         Assert.Equal(200, loaded.FilenameMax);
-        Assert.True(loaded.EnableDefaultRelocate);
+        Assert.Equal("G:/Media", loaded.FolderRoot);
     }
 }

@@ -1,11 +1,14 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
+using static global::Renamer.Execution.PathOps;
+
 namespace Renamer.Options;
 
 /// <summary>
-/// The one-time conversion of a stored options blob from NAME-keyed entity rules to id-keyed ones,
-/// plus the schema stamp that keeps it one-time.
+/// The one-time conversions of a stored options blob into the shape <see cref="RenamerOptions"/> now
+/// declares - NAME-keyed entity rules to id-keyed ones, and a typed destination ROOT to a Cove
+/// library path plus a relative template - plus the schema stamp that keeps them one-time.
 /// </summary>
 /// <remarks>
 /// Works on the raw JSON rather than on <see cref="RenamerOptions"/>, for two reasons a typed
@@ -24,17 +27,34 @@ public static class OptionsMigration
     /// <summary>The store key holding the options-schema stamp that makes the conversion one-time.</summary>
     public const string SchemaKey = "options.schema";
 
-    /// <summary>The stamp value written once the stored blob is id-keyed.</summary>
+    /// <summary>
+    /// The stamp value written once the stored blob is id-keyed AND its destination rules name a Cove
+    /// library path plus a relative template.
+    /// </summary>
     /// <remarks>
-    /// RETIREMENT CONDITION, written here because this is the one moment anyone knows what it is: this
-    /// conversion can be deleted once no installed store can still hold a name-keyed blob, that is,
-    /// once the release carrying it has been out long enough that an upgrade path skipping it is
-    /// unsupported. There is no date, and inventing one would be worse than the condition; what is
+    /// The two halves ride one stamp because a blob is either current or it is not, and a second stamp
+    /// would be a second thing to keep in step; the seam runs whichever halves the blob still needs,
+    /// each recognizing its own input.
+    /// <para>
+    /// RETIREMENT CONDITION for the name half, written here because this is the one moment anyone
+    /// knows what it is: it can be deleted once no installed store can still hold a name-keyed blob,
+    /// that is, once the release carrying it has been out long enough that an upgrade path skipping it
+    /// is unsupported. There is no date, and inventing one would be worse than the condition; what is
     /// knowable is the test, which is that <see cref="Scan"/> can find no name to resolve on any real
     /// install. Deleting it early costs a user every entity rule they configured, silently, because an
     /// unconverted name-keyed blob fails to bind and the store answers that with defaults.
+    /// </para>
+    /// <para>
+    /// The destination half has its OWN condition and reaches it later: it goes once no store can
+    /// still hold a blob whose destinations are bare strings, which is a strictly newer release than
+    /// the one the name half waits on. Read each condition before deleting either, and expect to
+    /// delete them in separate releases. Its test is that
+    /// <see cref="ConvertDestinationsToRoots"/> can find no site to rewrite. Deleting it early costs a
+    /// user their whole routing configuration silently, since an unconverted string value binds to
+    /// nothing.
+    /// </para>
     /// </remarks>
-    public const string CurrentSchema = "2";
+    public const string CurrentSchema = "3";
 
     private const string PerformersGroup = "Performers";
     private const string TagsGroup = "Tags";
@@ -45,6 +65,11 @@ public static class OptionsMigration
     private const string LegacyExcludeTags = "ExcludeTags";
     private const string ExcludeTagIds = "ExcludeTagIds";
     private const string TagDestinations = "TagDestinations";
+    private const string StudioDestinations = "StudioDestinations";
+    private const string PathDestinations = "PathDestinations";
+    private const string UnorganizedDestination = "UnorganizedDestination";
+    private const string FolderTemplate = "FolderTemplate";
+    private const string PathRuleDest = "Dest";
 
     /// <summary>The distinct stored names each half still has to resolve against a live entity table.</summary>
     /// <remarks>
@@ -148,6 +173,243 @@ public static class OptionsMigration
 
         return new Conversion(root.ToJsonString(), dropped, collapses, discarded);
     }
+
+    /// <summary>One destination rule rewritten from a typed root into a library root + relative template.</summary>
+    /// <param name="Rule">Which rule, for the log: the field and its key or index.</param>
+    /// <param name="From">The value as stored, a typed absolute destination root.</param>
+    /// <param name="ToRoot">The Cove library path the stored root turned out to live under.</param>
+    /// <param name="ToTemplate">The relative template written under it: the remainder plus the stored global folder template.</param>
+    public sealed record RewrittenDestination(string Rule, string From, string ToRoot, string ToTemplate);
+
+    /// <summary>One destination rule removed because its stored root lies under no Cove library path.</summary>
+    /// <param name="Rule">Which rule, for the log: the field and its key or index.</param>
+    /// <param name="Stored">The stored root that could not be placed.</param>
+    public sealed record DroppedDestination(string Rule, string Stored);
+
+    /// <summary>The destination conversion's result: the blob, what it rewrote, and what it removed.</summary>
+    /// <param name="Json">The converted blob, or the input unchanged when nothing was done.</param>
+    /// <param name="Rewritten">Every rule whose stored root was placed under a library path.</param>
+    /// <param name="Dropped">Every rule removed for lying under no library path.</param>
+    /// <param name="Deferred">
+    /// True when there was work to do and no library paths to do it against, so NOTHING was changed
+    /// and the caller must not stamp. Distinguished from "no work" because the two look identical in
+    /// the blob and differ completely in consequence: converting against an empty list would drop
+    /// every rule the user has.
+    /// </param>
+    /// <param name="RemovedEmptyRoutes">
+    /// How many stored destinations were REMOVED rather than rewritten, because the field spells
+    /// "there is no route" as the absent member and the blob still holds the empty value that used to
+    /// spell it. Counted rather than listed, and deliberately not logged: nothing about the user's
+    /// routing changes. The blob did change, though, so a caller reading only <see cref="Rewritten"/>
+    /// and <see cref="Dropped"/> would leave a value the current model cannot bind sitting in the
+    /// store.
+    /// </param>
+    public sealed record DestinationConversion(
+        string Json,
+        IReadOnlyList<RewrittenDestination> Rewritten,
+        IReadOnlyList<DroppedDestination> Dropped,
+        bool Deferred,
+        int RemovedEmptyRoutes = 0)
+    {
+        /// <summary>True iff the blob was altered, so it is worth writing back.</summary>
+        public bool Changed => Rewritten.Count > 0 || Dropped.Count > 0 || RemovedEmptyRoutes > 0;
+    }
+
+    /// <summary>
+    /// Rewrites every destination rule in <paramref name="json"/> from a typed absolute ROOT into the
+    /// one shape a destination now has: a root chosen from <paramref name="libraryRoots"/>, plus the
+    /// relative template rendered under it.
+    /// </summary>
+    /// <remarks>
+    /// Behaviour-preserving, and mechanically so rather than by judgement: a matched rule used to land
+    /// an item at <c>root</c> with the global folder template rendered underneath, so the same
+    /// destination is (the library path containing <c>root</c>) plus (the rest of <c>root</c>)/(that
+    /// same template). A rule storing <c>I:/Downloads/P/videos</c> under library path
+    /// <c>I:/Downloads/P</c> with a <c>$studio</c> template becomes root <c>I:/Downloads/P</c>,
+    /// template <c>videos/$studio</c>: the identical folder, so nothing moves on the first run after
+    /// the conversion.
+    /// <para>
+    /// A stored root under NO library path is DROPPED: there is no root to choose for it, and
+    /// inventing one would relocate files. Its items follow the default destination afterwards, which
+    /// is a behaviour change, which is why every drop is logged.
+    /// </para>
+    /// <para>
+    /// The global folder template is left exactly as stored, and no root is written beside it. That is
+    /// the whole of the default's conversion: <see cref="RenamerOptions.FolderRoot"/>'s own default is
+    /// the file's own library path, which is what a relative template has always been measured from,
+    /// so the absent key already means the right thing.
+    /// </para>
+    /// </remarks>
+    /// <param name="json">The stored blob, id-keyed (run after <see cref="Convert"/>).</param>
+    /// <param name="libraryRoots">Cove's configured library paths, the only roots a destination may choose.</param>
+    public static DestinationConversion ConvertDestinationsToRoots(
+        string json, IReadOnlyList<string> libraryRoots)
+    {
+        var root = TryParse(json);
+        if (root is null)
+        {
+            return new DestinationConversion(json, [], [], Deferred: false);
+        }
+
+        string folderTemplate = StringOf(Property(root, FolderTemplate)) ?? string.Empty;
+        var sites = CollectDestinationSites(root);
+        if (sites.Count == 0)
+        {
+            return new DestinationConversion(json, [], [], Deferred: false);
+        }
+
+        // Nothing to choose a root FROM. Refusing here is the same safety argument the name half makes
+        // about an empty entity table: an empty list is indistinguishable from "the host has not told
+        // us yet", and converting against it would drop every rule the user has.
+        if (libraryRoots.Count == 0)
+        {
+            return new DestinationConversion(json, [], [], Deferred: true);
+        }
+
+        var rewritten = new List<RewrittenDestination>();
+        var dropped = new List<DroppedDestination>();
+        int removedEmptyRoutes = 0;
+
+        foreach (var site in sites)
+        {
+            string stored = site.Stored;
+
+            if (stored.Length == 0)
+            {
+                // Two different questions share the empty string, and only the site knows which one it
+                // is answering - see DestinationSite.EmptyIsNoRoute.
+                if (site.EmptyIsNoRoute)
+                {
+                    site.Drop();
+                    removedEmptyRoutes++;
+                    continue;
+                }
+
+                // A rule storing no root at all named no destination of its own; it rendered the global
+                // folder template under the file's own place. The file's own library path is that same
+                // arrangement, so it converts without needing a root and cannot be dropped.
+                site.Write(string.Empty, folderTemplate);
+                rewritten.Add(new RewrittenDestination(site.Rule, stored, string.Empty, folderTemplate));
+                continue;
+            }
+
+            string? containing = Planner.PathConfinement.ContainingRoot(stored, libraryRoots);
+            if (containing is null)
+            {
+                site.Drop();
+                dropped.Add(new DroppedDestination(site.Rule, stored));
+                continue;
+            }
+
+            string remainder = NormalizeSlash(stored).TrimEnd('/')[containing.Length..].Trim('/');
+            string template = JoinPath(remainder, folderTemplate);
+            site.Write(containing, template);
+            rewritten.Add(new RewrittenDestination(site.Rule, stored, containing, template));
+        }
+
+        return new DestinationConversion(
+            root.ToJsonString(), rewritten, dropped, Deferred: false, removedEmptyRoutes);
+    }
+
+    /// <summary>
+    /// One stored destination the conversion has to rewrite: its label for the log, the root as
+    /// stored, and the two edits - replace with a root/template pair, or remove the rule entirely.
+    /// </summary>
+    /// <remarks>
+    /// A site rather than four near-identical loops, because the four fields differ only in how a
+    /// value is reached (a map entry, an array element's member, a top-level member) while the
+    /// DECISION about it is one rule.
+    /// <para>
+    /// <c>EmptyIsNoRoute</c> is true for the one field where an empty stored value means "there is no
+    /// route at all" rather than "this rule names no root of its own". The current model spells the
+    /// first as the ABSENT member, so such a site is REMOVED rather than converted: a bare JSON string
+    /// cannot bind to <see cref="Destination"/>, and leaving one in place makes the WHOLE stored blob
+    /// unreadable - the options store answers a failed bind with defaults, so every setting the user
+    /// configured silently reads as unset. Converting it instead would be the mirror failure, turning
+    /// "unorganized items are not routed" into a route.
+    /// </para>
+    /// </remarks>
+    private sealed record DestinationSite(
+        string Rule,
+        string Stored,
+        Action<string, string> Write,
+        Action Drop,
+        bool EmptyIsNoRoute = false);
+
+    /// <summary>Every stored destination in the blob, skipping anything that is not a JSON string.</summary>
+    private static List<DestinationSite> CollectDestinationSites(JsonObject root)
+    {
+        var sites = new List<DestinationSite>();
+
+        foreach (string mapName in new[] { StudioDestinations, TagDestinations })
+        {
+            if (Property(root, mapName) is not JsonObject map)
+            {
+                continue;
+            }
+
+            foreach (string key in map.Select(entry => entry.Key).ToList())
+            {
+                if (StringOf(map[key]) is not { } stored)
+                {
+                    continue;
+                }
+
+                string mapKey = key;
+                sites.Add(new DestinationSite(
+                    $"{mapName}[{mapKey}]",
+                    stored,
+                    (r, t) => map[mapKey] = Pair(r, t),
+                    () => map.Remove(mapKey)));
+            }
+        }
+
+        if (Property(root, PathDestinations) is JsonArray rules)
+        {
+            // Walked in REVERSE so a drop removing an element never shifts an index a later site
+            // closed over.
+            for (int i = rules.Count - 1; i >= 0; i--)
+            {
+                if (rules[i] is not JsonObject rule
+                    || PropertyName(rule, PathRuleDest) is not { } member
+                    || StringOf(rule[member]) is not { } stored)
+                {
+                    continue;
+                }
+
+                int index = i;
+                sites.Add(new DestinationSite(
+                    $"{PathDestinations}[{index}]",
+                    stored,
+                    (r, t) => rule[member] = Pair(r, t),
+                    () => rules.RemoveAt(index)));
+            }
+        }
+
+        if (PropertyName(root, UnorganizedDestination) is { } unorganizedKey
+            && StringOf(root[unorganizedKey]) is { } unorganized)
+        {
+            sites.Add(new DestinationSite(
+                UnorganizedDestination,
+                unorganized,
+                (r, t) => root[unorganizedKey] = Pair(r, t),
+                () => root.Remove(unorganizedKey),
+                EmptyIsNoRoute: true));
+        }
+
+        return sites;
+    }
+
+    /// <summary>The stored form of a destination: the pair the current model deserializes.</summary>
+    private static JsonObject Pair(string root, string template) => new()
+    {
+        ["Root"] = JsonValue.Create(root),
+        ["Template"] = JsonValue.Create(template),
+    };
+
+    /// <summary>The node's string value, or <c>null</c> when it is absent or of another kind.</summary>
+    private static string? StringOf(JsonNode? node)
+        => node?.GetValueKind() == JsonValueKind.String ? node.GetValue<string>() : null;
 
     private static void ConvertGroup(
         JsonObject root,

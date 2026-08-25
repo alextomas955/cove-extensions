@@ -24,13 +24,14 @@ internal static class ExtensionHarness
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="options"/> is null.</exception>
     internal static async Task<(global::Renamer.Renamer Extension, FakeStore Store)> CreateWithSharedContextAsync(
-        CoveContext db, RenamerOptions options)
+        CoveContext db, RenamerOptions options, params string[] libraryPaths)
     {
         ArgumentNullException.ThrowIfNull(options);
 
         var services = new ServiceCollection();
         services.AddSingleton<DbContext>(db);
         services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
+        services.AddLibraryPaths(libraryPaths);
 
         var store = new FakeStore();
         await new OptionsStore(store).SaveAsync(options);

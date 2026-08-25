@@ -992,22 +992,28 @@ export function ObjectArrayEditor<T>({
  * pending key/value are local draft state; only a successful add commits them through `onChange`.
  * Keys render as React text nodes (auto-escaped).
  */
-export function KeyValueMapEditor({
+export function KeyValueMapEditor<TValue>({
   map,
   onChange,
+  emptyValue,
   renderKey,
   renderValue,
   renderKeyLabel,
   addLabel,
 }: {
-  map: Record<string, string>;
-  onChange: (map: Record<string, string>) => void;
+  map: Record<string, TValue>;
+  onChange: (map: Record<string, TValue>) => void;
+  // What the add row starts from, and what it returns to after a commit. Supplied rather than
+  // assumed because a value is not always a string: an editor whose rows hold a composite would
+  // otherwise have to invent an empty one, and two places would then disagree about what "not
+  // filled in yet" is.
+  emptyValue: TValue;
   renderKey: (
     draftKey: string,
     setDraftKey: (key: string) => void,
     existingKeys: readonly string[],
   ) => ReactNode;
-  renderValue: (value: string, setValue: (value: string) => void) => ReactNode;
+  renderValue: (value: TValue, setValue: (value: TValue) => void) => ReactNode;
   // How a committed row's key displays. An opaque-id key (e.g. a studio id) supplies this to show a
   // human label so a saved rule reads "Studio Name → …" not "42 → …". A nullish result falls back to
   // the raw key: a renderer resolving an id it cannot find must not blank the cell, which would leave
@@ -1016,10 +1022,19 @@ export function KeyValueMapEditor({
   addLabel: string;
 }) {
   const [draftKey, setDraftKey] = useState("");
-  const [draftValue, setDraftValue] = useState("");
-  const keys = Object.keys(map);
+  // The draft holds UNDEFINED until the user edits it, and `emptyValue` is read at the moment it is
+  // needed rather than copied at mount. Seeding the state with `emptyValue` instead would freeze the
+  // caller's FIRST one forever: `useState` reads its argument on the first render only, so a value
+  // derived from data still being fetched - a destination root derived from Cove's library paths,
+  // say - would commit the placeholder the caller had before the fetch landed.
+  const [draftValue, setDraftValue] = useState<TValue | undefined>(undefined);
+  const pendingValue = draftValue ?? emptyValue;
+  // Rows render from the entries rather than from the keys, so each row's value arrives paired with
+  // its key out of one traversal instead of being looked back up by index.
+  const entries = Object.entries(map);
+  const keys = entries.map(([key]) => key);
 
-  function setValue(key: string, value: string) {
+  function setValue(key: string, value: TValue) {
     onChange({ ...map, [key]: value });
   }
 
@@ -1031,16 +1046,16 @@ export function KeyValueMapEditor({
     const k = draftKey.trim();
     // Refuse a blank or duplicate key — a duplicate add must not clobber the existing mapping.
     if (k.length === 0 || k in map) return;
-    onChange({ ...map, [k]: draftValue });
+    onChange({ ...map, [k]: pendingValue });
     setDraftKey("");
-    setDraftValue("");
+    setDraftValue(undefined);
   }
 
   const duplicate = draftKey.trim().length > 0 && draftKey.trim() in map;
 
   return (
     <div className="space-y-2">
-      {keys.map((key) => (
+      {entries.map(([key, value]) => (
         <div
           key={key}
           className="flex items-center gap-2 rounded-xl border border-border bg-card p-3"
@@ -1049,7 +1064,7 @@ export function KeyValueMapEditor({
             {renderKeyLabel?.(key) ?? key}
           </span>
           <span className="flex-1">
-            {renderValue(map[key], (v) => {
+            {renderValue(value, (v) => {
               setValue(key, v);
             })}
           </span>
@@ -1067,7 +1082,7 @@ export function KeyValueMapEditor({
       ))}
       <div className="flex items-start gap-2 rounded-xl border border-border bg-card p-3">
         <span className="min-w-0 flex-1">{renderKey(draftKey, setDraftKey, keys)}</span>
-        <span className="min-w-0 flex-1">{renderValue(draftValue, setDraftValue)}</span>
+        <span className="min-w-0 flex-1">{renderValue(pendingValue, setDraftValue)}</span>
         <Button onClick={add} disabled={draftKey.trim().length === 0 || duplicate}>
           {addLabel}
         </Button>
@@ -1092,14 +1107,20 @@ export function RegexValidity({ pattern, isRegex }: { pattern: string; isRegex: 
 }
 
 /**
- * Advisory-only, non-blocking hint that a destination-path field doesn't look like an absolute path.
- * Mirrors {@link RegexValidity}'s presentational shape exactly: pure, stateless, renders nothing when
- * the value looks fine or is blank (blank already means "no route" for every field this wraps).
+ * Advisory-only, non-blocking hint that a field meant to hold a RELATIVE folder template has been
+ * given something that looks like a typed path. Mirrors {@link RegexValidity}'s presentational shape
+ * exactly: pure, stateless, and renders nothing when the value looks fine or is blank.
+ *
+ * A typed path is not refused - it renders as ordinary folder names under whichever root the field's
+ * owner chose, which is confined and harmless but almost never what the author meant.
+ *
+ * `message` is the REMEDY, and it is the caller's because only the caller knows what it is. Wording
+ * it here would put one extension's panel layout inside a business-agnostic package.
  */
-export function PathShapeHint({ value }: { value: string }) {
+export function PathShapeHint({ value, message }: { value: string; message: string }) {
   if (value.trim().length === 0) return null;
-  if (isAbsolutePathShape(value)) return null;
-  return <StatusText kind="warning">Doesn't look like an absolute path.</StatusText>;
+  if (!isAbsolutePathShape(value)) return null;
+  return <StatusText kind="warning">{message}</StatusText>;
 }
 
 /** One of the five field groups. Matches Cove sub-card styling. */

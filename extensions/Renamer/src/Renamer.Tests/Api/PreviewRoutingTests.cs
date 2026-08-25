@@ -24,6 +24,8 @@ public sealed class PreviewRoutingTests
     // distinct root; only the source needs to exist on disk (preview probes the source, not the dest).
     private static string PathRoot => OperatingSystem.IsWindows() ? @"F:\by-source" : "/mnt/by-source";
 
+    private static string Fwd(string p) => p.Replace('\\', '/');
+
     [Fact]
     public async Task PreviewAsync_RoutedItem_ReportsRoutedDestination_MatchingBatch_AndMutatesNothing()
     {
@@ -47,13 +49,17 @@ public sealed class PreviewRoutingTests
                 FilenameTemplate = "$title",
                 FolderTemplate = "Sorted",
                 AllowedRoots = [srcFolder, PathRoot],
-                PathDestinations = [new PathDestinationRule { Pattern = srcFolder, Dest = PathRoot, IsRegex = false }],
+                PathDestinations =
+                [
+                    new PathDestinationRule
+                    {
+                        Pattern = srcFolder, Dest = Dest.At(PathRoot, "Sorted"), IsRegex = false,
+                    },
+                ],
             };
 
-            var ext = RenamerFixture.Create();
-            var store = new FakeStore();
-            await new OptionsStore(store).SaveAsync(options);
-            ((Cove.Plugins.IStatefulExtension)ext).SetStore(store);
+            var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(
+                db, options, srcFolder, PathRoot);
 
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
@@ -65,12 +71,12 @@ public sealed class PreviewRoutingTests
 
             // The preview now reflects the routed destination — the SAME route the batch resolves.
             Assert.Equal(RenamerStatus.Move, item.Status);
-            Assert.Equal(PathRoot, item.ResolvedDestinationRoot);
+            Assert.Equal(Fwd(PathRoot), item.ResolvedDestinationRoot);
             Assert.Equal("SourcePath:exact", item.MatchedRule);
 
             // Cross-check: the planner (the batch's own path) resolves the identical destination for
             // the same options + lookups — preview and batch agree.
-            var port = new CoveRenamerDataPort(db);
+            var port = new CoveRenamerDataPort(db, LibraryPathsFixture.Config(srcFolder, PathRoot));
             var plan = await new RenamerPlanner(port).PlanAsync(
                 RenamerFileKind.Video, videoId, options, BuildLookupsViaBatch(options), default);
             var batchItem = Assert.Single(plan.Items);
@@ -93,7 +99,7 @@ public sealed class PreviewRoutingTests
     // Renamer.BuildLookups for the non-regex case without reaching into the private method.
     private static RouteLookups BuildLookupsViaBatch(RenamerOptions o)
     {
-        var exact = new Dictionary<string, string>(StringComparer.Ordinal);
+        var exact = new Dictionary<string, Destination>(StringComparer.Ordinal);
         foreach (var rule in o.PathDestinations)
         {
             if (!rule.IsRegex)
@@ -106,6 +112,6 @@ public sealed class PreviewRoutingTests
             o.StudioDestinations,
             o.TagDestinations,
             exact,
-            System.Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
+            System.Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
     }
 }

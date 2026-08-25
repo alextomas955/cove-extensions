@@ -26,10 +26,11 @@ public sealed class ParallelBatchTests
 {
     /// <summary>Wires the extension over a SCOPED DbContext factory so each worker gets its OWN context over the shared DB.</summary>
     private static async Task<(global::Renamer.Renamer ext, ConcurrentFakeStore store, CapturingEventBus bus)>
-        BuildAsync(SharedCacheSqlite shared, RenamerOptions options)
+        BuildAsync(SharedCacheSqlite shared, RenamerOptions options, params string[] libraryPaths)
     {
         var services = new ServiceCollection();
         services.AddScoped<DbContext>(_ => shared.NewContext());
+        services.AddLibraryPaths(libraryPaths);
         var bus = new CapturingEventBus();
         services.AddSingleton<IEventBus>(bus);
         var provider = services.BuildServiceProvider();
@@ -246,10 +247,15 @@ public sealed class ParallelBatchTests
                 FolderTemplate = "Films",
                 AllowedRoots = [srcPathFwd, destRootFwd],
                 PathDestinations =
-                    [new PathDestinationRule { Pattern = srcPathFwd, Dest = destRootFwd, IsRegex = false }],
+                [
+                    new PathDestinationRule
+                    {
+                        Pattern = srcPathFwd, Dest = Dest.At(destRootFwd, "Films"), IsRegex = false,
+                    },
+                ],
                 FreeSpaceHeadroomBytes = 0,
             };
-            var (ext, _, _) = await BuildAsync(shared, options);
+            var (ext, _, _) = await BuildAsync(shared, options, srcPathFwd, destRootFwd);
 
             // Stateful TOCTOU probe: the FIRST reading (PHASE A up-front check) reports ample free space
             // so the batch is accepted; the SECOND reading (PHASE B in-flight re-check, just before the

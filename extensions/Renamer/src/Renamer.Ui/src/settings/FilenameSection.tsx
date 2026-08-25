@@ -7,7 +7,7 @@
  */
 import type { Ref, RefObject } from "react";
 
-import { type RenamerOptions } from "./options";
+import { type RenamerOptions, type LibraryPathsState } from "./options";
 import {
   Field,
   TextInput,
@@ -16,6 +16,7 @@ import {
   Chip,
   StatusText,
 } from "@cove-extensions/ui-shared";
+import { DestinationField } from "./DestinationField";
 import { TokenLegend } from "./TokenLegend";
 import { TemplateValidation } from "./templateAdvisories";
 import { PRESETS } from "./presets";
@@ -62,6 +63,8 @@ export interface FilenameSectionProps {
   activeTemplateRef: RefObject<"filename" | "folder">;
   emptySamples: string[];
   recoveredFromBadBlob: boolean;
+  /** Cove's library paths, so the default destination offers them as choices. */
+  library: LibraryPathsState;
 }
 
 export function FilenameSection({
@@ -73,6 +76,7 @@ export function FilenameSection({
   activeTemplateRef,
   emptySamples,
   recoveredFromBadBlob,
+  library,
 }: FilenameSectionProps) {
   return (
     <div className="col-span-2 space-y-6">
@@ -113,23 +117,19 @@ export function FilenameSection({
         </Subsection>
         <Subsection
           title="Where files go"
-          description="Folder path template — moves files on rename."
+          description="The destination for an item no rule matched: a library path, plus the folders made under it."
         >
-          <Field
-            label="Folder template"
-            helper="Blank = no folder move (rename in place). Use / for sub-folders, e.g. $studio / $year."
-          >
-            <TextInput
-              value={options.FolderTemplate}
-              onChange={(v) => {
-                set("FolderTemplate", v);
-              }}
-              onFocus={() => (activeTemplateRef.current = "folder")}
-              inputRef={folderRef}
-              mono
-              placeholder="$studio / $year"
-            />
-          </Field>
+          <DestinationField
+            value={{ Root: options.FolderRoot, Template: options.FolderTemplate }}
+            onChange={(destination) => {
+              set("FolderRoot", destination.Root);
+              set("FolderTemplate", destination.Template);
+            }}
+            library={library}
+            helper="Blank = no folder move (rename in place). Use / for sub-folders, e.g. $studio/$year."
+            templateRef={folderRef}
+            onTemplateFocus={() => (activeTemplateRef.current = "folder")}
+          />
           <TemplateValidation value={options.FolderTemplate} />
         </Subsection>
       </SectionCard>

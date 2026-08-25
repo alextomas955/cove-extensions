@@ -26,12 +26,10 @@ public sealed class PreviewWholeBatchTests
     private static string PathRoot => OperatingSystem.IsWindows() ? @"F:\by-source" : "/mnt/by-source";
     private static string Fwd(string p) => p.Replace('\\', '/');
 
-    private static async Task<global::Renamer.Renamer> BuildExtensionAsync(RenamerOptions options)
+    private static async Task<global::Renamer.Renamer> BuildExtensionAsync(
+        Cove.Data.CoveContext db, RenamerOptions options, params string[] libraryPaths)
     {
-        var ext = RenamerFixture.Create();
-        var store = new FakeStore();
-        await new OptionsStore(store).SaveAsync(options);
-        ((Cove.Plugins.IStatefulExtension)ext).SetStore(store);
+        var (ext, _) = await ExtensionHarness.CreateWithSharedContextAsync(db, options, libraryPaths);
         return ext;
     }
 
@@ -60,10 +58,16 @@ public sealed class PreviewWholeBatchTests
                 FilenameTemplate = "$title",
                 FolderTemplate = "Sorted",
                 AllowedRoots = [srcFolder, PathRoot],
-                PathDestinations = [new PathDestinationRule { Pattern = srcFolder, Dest = PathRoot, IsRegex = false }],
+                PathDestinations =
+                [
+                    new PathDestinationRule
+                    {
+                        Pattern = srcFolder, Dest = Dest.At(PathRoot, "Sorted"), IsRegex = false,
+                    },
+                ],
             };
 
-            var ext = await BuildExtensionAsync(options);
+            var ext = await BuildExtensionAsync(db, options, srcFolder, PathRoot);
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
             var result = await ext.PreviewAsync(
@@ -76,7 +80,7 @@ public sealed class PreviewWholeBatchTests
             var item = Assert.Single(response.Items);
             Assert.Equal(fileId, item.FileId);
             Assert.Equal(RenamerStatus.Move, item.Status);
-            Assert.Equal(PathRoot, item.ResolvedDestinationRoot);
+            Assert.Equal(Fwd(PathRoot), item.ResolvedDestinationRoot);
             Assert.Equal("SourcePath:exact", item.MatchedRule);
 
             // Summary quantifies the (cross-volume) blast radius.
@@ -138,7 +142,7 @@ public sealed class PreviewWholeBatchTests
                 ExcludePaths = [new ExcludeRule { Pattern = Fwd(SrcRoot), IsRegex = false }],
             };
 
-            var ext = await BuildExtensionAsync(options);
+            var ext = await BuildExtensionAsync(db, options);
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
             var result = await ext.PreviewAsync(
@@ -187,7 +191,7 @@ public sealed class PreviewWholeBatchTests
                 db, folderPath, "raw one.mkv", "First Film");
             File.WriteAllText(Path.Combine(dir.Root, "raw one.mkv"), "video-bytes");
 
-            var ext = await BuildExtensionAsync(new RenamerOptions { FilenameTemplate = "$title" });
+            var ext = await BuildExtensionAsync(db, new RenamerOptions { FilenameTemplate = "$title" });
             var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
             var result = await ext.PreviewAsync(

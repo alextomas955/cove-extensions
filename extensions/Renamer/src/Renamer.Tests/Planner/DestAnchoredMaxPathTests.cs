@@ -5,9 +5,9 @@ using Renamer.Tests.TestSupport;
 namespace Renamer.Tests.Planner;
 
 /// <summary>
-/// The FullPathMax re-check re-anchors on the ROUTED destination root, not the
+/// The FullPathMax re-check re-anchors on the destination's own root, not the
 /// source folder. The load-bearing assertion is the contrast — the SAME rendered name FITS under a
-/// short source folder but OVERFLOWS under a deep routed root, so the over-long case becomes a
+/// short library path but OVERFLOWS under a deep routed root, so the over-long case becomes a
 /// skip-with-reason at PREVIEW (not a move-time crash). Driven through <c>RenamerPlanner.PlanAsync</c>
 /// (the wiring), reusing the OS-aware Root style of <c>PathConfinementAllowlistTests</c>. PURE — no disk.
 /// </summary>
@@ -35,17 +35,17 @@ public sealed class DestAnchoredMaxPathTests
 
     private static RouteLookups StudioLookup(string dest) =>
         new(
-            new Dictionary<int, string> { [42] = dest },
-            new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.Ordinal),
-            Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
+            new Dictionary<int, Destination> { [42] = Dest.At(dest) },
+            new Dictionary<int, Destination>(),
+            new Dictionary<string, Destination>(StringComparer.Ordinal),
+            Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
 
     private static RouteLookups EmptyLookup() =>
         new(
-            new Dictionary<int, string>(),
-            new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.Ordinal),
-            Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
+            new Dictionary<int, Destination>(),
+            new Dictionary<int, Destination>(),
+            new Dictionary<string, Destination>(StringComparer.Ordinal),
+            Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
 
     // A title chosen so its rendered absolute path FITS under the short source but OVERFLOWS the deep root.
     private static string Title => new('N', 60);
@@ -57,6 +57,7 @@ public sealed class DestAnchoredMaxPathTests
     public async Task RoutedDeepDestination_Overflows_SkipWithLengthReason()
     {
         var port = new FakeRenamerDataPort();
+        port.SeedLibraryPaths(ShortSource, DeepRoot);
         // The file SITS in the short source folder, but routes to the DEEP root.
         port.SeedEntity(Entity(Title, VideoFile(ShortSource)));
         var planner = new RenamerPlanner(port);
@@ -72,7 +73,7 @@ public sealed class DestAnchoredMaxPathTests
 
         var item = Assert.Single(plan.Items);
         // Re-anchored on the deep routed root → the absolute path overflows → skip-with-reason at preview.
-        Assert.Equal(RenamerStatus.SkipCollision, item.Status);
+        Assert.Equal(RenamerStatus.SkipTooLong, item.Status);
         Assert.Contains("FullPathMax", item.Reason);
         Assert.Empty(port.SaveCalls);
     }
@@ -81,6 +82,7 @@ public sealed class DestAnchoredMaxPathTests
     public async Task SameRender_FitsUnderShortSource_WhenNotRouted()
     {
         var port = new FakeRenamerDataPort();
+        port.SeedLibraryPaths(ShortSource);
         // The IDENTICAL render under the SHORT source folder (no route) fits within the same FullPathMax —
         // proving the overflow above is caused by the deep ROUTED anchor, not the render itself.
         port.SeedEntity(Entity(Title, VideoFile(ShortSource)));
@@ -93,12 +95,12 @@ public sealed class DestAnchoredMaxPathTests
             FullPathMax = Max,
         };
 
-        // Empty lookups → SourceConfine → anchored on the short source folder.
+        // Empty lookups → the default destination → anchored on the short library path.
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, EmptyLookup(), default);
 
         var item = Assert.Single(plan.Items);
         Assert.Equal(RenamerStatus.Move, item.Status);
-        Assert.Null(item.ResolvedDestinationRoot);
+        Assert.Equal(Fwd(ShortSource), item.ResolvedDestinationRoot);
         Assert.Empty(port.SaveCalls);
     }
 }

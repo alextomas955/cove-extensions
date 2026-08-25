@@ -192,6 +192,22 @@ public sealed record RenamerEntity(
 public interface IRenamerDataPort
 {
     /// <summary>
+    /// The absolute library paths Cove is configured to scan, in configuration order.
+    /// </summary>
+    /// <remarks>
+    /// The anchor a rename cannot move, and the reason this member exists. A destination's folder
+    /// template resolves against a library path; anchoring it on the file's own parent folder, which
+    /// is the previous run's output, re-appends the rendered folder every run, so the item descends
+    /// one directory per pass until the path length refuses it.
+    /// <para>
+    /// A property rather than a query: this is host configuration held in memory. Empty means the host
+    /// declares no library path at all, and a file under none of the declared paths is planned as
+    /// <see cref="RenamerStatus.SkipUnanchored"/> rather than moved relative to itself.
+    /// </para>
+    /// </remarks>
+    IReadOnlyList<string> LibraryRoots { get; }
+
+    /// <summary>
     /// Resolves stored rule names to the stable ids they name, reading only
     /// <paramref name="names"/> rather than the whole table.
     /// </summary>
