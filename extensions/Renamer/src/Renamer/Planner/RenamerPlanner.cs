@@ -1,6 +1,7 @@
-using System.Globalization;
 using Renamer.Engine;
 using Renamer.Options;
+
+using static global::Renamer.Execution.PathOps;
 
 namespace Renamer.Planner;
 
@@ -319,29 +320,6 @@ public sealed class RenamerPlanner
     {
         string oldFullPath = JoinPath(file.ParentFolderPath, file.Basename);
         return new RenamerPlanItem(file.FileId, oldFullPath, oldFullPath, status, file.Basename, file.ParentFolderPath, reason);
-    }
-
-    /// <summary>Inserts the suffix counter before the extension (e.g. "name" + " ({n})" + ".mkv" → "name (1).mkv").</summary>
-    private static string ApplySuffix(string filename, string ext, string suffixFormat, int counter)
-    {
-        string suffix = suffixFormat.Replace("{n}", counter.ToString(CultureInfo.InvariantCulture));
-        return filename + suffix + ext;
-    }
-
-    /// <summary>Joins two forward-slash path parts, trimming a single boundary separator; skips an empty part.</summary>
-    private static string JoinPath(string a, string b)
-    {
-        if (string.IsNullOrEmpty(a))
-        {
-            return b;
-        }
-
-        if (string.IsNullOrEmpty(b))
-        {
-            return a;
-        }
-
-        return a.TrimEnd('/') + "/" + b.TrimStart('/');
     }
 }
 

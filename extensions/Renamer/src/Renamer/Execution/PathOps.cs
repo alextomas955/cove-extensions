@@ -2,7 +2,8 @@ namespace Renamer.Execution;
 
 /// <summary>
 /// The pure path string math the planner and the execution slice share: slash normalization, the
-/// directory/basename split, native-separator conversion, and the OS-aware path-equality rule.
+/// directory/basename split, the name/extension split, the suffix and join rules, native-separator
+/// conversion, and the OS-aware path-equality rule.
 /// </summary>
 /// <remarks>
 /// One home because <see cref="PathsEqual"/> and <see cref="VolumeClassifier"/> must agree on what counts as the
@@ -32,6 +33,53 @@ internal static class PathOps
         int slash = p.LastIndexOf('/');
         return slash >= 0 ? p[(slash + 1)..] : p;
     }
+
+    /// <summary>Splits a basename at its final dot into the name and the extension (dot included).</summary>
+    /// <remarks>A leading dot is not a split point, so a dotfile keeps its whole name and no extension.</remarks>
+    internal static (string filename, string ext) SplitBasename(string basename)
+    {
+        int dot = basename.LastIndexOf('.');
+        return dot > 0 ? (basename[..dot], basename[dot..]) : (basename, "");
+    }
+
+    /// <summary>The stem (name without its final extension): "video.mkv" → "video"; "video.en.vtt" → "video.en".</summary>
+    internal static string StemOf(string basename)
+    {
+        int dot = basename.LastIndexOf('.');
+        return dot > 0 ? basename[..dot] : basename;
+    }
+
+    /// <summary>
+    /// Joins a folder part and a name part into one forward-slash path, tolerating an empty part on
+    /// either side.
+    /// </summary>
+    /// <remarks>
+    /// Normalization happens HERE rather than at a call site, so the result is canonical whichever
+    /// separator either part arrived with and the operation cannot be called wrongly.
+    /// </remarks>
+    internal static string JoinPath(string a, string b)
+    {
+        string left = NormalizeSlash(a);
+        string right = NormalizeSlash(b);
+
+        if (string.IsNullOrEmpty(left))
+        {
+            return right;
+        }
+
+        if (string.IsNullOrEmpty(right))
+        {
+            return left;
+        }
+
+        return left.TrimEnd('/') + "/" + right.TrimStart('/');
+    }
+
+    /// <summary>Inserts the suffix counter before the extension (e.g. "name" + " ({n})" + ".mkv" → "name (1).mkv").</summary>
+    internal static string ApplySuffix(string filename, string ext, string suffixFormat, int counter)
+        => filename
+            + suffixFormat.Replace("{n}", counter.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            + ext;
 
     /// <summary>Whether two paths name the same location, ignoring case on Windows only.</summary>
     /// <remarks>A null <paramref name="a"/> compares as the empty string; this never throws.</remarks>
