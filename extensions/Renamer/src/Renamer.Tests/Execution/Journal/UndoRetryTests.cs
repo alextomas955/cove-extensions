@@ -54,8 +54,10 @@ public sealed class UndoRetryTests
             var undo = UndoValue(await ext.UndoAsync(Write, default));
 
             Assert.Equal(1, undo.Undone);
-            Assert.Single(undo.Skipped);
-            Assert.Empty(undo.Failed);
+            Assert.Single(undo.SkippedSample);
+            Assert.Equal(1, undo.SkippedCount);
+            Assert.Empty(undo.FailedSample);
+            Assert.Equal(0, undo.FailedCount);
             Assert.True(File.Exists(comes.OldFull), "the restorable file is back");
             Assert.True(File.Exists(stays.NewFull), "the blocked file never moved");
 
@@ -97,8 +99,10 @@ public sealed class UndoRetryTests
             // ONE, not two: the row the first run retired is not offered again, so the second run acts
             // only on what the first left behind.
             Assert.Equal(1, second.Undone);
-            Assert.Empty(second.Skipped);
-            Assert.Empty(second.Failed);
+            Assert.Empty(second.SkippedSample);
+            Assert.Equal(0, second.SkippedCount);
+            Assert.Empty(second.FailedSample);
+            Assert.Equal(0, second.FailedCount);
             Assert.True(File.Exists(stays.OldFull), "the blocked file is back after the retry");
             Assert.False(File.Exists(stays.NewFull));
             Assert.True(File.Exists(comes.OldFull), "and the first run's file was not disturbed");
@@ -133,7 +137,7 @@ public sealed class UndoRetryTests
 
             Assert.Equal(1, undo.Undone);
             // The COUNT is what the response states and what a caller reads; the sample is only where
-            var stopped = Assert.Single(undo.Skipped);
+            var stopped = Assert.Single(undo.SkippedSample);
             Assert.Equal(gone.FileId, stopped.FileId);
 
             using var journal = new CoveRevertJournal(db);

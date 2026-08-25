@@ -358,7 +358,7 @@ public sealed partial class Renamer
         var target = await journal.ReadUndoTargetAsync(ct);
         if (target is null)
         {
-            return TypedResults.Ok(new UndoResult(0, [], []));
+            return TypedResults.Ok(new UndoRunAccumulator().ToResult());
         }
 
         // The first page is read BEFORE the per-kind re-gate, exactly where the whole-batch read used to
@@ -368,7 +368,7 @@ public sealed partial class Renamer
             target.Value.RunId, belowSeq: long.MaxValue, CoveRevertJournal.DefaultPageSize, ct);
         if (page.Count == 0)
         {
-            return TypedResults.Ok(new UndoResult(0, [], []));
+            return TypedResults.Ok(new UndoRunAccumulator().ToResult());
         }
 
         // Re-gate on the WRITE permission of the kind that was actually renamed (the batch carries it)
@@ -390,9 +390,11 @@ public sealed partial class Renamer
         var replayer = new UndoReplayer(new CoveRenamerDataPort(db), EventBus, new DiskMover(),
             cross: new CrossVolumeMover(), allowedRoots: options.AllowedRoots);
 
-        int undone = 0;
-        var failed = new List<UndoEntryError>();
-        var skipped = new List<UndoEntryError>();
+        // Each page's outcome is folded into a total plus a bounded sample. Retaining every page's
+        // entries would rebuild in this handler's memory - and then on the wire - exactly the
+        // library-sized value the paged read above removed. The host log still receives every entry,
+        // per page, which is where the full detail belongs.
+        var accumulated = new UndoRunAccumulator();
 
         while (page.Count > 0)
         {
@@ -401,11 +403,7 @@ public sealed partial class Renamer
 
             LogUndoEntries(target.Value.RunId, pageBatch, run);
 
-            undone += run.Undone;
-            failed.AddRange(
-                run.Failed.Select(f => new UndoEntryError(f.FileId, f.OldPath, f.NewPath, f.Reason)));
-            skipped.AddRange(
-                run.Skipped.Select(sk => new UndoEntryError(sk.FileId, sk.OldPath, sk.NewPath, sk.Reason)));
+            accumulated.Add(run);
 
             // Retire each row whose file actually came back. A row that stopped for a reason the world
             // can clear STAYS, so it is offered again on the next undo — which is what makes a retry act
@@ -436,9 +434,12 @@ public sealed partial class Renamer
                 target.Value.RunId, page[^1].Seq, CoveRevertJournal.DefaultPageSize, ct);
         }
 
-        LogUndoDone(target.Value.RunId, undone, skipped.Count, failed.Count);
+        // The log line reports the run's TOTALS, which are the accumulator's counts and never a sample's
+        // length: a host log that under-reported a large undo would be worse than no line at all.
+        var result = accumulated.ToResult();
+        LogUndoDone(target.Value.RunId, result.Undone, result.SkippedCount, result.FailedCount);
 
-        return TypedResults.Ok(new UndoResult(undone, failed, skipped));
+        return TypedResults.Ok(result);
     }
 
     /// <summary>
@@ -526,6 +527,8 @@ public sealed partial class Renamer
         return TypedResults.Ok(new LastBatchSummary(
             HasBatch: summary is not null,
             Count: summary?.OriginalCount ?? 0,
+            RemainingCount: summary?.Remaining ?? 0,
+            UnrestorableCount: summary?.UnrestorableCount ?? 0,
             WrittenAtUtcTicks: summary?.WrittenAtUtcTicks ?? 0,
             Consumed: summary is not null && summary.Value.Remaining == 0));
     }

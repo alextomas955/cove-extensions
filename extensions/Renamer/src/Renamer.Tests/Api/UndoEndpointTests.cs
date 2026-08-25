@@ -96,8 +96,10 @@ public sealed class UndoEndpointTests
             Assert.Equal(200, StatusOf(result));
             var undo = UndoValue(result);
             Assert.Equal(1, undo.Undone);
-            Assert.Empty(undo.Failed);
-            Assert.Empty(undo.Skipped);
+            Assert.Empty(undo.FailedSample);
+            Assert.Equal(0, undo.FailedCount);
+            Assert.Empty(undo.SkippedSample);
+            Assert.Equal(0, undo.SkippedCount);
 
             // Disk restored.
             Assert.True(File.Exists(oldFull), "file restored to OLD");
@@ -120,8 +122,10 @@ public sealed class UndoEndpointTests
             var second = await ext.UndoAsync(principal, default);
             var secondUndo = UndoValue(second);
             Assert.Equal(0, secondUndo.Undone);
-            Assert.Empty(secondUndo.Failed);
-            Assert.Empty(secondUndo.Skipped);
+            Assert.Empty(secondUndo.FailedSample);
+            Assert.Equal(0, secondUndo.FailedCount);
+            Assert.Empty(secondUndo.SkippedSample);
+            Assert.Equal(0, secondUndo.SkippedCount);
         }
         finally
         {
@@ -223,7 +227,8 @@ public sealed class UndoEndpointTests
             });
             var skippedRun = UndoValue(await ext.UndoAsync(write, default));
             Assert.Equal(0, skippedRun.Undone);
-            Assert.Single(skippedRun.Skipped);
+            Assert.Single(skippedRun.SkippedSample);
+            Assert.Equal(1, skippedRun.SkippedCount);
             Assert.True(File.Exists(newFull), "file still on dest — nothing restored");
 
             // The batch MUST remain open (not consumed) so it can be retried.
@@ -239,7 +244,8 @@ public sealed class UndoEndpointTests
             });
             var retryRun = UndoValue(await ext.UndoAsync(write, default));
             Assert.Equal(1, retryRun.Undone);
-            Assert.Empty(retryRun.Skipped);
+            Assert.Empty(retryRun.SkippedSample);
+            Assert.Equal(0, retryRun.SkippedCount);
             Assert.True(File.Exists(oldFull), "file restored to original after corrected retry");
             Assert.False(File.Exists(newFull));
             Assert.Equal("video-bytes", File.ReadAllText(oldFull));
@@ -268,8 +274,10 @@ public sealed class UndoEndpointTests
             Assert.Equal(200, StatusOf(result));
             var undo = UndoValue(result);
             Assert.Equal(0, undo.Undone);
-            Assert.Empty(undo.Failed);
-            Assert.Empty(undo.Skipped);
+            Assert.Empty(undo.FailedSample);
+            Assert.Equal(0, undo.FailedCount);
+            Assert.Empty(undo.SkippedSample);
+            Assert.Equal(0, undo.SkippedCount);
         }
         finally
         {
