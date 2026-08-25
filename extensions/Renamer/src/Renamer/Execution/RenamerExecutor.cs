@@ -401,11 +401,16 @@ public sealed class RenamerExecutor
             captionRenames.Add((cap.CaptionId, newCaptionName));
         }
 
-        // Probe the PRECISE per-extension path (never a glob/EnumerateFiles) so only the exact stem +
-        // a listed extension is taken.
+        // Only the exact stem plus a listed extension is taken, so the candidate set is the stem's own
+        // neighbours and never a directory sweep. The extension compare is ordinal-ignore-case in code
+        // rather than delegated to File.Exists on a composed path: File.Exists answers
+        // case-insensitively only where the filesystem does, so a listed `SRT` silently misses an
+        // on-disk `clip.srt` on a case-sensitive volume, which is what the host runs on.
         if (srcFile is not null && options.AssociatedExtensions.Count > 0)
         {
             string srcStem = StemOf(srcFile.Basename);
+            var neighborExtensions = SameStemExtensions(oldDir, srcStem);
+
             foreach (var raw in options.AssociatedExtensions)
             {
                 string normExt = raw.StartsWith('.') ? raw[1..] : raw;
@@ -422,13 +427,15 @@ public sealed class RenamerExecutor
                     continue;
                 }
 
-                string source = JoinPath(oldDir, srcStem + "." + normExt);
-                if (!System.IO.File.Exists(ToNative(source)))
+                if (!neighborExtensions.TryGetValue(normExt, out string? diskExt))
                 {
                     continue;
                 }
 
-                string target = JoinPath(targetFolder, newStem + "." + normExt);
+                // The on-disk spelling on both sides, so a moved sidecar keeps the extension casing it
+                // had rather than taking the casing whoever typed the setting used.
+                string source = JoinPath(oldDir, srcStem + "." + diskExt);
+                string target = JoinPath(targetFolder, newStem + "." + diskExt);
 
                 // An in-place / case-only renamer leaves source == target; skipping it mirrors the
                 // primary's self-path discipline and avoids a spurious skip-not-clobber warning.
@@ -449,6 +456,47 @@ public sealed class RenamerExecutor
         }
 
         return (plannedSidecars, captionRenames);
+    }
+
+    /// <summary>
+    /// The extensions of the files in <paramref name="dir"/> whose stem is exactly
+    /// <paramref name="stem"/>, keyed ordinal-ignore-case with the on-disk spelling as the value.
+    /// </summary>
+    /// <remarks>
+    /// The filesystem filter is the stem, so the candidate set is the primary's own neighbours and does
+    /// not grow with the folder. A wildcard character inside a stem widens that filter, which costs
+    /// extra candidates and changes nothing that is taken: the exact stem comparison here is what
+    /// decides. When one extension is present in more than one casing, the ordinal-smallest spelling
+    /// wins, so the choice does not depend on the order the filesystem returned.
+    /// </remarks>
+    private static Dictionary<string, string> SameStemExtensions(string dir, string stem)
+    {
+        var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        string nativeDir = ToNative(dir);
+        if (!System.IO.Directory.Exists(nativeDir))
+        {
+            return found;
+        }
+
+        foreach (string path in System.IO.Directory.EnumerateFiles(nativeDir, stem + ".*"))
+        {
+            string name = System.IO.Path.GetFileName(path);
+            if (name.Length <= stem.Length + 1
+                || name[stem.Length] != '.'
+                || !name.AsSpan(0, stem.Length).Equals(stem, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string ext = name[(stem.Length + 1)..];
+            if (!found.TryGetValue(ext, out string? existing)
+                || string.CompareOrdinal(ext, existing) < 0)
+            {
+                found[ext] = ext;
+            }
+        }
+
+        return found;
     }
 
     /// <summary>

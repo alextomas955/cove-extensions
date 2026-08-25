@@ -380,4 +380,39 @@ public sealed class AssociatedExtensionSidecarTests
             await conn.DisposeAsync();
         }
     }
+
+    // The other direction of the same contract, and the one a case-insensitive filesystem cannot
+    // distinguish: the configured value is lower case and the extension on disk is upper case. The
+    // moved file keeps the casing it had rather than taking the casing from the setting.
+    [Theory]
+    [InlineData("srt")]
+    [InlineData(".srt")]
+    [InlineData("SRT")]
+    public async Task ExtensionNormalization_MatchesUpperCaseOnDisk_AndKeepsItsCasing(string configured)
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, videoId, fileId) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "clip.mkv", "Film A");
+
+            File.WriteAllText(Path.Combine(dir.Root, "clip.mkv"), "video");
+            File.WriteAllText(Path.Combine(dir.Root, "clip.SRT"), "subs");
+
+            var options = new RenamerOptions { AssociatedExtensions = [configured] };
+            var result = await RealExecutor(db).ExecuteAsync(
+                RenamerPlan(videoId, fileId, folderPath, "clip.mkv", "Film A.mkv"), options, default);
+
+            Assert.Single(result.Renamed);
+            Assert.True(File.Exists(Path.Combine(dir.Root, "Film A.SRT")), $"'{configured}' must match clip.SRT");
+            Assert.False(File.Exists(Path.Combine(dir.Root, "clip.SRT")));
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
 }
