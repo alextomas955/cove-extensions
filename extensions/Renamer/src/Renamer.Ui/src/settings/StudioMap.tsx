@@ -5,7 +5,7 @@
  * coercion (studioMapLogic.ts), kept out here so it is offline-tested in isolation.
  */
 import { useEffect, useState } from "react";
-import { request } from "@cove/extension-sdk";
+import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
 import { KeyValueMapEditor, TextInput, PathShapeHint } from "@cove-extensions/ui-shared";
 import { StudioPicker } from "./EntityPicker";
@@ -40,7 +40,7 @@ export function StudioDestinationsEditor({
   // render-driven setState. The `live` guard drops a late response after unmount.
   useEffect(() => {
     let live = true;
-    request<EntityRef[]>(LIST_STUDIOS_PATH)
+    requestJson<EntityRef[]>(LIST_STUDIOS_PATH)
       .then((rows) => {
         if (live) setStudios(rows);
       })

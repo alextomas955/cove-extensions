@@ -1,3 +1,4 @@
+/// <reference path="./coveRuntime.d.ts" />
 // Public surface of the shared UI module, consumed by each extension bundle through its
 // `@cove-extensions/ui-shared` alias. Consumers import from this barrel; intra-module files import each
 // other by relative path so the pure-logic modules stay independently importable.

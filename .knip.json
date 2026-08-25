@@ -18,6 +18,7 @@
         "react",
         "react-dom",
         "@cove/extension-sdk",
+        "@cove/runtime",
         "lucide-react",
         "vite",
         "vitest"

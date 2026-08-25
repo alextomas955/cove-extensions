@@ -3,7 +3,7 @@
  *
  * Live preview: a ~250ms-debounced POST to /preview-sample with the in-flight options. The
  * hook owns the fetch, its debounce, and cancellation on every re-run — the panel consumes only the
- * resulting {@link PreviewSampleResult}[] and an error flag, never `request()` directly. The backend
+ * resulting {@link PreviewSampleResult}[] and an error flag, never the request directly. The backend
  * engine is the single source of truth; this never re-implements naming.
  *
  * Cancellation contract (preserved verbatim from the panel): each options/loading change schedules a
@@ -12,7 +12,7 @@
  * raises `previewError`.
  */
 import { useEffect, useState } from "react";
-import { request } from "@cove/extension-sdk";
+import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
 import { type RenamerOptions } from "./options";
 import { type PreviewSampleResult } from "./PreviewCard";
@@ -33,7 +33,7 @@ export function useRenamePreview(options: RenamerOptions, loading: boolean): Use
   useEffect(() => {
     if (loading) return;
     const handle = setTimeout(() => {
-      request<PreviewSampleResult[]>(PREVIEW_PATH, {
+      requestJson<PreviewSampleResult[]>(PREVIEW_PATH, {
         method: "POST",
         body: JSON.stringify({ Options: options }),
       })
