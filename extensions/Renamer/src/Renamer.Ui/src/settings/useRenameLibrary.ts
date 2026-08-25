@@ -8,7 +8,7 @@
  * sections stay presentational.
  */
 import { useCallback, useState } from "react";
-import { request, ApiError } from "@cove/extension-sdk";
+import { requestJson, ApiError } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { ScanSummaryResponse } from "../contracts";
 import { summaryCounts, type DryRunCounts } from "./dry-run/dryRunLogic";
@@ -39,7 +39,7 @@ function pollJobToCompletion(
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const interval = setInterval(() => {
-      request<{
+      requestJson<{
         status: string;
         error?: string | null;
         progress?: number;
@@ -110,14 +110,16 @@ export function useRenameLibrary(): UseRenameLibrary {
     try {
       let counts = scanCounts;
       if (!counts) {
-        const { jobId: scanJobId } = await request<{ jobId: string }>(api("scan-library"), {
+        const { jobId: scanJobId } = await requestJson<{ jobId: string }>(api("scan-library"), {
           method: "POST",
         });
         await pollJobToCompletion(scanJobId);
-        counts = summaryCounts(await request<ScanSummaryResponse>(api("last-scan")));
+        counts = summaryCounts(await requestJson<ScanSummaryResponse>(api("last-scan")));
       }
 
-      const { jobId } = await request<{ jobId: string }>(RENAME_LIBRARY_PATH, { method: "POST" });
+      const { jobId } = await requestJson<{ jobId: string }>(RENAME_LIBRARY_PATH, {
+        method: "POST",
+      });
       await pollJobToCompletion(jobId, (p) => {
         setRenameProgress(p);
       });

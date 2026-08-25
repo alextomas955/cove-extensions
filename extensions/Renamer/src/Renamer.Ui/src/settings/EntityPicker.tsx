@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { request } from "@cove/extension-sdk";
+import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
 import { Field, StatusText, Spinner } from "@cove-extensions/ui-shared";
 import {
@@ -121,7 +121,7 @@ function EntityPicker<V>({
     loadingRef.current = true;
     setLoading(true);
     try {
-      const rows = await request<EntityRef[]>(endpointPath);
+      const rows = await requestJson<EntityRef[]>(endpointPath);
       setFetched(rows);
       setLoaded(true);
       setFailed(false);

@@ -11,7 +11,7 @@
  * Request errors are NOT swallowed (the host's onError alert shows the failure) — except the
  * SDK's spurious res.json() throw on the empty-200 /renamer response, which is success.
  */
-import { request } from "@cove/extension-sdk";
+import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
 import type { ActionPayload, HandlerResult } from "@cove-extensions/ui-shared";
 import { postAction } from "@cove-extensions/ui-shared/postAction";
@@ -26,7 +26,7 @@ export async function renameSelected(
   const requestBody = { EntityType: payload.entityType, EntityIds: payload.entityIds };
 
   // /preview returns { items, summary } (non-empty body) — parses cleanly.
-  const response = await request<PreviewResponse>(api("preview"), {
+  const response = await requestJson<PreviewResponse>(api("preview"), {
     method: "POST",
     body: JSON.stringify(requestBody),
   });

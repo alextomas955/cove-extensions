@@ -1,18 +1,16 @@
 /**
  * useRenamerOptions — the options load/save data layer for the settings page.
  *
- * Owns the full persistence lifecycle the panel used to inline: LOAD via `store.getAll()` then read
- * the "options" key (GET /api/extensions/{id}/data; the per-key GET route does not exist on the
- * host); SAVE via PUT /api/extensions/{id}/data/options with a DOUBLE-encoded body (the host route
- * binds `[FromBody] string value`, so the HTTP body must be a JSON string literal whose content is
- * the options JSON → `JSON.stringify(JSON.stringify(options))`). The PUT returns HTTP 200 with an
- * EMPTY body; the SDK `request()` only short-circuits on 204 and would call res.json() on the empty
- * 200 → spurious SyntaxError, so `saveOptions` treats a JSON-parse error on a 2xx as success.
+ * Owns the full persistence lifecycle over the shared extension data store, which carries the host's
+ * route surface and its encoding. What stays here is the options semantics the store has no business
+ * knowing: recovery from an unreadable stored blob, and preserving stored keys this panel does not
+ * model.
  *
- * The panel consumes this hook and stays presentational — it never touches `request()`/`store`.
+ * The panel consumes this hook and stays presentational: it never touches the store.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { request, ApiError, useExtensionStore } from "@cove/extension-sdk";
+import { ApiError } from "@cove-extensions/ui-shared/extensionRequest";
+import { createExtensionDataStore } from "@cove-extensions/ui-shared/extensionStore";
 
 import {
   type RenamerOptions,
@@ -21,15 +19,15 @@ import {
   normalizeOptions,
   extractUnmodeledFields,
 } from "./options";
-import { EXTENSION_ID, api } from "../common/lib/extension";
+import { EXTENSION_ID } from "../common/lib/extension";
 
 const OPTIONS_KEY = "options";
-const DATA_BASE = api("data");
+// Module scope, so the store identity is stable: built per render it would rebuild `load` on every
+// render, and the mount effect that depends on `load` would refetch in a loop.
+const store = createExtensionDataStore(EXTENSION_ID);
 
 /**
- * Save the options blob. Tolerates the host's empty-200 response (see file header). Rethrows a
- * real ApiError so the caller can surface it; treats a JSON-parse error on a successful response
- * as success.
+ * Save the options blob. Rethrows a real ApiError so the caller can surface it.
  *
  * `extras` carries any stored keys this panel does not model (backend-only settings such as the
  * path-routing fields). They are merged back ahead of the modeled options — modeled values always
@@ -39,18 +37,7 @@ async function saveOptions(
   options: RenamerOptions,
   extras: Record<string, unknown>,
 ): Promise<void> {
-  const payload = { ...extras, ...options };
-  try {
-    await request<unknown>(`${DATA_BASE}/${OPTIONS_KEY}`, {
-      method: "PUT",
-      // Double-encode: inner serialize = the stored value; outer serialize makes it a JSON
-      // string literal for the [FromBody] string binder.
-      body: JSON.stringify(JSON.stringify(payload)),
-    });
-  } catch (err) {
-    if (err instanceof ApiError) throw err; // genuine HTTP failure
-    // Otherwise: res.ok was true but res.json() failed on the empty 200 body → success.
-  }
+  await store.set(OPTIONS_KEY, { ...extras, ...options });
 }
 
 export interface UseRenamerOptions {
@@ -71,8 +58,6 @@ export interface UseRenamerOptions {
 }
 
 export function useRenamerOptions(): UseRenamerOptions {
-  const store = useExtensionStore(EXTENSION_ID);
-
   const [options, setOptions] = useState<RenamerOptions>(() => cloneDefaults());
   const [saved, setSaved] = useState<RenamerOptions>(() => cloneDefaults());
   const [loading, setLoading] = useState(true);
@@ -99,10 +84,7 @@ export function useRenamerOptions(): UseRenamerOptions {
     setRecoveredFromBadBlob(false);
     try {
       const all = await store.getAll();
-      // getAll() is typed Record<string,string>, but a MISSING key is `undefined` at runtime
-      // (the index signature doesn't model that). Annotate the possibly-undefined reality so the
-      // null/empty guard below stays meaningful rather than being treated as dead by the type.
-      const blob: string | undefined = all[OPTIONS_KEY];
+      const blob = all[OPTIONS_KEY];
       if (!blob) {
         // missing key (undefined) or empty stored blob → load defaults
         preservedExtras.current = {};
@@ -155,7 +137,7 @@ export function useRenamerOptions(): UseRenamerOptions {
     } finally {
       setLoading(false);
     }
-  }, [store]);
+  }, []);
 
   useEffect(() => {
     // Data fetch on mount: load() awaits the store then setState()s the result — the canonical

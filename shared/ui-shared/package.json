@@ -12,6 +12,8 @@
     "./overlay": "./src/overlay.ts",
     "./entityPickerLogic": "./src/entityPickerLogic.ts",
     "./actions": "./src/actions.ts",
-    "./postAction": "./src/postAction.ts"
+    "./postAction": "./src/postAction.ts",
+    "./extensionRequest": "./src/extensionRequest.ts",
+    "./extensionStore": "./src/extensionStore.ts"
   }
 }
