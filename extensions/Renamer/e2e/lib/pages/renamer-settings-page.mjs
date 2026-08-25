@@ -1,8 +1,21 @@
 // Page Object for the Renamer settings panel at /settings/renamer.
+const SETTINGS_PATH = "/settings/renamer";
+
+// The budget for one visit, spent across however many navigations it takes. It has to cover a cold
+// container on a loaded CI runner and still leave the rest of a spec's work inside the per-test
+// timeout.
+const PANEL_READY_TIMEOUT_MS = 30_000;
+
+// The host renders its settings page from a lazily-imported chunk. When that fetch fails the host
+// catches it and paints this sentence instead of the page, so the route stays correct and no locator
+// will ever resolve. It is transient, and a fresh navigation refetches the chunk.
+const CHUNK_FAILURE_TEXT = /Failed to fetch dynamically imported module/;
+
 export class RenamerSettingsPage {
   constructor(page, baseUrl) {
     this.page = page;
     this.baseUrl = baseUrl;
+    this.panelUrl = `${baseUrl}${SETTINGS_PATH}`;
     this.filenameTemplateInput = page.getByRole("textbox", { name: "Filename template" });
     this.folderTemplateInput = page.getByRole("textbox", { name: "Folder template" });
     this.saveChangesButton = page.getByRole("button", { name: "Save changes" });
@@ -29,8 +42,75 @@ export class RenamerSettingsPage {
     this.dryRunCloseButton = this.dryRunDialog.getByRole("button", { name: "Close" });
   }
 
+  /** Opens the panel and returns once it has rendered. */
   async goto() {
-    await this.page.goto(`${this.baseUrl}/settings/renamer`);
+    await this.page.goto(this.panelUrl);
+    await this.waitForPanel();
+  }
+
+  /** Reloads the panel and returns once it has rendered again. */
+  async reload() {
+    await this.page.reload();
+    await this.waitForPanel();
+  }
+
+  /**
+   * Waits for the panel, re-navigating for as long as the host keeps resolving the route away from it.
+   *
+   * Two failures put the panel permanently out of reach, and waiting longer fixes neither.
+   *
+   * `/settings/renamer` is not one of the host's own routes. The host carries the unknown key only
+   * until it finishes loading extensions, then resolves it against the settings tabs that load
+   * produced. A load that failed produces none, and the host answers by switching to its first
+   * built-in tab and rewriting the address to match. Nothing after that rewrite can reach the panel,
+   * because the address no longer names the extension.
+   *
+   * Separately, the host imports its settings page as a chunk, and a failed fetch leaves it painting
+   * {@link CHUNK_FAILURE_TEXT} on the correct route indefinitely.
+   *
+   * Each is a signal rather than a timeout, and a fresh navigation recovers both.
+   */
+  async waitForPanel() {
+    const deadline = Date.now() + PANEL_READY_TIMEOUT_MS;
+    let discards = 0;
+    let chunkFailures = 0;
+    for (;;) {
+      // A non-positive Playwright timeout means "never time out", so the budget is checked before it
+      // is handed over rather than after.
+      const remainingMs = deadline - Date.now();
+      const outcome =
+        remainingMs <= 0
+          ? "expired"
+          : await Promise.race([
+              this.filenameTemplateInput
+                .waitFor({ state: "visible", timeout: remainingMs })
+                .then(() => "rendered")
+                .catch(() => "expired"),
+              this.page
+                .waitForURL((visited) => !visited.pathname.startsWith(SETTINGS_PATH), {
+                  timeout: remainingMs,
+                })
+                .then(() => "discarded")
+                .catch(() => "expired"),
+              this.page
+                .getByText(CHUNK_FAILURE_TEXT)
+                .waitFor({ state: "visible", timeout: remainingMs })
+                .then(() => "chunkFailed")
+                .catch(() => "expired"),
+            ]);
+      if (outcome === "rendered") return;
+      if (outcome === "discarded") discards += 1;
+      if (outcome === "chunkFailed") chunkFailures += 1;
+      if (outcome === "expired") {
+        throw new Error(
+          `The Renamer settings panel did not render within ${PANEL_READY_TIMEOUT_MS}ms at ${this.panelUrl}. ` +
+            `The page is now at ${this.page.url()}. ` +
+            `The host sent the route to one of its own tabs ${discards} time(s) and failed to fetch ` +
+            `its own settings chunk ${chunkFailures} time(s) on the way.`,
+        );
+      }
+      await this.page.goto(this.panelUrl);
+    }
   }
 
   async setFilenameTemplate(template) {
