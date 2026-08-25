@@ -433,18 +433,9 @@ public sealed partial class Renamer : FullExtensionBase
         // Now — and only now — open exactly one batch: PHASE A produced acting work and the batch
         // fits. Opened ONCE here, single-threaded, never per worker.
         //
-        // OVER THE ROW CAP → journal NOTHING. The decision lands here because acting.Count is the FILE
-        // count (one unit per acting file); the id array counts entities. Suppressing takes the whole
-        // batch out rather than recording part of it — half-restorable is worse than clearly not.
-        if (IRevertJournal.ExceedsCap(acting.Count))
-        {
-            await journal.SuppressAsync(ct);
-            LogBatchNotJournalled(runId, acting.Count, IRevertJournal.MaxJournalledFiles);
-        }
-        else
-        {
-            await journal.BeginBatchAsync(runId, kind, DateTime.UtcNow, ct);
-        }
+        // acting.Count is the FILE count (one unit per acting file); the id array counts entities, so
+        // the cap is applied to the former.
+        await OpenOrSuppressBatchAsync(journal, runId, kind, acting.Count, DateTime.UtcNow, ct);
 
         // Marks the PHASE A → PHASE B boundary in the log: PHASE B's percentage now advances per
         // completed file, so a later stall is legible as "stuck partway through {Acting}", not silence.
@@ -561,6 +552,40 @@ public sealed partial class Renamer : FullExtensionBase
 
         LogBatchDone(runId, totalRenamed, totalSkipped, totalFailed);
         progress.Report(1d, "Renamer complete.");
+    }
+
+    /// <summary>
+    /// Opens <paramref name="runId"/>'s journal batch, or suppresses journalling for the whole batch
+    /// when <paramref name="actingFiles"/> is past the row cap.
+    /// </summary>
+    /// <remarks>
+    /// Suppressing takes the whole batch out rather than recording part of it — a partly-journalled
+    /// rename reads exactly like a whole one, and the undo after it is quietly partial.
+    /// <para>
+    /// Both the manual batch and the per-edit auto-renamer decide this, and a decision that differed
+    /// between them would make a rename's undoability depend on which path performed it. One method
+    /// also gives the branch a seam a test can reach: the cap is thousands of files, so driving the
+    /// suppressed side through either caller would mean seeding that many files on disk.
+    /// </para>
+    /// </remarks>
+    internal async Task OpenOrSuppressBatchAsync(
+        IRevertJournal journal,
+        string runId,
+        RenamerFileKind kind,
+        int actingFiles,
+        DateTime nowUtc,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(journal);
+
+        if (IRevertJournal.ExceedsCap(actingFiles))
+        {
+            await journal.SuppressAsync(ct);
+            LogBatchNotJournalled(runId, actingFiles, IRevertJournal.MaxJournalledFiles);
+            return;
+        }
+
+        await journal.BeginBatchAsync(runId, kind, nowUtc, ct);
     }
 
     /// <summary>

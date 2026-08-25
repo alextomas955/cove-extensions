@@ -51,4 +51,40 @@ public sealed class RevertJournalCapTests
         Assert.Empty(await refused.ReadBatchPageAsync("refused", long.MaxValue, limit: 100));
         Assert.Empty(await refused.ReadBatchPageAsync("earlier", long.MaxValue, limit: 100));
     }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(IRevertJournal.MaxJournalledFiles - 1)]
+    [InlineData(IRevertJournal.MaxJournalledFiles)]
+    public async Task AtOrUnderTheCap_TheBatchIsOpened(int actingFiles)
+    {
+        var journal = new FakeRevertJournal();
+
+        await new global::Renamer.Renamer().OpenOrSuppressBatchAsync(
+            journal, "run", RenamerFileKind.Video, actingFiles, Opened, default);
+
+        await journal.AppendAsync(new RevertRow("run", Seq: 0, 11, 21, "/media/old/a.mkv", ""));
+
+        var target = await journal.ReadUndoTargetAsync();
+        Assert.NotNull(target);
+        Assert.Equal(RenamerFileKind.Video, target!.Value.Kind);
+        Assert.Single(journal.PendingRows);
+    }
+
+    [Theory]
+    [InlineData(IRevertJournal.MaxJournalledFiles + 1)]
+    [InlineData(IRevertJournal.MaxJournalledFiles * 2)]
+    public async Task PastTheCap_NoBatchIsOpened_AndLaterAppendsAreDropped(int actingFiles)
+    {
+        var journal = new FakeRevertJournal();
+
+        await new global::Renamer.Renamer().OpenOrSuppressBatchAsync(
+            journal, "run", RenamerFileKind.Video, actingFiles, Opened, default);
+
+        // Workers already in flight when the decision was taken still call AppendAsync.
+        await journal.AppendAsync(new RevertRow("run", Seq: 0, 11, 21, "/media/old/a.mkv", ""));
+
+        Assert.Null(await journal.ReadUndoTargetAsync());
+        Assert.Empty(journal.PendingRows);
+    }
 }

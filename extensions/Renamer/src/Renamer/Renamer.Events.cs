@@ -103,15 +103,7 @@ public sealed partial class Renamer
             // the journal takes.
             var runId = Guid.NewGuid().ToString("N");
             using var journal = new CoveRevertJournal(db);
-            if (IRevertJournal.ExceedsCap(actingFiles))
-            {
-                await journal.SuppressAsync(ct);
-                LogBatchNotJournalled(runId, actingFiles, IRevertJournal.MaxJournalledFiles);
-            }
-            else
-            {
-                await journal.BeginBatchAsync(runId, kind, DateTime.UtcNow, ct);
-            }
+            await OpenOrSuppressBatchAsync(journal, runId, kind, actingFiles, DateTime.UtcNow, ct);
 
             var executor = new RenamerExecutor(port, EventBus, journal, runId, new DiskMover());
             // Single-entity hook path (no batch concurrency): no pre-resolved folder map — the executor
