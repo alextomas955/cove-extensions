@@ -8,17 +8,19 @@ import { test } from "vitest";
 import assert from "node:assert/strict";
 
 import { buildConfirmSummary } from "./preview";
-import type { ConfirmLevel, PreviewItem, PreviewSummary } from "../../contracts";
+import type { ConfirmLevel, PreviewItemView, PreviewSummary } from "../../wire/api";
 
-const RENAME_ITEM: PreviewItem = {
+const RENAME_ITEM: PreviewItemView = {
   fileId: 1,
   oldFullPath: "/lib/raw.mkv",
   newFullPath: "/lib/Film.mkv",
   status: "renamer",
   newBasename: "Film.mkv",
   targetFolderPath: "/lib",
+  reason: null,
   suffixed: false,
   sanitized: false,
+  resolvedDestinationRoot: null,
   matchedRule: "InPlace",
   targetVolume: "/",
 };

@@ -278,6 +278,15 @@ export default tseslint.config(
           capture: ["extension", "ui"],
           stopMatching: true,
         },
+        // Generated from the extension's own committed OpenAPI document: type-only, importing
+        // nothing. Every layer may depend downward onto it, so the broader slice glob below must not
+        // classify it as a sibling.
+        {
+          type: "wire",
+          pattern: "extensions/*/src/*.Ui/src/wire",
+          capture: ["extension", "ui"],
+          stopMatching: true,
+        },
         {
           type: "slice",
           pattern: "extensions/*/src/*.Ui/src/*",
@@ -296,12 +305,12 @@ export default tseslint.config(
           policies: [
             {
               from: { element: { type: "common" } },
-              allow: { to: { element: { types: { anyOf: ["common", "shared"] } } } },
+              allow: { to: { element: { types: { anyOf: ["common", "shared", "wire"] } } } },
             },
-            // A feature slice may reach common/ and the shared package, but NOT a sibling slice.
+            // A feature slice may reach common/, the shared package and wire, but NOT a sibling slice.
             {
               from: { element: { type: "slice" } },
-              allow: { to: { element: { types: { anyOf: ["common", "shared"] } } } },
+              allow: { to: { element: { types: { anyOf: ["common", "shared", "wire"] } } } },
             },
             {
               from: { element: { type: "shared" } },
