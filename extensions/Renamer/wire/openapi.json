@@ -683,7 +683,10 @@
           "skipUnanchored",
           "skipRootMissing",
           "skipNotAllowed",
-          "skipTooLong"
+          "skipTooLong",
+          "skipPermissionDenied",
+          "skipVerifyFailed",
+          "skipCancelled"
         ]
       },
       "ScanCursor": {

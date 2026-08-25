@@ -424,7 +424,10 @@ public sealed class UndoReplayer
     // named, so a member added to MoveOutcome fails this build instead of collapsing into a default.
     private static UndoStopReason StopFor(MoveOutcome outcome) => outcome switch
     {
-        MoveOutcome.LockedOrExists => UndoStopReason.ReverseMoveLockedOrTargetExists,
+        // Both share one stop reason, whose own name already covers both causes: an undo stop is
+        // retryable either way, so the distinction changes no recovery route the user can take.
+        MoveOutcome.Locked => UndoStopReason.ReverseMoveLockedOrTargetExists,
+        MoveOutcome.TargetExists => UndoStopReason.ReverseMoveLockedOrTargetExists,
         MoveOutcome.PermissionDenied => UndoStopReason.ReverseMovePermissionDenied,
         MoveOutcome.VerifyFailed => UndoStopReason.ReverseMoveVerifyFailed,
         MoveOutcome.Cancelled => UndoStopReason.ReverseMoveCancelled,

@@ -51,6 +51,17 @@ function badgesFor(item: Badgeable): Badge[] {
     case "skipMissingSource":
       badges.push({ label: "Skipped — file missing on disk", variant: "amber" });
       break;
+    case "skipPermissionDenied":
+      badges.push({ label: "Skipped — permission denied", variant: "amber" });
+      break;
+    case "skipVerifyFailed":
+      // Red rather than amber: the copy was written and then read back different, so the destination
+      // or the transport is suspect, which is not the same ask as retrying a busy file.
+      badges.push({ label: "Skipped — copy did not verify", variant: "red" });
+      break;
+    case "skipCancelled":
+      badges.push({ label: "Skipped — cancelled", variant: "gray" });
+      break;
     case "failed":
       badges.push({ label: "Failed — rolled back", variant: "red" });
       break;

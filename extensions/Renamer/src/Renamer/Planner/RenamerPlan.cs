@@ -112,6 +112,35 @@ public enum RenamerStatus
     /// shortens the template or picks a shallower destination.
     /// </remarks>
     SkipTooLong,
+
+    /// <summary>
+    /// Executor-only: the OS refused the move for want of permission — across volumes that covers the
+    /// copy, the promote and the source delete alike. Kept DISTINCT from <see cref="SkipLocked"/> (a
+    /// file-lock skip) because the two ask a maintainer for opposite responses: a lock clears by
+    /// itself once whatever holds the file lets go, while a denial persists until someone changes an
+    /// access rule, so log monitoring that conflates them reports a standing misconfiguration as
+    /// transient contention and nobody ever acts on it.
+    /// </summary>
+    SkipPermissionDenied,
+
+    /// <summary>
+    /// Executor-only, cross-volume only: the destination read-back did not match the source by size
+    /// or content hash, so the copy was rejected, the suspect destination deleted and the source left
+    /// intact. Kept DISTINCT from <see cref="SkipLocked"/> (a file-lock skip) because this names a
+    /// destination that returned different bytes than it was handed — the item was refused AFTER
+    /// being written rather than never started, which is the signal to distrust the volume or the
+    /// transport rather than to retry the item.
+    /// </summary>
+    SkipVerifyFailed,
+
+    /// <summary>
+    /// Executor-only: the move was cancelled in flight (a host shutdown), so the in-flight copy was
+    /// removed and the source left untouched. Kept DISTINCT from <see cref="SkipLocked"/> (a file-lock
+    /// skip) to honour the invariant that work interrupted by shutdown classifies as cancelled and
+    /// never as a defect: reported as a lock skip, a clean stop tells a maintainer reading logs after
+    /// a restart that those files were in use when in fact nothing held them.
+    /// </summary>
+    SkipCancelled,
 }
 
 /// <summary>

@@ -126,10 +126,24 @@ public static class CanonicalPathGuard
         // 2. Resolve reparse points on the existing ancestor, following the whole chain.
         //    null  => not a link: use its own normalized full path.
         //    non-null => a junction/symlink: use the resolved final target.
+        //
+        //    A volume root is exempt, and the exemption is load-bearing rather than an optimization:
+        //    Directory.ResolveLinkTarget THROWS DirectoryNotFoundException for EVERY Windows drive
+        //    root while Directory.Exists returns true for that same path (measured on a subst mapping
+        //    and on two real volumes). That exception derives from IOException, so the fail-closed
+        //    catch below silently rejected every destination whose deepest EXISTING ancestor was a
+        //    volume root — i.e. the ordinary case of allowlisting a volume and routing into a folder
+        //    that does not exist yet. Nothing is given up by skipping it: a volume root cannot itself
+        //    be a reparse point, so there is no link there to follow, and any reparse point BELOW the
+        //    root still sits on a deeper ancestor and is resolved as before. CanonicalRoot already
+        //    normalizes this way when resolution yields nothing, so the target side now agrees with
+        //    the root side rather than disagreeing with it.
         string resolvedAncestor;
         try
         {
-            var link = Directory.ResolveLinkTarget(probe, returnFinalTarget: true);
+            var link = IsOwnPathRoot(probe)
+                ? null
+                : Directory.ResolveLinkTarget(probe, returnFinalTarget: true);
             resolvedAncestor = link?.FullName ?? Path.GetFullPath(probe);
         }
         catch (IOException)
@@ -154,6 +168,14 @@ public static class CanonicalPathGuard
 
         return real.Replace('\\', '/');
     }
+
+    /// <summary>
+    /// True iff <paramref name="path"/> IS its own path root — a volume root (<c>D:\</c>, <c>/</c>) or a
+    /// share root — rather than something under one. <see cref="Path.GetPathRoot(string)"/> returns a
+    /// slice of its argument, so the comparison is ordinal by construction.
+    /// </summary>
+    private static bool IsOwnPathRoot(string path) =>
+        string.Equals(Path.GetPathRoot(path), path, StringComparison.Ordinal);
 
     /// <summary>
     /// Canonicalizes an allowed root the SAME way as a resolved target — including LINK resolution —

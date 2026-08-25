@@ -56,6 +56,16 @@ User-facing changes, newest first.
 - **The undo panel can say how much of a rename is left.** The last-rename line now carries how many
   files are still restorable and how many can never go back, so a partly-undone rename describes
   itself instead of looking finished.
+- **Renaming into a folder that does not exist yet, on a drive you allowed, now works.** The safety
+  check that keeps a move inside your allowed folders was refusing every destination whose nearest
+  existing parent was a drive root - which is the ordinary case of allowing a whole drive and letting
+  Renamer create the folder. Nothing was lost or moved wrongly; the rename was simply refused.
+- **A cross-drive copy can no longer collide with another copy of the same file.** The temporary name
+  a copy writes under is now unique per attempt, so two runs touching the same destination cannot
+  overwrite each other's in-progress file.
+- **A skipped file says which kind of problem it hit.** "Locked or already there" is now two separate
+  reasons, and a permission refusal, a copy that read back wrong, and a cancelled run each get their
+  own label in the dry run instead of being grouped with ordinary skips.
 - **Renamer's entry in Cove's extension list now shows the right link and the full description.** The
   link pointed at a repository that does not hold this extension, and the description was a single
   sentence that left out which permissions a rename needs and the fact that Renamer makes no network
