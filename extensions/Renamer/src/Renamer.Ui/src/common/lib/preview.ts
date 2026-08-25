@@ -8,10 +8,9 @@
  *
  * `buildConfirmSummary` is intentionally pure (no DOM, no fetch) so the confirm-dialog wording logic
  * can be unit-reasoned in isolation; the handler (renameSelected.ts) wraps it with window.confirm + fetch.
- * The wire shapes it consumes live in contracts.ts.
  */
 
-import type { ConfirmLevel, PreviewItem, PreviewSummary } from "../../contracts";
+import type { ConfirmLevel, PreviewItemView, PreviewSummary } from "../../wire/api";
 
 /** Last path segment, tolerant of both `/` and `\` separators (Windows paths). */
 function basename(p: string): string {
@@ -85,7 +84,7 @@ function confirmCallToAction(level: ConfirmLevel, undoable: boolean): string {
  * Pure (no DOM/fetch) so it stays unit-reasonable.
  */
 export function buildConfirmSummary(
-  items: PreviewItem[],
+  items: PreviewItemView[],
   summary?: PreviewSummary,
 ): {
   text: string;

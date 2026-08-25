@@ -6,7 +6,7 @@
  * An instance is created per open modal rather than at module scope, so closing the modal drops the
  * loaded rows instead of keeping a library-sized array alive for the rest of the session.
  */
-import type { ScanCursor, ScanRow, ScanRowsPage } from "../../contracts";
+import type { ScanCursor, ScanRow, ScanRowsPage } from "../../wire/api";
 import type { DryRunFilter } from "./dryRunLogic";
 
 /** One walk over the dry run's rows under a fixed (query, bucket) pair. */

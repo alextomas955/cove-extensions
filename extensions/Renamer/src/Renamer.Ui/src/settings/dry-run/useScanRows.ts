@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type { ScanRow, ScanRowsPage } from "../../contracts";
+import type { ScanRow, ScanRowsPage } from "../../wire/api";
 import { api } from "../../common/lib/extension";
 import { bucketWireValue, type DryRunFilter } from "./dryRunLogic";
 import {
