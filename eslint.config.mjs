@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
@@ -35,6 +37,15 @@ const scriptRules = {
 // The raw-HTML React prop, banned on both UI surfaces. Hoisted so its three selectors share one wording.
 const noRawHtml =
   "Raw-HTML rendering is banned: filenames, diffs and flags must render as escaped text nodes, never as parsed HTML.";
+
+// Every catalog UI bundle's tsconfig, for the boundaries block's TypeScript resolver below. The list
+// comes from extensions/catalog.json, so an extension that gains a UI is classified without an edit
+// here; an entry that declares no `uiPath` contributes nothing.
+const uiTsconfigProjects = JSON.parse(
+  readFileSync(path.join(import.meta.dirname, "extensions", "catalog.json"), "utf8"),
+)
+  .extensions.filter((entry) => entry.uiPath)
+  .map((entry) => `${entry.uiPath}/tsconfig.json`);
 
 export default tseslint.config(
   {
@@ -246,10 +257,7 @@ export default tseslint.config(
     plugins: { boundaries },
     settings: {
       "import/resolver": {
-        typescript: {
-          noWarnOnMultipleProjects: true,
-          project: ["extensions/Renamer/src/Renamer.Ui/tsconfig.json"],
-        },
+        typescript: { noWarnOnMultipleProjects: true, project: uiTsconfigProjects },
       },
       "boundaries/elements": [
         // common/ is one element (incl. its ui/ and lib/); stopMatching keeps the broader slice glob
