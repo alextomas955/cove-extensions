@@ -57,8 +57,9 @@ public static class TemplateEngine
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
         RenamerOptions options,
         Action<string>? logUnbalanced = null,
-        IReadOnlyList<RenamerPerformer>? performers = null)
-        => RenderWithDropped(tokens, multiValues, options, logUnbalanced, performers).result;
+        IReadOnlyList<RenamerPerformer>? performers = null,
+        IReadOnlyList<(int Id, string Name)>? tags = null)
+        => RenderWithDropped(tokens, multiValues, options, logUnbalanced, performers, tags).result;
 
     /// <summary>
     /// Identical to <see cref="Render"/>, but also returns the set of <see cref="RenamerOptions.DropOrder"/>
@@ -72,10 +73,11 @@ public static class TemplateEngine
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
         RenamerOptions options,
         Action<string>? logUnbalanced = null,
-        IReadOnlyList<RenamerPerformer>? performers = null)
+        IReadOnlyList<RenamerPerformer>? performers = null,
+        IReadOnlyList<(int Id, string Name)>? tags = null)
     {
         // (1) Build the effective resolved token map (case-insensitive keys).
-        var resolved = BuildResolvedMap(tokens, multiValues, options, performers);
+        var resolved = BuildResolvedMap(tokens, multiValues, options, performers, tags);
 
         // (5, partial) Resolve the extension up front so the filename template can reference
         // $ext without it appearing twice: the $ext token resolves empty during the
@@ -116,7 +118,8 @@ public static class TemplateEngine
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
         RenamerOptions options,
-        IReadOnlyList<RenamerPerformer>? performerRecords = null)
+        IReadOnlyList<RenamerPerformer>? performerRecords = null,
+        IReadOnlyList<(int Id, string Name)>? tagRefs = null)
     {
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var kv in tokens)
@@ -168,7 +171,14 @@ public static class TemplateEngine
             }
         }
 
-        if (TryGetMulti(multiValues, Tokens.Tags, out var tags))
+        // The pairs are preferred whenever the caller has them, because only they carry the ids the
+        // tag whitelist/blacklist matches on; the name list alone can be sorted and joined but not
+        // filtered. A caller without ids is rendering a value that names no library tag.
+        if (tagRefs is not null)
+        {
+            map[Tokens.Tags] = MultiValue.Resolve(tagRefs, options.Tags);
+        }
+        else if (TryGetMulti(multiValues, Tokens.Tags, out var tags))
         {
             map[Tokens.Tags] = MultiValue.Resolve(tags, options.Tags);
         }
@@ -338,9 +348,11 @@ public static class TemplateEngine
     public static bool WouldSanitizeFilename(
         IReadOnlyDictionary<string, string> tokens,
         IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
-        RenamerOptions options)
+        RenamerOptions options,
+        IReadOnlyList<RenamerPerformer>? performers = null,
+        IReadOnlyList<(int Id, string Name)>? tags = null)
     {
-        var resolved = BuildResolvedMap(tokens, multiValues, options);
+        var resolved = BuildResolvedMap(tokens, multiValues, options, performers, tags);
         string raw = RenderRaw(options.FilenameTemplate, resolved, suppressExt: true, null);
         raw = ApplyTransforms(raw, options);
         return Sanitizer.CleanSegment(raw, options) != raw;

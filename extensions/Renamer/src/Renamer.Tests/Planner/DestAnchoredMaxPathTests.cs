@@ -30,20 +30,20 @@ public sealed class DestAnchoredMaxPathTests
     private static RenamerEntity Entity(string title, RenamerFile file) =>
         new(EntityId: 10, Kind: RenamerFileKind.Video, Title: title, Code: "ABC-1", StudioName: "Acme",
             Date: new DateOnly(2024, 3, 2), Organized: true,
-            Performers: [new RenamerPerformer(1, "Bob", false, null)], Tags: [], Files: [file],
+            Performers: [new RenamerPerformer(1, "Bob", false, null)], TagRefs: [], Files: [file],
             StudioId: 42);
 
     private static RouteLookups StudioLookup(string dest) =>
         new(
             new Dictionary<int, string> { [42] = dest },
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal),
             Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
 
     private static RouteLookups EmptyLookup() =>
         new(
             new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal),
             Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
 

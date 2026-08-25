@@ -46,6 +46,22 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     /// <summary>Number of <see cref="LoadEntitiesAsync"/> calls — one per CALL (not per id), so a scan test can prove batching issues far fewer than N loads.</summary>
     public int LoadEntitiesCallCount { get; private set; }
 
+    /// <summary>Rows <see cref="ResolveNamesAsync"/> resolves against, per entity table.</summary>
+    private readonly Dictionary<RenamerEntityKind, List<(int Id, string Name)>> _namedEntities = new();
+
+    /// <summary>Seeds resolvable <c>(id, name)</c> rows for <paramref name="kind"/>.</summary>
+    public void SeedNamedEntities(RenamerEntityKind kind, params (int Id, string Name)[] rows)
+        => _namedEntities[kind] = [.. rows];
+
+    public Task<NameResolution> ResolveNamesAsync(
+        RenamerEntityKind kind, IReadOnlyList<string> names, CancellationToken ct = default)
+    {
+        var rows = _namedEntities.TryGetValue(kind, out var seeded) ? seeded : [];
+        IReadOnlyList<(int Id, string Name)> matches =
+            [.. rows.Where(r => names.Contains(r.Name, StringComparer.OrdinalIgnoreCase))];
+        return Task.FromResult(new NameResolution(rows.Count > 0, matches));
+    }
+
     public Task<RenamerEntity?> LoadEntityAsync(RenamerFileKind kind, int entityId, CancellationToken ct = default)
     {
         LoadEntityCallCount++;

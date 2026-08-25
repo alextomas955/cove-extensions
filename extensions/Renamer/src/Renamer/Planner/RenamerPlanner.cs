@@ -32,7 +32,7 @@ public sealed class RenamerPlanner
     /// </summary>
     private static readonly RouteLookups EmptyLookups = new(
         new Dictionary<int, string>(),
-        new Dictionary<string, string>(),
+        new Dictionary<int, string>(),
         new Dictionary<string, string>(),
         Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
 
@@ -164,7 +164,7 @@ public sealed class RenamerPlanner
             var sample = entity.Files.Count > 0 ? entity.Files[0] : null;
             if (sample is not null)
             {
-                var (tokens, _, _) = MetadataProjector.Project(entity, sample, options);
+                var (tokens, _, _, _) = MetadataProjector.Project(entity, sample, options);
                 foreach (var field in options.RequiredFields)
                 {
                     if (!tokens.TryGetValue(field, out var v) || string.IsNullOrEmpty(v))
@@ -186,10 +186,10 @@ public sealed class RenamerPlanner
     {
         string oldFullPath = JoinPath(file.ParentFolderPath, file.Basename);
 
-        // (1) Project + render (pure). The performer records ride alongside the name side-input so
-        //     the engine can order/filter performers by id/favorite/gender before the max limit.
-        var (tokens, multi, performers) = MetadataProjector.Project(entity, file, options);
-        var rendered = TemplateEngine.Render(tokens, multi, options, performers: performers);
+        // (1) Project + render (pure). The performer records and tag pairs ride alongside the name
+        //     side-input so the engine can order/filter by id before the max limit.
+        var (tokens, multi, performers, tagRefs) = MetadataProjector.Project(entity, file, options);
+        var rendered = TemplateEngine.Render(tokens, multi, options, performers: performers, tags: tagRefs);
         string newBasename = rendered.Filename + rendered.Ext;
 
         // (2) Confine: the configured AllowedRoots are the permitted destinations. When a route
@@ -291,7 +291,7 @@ public sealed class RenamerPlanner
         // defaults). Suffixed iff the collision loop appended a number; Sanitized via the SAME engine
         // check /preview-sample uses (single source of truth — never string-sniff the basename).
         bool suffixed = attempt > 0;
-        bool sanitized = TemplateEngine.WouldSanitizeFilename(tokens, multi, options);
+        bool sanitized = TemplateEngine.WouldSanitizeFilename(tokens, multi, options, performers, tagRefs);
 
         // Routing facts carried on the final Renamer/Move item (skip/no-op paths keep the defaults).
         // ResolvedDestinationRoot is null for a source-confine (legacy in-place) item; TargetVolume is

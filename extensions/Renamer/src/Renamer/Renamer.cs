@@ -106,7 +106,96 @@ public sealed partial class Renamer : FullExtensionBase
             LogJournalBlobMigrationFailed(ex);
         }
 
+        // ONE-TIME options conversion: a stored blob keyed by tag/performer NAME does not bind to the
+        // current model, and the options store answers a bind failure with defaults, so leaving it
+        // unconverted presents the user an empty settings panel and renames nothing they configured.
+        //
+        // Deliberately AFTER the journal work and guarded the same way: a conversion that cannot run
+        // yet must not stop the extension loading, because every path that could fix it is behind a
+        // panel this extension serves.
+        try
+        {
+            await MigrateStoredOptionsAsync(ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogOptionsMigrationFailed(ex);
+        }
+
         await base.InitializeAsync(services, ct);
+    }
+
+    /// <summary>
+    /// Rewrites the stored options blob's name-keyed entity rules to stable ids, exactly once.
+    /// </summary>
+    /// <remarks>
+    /// Defers rather than converts when a name still needing resolution belongs to an entity table
+    /// holding no rows at all: that is the shape of a library the extension cannot read yet, and
+    /// converting against it would resolve every name to nothing and write the user's whole rule set
+    /// away. Deferring costs one more pass on the next load; converting early is unrecoverable, because
+    /// the names are gone from the blob afterwards.
+    /// <para>
+    /// The stamp is written on the no-work path too, so an install with nothing to convert stops
+    /// re-scanning its blob on every load.
+    /// </para>
+    /// </remarks>
+    private async Task MigrateStoredOptionsAsync(CancellationToken ct)
+    {
+        if (await Store.GetAsync(OptionsMigration.SchemaKey, ct) == OptionsMigration.CurrentSchema)
+        {
+            return;
+        }
+
+        var stored = await Store.GetAsync(OptionsStore.Key, ct);
+        if (string.IsNullOrWhiteSpace(stored))
+        {
+            // An install that has never saved options has nothing to convert and nothing to stamp:
+            // loading writes no store key at all, and re-reaching this point costs one absent read.
+            return;
+        }
+
+        var legacy = OptionsMigration.Scan(stored);
+        if (!legacy.Any)
+        {
+            await Store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema, ct);
+            return;
+        }
+
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var resolved = await RunAsSystem.RunAsSystemAsync(scope.ServiceProvider, async () =>
+        {
+            var port = new CoveRenamerDataPort(scope.ServiceProvider.GetRequiredService<DbContext>());
+            var tags = await port.ResolveNamesAsync(RenamerEntityKind.Tag, legacy.Tags, ct);
+            var performers = await port.ResolveNamesAsync(RenamerEntityKind.Performer, legacy.Performers, ct);
+            return (tags, performers);
+        });
+
+        if ((legacy.Tags.Count > 0 && !resolved.tags.TableHasRows)
+            || (legacy.Performers.Count > 0 && !resolved.performers.TableHasRows))
+        {
+            LogOptionsMigrationDeferred(legacy.Tags.Count, legacy.Performers.Count);
+            return;
+        }
+
+        var conversion = OptionsMigration.Convert(stored, resolved.tags.Matches, resolved.performers.Matches);
+
+        await Store.SetAsync(OptionsStore.Key, conversion.Json, ct);
+        await Store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema, ct);
+
+        foreach (var name in conversion.DroppedNames)
+        {
+            LogOptionsRuleDropped(name);
+        }
+
+        foreach (var collapse in conversion.CaseCollapses)
+        {
+            LogOptionsRuleCaseCollapsed(collapse.Name, collapse.MatchedId, collapse.AlsoMatchedIds.Count);
+        }
+
+        foreach (var discard in conversion.DiscardedDestinations)
+        {
+            LogOptionsDestinationDiscarded(discard.Key, discard.Id, discard.ClaimedBy);
+        }
     }
 
     /// <summary>The journal table whose absence must stop this extension loading.</summary>
@@ -627,12 +716,11 @@ public sealed partial class Renamer : FullExtensionBase
             }
         }
 
-        // Pre-parse the exclude lookups ONCE beside the routing sets. The exact tag-name set is
-        // case-insensitive (mirroring tag routing); the exact path set uses the same
+        // Pre-parse the exclude lookups ONCE beside the routing sets. The exact path set uses the same
         // OS-aware comparer + NormalizeSourcePath keys as the routing exact map; each exclude regex is
         // compiled ONCE with the SAME RouteRegexMatchTimeout and the SAME classify-not-throw shape, so
         // an invalid exclude pattern is skipped-with-a-log at build time and never aborts the batch.
-        var excludeTags = new HashSet<string>(o.ExcludeTags, StringComparer.OrdinalIgnoreCase);
+        var excludeTags = new HashSet<int>(o.ExcludeTagIds);
         var excludeStudios = new HashSet<int>(o.ExcludeStudioIds);
         var excludePathsExact = new HashSet<string>(DestinationResolver.SourcePathComparer);
         var excludePathRegex = new List<Regex>();
@@ -658,7 +746,7 @@ public sealed partial class Renamer : FullExtensionBase
 
         return new RouteLookups(
             o.StudioDestinations,
-            new Dictionary<string, string>(o.TagDestinations, StringComparer.OrdinalIgnoreCase),
+            o.TagDestinations,
             exact,
             regexRules,
             excludeTags,

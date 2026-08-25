@@ -104,7 +104,7 @@ public sealed class PreviewRoutingTests
 
         return new RouteLookups(
             o.StudioDestinations,
-            new Dictionary<string, string>(o.TagDestinations, StringComparer.OrdinalIgnoreCase),
+            o.TagDestinations,
             exact,
             System.Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
     }

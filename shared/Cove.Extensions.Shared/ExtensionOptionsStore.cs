@@ -23,7 +23,13 @@ public class ExtensionOptionsStore<TOptions>(
     ILogger logger)
     where TOptions : class
 {
-    private const string Key = "options";
+    /// <summary>The single store key the options blob lives under.</summary>
+    /// <remarks>
+    /// Public because a one-time conversion has to reach the RAW blob: a legacy shape does not bind to
+    /// the current model, and <see cref="LoadAsync"/> answers a bind failure with defaults, so a
+    /// converter going through the typed load would rewrite defaults over the stored configuration.
+    /// </remarks>
+    public const string Key = "options";
 
     /// <summary>
     /// Loads the persisted options. Returns defaults when the key is absent (first run) or when the

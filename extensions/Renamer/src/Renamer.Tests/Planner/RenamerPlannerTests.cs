@@ -21,7 +21,7 @@ public sealed class RenamerPlannerTests
     private static RenamerEntity VideoEntity(string title, params RenamerFile[] files) =>
         new(EntityId: 10, Kind: RenamerFileKind.Video, Title: title, Code: "ABC-1", StudioName: "Acme",
             Date: new DateOnly(2024, 3, 2), Organized: true,
-            Performers: [new RenamerPerformer(1, "Bob", false, null)], Tags: ["hd"], Files: files);
+            Performers: [new RenamerPerformer(1, "Bob", false, null)], TagRefs: [(1, "hd")], Files: files);
 
     [Fact]
     public async Task SingleFile_Renamer_HappyPath_ZeroMutation()
@@ -108,7 +108,7 @@ public sealed class RenamerPlannerTests
     }
 
     private static readonly RouteLookups EmptyLookups = new(
-        new Dictionary<int, string>(), new Dictionary<string, string>(),
+        new Dictionary<int, string>(), new Dictionary<int, string>(),
         new Dictionary<string, string>(), Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
 
     [Fact]
@@ -150,7 +150,7 @@ public sealed class RenamerPlannerTests
         // An unorganized entity under the only-organized gate: SkipGated for every file, both ways.
         var entity = new RenamerEntity(
             EntityId: 10, Kind: RenamerFileKind.Video, Title: "Ungated", Code: null, StudioName: null,
-            Date: null, Organized: false, Performers: [], Tags: [], Files: [VideoFile(1, "raw.mkv")]);
+            Date: null, Organized: false, Performers: [], TagRefs: [], Files: [VideoFile(1, "raw.mkv")]);
         var port = new FakeRenamerDataPort();
         port.SeedEntity(entity);
         var planner = new RenamerPlanner(port);

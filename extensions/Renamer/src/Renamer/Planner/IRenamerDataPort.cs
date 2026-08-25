@@ -73,6 +73,20 @@ public sealed record RenamerFile(
 /// <summary>A sidecar caption row (FK <c>FileId</c>); <see cref="Filename"/> is a basename only.</summary>
 public sealed record RenamerCaption(int CaptionId, string Filename);
 
+/// <summary>The entity tables a stored rule can name.</summary>
+public enum RenamerEntityKind
+{
+    Tag,
+    Performer,
+}
+
+/// <summary>The outcome of resolving stored rule names against one entity table.</summary>
+/// <param name="TableHasRows">Whether the table holds any row at all, independent of the names asked for.</param>
+/// <param name="Matches">Every <c>(id, name)</c> row whose name matched one of the requested names, case-insensitively.</param>
+public readonly record struct NameResolution(
+    bool TableHasRows,
+    IReadOnlyList<(int Id, string Name)> Matches);
+
 /// <summary>
 /// A single performer of a media item in the renamer boundary's own vocabulary. Carries the fields
 /// needed to order and filter the performer list before it is joined into <c>$performers</c>:
@@ -92,8 +106,8 @@ public sealed record RenamerPerformer(int Id, string Name, bool Favorite, string
 /// A loaded media item (Video/Image/Audio) in the renamer boundary's own vocabulary — the
 /// entity-level metadata the projector turns into scalar tokens + the per-file rows it renders
 /// independently (every file is processed, not just the first). Performers carry a per-performer
-/// record (name plus the id/favorite/gender used for ordering); tags are a pre-flattened name
-/// list. Both are resolved from Cove's JOIN collections at the port boundary rather than here.
+/// record (name plus the id/favorite/gender used for ordering); tags carry the id/name pairs the tag
+/// rules key on. Both are resolved from Cove's JOIN collections at the port boundary rather than here.
 /// </summary>
 /// <param name="EntityId">The Cove entity id (Video/Image/Audio).</param>
 /// <param name="Kind">The media kind (used as the per-file <see cref="RenamerFile.Kind"/> too).</param>
@@ -107,7 +121,14 @@ public sealed record RenamerPerformer(int Id, string Name, bool Favorite, string
 /// token renders the names; the id/favorite/gender fields drive the optional performer ordering and
 /// gender filtering applied before the max-count limit.
 /// </param>
-/// <param name="Tags">Tag names (<c>$tags</c> multi-value side-input).</param>
+/// <param name="TagRefs">
+/// The item's tags as <c>(int Id, string Name)</c> pairs. The <c>Id</c> is the rule key - tag routing,
+/// tag exclusion and the tag whitelist/blacklist all match on it, so a renamed tag keeps its rules -
+/// while the <c>Name</c> drives the <c>$tags</c> display token and the user-visible route reason. They
+/// travel as pairs rather than as parallel id and name lists precisely because routing takes the FIRST
+/// tag in this order whose id has a rule: two lists that drift by one element would silently route to
+/// another tag's destination.
+/// </param>
 /// <param name="Files">Every physical file of the item (all files, not just the first).</param>
 /// <param name="StudioId">
 /// The entity's STABLE studio id (Cove's <c>Video/Image/Audio.StudioId</c>; <c>null</c> when the item
@@ -137,11 +158,25 @@ public sealed record RenamerEntity(
     DateOnly? Date,
     bool Organized,
     IReadOnlyList<RenamerPerformer> Performers,
-    IReadOnlyList<string> Tags,
+    IReadOnlyList<(int Id, string Name)> TagRefs,
     IReadOnlyList<RenamerFile> Files,
     int? StudioId = null,
     IReadOnlyList<(int Id, string Name)>? ParentStudios = null,
-    string? Director = null);
+    string? Director = null)
+{
+    /// <summary>The tag NAMES the <c>$tags</c> token renders, in <see cref="TagRefs"/> order.</summary>
+    /// <remarks>
+    /// Derived rather than accepted beside the ids, because the two drifting apart is silent in both
+    /// directions: ids without matching names render the token empty, and names without ids match no
+    /// rule at all. Neither state is constructible.
+    /// <para>
+    /// Recomputed per read rather than cached, because a cached list is copied verbatim by a
+    /// <c>with</c> expression and would go stale exactly where a caller replaces the pairs. One
+    /// projection over an item's own tags is bounded work; nothing here scales with the library.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<string> Tags => [.. TagRefs.Select(t => t.Name)];
+}
 
 /// <summary>
 /// The DB seam: the ONLY surface between the planner/executor and a live <c>CoveContext</c>.
@@ -156,6 +191,26 @@ public sealed record RenamerEntity(
 /// </summary>
 public interface IRenamerDataPort
 {
+    /// <summary>
+    /// Resolves stored rule names to the stable ids they name, reading only
+    /// <paramref name="names"/> rather than the whole table.
+    /// </summary>
+    /// <remarks>
+    /// Contract a caller cannot read off the signature. Matching is case-insensitive, so a name
+    /// matching several entities that differ only by case returns ALL of them and the caller decides
+    /// which one the rule collapses onto. A name with no match is simply absent from
+    /// <see cref="NameResolution.Matches"/>.
+    /// <para>
+    /// <see cref="NameResolution.TableHasRows"/> travels WITH the matches because the two are only
+    /// meaningful together: no matches over a populated table means those entities are genuinely gone,
+    /// while no matches over an empty table means the library is not readable yet. Returning the
+    /// matches alone would let a caller convert during the second state and discard every rule the user
+    /// wrote.
+    /// </para>
+    /// </remarks>
+    Task<NameResolution> ResolveNamesAsync(
+        RenamerEntityKind kind, IReadOnlyList<string> names, CancellationToken ct = default);
+
     /// <summary>
     /// Loads a media item's full file graph (entity metadata + every file + parent folder paths
     /// + captions) for the given kind + id, mapped into a <see cref="RenamerEntity"/>. Returns

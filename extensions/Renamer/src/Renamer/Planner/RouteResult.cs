@@ -16,7 +16,7 @@ public enum RouteCategory
     /// <summary>The item's <c>Organized</c> flag is false and an unorganized destination is configured; resolved before the cascade.</summary>
     Unorganized,
 
-    /// <summary>A tag-name rule matched, case-insensitively, in entity tag-list order.</summary>
+    /// <summary>A tag rule matched on a stable tag id, in entity tag-list order.</summary>
     Tag,
 
     /// <summary>A studio rule matched on the stable <c>StudioId</c> or a parent-studio id; a direct match outranks an ancestor.</summary>
@@ -63,7 +63,7 @@ public sealed record RouteResult(RouteCategory Category, string MatchedRule, str
 /// <c>RenamerOptions</c>; this is a pure model — the resolver only reads it.
 /// </summary>
 /// <param name="StudioIdToDest">Stable studio id → destination-root template (keyed on the id, not the name).</param>
-/// <param name="TagNameToDest">Tag name → destination-root template; built with <c>StringComparer.OrdinalIgnoreCase</c>.</param>
+/// <param name="TagIdToDest">Stable tag id → destination-root template (keyed on the id, not the name).</param>
 /// <param name="PathExactToDest">Exact source-path → destination-root template; tried before the regex rules.</param>
 /// <param name="PathRegexRules">
 /// The pre-parsed source-path regex rules, in user order: each <c>Pattern</c> is compiled and
@@ -71,10 +71,10 @@ public sealed record RouteResult(RouteCategory Category, string MatchedRule, str
 /// with a match timeout applied there to bound ReDoS; the resolver only calls <c>IsMatch</c>.
 /// An invalid user regex is rejected at build time, so it never reaches here.
 /// </param>
-/// <param name="ExcludeTagNames">
-/// Exact tag-name exclude set, built case-insensitively (<see cref="StringComparer.OrdinalIgnoreCase"/>),
-/// mirroring <see cref="TagNameToDest"/>'s comparer. An entity carrying any tag in this set is excluded
-/// FIRST (before every routing category). Empty (the default) = no tag excludes.
+/// <param name="ExcludeTagIds">
+/// Stable tag-id exclude set, keyed exactly like <see cref="TagIdToDest"/> and mirroring
+/// <see cref="ExcludeStudioIds"/>. An entity carrying any tag in this set is excluded FIRST (before
+/// every routing category). Empty (the default) = no tag excludes.
 /// </param>
 /// <param name="ExcludeStudioIds">
 /// Stable studio-id exclude set. An entity is excluded when its own <c>StudioId</c> OR any of its
@@ -92,10 +92,10 @@ public sealed record RouteResult(RouteCategory Category, string MatchedRule, str
 /// </param>
 public sealed record RouteLookups(
     IReadOnlyDictionary<int, string> StudioIdToDest,
-    IReadOnlyDictionary<string, string> TagNameToDest,
+    IReadOnlyDictionary<int, string> TagIdToDest,
     IReadOnlyDictionary<string, string> PathExactToDest,
     IReadOnlyList<(Regex Pattern, string Dest)> PathRegexRules,
-    IReadOnlySet<string>? ExcludeTagNames = null,
+    IReadOnlySet<int>? ExcludeTagIds = null,
     IReadOnlySet<int>? ExcludeStudioIds = null,
     IReadOnlySet<string>? ExcludePathsExact = null,
     IReadOnlyList<Regex>? ExcludePathRegex = null);

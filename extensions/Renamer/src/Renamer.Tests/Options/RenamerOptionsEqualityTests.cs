@@ -33,9 +33,9 @@ public sealed class RenamerOptionsEqualityTests
             DropOrder = ["studio", "date"],
             AllowedRoots = ["/media/a", "/media/b"],
             StudioDestinations = new() { [1] = "/x", [2] = "/y" },
-            TagDestinations = new() { ["anime"] = "/anime" },
+            TagDestinations = new() { [31] = "/anime" },
             PathDestinations = [new PathDestinationRule { Pattern = "p", Dest = "/d" }],
-            Performers = new() { Whitelist = ["Ann", "Bob"] },
+            Performers = new() { WhitelistIds = [11, 12] },
         };
 
         Assert.Equal(Make(), Make());
@@ -61,22 +61,22 @@ public sealed class RenamerOptionsEqualityTests
     [Fact]
     public void MultiValueOptionsMemberDiffers_NotEqual()
     {
-        var a = new RenamerOptions { Performers = new() { Separator = " ", Whitelist = ["Ann"] } };
-        var b = new RenamerOptions { Performers = new() { Separator = " ", Whitelist = ["Bob"] } };
+        var a = new RenamerOptions { Performers = new() { Separator = " ", WhitelistIds = [11] } };
+        var b = new RenamerOptions { Performers = new() { Separator = " ", WhitelistIds = [12] } };
 
         Assert.NotEqual(a, b);
     }
 
     [Fact]
-    public void TagDestinationsKey_IsCaseInsensitive_OrderIndependent()
+    public void TagDestinations_AreOrderIndependent()
     {
-        var lower = new RenamerOptions { TagDestinations = new() { ["anime"] = "/x", ["drama"] = "/y" } };
-        var upperReordered = new RenamerOptions { TagDestinations = new() { ["DRAMA"] = "/y", ["ANIME"] = "/x" } };
+        var written = new RenamerOptions { TagDestinations = new() { [31] = "/x", [32] = "/y" } };
+        var reordered = new RenamerOptions { TagDestinations = new() { [32] = "/y", [31] = "/x" } };
 
-        Assert.Equal(lower, upperReordered);
-        Assert.Equal(lower.GetHashCode(), upperReordered.GetHashCode());
+        Assert.Equal(written, reordered);
+        Assert.Equal(written.GetHashCode(), reordered.GetHashCode());
 
-        Assert.NotEqual(lower, new RenamerOptions { TagDestinations = new() { ["anime"] = "/DIFFERENT", ["drama"] = "/y" } });
+        Assert.NotEqual(written, new RenamerOptions { TagDestinations = new() { [31] = "/DIFFERENT", [32] = "/y" } });
     }
 
     [Fact]

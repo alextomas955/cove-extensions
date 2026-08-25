@@ -121,6 +121,35 @@ public sealed partial class Renamer
         Message = "[Renamer] batch {RunId}: {Files} file(s) exceeds the {Cap}-file undo cap — this batch is not undoable")]
     private partial void LogBatchNotJournalled(string runId, int files, int cap);
 
+    [LoggerMessage(
+        EventId = 1066, Level = LogLevel.Warning,
+        Message = "[Renamer] could not convert the stored options to stable entity ids; the settings page may stay unreadable until the next load retries")]
+    private partial void LogOptionsMigrationFailed(Exception ex);
+
+    // The deferral is silent to the user - the panel simply keeps working from defaults - so this line
+    // is the only place the wait is visible, and it has to say what it is waiting for.
+    [LoggerMessage(
+        EventId = 1067, Level = LogLevel.Information,
+        Message = "[Renamer] options conversion deferred: {Tags} tag and {Performers} performer name(s) are still stored, but their table holds no rows yet; retrying on the next load")]
+    private partial void LogOptionsMigrationDeferred(int tags, int performers);
+
+    // A dropped rule is configuration the user wrote and will not get back, so the name is logged even
+    // though it is user data: without it they cannot tell which rule stopped applying.
+    [LoggerMessage(
+        EventId = 1068, Level = LogLevel.Warning,
+        Message = "[Renamer] options conversion: the rule for '{Name}' was dropped because no entity of that name exists any more")]
+    private partial void LogOptionsRuleDropped(string name);
+
+    [LoggerMessage(
+        EventId = 1069, Level = LogLevel.Warning,
+        Message = "[Renamer] options conversion: '{Name}' matched {AlsoMatched} further entit(ies) differing only by case; the rule now applies to id {MatchedId} alone")]
+    private partial void LogOptionsRuleCaseCollapsed(string name, int matchedId, int alsoMatched);
+
+    [LoggerMessage(
+        EventId = 1070, Level = LogLevel.Warning,
+        Message = "[Renamer] options conversion: the destination for '{Key}' was discarded because it resolves to id {Id}, already routed by '{ClaimedBy}'")]
+    private partial void LogOptionsDestinationDiscarded(string key, int id, string claimedBy);
+
     // The extension is about to refuse to load. The throw that follows reaches the host as a disable
     // with an exception; this line is what names the table in the log the operator is already reading.
     [LoggerMessage(

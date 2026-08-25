@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Cove.Core.Auth;
-using Cove.Core.Entities;
 using Cove.Core.Interfaces;
 using Cove.Extensions.Shared;
 using Cove.Plugins;
@@ -45,9 +44,6 @@ public sealed partial class Renamer
     private string PreviewSampleRoute => RouteBase + "/preview-sample";
     private string UndoRoute => RouteBase + "/undo";
     private string LastBatchRoute => RouteBase + "/last-batch";
-    private string ListStudiosRoute => RouteBase + "/list-studios";
-    private string ListTagsRoute => RouteBase + "/list-tags";
-    private string ListPerformersRoute => RouteBase + "/list-performers";
     private string ScanLibraryRoute => RouteBase + "/scan-library";
     private string LastScanRoute => RouteBase + "/last-scan";
     private string ScanRowsRoute => RouteBase + "/scan-rows";
@@ -177,18 +173,6 @@ public sealed partial class Renamer
 
         endpoints.MapGet(LastBatchRoute,
             (ICurrentPrincipalAccessor principal, CancellationToken ct) => LastBatchAsync(principal, ct));
-
-        endpoints.MapGet(ListStudiosRoute,
-            (DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => ListStudiosAsync(db, principal, ct));
-
-        endpoints.MapGet(ListTagsRoute,
-            (DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => ListTagsAsync(db, principal, ct));
-
-        endpoints.MapGet(ListPerformersRoute,
-            (DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => ListPerformersAsync(db, principal, ct));
 
         endpoints.MapPost(ScanLibraryRoute,
             (ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs) =>
@@ -544,84 +528,6 @@ public sealed partial class Renamer
             Count: summary?.OriginalCount ?? 0,
             WrittenAtUtcTicks: summary?.WrittenAtUtcTicks ?? 0,
             Consumed: summary is not null && summary.Value.Remaining == 0));
-    }
-
-    /// <summary>The lightweight id+name projection a routing/exclude picker resolves a name to a stable id against.</summary>
-    internal readonly record struct EntityRef(int Id, string Name);
-
-    /// <summary>
-    /// Lists the library's studios as id+name for the picker. Gated on holding ANY renamer-read
-    /// permission — these are library-wide reference lists, not per-kind data, so the coarse any-read
-    /// gate matches the sibling read endpoint (<see cref="LastBatchAsync"/>) rather than a specific
-    /// kind's read. Read AsNoTracking so the live library rows are never written back.
-    /// </summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
-        Justification = "Kept as an instance method to match its sibling endpoint handlers and the test " +
-            "call sites that invoke it through an extension instance.")]
-    internal async Task<Results<Ok<EntityRef[]>, ForbiddenCode>> ListStudiosAsync(
-        DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
-    {
-        // 403 FIRST — before any DB query, so an unauthorized caller reads no rows.
-        if (!HasAnyReadPermission(principal))
-        {
-            return new ForbiddenCode();
-        }
-
-        // Set<Studio>() reads through the base DbContext seam (the data port binds the base type, not the
-        // host's concrete context, which this project does not reference); the projection returns ONLY
-        // id+name so no other Studio column can leak.
-        var rows = await db.Set<Studio>().AsNoTracking()
-            .OrderBy(s => s.Name)
-            .Select(s => new EntityRef(s.Id, s.Name))
-            .ToArrayAsync(ct);
-
-        return TypedResults.Ok(rows);
-    }
-
-    /// <summary>
-    /// Lists the library's tags as id+name for the picker. Same any-read gate, AsNoTracking read, and
-    /// id+name-only projection as <see cref="ListStudiosAsync"/>.
-    /// </summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
-        Justification = "Kept as an instance method to match its sibling endpoint handlers and the test " +
-            "call sites that invoke it through an extension instance.")]
-    internal async Task<Results<Ok<EntityRef[]>, ForbiddenCode>> ListTagsAsync(
-        DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
-    {
-        if (!HasAnyReadPermission(principal))
-        {
-            return new ForbiddenCode();
-        }
-
-        var rows = await db.Set<Tag>().AsNoTracking()
-            .OrderBy(t => t.Name)
-            .Select(t => new EntityRef(t.Id, t.Name))
-            .ToArrayAsync(ct);
-
-        return TypedResults.Ok(rows);
-    }
-
-    /// <summary>
-    /// Lists the library's performers as id+name for the picker. Same any-read gate, AsNoTracking read,
-    /// and id+name-only projection as <see cref="ListStudiosAsync"/>.
-    /// </summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
-        Justification = "Kept as an instance method to match its sibling endpoint handlers and the test " +
-            "call sites that invoke it through an extension instance.")]
-    internal async Task<Results<Ok<EntityRef[]>, ForbiddenCode>> ListPerformersAsync(
-        DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
-    {
-        if (!HasAnyReadPermission(principal))
-        {
-            return new ForbiddenCode();
-        }
-
-        var rows = await db.Set<Performer>().AsNoTracking()
-            .OrderBy(p => p.Name)
-            .Select(p => new EntityRef(p.Id, p.Name))
-            .ToArrayAsync(ct);
-
-        return TypedResults.Ok(rows);
     }
 
     private static bool HasAnyReadPermission(ICurrentPrincipalAccessor principal)

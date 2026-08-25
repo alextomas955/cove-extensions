@@ -50,11 +50,16 @@ public sealed record MultiValueOptions
     /// <summary>Sort applied before joining.</summary>
     public SortOrder Sort { get; init; } = SortOrder.NameAsc;
 
-    /// <summary>If non-empty, only these values are kept (case-insensitive).</summary>
-    public List<string> Whitelist { get; init; } = [];
+    /// <summary>If non-empty, only the entities with these stable ids are kept.</summary>
+    /// <remarks>
+    /// Keyed on the id rather than the name so renaming a tag or performer in Cove cannot silently
+    /// stop a rule from matching. The token still renders the current name, so a rename is picked up
+    /// in the output while the rule keeps applying to the same entity.
+    /// </remarks>
+    public List<int> WhitelistIds { get; init; } = [];
 
-    /// <summary>If non-empty, these values are removed (case-insensitive).</summary>
-    public List<string> Blacklist { get; init; } = [];
+    /// <summary>If non-empty, the entities with these stable ids are removed.</summary>
+    public List<int> BlacklistIds { get; init; } = [];
 
     /// <summary>
     /// Performer-only: genders to drop entirely (case-insensitive). Applied BEFORE the max-count
@@ -86,8 +91,8 @@ public sealed record MultiValueOptions
         yield return MaxCount;
         yield return OnOverflow;
         yield return Sort;
-        yield return StructuralEquality.Sequence(Whitelist);
-        yield return StructuralEquality.Sequence(Blacklist);
+        yield return StructuralEquality.Sequence(WhitelistIds);
+        yield return StructuralEquality.Sequence(BlacklistIds);
         yield return StructuralEquality.Sequence(IgnoreGenders);
         yield return StructuralEquality.Sequence(GenderOrder);
     }
@@ -382,12 +387,12 @@ public sealed record RenamerOptions
     public Dictionary<int, string> StudioDestinations { get; init; } = [];
 
     /// <summary>
-    /// Tag routing map: tag NAME → absolute destination-root template, keyed and compared
-    /// case-insensitively (a rule for <c>"Anime"</c> matches an entity tagged <c>"anime"</c>).
-    /// Tag routing keys on the name (matching the existing flattened tag-name list). Default empty =
-    /// no tag routing (legacy source-confine behavior).
+    /// Tag routing map: stable tag <c>Id</c> → absolute destination-root template. The tag cascade
+    /// keys on this id (never the name), exactly like <see cref="StudioDestinations"/>, so renaming a
+    /// tag in Cove cannot break its rule and two case variants of one name cannot route to two
+    /// destination trees. Default empty = no tag routing (legacy source-confine behavior).
     /// </summary>
-    public Dictionary<string, string> TagDestinations { get; init; } = [];
+    public Dictionary<int, string> TagDestinations { get; init; } = [];
 
     /// <summary>
     /// Source-path routing rules, in user order. Each <see cref="PathDestinationRule"/> is an exact OR
@@ -399,12 +404,13 @@ public sealed record RenamerOptions
     public List<PathDestinationRule> PathDestinations { get; init; } = [];
 
     /// <summary>
-    /// Tag excludes: tag NAMES (matched case-insensitively, mirroring tag routing). An item carrying
+    /// Tag excludes: STABLE tag ids (never the name), keyed exactly like
+    /// <see cref="TagDestinations"/> and mirroring <see cref="ExcludeStudioIds"/>. An item carrying
     /// any of these tags is EXCLUDED from renamer/move BEFORE any routing category is considered
     /// (excludes are evaluated first), surfaced as a visible <c>SkipExcluded</c> in the preview.
     /// Default empty = no tag excludes (legacy behavior, no regression).
     /// </summary>
-    public List<string> ExcludeTags { get; init; } = [];
+    public List<int> ExcludeTagIds { get; init; } = [];
 
     /// <summary>
     /// Studio excludes: STABLE studio ids (never the name). An item is excluded when its own
@@ -523,9 +529,9 @@ public sealed record RenamerOptions
         yield return StructuralEquality.Sequence(AllowedRoots);
         yield return StructuralEquality.Sequence(AssociatedExtensions);
         yield return StructuralEquality.Map(StudioDestinations, EqualityComparer<int>.Default);
-        yield return StructuralEquality.Map(TagDestinations, StringComparer.OrdinalIgnoreCase);
+        yield return StructuralEquality.Map(TagDestinations, EqualityComparer<int>.Default);
         yield return StructuralEquality.Sequence(PathDestinations);
-        yield return StructuralEquality.Sequence(ExcludeTags);
+        yield return StructuralEquality.Sequence(ExcludeTagIds);
         yield return StructuralEquality.Sequence(ExcludeStudioIds);
         yield return StructuralEquality.Sequence(ExcludePaths);
         yield return DefaultDestination;

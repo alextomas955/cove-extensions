@@ -2,13 +2,42 @@ using System.Text.RegularExpressions;
 using Renamer.Options;
 using Renamer.Planner;
 
+using static Renamer.Tests.Planner.TagFixtures;
+
 namespace Renamer.Tests.Planner;
+
+/// <summary>
+/// The tag id/name agreement these tests need. Tag rules key on ids, so a test that names a tag
+/// needs the entity, the rule map and the exclude set to agree on which id that name stands for. One
+/// derivation serves all three, which keeps the tests reading in names while the code under test only
+/// ever sees ids.
+/// </summary>
+internal static class TagFixtures
+{
+    internal static int TagId(string name) => StringComparer.OrdinalIgnoreCase.GetHashCode(name) & 0xFFFFF;
+
+    internal static IReadOnlyList<(int Id, string Name)> TagRefs(IReadOnlyList<string> names)
+        => [.. names.Select(n => (TagId(n), n))];
+
+    internal static Dictionary<int, string> TagMap(params (string name, string dest)[] entries)
+    {
+        var d = new Dictionary<int, string>();
+        foreach (var (name, dest) in entries)
+        {
+            d[TagId(name)] = dest;
+        }
+
+        return d;
+    }
+
+    internal static HashSet<int> TagSet(params string[] names) => [.. names.Select(TagId)];
+}
 
 /// <summary>
 /// Pure unit tests for <see cref="DestinationResolver.Resolve"/> — no DB, no disk. Proves the
 /// locked routing precedence (Excludes → Unorganized → Tag → Studio → Source-path → Default →
-/// SourceConfine), within-category list order, direct-outranks-ancestor, route-on-stable-id,
-/// tag case-insensitivity, source-path exact-beats-regex, the unorganized slot, and the
+/// SourceConfine), within-category list order, direct-outranks-ancestor, route-on-stable-id for
+/// both studio and tag, source-path exact-beats-regex, the unorganized slot, and the
 /// default-relocate code guard (off → SourceConfine, on → Default).
 /// </summary>
 [Trait("Tier", "L0")]
@@ -30,38 +59,27 @@ public sealed class DestinationResolverPrecedenceTests
         => new(
             EntityId: 1, Kind: RenamerFileKind.Video, Title: "T", Code: null,
             StudioName: studioName, Date: null, Organized: organized,
-            Performers: [], Tags: tags ?? [], Files: [File(parentFolderPath)],
+            Performers: [], TagRefs: TagRefs(tags ?? []), Files: [File(parentFolderPath)],
             StudioId: studioId, ParentStudios: parentStudios);
 
     private static RouteLookups Lookups(
         IReadOnlyDictionary<int, string>? studios = null,
-        IReadOnlyDictionary<string, string>? tags = null,
+        IReadOnlyDictionary<int, string>? tags = null,
         IReadOnlyDictionary<string, string>? pathExact = null,
         IReadOnlyList<(Regex, string)>? pathRegex = null,
-        IReadOnlySet<string>? excludeTags = null,
+        IReadOnlySet<int>? excludeTags = null,
         IReadOnlySet<int>? excludeStudios = null,
         IReadOnlySet<string>? excludePathsExact = null,
         IReadOnlyList<Regex>? excludePathRegex = null)
         => new(
             studios ?? new Dictionary<int, string>(),
-            tags ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            tags ?? new Dictionary<int, string>(),
             pathExact ?? new Dictionary<string, string>(StringComparer.Ordinal),
             pathRegex ?? [],
             excludeTags,
             excludeStudios,
             excludePathsExact,
             excludePathRegex);
-
-    private static Dictionary<string, string> TagMap(params (string name, string dest)[] entries)
-    {
-        var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (name, dest) in entries)
-        {
-            d[name] = dest;
-        }
-
-        return d;
-    }
 
     // --- precedence matrix ----------------------------------------------------------------------
 
@@ -165,7 +183,7 @@ public sealed class DestinationResolverRouteOnStableStudioIdTests
     {
         var lk = new RouteLookups(
             new Dictionary<int, string> { [42] = "S:42" },
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal),
             []);
 
@@ -183,20 +201,20 @@ public sealed class DestinationResolverRouteOnStableStudioIdTests
     }
 }
 
-/// <summary>Tag routing is case-insensitive on the tag name.</summary>
+/// <summary>Tag routing keys on the stable tag id, never on the name the tag currently carries.</summary>
 [Trait("Tier", "L0")]
 public sealed class DestinationResolverTagRoutingTests
 {
     [Fact]
-    public void TagRule_MatchesCaseInsensitively()
+    public void TagRule_MatchesById_WhateverTheTagIsNowCalled()
     {
-        var tags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["Anime"] = "T:anime" };
+        var tags = new Dictionary<int, string> { [7] = "T:anime" };
         var lk = new RouteLookups(
             new Dictionary<int, string>(), tags,
             new Dictionary<string, string>(StringComparer.Ordinal), []);
 
         var e = new RenamerEntity(1, RenamerFileKind.Video, "T", null, null, null, true,
-            [], ["anime"], [new RenamerFile(1, RenamerFileKind.Video, "a.mkv", 1, "x")]);
+            [], [(7, "ANIME renamed")], [new RenamerFile(1, RenamerFileKind.Video, "a.mkv", 1, "x")]);
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
@@ -223,7 +241,7 @@ public sealed class DestinationResolverSourcePathRoutingTests
         };
         var lk = new RouteLookups(
             new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             exact, regex);
 
         var r = DestinationResolver.Resolve(AtPath("media/raw"), new RenamerOptions(), lk);
@@ -242,7 +260,7 @@ public sealed class DestinationResolverSourcePathRoutingTests
         };
         var lk = new RouteLookups(
             new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal), regex);
 
         var r = DestinationResolver.Resolve(AtPath("media/raw/2024"), new RenamerOptions(), lk);
@@ -281,7 +299,7 @@ public sealed class DestinationResolverRegexTimeoutTests
         // exercise the regex-timeout fall-through we set ONLY the regex rule and assert SourceConfine).
         var lk = new RouteLookups(
             new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal),
             [(redos, "P:never")]);
 
@@ -305,7 +323,7 @@ public sealed class DestinationResolverRegexTimeoutTests
             StudioId: 42);
         var lk = new RouteLookups(
             new Dictionary<int, string> { [42] = "S:42" },
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal),
             [(redos, "P:never")]);
 
@@ -329,7 +347,7 @@ public sealed class DestinationResolverUnorganizedRouteTests
 
         var r = DestinationResolver.Resolve(e, o, new RouteLookups(
             new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal), []));
 
         Assert.Equal(RouteCategory.Unorganized, r.Category);
@@ -345,7 +363,7 @@ public sealed class DestinationResolverUnorganizedRouteTests
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), new RouteLookups(
             new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal), []));
 
         Assert.Equal(RouteCategory.SourceConfine, r.Category);
@@ -365,7 +383,7 @@ public sealed class DestinationResolverDefaultRelocateDisabledTests
 
     private static RouteLookups Empty()
         => new(new Dictionary<int, string>(),
-               new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+               new Dictionary<int, string>(),
                new Dictionary<string, string>(StringComparer.Ordinal), []);
 
     [Fact]
@@ -410,28 +428,25 @@ public sealed class DestinationResolverExcludeTests
         => new(
             EntityId: 1, Kind: RenamerFileKind.Video, Title: "T", Code: null,
             StudioName: null, Date: null, Organized: organized,
-            Performers: [], Tags: tags ?? [],
+            Performers: [], TagRefs: TagRefs(tags ?? []),
             Files: [new RenamerFile(1, RenamerFileKind.Video, "clip.mkv", 1, parentFolderPath)],
             StudioId: studioId, ParentStudios: parentStudios);
 
     private static RouteLookups Lookups(
         IReadOnlyDictionary<int, string>? studios = null,
-        IReadOnlyDictionary<string, string>? tags = null,
+        IReadOnlyDictionary<int, string>? tags = null,
         IReadOnlyDictionary<string, string>? pathExact = null,
         IReadOnlyList<(Regex, string)>? pathRegex = null,
-        IReadOnlySet<string>? excludeTags = null,
+        IReadOnlySet<int>? excludeTags = null,
         IReadOnlySet<int>? excludeStudios = null,
         IReadOnlySet<string>? excludePathsExact = null,
         IReadOnlyList<Regex>? excludePathRegex = null)
         => new(
             studios ?? new Dictionary<int, string>(),
-            tags ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            tags ?? new Dictionary<int, string>(),
             pathExact ?? new Dictionary<string, string>(StringComparer.Ordinal),
             pathRegex ?? [],
             excludeTags, excludeStudios, excludePathsExact, excludePathRegex);
-
-    private static HashSet<string> TagSet(params string[] names)
-        => new(names, StringComparer.OrdinalIgnoreCase);
 
     private static HashSet<string> PathSet(params string[] paths)
         => new(paths, DestinationResolver.SourcePathComparer);
@@ -537,7 +552,7 @@ public sealed class DestinationResolverExcludeTests
         // The SAME tag is both a route and an exclude → the exclude wins (runs first).
         var e = Entity(tags: ["anime"]);
         var lk = Lookups(
-            tags: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["anime"] = "T:anime" },
+            tags: TagMap(("anime", "T:anime")),
             excludeTags: TagSet("anime"));
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
@@ -578,7 +593,7 @@ public sealed class DestinationResolverExcludeTests
         // An entity whose tag is NOT excluded still routes normally (additive / non-breaking).
         var e = Entity(tags: ["keep"]);
         var lk = Lookups(
-            tags: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["keep"] = "T:keep" },
+            tags: TagMap(("keep", "T:keep")),
             excludeTags: TagSet("anime"));
 
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
@@ -594,7 +609,7 @@ public sealed class DestinationResolverExcludeTests
         var e = Entity(studioId: 42, tags: ["anime"], parentFolderPath: "media/protected");
         var lk = new RouteLookups(
             new Dictionary<int, string>(),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<int, string>(),
             new Dictionary<string, string>(StringComparer.Ordinal),
             []);
 

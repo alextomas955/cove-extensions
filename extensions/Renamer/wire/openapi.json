@@ -203,102 +203,6 @@
         }
       }
     },
-    "/api/extensions/com.alextomas955.renamer/list-studios": {
-      "get": {
-        "tags": [
-          "Renamer"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EntityRef"
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/extensions/com.alextomas955.renamer/list-tags": {
-      "get": {
-        "tags": [
-          "Renamer"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EntityRef"
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/extensions/com.alextomas955.renamer/list-performers": {
-      "get": {
-        "tags": [
-          "Renamer"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EntityRef"
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorCode"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/extensions/com.alextomas955.renamer/scan-library": {
       "post": {
         "tags": [
@@ -469,18 +373,6 @@
           "standard",
           "heavy"
         ]
-      },
-      "EntityRef": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "name": {
-            "type": "string"
-          }
-        }
       },
       "ErrorCode": {
         "required": [

@@ -21,7 +21,7 @@ public sealed class MultiFileTests
         var port = new FakeRenamerDataPort();
         port.SeedEntity(new RenamerEntity(
             EntityId: 10, Kind: RenamerFileKind.Video, Title: "My Film", Code: null, StudioName: null,
-            Date: null, Organized: true, Performers: [], Tags: [],
+            Date: null, Organized: true, Performers: [], TagRefs: [],
             Files: [File(1, "part1.mkv"), File(2, "part2.mkv")]));
         var planner = new RenamerPlanner(port);
 
