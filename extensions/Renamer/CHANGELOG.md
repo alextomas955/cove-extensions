@@ -22,6 +22,10 @@ User-facing changes, newest first.
   had just taken away.
 - **An undo pending from an earlier version is carried over, not thrown away.** The first load after
   this upgrade moves it into the new table and removes the two old keys. It runs once.
+- **Warning and error badges in the dry run get their colour back.** The amber and red status badges
+  were drawn with two fills Cove's stylesheet does not carry, so both rendered with no background at
+  all - readable, but not distinguishable at a glance from an ordinary row. They now take their colour
+  from Cove's own theme, so they follow it if you change it.
 
 ## 0.3.0 — Undo that cannot grow without bound
 
