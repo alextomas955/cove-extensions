@@ -6,48 +6,91 @@
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <!-- The single declared host floor, from which the SDK package version derives. The floor follows a
          host capability the extensions use: entity events published for bulk mutations, without which a
-         multi-item edit renames one item and stays silent about the rest. -->
+         multi-item edit renames one item and stays silent about the rest.
+
+         Declaration order is load-bearing and nothing guards it. MSBuild evaluates properties top to
+         bottom, so reversing these two lines expands $(CoveMinVersion) before it holds a value and every
+         Cove package reference silently takes an empty version. -->
     <CoveMinVersion Condition="'$(CoveMinVersion)' == ''">1.3.0</CoveMinVersion>
     <CoveSdkVersion Condition="'$(CoveSdkVersion)' == ''">$(CoveMinVersion)</CoveSdkVersion>
 
-    <!-- Which released Cove the CI safety legs run against. This must never share a value with
+    <!-- Which released Cove the containerized e2e suite runs against. Deliberately SEPARATE from
          $(CoveMinVersion) above: that one is the floor the extension advertises and
-         validate-extension-repo.mjs compares extension.json's minCoveVersion to, so editing it to
-         satisfy a version guard would re-advertise a different floor to every user. These name a moving
-         upstream build instead. scripts/fetch-cove-assemblies.mjs reads the image reference out of this
-         file rather than taking it as an argument, and a CI leg overrides the tag per version axis. -->
+         validate-extension-repo.mjs compares extension.json's minCoveVersion to, while these name a
+         moving upstream build. Editing CoveMinVersion to make a version guard pass would silently
+         re-advertise a different floor to every user, so the two never share a value.
+         scripts/fetch-cove-assemblies.mjs reads the repository from this file rather than taking it as
+         an argument, and resolves the version axis against each extension's declared floor. -->
+
     <CoveTestImageRepository Condition="'$(CoveTestImageRepository)' == ''">ghcr.io/yourcove/cove-app</CoveTestImageRepository>
     <CoveTestImageTag Condition="'$(CoveTestImageTag)' == ''">nightly</CoveTestImageTag>
   </PropertyGroup>
 
   <!--
-    Where Cove is. One seam, read by this file and Directory.Build.targets.
+    Where Cove is. ONE seam, read by this file, Directory.Build.targets and each test project, so a
+    Cove location is stated in a single place instead of three files agreeing by luck.
 
-      $(CoveSourceMode)   source | none
-      $(COVE_REPO)        root of a Cove source checkout (holds src/Cove.Data/Cove.Data.csproj)
+      $(CoveRepoRoot)   env COVE_REPO         root of a Cove source checkout (holds src/Cove.Data/Cove.Data.csproj)
+      $(CoveSourceMode) env COVE_SOURCE_MODE  source | none
 
-    Precedence, highest first: an explicit CoveSourceMode; a COVE_REPO that resolves to a checkout; the
-    conventional ..\cove sibling checkout; otherwise `none`, the published NuGet packages.
+    Precedence, highest first:
+      1. An explicit -p:CoveSourceMode (or COVE_SOURCE_MODE) wins outright; an explicit
+         -p:UseLocalCoveSource is honoured as the older spelling of the same intent.
+      2. An explicitly-supplied CoveRepoRoot selects `source`.
+      3. The conventional ..\cove sibling checkout selects `source`, the zero-config default.
+      4. Otherwise `none`: published NuGet packages, the clean-clone path.
 
-    Both inputs take an environment variable or a -p: switch, with no second property name for either:
-    MSBuild exposes an environment variable as a property, and a -p: global of the same name outranks it.
+    Explicitness is captured BEFORE any defaulting because the choice turns on how a value ARRIVED, not on
+    whether a path happens to exist: absence is a legitimate state for auto-detection and an error for
+    explicit configuration. The failure arms live in Directory.Build.targets, where a target can report
+    and stop the build; a PropertyGroup can only compute.
+
+    Paths are joined with Path.Combine and absolutised here, never string-concatenated with a
+    separator. Combine emits the right separator on both platforms, and the absolute form is what the
+    error messages print, which is what makes Git Bash's MSYS rewriting of a POSIX COVE_REPO into a
+    drive-lettered path visible at all.
   -->
   <PropertyGroup>
-    <!-- Resolution lands in a PRIVATE property rather than back onto COVE_REPO, because a value that
-         arrived by -p: is an MSBuild global and a PropertyGroup assignment to a global is discarded, so
-         the write would look correct and change nothing. Combine against the monorepo root, so a
-         relative value means the same thing however deep the project sits and wherever msbuild was
-         launched from; Combine returns an already-rooted second argument unchanged. -->
-    <_CoveRepoRootFull Condition="'$(COVE_REPO)' != ''">$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '$(COVE_REPO)'))))</_CoveRepoRootFull>
-    <_CoveRepoDataProject Condition="'$(_CoveRepoRootFull)' != ''">$([System.IO.Path]::Combine('$(_CoveRepoRootFull)', 'src', 'Cove.Data', 'Cove.Data.csproj'))</_CoveRepoDataProject>
+    <_CoveModeWasPinned Condition="'$(CoveSourceMode)' != '' or '$(COVE_SOURCE_MODE)' != '' or '$(UseLocalCoveSource)' != ''">true</_CoveModeWasPinned>
+    <_CoveLocationWasExplicit Condition="'$(CoveRepoRoot)' != '' or '$(COVE_REPO)' != ''">true</_CoveLocationWasExplicit>
+
+    <_CoveRepoRootInput Condition="'$(_CoveRepoRootInput)' == ''">$(CoveRepoRoot)</_CoveRepoRootInput>
+    <_CoveRepoRootInput Condition="'$(_CoveRepoRootInput)' == ''">$(COVE_REPO)</_CoveRepoRootInput>
+    <CoveSourceMode Condition="'$(CoveSourceMode)' == ''">$(COVE_SOURCE_MODE)</CoveSourceMode>
+
+    <!-- Resolution lands in a PRIVATE property rather than back onto CoveRepoRoot, because a value
+         that arrived by -p: is an MSBuild GLOBAL property and a PropertyGroup assignment to one is
+         silently discarded. Writing the absolute form back onto the public name would look correct,
+         change nothing, and leave every consumer reading the raw relative value. Consumers read the
+         derived *Path properties below, which are always absolute.
+
+         Combine against the monorepo root, so a relative value means the same thing however deep the
+         project being built sits and whatever directory msbuild was launched from. Combine returns an
+         already-rooted second argument unchanged, so an absolute value passes through. -->
+    <_CoveRepoRootFull Condition="'$(_CoveRepoRootInput)' != ''">$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '$(_CoveRepoRootInput)'))))</_CoveRepoRootFull>
     <_CoveSiblingRoot>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '..', 'cove'))))</_CoveSiblingRoot>
     <_CoveSiblingDataProject>$([System.IO.Path]::Combine('$(_CoveSiblingRoot)', 'src', 'Cove.Data', 'Cove.Data.csproj'))</_CoveSiblingDataProject>
 
-    <CoveSourceMode Condition="'$(CoveSourceMode)' == '' and Exists('$(_CoveRepoDataProject)')">source</CoveSourceMode>
+    <CoveSourceMode Condition="'$(CoveSourceMode)' == '' and '$(UseLocalCoveSource)' == 'false'">none</CoveSourceMode>
+    <CoveSourceMode Condition="'$(CoveSourceMode)' == '' and '$(UseLocalCoveSource)' == 'true'">source</CoveSourceMode>
+    <CoveSourceMode Condition="'$(CoveSourceMode)' == '' and '$(_CoveRepoRootFull)' != ''">source</CoveSourceMode>
     <CoveSourceMode Condition="'$(CoveSourceMode)' == '' and Exists('$(_CoveSiblingDataProject)')">source</CoveSourceMode>
     <CoveSourceMode Condition="'$(CoveSourceMode)' == ''">none</CoveSourceMode>
 
-    <!-- The derived boolean the wiring in Directory.Build.targets reads. -->
+    <!-- Last, so `source` mode still gets a root when the caller pinned the mode and named no path. -->
+    <_CoveRepoRootFull Condition="'$(_CoveRepoRootFull)' == '' and Exists('$(_CoveSiblingDataProject)')">$(_CoveSiblingRoot)</_CoveRepoRootFull>
+
+    <!-- The resolved, ABSOLUTE locations every consumer reads, so the path math is written once. They
+         stay empty when no root was found, which is what lets the failure arms in
+         Directory.Build.targets name an empty location rather than a plausible-looking wrong one. -->
+    <CoveRepoRootResolved>$(_CoveRepoRootFull)</CoveRepoRootResolved>
+    <CoveDataProjectPath Condition="'$(_CoveRepoRootFull)' != ''">$([System.IO.Path]::Combine('$(_CoveRepoRootFull)', 'src', 'Cove.Data', 'Cove.Data.csproj'))</CoveDataProjectPath>
+    <CoveCoreProjectPath Condition="'$(_CoveRepoRootFull)' != ''">$([System.IO.Path]::Combine('$(_CoveRepoRootFull)', 'src', 'Cove.Core', 'Cove.Core.csproj'))</CoveCoreProjectPath>
+    <CoveSdkProjectPath Condition="'$(_CoveRepoRootFull)' != ''">$([System.IO.Path]::Combine('$(_CoveRepoRootFull)', 'src', 'Cove.Sdk', 'Cove.Sdk.csproj'))</CoveSdkProjectPath>
+    <CoveSdkTargetsPath Condition="'$(_CoveRepoRootFull)' != ''">$([System.IO.Path]::Combine('$(_CoveRepoRootFull)', 'src', 'Cove.Sdk', 'buildTransitive', 'Cove.Sdk.targets'))</CoveSdkTargetsPath>
+
+    <!-- The derived boolean the wiring below and the Cove.Sdk selection read. It is an OUTPUT of the
+         mode rather than the thing that decides it. -->
     <UseLocalCoveSource Condition="'$(CoveSourceMode)' == 'source'">true</UseLocalCoveSource>
     <UseLocalCoveSource Condition="'$(CoveSourceMode)' != 'source'">false</UseLocalCoveSource>
   </PropertyGroup>

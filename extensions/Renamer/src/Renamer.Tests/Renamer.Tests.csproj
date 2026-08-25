@@ -44,6 +44,13 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <!--
+      TEST-ONLY, and a version PIN on an edge that already exists rather than a new dependency: Npgsql
+      is restored here anyway through Cove.Core → Pgvector, at a version that trails the one the host
+      runs. Naming it puts the compile graph on the runtime users receive; the symptom without it is an
+      MSB3277, which TreatWarningsAsErrors cannot catch because that switch is compiler-only.
+    -->
+    <PackageReference Include="Npgsql" />
+    <!--
       TEST-ONLY: TransportSmokeTests mounts the extension's MapEndpoints in an in-process
       WebApplication/TestServer to cover the real minimal-API transport boundary. On nuget.org; the
       smoke file itself is cove-present (Compile-Removed on the bare leg with the other endpoint tests).
@@ -68,66 +75,73 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\shared\Cove.Extensions.Shared.Testing\Cove.Extensions.Shared.Testing.csproj" />
     <!--
       TEST-ONLY: CoveContext lives in Cove.Data; entities in Cove.Core. Mirrors Cove.Tests.
-      These are SOURCE-ONLY (NOT on nuget.org) and sit outside the Cove.Sdk/Cove.Plugins/Cove.Core
-      chain the root Directory.Build.targets wires up, so they stay as explicit, project-local
-      Exists(...)-guarded references here: when the cove monorepo is checked out beside this repo
-      the refs resolve and the FULL 194-suite (incl. the integration tier) compiles + runs locally. On a bare
-      CI runner with NO cove checkout the refs drop out and the cove-referencing sources below are
-      Compile-Removed, so the project still compiles to the pure-core UNIT tier (the EF Sqlite/InMemory
-      PackageReferences above are on NuGet and stay unconditional).
+
+      The two are named here for different reasons. Cove.Data is on NO feed and the root
+      Directory.Build.targets deliberately does not wire it, so a project wanting CoveContext has to say
+      where Cove is for itself. Cove.Core IS on nuget.org and does reach every project transitively
+      through the Cove.Sdk chain the root targets wires — it is named anyway so the Cove.Core matching
+      the checkout is what compiles, rather than whatever version the feed last published. A mismatch
+      there splits the closure, and MSBuild reports that skew as a warning at most, which
+      TreatWarningsAsErrors does not cover because that switch is compiler-only.
+
+      The location comes from the repo-wide $(CoveSourceMode) seam rather than a relative path literal of
+      this project's own. With a Cove checkout (the zero-config ..\cove sibling, COVE_REPO, or
+      -p:CoveRepoRoot) the refs resolve and the FULL suite compiles and runs; in `none` mode they drop out
+      and the cove-referencing sources are Compile-Removed. The EF Sqlite/InMemory PackageReferences
+      above are on NuGet and stay unconditional on both modes.
     -->
-    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj" Condition="Exists('$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')" />
-    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Core\Cove.Core.csproj" Condition="Exists('$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Core\Cove.Core.csproj')" />
+    <ProjectReference Include="$(CoveDataProjectPath)" Condition="'$(CoveSourceMode)' == 'source'" />
+    <ProjectReference Include="$(CoveCoreProjectPath)" Condition="'$(CoveSourceMode)' == 'source'" />
   </ItemGroup>
 
   <!--
     HOST-DEPENDENT shared test fakes: FakePrincipalAccessor (Cove.Core auth) + CoveContextFactory (Cove.Data).
     They live in a source-only sibling dir with NO csproj and are pulled in as ordinary per-project Compile
     items — NOT a conditional ProjectReference (IDEs don't fully respect reference conditions; msbuild#5410).
-    Guarded by the SAME Cove.Data Exists() key this project already uses for its cove ProjectReference, so
-    they are present ONLY when the cove source is on disk. On a bare CI runner the condition is false, the
-    files simply drop out, and their consumers are already Compile-Removed above — the pure-core tier compiles.
+    Keyed on the mode rather than on a path probe: what these files need is the Cove.Data TYPES, which
+    only `source` mode supplies. On the `none` leg the condition is false, the files simply drop out, and
+    their consumers are already Compile-Removed below — the pure-core tier compiles.
   -->
-  <ItemGroup Condition="Exists('$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')">
+  <ItemGroup Condition="'$(CoveSourceMode)' != 'none'">
     <Compile Include="$(MSBuildThisFileDirectory)..\..\..\..\shared\Cove.Extensions.Shared.Testing.Cove\*.cs"
              LinkBase="TestSupport\Shared" />
   </ItemGroup>
 
   <!--
-    COVE-ABSENT (CI) RUNTIME DEP: when cove is NOT on disk the cove ProjectReferences above drop out,
+    COVE-ABSENT RUNTIME DEP: without a cove source checkout the cove ProjectReferences above drop out,
     so Cove.Plugins (which TestSupport/FakeJobProgress.cs references via IJobProgress, and the referenced
     Cove.Extensions.Shared.Testing's FakeStore/ConcurrentFakeStore reference via IExtensionStore) is no
     longer supplied transitively. Renamer.csproj consumes Cove.Plugins as a
     host-provided assembly (ExcludeAssets=runtime / not copied to consumers), so the test assembly would
     fail at xUnit reflection time with "Could not load file or assembly 'Cove.Plugins'". Cove.Plugins
-    IS on nuget.org (0.6.2), so add it here for the unit tier with runtime copy ENABLED — guarded by the
-    SAME !Exists key so it is INACTIVE locally (the cove ProjectReference already provides it; the full
-    194 stay green) and ACTIVE on a bare CI runner. This makes the pure-core unit tier RUN, not just
-    compile, with no cove checkout.
+    IS on nuget.org, so add it here with runtime copy ENABLED. `none` only: in `source` mode the cove
+    ProjectReference already supplies it, and a second copy would split the closure.
   -->
-  <ItemGroup Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')">
+  <ItemGroup Condition="'$(CoveSourceMode)' == 'none'">
     <PackageReference Include="Cove.Plugins" />
   </ItemGroup>
 
   <!--
-    COVE-ABSENT (CI) UNIT-TIER COMPILE SET: when the cove monorepo is NOT on disk, every source file
-    that references a Cove.* SOURCE type (Cove.Core entities/auth/events OR Cove.Data's CoveContext)
-    is Compile-Removed so the project compiles to ONLY the pure-core unit tier. The inverse condition
-    keys off the SAME path the ProjectReferences above guard on, so this group is INACTIVE locally
-    (cove present → all files compile → full 194 run) and ACTIVE on a bare runner. Folders Execution/
-    and Events/ are entirely integration, so they are removed wholesale; the rest are named explicitly.
+    COVE-ABSENT UNIT-TIER COMPILE SET: in `none` mode, with no cove checkout, every source
+    file that references a Cove.* type (Cove.Core entities/auth/events OR Cove.Data's CoveContext)
+    is Compile-Removed so the project compiles to ONLY the pure-core unit tier. The condition names the
+    MODE rather than probing for a path, which is what makes the smaller set a stated choice instead of
+    an accident of what happens to be on disk: this group is INACTIVE whenever Cove is available by
+    either route (all files compile, the full suite runs) and ACTIVE only on the bare leg. Folders
+    Execution/ and Events/ are entirely integration, so they are removed wholesale; the rest are named
+    explicitly.
       - Cove.Core-ONLY (auth/events/entities, no CoveContext): ActionDeclarationTests, Api/SettingsManifestTests,
         TestSupport/CapturingEventBus.
       - INTEGRATION (real CoveContext via Cove.Data): Execution/*, Events/*,
         Jobs/RenamerBatchJobTests, Api/PreviewEndpointTests, Api/PreviewSampleEndpointTests, Api/EndpointPermissionTests,
         Api/ListEntitiesEndpointTests, Api/RenamerLibraryEndpointTests, Api/ScanLibraryEndpointTests.
     The shared FakePrincipalAccessor + CoveContextFactory are NOT listed here: they live in the source-only
-    Testing.Cove dir and are pulled in by the positive Exists()-guarded Compile Include below (present only
-    when cove is), so their former consumers above cover the bare leg without a Compile Remove for the fakes.
+    Testing.Cove dir and are pulled in by the mode-guarded Compile Include above (present only when Cove
+    is), so their former consumers above cover the bare leg without a Compile Remove for the fakes.
     FakeJobProgress.cs is Cove.Plugins-only (available via NuGet) and stays compiled; FakeStore/ConcurrentFakeStore
     now come from the unconditional Cove.Extensions.Shared.Testing ProjectReference (Cove.Plugins-only too).
   -->
-  <ItemGroup Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\..\..\cove\src\Cove.Data\Cove.Data.csproj')">
+  <ItemGroup Condition="'$(CoveSourceMode)' == 'none'">
     <Compile Remove="ActionDeclarationTests.cs" />
     <!-- TransportSmokeTests boots the extension in a TestServer over a real CoveContext (Cove.Data) + CovePrincipal → drops out on a bare CI runner. -->
     <Compile Remove="Api\TransportSmokeTests.cs" />
