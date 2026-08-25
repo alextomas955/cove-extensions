@@ -11,6 +11,16 @@ together in practice, start with the [User guide](./guide); for the template tok
 
 Settings are saved as one block when you click **Save**; **Discard** reverts unsaved edits.
 
+## Picking a studio, tag or performer
+
+Several settings below ask you to pick studios, tags or performers. Each one searches your library as
+you type and lists the matches; click a match to add it, and click the **×** on a chip to remove it.
+
+Each pick is stored by that studio, tag or performer's identity rather than by its name, so renaming
+it in Cove keeps every rule that uses it, and two spellings of one name cannot route to two different
+folders. These pickers never create a new studio, tag or performer - add it in Cove first, then pick
+it here.
+
 ## Filename & destination
 
 | Setting           | What it does                                                                                                        | Default                            |
@@ -47,16 +57,16 @@ These cards appear only when your template uses the matching token.
 
 Both are multi-value lists shaped by the same options (a few apply to performers only):
 
-| Setting                            | What it does                                                                                                              | Default         |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| Separator                          | Text inserted between joined items.                                                                                       | `" "` (a space) |
-| Max count                          | Maximum items to include; `0` = unlimited.                                                                                | `0`             |
-| On overflow                        | When over the max: _Drop all_ or _Keep the first N_.                                                                      | Drop all        |
-| Sort                               | Order before joining: Name (A→Z), Keep original order, and — performers only — By internal id, Favorites first then name. | Name (A→Z)      |
-| Whitelist                          | If non-empty, only these values are kept (case-insensitive).                                                              | _(empty)_       |
-| Blacklist                          | These values are removed (case-insensitive).                                                                              | _(empty)_       |
-| Ignore genders _(performers only)_ | Genders to drop before the max-count limit. A performer with no gender set is always kept.                                | _(empty)_       |
-| Gender order _(performers only)_   | Preferred gender order, most-preferred first; controls who survives the max-count limit.                                  | _(empty)_       |
+| Setting                            | What it does                                                                                                                              | Default         |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| Separator                          | Text inserted between joined items.                                                                                                       | `" "` (a space) |
+| Max count                          | Maximum items to include; `0` = unlimited.                                                                                                | `0`             |
+| On overflow                        | When over the max: _Drop all_ or _Keep the first N_.                                                                                      | Drop all        |
+| Sort                               | Order before joining: Name (A→Z), Keep original order, and — performers only — By internal id, Favorites first then name.                 | Name (A→Z)      |
+| Whitelist                          | If non-empty, only the performers or tags you pick here are kept. Each is remembered by identity, so renaming one in Cove keeps the rule. | _(empty)_       |
+| Blacklist                          | The performers or tags you pick here are removed. Remembered by identity, the same way as the whitelist.                                  | _(empty)_       |
+| Ignore genders _(performers only)_ | Genders to drop before the max-count limit. A performer with no gender set is always kept.                                                | _(empty)_       |
+| Gender order _(performers only)_   | Preferred gender order, most-preferred first; controls who survives the max-count limit.                                                  | _(empty)_       |
 
 ### Date & duration format
 
@@ -84,10 +94,10 @@ order of the cards below in the UI is for convenience and does not change this p
 
 ### Per-studio and per-tag destinations
 
-| Setting                 | What it does                                                                                                                 | Default  |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------- |
-| Per-studio destinations | Map a studio → a destination root. Keyed on the studio's stable id, so a name typo never splits one studio across two trees. | _(none)_ |
-| Per-tag destinations    | Map a tag name → a destination root (case-insensitive).                                                                      | _(none)_ |
+| Setting                 | What it does                                                                                                                                             | Default  |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| Per-studio destinations | Map a studio → a destination root. Remembered by the studio's identity, so a rename in Cove keeps the rule and never splits one studio across two trees. | _(none)_ |
+| Per-tag destinations    | Map a tag → a destination root. Remembered by the tag's identity, the same way as a studio rule.                                                         | _(none)_ |
 
 ### Advanced routing & safety
 
@@ -136,11 +146,11 @@ Collapsed by default.
 
 ### Excludes
 
-| Setting                | What it does                                                                             | Default   |
-| ---------------------- | ---------------------------------------------------------------------------------------- | --------- |
-| Exclude by tag         | Items carrying any of these tags are excluded from renaming/moving (evaluated first).    | _(empty)_ |
-| Exclude by studio      | Items whose studio (or a parent studio) matches are excluded. Keyed on stable studio id. | _(empty)_ |
-| Exclude by source path | Ordered exact-or-regex source-path rules; a match excludes the item.                     | _(empty)_ |
+| Setting                | What it does                                                                                                      | Default   |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------- | --------- |
+| Exclude by tag         | Items carrying any of these tags are excluded from renaming/moving (evaluated first). Remembered by tag identity. | _(empty)_ |
+| Exclude by studio      | Items whose studio (or a parent studio) matches are excluded. Remembered by studio identity.                      | _(empty)_ |
+| Exclude by source path | Ordered exact-or-regex source-path rules; a match excludes the item.                                              | _(empty)_ |
 
 ### Field rewriting & name shaping
 

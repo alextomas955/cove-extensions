@@ -10,6 +10,8 @@ import {
   normalizeOptions,
   extractUnmodeledFields,
   cloneDefaults,
+  toStringKeyed,
+  fromStringKeyed,
   DEFAULT_OPTIONS,
 } from "./options";
 
@@ -26,8 +28,8 @@ function fullyPopulatedBlob() {
       MaxCount: 3,
       OnOverflow: "KeepFirst",
       Sort: "FavoriteFirst",
-      Whitelist: ["keep"],
-      Blacklist: ["drop"],
+      WhitelistIds: [4],
+      BlacklistIds: [5],
       IgnoreGenders: ["unknown"],
       GenderOrder: ["female", "male"],
     },
@@ -36,8 +38,8 @@ function fullyPopulatedBlob() {
       MaxCount: 2,
       OnOverflow: "KeepFirst",
       Sort: "None",
-      Whitelist: ["anime"],
-      Blacklist: ["spam"],
+      WhitelistIds: [21],
+      BlacklistIds: [22],
       IgnoreGenders: [],
       GenderOrder: [],
     },
@@ -58,12 +60,12 @@ function fullyPopulatedBlob() {
     DuplicateSuffixFormat: "_{n}",
     AutoRenamerOnUpdate: true,
     StudioDestinations: { 7: "D:/studios/seven", 12: "E:/studios/twelve" },
-    TagDestinations: { Anime: "D:/anime", Docs: "E:/docs" },
+    TagDestinations: { 14: "D:/anime", 15: "E:/docs" },
     PathDestinations: [
       { Pattern: "C:/in", Dest: "D:/out", IsRegex: false },
       { Pattern: "^C:/re/.*$", Dest: "E:/out", IsRegex: true },
     ],
-    ExcludeTags: ["nsfw"],
+    ExcludeTagIds: [31],
     ExcludeStudioIds: [3, 9],
     ExcludePaths: [{ Pattern: "C:/skip", IsRegex: false }],
     AllowedRoots: ["D:/", "E:/"],
@@ -102,6 +104,10 @@ test("every modeled field survives load → no-op edit → save value-equal", ()
   assert.equal(loaded.EnableAdvancedRouting, true);
   assert.deepEqual(loaded.AssociatedExtensions, ["srt", "vtt"]);
   assert.deepEqual(loaded.StudioDestinations, { 7: "D:/studios/seven", 12: "E:/studios/twelve" });
+  assert.deepEqual(loaded.TagDestinations, { 14: "D:/anime", 15: "E:/docs" });
+  assert.deepEqual(loaded.ExcludeTagIds, [31]);
+  assert.deepEqual(loaded.Tags.WhitelistIds, [21]);
+  assert.deepEqual(loaded.Performers.BlacklistIds, [5]);
   assert.deepEqual(loaded.PathDestinations, blob.PathDestinations);
   assert.equal(loaded.CrossVolumeConcurrency, 4);
   assert.equal(loaded.SameVolumeConcurrency, 16);
@@ -119,11 +125,11 @@ test("cloneDefaults isolates every mutable collection from DEFAULT_OPTIONS", () 
   const clone = cloneDefaults();
 
   clone.StudioDestinations[1] = "x";
-  clone.TagDestinations.t = "x";
+  clone.TagDestinations[2] = "x";
   clone.PathDestinations.push({ Pattern: "p", Dest: "d", IsRegex: false });
   clone.ExcludePaths.push({ Pattern: "p", IsRegex: false });
   clone.FieldReplacers.push({ TargetToken: "t", Find: "f", Replace: "r" });
-  clone.ExcludeTags.push("x");
+  clone.ExcludeTagIds.push(77);
   clone.ExcludeStudioIds.push(99);
   clone.AllowedRoots.push("Z:/");
   clone.Articles.push("Der");
@@ -133,7 +139,7 @@ test("cloneDefaults isolates every mutable collection from DEFAULT_OPTIONS", () 
   clone.Performers.GenderOrder.push("x");
   clone.Tags.IgnoreGenders.push("x");
   clone.Tags.GenderOrder.push("x");
-  clone.Tags.Whitelist.push("x");
+  clone.Tags.WhitelistIds.push(88);
 
   assert.deepEqual(DEFAULT_OPTIONS, before);
 });
@@ -240,4 +246,64 @@ test("a stale camelCase duplicate key is dropped by normalizeOptions", () => {
   const normalized = normalizeOptions(blob);
   assert.deepEqual(normalized.StudioDestinations, { 7: "D:/canonical" });
   assert.ok(!("studioDestinations" in normalized));
+});
+
+test("a number-keyed destination map becomes a string-keyed map preserving values", () => {
+  assert.deepEqual(toStringKeyed({ 3: "/a", 12: "/b" }), { 3: "/a", 12: "/b" });
+});
+
+test("a round-trip through the editor's string keys restores number keys identically", () => {
+  const original = { 3: "/a", 12: "/b" };
+  assert.deepEqual(fromStringKeyed(toStringKeyed(original)), original);
+});
+
+test("a non-integer editor key is dropped rather than producing a NaN key", () => {
+  assert.deepEqual(fromStringKeyed({ x: "/a", "1.5": "/b", "9": "/c" }), { 9: "/c" });
+});
+
+test("a non-string editor value is dropped on back-conversion", () => {
+  // Cast because the drop is exactly what a hand-edited or legacy blob makes reachable, and the
+  // parameter type is what forbids it: a well-typed caller cannot get here.
+  const back = fromStringKeyed({ 4: 12, 5: "/ok" } as unknown as Record<string, string>);
+  assert.deepEqual(back, { 5: "/ok" });
+});
+
+test("every destination-map key a save persists parses as an integer", () => {
+  // The backend binds both maps as `Dictionary<int, string>` and answers a bind failure with
+  // DEFAULTS, so one unparseable key silently discards the user's whole settings blob. JSON object
+  // keys are strings, which is why this is asserted on what a save actually writes.
+  const persisted: Record<string, unknown> = {
+    ...extractUnmodeledFields(fullyPopulatedBlob()),
+    ...normalizeOptions(fullyPopulatedBlob()),
+  };
+
+  for (const field of ["StudioDestinations", "TagDestinations"]) {
+    const map = persisted[field] as Record<string, string>;
+    assert.ok(Object.keys(map).length > 0, `${field} must be populated for this to prove anything`);
+    for (const key of Object.keys(map)) {
+      assert.ok(/^-?\d+$/.test(key), `${field} key "${key}" would fail the backend's int bind`);
+    }
+  }
+});
+
+test("a name-keyed destination map coerces to empty rather than persisting an unparseable key", () => {
+  // A blob written before the rules keyed on ids holds names here. The backend's one-time conversion
+  // is what recovers them; this panel must not carry a name back into a save.
+  const loaded = normalizeOptions({
+    TagDestinations: { Anime: "D:/anime" },
+    ExcludeTagIds: ["nsfw"],
+  });
+
+  assert.deepEqual(loaded.TagDestinations, {});
+  assert.deepEqual(loaded.ExcludeTagIds, []);
+});
+
+test("a name-valued whitelist coerces to empty rather than reaching the backend as a string", () => {
+  const loaded = normalizeOptions({
+    Tags: { WhitelistIds: ["anime", 21] },
+    Performers: { BlacklistIds: ["someone"] },
+  });
+
+  assert.deepEqual(loaded.Tags.WhitelistIds, [21]);
+  assert.deepEqual(loaded.Performers.BlacklistIds, []);
 });

@@ -19,7 +19,7 @@ public sealed class CollisionTests
 
     private static RenamerEntity Entity(params RenamerFile[] files) =>
         new(EntityId: 10, Kind: RenamerFileKind.Video, Title: "My Film", Code: null, StudioName: null,
-            Date: null, Organized: true, Performers: [], Tags: [], Files: files);
+            Date: null, Organized: true, Performers: [], TagRefs: [], Files: files);
 
     [Fact]
     public async Task FirstCandidateTaken_SuffixApplied()

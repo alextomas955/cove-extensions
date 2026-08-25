@@ -83,35 +83,52 @@ public class MultiValueTests
         Assert.Equal("alice,Bob,Charlie", MultiValue.Resolve(Three, m));
     }
 
+    // The whitelist/blacklist live on the id-carrying overloads, so these exercise the tag pairs
+    // rather than the bare name list. The names differ in case from nothing here on purpose: the
+    // filter no longer reads them at all.
+    private static readonly IReadOnlyList<(int Id, string Name)> ThreeTags =
+        new[] { (1, "Charlie"), (2, "alice"), (3, "Bob") };
+
     [Fact]
-    public void Resolve_Whitelist_KeepsOnlyListedCaseInsensitive()
+    public void Resolve_WhitelistIds_KeepsOnlyListedTags()
     {
         var m = new MultiValueOptions
         {
             Separator = ",",
             Sort = SortOrder.None,
-            Whitelist = ["ALICE", "bob"],
+            WhitelistIds = [2, 3],
         };
-        Assert.Equal("alice,Bob", MultiValue.Resolve(Three, m));
+        Assert.Equal("alice,Bob", MultiValue.Resolve(ThreeTags, m));
     }
 
     [Fact]
-    public void Resolve_Blacklist_DropsListedCaseInsensitive()
+    public void Resolve_BlacklistIds_DropsListedTags()
     {
         var m = new MultiValueOptions
         {
             Separator = ",",
             Sort = SortOrder.None,
-            Blacklist = ["BOB"],
+            BlacklistIds = [3],
         };
-        Assert.Equal("Charlie,alice", MultiValue.Resolve(Three, m));
+        Assert.Equal("Charlie,alice", MultiValue.Resolve(ThreeTags, m));
+    }
+
+    [Fact]
+    public void Resolve_RenamedTag_StillMatchesItsRule()
+    {
+        // The rule was written against id 2. The tag has been renamed since, and the filter is
+        // unaffected - which is the whole reason these key on ids.
+        IReadOnlyList<(int Id, string Name)> renamed = new[] { (1, "Charlie"), (2, "ALICE renamed") };
+        var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.None, WhitelistIds = [2] };
+
+        Assert.Equal("ALICE renamed", MultiValue.Resolve(renamed, m));
     }
 
     [Fact]
     public void Resolve_EverythingFilteredOut_ReturnsEmpty()
     {
-        var m = new MultiValueOptions { Whitelist = ["nobody"] };
-        Assert.Equal("", MultiValue.Resolve(Three, m));
+        var m = new MultiValueOptions { WhitelistIds = [999] };
+        Assert.Equal("", MultiValue.Resolve(ThreeTags, m));
     }
 
     [Fact]

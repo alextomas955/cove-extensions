@@ -79,12 +79,13 @@ public static class DestinationResolver
         }
 
         // 3. Cascade — first CATEGORY that produces a match wins.
-        // 3a. Tag: first tag in entity list order whose name (OrdinalIgnoreCase) has a rule.
-        foreach (var tag in e.Tags)
+        // 3a. Tag: first tag in entity list order whose stable id has a rule. The reason carries the
+        //     NAME because a reason is read by a person; the match itself never uses it.
+        foreach (var (tagId, tagName) in e.TagRefs)
         {
-            if (lk.TagNameToDest.TryGetValue(tag, out var tagDest))
+            if (lk.TagIdToDest.TryGetValue(tagId, out var tagDest))
             {
-                return new RouteResult(RouteCategory.Tag, $"Tag:{tag}", tagDest);
+                return new RouteResult(RouteCategory.Tag, $"Tag:{tagName}", tagDest);
             }
         }
 
@@ -173,14 +174,14 @@ public static class DestinationResolver
     /// </remarks>
     private static RouteResult? ResolveExclusion(RenamerEntity e, RouteLookups lk)
     {
-        // Tag exclude (case-insensitive on the tag NAME, mirroring tag routing).
-        if (lk.ExcludeTagNames is { Count: > 0 } excludeTags)
+        // Tag exclude (on the stable tag id, mirroring tag routing).
+        if (lk.ExcludeTagIds is { Count: > 0 } excludeTags)
         {
-            foreach (var tag in e.Tags)
+            foreach (var (tagId, tagName) in e.TagRefs)
             {
-                if (excludeTags.Contains(tag))
+                if (excludeTags.Contains(tagId))
                 {
-                    return new RouteResult(RouteCategory.Excluded, $"Exclude:Tag:{tag}", null);
+                    return new RouteResult(RouteCategory.Excluded, $"Exclude:Tag:{tagName}", null);
                 }
             }
         }

@@ -35,6 +35,49 @@ public class CoveRenamerDataPort : IRenamerDataPort
 
     // ── IRenamerDataPort (planner read seam) ──────────────────────────────────
 
+    /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo",
+        Justification = "ToLower() here is never executed in .NET - it is translated to the provider's " +
+            "own lower() in SQL, and the culture-taking overloads have no translation.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture",
+        Justification = "Same as CA1304: this call is translated to SQL, not run by the CLR.")]
+    public async Task<NameResolution> ResolveNamesAsync(
+        RenamerEntityKind kind, IReadOnlyList<string> names, CancellationToken ct = default)
+    {
+        bool hasRows = kind switch
+        {
+            RenamerEntityKind.Tag => await _db.Set<Tag>().AsNoTracking().AnyAsync(ct),
+            RenamerEntityKind.Performer => await _db.Set<Performer>().AsNoTracking().AnyAsync(ct),
+            _ => false,
+        };
+
+        if (names.Count == 0)
+        {
+            return new NameResolution(hasRows, []);
+        }
+
+        // Lowercased on both sides rather than compared with a culture-aware collation: the provider
+        // decides what a case-insensitive string comparison means, and Postgres's default collation is
+        // case-SENSITIVE, so an EF `string.Equals(a, b, OrdinalIgnoreCase)` would not translate and a
+        // plain `Contains` would silently miss the case variants this resolution exists to find.
+        var wanted = names.Select(n => n.ToLowerInvariant()).Distinct().ToList();
+
+        IReadOnlyList<(int Id, string Name)> matches = kind switch
+        {
+            RenamerEntityKind.Tag => await _db.Set<Tag>().AsNoTracking()
+                .Where(t => wanted.Contains(t.Name.ToLower()))
+                .Select(t => new ValueTuple<int, string>(t.Id, t.Name))
+                .ToListAsync(ct),
+            RenamerEntityKind.Performer => await _db.Set<Performer>().AsNoTracking()
+                .Where(p => wanted.Contains(p.Name.ToLower()))
+                .Select(p => new ValueTuple<int, string>(p.Id, p.Name))
+                .ToListAsync(ct),
+            _ => [],
+        };
+
+        return new NameResolution(hasRows, matches);
+    }
+
     /// <summary>
     /// Loads a media item's full file graph (via the EF Include chain) and maps it into the
     /// Renamer-owned <see cref="RenamerEntity"/> DTO. Returns null when the item does not exist.
@@ -159,7 +202,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
         [.. v.VideoPerformers
             .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
             .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
-        [.. v.VideoTags.Select(t => t.Tag?.Name ?? "").Where(n => n.Length > 0)],
+        [.. v.VideoTags.Where(t => t.Tag is not null && t.Tag.Name.Length > 0).Select(t => (t.Tag!.Id, t.Tag.Name))],
         [.. v.Files.Select(MapVideoFile)],
         StudioId: v.StudioId,
         ParentStudios: WalkParentStudios(v.Studio),
@@ -170,7 +213,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
         [.. i.ImagePerformers
             .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
             .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
-        [.. i.ImageTags.Select(t => t.Tag?.Name ?? "").Where(n => n.Length > 0)],
+        [.. i.ImageTags.Where(t => t.Tag is not null && t.Tag.Name.Length > 0).Select(t => (t.Tag!.Id, t.Tag.Name))],
         [.. i.Files.Select(MapImageFile)],
         StudioId: i.StudioId,
         ParentStudios: WalkParentStudios(i.Studio));
@@ -180,7 +223,7 @@ public class CoveRenamerDataPort : IRenamerDataPort
         [.. a.AudioPerformers
             .Where(p => p.Performer is not null && p.Performer.Name.Length > 0)
             .Select(p => new RenamerPerformer(p.Performer!.Id, p.Performer.Name, p.Performer.Favorite, p.Performer.Gender?.ToString()))],
-        [.. a.AudioTags.Select(t => t.Tag?.Name ?? "").Where(n => n.Length > 0)],
+        [.. a.AudioTags.Where(t => t.Tag is not null && t.Tag.Name.Length > 0).Select(t => (t.Tag!.Id, t.Tag.Name))],
         [.. a.Files.Select(MapAudioFile)],
         StudioId: a.StudioId,
         ParentStudios: WalkParentStudios(a.Studio));

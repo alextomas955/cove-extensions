@@ -33,10 +33,14 @@ export interface MultiValueOptions {
   OnOverflow: OverflowPolicy;
   /** Sort applied before joining. */
   Sort: SortOrder;
-  /** If non-empty, only these values are kept (case-insensitive). */
-  Whitelist: string[];
-  /** If non-empty, these values are removed (case-insensitive). */
-  Blacklist: string[];
+  /**
+   * If non-empty, only the entities with these stable ids are kept. Keyed on the id so renaming a
+   * tag or performer in Cove cannot stop a rule from matching; the rendered token still shows the
+   * current name.
+   */
+  WhitelistIds: number[];
+  /** If non-empty, the entities with these stable ids are removed. */
+  BlacklistIds: number[];
   /** Performer-only: genders dropped before the max-count limit (case-insensitive). */
   IgnoreGenders: string[];
   /** Performer-only: preferred gender ordering, most-preferred first (case-insensitive). */
@@ -100,14 +104,17 @@ export interface RenamerOptions {
   DuplicateSuffixFormat: string;
   AutoRenamerOnUpdate: boolean;
 
-  // Routing maps — id/name → destination-root template. StudioDestinations keys on the stable
-  // studio id; TagDestinations keys on the tag name (compared case-insensitively by the backend).
+  // Routing maps: stable entity id → destination-root template. A rule keys on the id and never on
+  // the name, so a rename in Cove cannot orphan it and two case variants of one name cannot route to
+  // two destination trees. JSON object keys are strings, so every key a save writes must still parse
+  // as an integer: the backend binds these as `Dictionary<int, string>` and answers a bind failure
+  // with DEFAULTS, discarding every setting in the blob.
   StudioDestinations: Record<number, string>;
-  TagDestinations: Record<string, string>;
+  TagDestinations: Record<number, string>;
   // Source-path routing rules, in user order.
   PathDestinations: PathDestinationRule[];
-  // Excludes (evaluated first): tag names, stable studio ids, and source-path rules.
-  ExcludeTags: string[];
+  // Excludes (evaluated first): stable tag ids, stable studio ids, and source-path rules.
+  ExcludeTagIds: number[];
   ExcludeStudioIds: number[];
   ExcludePaths: ExcludeRule[];
   // The roots a rename may write into; default-relocate + unorganized destinations and their gate.
@@ -159,8 +166,8 @@ export const DEFAULT_OPTIONS: RenamerOptions = {
     MaxCount: 0,
     OnOverflow: "DropAll",
     Sort: "NameAsc",
-    Whitelist: [],
-    Blacklist: [],
+    WhitelistIds: [],
+    BlacklistIds: [],
     IgnoreGenders: [],
     GenderOrder: [],
   },
@@ -169,8 +176,8 @@ export const DEFAULT_OPTIONS: RenamerOptions = {
     MaxCount: 0,
     OnOverflow: "DropAll",
     Sort: "NameAsc",
-    Whitelist: [],
-    Blacklist: [],
+    WhitelistIds: [],
+    BlacklistIds: [],
     IgnoreGenders: [],
     GenderOrder: [],
   },
@@ -203,7 +210,7 @@ export const DEFAULT_OPTIONS: RenamerOptions = {
   StudioDestinations: {},
   TagDestinations: {},
   PathDestinations: [],
-  ExcludeTags: [],
+  ExcludeTagIds: [],
   ExcludeStudioIds: [],
   ExcludePaths: [],
   AllowedRoots: [],
@@ -233,15 +240,15 @@ export function cloneDefaults(): RenamerOptions {
     ...DEFAULT_OPTIONS,
     Performers: {
       ...DEFAULT_OPTIONS.Performers,
-      Whitelist: [],
-      Blacklist: [],
+      WhitelistIds: [],
+      BlacklistIds: [],
       IgnoreGenders: [],
       GenderOrder: [],
     },
     Tags: {
       ...DEFAULT_OPTIONS.Tags,
-      Whitelist: [],
-      Blacklist: [],
+      WhitelistIds: [],
+      BlacklistIds: [],
       IgnoreGenders: [],
       GenderOrder: [],
     },
@@ -250,7 +257,7 @@ export function cloneDefaults(): RenamerOptions {
     StudioDestinations: { ...DEFAULT_OPTIONS.StudioDestinations },
     TagDestinations: { ...DEFAULT_OPTIONS.TagDestinations },
     PathDestinations: DEFAULT_OPTIONS.PathDestinations.map((r) => ({ ...r })),
-    ExcludeTags: [...DEFAULT_OPTIONS.ExcludeTags],
+    ExcludeTagIds: [...DEFAULT_OPTIONS.ExcludeTagIds],
     ExcludeStudioIds: [...DEFAULT_OPTIONS.ExcludeStudioIds],
     ExcludePaths: DEFAULT_OPTIONS.ExcludePaths.map((r) => ({ ...r })),
     AllowedRoots: [...DEFAULT_OPTIONS.AllowedRoots],
@@ -291,8 +298,8 @@ function numArray(v: unknown, fallback: number[]): number[] {
     ? v.filter((x): x is number => typeof x === "number" && Number.isFinite(x))
     : fallback;
 }
-// A routing map can arrive from a hand-edited/legacy blob with non-string values or, for the
-// id-keyed map, non-numeric keys. Keep only the entries that conform and rebuild a fresh plain
+// A routing map can arrive from a hand-edited/legacy blob with non-string values or non-numeric keys
+// (every routing map is id-keyed). Keep only the entries that conform and rebuild a fresh plain
 // object, so a malformed map yields a safe shape rather than propagating bad data.
 function numKeyStringMap(v: unknown): Record<number, string> {
   const src = asRecord(v);
@@ -303,11 +310,30 @@ function numKeyStringMap(v: unknown): Record<number, string> {
   }
   return out;
 }
-function strKeyStringMap(v: unknown): Record<string, string> {
-  const src = asRecord(v);
+
+/**
+ * Adapt a number-keyed destination map to the string-keyed shape `KeyValueMapEditor` consumes. JS
+ * object keys are strings regardless, so this is the explicit, typed crossing of that boundary rather
+ * than a silent cast.
+ */
+export function toStringKeyed(map: Record<number, string>): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const [k, val] of Object.entries(src)) {
-    if (typeof val === "string") out[k] = val;
+  for (const [k, v] of Object.entries(map)) out[k] = v;
+  return out;
+}
+
+/**
+ * Adapt the editor's string-keyed map back to the persisted `Record<number, string>`.
+ *
+ * Keeps only the entries {@link numKeyStringMap} would keep, so the two agree entry for entry: a
+ * hand-edited or legacy blob can carry a non-integer key ("x", "1.5"), and a key the backend cannot
+ * parse as an integer fails the whole options bind, which the store answers with defaults.
+ */
+export function fromStringKeyed(map: Record<string, string>): Record<number, string> {
+  const out: Record<number, string> = {};
+  for (const [k, v] of Object.entries(map)) {
+    const n = Number(k);
+    if (Number.isInteger(n) && typeof v === "string") out[n] = v;
   }
   return out;
 }
@@ -366,8 +392,8 @@ function normalizeMultiValue(raw: unknown, def: MultiValueOptions): MultiValueOp
     MaxCount: num(r.MaxCount, def.MaxCount),
     OnOverflow: overflow(r.OnOverflow),
     Sort: sortOrder(r.Sort),
-    Whitelist: strArray(r.Whitelist, []),
-    Blacklist: strArray(r.Blacklist, []),
+    WhitelistIds: numArray(r.WhitelistIds, []),
+    BlacklistIds: numArray(r.BlacklistIds, []),
     IgnoreGenders: strArray(r.IgnoreGenders, []),
     GenderOrder: strArray(r.GenderOrder, []),
   };
@@ -426,9 +452,9 @@ export function normalizeOptions(raw: unknown): RenamerOptions {
     DuplicateSuffixFormat: str(r.DuplicateSuffixFormat, d.DuplicateSuffixFormat),
     AutoRenamerOnUpdate: bool(r.AutoRenamerOnUpdate, d.AutoRenamerOnUpdate),
     StudioDestinations: numKeyStringMap(r.StudioDestinations),
-    TagDestinations: strKeyStringMap(r.TagDestinations),
+    TagDestinations: numKeyStringMap(r.TagDestinations),
     PathDestinations: pathDestinations(r.PathDestinations),
-    ExcludeTags: strArray(r.ExcludeTags, []),
+    ExcludeTagIds: numArray(r.ExcludeTagIds, []),
     ExcludeStudioIds: numArray(r.ExcludeStudioIds, []),
     ExcludePaths: excludeRules(r.ExcludePaths),
     AllowedRoots: strArray(r.AllowedRoots, []),

@@ -27,6 +27,18 @@ User-facing changes, newest first.
   sentence that left out which permissions a rename needs and the fact that Renamer makes no network
   calls. Both were duplicated in code, where they silently won over the manifest that had the correct
   text; the manifest is now the only place either is written.
+- **A tag or performer rule now follows a rename.** Tag and performer rules were remembered by name,
+  so renaming one in Cove quietly stopped its rule from matching, and two spellings of one name routed
+  to two separate destination folders. Every rule now remembers the tag or performer itself: rename it
+  in Cove and the rule keeps applying, while the rendered filename picks up the new name.
+- **Your existing tag and performer rules are converted once, on the first load after this upgrade.**
+  A rule naming a tag or performer that no longer exists in your library is dropped, and each dropped
+  rule is named in the log so you can see what went. Two spellings of one name collapse into a single
+  rule. Studio rules and path rules are untouched.
+- **Picking a studio, tag or performer now uses Cove's own picker.** It searches your library as you
+  type instead of loading every tag and performer in the library the moment you open the field, so the
+  settings page stays fast on a large library. It also will not create a new tag or performer from the
+  settings page - add it in Cove first, then pick it here.
 
 ## 0.3.0 — Undo that cannot grow without bound
 

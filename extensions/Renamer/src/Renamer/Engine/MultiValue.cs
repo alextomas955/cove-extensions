@@ -10,25 +10,23 @@ namespace Renamer.Engine;
 /// whitelist → blacklist → sort → max(KeepFirst/DropAll) → join.
 ///
 /// The engine's Render pulls each multi-value field's list from a
-/// <c>IReadOnlyDictionary&lt;string, IReadOnlyList&lt;string&gt;&gt;</c> side-input, calls
-/// <see cref="Resolve(IReadOnlyList{string}, MultiValueOptions)"/>, and feeds the joined string
-/// into the scalar token map. This is just the pure list→string resolver. No I/O, no host types.
+/// <c>IReadOnlyDictionary&lt;string, IReadOnlyList&lt;string&gt;&gt;</c> side-input and feeds the
+/// joined string into the scalar token map. This is just the pure list→string resolver. No I/O, no
+/// host types.
 /// </summary>
 public static class MultiValue
 {
+    /// <summary>
+    /// Resolves values carrying no entity identity: sort, then max, then join.
+    /// </summary>
+    /// <remarks>
+    /// The whitelist and blacklist are absent here rather than matched by name, because this overload
+    /// serves the fixed preview samples, whose values name no library entity at all. Matching a
+    /// synthetic value against a rule that identifies a real tag can only agree by coincidence.
+    /// </remarks>
     public static string Resolve(IReadOnlyList<string> values, MultiValueOptions m)
     {
         IEnumerable<string> seq = values;
-
-        if (m.Whitelist.Count > 0)
-        {
-            seq = seq.Where(v => m.Whitelist.Contains(v, StringComparer.OrdinalIgnoreCase));
-        }
-
-        if (m.Blacklist.Count > 0)
-        {
-            seq = seq.Where(v => !m.Blacklist.Contains(v, StringComparer.OrdinalIgnoreCase));
-        }
 
         if (m.Sort == SortOrder.NameAsc)
         {
@@ -50,9 +48,48 @@ public static class MultiValue
     }
 
     /// <summary>
+    /// Tag-aware resolution: the whitelist and blacklist match on each tag's stable id, and the
+    /// surviving tags render their current names.
+    /// </summary>
+    /// <remarks>
+    /// The cascade is whitelist → blacklist (by id) → sort → max → join, matching the performer
+    /// overload. Sorting is still by name, since that is what the token renders and what a user reads.
+    /// </remarks>
+    public static string Resolve(IReadOnlyList<(int Id, string Name)> tags, MultiValueOptions m)
+    {
+        IEnumerable<(int Id, string Name)> seq = tags;
+
+        if (m.WhitelistIds.Count > 0)
+        {
+            seq = seq.Where(t => m.WhitelistIds.Contains(t.Id));
+        }
+
+        if (m.BlacklistIds.Count > 0)
+        {
+            seq = seq.Where(t => !m.BlacklistIds.Contains(t.Id));
+        }
+
+        if (m.Sort == SortOrder.NameAsc)
+        {
+            seq = seq.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase);
+        }
+
+        var list = seq.ToList();
+
+        if (m.MaxCount > 0 && list.Count > m.MaxCount)
+        {
+            list = m.OnOverflow == OverflowPolicy.KeepFirst
+                ? list.Take(m.MaxCount).ToList()
+                : [];
+        }
+
+        return string.Join(m.Separator, list.Select(t => t.Name));
+    }
+
+    /// <summary>
     /// Performer-aware resolution. Like the string overload, but the richer per-performer records let
     /// it order by id or favorite and order/filter by gender. The cascade is
-    /// whitelist → blacklist (by name) → gender-ignore → sort → gender-order → max → join, with
+    /// whitelist → blacklist (by id) → gender-ignore → sort → gender-order → max → join, with
     /// gender-ignore and gender-order applied BEFORE the max-count limit so a dropped or
     /// down-ordered gender changes which performers survive the limit. The result is the joined
     /// performer NAMES, identical in shape to the string overload's output.
@@ -61,14 +98,14 @@ public static class MultiValue
     {
         IEnumerable<RenamerPerformer> seq = performers;
 
-        if (m.Whitelist.Count > 0)
+        if (m.WhitelistIds.Count > 0)
         {
-            seq = seq.Where(p => m.Whitelist.Contains(p.Name, StringComparer.OrdinalIgnoreCase));
+            seq = seq.Where(p => m.WhitelistIds.Contains(p.Id));
         }
 
-        if (m.Blacklist.Count > 0)
+        if (m.BlacklistIds.Count > 0)
         {
-            seq = seq.Where(p => !m.Blacklist.Contains(p.Name, StringComparer.OrdinalIgnoreCase));
+            seq = seq.Where(p => !m.BlacklistIds.Contains(p.Id));
         }
 
         // Drop ignored genders before the limit so an ignored gender frees an overflow slot.

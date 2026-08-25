@@ -146,7 +146,6 @@
     <!-- TransportSmokeTests boots the extension in a TestServer over a real CoveContext (Cove.Data) + CovePrincipal → drops out on a bare CI runner. -->
     <Compile Remove="Api\TransportSmokeTests.cs" />
     <Compile Remove="Api\SettingsManifestTests.cs" />
-    <Compile Remove="Api\ListEntitiesEndpointTests.cs" />
     <Compile Remove="Api\PreviewEndpointTests.cs" />
     <Compile Remove="Api\PreviewSampleEndpointTests.cs" />
     <Compile Remove="Api\EndpointPermissionTests.cs" />
@@ -156,6 +155,7 @@
     <Compile Remove="Api\ScanLibraryEndpointTests.cs" />
     <Compile Remove="Api\UndoEndpointTests.cs" />
     <Compile Remove="Jobs\RenamerBatchJobTests.cs" />
+    <Compile Remove="Options\OptionsMigrationInitializeTests.cs" />
     <Compile Remove="Execution\**\*.cs" />
     <Compile Remove="Events\**\*.cs" />
     <Compile Remove="Concurrency\**\*.cs" />

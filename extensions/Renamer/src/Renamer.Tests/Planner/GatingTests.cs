@@ -18,7 +18,7 @@ public sealed class GatingTests
 
     private static RenamerEntity Entity(string? title, bool organized, params RenamerFile[] files) =>
         new(EntityId: 10, Kind: RenamerFileKind.Video, Title: title, Code: null, StudioName: null,
-            Date: null, Organized: organized, Performers: [], Tags: [], Files: files);
+            Date: null, Organized: organized, Performers: [], TagRefs: [], Files: files);
 
     [Fact]
     public async Task OnlyOrganized_UnorganizedItem_SkipGated()
@@ -85,7 +85,7 @@ public sealed class GatingTests
         var port = new FakeRenamerDataPort();
         port.SeedEntity(new RenamerEntity(
             EntityId: 10, Kind: RenamerFileKind.Video, Title: "My Film", Code: null, StudioName: null,
-            Date: null, Organized: false, Performers: [], Tags: [],
+            Date: null, Organized: false, Performers: [], TagRefs: [],
             Files: [new RenamerFile(1, RenamerFileKind.Video, "raw.mkv", 5, srcFolder, Format: "mkv")]));
         var planner = new RenamerPlanner(port);
         var opts = new RenamerOptions

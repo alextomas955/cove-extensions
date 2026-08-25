@@ -50,10 +50,10 @@ public sealed class ScanPagingEquivalenceTests
 
     private static readonly RouteLookups Lookups = new(
         StudioIdToDest: new Dictionary<int, string>(),
-        TagNameToDest: new Dictionary<string, string> { ["routed"] = RoutedDest },
+        TagIdToDest: new Dictionary<int, string> { [101] = RoutedDest },
         PathExactToDest: new Dictionary<string, string>(),
         PathRegexRules: [],
-        ExcludeTagNames: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "skipme" });
+        ExcludeTagIds: new HashSet<int> { 102 });
 
     /// <summary>
     /// Seeds a fixture that reaches every planner branch: a plain rename, a multi-file rename, a folder
@@ -83,7 +83,7 @@ public sealed class ScanPagingEquivalenceTests
                 string? title = $"Title{id}";
                 string? studio = null;
                 bool organized = true;
-                var tags = new List<string>();
+                var tags = new List<(int Id, string Name)>();
                 string basename = $"raw{id}.mkv";
                 int fileCount = 1;
 
@@ -98,7 +98,7 @@ public sealed class ScanPagingEquivalenceTests
                         basename = $"Title{id}.mkv";                  // already at its computed destination
                         break;
                     case 4:
-                        tags.Add("skipme");                           // excluded
+                        tags.Add((102, "skipme"));                    // excluded
                         break;
                     case 5:
                         organized = false;                            // fails the only-organized gate
@@ -113,7 +113,7 @@ public sealed class ScanPagingEquivalenceTests
                         studio = "Acme";                              // folder template renders a subfolder
                         break;
                     default:
-                        tags.Add("routed");                           // routed to another root
+                        tags.Add((101, "routed"));                    // routed to another root
                         break;
                 }
 
@@ -126,7 +126,7 @@ public sealed class ScanPagingEquivalenceTests
 
                 port.SeedEntity(new RenamerEntity(
                     id, kind, title, Code: null, studio, Date: null, organized,
-                    Performers: [], Tags: tags, Files: files));
+                    Performers: [], TagRefs: tags, Files: files));
             }
 
             // Seeded out of ascending order on purpose: the walk's order must come from the port's

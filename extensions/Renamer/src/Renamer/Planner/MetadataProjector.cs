@@ -28,10 +28,13 @@ public static class MetadataProjector
     /// (so <c>$performers</c> rendering and the title-performer drop stay name-based).
     /// <c>performers</c>: the per-performer records carried alongside the names so the engine can
     /// order/filter performers by id/favorite/gender before the max-count limit.
+    /// <c>tagRefs</c>: the tag id/name pairs, carried for the same reason - the tag
+    /// whitelist/blacklist matches on the id, which the name side-input does not carry.
     /// </returns>
     public static (IReadOnlyDictionary<string, string> tokens,
                    IReadOnlyDictionary<string, IReadOnlyList<string>> multiValues,
-                   IReadOnlyList<RenamerPerformer> performers)
+                   IReadOnlyList<RenamerPerformer> performers,
+                   IReadOnlyList<(int Id, string Name)> tagRefs)
         Project(RenamerEntity entity, RenamerFile file, RenamerOptions options)
     {
         var tokens = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -114,7 +117,7 @@ public static class MetadataProjector
             [Tokens.Tags] = entity.Tags,
         };
 
-        return (tokens, multi, entity.Performers);
+        return (tokens, multi, entity.Performers, entity.TagRefs);
     }
 
     /// <summary>Adds <paramref name="value"/> under <paramref name="key"/> only when non-empty (omit-not-blank).</summary>

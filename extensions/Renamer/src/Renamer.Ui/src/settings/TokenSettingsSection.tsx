@@ -26,7 +26,7 @@ import {
   type SeparatorOption,
   type ValueOption,
 } from "@cove-extensions/ui-shared";
-import { PerformerPicker, TagPicker } from "./EntityPicker";
+import { EntitySelectField } from "./EntitySelectField";
 import { templateUsesToken } from "./templateValidation";
 
 const OVERFLOW_OPTIONS: readonly { value: OverflowPolicy; label: string }[] = [
@@ -185,21 +185,23 @@ export function TokenSettingsSection({
               addPrompt="Add a gender…"
             />
           </Field>
-          <PerformerPicker
+          <EntitySelectField
+            entityType="performer"
             label="Whitelist"
-            helper="If set, only these performers are kept (case-insensitive)."
-            values={mv("Performers").Whitelist}
+            helper="If set, only these performers are kept."
+            values={mv("Performers").WhitelistIds}
             onChange={(v) => {
-              setMulti("Performers", { Whitelist: v });
+              setMulti("Performers", { WhitelistIds: v });
             }}
             placeholder="Search performers…"
           />
-          <PerformerPicker
+          <EntitySelectField
+            entityType="performer"
             label="Blacklist"
-            helper="These performers are removed (case-insensitive)."
-            values={mv("Performers").Blacklist}
+            helper="These performers are removed."
+            values={mv("Performers").BlacklistIds}
             onChange={(v) => {
-              setMulti("Performers", { Blacklist: v });
+              setMulti("Performers", { BlacklistIds: v });
             }}
             placeholder="Search performers…"
           />
@@ -247,21 +249,23 @@ export function TokenSettingsSection({
               options={TAG_SORT_OPTIONS}
             />
           </Field>
-          <TagPicker
+          <EntitySelectField
+            entityType="tag"
             label="Whitelist"
-            helper="If set, only these tags are kept (case-insensitive)."
-            values={mv("Tags").Whitelist}
+            helper="If set, only these tags are kept."
+            values={mv("Tags").WhitelistIds}
             onChange={(v) => {
-              setMulti("Tags", { Whitelist: v });
+              setMulti("Tags", { WhitelistIds: v });
             }}
             placeholder="Search tags…"
           />
-          <TagPicker
+          <EntitySelectField
+            entityType="tag"
             label="Blacklist"
-            helper="These tags are removed (case-insensitive)."
-            values={mv("Tags").Blacklist}
+            helper="These tags are removed."
+            values={mv("Tags").BlacklistIds}
             onChange={(v) => {
-              setMulti("Tags", { Blacklist: v });
+              setMulti("Tags", { BlacklistIds: v });
             }}
             placeholder="Search tags…"
           />

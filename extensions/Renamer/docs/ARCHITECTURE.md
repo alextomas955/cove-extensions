@@ -177,8 +177,10 @@ A Vite library build that Cove loads as `index.mjs`. Its home is a dedicated **S
 
 - `renameSelected.ts` — the bulk-action handler: preview → confirm → `/rename`, cancellable.
 - `UndoSection.tsx` — the undo control backed by `/undo` and `/last-batch`.
-- `EntityPicker.tsx` / `StudioMap.tsx` — the searchable studio/tag picker and the per-studio
-  destination-map editor.
+- `EntitySelectField.tsx` / `StudioMap.tsx`: the adapter over Cove's own entity selector (every
+  studio/tag/performer field in the panel goes through it, with the create affordance off) and the
+  per-studio destination-map editor. A rule stores the entity's stable id, and the host resolves that
+  id to a name for display: one cached lookup per configured rule, never a list sized by the library.
 - `PreviewCard.tsx`, `WarningBadge.tsx`, `TokenLegend.tsx`, `templateValidation.ts`, `presets.ts`,
   `options.ts`, `preview.ts`, `primitives.tsx` — supporting UI, types, and the inline token
   validation. The `*Logic.ts` files hold the pure logic split out of their `.tsx` components.

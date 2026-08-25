@@ -28,7 +28,7 @@ public sealed class PhaseALoadOnceTests
         {
             port.SeedEntity(new RenamerEntity(
                 EntityId: i, Kind: RenamerFileKind.Video, Title: $"Film {i}", Code: null, StudioName: null,
-                Date: null, Organized: true, Performers: [], Tags: [],
+                Date: null, Organized: true, Performers: [], TagRefs: [],
                 Files: [File(i, $"raw {i}.mkv", sizeBytes: 100L * i)]));
         }
         var planner = new RenamerPlanner(port);
@@ -47,7 +47,7 @@ public sealed class PhaseALoadOnceTests
         var port = new FakeRenamerDataPort();
         port.SeedEntity(new RenamerEntity(
             EntityId: 10, Kind: RenamerFileKind.Video, Title: "My Film", Code: null, StudioName: null,
-            Date: null, Organized: true, Performers: [], Tags: [],
+            Date: null, Organized: true, Performers: [], TagRefs: [],
             Files: [File(1, "part1.mkv", sizeBytes: 1234), File(2, "part2.mkv", sizeBytes: 5678)]));
         var planner = new RenamerPlanner(port);
 
