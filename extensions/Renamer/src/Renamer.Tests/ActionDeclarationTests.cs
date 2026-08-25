@@ -1,5 +1,6 @@
 using Cove.Core.Auth;
 using Cove.Plugins;
+using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests;
 
@@ -12,7 +13,7 @@ namespace Renamer.Tests;
 [Trait("Tier", "L1")]
 public sealed class ActionDeclarationTests
 {
-    private static global::Renamer.Renamer NewExtension() => new();
+    private static global::Renamer.Renamer NewExtension() => RenamerFixture.Create();
 
     [Fact]
     public void GetUIManifest_ContributesPerKindBulkActions_EachWithItsMatchingPermission()

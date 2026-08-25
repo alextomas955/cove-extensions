@@ -39,7 +39,7 @@ public sealed class RenamerBatchJobTests
         services.AddSingleton(bus);
         var provider = services.BuildServiceProvider();
 
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         var store = new FakeStore();
         // These job tests assert batch renamer mechanics over height-less seed videos and expect a
         // stable "$title.ext" output; pin the title-only template so the shipped default (which

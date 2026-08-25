@@ -191,7 +191,7 @@ public sealed class JournalBlobMigrationTests
         await store.SetAsync(RevertLog.SchemaKey, RevertLog.CurrentSchema);
         await store.SetAsync(RevertLog.Key, string.Join("\n", Header(), "7|70|/lib/a.mkv"));
 
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         ((IStatefulExtension)ext).SetStore(store);
         await ext.InitializeAsync(library.BuildProvider());
 

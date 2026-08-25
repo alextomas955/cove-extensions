@@ -3,6 +3,7 @@ using Cove.Core.Interfaces;
 using Cove.Plugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Wire;
 
@@ -16,7 +17,7 @@ public sealed class RenamerOpenApiDocumentTests : ExtensionOpenApiDocumentTests
 {
     protected override IApiExtension CreateExtension()
     {
-        var extension = new global::Renamer.Renamer();
+        var extension = RenamerFixture.Create();
         ((IStatefulExtension)extension).SetStore(new FakeStore());
         return extension;
     }

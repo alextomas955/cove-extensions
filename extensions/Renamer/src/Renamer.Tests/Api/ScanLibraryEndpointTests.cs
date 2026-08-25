@@ -51,7 +51,7 @@ public sealed class ScanLibraryEndpointTests
 
     private static async Task<(global::Renamer.Renamer ext, FakeStore store)> NewExtensionAsync()
     {
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         var store = new FakeStore();
         // Pin a stable title-only template so seeded (height-less) rows render a deterministic name,
         // independent of the shipped default template.
@@ -564,7 +564,7 @@ public sealed class ScanLibraryEndpointTests
         // A database carrying the journal and nothing else: the extension refuses to load without a
         // readable journal, and these tests are about what load does to the STORE.
         await using var journalDb = await JournalOnlyDatabase.CreateAsync();
-        var ext = new global::Renamer.Renamer();
+        var ext = RenamerFixture.Create();
         ((IStatefulExtension)ext).SetStore(store);
         await ext.InitializeAsync(journalDb.BuildProvider());
         return ext;

@@ -1,4 +1,5 @@
 using Cove.Core.Auth;
+using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests;
 
@@ -12,7 +13,7 @@ namespace Renamer.Tests;
 [Trait("Tier", "L1")]
 public sealed class SettingsManifestTests
 {
-    private static global::Renamer.Renamer NewExtension() => new();
+    private static global::Renamer.Renamer NewExtension() => RenamerFixture.Create();
 
     [Fact]
     public void GetUIManifest_DeclaresJsBundleUrl_ForTheHostToLoadThePanel()

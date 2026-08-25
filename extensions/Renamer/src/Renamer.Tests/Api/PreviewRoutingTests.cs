@@ -50,7 +50,7 @@ public sealed class PreviewRoutingTests
                 PathDestinations = [new PathDestinationRule { Pattern = srcFolder, Dest = PathRoot, IsRegex = false }],
             };
 
-            var ext = new global::Renamer.Renamer();
+            var ext = RenamerFixture.Create();
             var store = new FakeStore();
             await new OptionsStore(store).SaveAsync(options);
             ((Cove.Plugins.IStatefulExtension)ext).SetStore(store);

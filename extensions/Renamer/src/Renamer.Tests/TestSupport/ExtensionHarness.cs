@@ -35,7 +35,7 @@ internal static class ExtensionHarness
         var store = new FakeStore();
         await new OptionsStore(store).SaveAsync(options);
 
-        var extension = new global::Renamer.Renamer();
+        var extension = RenamerFixture.Create();
         ((IStatefulExtension)extension).SetStore(store);
         await extension.InitializeAsync(services.BuildServiceProvider());
         return (extension, store);

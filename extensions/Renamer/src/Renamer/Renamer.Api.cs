@@ -36,19 +36,22 @@ public sealed partial class Renamer
     // The action's endpoint reference and the mapped route MUST be the same literal, so derive
     // both from one base. The route prefix mirrors how the host mounts an extension's
     // IApiExtension endpoints: /api/extensions/{id}/…
-    private const string RouteBase = "/api/extensions/com.alextomas955.renamer";
-    private const string RenamerRoute = RouteBase + "/renamer";
-    private const string PreviewRoute = RouteBase + "/preview";
-    private const string PreviewSampleRoute = RouteBase + "/preview-sample";
-    private const string UndoRoute = RouteBase + "/undo";
-    private const string LastBatchRoute = RouteBase + "/last-batch";
-    private const string ListStudiosRoute = RouteBase + "/list-studios";
-    private const string ListTagsRoute = RouteBase + "/list-tags";
-    private const string ListPerformersRoute = RouteBase + "/list-performers";
-    private const string ScanLibraryRoute = RouteBase + "/scan-library";
-    private const string LastScanRoute = RouteBase + "/last-scan";
-    private const string ScanRowsRoute = RouteBase + "/scan-rows";
-    private const string RenamerLibraryRoute = RouteBase + "/renamer-library";
+    //
+    // Instance members because Id comes from extension.json: reading a route before the host has
+    // applied the manifest throws instead of mounting the endpoints under the wrong id.
+    private string RouteBase => "/api/extensions/" + Id;
+    private string RenamerRoute => RouteBase + "/renamer";
+    private string PreviewRoute => RouteBase + "/preview";
+    private string PreviewSampleRoute => RouteBase + "/preview-sample";
+    private string UndoRoute => RouteBase + "/undo";
+    private string LastBatchRoute => RouteBase + "/last-batch";
+    private string ListStudiosRoute => RouteBase + "/list-studios";
+    private string ListTagsRoute => RouteBase + "/list-tags";
+    private string ListPerformersRoute => RouteBase + "/list-performers";
+    private string ScanLibraryRoute => RouteBase + "/scan-library";
+    private string LastScanRoute => RouteBase + "/last-scan";
+    private string ScanRowsRoute => RouteBase + "/scan-rows";
+    private string RenamerLibraryRoute => RouteBase + "/renamer-library";
 
     /// <summary>
     /// The key a pre-0.2.1 scan wrote one wire row PER FILE to. Retained only so
