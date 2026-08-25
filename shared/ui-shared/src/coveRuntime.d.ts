@@ -32,7 +32,6 @@ declare module "@cove/runtime/api" {
   ): Promise<Response>;
 }
 
-
 // The host barrel behind this specifier exports far more than this, so a symbol is added here
 // together with the code that imports it, narrowed to the surface that consumer actually passes. An
 // undeclared symbol then fails as TS2305 (no exported member) rather than TS2307 (cannot find
