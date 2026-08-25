@@ -26,7 +26,7 @@ import {
   ExampleSelect,
   type ExampleOption,
 } from "@cove-extensions/ui-shared";
-import { StudioPicker, TagPicker } from "./EntityPicker";
+import { EntitySelectField } from "./EntitySelectField";
 import { BARE_TOKENS } from "./templateValidation";
 import { TokenAdvisory } from "./templateAdvisories";
 
@@ -252,11 +252,12 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           title="Exclude by tag"
           description="An item carrying any of these tags is skipped — never renamed, never moved. Evaluated before any routing rule."
         >
-          <TagPicker
+          <EntitySelectField
+            entityType="tag"
             label="Tags"
-            values={options.ExcludeTags}
+            values={options.ExcludeTagIds}
             onChange={(v) => {
-              set("ExcludeTags", v);
+              set("ExcludeTagIds", v);
             }}
             placeholder="Search tags…"
           />
@@ -266,7 +267,8 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           title="Exclude by studio"
           description="An item under any of these studios — or under a child of one — is skipped entirely. Evaluated before any routing rule."
         >
-          <StudioPicker
+          <EntitySelectField
+            entityType="studio"
             label="Studios"
             values={options.ExcludeStudioIds}
             onChange={(v) => {

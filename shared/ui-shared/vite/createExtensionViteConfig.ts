@@ -21,9 +21,11 @@ export interface ExtensionViteOptions {
 // `@cove/extension-sdk` is intentionally absent — it is not in the host import-map, so it must ship
 // bundled.
 //
-// `@cove/runtime/api` carries no bare alias in the import map, so its canonical specifier is the only
-// spelling that reaches it; the bare names above must each stay listed, since no prefix match covers
-// them.
+// The mixed spelling is deliberate, and each host module is named here exactly once. The seven bare
+// names are host modules the import map also serves under a bare alias; neither `@cove/runtime/api`
+// nor `@cove/runtime/components` carries such an alias, so the canonical name is the only spelling
+// that reaches them. Do NOT collapse this to a `@cove/runtime/` prefix match: it matches none of the
+// seven bare names, which would silently bundle a second React with no build failure.
 const HOST_EXTERNALS = [
   "react",
   "react-dom",
@@ -33,6 +35,7 @@ const HOST_EXTERNALS = [
   "@tanstack/react-query",
   "lucide-react",
   "@cove/runtime/api",
+  "@cove/runtime/components",
 ];
 
 /**

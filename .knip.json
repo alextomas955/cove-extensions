@@ -9,7 +9,7 @@
       "vite": false,
       "entry": ["src/index.ts", "src/**/*Logic.ts", "src/contracts.ts", "src/settings/options.ts"],
       "project": ["src/**/*.{ts,tsx}"],
-      "ignoreDependencies": ["@vitejs/plugin-react"]
+      "ignoreDependencies": ["@vitejs/plugin-react", "@cove/runtime"]
     },
     "shared/ui-shared": {
       "entry": ["vite/createExtensionViteConfig.ts", "scripts/*.{mjs,cjs}"],

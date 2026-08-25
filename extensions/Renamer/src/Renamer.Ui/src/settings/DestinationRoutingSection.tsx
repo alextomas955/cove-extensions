@@ -9,8 +9,14 @@
  * through `set`.
  */
 import { useState } from "react";
+import { EntityReferenceValue } from "@cove/runtime/components";
 
-import { type RenamerOptions, type PathDestinationRule } from "./options";
+import {
+  toStringKeyed,
+  fromStringKeyed,
+  type RenamerOptions,
+  type PathDestinationRule,
+} from "./options";
 import {
   Field,
   TextInput,
@@ -26,7 +32,7 @@ import {
   StatusText,
   extensionShapeAdvisory,
 } from "@cove-extensions/ui-shared";
-import { TagPicker } from "./EntityPicker";
+import { EntitySelectField } from "./EntitySelectField";
 import { StudioDestinationsEditor } from "./StudioMap";
 
 /** Strip one leading dot if present, then lowercase — the add-time transform for a sidecar extension. */
@@ -114,20 +120,28 @@ export function DestinationRoutingSection({ options, set }: DestinationRoutingSe
           set("EnableTagDestinations", v);
         }}
       >
+        {/* The tag id must stay a NUMBER end to end to keep the persisted map value-equal with the
+            backend field and normalizeOptions, so it crosses the string-keyed KeyValueMapEditor
+            boundary through the same explicit coercion the studio map uses. The host resolves a
+            committed row's opaque id to the tag's name: one cached lookup per configured rule,
+            bounded by the rules the user authored rather than by the library. */}
         <KeyValueMapEditor
-          map={options.TagDestinations}
+          map={toStringKeyed(options.TagDestinations)}
           onChange={(m) => {
-            set("TagDestinations", m);
+            set("TagDestinations", fromStringKeyed(m));
           }}
           renderKey={(draftKey, setDraftKey, existingKeys) => (
-            <TagPicker
+            <EntitySelectField
+              entityType="tag"
               label=""
-              values={draftKey === "" ? [] : [draftKey]}
+              values={draftKey === "" ? [] : [Number(draftKey)]}
               onChange={(values) => {
-                setDraftKey(values.at(-1) ?? "");
+                // Last-id-wins: the selector is multi-value but a map key holds exactly one tag.
+                const latest = values.at(-1);
+                setDraftKey(latest === undefined ? "" : String(latest));
               }}
               placeholder="Search tags…"
-              excludeValues={existingKeys}
+              excludeIds={existingKeys.map(Number)}
             />
           )}
           renderValue={(value, setValue) => (
@@ -136,6 +150,7 @@ export function DestinationRoutingSection({ options, set }: DestinationRoutingSe
               <PathShapeHint value={value} />
             </>
           )}
+          renderKeyLabel={(key) => <EntityReferenceValue entityType="tag" value={Number(key)} />}
           addLabel="Add tag rule"
         />
       </ToggleHeaderCard>
