@@ -1,21 +1,12 @@
 /**
- * One sample's old→new diff + advisory flags. The shape mirrors the backend
- * `PreviewSampleResult` DTO; the host's minimal-API endpoint serializes with the default
- * camelCase policy, so field names are camelCase here.
+ * One sample's old→new diff + advisory flags. The response shape comes from the generated wire
+ * module, which is derived from the committed OpenAPI document.
  *
  * SECURITY: every filename / folder / flag string is rendered as a React text node —
  * React escapes it. There is NO raw-HTML rendering anywhere in this file.
  */
 
-/** Mirrors the backend PreviewSampleResult DTO (camelCase over the wire). */
-export interface PreviewSampleResult {
-  sampleLabel: string;
-  oldName: string;
-  newName: string;
-  folder: string;
-  flags: string[];
-  droppedFields: string[];
-}
+import type { PreviewSampleResult } from "../wire/api";
 
 /** Maps a backend flag code + the result to the user-facing advisory copy. */
 function flagMessage(flag: string, r: PreviewSampleResult): string | null {
