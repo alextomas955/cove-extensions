@@ -1,6 +1,7 @@
 /**
- * Per-row status pill. Badges derive from the PreviewItemView `status`
- * STRING enum PLUS the `suffixed` / `sanitized` bools — there is NO `flags[]` array on /preview.
+ * Per-row status pill. The label set and the derivation live in warningBadgeLogic.ts, which is
+ * exhaustive over the wire's status union — so a status the server grows cannot reach a row with no
+ * pill saying why it was skipped.
  *
  * Color is NEVER the only signal: amber/red badges lead with a lucide `AlertTriangle` glyph and
  * always carry text (accessibility). Every label string is a React text node (auto-escaped).
@@ -8,71 +9,7 @@
 import { AlertTriangle } from "lucide-react";
 import { StatusPill } from "@cove-extensions/ui-shared";
 
-import type { RenamerStatus } from "../../wire/api";
-
-type Variant = "amber" | "gray" | "red";
-
-interface Badge {
-  label: string;
-  variant: Variant;
-}
-
-/**
- * The three fields a badge is derived from. Declared structurally rather than as `PreviewItemView` so a
- * `/preview` item and a leaner `/scan-rows` row both qualify without either wire shape gaining a field
- * only the badges would read.
- */
-export interface Badgeable {
-  status: RenamerStatus;
-  suffixed: boolean;
-  sanitized: boolean;
-}
-
-/**
- * Map an item to its badges (one per warning kind, with user-facing labels).
- * Rename/Move with no extra signal returns [] (the positive default, no badge). suffixed/sanitized
- * add amber advisory badges even on a will-rename row.
- */
-function badgesFor(item: Badgeable): Badge[] {
-  const badges: Badge[] = [];
-  switch (item.status) {
-    case "noOp":
-      badges.push({ label: "No change needed", variant: "gray" });
-      break;
-    case "skipGated":
-      badges.push({ label: "Skipped — needs a required field", variant: "amber" });
-      break;
-    case "skipCollision":
-      badges.push({ label: "Skipped — name conflict", variant: "amber" });
-      break;
-    case "skipLocked":
-      badges.push({ label: "Skipped — file in use", variant: "amber" });
-      break;
-    case "skipMissingSource":
-      badges.push({ label: "Skipped — file missing on disk", variant: "amber" });
-      break;
-    case "skipPermissionDenied":
-      badges.push({ label: "Skipped — permission denied", variant: "amber" });
-      break;
-    case "skipVerifyFailed":
-      // Red rather than amber: the copy was written and then read back different, so the destination
-      // or the transport is suspect, which is not the same ask as retrying a busy file.
-      badges.push({ label: "Skipped — copy did not verify", variant: "red" });
-      break;
-    case "skipCancelled":
-      badges.push({ label: "Skipped — cancelled", variant: "gray" });
-      break;
-    case "failed":
-      badges.push({ label: "Failed — rolled back", variant: "red" });
-      break;
-    case "renamer":
-    case "move":
-      if (item.suffixed) badges.push({ label: "Numbered to avoid a clash", variant: "amber" });
-      if (item.sanitized) badges.push({ label: "Cleaned for the filesystem", variant: "amber" });
-      break;
-  }
-  return badges;
-}
+import { badgesFor, type Badge, type Badgeable } from "./warningBadgeLogic";
 
 function Pill({ badge }: { badge: Badge }) {
   const showGlyph = badge.variant === "amber" || badge.variant === "red";
