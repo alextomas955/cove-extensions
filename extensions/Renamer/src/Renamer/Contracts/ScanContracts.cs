@@ -281,3 +281,13 @@ public sealed record ScanRowsRequest(
     int? Take,
     string? Query,
     string? Bucket);
+
+/// <summary>
+/// Cove's configured library paths - the list every destination root is chosen from.
+/// </summary>
+/// <remarks>
+/// A record rather than a bare array so the panel can tell "the host declares no library path" from
+/// a response it failed to read, and so a later field can be added without changing the shape.
+/// </remarks>
+/// <param name="Paths">The absolute library paths, forward-slash, in configuration order.</param>
+public sealed record LibraryPathsView(IReadOnlyList<string> Paths);

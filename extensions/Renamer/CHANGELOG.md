@@ -4,6 +4,33 @@ User-facing changes, newest first.
 
 ## Unreleased — Undo you can retry, and one that survives the next rename
 
+- **A destination is now a library path you pick, plus the folders made under it.** Every
+  destination - the default _Where files go_, the unorganized route, and each per-studio, per-tag and
+  source-path rule - has the same two parts: **Under**, chosen from the library paths you configured
+  in Cove, and a **folder template** rendered beneath it. You no longer type a path anywhere, so
+  moving a folder in Cove no longer leaves a rule pointing at nothing.
+- **A folder template no longer buries files one level deeper on every run.** A rule with a folder
+  template but no destination used to measure from the file's own parent folder, which is the
+  previous run's output, so each pass appended the rendered folder again until the path got too long
+  to write. It now measures from the Cove library path that holds the file, so a second run over the
+  same library changes nothing.
+- **A rule that cannot be honoured says so instead of guessing.** The dry run and the log now name
+  four reasons an item was left alone: its destination measures from a library path and the file is
+  under none; the root the rule names is no longer one of Cove's library paths; the destination falls
+  outside the folders _Allowed roots_ permits; or the resulting path is longer than the path limit.
+  None of them fall back to another destination, so a broken rule never relocates files somewhere you
+  did not choose.
+- **Your existing destination rules are converted once, on the first load after this upgrade.** Each
+  stored path is split into the library path containing it plus the rest as a folder template, which
+  names the same folder - so nothing moves on the first run afterwards. A rule whose path lies under
+  no Cove library path is dropped and named in the log; its items follow the default destination from
+  then on.
+- **The _Relocate unmatched items_ switch is gone, and the default destination replaces it.** An item
+  matching no rule now takes _Where files go_, the same field the live preview has always shown. It
+  ships naming no root and no folder, which renames in place and moves nothing.
+- **_Allowed roots_ is now only a narrowing.** Every destination is a Cove library path plus a
+  relative template, so a rename is inside the library by construction; the list can still restrict
+  it to a smaller subtree, and an empty list restricts nothing.
 - **A rename no longer erases the undo of the one before it.** The undo record moved out of Cove's
   extension-data store and into a table Renamer owns, so a background auto-rename no longer destroys
   the record of a deliberate 500-file run. Each rename is kept for 7 days and then expires. The

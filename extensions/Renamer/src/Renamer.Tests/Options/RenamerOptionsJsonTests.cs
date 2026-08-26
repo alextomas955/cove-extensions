@@ -39,13 +39,13 @@ public sealed class RenamerOptionsJsonTests
     {
         // A routing destination holding a Windows path has backslashes that likewise must be escaped
         // so the stored blob stays valid JSON across a save → load round-trip.
-        var original = new RenamerOptions { DefaultDestination = @"G:\Media\Sorted" };
+        var original = new RenamerOptions { FolderRoot = @"G:\Media\Sorted" };
 
         var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
         using var parsed = JsonDocument.Parse(json); // valid JSON, no lone backslash
         var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
 
-        Assert.Equal(@"G:\Media\Sorted", reloaded!.DefaultDestination);
+        Assert.Equal(@"G:\Media\Sorted", reloaded!.FolderRoot);
     }
 
     [Fact]

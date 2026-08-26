@@ -182,10 +182,11 @@ test("the host tag selector stores the picked tag's id and renders its name back
   await result.waitFor({ state: "visible", timeout: 30_000 });
   await result.click();
 
-  await page
-    .getByPlaceholder(/Destination root/i)
-    .first()
-    .fill("/data/routed");
+  // Scoped to the add row rather than to the page: every destination on this panel draws the same
+  // two controls, so an unscoped lookup would reach whichever one happens to render first.
+  const addRow = page.getByRole("button", { name: /Add tag rule/i }).locator("xpath=..");
+  await addRow.locator("select").selectOption("/data");
+  await addRow.getByPlaceholder("$studio/$year").fill("routed");
   await page.getByRole("button", { name: /Add tag rule/i }).click();
   await settings.save();
 
@@ -197,7 +198,9 @@ test("the host tag selector stores the picked tag's id and renders its name back
     { label: "a saved tag destination" },
   );
   expect(Object.keys(saved.TagDestinations)).toContain(String(tagId));
-  expect(saved.TagDestinations[String(tagId)]).toBe("/data/routed");
+  // The root is one of Cove's library paths, chosen from the list, and the template is relative to
+  // it. A typed absolute path here would mean the panel is still storing a copy of a Cove setting.
+  expect(saved.TagDestinations[String(tagId)]).toEqual({ Root: "/data", Template: "routed" });
 
   // The committed row reads as the tag's NAME after a reload, so an id-keyed rule stays identifiable
   // - and therefore removable - by the person who wrote it.

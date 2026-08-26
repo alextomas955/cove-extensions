@@ -48,6 +48,7 @@ public sealed partial class Renamer
     private string LastScanRoute => RouteBase + "/last-scan";
     private string ScanRowsRoute => RouteBase + "/scan-rows";
     private string RenamerLibraryRoute => RouteBase + "/renamer-library";
+    private string LibraryPathsRoute => RouteBase + "/library-paths";
 
     /// <summary>
     /// The key a pre-0.2.1 scan wrote one wire row PER FILE to. Retained only so
@@ -187,7 +188,27 @@ public sealed partial class Renamer
 
         endpoints.MapPost(RenamerLibraryRoute,
             (ICurrentPrincipalAccessor principal, IJobService jobs) => RenamerLibraryEnqueue(principal, jobs));
+
+        endpoints.MapGet(LibraryPathsRoute,
+            (ICurrentPrincipalAccessor principal) => LibraryPaths(principal));
     }
+
+    /// <summary>
+    /// Cove's configured library paths - the list every destination root is CHOSEN from, so the
+    /// settings panel offers exactly the roots the planner will accept and no typed path exists to
+    /// drift from them.
+    /// </summary>
+    /// <remarks>
+    /// Reads the host configuration this extension already holds; it opens no scope and touches no
+    /// database, because the answer is in-memory host settings rather than library data. Gated on
+    /// holding ANY renamer-read permission, like <c>/last-batch</c>: the list says where a rename may
+    /// write, not what the library contains.
+    /// </remarks>
+    internal Results<Ok<LibraryPathsView>, ForbiddenCode> LibraryPaths(
+        ICurrentPrincipalAccessor principal)
+        => HasAnyReadPermission(principal)
+            ? TypedResults.Ok(new LibraryPathsView(LibraryRoots))
+            : new ForbiddenCode();
 
     /// <summary>
     /// The synchronous, read-only dry-run: runs the planner over each requested
@@ -219,7 +240,7 @@ public sealed partial class Renamer
         }
 
         var options = await new OptionsStore(Store, _log).LoadAsync(ct);
-        var port = new CoveRenamerDataPort(db);
+        var port = new CoveRenamerDataPort(db, _coveConfig);
         var planner = new RenamerPlanner(port);
 
         // Build the SAME RouteLookups the batch builds and route through the routing overload,
@@ -387,7 +408,7 @@ public sealed partial class Renamer
         // the forward move used — so a restore can never land outside the allowed roots.
         var options = await new OptionsStore(Store, _log).LoadAsync(ct);
 
-        var replayer = new UndoReplayer(new CoveRenamerDataPort(db), EventBus, new DiskMover(),
+        var replayer = new UndoReplayer(new CoveRenamerDataPort(db, _coveConfig), EventBus, new DiskMover(),
             cross: new CrossVolumeMover(), allowedRoots: options.AllowedRoots);
 
         // Each page's outcome is folded into a total plus a bounded sample. Retaining every page's
@@ -715,7 +736,7 @@ public sealed partial class Renamer
 
         await using var scope = ScopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-        var port = new CoveRenamerDataPort(db);
+        var port = new CoveRenamerDataPort(db, _coveConfig);
         var pager = new ScanRowPager(new RenamerPlanner(port), port);
 
         var page = await pager.PageAsync(
@@ -750,7 +771,7 @@ public sealed partial class Renamer
 
         await using var scope = ScopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-        await RunScanCoreAsync(new CoveRenamerDataPort(db), readableKinds, options, progress, ct);
+        await RunScanCoreAsync(new CoveRenamerDataPort(db, _coveConfig), readableKinds, options, progress, ct);
     }
 
     /// <summary>
@@ -912,7 +933,7 @@ public sealed partial class Renamer
             await using (var scope = ScopeFactory.CreateAsyncScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-                ids = await new CoveRenamerDataPort(db).LoadAllEntityIdsAsync(kind, ct);
+                ids = await new CoveRenamerDataPort(db, _coveConfig).LoadAllEntityIdsAsync(kind, ct);
             }
 
             if (ids.Count == 0)

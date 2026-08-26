@@ -363,6 +363,35 @@
           }
         }
       }
+    },
+    "/api/extensions/com.alextomas955.renamer/library-paths": {
+      "get": {
+        "tags": [
+          "Renamer"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryPathsView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -435,6 +464,20 @@
           },
           "consumed": {
             "type": "boolean"
+          }
+        }
+      },
+      "LibraryPathsView": {
+        "required": [
+          "paths"
+        ],
+        "type": "object",
+        "properties": {
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -636,7 +679,11 @@
           "skipMissingSource",
           "skipNoSpace",
           "skipBlocked",
-          "failed"
+          "failed",
+          "skipUnanchored",
+          "skipRootMissing",
+          "skipNotAllowed",
+          "skipTooLong"
         ]
       },
       "ScanCursor": {

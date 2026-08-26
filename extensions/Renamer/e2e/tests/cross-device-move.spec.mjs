@@ -31,9 +31,9 @@ test("a move routed into a genuinely different filesystem (EXDEV) fails safely, 
   const video = await seedVideo({ container: harness.container, baseUrl });
   const originalPath = video.files[0].path;
 
+  // /data2 is one of the container's Cove library paths, so the default destination may name it.
   const optionsBody = JSON.stringify({
-    DefaultDestination: "/data2",
-    EnableDefaultRelocate: true,
+    FolderRoot: "/data2",
     AllowedRoots: ["/data", "/data2"],
   });
   const put = await api.put(`/api/extensions/${EXTENSION_ID}/data/options`, optionsBody);
@@ -78,16 +78,16 @@ test("a move routed into a genuinely different filesystem (EXDEV) fails safely, 
       );
     }
   } finally {
-    // This test PUTs GLOBAL Renamer options (EnableDefaultRelocate + DefaultDestination + AllowedRoots)
-    // into the Cove instance, which is SHARED across every sibling spec on the same Playwright worker.
-    // Restore the defaults so a later spec that relies on the un-routed source-confine path — notably
-    // rename-ui-coverage's folder-template relocate, which needs empty AllowedRoots + default-relocate
-    // OFF to stay within /data — is not silently routed cross-device (/data2), skipped as an EXDEV move,
-    // and left un-renamed. Mirrors core-paths.spec.mjs restoring its template. In `finally` so a failed
+    // This test PUTs GLOBAL Renamer options (FolderRoot + AllowedRoots) into the Cove instance,
+    // which is SHARED across every sibling spec on the same Playwright worker. Restore the defaults
+    // so a later spec that relies on the file's own library path — notably rename-ui-coverage's
+    // folder-template relocate, which needs the default destination to name no root so it stays
+    // within /data — is not silently routed cross-device (/data2), skipped as an EXDEV move, and left
+    // un-renamed. Mirrors core-paths.spec.mjs restoring its template. In `finally` so a failed
     // assertion above still cannot leak routing state into the next test.
     await api.put(
       `/api/extensions/${EXTENSION_ID}/data/options`,
-      JSON.stringify({ AllowedRoots: [], EnableDefaultRelocate: false, DefaultDestination: "" }),
+      JSON.stringify({ AllowedRoots: [], FolderRoot: "" }),
     );
   }
 });

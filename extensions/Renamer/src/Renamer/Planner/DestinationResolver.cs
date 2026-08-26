@@ -4,18 +4,18 @@ namespace Renamer.Planner;
 
 /// <summary>
 /// The pure routing brain: maps one <see cref="RenamerEntity"/> to a <see cref="RouteResult"/>
-/// (a routed destination-root template, or source-confine) by the deterministic precedence.
+/// (the matched rule's own destination, or no rule at all) by the deterministic precedence.
 /// Called ONCE per entity in the planner, mirroring how <c>MetadataProjector.Project</c>
 /// is called once per file.
 ///
 /// PURE: no <c>System.IO</c>, no <c>Cove.*</c> types, no DB. The cascade is classify-not-throw — a
 /// null <see cref="RenamerEntity.StudioId"/>, an empty <see cref="RenamerEntity.ParentStudios"/>, or
-/// empty destination maps all fall straight through to <see cref="RouteCategory.SourceConfine"/>.
+/// empty destination maps all fall straight through to <see cref="RouteCategory.Unmatched"/>.
 /// The source-path regex set arrives PRE-PARSED in <see cref="RouteLookups.PathRegexRules"/> (built
 /// once per batch); this resolver only calls <c>IsMatch</c> — it never compiles a regex.
 ///
 /// Precedence (first CATEGORY that produces a match wins):
-/// <c>Excludes → Unorganized → Tag → Studio (incl. parent) → Source-path → Default</c>; within a
+/// <c>Excludes → Unorganized → Tag → Studio (incl. parent) → Source-path</c>; within a
 /// category the first user-ordered rule wins, and within Studio a DIRECT match outranks an ANCESTOR.
 ///
 /// Excludes run FIRST and beat every routing category including Unorganized: a matching tag name,
@@ -23,10 +23,9 @@ namespace Renamer.Planner;
 /// short-circuits to <see cref="RouteCategory.Excluded"/> (the planner then produces a
 /// <c>SkipExcluded</c> for every file). The exclude lookups arrive PRE-PARSED in the
 /// <see cref="RouteLookups"/> (a null/empty member = no excludes = legacy behavior, no regression);
-/// an exclude regex match-time timeout is treated as no-match, never thrown. Default-relocate is
-/// implemented but GATED — the <see cref="RouteCategory.Default"/> branch is reachable ONLY when
-/// <see cref="RenamerOptions.EnableDefaultRelocate"/> is true; the off branch returns
-/// <see cref="RouteCategory.SourceConfine"/> as a code-level guard, not merely a config default.
+/// an exclude regex match-time timeout is treated as no-match, never thrown. An item that matches no
+/// rule falls through to <see cref="RouteCategory.Unmatched"/>, where the planner renders the DEFAULT
+/// destination instead of a rule's.
 /// </summary>
 public static class DestinationResolver
 {
@@ -51,18 +50,10 @@ public static class DestinationResolver
     public static string NormalizeSourcePath(string path) => path.TrimEnd('/');
 
     /// <summary>
-    /// The matched-rule label this resolver emits for the GATED default-relocate category
-    /// (<see cref="RouteCategory.Default"/>). Exposed as the single source of truth so the auto-renamer
-    /// hook can detect a default-relocate route off <see cref="RenamerPlanItem.MatchedRule"/> without
-    /// duplicating the literal string.
-    /// </summary>
-    public const string DefaultRouteLabel = "Default";
-
-    /// <summary>
     /// Resolves <paramref name="e"/> to a <see cref="RouteResult"/> by the locked precedence.
     /// </summary>
     /// <param name="e">The entity to route (read-only; only routing-relevant fields are read).</param>
-    /// <param name="o">The renamer options carrying the destination maps + the default-relocate gate.</param>
+    /// <param name="o">The renamer options carrying the destination maps.</param>
     /// <param name="lk">The per-batch hoisted lookups (studio-id, tag-name, path-exact, pre-parsed regex).</param>
     public static RouteResult Resolve(RenamerEntity e, RenamerOptions o, RouteLookups lk)
     {
@@ -73,9 +64,9 @@ public static class DestinationResolver
         }
 
         // 2. Unorganized: its own route, BEFORE the tag/studio/path cascade.
-        if (!e.Organized && !string.IsNullOrEmpty(o.UnorganizedDestination))
+        if (!e.Organized && o.UnorganizedDestination is { } unorganized)
         {
-            return new RouteResult(RouteCategory.Unorganized, "Unorganized", o.UnorganizedDestination);
+            return new RouteResult(RouteCategory.Unorganized, "Unorganized", unorganized);
         }
 
         // 3. Cascade — first CATEGORY that produces a match wins.
@@ -148,17 +139,10 @@ public static class DestinationResolver
             }
         }
 
-        // 4. Default — GATED: reachable ONLY when the flag is on AND a default is set. A code-level
-        //    guard, NOT just a config default — an unmatched item NEVER silently relocates while
-        //    EnableDefaultRelocate is false (it stays gated until volume-aware undo exists).
-        if (o.EnableDefaultRelocate && !string.IsNullOrEmpty(o.DefaultDestination))
-        {
-            return new RouteResult(RouteCategory.Default, DefaultRouteLabel, o.DefaultDestination);
-        }
-
-        // 5. No route → source-confine. The default-relocate-disabled false branch lands HERE, so an
-        //    unmatched item keeps its own parent-folder anchor and does not relocate.
-        return new RouteResult(RouteCategory.SourceConfine, "InPlace", null);
+        // 4. No rule matched. The item's destination is the DEFAULT, which the planner reads from the
+        //    options; this resolver carries none for it, because a rule that did not match has none
+        //    to carry.
+        return new RouteResult(RouteCategory.Unmatched, "Default", null);
     }
 
     /// <summary>

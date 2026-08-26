@@ -23,22 +23,40 @@ it here.
 
 ## Filename & destination
 
-| Setting           | What it does                                                                                                        | Default                            |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| Filename template | The pattern used to build each new filename. Plain text plus `$tokens`. See [Naming templates](./templates).        | `{$date - }$title{ [$resolution]}` |
-| Folder template   | The pattern for the destination folder path (use `/` for sub-folders). **Blank = rename in place, no folder move.** | _(blank)_                          |
+| Setting           | What it does                                                                                                             | Default                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| Filename template | The pattern used to build each new filename. Plain text plus `$tokens`. See [Naming templates](./templates).             | `{$date - }$title{ [$resolution]}` |
+| Under             | Which of Cove's library paths the default destination measures from. Also offers _(the file's own library path)_.        | _(the file's own library path)_    |
+| Folder template   | The pattern for the folders made under that root (use `/` for sub-folders). **Blank = rename in place, no folder move.** | _(blank)_                          |
 
 The **preset** chips set the filename template to a starter pattern; the **live preview** shows the
-result on sample items as you type. Moving files to a folder outside the item's own source folder
-also requires an entry under [Allowed roots](#destination-routing).
+result on sample items as you type.
+
+### A destination is a root plus a folder template
+
+Every destination in Renamer — the default above, the unorganized route, and each per-studio,
+per-tag and source-path rule — has the same two parts:
+
+- **Under**: one of the library paths you configured in Cove. You pick it from a list; you never type
+  a path. Change that folder in Cove and the rule follows it.
+- **Folder template**: the folders made underneath it, from the same `$tokens` a filename uses. Blank
+  means the root itself.
+
+Leaving **Under** as _(the file's own library path)_ measures the folder template from whichever
+library path already holds the file, so one rule can tidy every library path in place. A file that is
+under none of them has no root to measure from, so it is skipped and the dry run says so; add its
+folder to Cove's library paths, or pick a library path for the destination instead.
+
+If you remove a folder from Cove's library paths, every rule that named it stops and says so rather
+than sending its items somewhere you did not choose. Re-pick a root, or add the folder back in Cove.
 
 ## What gets renamed
 
-| Setting                                | What it does                                                                                                                                            | Default |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| Only rename organized items            | Skip items whose _Organized_ flag is off, so un-curated items don't get names. (A configured _Unorganized destination_ overrides this for those items.) | Off     |
-| Use filename as title when none is set | When an item has no title, derive `$title` from the file's current basename instead of skipping it.                                                     | On      |
-| Required fields                        | Token names that must resolve to a non-empty value, or the item is skipped. Empty = no gate.                                                            | `title` |
+| Setting                                | What it does                                                                                                                                              | Default |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| Only rename organized items            | Skip items whose _Organized_ flag is off, so un-curated items don't get names. (Turning on the _Unorganized destination_ overrides this for those items.) | Off     |
+| Use filename as title when none is set | When an item has no title, derive `$title` from the file's current basename instead of skipping it.                                                       | On      |
+| Required fields                        | Token names that must resolve to a non-empty value, or the item is skipped. Empty = no gate.                                                              | `title` |
 
 ## Run & automation
 
@@ -79,32 +97,39 @@ Both are multi-value lists shaped by the same options (a few apply to performers
 
 Renamer decides where each item goes by checking rules in a fixed **precedence order**:
 
-> **Excludes → Unorganized → Tag → Studio (including parent studios) → Source path → Default**
+> **Excludes → Unorganized → Tag → Studio (including parent studios) → Source path**
+
+An item that matches no rule at all takes the default destination — the _Under_ and _Folder
+template_ pair in [Filename & destination](#filename--destination). A rule that does match replaces
+that default outright: its own folder template is the only one rendered, never appended to the
+default's.
 
 Within a category the first matching rule (in your order) wins; excludes always run first. The
 order of the cards below in the UI is for convenience and does not change this precedence.
 
-### Default & unorganized destinations
+### Unorganized destination
 
-| Setting                                             | What it does                                                                                                                                                                                            | Default   |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| Default destination                                 | The root folder for an item that matched no other rule. Honored **only** when _Relocate unmatched items_ is on.                                                                                         | _(blank)_ |
-| Unorganized destination                             | The route for items whose _Organized_ flag is off (resolved before tag/studio/path). Overrides _Only rename organized items_ for those items.                                                           | _(blank)_ |
-| Relocate unmatched items to the default destination | Hard gate for default-relocate. Ships **off** — it has whole-library reach, which is more files than undo records, so the [dry run](./guide#preview-with-a-dry-run) is the check before you turn it on. | Off       |
+| Setting                                          | What it does                                                                                                                                                                                   | Default                                |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| Route unorganized items to their own destination | Send items whose _Organized_ flag is off here instead of skipping them. Resolved before the tag, studio and source-path rules, and it overrides _Only rename organized items_ for those items. | Off                                    |
+| Under / Folder template                          | The destination those items go to, in the two parts every destination has.                                                                                                                     | _(the file's own library path)_, blank |
+
+Turning the toggle **off** is not the same as leaving the destination blank: off means there is no
+unorganized route at all, so _Only rename organized items_ decides what happens to those items.
 
 ### Per-studio and per-tag destinations
 
-| Setting                 | What it does                                                                                                                                             | Default  |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| Per-studio destinations | Map a studio → a destination root. Remembered by the studio's identity, so a rename in Cove keeps the rule and never splits one studio across two trees. | _(none)_ |
-| Per-tag destinations    | Map a tag → a destination root. Remembered by the tag's identity, the same way as a studio rule.                                                         | _(none)_ |
+| Setting                 | What it does                                                                                                                                        | Default  |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| Per-studio destinations | Map a studio → a destination. Remembered by the studio's identity, so a rename in Cove keeps the rule and never splits one studio across two trees. | _(none)_ |
+| Per-tag destinations    | Map a tag → a destination. Remembered by the tag's identity, the same way as a studio rule.                                                         | _(none)_ |
 
 ### Advanced routing & safety
 
-| Setting                  | What it does                                                                                                                                                                                    | Default   |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| Allowed roots            | The absolute folders a rename is permitted to write into. Empty = confine each item to its own source folder (a rooted folder template is refused). Add a root to opt in to moving files there. | _(empty)_ |
-| Source-path destinations | Ordered rules matching an item's source path (exact, or a regex) → a destination root. Exact matches are tried before regex.                                                                    | _(none)_  |
+| Setting                  | What it does                                                                                                                                                 | Default   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
+| Allowed roots            | An optional **narrowing**: when set, a rename may only write inside these absolute folders, even where a destination would allow more. Empty = no narrowing. | _(empty)_ |
+| Source-path destinations | Ordered rules matching an item's source path (exact, or a regex) → a destination. Exact matches are tried before regex.                                      | _(none)_  |
 
 ### Sidecar files and empty folders
 

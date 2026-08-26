@@ -49,9 +49,9 @@ public sealed class ScanPagingEquivalenceTests
     };
 
     private static readonly RouteLookups Lookups = new(
-        StudioIdToDest: new Dictionary<int, string>(),
-        TagIdToDest: new Dictionary<int, string> { [101] = RoutedDest },
-        PathExactToDest: new Dictionary<string, string>(),
+        StudioIdToDest: new Dictionary<int, Destination>(),
+        TagIdToDest: new Dictionary<int, Destination> { [101] = Dest.At(DestRoot, "routed") },
+        PathExactToDest: new Dictionary<string, Destination>(),
         PathRegexRules: [],
         ExcludeTagIds: new HashSet<int> { 102 });
 
@@ -63,6 +63,7 @@ public sealed class ScanPagingEquivalenceTests
     private static FakeRenamerDataPort BuildFixture()
     {
         var port = new FakeRenamerDataPort();
+        port.SeedLibraryPaths(LibRoot, DestRoot);
 
         foreach (var kind in AllKinds)
         {

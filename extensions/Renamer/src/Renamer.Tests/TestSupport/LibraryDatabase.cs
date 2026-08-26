@@ -34,11 +34,12 @@ internal sealed class LibraryDatabase : IAsyncDisposable
     public CoveContext NewContext() =>
         new(new DbContextOptionsBuilder<CoveContext>().UseSqlite(_conn).Options, principalAccessor: null);
 
-    public ServiceProvider BuildProvider()
+    public ServiceProvider BuildProvider(params string[] libraryPaths)
     {
         var services = new ServiceCollection();
         services.AddScoped<DbContext>(_ => NewContext());
         services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
+        services.AddLibraryPaths(libraryPaths);
         return services.BuildServiceProvider();
     }
 

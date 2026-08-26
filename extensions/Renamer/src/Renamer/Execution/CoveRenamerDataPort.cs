@@ -1,4 +1,5 @@
 using Cove.Core.Entities;
+using Cove.Core.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Renamer.Planner;
 
@@ -30,10 +31,72 @@ namespace Renamer.Execution;
 public class CoveRenamerDataPort : IRenamerDataPort
 {
     private readonly DbContext _db;
+    private readonly CoveConfiguration? _config;
 
-    public CoveRenamerDataPort(DbContext db) => _db = db;
+    /// <summary>Wraps one scope's context, and the host configuration the library anchor is read from.</summary>
+    /// <param name="db">The scope's context (the real <c>CoveContext</c> at runtime).</param>
+    /// <param name="config">
+    /// Cove's own configuration singleton, the source of <see cref="LibraryRoots"/>. Optional so a
+    /// caller with no library map constructs the port unchanged; omitting it in production is visible
+    /// rather than silent, since an item with a folder template then plans as
+    /// <see cref="RenamerStatus.SkipUnanchored"/> and says so.
+    /// </param>
+    public CoveRenamerDataPort(DbContext db, CoveConfiguration? config = null)
+    {
+        _db = db;
+        _config = config;
+    }
 
     // ── IRenamerDataPort (planner read seam) ──────────────────────────────────
+
+    /// <inheritdoc />
+    public IReadOnlyList<string> LibraryRoots => ReadLibraryRoots(_config);
+
+    /// <summary>
+    /// The one reading of <c>CoveConfiguration.CovePaths</c> into the library paths this extension
+    /// works from: blank entries dropped, each survivor spelled canonically, absent configuration an
+    /// empty list.
+    /// </summary>
+    /// <remarks>
+    /// Static and shared because the port is not the only caller: the one-time options conversion runs
+    /// at initialize, before any scope or port exists, and has to place stored rules under the SAME
+    /// paths the planner will later anchor on. A second projection there could disagree about a blank
+    /// entry, which is the difference between preserving a rule and dropping it.
+    /// </remarks>
+    public static IReadOnlyList<string> ReadLibraryRoots(CoveConfiguration? config) =>
+        config is null
+            ? []
+            : [.. config.CovePaths
+                .Select(p => p.Path)
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Select(Canonical)];
+
+    /// <summary>
+    /// The one spelling of a Cove library path this extension uses: forward slashes, no trailing
+    /// separator.
+    /// </summary>
+    /// <remarks>
+    /// Cove hands its paths back in the platform's own spelling, and this list leaves over the wire:
+    /// the settings panel stores a destination root as the very string this list gave it and re-checks
+    /// membership against it, so two spellings of one folder would read as two folders. Normalizing at
+    /// the one place the host's value enters leaves a single spelling for the panel to store and the
+    /// planner to re-check.
+    /// <para>
+    /// <see cref="Planner.PathConfinement.ContainingRoot"/> re-trims the entry it returns, so a
+    /// root-only library path spelled <c>"/"</c> here comes back from it as <c>""</c>, which is how a
+    /// destination says "the file's own library path". Reaching that needs a Cove library path spelled
+    /// exactly <c>/</c>, <c>\</c> or <c>//</c>, and any longer sibling root wins the longest match
+    /// first.
+    /// </para>
+    /// </remarks>
+    private static string Canonical(string path)
+    {
+        string normalized = PathOps.NormalizeSlash(path).TrimEnd('/');
+
+        // A path of nothing but separators trims away entirely, and the empty string is not a spelling
+        // of a root here: it is how a destination says "the file's own library path".
+        return normalized.Length == 0 ? "/" : normalized;
+    }
 
     /// <inheritdoc />
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo",

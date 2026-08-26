@@ -11,6 +11,8 @@ using Renamer.Jobs;
 using Renamer.Options;
 using Renamer.Planner;
 
+using CoveConfiguration = Cove.Core.Interfaces.CoveConfiguration;
+
 namespace Renamer;
 
 public sealed partial class Renamer : FullExtensionBase
@@ -30,6 +32,7 @@ public sealed partial class Renamer : FullExtensionBase
     // the non-null accessors below are the single, guarded way the rest of the extension reads them.
     private IServiceScopeFactory? _scopeFactory;
     private IEventBus? _eventBus;
+    private CoveConfiguration? _coveConfig;
 
     /// <summary>
     /// The host logger, writing to Cove's normal log. Renames and moves change files on disk, so every
@@ -51,6 +54,9 @@ public sealed partial class Renamer : FullExtensionBase
         _eventBus ?? throw new InvalidOperationException(
             "Renamer extension used before InitializeAsync ran (IEventBus not captured).");
 
+    /// <summary>Cove's configured library paths, the list every destination root is chosen from.</summary>
+    private IReadOnlyList<string> LibraryRoots => CoveRenamerDataPort.ReadLibraryRoots(_coveConfig);
+
     public override async Task InitializeAsync(IServiceProvider services, CancellationToken ct = default)
     {
         // Resolve the captured seams with GetRequiredService so a missing host registration fails
@@ -61,6 +67,14 @@ public sealed partial class Renamer : FullExtensionBase
         // absence as non-fatal (GetService, not GetRequiredService) — a renamer must still run. Keep the
         // NullLogger default when the host supplies none.
         _log = services.GetService<ILogger<Renamer>>() ?? _log;
+        // Optional for the same reason logging is: a host that registers no configuration must still
+        // load the extension. The cost is visible rather than silent - with no library paths, an item
+        // with a folder template plans as SkipUnanchored and says so.
+        _coveConfig = services.GetService<CoveConfiguration>();
+        if (_coveConfig is null)
+        {
+            LogNoCoveConfiguration();
+        }
 
         // The first thing this method does with the database, and it stays first: the host has
         // already had its chance to apply this extension's schema migration on every load path
@@ -126,7 +140,9 @@ public sealed partial class Renamer : FullExtensionBase
     }
 
     /// <summary>
-    /// Rewrites the stored options blob's name-keyed entity rules to stable ids, exactly once.
+    /// Rewrites the stored options blob into the shape the current model declares - name-keyed
+    /// entity rules to stable ids, and typed destination roots to a Cove library path plus a relative
+    /// template - exactly once.
     /// </summary>
     /// <remarks>
     /// Defers rather than converts when a name still needing resolution belongs to an entity table
@@ -154,48 +170,80 @@ public sealed partial class Renamer : FullExtensionBase
             return;
         }
 
+        bool rewrote = false;
         var legacy = OptionsMigration.Scan(stored);
-        if (!legacy.Any)
+        if (legacy.Any)
         {
-            await Store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema, ct);
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var resolved = await RunAsSystem.RunAsSystemAsync(scope.ServiceProvider, async () =>
+            {
+                var port = new CoveRenamerDataPort(scope.ServiceProvider.GetRequiredService<DbContext>());
+                var tags = await port.ResolveNamesAsync(RenamerEntityKind.Tag, legacy.Tags, ct);
+                var performers = await port.ResolveNamesAsync(RenamerEntityKind.Performer, legacy.Performers, ct);
+                return (tags, performers);
+            });
+
+            if ((legacy.Tags.Count > 0 && !resolved.tags.TableHasRows)
+                || (legacy.Performers.Count > 0 && !resolved.performers.TableHasRows))
+            {
+                LogOptionsMigrationDeferred(legacy.Tags.Count, legacy.Performers.Count);
+                return;
+            }
+
+            var conversion = OptionsMigration.Convert(
+                stored, resolved.tags.Matches, resolved.performers.Matches);
+            stored = conversion.Json;
+            rewrote = true;
+
+            foreach (var name in conversion.DroppedNames)
+            {
+                LogOptionsRuleDropped(name);
+            }
+
+            foreach (var collapse in conversion.CaseCollapses)
+            {
+                LogOptionsRuleCaseCollapsed(collapse.Name, collapse.MatchedId, collapse.AlsoMatchedIds.Count);
+            }
+
+            foreach (var discard in conversion.DiscardedDestinations)
+            {
+                LogOptionsDestinationDiscarded(discard.Key, discard.Id, discard.ClaimedBy);
+            }
+        }
+
+        var destinations = OptionsMigration.ConvertDestinationsToRoots(stored, LibraryRoots);
+        if (destinations.Deferred)
+        {
+            // Deferred, and deliberately unstamped, for the same reason the half above defers: a
+            // destination can only be placed under a library path Cove supplies, and an empty list is
+            // indistinguishable from a host that has not supplied one yet. Converting anyway would
+            // DROP every rule the user has.
+            LogOptionsDestinationMigrationDeferred();
             return;
         }
 
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var resolved = await RunAsSystem.RunAsSystemAsync(scope.ServiceProvider, async () =>
+        if (destinations.Changed)
         {
-            var port = new CoveRenamerDataPort(scope.ServiceProvider.GetRequiredService<DbContext>());
-            var tags = await port.ResolveNamesAsync(RenamerEntityKind.Tag, legacy.Tags, ct);
-            var performers = await port.ResolveNamesAsync(RenamerEntityKind.Performer, legacy.Performers, ct);
-            return (tags, performers);
-        });
+            stored = destinations.Json;
+            rewrote = true;
 
-        if ((legacy.Tags.Count > 0 && !resolved.tags.TableHasRows)
-            || (legacy.Performers.Count > 0 && !resolved.performers.TableHasRows))
-        {
-            LogOptionsMigrationDeferred(legacy.Tags.Count, legacy.Performers.Count);
-            return;
+            foreach (var rule in destinations.Rewritten)
+            {
+                LogOptionsDestinationRewritten(rule.Rule, rule.From, rule.ToRoot, rule.ToTemplate);
+            }
+
+            foreach (var rule in destinations.Dropped)
+            {
+                LogOptionsDestinationDropped(rule.Rule, rule.Stored);
+            }
         }
 
-        var conversion = OptionsMigration.Convert(stored, resolved.tags.Matches, resolved.performers.Matches);
+        if (rewrote)
+        {
+            await Store.SetAsync(OptionsStore.Key, stored, ct);
+        }
 
-        await Store.SetAsync(OptionsStore.Key, conversion.Json, ct);
         await Store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema, ct);
-
-        foreach (var name in conversion.DroppedNames)
-        {
-            LogOptionsRuleDropped(name);
-        }
-
-        foreach (var collapse in conversion.CaseCollapses)
-        {
-            LogOptionsRuleCaseCollapsed(collapse.Name, collapse.MatchedId, collapse.AlsoMatchedIds.Count);
-        }
-
-        foreach (var discard in conversion.DiscardedDestinations)
-        {
-            LogOptionsDestinationDiscarded(discard.Key, discard.Id, discard.ClaimedBy);
-        }
     }
 
     /// <summary>The journal table whose absence must stop this extension loading.</summary>
@@ -415,7 +463,7 @@ public sealed partial class Renamer : FullExtensionBase
         await using (var readScope = ScopeFactory.CreateAsyncScope())
         {
             var readDb = readScope.ServiceProvider.GetRequiredService<DbContext>();
-            var port = new CoveRenamerDataPort(readDb);
+            var port = new CoveRenamerDataPort(readDb, _coveConfig);
             var planner = new RenamerPlanner(port);
 
             int planIndex = 0;
@@ -583,7 +631,7 @@ public sealed partial class Renamer : FullExtensionBase
             await using var scope = ScopeFactory.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<DbContext>();
             var exec = new RenamerExecutor(
-                new CoveRenamerDataPort(db), EventBus, journal, runId, new DiskMover());
+                new CoveRenamerDataPort(db, _coveConfig), EventBus, journal, runId, new DiskMover());
 
             var result = await exec.ExecuteAsync(unit.Plan, options, folderIdByPath, token);
             LogBatchItem(runId, kind, unit.EntityId, result);
@@ -692,8 +740,8 @@ public sealed partial class Renamer : FullExtensionBase
         // the map with the OS-aware comparer and NORMALIZE keys (trim a trailing '/') so a rule for
         // "media/incoming" also matches a stored "media/incoming/"; the resolver normalizes the source
         // path the same way before lookup.
-        var exact = new Dictionary<string, string>(DestinationResolver.SourcePathComparer);
-        var regexRules = new List<(Regex Pattern, string Dest)>();
+        var exact = new Dictionary<string, Destination>(DestinationResolver.SourcePathComparer);
+        var regexRules = new List<(Regex Pattern, Destination Dest)>();
 
         foreach (var rule in o.PathDestinations)
         {

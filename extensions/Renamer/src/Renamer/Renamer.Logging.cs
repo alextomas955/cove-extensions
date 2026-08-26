@@ -150,6 +150,32 @@ public sealed partial class Renamer
         Message = "[Renamer] options conversion: the destination for '{Key}' was discarded because it resolves to id {Id}, already routed by '{ClaimedBy}'")]
     private partial void LogOptionsDestinationDiscarded(string key, int id, string claimedBy);
 
+    // The wait is silent to the user, so this line is the only place it is visible, and it has to say
+    // what it is waiting for.
+    [LoggerMessage(
+        EventId = 1071, Level = LogLevel.Information,
+        Message = "[Renamer] options conversion deferred: the stored destination rules must be placed under Cove's library paths and the host supplied none; retrying on the next load")]
+    private partial void LogOptionsDestinationMigrationDeferred();
+
+    [LoggerMessage(
+        EventId = 1072, Level = LogLevel.Information,
+        Message = "[Renamer] options conversion: {Rule} moved from '{From}' to library path '{ToRoot}' plus template '{ToTemplate}'")]
+    private partial void LogOptionsDestinationRewritten(string rule, string from, string toRoot, string toTemplate);
+
+    // A dropped rule is configuration the user wrote and will not get back, so the stored path is logged
+    // even though it is user data: without it they cannot tell which rule stopped applying.
+    [LoggerMessage(
+        EventId = 1073, Level = LogLevel.Warning,
+        Message = "[Renamer] options conversion: {Rule} was dropped because its destination '{Stored}' lies under no Cove library path; its items follow the default destination from now on")]
+    private partial void LogOptionsDestinationDropped(string rule, string stored);
+
+    // The library anchor is unavailable for the whole load, so every destination measured from a file's
+    // own library path plans as SkipUnanchored until the host supplies its configuration.
+    [LoggerMessage(
+        EventId = 1074, Level = LogLevel.Warning,
+        Message = "[Renamer] the host supplied no Cove configuration; destinations measured from a file's own library path cannot be resolved")]
+    private partial void LogNoCoveConfiguration();
+
     // The extension is about to refuse to load. The throw that follows reaches the host as a disable
     // with an exception; this line is what names the table in the log the operator is already reading.
     [LoggerMessage(
