@@ -11,6 +11,11 @@ together in practice, start with the [User guide](./guide); for the template tok
 
 Settings are saved as one block when you click **Save**; **Discard** reverts unsaved edits.
 
+If your tag and performer rules were saved by an older Renamer, the page can say they are waiting for
+a one-time conversion and turn **Save** off until it has run. Restart Cove and reload the page. Saving
+before then would replace those rules with the empty ones the page is able to show, so it is refused
+rather than allowed to lose them.
+
 ## Picking a studio, tag or performer
 
 Several settings below ask you to pick studios, tags or performers. Each one searches your library as
