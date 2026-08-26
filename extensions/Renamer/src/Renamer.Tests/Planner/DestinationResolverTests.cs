@@ -488,6 +488,26 @@ public sealed class DestinationResolverExcludeTests
         Assert.Equal(RouteCategory.Excluded, r.Category);
     }
 
+    [Fact]
+    public void ExcludeByTag_SurvivesARename_AndTheReasonShowsTheNewName()
+    {
+        // The id is written out rather than derived from the name, because the name is what varies:
+        // a rule stored against tag 11 keeps excluding after the tag is renamed. The reason string
+        // reads the entity, so it follows the rename instead of degrading to the bare id.
+        var e = new RenamerEntity(
+            EntityId: 1, Kind: RenamerFileKind.Video, Title: "T", Code: null,
+            StudioName: null, Date: null, Organized: true,
+            Performers: [], TagRefs: [(11, "Japanese Animation")],
+            Files: [new RenamerFile(1, RenamerFileKind.Video, "clip.mkv", 1, "media/in")]);
+        var lk = Lookups(excludeTags: new HashSet<int> { 11 });
+
+        var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
+
+        Assert.Equal(RouteCategory.Excluded, r.Category);
+        Assert.Equal("Exclude:Tag:Japanese Animation", r.MatchedRule);
+        Assert.Null(r.Destination);
+    }
+
     // --- EXCL-02: studio (direct + ancestor, stable id) -----------------------------------------
 
     [Fact]
