@@ -376,6 +376,13 @@ public sealed partial class Renamer
         var db = scope.ServiceProvider.GetRequiredService<DbContext>();
         using var journal = new CoveRevertJournal(db);
 
+        // Retention is enforced here as well as when a batch is opened, because opening one is not the
+        // only way the window can be crossed: a library nobody renames for longer than the window keeps
+        // its last batch replayable indefinitely, and the panel already refuses that batch on the same
+        // constant. A restore the panel says has expired must not succeed for a caller reaching the API
+        // directly.
+        await journal.PurgeExpiredAsync(DateTime.UtcNow, ct);
+
         var target = await journal.ReadUndoTargetAsync(ct);
         if (target is null)
         {

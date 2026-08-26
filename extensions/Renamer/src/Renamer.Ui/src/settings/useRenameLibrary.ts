@@ -12,6 +12,7 @@ import { requestJson, ApiError } from "@cove-extensions/ui-shared/extensionReque
 
 import type { ScanSummaryView } from "../wire/api";
 import { summaryCounts, type DryRunCounts } from "./dry-run/dryRunLogic";
+import { buildRenameLibraryError, buildRenameLibrarySuccess } from "./renameLibraryBannerLogic";
 import { api } from "../common/lib/extension";
 
 const RENAME_LIBRARY_PATH = api("renamer-library");
@@ -125,20 +126,13 @@ export function useRenameLibrary(): UseRenameLibrary {
       });
 
       setDryRunOpen(false);
-      setRunLibraryFeedback({
-        kind: "success",
-        text:
-          `Renamed ${counts.willChange} file${counts.willChange === 1 ? "" : "s"}` +
-          (counts.attention > 0 ? `, ${counts.attention} skipped` : "") +
-          `.`,
-      });
+      // Composed by a pure module, not here: the banner is what the user reads after a destructive
+      // operation, so its wording is a claim a test can hold and a hook cannot show.
+      setRunLibraryFeedback({ kind: "success", text: buildRenameLibrarySuccess(counts) });
       setUndoRefreshKey((k) => k + 1);
     } catch (err) {
       const text = err instanceof ApiError ? `${err.status} ${err.body}` : String(err);
-      setRunLibraryFeedback({
-        kind: "error",
-        text: `Couldn't rename — ${text}. Nothing was changed; you can try again.`,
-      });
+      setRunLibraryFeedback({ kind: "error", text: buildRenameLibraryError(text) });
     } finally {
       setRenamingLibrary(false);
       setRenameProgress(null);

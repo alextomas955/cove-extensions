@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Contracts;
+using Renamer.Execution;
 using Renamer.Jobs;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
@@ -280,6 +281,55 @@ public sealed class UndoEndpointTests
             Assert.Equal(0, undo.FailedCount);
             Assert.Empty(undo.SkippedSample);
             Assert.Equal(0, undo.SkippedCount);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Undo_BatchOlderThanTheRetentionWindow_RestoresNothing_AndTheFileStaysRenamed()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw clip.mkv", "My Film");
+
+            string oldFull = Path.Combine(dir.Root, "raw clip.mkv");
+            string newFull = Path.Combine(dir.Root, "My Film.mkv");
+            File.WriteAllText(oldFull, "video-bytes");
+
+            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
+            await SeedTitleOptionsAsync(store);
+
+            await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
+            Assert.True(File.Exists(newFull));
+
+            // The state a library nobody renames for longer than the window is in. Back-dating the row
+            // is the arrangement rather than a clock the handler reads, because the handler reads
+            // DateTime.UtcNow and the batch's own timestamp is the only other side of that comparison.
+            var batch = await db.Set<RevertBatchEntity>().SingleAsync();
+            batch.OpenedAtUtcTicks =
+                (DateTime.UtcNow - CoveRevertJournal.RetentionWindow - TimeSpan.FromMinutes(1)).Ticks;
+            await db.SaveChangesAsync();
+
+            var result = await ext.UndoAsync(
+                FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite), default);
+
+            Assert.Equal(200, StatusOf(result));
+            var undo = UndoValue(result);
+            Assert.Equal(0, undo.Undone);
+
+            // The claim is about the DISK and the DB, not only about the reported count: a restore that
+            // ran and then reported nothing would satisfy the count alone.
+            Assert.True(File.Exists(newFull), "the expired batch was replayed and moved the file back");
+            Assert.False(File.Exists(oldFull));
+            var (basename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            Assert.Equal("My Film.mkv", basename);
         }
         finally
         {
