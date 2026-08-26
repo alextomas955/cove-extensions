@@ -13,7 +13,6 @@ namespace Renamer.Tests.Planner;
 /// stays source-confined exactly as before. Default-relocate is proven DISABLED end-to-end through
 /// the planner. PURE — no disk, no DB; every test asserts zero <c>SaveAsync</c> calls.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class RoutingPlannerTests
 {
     // OS-aware absolute roots (path-syntax valid on the current OS), mirroring PathConfinementAllowlistTests.

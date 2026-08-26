@@ -10,7 +10,6 @@ namespace Renamer.Tests.Execution;
 /// <c>System.Diagnostics.Process</c> API — it never tries to force a lock open).
 /// Exercised against the real filesystem via the <see cref="TempDir"/> fixture.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class LockedFileTests
 {
     [Fact]

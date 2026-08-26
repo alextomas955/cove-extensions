@@ -15,7 +15,6 @@ namespace Renamer.Tests.Events;
 /// merely the off flag). The companion <c>AutoRenamerRoutingTests</c> proves an EXPLICIT rule still
 /// relocates.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class AutoRenamerNoDribbleTests
 {
     [Fact]

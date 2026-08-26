@@ -17,7 +17,6 @@ namespace Renamer.Tests.Api;
 /// would move. This pins that preview now carries the routed <see cref="RenamerPlanItem.ResolvedDestinationRoot"/>
 /// and <see cref="RenamerPlanItem.MatchedRule"/>, and still mutates nothing.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class PreviewRoutingTests
 {
     // A fictional destination root on a DIFFERENT drive than the temp source, so routing anchors on a

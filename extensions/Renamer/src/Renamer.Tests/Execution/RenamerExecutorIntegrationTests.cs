@@ -18,7 +18,6 @@ namespace Renamer.Tests.Execution;
 /// Uses SQLite (relational) so the unique index + ComputeFilePaths are faithful; the real temp dir is
 /// the disk tier. Both disposables are released in a finally.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class RenamerExecutorIntegrationTests
 {
     [Fact]

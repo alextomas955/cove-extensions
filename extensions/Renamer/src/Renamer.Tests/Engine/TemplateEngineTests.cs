@@ -9,7 +9,6 @@ namespace Renamer.Tests.Engine;
 /// (CoreTokens*), {} optional-group collapse incl. no-dangling-punctuation (OptionalGroup*),
 /// and independent filename/folder rendering with correct '/' handling (FolderTemplate*).
 /// </summary>
-[Trait("Tier", "L0")]
 public class TemplateEngineTests
 {
     private static IReadOnlyDictionary<string, string> NoTokens => new Dictionary<string, string>();

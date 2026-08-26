@@ -12,7 +12,6 @@ namespace Renamer.Tests.Execution.CanonicalGuard;
 /// destination under the root is ACCEPTED and that a resolution error fails CLOSED (reject).
 /// Exercised against the real filesystem via the <see cref="TempDir"/> fixture.
 /// </summary>
-[Trait("Tier", "L1")]
 [Trait("Adversarial", "Junction")]
 public sealed class CanonicalGuardJunctionTests
 {

@@ -9,7 +9,6 @@ namespace Renamer.Tests.Planner;
 /// absolute/rooted folder template is REJECTED; an over-FullPathMax absolute target is rejected.
 /// The sibling case ("root" vs "rootEvil") proves the prefix check is boundary-aware. PURE — no disk.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class PathConfinementTests
 {
     private const string Root = "media/videos";

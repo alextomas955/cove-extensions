@@ -25,7 +25,6 @@ namespace Renamer.Tests.Api;
 /// + correct entity event), header-driven kind (an image batch publishes ImageUpdated — never a Video
 /// default), consume-on-undo (second undo + empty-log are no-ops), and the summary read shape.
 /// </summary>
-[Trait("Tier", "L2")]
 public sealed class UndoEndpointTests
 {
     /// <summary>

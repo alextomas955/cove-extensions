@@ -28,7 +28,6 @@ namespace Renamer.Tests.Execution.Journal;
 /// table therefore still offers afterwards.
 /// </para>
 /// </remarks>
-[Trait("Tier", "L1")]
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class UndoRetryTests
 {

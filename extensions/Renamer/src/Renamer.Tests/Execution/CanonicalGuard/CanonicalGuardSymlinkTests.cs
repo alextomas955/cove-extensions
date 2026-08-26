@@ -10,7 +10,6 @@ namespace Renamer.Tests.Execution.CanonicalGuard;
 /// privilege, so this one can skip on Windows too. The junction test carries the resolution path: a
 /// junction needs no privilege, so on Windows it always runs.
 /// </summary>
-[Trait("Tier", "L1")]
 [Trait("Adversarial", "Symlink")]
 public sealed class CanonicalGuardSymlinkTests
 {

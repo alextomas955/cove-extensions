@@ -11,7 +11,6 @@ namespace Renamer.Tests.Planner;
 /// the only root is rejected. The empty-roots fallback reproduces the original source-confine
 /// behavior verbatim. PURE — no disk access.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class PathConfinementAllowlistTests
 {
     // An absolute allowed root that exists in path-syntax terms on the current OS.

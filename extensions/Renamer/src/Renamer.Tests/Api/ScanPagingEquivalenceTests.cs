@@ -18,7 +18,6 @@ namespace Renamer.Tests.Api;
 /// deliberately not addressed here. A later change that makes the planner accumulate any cross-entity
 /// state breaks these facts, which is the intent.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class ScanPagingEquivalenceTests
 {
     private const int EntitiesPerKind = 40;

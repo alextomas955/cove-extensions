@@ -12,7 +12,6 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// is a classified skip not a throw; sidecars skip-not-clobber; a stale <c>.partial</c> is never
 /// promoted unverified.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class CrossVolumeMoverTests
 {
     private const string PartialSuffix = ".renamer-partial";

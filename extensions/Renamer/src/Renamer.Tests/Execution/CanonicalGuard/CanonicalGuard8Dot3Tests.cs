@@ -12,7 +12,6 @@ namespace Renamer.Tests.Execution.CanonicalGuard;
 /// does NOT expand short names — only the guard's <c>kernel32!GetLongPathNameW</c> step does.
 /// Exercised against the real filesystem via <see cref="TempDir"/>.
 /// </summary>
-[Trait("Tier", "L1")]
 [Trait("Adversarial", "ShortName")]
 public sealed class CanonicalGuard8Dot3Tests
 {

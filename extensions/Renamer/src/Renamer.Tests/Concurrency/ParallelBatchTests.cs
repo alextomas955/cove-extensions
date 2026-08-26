@@ -21,7 +21,6 @@ namespace Renamer.Tests.Concurrency;
 /// the journal rows) — never on an EF exception. The store is a thread-safe
 /// <see cref="ConcurrentFakeStore"/> so it is not a confounder.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class ParallelBatchTests
 {
     /// <summary>Wires the extension over a SCOPED DbContext factory so each worker gets its OWN context over the shared DB.</summary>

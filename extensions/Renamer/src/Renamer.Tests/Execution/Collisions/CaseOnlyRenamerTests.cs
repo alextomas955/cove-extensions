@@ -19,7 +19,6 @@ namespace Renamer.Tests.Execution.Collisions;
 /// Uses the real <see cref="CoveRenamerDataPort"/> (not the collision-blind port) so the disk-side
 /// <c>File.Exists</c> check is the one under test.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class CaseOnlyRenamerTests
 {
     [Fact]

@@ -14,7 +14,6 @@ namespace Renamer.Tests.Options;
 /// cannot read yet, so the decision not to convert lives here, and getting it wrong destroys the
 /// user's entity rules with nothing observable happening.
 /// </remarks>
-[Trait("Tier", "L1")]
 public sealed class OptionsMigrationInitializeTests
 {
     private const string LegacyBlob = """

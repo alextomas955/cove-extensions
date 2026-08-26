@@ -10,7 +10,6 @@ namespace Renamer.Tests.Execution.CanonicalGuard;
 /// <c>..</c> intact. These fire on the syntax predicate BEFORE any disk resolution, so they are plain
 /// unit facts (no filesystem touch).
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class CanonicalGuardPrefixTests
 {
     [Fact]

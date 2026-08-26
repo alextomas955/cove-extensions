@@ -24,7 +24,6 @@ namespace Renamer.Tests.Api;
 /// larger fixture would cost minutes of runtime and add no information. It was not overlooked.
 /// </para>
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class ScanAggregateScaleTests
 {
     private const int SmallFixture = 10;

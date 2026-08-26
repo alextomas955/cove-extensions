@@ -24,7 +24,6 @@ namespace Renamer.Tests.Execution.Undo;
 /// via <c>cmd /c mklink /J</c> (no privilege). The reject case needs no opt-in gate on a Windows dev box, and
 /// skips with a reason elsewhere.
 /// </summary>
-[Trait("Tier", "L1")]
 [Trait("Adversarial", "Junction")]
 public sealed class UndoReGateTests
 {

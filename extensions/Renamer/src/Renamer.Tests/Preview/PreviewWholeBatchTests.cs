@@ -18,7 +18,6 @@ namespace Renamer.Tests.Preview;
 /// <c>{ from, to, count, bytes }</c>. The handler is exercised as a plain method (no HTTP host) over a
 /// real SQLite <c>CoveContext</c>, and zero mutation is re-asserted.
 /// </summary>
-[Trait("Tier", "L2")]
 public sealed class PreviewWholeBatchTests
 {
     // OS-aware absolute roots so routing to a different root yields a real cross-volume Move.

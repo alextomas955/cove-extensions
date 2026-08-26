@@ -9,7 +9,6 @@ namespace Renamer.Tests.Engine;
 /// Driven by <see cref="LongTemplateFixture"/>, engineered to exhaust every drop and force a title
 /// truncate.
 /// </summary>
-[Trait("Tier", "L0")]
 public class LengthReducerTests
 {
     private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> FixtureMulti =

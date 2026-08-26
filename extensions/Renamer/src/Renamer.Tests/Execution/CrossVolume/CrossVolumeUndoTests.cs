@@ -25,7 +25,6 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// SQLite (not EF-InMemory) so the unique index + Path recompute are faithful. Captions are out of
 /// undo scope: nothing is asserted about sidecars; the reverse passes sidecars: null.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class CrossVolumeUndoTests
 {
     private const string PartialSuffix = ".renamer-partial";

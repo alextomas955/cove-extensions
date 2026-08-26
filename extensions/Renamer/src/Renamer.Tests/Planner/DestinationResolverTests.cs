@@ -40,7 +40,6 @@ internal static class TagFixtures
 /// both studio and tag, source-path exact-beats-regex, the unorganized slot, and the
 /// default-relocate code guard (off → SourceConfine, on → Default).
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class DestinationResolverPrecedenceTests
 {
     // --- builders -------------------------------------------------------------------------------
@@ -175,7 +174,6 @@ public sealed class DestinationResolverPrecedenceTests
 }
 
 /// <summary>Route-on-stable-id: the studio NAME never affects the match.</summary>
-[Trait("Tier", "L0")]
 public sealed class DestinationResolverRouteOnStableStudioIdTests
 {
     [Fact]
@@ -202,7 +200,6 @@ public sealed class DestinationResolverRouteOnStableStudioIdTests
 }
 
 /// <summary>Tag routing keys on the stable tag id, never on the name the tag currently carries.</summary>
-[Trait("Tier", "L0")]
 public sealed class DestinationResolverTagRoutingTests
 {
     [Fact]
@@ -224,7 +221,6 @@ public sealed class DestinationResolverTagRoutingTests
 }
 
 /// <summary>Source-path routing: exact beats regex; a regex-only match still routes.</summary>
-[Trait("Tier", "L0")]
 public sealed class DestinationResolverSourcePathRoutingTests
 {
     private static RenamerEntity AtPath(string path)
@@ -278,7 +274,6 @@ public sealed class DestinationResolverSourcePathRoutingTests
 /// compiles fine then exhibits catastrophic backtracking throws RegexMatchTimeoutException at IsMatch
 /// time, which the resolver now catches and falls through.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class DestinationResolverRegexTimeoutTests
 {
     private static RenamerEntity AtPath(string path)
@@ -335,7 +330,6 @@ public sealed class DestinationResolverRegexTimeoutTests
 }
 
 /// <summary>Unorganized items route to the unorganized destination, not skipped.</summary>
-[Trait("Tier", "L0")]
 public sealed class DestinationResolverUnorganizedRouteTests
 {
     [Fact]
@@ -374,7 +368,6 @@ public sealed class DestinationResolverUnorganizedRouteTests
 /// The milestone hard gate: default-relocate is OFF by default. The SAME
 /// unmatched entity + options-but-for-the-flag proves the guard is the flag, not a missing feature.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class DestinationResolverDefaultRelocateDisabledTests
 {
     private static RenamerEntity Unmatched()
@@ -416,7 +409,6 @@ public sealed class DestinationResolverDefaultRelocateDisabledTests
 /// match-time ReDoS timeout on an exclude regex is treated as no-match (classify-not-throw), never
 /// aborting resolution. PURE — no DB, no disk.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class DestinationResolverExcludeTests
 {
     private static RenamerEntity Entity(

@@ -13,7 +13,6 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// (a real two-drive run is a manual cross-platform check, deliberately NOT faked here). The corruption is
 /// injected via the mover's test-only post-copy fault seam, keeping the production path clean.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class CrossVolumeVerifyFailTests
 {
     private const string PartialSuffix = ".renamer-partial";

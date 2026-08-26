@@ -13,7 +13,6 @@ namespace Renamer.Tests.Options;
 /// spellings are hard-coded strings (not <c>nameof</c>) precisely because they model the on-disk bytes,
 /// which stay frozen even though the C# identifiers keep PascalCase.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class PersistedRenamerOptionsRoundTripTests
 {
     [Fact]

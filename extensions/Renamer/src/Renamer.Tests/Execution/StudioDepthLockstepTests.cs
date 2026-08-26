@@ -15,7 +15,6 @@ namespace Renamer.Tests.Execution;
 /// SQLite-backed <see cref="CoveContext"/> so the self-referencing Studio parent FK hydrates as
 /// production would.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class StudioDepthLockstepTests
 {
     [Fact]
