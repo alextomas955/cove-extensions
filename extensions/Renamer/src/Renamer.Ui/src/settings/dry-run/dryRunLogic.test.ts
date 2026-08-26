@@ -16,41 +16,47 @@ import {
   ETA_MIN_RATES,
   type DryRunBucket,
 } from "./dryRunLogic";
+import type { RenamerStatus } from "../../wire/api";
 
 /**
- * Every RenamerStatus wire value with the bucket the SERVER assigns it, TRANSCRIBED BY HAND from
- * `extensions/Renamer/src/Renamer/Planner/ScanBucket.cs` (`ScanBucket.Of`) and from the RenamerStatus
- * declaration in `Planner/RenamerPlan.cs`. It is written out literally, and deliberately NOT derived
- * from `classifyItem`: an expectation computed from the code under test would pass no matter how far
- * the two sides drifted, and a drift means a row appearing in a segment it was never counted in.
- * Re-check this table against that C# file if either side changes.
+ * Every RenamerStatus wire value with the bucket the SERVER assigns it. Each bucket is TRANSCRIBED BY
+ * HAND from `ScanBucket.Of`, never derived from `classifyItem`: an expectation computed from the code
+ * under test passes however far the two sides drift, and a drift means a row appearing in a segment it
+ * was never counted in.
  *
- * Declared as a list of PAIRS rather than a list of string lists: the array literal alone widens to
- * `string[][]`, under which nothing holds the row shape the assertions below read. The status side
- * stays a bare `string` on purpose — this is a hand transcription, and typing it against the wire
- * union would let the two agree by construction.
+ * Keyed by the GENERATED wire union rather than by `string`, so a status added on the server is a
+ * compile error here instead of a table that quietly stops covering it. That does not let the two
+ * agree by construction - the key is what must be exhaustive, while the bucket beside it stays the
+ * hand transcription this table exists to be.
  */
-const SERVER_BUCKETS: readonly (readonly [string, DryRunBucket])[] = [
-  ["renamer", "will-change"],
-  ["move", "will-change"],
-  ["noOp", "no-change"],
-  ["skipCollision", "attention"],
-  ["skipGated", "attention"],
-  ["skipExcluded", "attention"],
-  ["skipLocked", "attention"],
-  ["skipMissingSource", "attention"],
-  ["skipNoSpace", "attention"],
-  ["skipBlocked", "attention"],
-  ["failed", "attention"],
-];
+const SERVER_BUCKETS: Record<RenamerStatus, DryRunBucket> = {
+  renamer: "will-change",
+  move: "will-change",
+  noOp: "no-change",
+  skipCollision: "attention",
+  skipGated: "attention",
+  skipExcluded: "attention",
+  skipLocked: "attention",
+  skipMissingSource: "attention",
+  skipNoSpace: "attention",
+  skipBlocked: "attention",
+  failed: "attention",
+  skipUnanchored: "attention",
+  skipRootMissing: "attention",
+  skipNotAllowed: "attention",
+  skipTooLong: "attention",
+  skipPermissionDenied: "attention",
+  skipVerifyFailed: "attention",
+  skipCancelled: "attention",
+};
 
 test("classifyItem agrees with ScanBucket.Of on every status the server can emit", () => {
-  assert.equal(SERVER_BUCKETS.length, 11, "RenamerStatus has 11 members — pin them all");
-  for (const [status, bucket] of SERVER_BUCKETS) {
+  // Exhaustiveness is the type's job, so there is no count to keep in step here.
+  for (const [status, bucket] of Object.entries(SERVER_BUCKETS)) {
     assert.equal(classifyItem({ status }), bucket, `status ${status}`);
   }
   // The three buckets are covered, so no arm of the map is left unexercised.
-  assert.deepEqual([...new Set(SERVER_BUCKETS.map(([, b]) => b))].sort(), [
+  assert.deepEqual([...new Set(Object.values(SERVER_BUCKETS))].sort(), [
     "attention",
     "no-change",
     "will-change",
@@ -105,7 +111,7 @@ test("summaryCounts counts an unknown status as attention and still sums correct
 
 test("summaryCounts ignores a zero-count status without changing the total", () => {
   // The aggregate reports EVERY status in declaration order, most of them zero.
-  const statusCounts = SERVER_BUCKETS.map(([status]) => ({
+  const statusCounts = Object.keys(SERVER_BUCKETS).map((status) => ({
     status,
     count: status === "move" ? 9 : 0,
   }));

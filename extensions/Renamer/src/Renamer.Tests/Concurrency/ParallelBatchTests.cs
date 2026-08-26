@@ -236,8 +236,15 @@ public sealed class ParallelBatchTests
             string destRootFwd = drive.Root.Replace('\\', '/'); // e.g. "P:/"
 
             await using var seedDb = shared.NewContext();
-            var (_, videoId, _) = await ExecutorTestSeed.SeedVideoAsync(seedDb, srcPathFwd, "raw.mkv", "My Film");
+            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(seedDb, srcPathFwd, "raw.mkv", "My Film");
             File.WriteAllText(Path.Combine(srcFolder, "raw.mkv"), "bytes");
+
+            // The guard's Needed is the DB's RECORDED size, never the file on disk, and a seeded row
+            // defaults to Size 0 - which makes Needed 0 and `Needed > Available` unsatisfiable for any
+            // probe value whatsoever, so the in-flight check below is a no-op without this.
+            var fileRow = await seedDb.Set<Cove.Core.Entities.VideoFile>().FirstAsync(f => f.Id == fileId);
+            fileRow.Size = 4096;
+            await seedDb.SaveChangesAsync();
 
             // Route the item across volumes (src on the temp drive → dest on the subst drive root), so
             // the partition classifies it cross-volume and the worker runs the in-flight Shortfall.
