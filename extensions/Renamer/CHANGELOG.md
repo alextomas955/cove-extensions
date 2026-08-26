@@ -10,6 +10,10 @@ Nothing here is a feature you lose. The floor rose because Renamer now relies on
 entity events for bulk mutations; without those, editing several items at once renames one of them
 and says nothing about the rest.
 
+- **The duration format setting now works.** `$duration` renders through whatever you pick under Token
+  settings, so a template using it produces the name the live preview showed. Before, the setting was
+  offered and ignored: every file got its duration as a raw number of seconds whichever format was
+  chosen. A format .NET rejects falls back to those raw seconds rather than failing the rename.
 - **A destination is now a library path you pick, plus the folders made under it.** Every
   destination - the default _Where files go_, the unorganized route, and each per-studio, per-tag and
   source-path rule - has the same two parts: **Under**, chosen from the library paths you configured

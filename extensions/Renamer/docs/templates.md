@@ -91,11 +91,11 @@ with no value is simply omitted.
 
 ### Date & time
 
-| Token       | Produces                                                                                                                                                              | Example      |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| `$date`     | The item's date, formatted by the **Date format** setting.                                                                                                            | `1999-03-31` |
-| `$year`     | The calendar year of the item's date.                                                                                                                                 | `1999`       |
-| `$duration` | The file's stored duration in seconds, as a plain number. The **Duration format** setting is offered but has no effect yet, so leave this token out of your template. | `8160.5`     |
+| Token       | Produces                                                               | Example      |
+| ----------- | ---------------------------------------------------------------------- | ------------ |
+| `$date`     | The item's date, formatted by the **Date format** setting.             | `1999-03-31` |
+| `$year`     | The calendar year of the item's date.                                  | `1999`       |
+| `$duration` | The file's duration, rendered through the **Duration format** setting. | `02-16-00`   |
 
 ### Media info
 

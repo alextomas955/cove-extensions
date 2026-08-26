@@ -11,6 +11,12 @@ namespace Renamer.Tests.Planner;
 /// </summary>
 public sealed class MetadataProjectorTests
 {
+    private const double ReferenceDurationSeconds = 5025;
+
+    private static RenamerFile DurationFileRow(double seconds) => new(
+        FileId: 7, Kind: RenamerFileKind.Video, Basename: "clip.mkv", ParentFolderId: 9,
+        ParentFolderPath: "media/videos", Format: "mkv", Duration: seconds);
+
     private static RenamerFile VideoFileRow() => new(
         FileId: 1, Kind: RenamerFileKind.Video, Basename: "raw.mkv", ParentFolderId: 5,
         ParentFolderPath: "media/videos", Format: "mkv",
@@ -21,6 +27,47 @@ public sealed class MetadataProjectorTests
         StudioName: "Acme", Date: new DateOnly(2024, 3, 2), Organized: true,
         Performers: [new RenamerPerformer(1, "Bob", false, null), new RenamerPerformer(2, "Ann", false, null)],
         TagRefs: [(1, "hd"), (2, "fav")], Files: [file]);
+
+    [Fact]
+    public void Duration_DefaultFormat_RendersTheAdvertisedHhMmSsShape()
+    {
+        var file = DurationFileRow(ReferenceDurationSeconds);
+        var (tokens, _, _, _) = MetadataProjector.Project(VideoEntity(file), file, new RenamerOptions());
+
+        // The shape the settings dropdown's example column and SampleTokenSets both advertise for this
+        // duration, so the live preview and the real projection agree on it.
+        Assert.Equal("01-23-45", tokens[Tokens.Duration]);
+    }
+
+    [Theory]
+    [InlineData(@"hh\-mm\-ss", "01-23-45")]
+    [InlineData(@"hh\.mm\.ss", "01.23.45")]
+    [InlineData(@"mm\-ss", "23-45")]
+    public void Duration_HonorsConfiguredFormat(string format, string expected)
+    {
+        var file = DurationFileRow(ReferenceDurationSeconds);
+        var options = new RenamerOptions { DurationFormat = format, FilenameTemplate = "$title [$duration]" };
+        var (tokens, multi, _, _) = MetadataProjector.Project(VideoEntity(file), file, options);
+
+        Assert.Equal(expected, tokens[Tokens.Duration]);
+
+        // End-to-end through the engine, because the token is not what a user sees: a rendering the
+        // sanitizer altered on its way into the filename would still be the defect this pins.
+        Assert.Equal($"My Film [{expected}]", TemplateEngine.Render(tokens, multi, options).Filename);
+    }
+
+    [Fact]
+    public void Duration_InvalidFormat_DegradesToRawSeconds_InsteadOfThrowing()
+    {
+        // DurationFormat is free text a user can type, and this projection runs for EVERY file in a
+        // plan - so a throw here would abort a whole batch over one bad setting rather than spoiling one
+        // token. "Q" is not a valid TimeSpan format specifier.
+        var file = DurationFileRow(ReferenceDurationSeconds);
+        var (tokens, _, _, _) = MetadataProjector.Project(
+            VideoEntity(file), file, new RenamerOptions { DurationFormat = "Q" });
+
+        Assert.Equal("5025", tokens[Tokens.Duration]);
+    }
 
     [Fact]
     public void Video_Projects_AllScalarTokens_And_MultiValues()

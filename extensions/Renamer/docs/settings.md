@@ -106,16 +106,10 @@ Both are multi-value lists shaped by the same options (a few apply to performers
 
 ### Date & duration format
 
-| Setting         | What it does                                                                                                                            | Default      |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| Date format     | .NET date format for `$date`. Options include `yyyy-MM-dd`, `yyyy`, `MM-dd-yyyy`, `dd.MM.yyyy`, `yyyy.MM.dd`.                           | `yyyy-MM-dd` |
-| Duration format | .NET duration format offered for `$duration`: `hh\-mm\-ss`, `hh\.mm\.ss`, `mm\-ss`, or your own. The backslashes escape the separators. | `hh\-mm\-ss` |
-
-:::caution Duration format has no effect yet
-Whatever you pick here, `$duration` renders the file's duration as a raw number of seconds. The live
-preview shows a formatted sample, so a template using `$duration` produces a name the preview does
-not describe. Leave `$duration` out of your template until this is fixed.
-:::
+| Setting         | What it does                                                                                                                                                                                                                | Default      |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| Date format     | .NET date format for `$date`. Options include `yyyy-MM-dd`, `yyyy`, `MM-dd-yyyy`, `dd.MM.yyyy`, `yyyy.MM.dd`.                                                                                                               | `yyyy-MM-dd` |
+| Duration format | .NET duration format for `$duration`: `hh\-mm\-ss`, `hh\.mm\.ss`, `mm\-ss`, or your own. The backslashes escape the separators. A format .NET rejects falls back to the duration in seconds rather than failing the rename. | `hh\-mm\-ss` |
 
 ## Destination routing
 
