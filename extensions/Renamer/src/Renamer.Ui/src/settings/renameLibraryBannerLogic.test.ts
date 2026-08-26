@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import {
   buildRenameLibraryError,
   buildRenameLibrarySuccess,
+  buildRenameLibraryUnconfirmed,
   UNDO_REACH_CLAUSE,
 } from "./renameLibraryBannerLogic";
 import type { DryRunCounts } from "./dry-run/dryRunLogic";
@@ -56,6 +57,26 @@ test("a failed run names the failure and says the library is untouched", () => {
   );
 });
 
+test("a run the UI stopped watching claims nothing about what the job did", () => {
+  const unconfirmed = buildRenameLibraryUnconfirmed(
+    "the job stopped reporting progress. It may still be running — check your library before trying again",
+  );
+
+  assert.equal(
+    unconfirmed,
+    "Couldn't confirm the rename — the job stopped reporting progress. It may still be running — check your library before trying again.",
+  );
+  assert.ok(!unconfirmed.includes("Nothing was changed"));
+});
+
+test("an unconfirmed run and a failed one do not read the same", () => {
+  const detail = "the job did not complete";
+
+  assert.notEqual(buildRenameLibraryUnconfirmed(detail), buildRenameLibraryError(detail));
+  assert.ok(buildRenameLibraryError(detail).startsWith("Couldn't rename"));
+  assert.ok(buildRenameLibraryUnconfirmed(detail).startsWith("Couldn't confirm the rename"));
+});
+
 /**
  * The wiring, not the module. Asserted against the source text because the composition happens inside
  * a hook's callback and this package has neither a DOM nor a renderer to drive one through. What the
@@ -63,14 +84,20 @@ test("a failed run names the failure and says the library is untouched", () => {
  */
 const HOOK_SOURCE = readFileSync(new URL("./useRenameLibrary.ts", import.meta.url), "utf8");
 
-test("useRenameLibrary reads both banners from this module", () => {
+test("useRenameLibrary reads every banner from this module", () => {
   assert.ok(HOOK_SOURCE.includes('from "./renameLibraryBannerLogic"'));
   assert.ok(HOOK_SOURCE.includes("buildRenameLibrarySuccess(counts)"));
   assert.ok(HOOK_SOURCE.includes("buildRenameLibraryError(text)"));
+  assert.ok(HOOK_SOURCE.includes("buildRenameLibraryUnconfirmed(err.message)"));
 });
 
-test("useRenameLibrary composes neither sentence itself", () => {
-  for (const inlined of ["Renamed ${counts", "Nothing was changed", "skipped`"]) {
+test("useRenameLibrary composes none of the sentences itself", () => {
+  for (const inlined of [
+    "Renamed ${counts",
+    "Nothing was changed",
+    "skipped`",
+    "Couldn't confirm the rename",
+  ]) {
     assert.ok(
       !HOOK_SOURCE.includes(inlined),
       `useRenameLibrary.ts is composing "${inlined}" inline again`,

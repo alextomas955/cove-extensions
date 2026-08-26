@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.4.0",
   "type": "module",
-  "description": "RenameSettingsPanel \u2014 the Cove Renamer extension's settings + live-preview frontend (Vite library bundle \u2192 index.mjs).",
+  "description": "RenameSettingsPanel — the Cove Renamer extension's settings + live-preview frontend (Vite library bundle → index.mjs).",
   "license": "AGPL-3.0",
   "scripts": {
     "generate:wire": "node ../../../../scripts/generate-wire-types.mjs --extension com.alextomas955.renamer",
@@ -25,6 +25,7 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "6.0.5",
+    "jsdom": "29.1.1",
     "lucide-react": "1.28.0",
     "prettier": "3.9.6",
     "react": "19.2.8",
