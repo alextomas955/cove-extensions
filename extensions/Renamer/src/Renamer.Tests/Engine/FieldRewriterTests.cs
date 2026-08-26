@@ -3,7 +3,6 @@ using Renamer.Options;
 
 namespace Renamer.Tests.Engine;
 
-[Trait("Tier", "L0")]
 public class FieldRewriterTests
 {
     // ---- FIELD-01: squeeze_studio_names ----

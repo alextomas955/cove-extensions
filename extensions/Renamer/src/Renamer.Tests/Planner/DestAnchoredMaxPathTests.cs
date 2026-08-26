@@ -11,7 +11,6 @@ namespace Renamer.Tests.Planner;
 /// skip-with-reason at PREVIEW (not a move-time crash). Driven through <c>RenamerPlanner.PlanAsync</c>
 /// (the wiring), reusing the OS-aware Root style of <c>PathConfinementAllowlistTests</c>. PURE — no disk.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class DestAnchoredMaxPathTests
 {
     // A SHORT source folder and a DEEP routed root, so the same render fits under one and overflows the other.

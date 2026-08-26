@@ -14,7 +14,6 @@ namespace Renamer.Tests.Execution;
 /// SQLite for graph-shape fidelity). Without these fields surfacing, Plan 02's resolver could not route
 /// on a stable id and Plan 04's free-space guard would have no per-file bytes to sum.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class CoveDataPortRoutingFieldsTests
 {
     [Fact]

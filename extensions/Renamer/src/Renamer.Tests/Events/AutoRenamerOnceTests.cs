@@ -11,7 +11,6 @@ namespace Renamer.Tests.Events;
 /// re-raised <c>video.updated</c> the executor's save produces — finds an all-NoOp plan and leaves
 /// the terminal state stable with no further churn and no new published event.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class AutoRenamerOnceTests
 {
     [Fact]

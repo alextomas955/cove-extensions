@@ -36,7 +36,6 @@ namespace Renamer.Tests.Api;
 /// assert nothing about whether the path stayed on its caller.
 /// </para>
 /// </remarks>
-[Trait("Tier", "L1")]
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RequestPathPrincipalTests
 {

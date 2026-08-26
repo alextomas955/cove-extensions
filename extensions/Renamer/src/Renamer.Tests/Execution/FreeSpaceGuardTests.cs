@@ -9,7 +9,6 @@ namespace Renamer.Tests.Execution;
 /// volume, so these run identically on any host with NO real second drive — only path roots and
 /// arithmetic are exercised.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class FreeSpaceGuardTests
 {
     // OS-aware path literals so the same/cross split (VolumeClassifier) resolves on Windows and Unix.

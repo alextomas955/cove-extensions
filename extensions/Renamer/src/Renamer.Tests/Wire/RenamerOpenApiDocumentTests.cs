@@ -12,7 +12,6 @@ namespace Renamer.Tests.Wire;
 /// committed copy. L2 by this repo's taxonomy — the endpoints are mounted in a real in-process host —
 /// though the emit sends no request.
 /// </summary>
-[Trait("Tier", "L2")]
 public sealed class RenamerOpenApiDocumentTests : ExtensionOpenApiDocumentTests
 {
     protected override IApiExtension CreateExtension()

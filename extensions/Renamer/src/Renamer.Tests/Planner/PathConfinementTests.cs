@@ -11,7 +11,6 @@ namespace Renamer.Tests.Planner;
 /// <see cref="PathConfinement.ConfinementRejection.TooLong"/>. The sibling case ("root" vs
 /// "rootEvil") proves the prefix check is boundary-aware. PURE - no disk.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class PathConfinementTests
 {
     private const string Root = "media/videos";
@@ -93,7 +92,6 @@ public sealed class PathConfinementTests
 /// The longest match wins so a nested library path anchors on the nearer boundary; a path under none
 /// of them has no anchor at all. PURE - no disk.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class ContainingRootTests
 {
     [Fact]

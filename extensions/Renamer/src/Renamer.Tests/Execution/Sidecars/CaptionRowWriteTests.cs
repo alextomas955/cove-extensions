@@ -15,7 +15,6 @@ namespace Renamer.Tests.Execution.Sidecars;
 /// The sibling sidecar tests assert the on-disk move, which the disk mover performs and which a lost
 /// row write leaves looking correct, so the row needs an assertion of its own.
 /// </remarks>
-[Trait("Tier", "L1")]
 public sealed class CaptionRowWriteTests
 {
     [Fact]

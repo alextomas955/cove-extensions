@@ -200,22 +200,11 @@ Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ 
   undo journal is the worked example: a value under one key put every writer into a read-modify-write
   race and made "how much history is kept" a number someone had to choose, where a row insert is atomic
   and a whole batch either falls inside the window or is gone.
-- **Testing.** Every xUnit test class carries exactly one class-level `[Trait("Tier", …)]` — L0
-  pure-logic · L1 host-double (real SQLite `CoveContext` / `TempDir` / principal) · L2 in-process
-  endpoint (the `NewExtension` harness + permission-gated handlers) · L3 containerized / live-instance
-  e2e — so a tier runs in isolation (`dotnet test -- --filter-trait "Tier=L0"`) as a design fact independent of
-  the csproj Compile-Remove build fact. A shared reflection guard (`TierTraitGuard` in
-  `Cove.Extensions.Shared.Testing`, driven by a per-project coverage test) fails the suite if any test
-  class lacks a Tier trait, so the taxonomy stays exhaustive by mechanism rather than by hand. Tests
-  MIRROR their source folders; only test-only groups (`TestSupport/`, `TransportSmoke/`, e2e) sit
-  outside the mirror. The bare-CI (cove-absent) leg is a compile/pure SMOKE — any test that references
-  a Cove source type is Compile-Removed there and is L1/L2 — and is NOT the safety gate; the
-  containerized e2e job is the required safety gate. **L2 means a suite that builds a real ASP.NET host
-  and exercises the endpoint pipeline through it** — sending requests to mapped routes, or reading back
-  what route registration produced. A suite that calls a handler as a plain method is L1 however
-  endpoint-shaped its subject, and so is one that executes a result against a `DefaultHttpContext`,
-  which is an ordinary object and needs no host. The trait is class-level, so a class takes the tier of
-  the strongest dependency any of its cases needs.
+- **Testing.** Tests MIRROR their source folders; only test-only groups (`TestSupport/`,
+  `TransportSmoke/`, e2e) sit outside the mirror. The bare-CI (cove-absent) leg is a compile/pure
+  SMOKE — any test that references a Cove source type is Compile-Removed there — and is NOT the
+  safety gate; the containerized e2e job is the required safety gate. Keep `*Logic.ts` offline-gated
+  so pinned wire-casing enums fail a gate on drift.
 - **Tooling as merge gates.** jscpd, knip, syncpack, and import-boundaries run as **blocking** merge
   gates. Rollout: land each tool, get it green on `main`, THEN flip to blocking. **Only a check a CI
   workflow runs can block a merge** — an entry in the local hook runner is advice a contributor can
@@ -224,7 +213,7 @@ Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ 
 - **Adding a new extension:** register in `catalog.json` → manifest + `FullExtensionBase` → structure
   by tier (no `features/`, capability-not-entity, suffix-as-kind, `common/` for local shared) → wire
   camelCase + `Contracts/` + generated `wire/` → UI (named exports, `use*` hooks, no `hooks/`) → correctness
-  (RunAsSystem, no silent swallow, `Cancelled`, bounded stores) → tests (Tier traits, mirror source,
+  (RunAsSystem, no silent swallow, `Cancelled`, bounded stores) → tests (mirror source,
   safety behind e2e) → green under the merge gates → docs (README + site + CHANGELOG + own CLAUDE.md).
 
 ## C# comments and XML docs

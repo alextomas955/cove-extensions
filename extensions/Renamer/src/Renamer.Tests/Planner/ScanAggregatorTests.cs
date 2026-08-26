@@ -9,7 +9,6 @@ namespace Renamer.Tests.Planner;
 /// set at once, exact per-status counts, and a retained-object count that does not grow with the number
 /// of entities folded.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class ScanAggregatorTests
 {
     // Volume identity is per-platform (VolumeClassifier): the path ROOT on Windows, the enclosing mount

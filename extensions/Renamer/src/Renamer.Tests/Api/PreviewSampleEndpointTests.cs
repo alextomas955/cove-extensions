@@ -19,7 +19,6 @@ namespace Renamer.Tests.Api;
 /// and the videos.read deny path returns 403 with no engine work. Exercised as a plain method
 /// (no HTTP host, no DbContext).
 /// </summary>
-[Trait("Tier", "L2")]
 public sealed class PreviewSampleEndpointTests
 {
     private static global::Renamer.Renamer NewExtension()

@@ -15,7 +15,6 @@ namespace Renamer.Tests.Api;
 /// each seeded file's Basename/Path unchanged after the call. The handler is exercised as a plain
 /// method (no HTTP host) with a real SQLite <c>CoveContext</c>.
 /// </summary>
-[Trait("Tier", "L2")]
 public sealed class PreviewEndpointTests
 {
     private static async Task<global::Renamer.Renamer> BuildExtensionAsync()

@@ -31,7 +31,6 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// test-built expectation would be asserting on its own input and would pass however wrong the real
 /// name was.
 /// </remarks>
-[Trait("Tier", "L1")]
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class CrossVolumeUndoTests
 {

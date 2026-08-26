@@ -14,7 +14,6 @@ namespace Renamer.Tests.Execution.Collisions;
 /// catch fired (item Failed) and the disk file was rolled back to its old path. This proves the
 /// backstop an EF-InMemory test would FALSE-GREEN (InMemory enforces no unique index).
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class CollisionTests
 {
     [Fact]

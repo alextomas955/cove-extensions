@@ -24,7 +24,6 @@ namespace Renamer.Tests.Execution.Undo;
 /// instructions rather than that the two halves agree.
 /// </para>
 /// </remarks>
-[Trait("Tier", "L1")]
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class UndoSidecarRestoreTests
 {

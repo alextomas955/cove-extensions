@@ -150,15 +150,9 @@ comment.
 
 ## Testing and tooling
 
-Tag every backend test with a tier trait — pure-logic, host-double, in-process endpoint, or
-containerized end-to-end — and mirror the source folders so a test is easy to find from its subject.
-
-The in-process endpoint tier (`Tier=L2`) covers a suite that builds a real ASP.NET host and exercises
-the endpoint pipeline through it: it sends requests to mapped routes, or reads back what route
-registration produced. A suite that calls a handler as a plain method belongs to the host-double tier
-however endpoint-shaped its subject, and so does one that executes a result against a
-`DefaultHttpContext` — that context is an ordinary object and needs no host. The trait is a
-class-level fact, so a class takes the tier of the strongest dependency any of its cases needs.
+Mirror the source folders so a test is easy to find from its subject. What a test depends on is
+carried by where it sits and by the build: the folder places it, and the `Compile Remove` entries in
+the test project decide which files the cove-absent leg builds at all.
 
 The lightweight "bare" CI leg is a compile-and-pure-logic smoke test; the containerized end-to-end job
 is the real safety gate. Copy-paste, dead-export, dependency-drift, and import-direction checks run as

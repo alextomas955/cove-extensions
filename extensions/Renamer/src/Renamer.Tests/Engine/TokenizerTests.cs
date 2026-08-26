@@ -2,7 +2,6 @@ using Renamer.Engine;
 
 namespace Renamer.Tests.Engine;
 
-[Trait("Tier", "L0")]
 public class TokenizerTests
 {
     [Fact]

@@ -3,7 +3,6 @@ using Renamer.Options;
 
 namespace Renamer.Tests.Options;
 
-[Trait("Tier", "L0")]
 public sealed class RenamerOptionsJsonTests
 {
     [Fact]

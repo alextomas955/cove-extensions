@@ -15,7 +15,6 @@ namespace Renamer.Tests.Execution.Journal;
 /// a transcribed one fails when the format claim is wrong. Assertions are on the OUTCOME — the keys are
 /// gone, the batch is readable from the table — never on the migration having been called.
 /// </remarks>
-[Trait("Tier", "L1")]
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class JournalBlobMigrationTests
 {
