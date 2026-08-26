@@ -5,7 +5,8 @@ import { isValidElement } from "react";
 
 import { badgesFor, type Badgeable } from "./warningBadgeLogic";
 import { WarningBadges } from "./WarningBadge";
-import type { RenamerStatus } from "../../wire/api";
+import { IN_FLIGHT_OVERFLOW_LABEL } from "./dryRunLogic";
+import type { PreviewItemView, RenamerStatus, ScanRow } from "../../wire/api";
 
 /**
  * Every status the wire can carry, with the label a row earns for it — TRANSCRIBED BY HAND from the
@@ -38,7 +39,7 @@ const EXPECTED_LABEL: Record<RenamerStatus, string | null> = {
 };
 
 function row(status: RenamerStatus, flags: Partial<Badgeable> = {}): Badgeable {
-  return { status, suffixed: false, sanitized: false, ...flags };
+  return { status, suffixed: false, sanitized: false, inFlightPathOverflow: false, ...flags };
 }
 
 function labels(item: Badgeable): string[] {
@@ -132,4 +133,37 @@ test("WarningBadges renders exactly the labels this module derives", () => {
 
 test("a row with nothing to warn about renders no pill at all", () => {
   assert.equal(WarningBadges({ item: row("renamer") }), null);
+});
+
+test("the overflow badge is appended whatever the status, because the server sets it deliberately", () => {
+  // Re-testing the status here would let a flag the server DID set go unrendered if the two vocabularies
+  // ever drifted, so the flag alone decides.
+  const eitherSide: RenamerStatus[] = ["renamer", "skipExcluded"];
+  for (const status of eitherSide) {
+    const badges = badgesFor(row(status, { inFlightPathOverflow: true }));
+    const last = badges[badges.length - 1];
+    assert.ok(last, `expected at least one badge, status ${status}`);
+    assert.equal(last.variant, "red", `status ${status}`);
+    assert.equal(last.label, IN_FLIGHT_OVERFLOW_LABEL, `status ${status}`);
+  }
+});
+
+test("an unflagged row earns no overflow badge", () => {
+  // The contrast the case above needs: a badge stuck ON would read as a correct warning on every row a
+  // user ever looks at.
+  assert.deepEqual(badgesFor(row("move", { inFlightPathOverflow: false })), []);
+});
+
+/**
+ * The claim {@link Badgeable} makes about itself: both wire shapes that reach a badge satisfy it. Written
+ * as an assignment rather than an assertion, because it is the compiler that checks it - drop the field
+ * from either response DTO and this file stops building.
+ */
+test("both wire row shapes satisfy Badgeable", () => {
+  const previewItem = {} as PreviewItemView;
+  const scanRow = {} as ScanRow;
+  const fromPreview: Badgeable = previewItem;
+  const fromScan: Badgeable = scanRow;
+  assert.equal(typeof fromPreview, "object");
+  assert.equal(typeof fromScan, "object");
 });

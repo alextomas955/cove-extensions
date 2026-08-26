@@ -161,7 +161,13 @@ public sealed class ScanPagingEquivalenceTests
                 if (byId.TryGetValue(id, out var entity))
                 {
                     var plan = await planner.PlanLoadedEntity(entity, Options, Lookups, default);
-                    rows.AddRange(plan.Items.Select(item => ScanRow.From(kind, plan.EntityId, item)));
+                    // The overflow flag is sourced exactly as the pager sources it - the same predicate,
+                    // the same budget out of the same options, and no mount table on either side - so a
+                    // difference between the two sequences can only be the traversal, which is what this
+                    // class compares.
+                    rows.AddRange(plan.Items.Select(item => ScanRow.From(
+                        kind, plan.EntityId, item,
+                        BatchPreview.InFlightPathOverflows(item, Options.FullPathMax))));
                 }
             }
         }

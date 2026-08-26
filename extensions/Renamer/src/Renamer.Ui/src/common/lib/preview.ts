@@ -103,6 +103,18 @@ export function buildConfirmSummary(
   const cleaned = willRename.filter((it) => it.sanitized).length;
 
   const warningLines: string[] = [];
+  // First, and phrased as a failure rather than an advisory: every other line here describes a rename
+  // that will happen differently, while this one describes files the executor will not be able to move
+  // at all. It reads the aggregate COUNT, never a list of paths — a selection reaches library size, and
+  // this text goes into a native confirm box that cannot scroll usefully. The cause is not stated in
+  // characters: what the user can act on is the remedy, so that is what the line carries.
+  const inFlightOverflow = summary?.inFlightPathOverflowCount ?? 0;
+  if (inFlightOverflow > 0) {
+    warningLines.push(
+      `⚠ ${inFlightOverflow} cannot be copied across drives — the temporary copy's path would be too ` +
+        `long. Shorten the destination folder or the filename template for ${inFlightOverflow === 1 ? "it" : "them"}.`,
+    );
+  }
   if (skipped > 0) {
     const clauses: string[] = [];
     if (gated > 0) clauses.push(`${gated} need a required field`);

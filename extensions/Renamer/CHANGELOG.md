@@ -41,6 +41,12 @@ and says nothing about the rest.
 - **_Allowed roots_ is now only a narrowing.** Every destination is a Cove library path plus a
   relative template, so a rename is inside the library by construction; the list can still restrict
   it to a smaller subtree, and an empty list restricts nothing.
+- **A cross-drive move that cannot fit is warned about before it runs, not after it fails.**
+  Renaming onto another drive copies to a temporary name beside the destination first, and that
+  temporary path is longer than the final one. The dry run only ever measured the final path, so a
+  destination just inside _Full-path max length_ previewed as a clean move and then failed at the
+  filesystem. Such a row now carries a red **Too long to copy across drives** badge, and the confirm
+  before a rename says how many files are affected and what to shorten.
 - **A rename no longer erases the undo of the one before it.** The undo record moved out of Cove's
   extension-data store and into a table Renamer owns, so a background auto-rename no longer destroys
   the record of a deliberate 500-file run. Each rename is kept for 7 days and then expires. The

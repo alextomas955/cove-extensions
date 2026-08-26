@@ -1,4 +1,6 @@
 using Renamer.Contracts;
+using Renamer.Execution;
+using Renamer.Options;
 using Renamer.Planner;
 
 namespace Renamer.Tests.Planner;
@@ -21,6 +23,20 @@ public sealed class ScanAggregatorTests
 
     private static string OnVol(string vol, string name) =>
         OperatingSystem.IsWindows() ? $@"{vol}:\dir\{name}" : $"/{vol.ToLowerInvariant()}/dir/{name}";
+
+    // The shipped path budget, read from the options rather than transcribed, and the budget every
+    // aggregator below folds against. The overflow cases are positioned relative to it and to the minted
+    // segment's own declaration, so a change to either moves them rather than leaving them beside a
+    // boundary they no longer sit on.
+    private static readonly int Budget = new RenamerOptions().FullPathMax;
+
+    // OnVol yields "C:\dir\{name}" on Windows and "/c/dir/{name}" on Unix - SEVEN characters either way,
+    // which is what lets one arithmetic land on the same absolute length on both platforms.
+    private const int OnVolPrefixLength = 7;
+
+    // A basename that makes OnVol(vol, name) exactly `total` characters long.
+    private static string NameForPathLength(int total) =>
+        new string('n', total - OnVolPrefixLength - ".mkv".Length) + ".mkv";
 
     private static string FolderOf(string path) => Path.GetDirectoryName(path)!.Replace('\\', '/');
 
@@ -58,9 +74,12 @@ public sealed class ScanAggregatorTests
         };
         var sizes = new Dictionary<int, long> { [1] = 100, [2] = 250, [3] = 999 };
 
-        var expected = BatchPreview.Summarize(items, sizes, Mounts);
+        // Every member of the summary is compared, the overflow count included - the two paths must not
+        // disagree about any of them. What this comparison canNOT show is a count wrong on both paths,
+        // which is why the boundary cases below transcribe their expectations by hand instead.
+        var expected = BatchPreview.Summarize(items, sizes, Budget, Mounts);
 
-        var aggregator = new ScanAggregator(Mounts);
+        var aggregator = new ScanAggregator(Budget, Mounts);
         foreach (var item in items)
         {
             aggregator.Fold(RenamerFileKind.Video, Plan(RenamerFileKind.Video, item.FileId, item), sizes);
@@ -83,7 +102,7 @@ public sealed class ScanAggregatorTests
     [Fact]
     public void ToSummary_StatusCountsSumToFileCount_AcrossEveryKindAndBucket()
     {
-        var aggregator = new ScanAggregator(Mounts);
+        var aggregator = new ScanAggregator(Budget, Mounts);
         int fileId = 0;
         var statuses = Enum.GetValues<RenamerStatus>();
 
@@ -114,7 +133,7 @@ public sealed class ScanAggregatorTests
     [Fact]
     public void ToSummary_KindWithNoEntities_IsAbsent_NotZeroFilled()
     {
-        var aggregator = new ScanAggregator(Mounts);
+        var aggregator = new ScanAggregator(Budget, Mounts);
         aggregator.Fold(
             RenamerFileKind.Image, Plan(RenamerFileKind.Image, 1, WithStatus(1, RenamerStatus.NoOp)),
             new Dictionary<int, long>());
@@ -130,7 +149,7 @@ public sealed class ScanAggregatorTests
     {
         int overCap = ScanSummary.MaxVolumePairsPerKind + 7;
 
-        var aggregator = new ScanAggregator(SynthMounts(overCap + 1));
+        var aggregator = new ScanAggregator(Budget, SynthMounts(overCap + 1));
         long expectedBytes = 0;
         for (int i = 0; i < overCap; i++)
         {
@@ -163,7 +182,7 @@ public sealed class ScanAggregatorTests
         // still read Heavy here, so the sharper proof is that the untruncated cross count survives too.
         int overCap = ScanSummary.MaxVolumePairsPerKind + 5;
 
-        var aggregator = new ScanAggregator(SynthMounts(overCap + 1));
+        var aggregator = new ScanAggregator(Budget, SynthMounts(overCap + 1));
         for (int i = 0; i < overCap; i++)
         {
             int fileId = i + 1;
@@ -190,7 +209,7 @@ public sealed class ScanAggregatorTests
         // the same structure, differing only by the digits of the counts.
         static string Summarize(int entities)
         {
-            var aggregator = new ScanAggregator(Mounts);
+            var aggregator = new ScanAggregator(Budget, Mounts);
             for (int i = 1; i <= entities; i++)
             {
                 aggregator.Fold(
@@ -217,7 +236,7 @@ public sealed class ScanAggregatorTests
     {
         // A whole-library dry run reaches the same warning through this fold rather than through
         // BatchPreview.Summarize, so the two derive the flag from separate expressions and can drift.
-        var aggregator = new ScanAggregator(Mounts);
+        var aggregator = new ScanAggregator(Budget, Mounts);
         var items = Enumerable.Range(1, actingFiles)
             .Select(i => Acting(i, OnVol("C", $"{i}.mkv"), OnVol("C", $"r{i}.mkv")))
             .ToArray();
@@ -229,5 +248,81 @@ public sealed class ScanAggregatorTests
 
         Assert.Equal(actingFiles, kind.BlastRadius.TotalCount);
         Assert.Equal(undoable, kind.BlastRadius.Undoable);
+    }
+
+    [Fact]
+    public void Fold_CountsAnOverflow_OnlyForTheCrossVolumeItemPastTheBoundary()
+    {
+        // The longest final path whose cross-volume copy still fits, because the copy is minted
+        // CrossVolumeMover.InFlightSuffixLength characters longer beside the destination before being
+        // promoted. Three items positioned around it: the boundary itself, one character past it, and a
+        // SAME-volume item of that same over-boundary length, which mints no temporary name at all.
+        int longestThatFits = Budget - CrossVolumeMover.InFlightSuffixLength;
+        string fitsName = NameForPathLength(longestThatFits);
+        string overName = NameForPathLength(longestThatFits + 1);
+
+        // The lengths the three cases claim to have. A slip in the path arithmetic fails here rather than
+        // silently moving every item to the same side of the boundary and leaving a count of 0 to pass.
+        Assert.Equal(longestThatFits, OnVol("D", fitsName).Length);
+        Assert.Equal(longestThatFits + 1, OnVol("D", overName).Length);
+        Assert.Equal(OnVol("D", overName).Length, OnVol("C", overName).Length);
+
+        var aggregator = new ScanAggregator(Budget, Mounts);
+        var sizes = new Dictionary<int, long>();
+        aggregator.Fold(
+            RenamerFileKind.Video,
+            Plan(RenamerFileKind.Video, 1, Acting(1, OnVol("C", "a.mkv"), OnVol("D", fitsName))), sizes);
+        aggregator.Fold(
+            RenamerFileKind.Video,
+            Plan(RenamerFileKind.Video, 2, Acting(2, OnVol("C", "b.mkv"), OnVol("D", overName))), sizes);
+        aggregator.Fold(
+            RenamerFileKind.Video,
+            Plan(RenamerFileKind.Video, 3, Acting(3, OnVol("C", "c.mkv"), OnVol("C", overName))), sizes);
+
+        var blastRadius = Assert.Single(aggregator.ToSummary(0L).Kinds).BlastRadius;
+
+        // One of three: the count is a strict subset of the cross-volume moves, which are themselves a
+        // subset of the acting items. Asserting all three distinguishes a working counter from one that
+        // counts every cross-volume item, or every item.
+        Assert.Equal(1, blastRadius.InFlightPathOverflowCount);
+        Assert.Equal(2, blastRadius.CrossVolumeCount);
+        Assert.Equal(3, blastRadius.TotalCount);
+    }
+
+    [Fact]
+    public void ScanSummaryView_OverflowCount_IsTheSumOfThePerKindCounts()
+    {
+        // The whole-library figure a large-library user reads. It is re-derived by summing the per-kind
+        // summaries, so it is zero whenever EITHER the per-kind fold or the merge is left unwired, and a
+        // count of zero reads as "no overflows" on exactly the libraries most likely to have them.
+        string overName = NameForPathLength(Budget - CrossVolumeMover.InFlightSuffixLength + 1);
+        string fitsName = NameForPathLength(Budget - CrossVolumeMover.InFlightSuffixLength);
+
+        var aggregator = new ScanAggregator(Budget, Mounts);
+        var sizes = new Dictionary<int, long>();
+        void FoldOne(RenamerFileKind kind, int fileId, string name) => aggregator.Fold(
+            kind, Plan(kind, fileId, Acting(fileId, OnVol("C", $"{fileId}.mkv"), OnVol("D", name))), sizes);
+
+        FoldOne(RenamerFileKind.Video, 1, overName);
+        FoldOne(RenamerFileKind.Image, 2, overName);
+        FoldOne(RenamerFileKind.Image, 3, overName);
+        FoldOne(RenamerFileKind.Audio, 4, fitsName);
+
+        var summary = aggregator.ToSummary(0L);
+        int PerKind(RenamerFileKind kind) => summary.Kinds
+            .Single(k => k.Kind == kind).BlastRadius.InFlightPathOverflowCount;
+
+        Assert.Equal(1, PerKind(RenamerFileKind.Video));
+        Assert.Equal(2, PerKind(RenamerFileKind.Image));
+        Assert.Equal(0, PerKind(RenamerFileKind.Audio));
+
+        var everyKind = ScanSummaryView.From(
+            summary, [RenamerFileKind.Video, RenamerFileKind.Image, RenamerFileKind.Audio]);
+        Assert.Equal(3, everyKind.BlastRadius.InFlightPathOverflowCount);
+
+        // The merge is per-kind for a permission reason (a video-only reader must not receive image
+        // figures), so the count follows the kinds the caller may read rather than the whole scan.
+        var videoOnly = ScanSummaryView.From(summary, [RenamerFileKind.Video]);
+        Assert.Equal(1, videoOnly.BlastRadius.InFlightPathOverflowCount);
     }
 }

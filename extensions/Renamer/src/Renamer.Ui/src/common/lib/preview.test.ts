@@ -20,12 +20,13 @@ const RENAME_ITEM: PreviewItemView = {
   reason: null,
   suffixed: false,
   sanitized: false,
+  inFlightPathOverflow: false,
   resolvedDestinationRoot: null,
   matchedRule: "InPlace",
   targetVolume: "/",
 };
 
-function summary(overrides: Partial<PreviewSummary>): PreviewSummary {
+function summary(overrides: Partial<PreviewSummary> = {}): PreviewSummary {
   return {
     totalCount: 1,
     sameVolumeCount: 1,
@@ -34,6 +35,7 @@ function summary(overrides: Partial<PreviewSummary>): PreviewSummary {
     volumePairs: [],
     confirmLevel: "light",
     undoable: true,
+    inFlightPathOverflowCount: 0,
     ...overrides,
   };
 }
@@ -68,4 +70,37 @@ test("a confirm built without a summary still reads as undoable", () => {
   const { text, willRenameCount } = buildConfirmSummary([RENAME_ITEM]);
   assert.equal(willRenameCount, 1);
   assert.match(text, /You can undo this afterwards\./);
+});
+
+/**
+ * The aggregate field name the server spells for the in-flight overflow count, TRANSCRIBED BY HAND from
+ * the `InFlightPathOverflowCount` member of `PreviewSummary`, camel-cased by the response serializer.
+ * Written out rather than imported, because the failure this guards is silent: a key spelled wrong reads
+ * `undefined`, the `?? 0` fallback makes it zero, and the warning the user needed before approving a
+ * rename simply never appears.
+ */
+const OVERFLOW_COUNT_WIRE_FIELD = "inFlightPathOverflowCount";
+
+test("a cross-drive batch whose temporary copies will not fit says so before the user approves", () => {
+  const { text } = buildConfirmSummary(
+    [RENAME_ITEM],
+    summary({ [OVERFLOW_COUNT_WIRE_FIELD]: 3, confirmLevel: "standard" }),
+  );
+
+  // The count, the glyph and a remedy the user can act on - never a path list, and never a character
+  // arithmetic the user cannot do anything with.
+  assert.match(text, /⚠ 3 cannot be copied across drives/);
+  assert.match(text, /Shorten the destination folder or the filename template/);
+});
+
+test("a batch with no overflow says nothing about one", () => {
+  const { text } = buildConfirmSummary([RENAME_ITEM], summary());
+  assert.doesNotMatch(text, /cannot be copied across drives/);
+});
+
+test("a confirm built without a summary says nothing about an overflow either", () => {
+  // The pre-summary call shape has no aggregate at all, so the count is absent rather than zero. It must
+  // read as "no overflow" - inventing a warning from a missing field would fire it on every such confirm.
+  const { text } = buildConfirmSummary([RENAME_ITEM]);
+  assert.doesNotMatch(text, /cannot be copied across drives/);
 });

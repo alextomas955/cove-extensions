@@ -69,6 +69,16 @@ public sealed class PreviewEndpointTests
             Assert.DoesNotContain("\"status\":0", json);
             Assert.DoesNotContain("\"Status\":", json);
 
+            // The in-flight overflow signals reach the wire, and an ordinary same-volume rename carries
+            // neither of them: DiskMover mints no temporary name, so a warning here would fire on a
+            // correct plan, which is the failure that teaches a user to ignore the badge. The POSITIVE
+            // arm needs two real volumes, so it lives in the pager suite (an injectable mount table) and
+            // in the containerized tier.
+            Assert.Contains("\"inFlightPathOverflow\":false", json);
+            Assert.Contains("\"inFlightPathOverflowCount\":0", json);
+            Assert.False(item.InFlightPathOverflow);
+            Assert.Equal(0, ok.Value!.Summary.InFlightPathOverflowCount);
+
             // Zero mutation: the seeded row is byte-for-byte unchanged after the preview.
             var (afterName, afterPath) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
             Assert.Equal(beforeName, afterName);
