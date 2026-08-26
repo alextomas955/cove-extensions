@@ -82,12 +82,23 @@ export class VideosPage {
   }
 
   /**
+   * Every unselected card's "Select item" button, in DOM order. Exposed so a caller can WAIT for the
+   * grid to hold the number of cards it seeded before selecting — the grid's contents arrive from a
+   * client-side fetch, so a count taken too early is a count of however much had rendered.
+   */
+  get selectItemButtons() {
+    return this.page.getByRole("button", { name: "Select item" });
+  }
+
+  /**
    * Selects the first {@link count} grid cards by their "Select item" buttons — robust to whether a card's
    * accessible name shows the title or the filename (the batch tests only need SOME selection, not a
    * specific card).
+   *
+   * Returns the number of cards ACTUALLY clicked, clamped to what the grid held.
    */
   async selectFirstCards(count = 1) {
-    const selectButtons = this.page.getByRole("button", { name: "Select item" });
+    const selectButtons = this.selectItemButtons;
     await expect(selectButtons.first()).toBeVisible({ timeout: 15_000 });
     const available = await selectButtons.count();
     const n = Math.min(count, available);
