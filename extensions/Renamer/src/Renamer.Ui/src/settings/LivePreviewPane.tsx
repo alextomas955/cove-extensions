@@ -4,7 +4,8 @@
  * and never fetches anything itself. Sits in the 1/3 grid cell beside FilenameSection; the inner card
  * is `lg:sticky lg:top-16` under the 64px navbar so it stays visible while the filename card scrolls.
  */
-import { PreviewCard, type PreviewSampleResult } from "./PreviewCard";
+import { PreviewCard } from "./PreviewCard";
+import type { PreviewSampleResult } from "../wire/api";
 import { StatusText, Spinner } from "@cove-extensions/ui-shared";
 
 export interface LivePreviewPaneProps {

@@ -15,7 +15,7 @@ import { useEffect, useState } from "react";
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
 import { type RenamerOptions } from "./options";
-import { type PreviewSampleResult } from "./PreviewCard";
+import type { PreviewSampleResult } from "../wire/api";
 import { api } from "../common/lib/extension";
 
 const PREVIEW_PATH = api("preview-sample");
