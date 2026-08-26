@@ -14,6 +14,16 @@ export class VideoDetailPage {
   }
 
   async openEditTab() {
+    // A click carries no timeout of its own, so on a page that never painted it spends the WHOLE
+    // per-test budget and then reports the locator it was waiting for and nothing about the page. The
+    // bounded wait is what turns that into a failure naming where the page actually was.
+    try {
+      await this.editTab.waitFor({ state: "visible", timeout: 30_000 });
+    } catch {
+      throw new Error(
+        `The video detail page never showed its Edit tab. The page is at ${this.page.url()}.`,
+      );
+    }
     await this.editTab.click();
     await this.titleInput.waitFor({ state: "visible", timeout: 10_000 });
   }
