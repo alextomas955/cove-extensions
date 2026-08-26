@@ -220,6 +220,23 @@ public sealed class DestinationResolverTagRoutingTests
         Assert.Equal(RouteCategory.Tag, r.Category);
         Assert.Equal("T:anime", r.Destination?.Root);
     }
+
+    [Fact]
+    public void AnEntityWithNoTags_NeverMatchesATagRule()
+    {
+        var lk = new RouteLookups(
+            new Dictionary<int, Destination>(),
+            new Dictionary<int, Destination> { [7] = new Destination { Root = "T:anime" } },
+            new Dictionary<string, Destination>(StringComparer.Ordinal), []);
+
+        var e = new RenamerEntity(1, RenamerFileKind.Video, "T", null, null, null, true,
+            [], [], [new RenamerFile(1, RenamerFileKind.Video, "a.mkv", 1, "x")]);
+
+        var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
+
+        Assert.Equal(RouteCategory.Unmatched, r.Category);
+        Assert.Null(r.Destination);
+    }
 }
 
 /// <summary>Source-path routing: exact beats regex; a regex-only match still routes.</summary>
