@@ -89,6 +89,12 @@ User-facing changes, newest first.
   type instead of loading every tag and performer in the library the moment you open the field, so the
   settings page stays fast on a large library. It also will not create a new tag or performer from the
   settings page - add it in Cove first, then pick it here.
+- **A rename or dry run that stops responding now ends with a message instead of waiting forever.** If
+  the job stops reporting progress, or Cove stops answering about it at all, Renamer stops waiting and
+  tells you, rather than leaving the button disabled and asking about the job once a second for as long
+  as the page stays open. A rename that ends this way says the library may already have changed,
+  because it may have - the job can still be running. A job that keeps reporting is never given up on,
+  however long it takes.
 
 ## 0.3.0 — Undo that cannot grow without bound
 

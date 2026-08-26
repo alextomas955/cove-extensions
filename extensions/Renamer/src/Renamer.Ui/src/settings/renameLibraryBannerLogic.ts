@@ -33,7 +33,18 @@ export function buildRenameLibrarySuccess(counts: DryRunCounts): string {
   return `Renamed ${counts.willChange} file${counts.willChange === 1 ? "" : "s"}${skipped}. ${UNDO_REACH_CLAUSE}`;
 }
 
-/** The banner for a run that produced no success. */
+/** The banner for a run the job itself reported as failed or cancelled. */
 export function buildRenameLibraryError(detail: string): string {
   return `Couldn't rename — ${detail}. Nothing was changed; you can try again.`;
+}
+
+/**
+ * The banner for a run the UI stopped watching before the job reached a verdict.
+ *
+ * Deliberately without "Nothing was changed": the job may have renamed thousands of files before it
+ * went quiet, and nothing here can tell. Stating that the library is untouched would be a confident
+ * falsehood about a destructive operation.
+ */
+export function buildRenameLibraryUnconfirmed(detail: string): string {
+  return `Couldn't confirm the rename — ${detail}.`;
 }
