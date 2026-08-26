@@ -28,7 +28,6 @@ namespace Renamer.Tests.Api;
 /// host) with a real SQLite <c>CoveContext</c>, mirroring
 /// <c>PreviewEndpointTests</c>/<c>EntityIdsCapTests</c>/<c>RenamerBatchJobTests</c>.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class ScanLibraryEndpointTests
 {
     /// <summary>Records every <c>Enqueue</c> call; all other members are unused and throw.</summary>

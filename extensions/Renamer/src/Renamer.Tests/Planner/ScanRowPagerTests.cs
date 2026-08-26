@@ -10,7 +10,6 @@ namespace Renamer.Tests.Planner;
 /// never-split-an-entity rule, its per-request entity budget, the server-side path search and bucket
 /// filter, and its per-kind permission gate.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class ScanRowPagerTests
 {
     private static readonly RouteLookups NoRoutes = new(

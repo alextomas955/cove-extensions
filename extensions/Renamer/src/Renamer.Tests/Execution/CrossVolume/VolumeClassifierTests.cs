@@ -12,7 +12,6 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// asserts and skips WITH a reason on the other — a Windows drive literal has no root on Unix, and a Unix mount
 /// path has no meaning on Windows, so one shared assertion would be testing neither.
 /// </remarks>
-[Trait("Tier", "L0")]
 public sealed class VolumeClassifierTests
 {
     // The real mount table's stand-in. The Unix cases need no second drive.

@@ -9,7 +9,6 @@ namespace Renamer.Tests.Planner;
 /// item whose required token projects empty. Gated = <see cref="RenamerStatus.SkipGated"/>
 /// (never <see cref="RenamerStatus.Failed"/>), with a reason — and zero mutation.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class GatingTests
 {
     private static RenamerFile File(int id) =>

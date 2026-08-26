@@ -17,7 +17,6 @@ namespace Renamer.Tests.Execution.Journal;
 /// costs the user every undo, silently. A throw out of the load is caught per extension and disables
 /// that one extension, which is a failure nobody can read as success.
 /// </remarks>
-[Trait("Tier", "L1")]
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class JournalStartupAssertionTests
 {

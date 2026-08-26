@@ -26,7 +26,6 @@ namespace Renamer.Tests.Contracts;
 /// <c>Contracts/</c> is covered by no such entry at all, which is the guarantee.
 /// </para>
 /// </remarks>
-[Trait("Tier", "L0")]
 public sealed class RetentionWindowPinTests
 {
     [Fact]

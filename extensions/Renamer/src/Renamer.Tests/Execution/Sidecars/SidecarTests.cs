@@ -10,7 +10,6 @@ namespace Renamer.Tests.Execution.Sidecars;
 /// restores the primary file AND every moved sidecar to their old paths (the executor's
 /// save-failure cleanup). Exercised on the real filesystem via <see cref="TempDir"/>.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class SidecarTests
 {
     [Fact]

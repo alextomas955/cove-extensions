@@ -9,7 +9,6 @@ namespace Renamer.Tests.Options;
 /// path plus the relative template rendered under it. Every case here is a way a user's routing changes
 /// without them touching it, so each asserts the rule that survives beside the one that does not.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class OptionsMigrationDestinationTests
 {
     // ContainingRoot resolves a stored root against the platform's path rules, so a drive-letter

@@ -10,7 +10,6 @@ namespace Renamer.Tests.Preview;
 /// <c>FreeSpaceGuardTests</c> this needs no real second drive — only OS-aware path roots, an injected
 /// FileId→size map, and arithmetic are exercised, so it runs identically on Windows and Unix.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class BlastRadiusTests
 {
     // OS-aware path literals so the same/cross split (VolumeClassifier) resolves on Windows and Unix.

@@ -24,11 +24,10 @@ namespace Renamer.Tests.Execution.CanonicalGuard;
 /// early return.
 /// <para>
 /// The syntax-only prefix rejections live in the nested <see cref="PrefixSyntax"/> class rather than
-/// here, because they fire before any disk resolution and are therefore pure. Keeping them in their own
-/// class is what lets each class carry the one tier trait that is true of it.
+/// here, because they fire before any disk resolution and are therefore pure. Their own class is what
+/// keeps that difference visible from the outside.
 /// </para>
 /// </remarks>
-[Trait("Tier", "L1")]
 public sealed class CanonicalPathGuardTests
 {
     /// <summary>Creates an NTFS junction <paramref name="link"/> → <paramref name="target"/> via <c>cmd /c mklink /J</c> (no privilege required).</summary>
@@ -221,13 +220,10 @@ public sealed class CanonicalPathGuardTests
     /// its <c>..</c> intact.
     /// </summary>
     /// <remarks>
-    /// Nested, and separately tiered, on purpose. These fire on the syntax predicate BEFORE any disk
-    /// resolution, so they are plain unit facts that touch no filesystem — L0, where the enclosing
-    /// suite is L1. A tier trait is class-level, so folding them into the outer class would have
-    /// relabelled four pure cases as needing a host double and dropped them out of an <c>L0</c>-only
-    /// run. One file, two honestly-tiered classes.
+    /// Nested on purpose. These fire on the syntax predicate BEFORE any disk resolution, so they are
+    /// plain unit facts that touch no filesystem, where the enclosing suite needs a real one. Folding
+    /// them into the outer class would hide four cases that need nothing behind a suite that does.
     /// </remarks>
-    [Trait("Tier", "L0")]
     public sealed class PrefixSyntax
     {
         [Fact]
