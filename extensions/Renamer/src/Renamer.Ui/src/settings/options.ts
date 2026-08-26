@@ -1,60 +1,48 @@
 /**
- * TS mirror of `src/Renamer/Options/RenamerOptions.cs`.
+ * The settings panel's view of `src/Renamer/Options/RenamerOptions.cs`.
  *
- * Property names are PascalCase to match the C# property spelling exactly; the C# side
- * deserializes with `PropertyNameCaseInsensitive = true`, so casing is forgiving, but
- * mirroring the C# spelling keeps the contract self-documenting. The three enums serialize
- * as STRINGS (C# `JsonStringEnumConverter`) — the value spelling ("None", "DropAll", …) is
- * the wire value, so these are string-union types here.
+ * The shapes below are a mechanical re-casing of the generated wire contract rather than a hand
+ * transcription of it: `Pascal<>` derives each one from `../wire/api`, so a change to the C# record
+ * reaches this panel through the committed document. Per-member documentation stays on those records,
+ * which state each rule more fully than a mirrored copy could.
+ *
+ * PascalCase is the spelling of the PERSISTED options blob on every existing installation, and
+ * `MODELED_KEYS` is built from `DEFAULT_OPTIONS`' runtime keys, so re-casing here would make every
+ * stored key look unmodeled and leave the two writers disagreeing about the blob's spelling. The enums
+ * persist as their member NAMES, so their values are re-cased too even though the wire spells them
+ * camelCase.
  *
  * DEFAULT_OPTIONS reproduces the C# record's default initializers verbatim, so a first-run
  * panel (no stored "options" blob) shows the same defaults the backend would apply.
  */
 
-/** Optional case transform applied to a rendered name. C# enum: `CaseTransform`. */
-export type CaseTransform = "None" | "Lower" | "Title";
-
-/** What to do when a multi-value field exceeds its max count. C# enum: `OverflowPolicy`. */
-export type OverflowPolicy = "DropAll" | "KeepFirst";
+import type * as Wire from "../wire/api";
 
 /**
- * Sort order for a multi-value field's items. C# enum: `SortOrder`.
- * `IdAsc`/`FavoriteFirst` are performer-only (tags fall back to name ordering for them).
+ * Re-cases a generated wire shape into the persisted PascalCase spelling: object keys and string-enum
+ * literals are capitalized, a free-form `string` is left alone, numbers, booleans, `null` and
+ * `undefined` pass through unchanged, and an array's element type is mapped. `-?` drops the optional
+ * markers the generator emits for a C# property with a default initializer, which the panel always
+ * supplies from {@link DEFAULT_OPTIONS}.
  */
-export type SortOrder = "NameAsc" | "None" | "IdAsc" | "FavoriteFirst";
+type Pascal<T> = T extends string
+  ? string extends T
+    ? T
+    : Capitalize<T>
+  : T extends number | boolean | null | undefined
+    ? T
+    : T extends readonly (infer E)[]
+      ? Pascal<E>[]
+      : { [K in keyof T as K extends string ? Capitalize<K> : K]-?: Pascal<T[K]> };
 
-/** Per-field controls for a multi-value token (performers, tags). Mirrors C# `MultiValueOptions`. */
-export interface MultiValueOptions {
-  /** String inserted between joined items. */
-  Separator: string;
-  /** Maximum items to emit; 0 = unlimited. */
-  MaxCount: number;
-  /** Behavior when MaxCount is exceeded. */
-  OnOverflow: OverflowPolicy;
-  /** Sort applied before joining. */
-  Sort: SortOrder;
-  /**
-   * If non-empty, only the entities with these stable ids are kept. Keyed on the id so renaming a
-   * tag or performer in Cove cannot stop a rule from matching; the rendered token still shows the
-   * current name.
-   */
-  WhitelistIds: number[];
-  /** If non-empty, the entities with these stable ids are removed. */
-  BlacklistIds: number[];
-  /** Performer-only: genders dropped before the max-count limit (case-insensitive). */
-  IgnoreGenders: string[];
-  /** Performer-only: preferred gender ordering, most-preferred first (case-insensitive). */
-  GenderOrder: string[];
-}
-
-/** Where a matched item lands: a root chosen from Cove's library paths, plus a relative folder
- * template rendered under it. Mirrors C# `Destination`. */
-export interface Destination {
-  /** The chosen Cove library path, or {@link CONTAINING_ROOT} for the one containing the file. */
-  Root: string;
-  /** The relative folder template rendered under `Root`; blank = the root itself. */
-  Template: string;
-}
+export type CaseTransform = Pascal<Wire.CaseTransform>;
+export type OverflowPolicy = Pascal<Wire.OverflowPolicy>;
+export type SortOrder = Pascal<Wire.SortOrder>;
+export type MultiValueOptions = Pascal<Wire.MultiValueOptions>;
+export type Destination = Pascal<Wire.Destination>;
+export type PathDestinationRule = Pascal<Wire.PathDestinationRule>;
+export type ExcludeRule = Pascal<Wire.ExcludeRule>;
+export type FieldReplaceRule = Pascal<Wire.FieldReplaceRule>;
 
 /**
  * The stored root standing for _the file's own library path_ - an empty string, so that a rule
@@ -158,34 +146,6 @@ export function destinationPicker(
   // stops the rule working: hiding it then would leave the user reading a skip reason with no way to
   // act on it.
   return { chosen, stale, showPicker: library.paths.length > 0 || stale, notice };
-}
-
-/** One source-path → destination routing rule. Mirrors C# `PathDestinationRule`. */
-export interface PathDestinationRule {
-  /** Exact source path, or a regex when `IsRegex` is true. */
-  Pattern: string;
-  /** Where a matched item lands. */
-  Dest: Destination;
-  /** When true, `Pattern` is interpreted as a regex; otherwise an exact match. */
-  IsRegex: boolean;
-}
-
-/** One source-path exclude rule (carries no destination). Mirrors C# `ExcludeRule`. */
-export interface ExcludeRule {
-  /** Exact source path, or a regex when `IsRegex` is true. */
-  Pattern: string;
-  /** When true, `Pattern` is interpreted as a regex; otherwise an exact match. */
-  IsRegex: boolean;
-}
-
-/** One per-token literal find/replace rule. Mirrors C# `FieldReplaceRule`. */
-export interface FieldReplaceRule {
-  /** Canonical token name (case-insensitive) whose value this rule rewrites. */
-  TargetToken: string;
-  /** Literal substring to find (NOT a regex). An empty find is a no-op. */
-  Find: string;
-  /** Literal replacement substring. */
-  Replace: string;
 }
 
 /** All rename settings. Mirrors C# `RenamerOptions`. */

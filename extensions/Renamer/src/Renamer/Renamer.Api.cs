@@ -163,9 +163,14 @@ public sealed partial class Renamer
         // string enum values (e.g. "case":"Lower") would 400 on typed binding before the handler
         // ran. Extension code cannot touch host startup (ConfigureHttpJsonOptions), so we parse
         // the body ourselves with the converter-aware options.
+        // The handler reads the raw request so it can parse the options blob with the extension's own
+        // tolerant serializer rather than the host's. No parameter therefore declares the body, and
+        // without .Accepts<> the emitted document carries no request schema for this route at all -
+        // which also silently exempts that body from the drift check the document exists for.
         endpoints.MapPost(PreviewSampleRoute,
             (HttpContext http, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => PreviewSampleAsync(http.Request, principal, ct));
+                => PreviewSampleAsync(http.Request, principal, ct))
+            .Accepts<PreviewSampleRequest>("application/json");
 
         // /undo takes NO request body — it operates on "the last batch", so binding no body avoids
         // the host's enum-converter 400 trap (see the preview-sample note above); /last-batch is a plain read.

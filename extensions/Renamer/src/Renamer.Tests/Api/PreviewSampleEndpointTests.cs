@@ -66,6 +66,34 @@ public sealed class PreviewSampleEndpointTests
     private static PreviewSampleResult Sample(IEnumerable<PreviewSampleResult> all, string label)
         => all.Single(r => r.SampleLabel == label);
 
+    // Both spellings of the one envelope the route declares with .Accepts<PreviewSampleRequest>. The
+    // handler binds the raw request and parses it with RenamerOptions.JsonOptions, so the declared body
+    // is never bound by the host - and the wire document describes the enum in the camelCase spelling
+    // while the persisted blob uses the member name.
+    private const string PascalCaseEnvelope = """{ "Options": { "FilenameTemplate": "$title", "Case": "Lower" } }""";
+    private const string CamelCaseEnvelope = """{ "options": { "filenameTemplate": "$title", "case": "lower" } }""";
+
+    [Theory]
+    [InlineData(PascalCaseEnvelope)]
+    [InlineData(CamelCaseEnvelope)]
+    public void PreviewSample_AcceptsEitherCasingOfTheDeclaredBody(string body)
+    {
+        // The Video sample's title lower-cased. Transcribed rather than rendered: an expectation asked of
+        // the engine would agree with it however far the posted `case` drifted from reaching it, and a
+        // value that never arrived would come back "The Example.mp4".
+        var video = Sample(PreviewRaw(body), "Video");
+
+        Assert.Equal("the example.mp4", video.NewName);
+    }
+
+    [Fact]
+    public void PreviewSample_BothCasingsOfTheDeclaredBody_ParseToTheSameOptions()
+    {
+        // The theory proves each casing parses; this proves they agree. Differing results would mean one
+        // spelling silently lost a member and fell back to its default.
+        Assert.Equal(PreviewRaw(PascalCaseEnvelope), PreviewRaw(CamelCaseEnvelope));
+    }
+
     [Fact]
     public void PreviewSample_DefaultOptions_VideoRendersTitle_NoFlags()
     {
