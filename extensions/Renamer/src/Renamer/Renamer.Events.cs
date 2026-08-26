@@ -25,6 +25,25 @@ namespace Renamer;
 public sealed partial class Renamer
 {
     /// <summary>
+    /// The entities whose next update event is this handler's own save coming back.
+    /// </summary>
+    /// <remarks>
+    /// The idempotency guard above breaks the loop only where the plan CONVERGES: rename, re-enter,
+    /// find nothing left to do, stop. A pair of names that map to each other never converges, so each
+    /// pass acts, saves, and re-raises - and because one entity can hold several files, each pass can
+    /// raise more events than the one that started it. That is growth, not a loop, and no per-pass
+    /// check can see it.
+    /// <para>
+    /// Keyed by entity rather than by file because the host raises its update event per ENTITY, so the
+    /// file that moved is not recoverable from the event. An entry is claimed before the executor runs
+    /// and consumed by the first event that follows, so a genuine edit arriving later is never
+    /// swallowed: the worst case is one skipped rename on an entity the user edited in the same instant
+    /// its own save came back, and the next edit renames it.
+    /// </para>
+    /// </remarks>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<(RenamerFileKind Kind, int EntityId), byte> _selfSaved = new();
+
+    /// <summary>
     /// Registered by the base ctor (runs before <c>InitializeAsync</c> captures the seams), so this
     /// only wires the routing — the handler bodies, which run later, are what touch the scope/store.
     /// </summary>
@@ -51,6 +70,14 @@ public sealed partial class Renamer
     /// </summary>
     private async Task AutoRenamerAsync(RenamerFileKind kind, int entityId, CancellationToken ct)
     {
+        var selfSaveKey = (kind, entityId);
+        if (_selfSaved.TryRemove(selfSaveKey, out _))
+        {
+            // This event is the save this handler just made. Stop here rather than at the plan, which
+            // cannot tell the two apart and would act again on a template whose output does not settle.
+            return;
+        }
+
         try
         {
             var options = await new OptionsStore(Store, _log).LoadAsync(ct);
@@ -103,6 +130,10 @@ public sealed partial class Renamer
                 using var journal = new CoveRevertJournal(db);
                 await OpenOrSuppressBatchAsync(journal, runId, kind, actingFiles, DateTime.UtcNow, ct);
 
+                // Claimed BEFORE the save that raises the event, never after: the host dispatches
+                // fire-and-forget, so the event can re-enter this handler before ExecuteAsync returns.
+                _selfSaved[selfSaveKey] = 0;
+
                 var executor = new RenamerExecutor(port, EventBus, journal, runId, new DiskMover());
                 // Single-entity hook path (no batch concurrency): no pre-resolved folder map — the executor
                 // resolves the destination folder itself, safe because this call is not parallelized.
@@ -123,6 +154,11 @@ public sealed partial class Renamer
             // The host is shutting the operation down — let cancellation flow as cancellation,
             // not as a swallowed "failure". Nothing was committed past the executor's own
             // per-item transaction boundary.
+            //
+            // The claim is released on both non-happy exits. A claim left behind would be consumed by
+            // the user's NEXT edit of this entity, silently skipping a rename they asked for; releasing
+            // one the save already raised an event for costs at most one extra idempotent pass.
+            _selfSaved.TryRemove(selfSaveKey, out _);
             throw;
         }
 #pragma warning disable CA1031 // Host event-dispatch boundary: nothing may escape into the host.
@@ -131,6 +167,7 @@ public sealed partial class Renamer
             // Contain the failure with enough context to diagnose it, then stop. Auto-renamer is
             // best-effort; the next update (or a manual renamer) gets a fresh attempt. Cancellation
             // never reaches here — the catch above rethrows it.
+            _selfSaved.TryRemove(selfSaveKey, out _);
             LogAutoRenamerError(ex, kind, entityId);
         }
 #pragma warning restore CA1031

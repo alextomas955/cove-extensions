@@ -66,6 +66,12 @@ User-facing changes, newest first.
 - **A skipped file says which kind of problem it hit.** "Locked or already there" is now two separate
   reasons, and a permission refusal, a copy that read back wrong, and a cancelled run each get their
   own label in the dry run instead of being grouped with ordinary skips.
+- **Auto-rename can no longer chase its own tail.** Renaming a file makes Cove announce that the item
+  changed, which is what wakes auto-rename in the first place - so auto-rename was hearing its own
+  work. It stopped only when a second pass found nothing left to do, and two destination rules that
+  send a file back and forth never reach that point. Auto-rename now ignores the announcement its own
+  rename caused, so one edit means one rename whatever your rules say. A later edit of the same item
+  is still picked up.
 - **Renamer's entry in Cove's extension list now shows the right link and the full description.** The
   link pointed at a repository that does not hold this extension, and the description was a single
   sentence that left out which permissions a rename needs and the fact that Renamer makes no network
