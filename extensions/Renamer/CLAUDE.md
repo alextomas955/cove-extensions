@@ -47,7 +47,11 @@ specifics:
 - **Extension-local shared is `common/`, not "shared".** `common/lib/preview.ts` — evicted from any
   old `shared/` bucket; nothing Renamer-specific goes in the repo-level `shared/` packages.
 - **Wire home: the generated `src/wire/api.ts`** (UI) + a `Contracts/` unit in the assembly
-  (`PreviewItemView` split out of the plan model so the domain can evolve without a wire break).
+  (`PreviewItemView` split out of the plan model so the domain can evolve without a wire break). The
+  panel declares no RESPONSE type of its own — those are generated from the extension's own emitted
+  document. `settings/options.ts` is the exception and is a REQUEST shape, not a response: the options
+  blob the panel persists travels in the PascalCase spelling the C# record uses, which the wire
+  document does not describe, so that mirror is hand-written and its casing is load-bearing.
 - **Tests mirror source** (`Engine/ · Execution/{…}/ · Options/ · Api/ · TransportSmoke/`). Widen the
   `IRenamerDataPort` write seam so a throwing fake can unit-test the rollback spine at L0.
 
@@ -66,7 +70,8 @@ specifics:
 - The **dev local-source build** is the path used to load into the running dev Cove: it resolves
   `Cove.Sdk` from a local Cove checkout so the extension is ABI-identical to the running host (the
   source-selection precedence and host-assembly stripping are handled at the repo root). Use
-  `scripts/deploy-dev.ps1` for the full build → assemble → deploy → restart loop.
+  `scripts/deploy-dev.ps1` for the full build → frontend-build → assemble → deploy → restart loop, and
+  invoke it as `pwsh` on any OS.
 - **Publish-readiness** targets the published NuGet packages (the pinned `CoveSdkVersion`,
   `Private=false`), where `Cove.Sdk.targets` is imported transitively from the package.
 

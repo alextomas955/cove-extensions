@@ -6,7 +6,7 @@ sidebar_position: 2
 
 Renamer bulk-renames — and optionally relocates — your Cove library items from the metadata Cove
 already has, using a naming template you control. It previews every change before touching disk,
-updates the file and its Cove database record together, and can undo the last batch.
+updates the file and its Cove database record together, and can undo the last rename.
 
 This guide walks the everyday workflow. For the meaning of every setting see the
 [Settings reference](./settings); for the tokens you can put in a template see the
@@ -26,7 +26,7 @@ The **filename template** decides what each file is named. It is made of plain t
 that Cove fills in from each item's metadata — for example `$title` becomes the item's title and
 `$resolution` becomes `1080p`.
 
-1. In the **Filename & destination** section, either pick a **preset** chip (for example
+1. In the **Filename & folder** section, either pick a **preset** chip (for example
    _Date – Title [Resolution]_) or type your own template.
 2. Watch the **live preview** below the field — it shows the new name for a few sample items and
    updates as you type. Nothing is renamed yet.
@@ -63,6 +63,22 @@ destination, and any warnings — without changing anything.
    iterate on the template and re-run until the preview looks right. If something looks wrong,
    adjust the template or the relevant setting and dry-run again.
 
+Every row names its own outcome, so you never have to infer a skip from the destination cell. A
+row that will change carries a badge only when its name was **Numbered to avoid a clash** or
+**Cleaned for the filesystem**; a row with nothing to do carries a gray **No change needed**. A row
+that needs attention always says why:
+
+| Badge                                                        | Why the row stopped                                                                            |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| Skipped — needs a required field                             | A token listed in _Required fields_ resolved to nothing for this item.                         |
+| Skipped — an exclude rule matched                            | One of your exclude rules covers it.                                                           |
+| Skipped — name conflict                                      | Another file already holds the computed name, and Renamer never overwrites.                    |
+| Skipped — file missing on disk                               | Cove holds a record for a file that is not there.                                              |
+| Skipped — file is outside your Cove library                  | The destination measures from the file's own library path, and the file is under none of them. |
+| Skipped — the rule's destination is no longer a library path | The root the matched rule names is no longer one of Cove's library paths.                      |
+| Skipped — destination outside your allowed roots             | _Allowed roots_ does not cover where the rule would write.                                     |
+| Skipped — path too long                                      | The full path would exceed _Full-path max length_.                                             |
+
 ## Rename
 
 1. When the preview looks right, **save** your settings (the sticky Save bar at the bottom).
@@ -71,22 +87,64 @@ destination, and any warnings — without changing anything.
 3. Renamer renames each file and updates its Cove record together. A file is never renamed onto an
    existing file — a collision gets a numbered suffix such as `(1)` instead.
 
-## Undo the last batch
+The run leaves one of three banners behind, and the difference between the last two decides whether
+you have anything to check:
 
-If a rename batch wasn't what you wanted, open the **Undo** section and click **Undo last batch**
-(behind a confirmation). Undo restores the previous names and locations of the most recent batch.
+- **It worked**: "Renamed 412 files, 9 skipped. Undo covers only the last media kind in this run."
+  The skipped figure is the _Needs attention_ count from the scan. The closing sentence is explained
+  under [Undo the last rename](#undo-the-last-rename).
+- **The job reported failure**: "Couldn't rename — [reason]. Nothing was changed; you can try again."
+  Cove reported that the work stopped, so nothing was written. Fix the cause it names and run again.
+- **The outcome is unknown**: "Couldn't confirm the rename — [reason]." Renamer stopped watching before
+  the job reached a verdict, either because the job went ten minutes without reporting progress or
+  because Cove stopped answering about it. It deliberately does _not_ say nothing changed: the job
+  may still be running and may already have renamed files. Reload the page, check your library and
+  the **Undo last rename** section, and only then run it again.
 
-Undo is deliberately small, so know what it covers:
+## Undo the last rename
 
-- Only the **most recent** rename is offered — starting another rename supersedes it.
+If a rename wasn't what you wanted, open the **Undo last rename** section. One line there describes
+the last rename — how many items it renamed, how long ago, and the date its undo window closes
+("undo available until" plus the date) — with the button beside it.
+
+Click **Undo last rename**. The confirmation quotes how many files it will move; confirm it, and
+Renamer moves those files back to the names and folders they came from and updates their Cove records
+to match. The companion files that travelled with them come back too — a same-name neighbour such as
+a `.srt` subtitle, and the captions Cove tracks for the item.
+
+Know what undo covers:
+
+- A recorded rename is kept for **7 days**, and the panel states the expiry date rather than a
+  countdown. Past it the line reads "undo expired" and the button is withheld: the files may still be
+  where the rename left them, but the next rename drops that record with no further warning, so
+  Renamer stops offering a restore it cannot promise. A record expires as a whole — including any
+  part you had not restored yet.
+- **A whole-library rename records each media kind separately**, which is why its banner closes with
+  "Undo covers only the last media kind in this run." One undo restores that kind; the rule below
+  decides which record the button offers next.
+- Several renames can be waiting at once, and the button reaches the most recent one that **still has
+  files to put back**. What you cannot do is reach past a newer rename to get to an older one.
+- **After a partial undo, the line and the button quote what is left rather than what the rename
+  started as** — "37 of 500 restored", "463 remaining", and a button offering those 463. Files that
+  can never go back are counted separately in the same line, so a partly-undone rename describes
+  itself instead of looking finished.
 - A rename of more than **5,000 files** is **not recorded at all**, and both the rename confirmation
   and the dry-run footer say so before it runs. A whole-library rename usually lands here. It also
   clears any undo that was still pending, because a rename that large may have moved those files too.
-- A recorded rename is kept for **7 days** and then expires.
-- A file that cannot go back — its original folder is gone, or something else now occupies the old
-  name — stays pending, so undoing again after you fix the cause finishes the job.
+- A file that cannot go back — something else now occupies the old name, the drive is unmounted, the
+  file is locked — stays pending, so undoing again after you fix the cause finishes exactly the work
+  that is left. One case is final rather than worth retrying: a file that is no longer in your library
+  cannot be restored, because Renamer reads its current location from Cove.
+- **A companion file can be stranded even when its media file comes back.** The result then reads
+  "Undone — 40 files moved back to their original names. 2 companion files stayed behind ([which one, and why])." The
+  video is where you wanted it; the subtitle beside it is not, and nothing else reports that.
+- A pending undo survives an update or a reinstall of Renamer, because the record lives in Cove's
+  database rather than in the extension's own folder.
 - Undo does **not** re-create a source folder that ["Delete the source folder when a move leaves it
-  empty"](./settings#destination-routing) removed.
+  empty"](./settings#sidecar-files-and-empty-folders) removed.
+
+The panel's own standing note is narrower than this: it says only the most recent rename is kept,
+which described an earlier version. The list above is what the current version does.
 
 ### If a rename can't be undone
 
