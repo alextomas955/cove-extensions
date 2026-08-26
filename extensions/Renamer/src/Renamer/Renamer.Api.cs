@@ -776,9 +776,15 @@ public sealed partial class Renamer
         // otherwise it scans the saved options — the original behavior.
         var options = overrideOptions ?? await new OptionsStore(Store, _log).LoadAsync(ct);
 
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-        await RunScanCoreAsync(new CoveRenamerDataPort(db, _coveConfig), readableKinds, options, progress, ct);
+        // The widest of the elevated bodies, because RunScanCoreAsync takes a PORT rather than a service
+        // provider - deliberately, so its boundedness is provable over a fake - and so there is no
+        // narrower seam here to wrap. Per-kind authorization still reaches the detached job through
+        // readableKinds, captured at enqueue time.
+        await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, services =>
+        {
+            var db = services.GetRequiredService<DbContext>();
+            return RunScanCoreAsync(new CoveRenamerDataPort(db, _coveConfig), readableKinds, options, progress, ct);
+        });
     }
 
     /// <summary>
@@ -936,12 +942,13 @@ public sealed partial class Renamer
         {
             ct.ThrowIfCancellationRequested();
 
-            IReadOnlyList<int> ids;
-            await using (var scope = ScopeFactory.CreateAsyncScope())
-            {
-                var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-                ids = await new CoveRenamerDataPort(db, _coveConfig).LoadAllEntityIdsAsync(kind, ct);
-            }
+            var ids = await RunAsSystem.RunInSystemScopeAsync(
+                ScopeFactory,
+                services =>
+                {
+                    var db = services.GetRequiredService<DbContext>();
+                    return new CoveRenamerDataPort(db, _coveConfig).LoadAllEntityIdsAsync(kind, ct);
+                });
 
             if (ids.Count == 0)
             {

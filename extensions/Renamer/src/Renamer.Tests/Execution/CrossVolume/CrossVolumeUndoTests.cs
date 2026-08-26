@@ -32,6 +32,7 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// name was.
 /// </remarks>
 [Trait("Tier", "L1")]
+[Collection(SubstDriveScope.CollectionName)]
 public sealed class CrossVolumeUndoTests
 {
     [Fact]

@@ -1,3 +1,4 @@
+using Cove.Extensions.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Renamer.Execution;
@@ -58,58 +59,64 @@ public sealed partial class Renamer
                 return; // opt-in, default off — do zero DB work when disabled.
             }
 
-            await using var scope = ScopeFactory.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-
-            var port = new CoveRenamerDataPort(db, _coveConfig);
-            // Route auto-renamer IDENTICALLY to the manual batch and to /preview. Build the same
-            // RouteLookups from the same RenamerOptions and use the routing overload, so a matched
-            // studio/tag/path rule relocates the just-edited item to its configured destination — the
-            // same on-disk outcome the user previews and the batch executes.
-            //
-            // This does NOT enable dribble-relocate of the whole library: only the entity just edited
-            // is planned, and it lands where preview and the batch would put it - a matched rule's own
-            // destination, or the DEFAULT destination for an item no rule matched, which leaves the
-            // item in place only while that default names neither a root nor a folder template. Either
-            // way the move passes the allowlist/canonical confinement gate via the routed anchor.
-            // Preview, auto-renamer, and batch all resolve destinations identically.
-            var lookups = BuildLookups(options);
-            var plan = await new RenamerPlanner(port).PlanAsync(kind, entityId, options, lookups, ct);
-
-            // Re-entrancy guard: if nothing would actually move, do NOT touch the executor. No save
-            // means no re-raised update event, so the save→event→re-enter loop never starts. Gated
-            // items land here as SkipGated (only-organized / require-fields respected) and are
-            // likewise skipped.
-            int actingFiles = plan.Items.Count(i =>
-                i.Status is RenamerStatus.Renamer or RenamerStatus.Move);
-            if (actingFiles == 0)
+            // One elevated scope for the whole handler, obtained from the seam that elevates as it
+            // creates. The hook carries whichever principal made the edit, or none, and a scope running
+            // half its work as System and half as the caller is the kind of split that only shows up as
+            // an empty result much later.
+            await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
             {
-                return;
-            }
+                var db = services.GetRequiredService<DbContext>();
 
-            // Open exactly one batch for this per-edit rename, mirroring the manual batch
-            // (RunRenamerBatchAsync): mint a runId and call BeginBatchAsync only now, on the acting
-            // path, so nothing-acts opens no batch (an empty batch would shadow a prior replayable one
-            // from /undo). The SAME journal instance is handed to the executor so its AppendAsync rows
-            // land under this batch. The row cap applies here too — one entity can hold more files than
-            // the journal takes.
-            var runId = Guid.NewGuid().ToString("N");
-            using var journal = new CoveRevertJournal(db);
-            await OpenOrSuppressBatchAsync(journal, runId, kind, actingFiles, DateTime.UtcNow, ct);
+                var port = new CoveRenamerDataPort(db, _coveConfig);
+                // Route auto-renamer IDENTICALLY to the manual batch and to /preview. Build the same
+                // RouteLookups from the same RenamerOptions and use the routing overload, so a matched
+                // studio/tag/path rule relocates the just-edited item to its configured destination — the
+                // same on-disk outcome the user previews and the batch executes.
+                //
+                // This does NOT enable dribble-relocate of the whole library: only the entity just edited
+                // is planned, and it lands where preview and the batch would put it - a matched rule's own
+                // destination, or the DEFAULT destination for an item no rule matched, which leaves the
+                // item in place only while that default names neither a root nor a folder template. Either
+                // way the move passes the allowlist/canonical confinement gate via the routed anchor.
+                // Preview, auto-renamer, and batch all resolve destinations identically.
+                var lookups = BuildLookups(options);
+                var plan = await new RenamerPlanner(port).PlanAsync(kind, entityId, options, lookups, ct);
 
-            var executor = new RenamerExecutor(port, EventBus, journal, runId, new DiskMover());
-            // Single-entity hook path (no batch concurrency): no pre-resolved folder map — the executor
-            // resolves the destination folder itself, safe because this call is not parallelized.
-            var result = await executor.ExecuteAsync(plan, options, ct: ct);
+                // Re-entrancy guard: if nothing would actually move, do NOT touch the executor. No save
+                // means no re-raised update event, so the save→event→re-enter loop never starts. Gated
+                // items land here as SkipGated (only-organized / require-fields respected) and are
+                // likewise skipped.
+                int actingFiles = plan.Items.Count(i =>
+                    i.Status is RenamerStatus.Renamer or RenamerStatus.Move);
+                if (actingFiles == 0)
+                {
+                    return;
+                }
 
-            foreach (var r in result.Renamed)
-            {
-                LogAutoRenamed(kind, entityId, r.Status, r.OldPath, r.NewPath);
-            }
-            foreach (var f in result.Failed)
-            {
-                LogAutoRenamerFailed(kind, entityId, f.OldPath, f.NewPath, f.Reason ?? "no reason given");
-            }
+                // Open exactly one batch for this per-edit rename, mirroring the manual batch
+                // (RunRenamerBatchAsync): mint a runId and call BeginBatchAsync only now, on the acting
+                // path, so nothing-acts opens no batch (an empty batch would shadow a prior replayable one
+                // from /undo). The SAME journal instance is handed to the executor so its AppendAsync rows
+                // land under this batch. The row cap applies here too — one entity can hold more files than
+                // the journal takes.
+                var runId = Guid.NewGuid().ToString("N");
+                using var journal = new CoveRevertJournal(db);
+                await OpenOrSuppressBatchAsync(journal, runId, kind, actingFiles, DateTime.UtcNow, ct);
+
+                var executor = new RenamerExecutor(port, EventBus, journal, runId, new DiskMover());
+                // Single-entity hook path (no batch concurrency): no pre-resolved folder map — the executor
+                // resolves the destination folder itself, safe because this call is not parallelized.
+                var result = await executor.ExecuteAsync(plan, options, ct: ct);
+
+                foreach (var r in result.Renamed)
+                {
+                    LogAutoRenamed(kind, entityId, r.Status, r.OldPath, r.NewPath);
+                }
+                foreach (var f in result.Failed)
+                {
+                    LogAutoRenamerFailed(kind, entityId, f.OldPath, f.NewPath, f.Reason ?? "no reason given");
+                }
+            });
         }
         catch (OperationCanceledException)
         {
