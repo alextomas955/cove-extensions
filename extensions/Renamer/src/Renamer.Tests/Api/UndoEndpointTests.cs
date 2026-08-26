@@ -34,11 +34,13 @@ public sealed class UndoEndpointTests
     /// given capturing event bus, plus a fresh <see cref="FakeStore"/> for the RevertLog. Mirrors
     /// <c>RenamerBatchJobTests.BuildExtensionAsync</c>.
     /// </summary>
-    private static async Task<(global::Renamer.Renamer ext, FakeStore store)> BuildExtensionAsync(CoveContext db, IEventBus bus)
+    private static async Task<(global::Renamer.Renamer ext, FakeStore store)> BuildExtensionAsync(
+        CoveContext db, IEventBus bus, params string[] libraryPaths)
     {
         var services = new ServiceCollection();
         services.AddSingleton<DbContext>(db);
         services.AddSingleton(bus);
+        services.AddLibraryPaths(libraryPaths);
         var provider = services.BuildServiceProvider();
 
         var store = new FakeStore();
@@ -198,14 +200,14 @@ public sealed class UndoEndpointTests
             string newFull = Path.Combine(destDir.Root, "My Film.mkv");
             File.WriteAllText(oldFull, "video-bytes");
 
-            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus());
+            var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus(), srcPath, destPath);
             // Forward: a routed move OFF the source folder onto the dest folder (a relocation, so the
             // undo re-gate applies). Both roots allowed for the forward move.
             await new global::Renamer.Options.OptionsStore(store).SaveAsync(new global::Renamer.Options.RenamerOptions
             {
                 FilenameTemplate = "$title",
                 AllowedRoots = [srcPath, destPath],
-                PathDestinations = [new global::Renamer.Options.PathDestinationRule { Pattern = srcPath, Dest = destPath }],
+                PathDestinations = [new global::Renamer.Options.PathDestinationRule { Pattern = srcPath, Dest = Dest.At(destPath) }],
             });
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
             Assert.True(File.Exists(newFull), "forward move landed on dest");

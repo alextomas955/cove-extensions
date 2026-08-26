@@ -31,7 +31,9 @@ that Cove fills in from each item's metadata — for example `$title` becomes th
 2. Watch the **live preview** below the field — it shows the new name for a few sample items and
    updates as you type. Nothing is renamed yet.
 3. To move files into folders as well as rename them, fill in the **folder template** (for example
-   `$studio / $year`). Leave it blank to rename each file in place.
+   `$studio/$year`). Leave it blank to rename each file in place. The folders are made under the
+   library path shown in **Under**, which defaults to whichever of Cove's library paths already
+   holds the file.
 
 If a token might be empty for some items, wrap it in a `{ … }` group so its surrounding punctuation
 disappears when the value is missing — `$title{ [$resolution]}` produces `My Movie [1080p]` when
@@ -101,8 +103,8 @@ re-run is how you change your mind about a template. Before the first run on a s
 
 - **Rename only curated items** — turn on _Only rename organized items_ (What gets renamed).
 - **Keep files organized into folders by studio/year** — set a folder template like
-  `$studio / $year` and, if the destination is outside the source folder, add that root under
-  _Allowed roots_ (Destination routing → Advanced).
+  `$studio/$year`. To put them under a different library path, pick it in **Under** beside the
+  template.
 - **Route certain studios or tags to specific drives** — use _Per-studio destinations_ or
   _Per-tag destinations_ (Destination routing).
 - **Skip certain items entirely** — add exclude rules by tag, studio, or path (Advanced → Excludes).

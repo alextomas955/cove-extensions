@@ -1,4 +1,5 @@
 using Renamer.Options;
+using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests.Options;
 
@@ -32,9 +33,9 @@ public sealed class RenamerOptionsEqualityTests
         {
             DropOrder = ["studio", "date"],
             AllowedRoots = ["/media/a", "/media/b"],
-            StudioDestinations = new() { [1] = "/x", [2] = "/y" },
-            TagDestinations = new() { [31] = "/anime" },
-            PathDestinations = [new PathDestinationRule { Pattern = "p", Dest = "/d" }],
+            StudioDestinations = new() { [1] = Dest.At("/x"), [2] = Dest.At("/y") },
+            TagDestinations = new() { [31] = Dest.At("/anime") },
+            PathDestinations = [new PathDestinationRule { Pattern = "p", Dest = Dest.At("/d") }],
             Performers = new() { WhitelistIds = [11, 12] },
         };
 
@@ -54,7 +55,7 @@ public sealed class RenamerOptionsEqualityTests
         Assert.NotEqual(new RenamerOptions(), new RenamerOptions { AssociatedExtensions = ["srt"] });
         Assert.NotEqual(
             new RenamerOptions(),
-            new RenamerOptions { PathDestinations = [new PathDestinationRule { Pattern = "p", Dest = "/d" }] });
+            new RenamerOptions { PathDestinations = [new PathDestinationRule { Pattern = "p", Dest = Dest.At("/d") }] });
         Assert.NotEqual(new RenamerOptions(), new RenamerOptions { ExcludeStudioIds = [5] });
     }
 
@@ -70,25 +71,25 @@ public sealed class RenamerOptionsEqualityTests
     [Fact]
     public void TagDestinations_AreOrderIndependent()
     {
-        var written = new RenamerOptions { TagDestinations = new() { [31] = "/x", [32] = "/y" } };
-        var reordered = new RenamerOptions { TagDestinations = new() { [32] = "/y", [31] = "/x" } };
+        var written = new RenamerOptions { TagDestinations = new() { [31] = Dest.At("/x"), [32] = Dest.At("/y") } };
+        var reordered = new RenamerOptions { TagDestinations = new() { [32] = Dest.At("/y"), [31] = Dest.At("/x") } };
 
         Assert.Equal(written, reordered);
         Assert.Equal(written.GetHashCode(), reordered.GetHashCode());
 
-        Assert.NotEqual(written, new RenamerOptions { TagDestinations = new() { [31] = "/DIFFERENT", [32] = "/y" } });
+        Assert.NotEqual(written, new RenamerOptions { TagDestinations = new() { [31] = Dest.At("/DIFFERENT"), [32] = Dest.At("/y") } });
     }
 
     [Fact]
     public void StudioDestinations_OrderIndependent_ValueSensitive()
     {
-        var a = new RenamerOptions { StudioDestinations = new() { [1] = "/x", [2] = "/y" } };
-        var reordered = new RenamerOptions { StudioDestinations = new() { [2] = "/y", [1] = "/x" } };
+        var a = new RenamerOptions { StudioDestinations = new() { [1] = Dest.At("/x"), [2] = Dest.At("/y") } };
+        var reordered = new RenamerOptions { StudioDestinations = new() { [2] = Dest.At("/y"), [1] = Dest.At("/x") } };
 
         Assert.Equal(a, reordered);
         Assert.Equal(a.GetHashCode(), reordered.GetHashCode());
 
-        Assert.NotEqual(a, new RenamerOptions { StudioDestinations = new() { [1] = "/x", [2] = "/DIFFERENT" } });
+        Assert.NotEqual(a, new RenamerOptions { StudioDestinations = new() { [1] = Dest.At("/x"), [2] = Dest.At("/DIFFERENT") } });
     }
 
     [Fact]
@@ -97,6 +98,9 @@ public sealed class RenamerOptionsEqualityTests
         Assert.NotEqual(new RenamerOptions(), new RenamerOptions { FilenameTemplate = "$title" });
         Assert.NotEqual(new RenamerOptions(), new RenamerOptions { FilenameMax = 100 });
         Assert.NotEqual(new RenamerOptions(), new RenamerOptions { Case = CaseTransform.Lower });
-        Assert.NotEqual(new RenamerOptions(), new RenamerOptions { EnableDefaultRelocate = true });
+        Assert.NotEqual(new RenamerOptions(), new RenamerOptions { FolderRoot = "/media" });
+        Assert.NotEqual(
+            new RenamerOptions(),
+            new RenamerOptions { UnorganizedDestination = Dest.At("/media") });
     }
 }

@@ -7,6 +7,7 @@ import { test } from "vitest";
 import assert from "node:assert/strict";
 
 import {
+  NO_DESTINATION,
   normalizeOptions,
   extractUnmodeledFields,
   cloneDefaults,
@@ -21,6 +22,7 @@ function fullyPopulatedBlob() {
   return {
     FilenameTemplate: "$title",
     FolderTemplate: "$studio",
+    FolderRoot: "D:/default",
     DateFormat: "yyyy",
     DurationFormat: "mm\\-ss",
     Performers: {
@@ -59,20 +61,24 @@ function fullyPopulatedBlob() {
     RequiredFields: ["title", "studio"],
     DuplicateSuffixFormat: "_{n}",
     AutoRenamerOnUpdate: true,
-    StudioDestinations: { 7: "D:/studios/seven", 12: "E:/studios/twelve" },
-    TagDestinations: { 14: "D:/anime", 15: "E:/docs" },
+    StudioDestinations: {
+      7: { Root: "D:/studios", Template: "seven" },
+      12: { Root: "E:/studios", Template: "twelve" },
+    },
+    TagDestinations: {
+      14: { Root: "D:/anime", Template: "" },
+      15: { Root: "E:/docs", Template: "$year" },
+    },
     PathDestinations: [
-      { Pattern: "C:/in", Dest: "D:/out", IsRegex: false },
-      { Pattern: "^C:/re/.*$", Dest: "E:/out", IsRegex: true },
+      { Pattern: "C:/in", Dest: { Root: "D:/out", Template: "" }, IsRegex: false },
+      { Pattern: "^C:/re/.*$", Dest: { Root: "E:/out", Template: "$studio" }, IsRegex: true },
     ],
     ExcludeTagIds: [31],
     ExcludeStudioIds: [3, 9],
     ExcludePaths: [{ Pattern: "C:/skip", IsRegex: false }],
     AllowedRoots: ["D:/", "E:/"],
     AssociatedExtensions: ["srt", "vtt"],
-    DefaultDestination: "D:/default",
-    UnorganizedDestination: "D:/unorganized",
-    EnableDefaultRelocate: true,
+    UnorganizedDestination: { Root: "D:/unorganized", Template: "$studio" },
     EnableStudioDestinations: true,
     EnableTagDestinations: true,
     EnableAdvancedRouting: true,
@@ -103,8 +109,8 @@ test("every modeled field survives load → no-op edit → save value-equal", ()
   assert.equal(loaded.EnableTagDestinations, true);
   assert.equal(loaded.EnableAdvancedRouting, true);
   assert.deepEqual(loaded.AssociatedExtensions, ["srt", "vtt"]);
-  assert.deepEqual(loaded.StudioDestinations, { 7: "D:/studios/seven", 12: "E:/studios/twelve" });
-  assert.deepEqual(loaded.TagDestinations, { 14: "D:/anime", 15: "E:/docs" });
+  assert.deepEqual(loaded.StudioDestinations, blob.StudioDestinations);
+  assert.deepEqual(loaded.TagDestinations, blob.TagDestinations);
   assert.deepEqual(loaded.ExcludeTagIds, [31]);
   assert.deepEqual(loaded.Tags.WhitelistIds, [21]);
   assert.deepEqual(loaded.Performers.BlacklistIds, [5]);
@@ -124,9 +130,13 @@ test("cloneDefaults isolates every mutable collection from DEFAULT_OPTIONS", () 
   const before = structuredClone(DEFAULT_OPTIONS);
   const clone = cloneDefaults();
 
-  clone.StudioDestinations[1] = "x";
-  clone.TagDestinations[2] = "x";
-  clone.PathDestinations.push({ Pattern: "p", Dest: "d", IsRegex: false });
+  clone.StudioDestinations[1] = { Root: "x", Template: "" };
+  clone.TagDestinations[2] = { Root: "x", Template: "" };
+  clone.PathDestinations.push({
+    Pattern: "p",
+    Dest: { Root: "d", Template: "" },
+    IsRegex: false,
+  });
   clone.ExcludePaths.push({ Pattern: "p", IsRegex: false });
   clone.FieldReplacers.push({ TargetToken: "t", Find: "f", Replace: "r" });
   clone.ExcludeTagIds.push(77);
@@ -228,7 +238,7 @@ test("a blob predating the three gate flags normalizes them to false", () => {
   // EnableAdvancedRouting keys at all. Their absence must fall back to the DEFAULT_OPTIONS false,
   // not error and not spuriously turn a gate on.
   const oldBlob = {
-    StudioDestinations: { 7: "D:/studios/seven" },
+    StudioDestinations: { 7: { Root: "D:/studios", Template: "seven" } },
   };
 
   const loaded = normalizeOptions(oldBlob);
@@ -239,37 +249,53 @@ test("a blob predating the three gate flags normalizes them to false", () => {
 
 test("a stale camelCase duplicate key is dropped by normalizeOptions", () => {
   const blob = {
-    StudioDestinations: { 7: "D:/canonical" },
-    studioDestinations: { 7: "D:/stale" },
+    StudioDestinations: { 7: { Root: "D:/canonical", Template: "" } },
+    studioDestinations: { 7: { Root: "D:/stale", Template: "" } },
   };
 
   const normalized = normalizeOptions(blob);
-  assert.deepEqual(normalized.StudioDestinations, { 7: "D:/canonical" });
+  assert.deepEqual(normalized.StudioDestinations, {
+    7: { Root: "D:/canonical", Template: "" },
+  });
   assert.ok(!("studioDestinations" in normalized));
 });
 
 test("a number-keyed destination map becomes a string-keyed map preserving values", () => {
-  assert.deepEqual(toStringKeyed({ 3: "/a", 12: "/b" }), { 3: "/a", 12: "/b" });
+  const map = { 3: { Root: "/a", Template: "" }, 12: { Root: "/b", Template: "x" } };
+  assert.deepEqual(toStringKeyed(map), map);
 });
 
 test("a round-trip through the editor's string keys restores number keys identically", () => {
-  const original = { 3: "/a", 12: "/b" };
+  const original = { 3: { Root: "/a", Template: "" }, 12: { Root: "/b", Template: "x" } };
   assert.deepEqual(fromStringKeyed(toStringKeyed(original)), original);
 });
 
 test("a non-integer editor key is dropped rather than producing a NaN key", () => {
-  assert.deepEqual(fromStringKeyed({ x: "/a", "1.5": "/b", "9": "/c" }), { 9: "/c" });
+  const dest = { Root: "/a", Template: "" };
+  assert.deepEqual(fromStringKeyed({ x: dest, "1.5": dest, "9": dest }), { 9: dest });
 });
 
-test("a non-string editor value is dropped on back-conversion", () => {
-  // Cast because the drop is exactly what a hand-edited or legacy blob makes reachable, and the
-  // parameter type is what forbids it: a well-typed caller cannot get here.
-  const back = fromStringKeyed({ 4: 12, 5: "/ok" } as unknown as Record<string, string>);
-  assert.deepEqual(back, { 5: "/ok" });
+test("a stored destination that is still a bare string loads as the moves-nothing one", () => {
+  // The shape a blob written before destinations became objects holds. It cannot be placed without
+  // Cove's library paths, which is the backend conversion's decision to make, so the panel shows
+  // the destination that moves nothing rather than guessing at a root.
+  const loaded = normalizeOptions({ TagDestinations: { 14: "D:/anime" } });
+
+  assert.deepEqual(loaded.TagDestinations, { 14: NO_DESTINATION });
+});
+
+test("an absent unorganized destination stays absent, not a destination naming nothing", () => {
+  // Only the absent one falls through to the only-organized gate, so the two are not the same
+  // setting and a load must not turn one into the other.
+  assert.equal(normalizeOptions({}).UnorganizedDestination, null);
+  assert.deepEqual(
+    normalizeOptions({ UnorganizedDestination: { Root: "", Template: "" } }).UnorganizedDestination,
+    NO_DESTINATION,
+  );
 });
 
 test("every destination-map key a save persists parses as an integer", () => {
-  // The backend binds both maps as `Dictionary<int, string>` and answers a bind failure with
+  // The backend binds both maps as `Dictionary<int, Destination>` and answers a bind failure with
   // DEFAULTS, so one unparseable key silently discards the user's whole settings blob. JSON object
   // keys are strings, which is why this is asserted on what a save actually writes.
   const persisted: Record<string, unknown> = {
@@ -290,7 +316,7 @@ test("a name-keyed destination map coerces to empty rather than persisting an un
   // A blob written before the rules keyed on ids holds names here. The backend's one-time conversion
   // is what recovers them; this panel must not carry a name back into a save.
   const loaded = normalizeOptions({
-    TagDestinations: { Anime: "D:/anime" },
+    TagDestinations: { Anime: { Root: "D:/anime", Template: "" } },
     ExcludeTagIds: ["nsfw"],
   });
 

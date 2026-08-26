@@ -17,15 +17,19 @@ namespace Renamer.Tests.Options;
 [Trait("Tier", "L1")]
 public sealed class OptionsMigrationInitializeTests
 {
+    /// <summary>The library path every stored destination in these blobs lives under.</summary>
+    private const string DramaRoot = "/drama";
+
     private const string LegacyBlob = """
         {"FilenameTemplate":"$title","ExcludeTags":["spoiler"],"TagDestinations":{"drama":"/drama"}}
         """;
 
-    private static async Task<global::Renamer.Renamer> LoadAsync(LibraryDatabase library, FakeStore store)
+    private static async Task<global::Renamer.Renamer> LoadAsync(
+        LibraryDatabase library, FakeStore store, params string[] libraryPaths)
     {
         var ext = new global::Renamer.Renamer();
         ((IStatefulExtension)ext).SetStore(store);
-        await ext.InitializeAsync(library.BuildProvider());
+        await ext.InitializeAsync(library.BuildProvider(libraryPaths));
         return ext;
     }
 
@@ -50,7 +54,7 @@ public sealed class OptionsMigrationInitializeTests
         var store = new FakeStore();
         await store.SetAsync(OptionsStore.Key, LegacyBlob);
 
-        await LoadAsync(library, store);
+        await LoadAsync(library, store, DramaRoot);
 
         Assert.Equal(LegacyBlob, await store.GetAsync(OptionsStore.Key));
         Assert.Null(await store.GetAsync(OptionsMigration.SchemaKey));
@@ -65,16 +69,16 @@ public sealed class OptionsMigrationInitializeTests
         var store = new FakeStore();
         await store.SetAsync(OptionsStore.Key, LegacyBlob);
 
-        await LoadAsync(library, store);
+        await LoadAsync(library, store, DramaRoot);
         Assert.Null(await store.GetAsync(OptionsMigration.SchemaKey));
 
         await SeedTagsAsync(library, (13, "spoiler"), (14, "drama"));
-        await LoadAsync(library, store);
+        await LoadAsync(library, store, DramaRoot);
 
         Assert.Equal(OptionsMigration.CurrentSchema, await store.GetAsync(OptionsMigration.SchemaKey));
         var options = await new OptionsStore(store).LoadAsync();
         Assert.Equal([13], options.ExcludeTagIds);
-        Assert.Equal("/drama", options.TagDestinations[14]);
+        Assert.Equal(DramaRoot, options.TagDestinations[14].Root);
     }
 
     [Fact]
@@ -85,11 +89,11 @@ public sealed class OptionsMigrationInitializeTests
         var store = new FakeStore();
         await store.SetAsync(OptionsStore.Key, LegacyBlob);
 
-        await LoadAsync(library, store);
+        await LoadAsync(library, store, DramaRoot);
 
         var options = await new OptionsStore(store).LoadAsync();
         Assert.Equal([13], options.ExcludeTagIds);
-        Assert.Equal("/drama", options.TagDestinations[14]);
+        Assert.Equal(DramaRoot, options.TagDestinations[14].Root);
         Assert.Equal("$title", options.FilenameTemplate);
     }
 
@@ -104,7 +108,7 @@ public sealed class OptionsMigrationInitializeTests
         await store.SetAsync(OptionsStore.Key, LegacyBlob);
         await store.SetAsync(OptionsMigration.SchemaKey, OptionsMigration.CurrentSchema);
 
-        await LoadAsync(library, store);
+        await LoadAsync(library, store, DramaRoot);
 
         Assert.Equal(LegacyBlob, await store.GetAsync(OptionsStore.Key));
     }
@@ -115,7 +119,7 @@ public sealed class OptionsMigrationInitializeTests
         await using var library = await LibraryDatabase.CreateAsync();
         var store = new FakeStore();
 
-        await LoadAsync(library, store);
+        await LoadAsync(library, store, DramaRoot);
 
         Assert.Empty(await store.GetAllAsync());
     }
@@ -132,12 +136,12 @@ public sealed class OptionsMigrationInitializeTests
         var store = new FakeStore();
         await store.SetAsync(OptionsStore.Key, current);
 
-        await LoadAsync(library, store);
+        await LoadAsync(library, store, DramaRoot);
 
         Assert.Equal(OptionsMigration.CurrentSchema, await store.GetAsync(OptionsMigration.SchemaKey));
         var options = await new OptionsStore(store).LoadAsync();
         Assert.Equal([13], options.ExcludeTagIds);
-        Assert.Equal("/drama", options.TagDestinations[14]);
+        Assert.Equal(DramaRoot, options.TagDestinations[14].Root);
     }
 
     [Fact]
@@ -148,10 +152,10 @@ public sealed class OptionsMigrationInitializeTests
         var store = new FakeStore();
         await store.SetAsync(OptionsStore.Key, LegacyBlob);
 
-        await LoadAsync(library, store);
+        await LoadAsync(library, store, DramaRoot);
 
         var options = await new OptionsStore(store).LoadAsync();
         Assert.Empty(options.ExcludeTagIds);
-        Assert.Equal("/drama", options.TagDestinations[14]);
+        Assert.Equal(DramaRoot, options.TagDestinations[14].Root);
     }
 }

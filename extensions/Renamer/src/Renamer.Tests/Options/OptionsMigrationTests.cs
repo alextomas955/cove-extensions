@@ -277,8 +277,10 @@ public sealed class OptionsMigrationConvertTests
     public void ConvertedBlob_BindsToTheCurrentModel()
     {
         // The point of the whole conversion: the result is a blob the options store can read. Before
-        // it, ExcludeTags-as-names throws and the store answers a throw with defaults.
-        var conversion = OptionsMigration.Convert(LegacyBlob, Tags, Performers);
+        // it, ExcludeTags-as-names throws and the store answers a throw with defaults. Both halves run,
+        // because a stored destination left as a bare string does not bind either.
+        var named = OptionsMigration.Convert(LegacyBlob, Tags, Performers);
+        var conversion = OptionsMigration.ConvertDestinationsToRoots(named.Json, ["/drama"]);
 
         var options = JsonSerializer.Deserialize<RenamerOptions>(
             conversion.Json, RenamerOptions.JsonOptions);
@@ -288,7 +290,7 @@ public sealed class OptionsMigrationConvertTests
         Assert.Equal([12], options.Tags.BlacklistIds);
         Assert.Equal([21], options.Performers.WhitelistIds);
         Assert.Equal([13], options.ExcludeTagIds);
-        Assert.Equal("/drama", options.TagDestinations[14]);
+        Assert.Equal("/drama", options.TagDestinations[14].Root);
         Assert.Equal("$title", options.FilenameTemplate);
     }
 

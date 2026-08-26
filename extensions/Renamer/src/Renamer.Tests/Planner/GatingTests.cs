@@ -83,6 +83,7 @@ public sealed class GatingTests
         string srcFolder = OperatingSystem.IsWindows() ? "C:/library/incoming" : "/srv/library/incoming";
 
         var port = new FakeRenamerDataPort();
+        port.SeedLibraryPaths(srcFolder, unorgRoot);
         port.SeedEntity(new RenamerEntity(
             EntityId: 10, Kind: RenamerFileKind.Video, Title: "My Film", Code: null, StudioName: null,
             Date: null, Organized: false, Performers: [], TagRefs: [],
@@ -94,7 +95,7 @@ public sealed class GatingTests
             FilenameTemplate = "$title",
             FolderTemplate = "Sorted",
             AllowedRoots = [srcFolder, unorgRoot],
-            UnorganizedDestination = unorgRoot,
+            UnorganizedDestination = Dest.At(unorgRoot, "Sorted"),
         };
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
@@ -102,7 +103,7 @@ public sealed class GatingTests
         var item = Assert.Single(plan.Items);
         Assert.NotEqual(RenamerStatus.SkipGated, item.Status);
         Assert.Equal(RenamerStatus.Move, item.Status);
-        Assert.Equal(unorgRoot, item.ResolvedDestinationRoot);
+        Assert.Equal(unorgRoot.Replace('\\', '/'), item.ResolvedDestinationRoot);
         Assert.Equal("Unorganized", item.MatchedRule);
         Assert.Empty(port.SaveCalls);
     }

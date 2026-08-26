@@ -63,6 +63,7 @@ public sealed class RenamerPlannerTests
         // then ACCEPTS as a move UNDER the root. The raw "../.." → rejected path is proven directly
         // at the helper level in PathConfinementTests.
         var port = new FakeRenamerDataPort();
+        port.SeedLibraryPaths("media/videos");
         port.SeedEntity(VideoEntity("My Film", VideoFile(1, "raw.mkv")));
         var planner = new RenamerPlanner(port);
         // Pin the title-only filename template — this test asserts folder-template confinement, not the default name shape.
@@ -90,7 +91,7 @@ public sealed class RenamerPlannerTests
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, default);
 
         var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.SkipCollision, item.Status);
+        Assert.Equal(RenamerStatus.SkipTooLong, item.Status);
         Assert.Contains("FullPathMax", item.Reason);
         Assert.Empty(port.SaveCalls);
     }
@@ -108,8 +109,9 @@ public sealed class RenamerPlannerTests
     }
 
     private static readonly RouteLookups EmptyLookups = new(
-        new Dictionary<int, string>(), new Dictionary<int, string>(),
-        new Dictionary<string, string>(), Array.Empty<(System.Text.RegularExpressions.Regex, string)>());
+        new Dictionary<int, Destination>(), new Dictionary<int, Destination>(),
+        new Dictionary<string, Destination>(),
+        Array.Empty<(System.Text.RegularExpressions.Regex, Destination)>());
 
     [Fact]
     public async Task PlanLoadedEntity_MatchesLoadingPath_ItemForItem()

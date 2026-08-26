@@ -14,8 +14,8 @@ namespace Renamer.Tests.Planner;
 public sealed class ScanRowPagerTests
 {
     private static readonly RouteLookups NoRoutes = new(
-        new Dictionary<int, string>(), new Dictionary<int, string>(),
-        new Dictionary<string, string>(), []);
+        new Dictionary<int, Destination>(), new Dictionary<int, Destination>(),
+        new Dictionary<string, Destination>(), []);
 
     private static readonly RenamerOptions Options = new() { FilenameTemplate = "$title" };
 

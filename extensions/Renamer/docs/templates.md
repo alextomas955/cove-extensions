@@ -44,7 +44,8 @@ to place it somewhere unusual.
 - **A literal dollar sign** is written `$$`.
 - **Missing tokens are omitted**, not rendered as blank — which is what makes the `{ … }` groups
   collapse.
-- **Folders**: in the folder template, use `/` to separate sub-folders, e.g. `$studio / $year`.
+- **Folders**: in a folder template, use `/` to separate sub-folders, e.g. `$studio/$year`. A folder
+  template is always relative to its destination's root, so it never starts with a drive or a `/`.
 
 ## Presets
 

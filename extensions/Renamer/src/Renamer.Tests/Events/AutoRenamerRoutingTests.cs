@@ -9,9 +9,7 @@ namespace Renamer.Tests.Events;
 /// Regression for the auto-renamer hook: a matched routing rule must relocate the just-edited
 /// item to its configured destination — the SAME on-disk outcome the manual batch and <c>/preview</c>
 /// produce. Before the fix the hook called the empty-lookups overload, so auto-renames silently never
-/// relocated even when a matching destination rule was configured. Default-relocate stays
-/// gated (default off), so this proves only an explicitly-MATCHED rule relocates — not a dribble of
-/// the whole library.
+/// relocated even when a matching destination rule was configured.
 /// </summary>
 [Trait("Tier", "L1")]
 public sealed class AutoRenamerRoutingTests
@@ -43,9 +41,13 @@ public sealed class AutoRenamerRoutingTests
                 FolderTemplate = "Films",
                 AllowedRoots = [srcPathFwd, destRootFwd],
                 PathDestinations =
-                    [new PathDestinationRule { Pattern = srcPathFwd, Dest = destRootFwd, IsRegex = false }],
+                    [new PathDestinationRule
+                    {
+                        Pattern = srcPathFwd, Dest = Dest.At(destRootFwd, "Films"), IsRegex = false,
+                    }],
             };
-            var (ext, bus, _) = await EventTestHarness.BuildAsync(db, options);
+            var (ext, bus, _) = await EventTestHarness.BuildAsync(
+                db, options, srcPathFwd, destRootFwd);
 
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
@@ -66,7 +68,7 @@ public sealed class AutoRenamerRoutingTests
     }
 
     [Fact]
-    public async Task FlagOn_UnmatchedItem_DefaultRelocateOff_StaysInPlace()
+    public async Task FlagOn_UnmatchedItem_NoDefaultDestination_StaysInPlace()
     {
         using var dir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -78,23 +80,20 @@ public sealed class AutoRenamerRoutingTests
                 await ExecutorTestSeed.SeedVideoAsync(db, srcPathFwd, "raw.mkv", "My Film");
             File.WriteAllText(Path.Combine(srcFolder, "raw.mkv"), "bytes");
 
-            // No matching rule + default-relocate OFF → the item must NOT relocate; an in-place renamer
-            // (My Film.mkv) is fine, but it stays under the source folder.
+            // No matching rule, and a default destination naming neither a root nor a folder
+            // template → the item is renamed where it stands.
             var options = new RenamerOptions
             {
                 AutoRenamerOnUpdate = true,
                 FilenameTemplate = "$title",
-                DefaultDestination = Path.Combine(dir.Root, "overflow").Replace('\\', '/'),
-                EnableDefaultRelocate = false,
             };
-            var (ext, _, _) = await EventTestHarness.BuildAsync(db, options);
+            var (ext, _, _) = await EventTestHarness.BuildAsync(db, options, srcPathFwd);
 
             await ext.OnEventAsync(new ExtensionEvent("video.updated", "video", videoId), default);
 
-            // Renamed in place, never relocated to the default destination (the gate held).
             Assert.True(File.Exists(Path.Combine(srcFolder, "My Film.mkv")));
             var (_, pathAfter) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
-            Assert.DoesNotContain("overflow", pathAfter.Replace('\\', '/'));
+            Assert.EndsWith("My Film.mkv", pathAfter.Replace('\\', '/'));
         }
         finally
         {

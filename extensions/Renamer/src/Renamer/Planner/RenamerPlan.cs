@@ -24,10 +24,7 @@ public enum RenamerStatus
     /// <summary>The rendered target equals the current path — nothing to do.</summary>
     NoOp,
 
-    /// <summary>
-    /// A taken target the suffix loop could not free, OR a folder template that escaped the
-    /// library root (confinement rejection). The executor must NOT attempt a move.
-    /// </summary>
+    /// <summary>A taken target the suffix loop could not free. The executor must NOT attempt a move.</summary>
     SkipCollision,
 
     /// <summary>Gating (only-organized / require-fields) excluded this item.</summary>
@@ -74,6 +71,47 @@ public enum RenamerStatus
 
     /// <summary>Executor-only: the DB save failed after a disk move and was rolled back.</summary>
     Failed,
+
+    /// <summary>
+    /// Planner-only: the destination measures from the Cove library path holding the file, and the
+    /// file lies under none of them, so there is no anchor left standing by the move it names. The
+    /// item keeps its current name and folder. Kept distinct from <see cref="SkipBlocked"/> (a
+    /// security denial): the destination is not forbidden, it cannot be computed.
+    /// </summary>
+    SkipUnanchored,
+
+    /// <summary>
+    /// Planner-only: the destination's chosen root is no longer one of Cove's library paths. Every
+    /// file of the item is skipped with the rule named, and the run does not fail.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not a fall-through to the default destination: handing the items to the default
+    /// would relocate files in bulk because an unrelated edit in Cove's own settings broke a rule.
+    /// Fixed by re-picking a root in Renamer, where <see cref="SkipUnanchored"/> is fixed by adding a
+    /// folder to Cove's library.
+    /// </remarks>
+    SkipRootMissing,
+
+    /// <summary>
+    /// Planner-only: the rendered destination lies outside the area the configuration permits writing
+    /// into - a folder template that is not relative, one that traversed out of its own root, or an
+    /// <c>AllowedRoots</c> list that does not cover it. A pure string decision taken before anything
+    /// is touched, where <see cref="SkipBlocked"/> is the executor's guard refusing a real on-disk
+    /// target at move time, so the two can disagree and each is worth reading.
+    /// </summary>
+    SkipNotAllowed,
+
+    /// <summary>
+    /// The resolved absolute destination path is longer than
+    /// <see cref="Options.RenamerOptions.FullPathMax"/>, so the item keeps its current name and
+    /// folder.
+    /// </summary>
+    /// <remarks>
+    /// Kept distinct from <see cref="SkipCollision"/> because the two clear differently: a collision
+    /// clears by itself once the other file moves, while an over-long path stands until someone
+    /// shortens the template or picks a shallower destination.
+    /// </remarks>
+    SkipTooLong,
 }
 
 /// <summary>

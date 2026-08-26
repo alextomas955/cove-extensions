@@ -61,16 +61,17 @@ public sealed partial class Renamer
             await using var scope = ScopeFactory.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<DbContext>();
 
-            var port = new CoveRenamerDataPort(db);
+            var port = new CoveRenamerDataPort(db, _coveConfig);
             // Route auto-renamer IDENTICALLY to the manual batch and to /preview. Build the same
             // RouteLookups from the same RenamerOptions and use the routing overload, so a matched
             // studio/tag/path rule relocates the just-edited item to its configured destination — the
             // same on-disk outcome the user previews and the batch executes.
             //
-            // This does NOT enable dribble-relocate of the whole library: default-relocate
-            // stays gated behind EnableDefaultRelocate (default false), so an UNMATCHED item stays in
-            // place (SourceConfine). Only an explicitly-MATCHED routing rule relocates, and the move
-            // still passes the allowlist/canonical confinement gate via the routed anchor.
+            // This does NOT enable dribble-relocate of the whole library: only the entity just edited
+            // is planned, and it lands where preview and the batch would put it - a matched rule's own
+            // destination, or the DEFAULT destination for an item no rule matched, which leaves the
+            // item in place only while that default names neither a root nor a folder template. Either
+            // way the move passes the allowlist/canonical confinement gate via the routed anchor.
             // Preview, auto-renamer, and batch all resolve destinations identically.
             var lookups = BuildLookups(options);
             var plan = await new RenamerPlanner(port).PlanAsync(kind, entityId, options, lookups, ct);
@@ -79,17 +80,8 @@ public sealed partial class Renamer
             // means no re-raised update event, so the save→event→re-enter loop never starts. Gated
             // items land here as SkipGated (only-organized / require-fields respected) and are
             // likewise skipped.
-            //
-            // Dribble guard (defense in depth): this hook fires once per metadata edit with NO user
-            // confirm — unlike the manual batch (which previews + confirms the blast radius) and unlike
-            // /preview. So a default-relocate reaching the executor on THIS path would let a single edit
-            // quietly relocate the whole library one item at a time. We therefore EXCLUDE the
-            // default-relocate category from "acting" here, regardless of the EnableDefaultRelocate flag:
-            // even if that flag were later flipped on, an unmatched item is never moved by the per-edit
-            // hook. An explicitly-matched rule still acts and still relocates. This is a code-level
-            // guarantee on the hook path on top of the flag default, not merely a config default.
             int actingFiles = plan.Items.Count(i =>
-                i.Status is RenamerStatus.Renamer or RenamerStatus.Move && !IsDefaultRelocate(i));
+                i.Status is RenamerStatus.Renamer or RenamerStatus.Move);
             if (actingFiles == 0)
             {
                 return;
@@ -136,14 +128,4 @@ public sealed partial class Renamer
         }
 #pragma warning restore CA1031
     }
-
-    /// <summary>
-    /// True iff this planned item was routed by the GATED default-relocate category (an item that
-    /// matched no explicit tag/studio/source-path rule). Keyed on the resolver's own matched-rule
-    /// label — the single source of truth the <c>DestinationResolver</c> emits for that category — so
-    /// the per-edit hook can structurally exclude it from acting (see the dribble guard above). An
-    /// explicitly-matched rule carries a different label and is unaffected.
-    /// </summary>
-    private static bool IsDefaultRelocate(RenamerPlanItem item) =>
-        item.MatchedRule == DestinationResolver.DefaultRouteLabel;
 }

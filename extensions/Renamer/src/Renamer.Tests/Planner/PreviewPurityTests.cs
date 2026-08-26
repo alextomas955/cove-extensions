@@ -32,6 +32,7 @@ public sealed class PreviewPurityTests
     public async Task Preview_MoveToMissingFolder_CreatesNoFolderRow()
     {
         var port = new FakeRenamerDataPort();
+        port.SeedLibraryPaths("media/videos");
         port.SeedEntity(Entity(File(1, "raw.mkv")));
         var planner = new RenamerPlanner(port);
 
@@ -50,6 +51,7 @@ public sealed class PreviewPurityTests
     public async Task Preview_MissingSource_ClassifiedSkipMissingSource_NoMutation()
     {
         var port = new FakeRenamerDataPort();
+        port.SeedLibraryPaths("media/videos");
         port.SeedEntity(Entity(File(1, "raw.mkv")));
         // Declare the file's current source (ParentFolderPath + Basename) absent on disk.
         port.SeedMissingSource("media/videos/raw.mkv");
@@ -71,6 +73,7 @@ public sealed class PreviewPurityTests
     public async Task Preview_MoveToExistingFolder_StillDetectsCollision_WithoutCreating()
     {
         var port = new FakeRenamerDataPort();
+        port.SeedLibraryPaths("media/videos");
         port.SeedEntity(Entity(File(1, "raw.mkv")));
         // The destination folder already exists (id 42) AND already holds "My Film.mkv" (file 99).
         port.SeedFolder("media/videos/Archive", 42);

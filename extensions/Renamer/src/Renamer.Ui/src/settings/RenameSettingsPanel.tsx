@@ -21,6 +21,7 @@ import { WhatGetsRenamedSection } from "./WhatGetsRenamedSection";
 import { RunAutomationSection } from "./RunAutomationSection";
 import { TokenSettingsSection } from "./TokenSettingsSection";
 import { DestinationRoutingSection } from "./DestinationRoutingSection";
+import { useLibraryPaths } from "./useLibraryPaths";
 import { AdvancedSection } from "./AdvancedSection";
 import { useRenamerOptions } from "./useRenamerOptions";
 import { useRenamePreview } from "./useRenamePreview";
@@ -124,6 +125,7 @@ export function RenamePanelBody() {
     renameProgress,
     renameLibrary,
   } = useRenameLibrary();
+  const library = useLibraryPaths();
 
   // Last-focused template input, so a token chip inserts at its caret.
   const filenameRef = useRef<HTMLInputElement>(null);
@@ -191,6 +193,7 @@ export function RenamePanelBody() {
         compiles arbitrary [..] values for this bundle (verified live). */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <FilenameSection
+          library={library}
           options={options}
           set={set}
           insertToken={insertToken}
@@ -236,7 +239,7 @@ export function RenamePanelBody() {
         insertToken={insertToken}
       />
 
-      <DestinationRoutingSection options={options} set={set} />
+      <DestinationRoutingSection options={options} set={set} library={library} />
 
       <AdvancedSection options={options} set={set} />
 
