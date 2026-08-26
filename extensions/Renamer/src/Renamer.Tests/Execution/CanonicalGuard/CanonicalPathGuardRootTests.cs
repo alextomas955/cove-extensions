@@ -31,6 +31,7 @@ namespace Renamer.Tests.Execution.CanonicalGuard;
 /// </para>
 /// </summary>
 [Trait("Tier", "L1")]
+[Collection(SubstDriveScope.CollectionName)]
 public sealed class CanonicalPathGuardRootTests
 {
     /// <summary>Creates an NTFS junction <paramref name="link"/> → <paramref name="target"/> via <c>cmd /c mklink /J</c> (no privilege required).</summary>

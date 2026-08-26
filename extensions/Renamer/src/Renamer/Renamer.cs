@@ -460,9 +460,12 @@ public sealed partial class Renamer : FullExtensionBase
         // the log — otherwise a large library sits at 0% here with no signal that it is still planning.
         LogPlanningStarted(runId, kind, ids.Length);
 
-        await using (var readScope = ScopeFactory.CreateAsyncScope())
+        // ONE elevated span for the whole of PHASE A, rather than one per planned entity plus one for the
+        // folder pre-create. Nothing between the reads touches the database, so this widens no query's
+        // reach, and a single span cannot run half its work elevated and half not.
+        await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, async services =>
         {
-            var readDb = readScope.ServiceProvider.GetRequiredService<DbContext>();
+            var readDb = services.GetRequiredService<DbContext>();
             var port = new CoveRenamerDataPort(readDb, _coveConfig);
             var planner = new RenamerPlanner(port);
 
@@ -525,7 +528,7 @@ public sealed partial class Renamer : FullExtensionBase
                         await port.GetOrCreateFolderIdAsync(planItem.TargetFolderPath, ct);
                 }
             }
-        }
+        });
 
         // UP-FRONT free-space refusal: sum the projected cross-volume bytes per destination volume and
         // refuse the whole batch before touching disk if a volume would not fit. Same-volume moves are
@@ -628,12 +631,13 @@ public sealed partial class Renamer : FullExtensionBase
             LogItemStarting(runId, doneNow, totalUnits, kind, unit.EntityId,
                 crossVolume, sizeMb, unit.Move.OldFullPath);
 
-            await using var scope = ScopeFactory.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<DbContext>();
-            var exec = new RenamerExecutor(
-                new CoveRenamerDataPort(db, _coveConfig), EventBus, journal, runId, new DiskMover());
-
-            var result = await exec.ExecuteAsync(unit.Plan, options, folderIdByPath, token);
+            var result = await RunAsSystem.RunInSystemScopeAsync(ScopeFactory, services =>
+            {
+                var db = services.GetRequiredService<DbContext>();
+                var exec = new RenamerExecutor(
+                    new CoveRenamerDataPort(db, _coveConfig), EventBus, journal, runId, new DiskMover());
+                return exec.ExecuteAsync(unit.Plan, options, folderIdByPath, token);
+            });
             LogBatchItem(runId, kind, unit.EntityId, result);
 
             // Thread-safe tally: a racing `+=` would lose increments under parallel workers.

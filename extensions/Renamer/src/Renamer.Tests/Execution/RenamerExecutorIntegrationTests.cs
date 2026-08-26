@@ -19,6 +19,7 @@ namespace Renamer.Tests.Execution;
 /// the disk tier. Both disposables are released in a finally.
 /// </summary>
 [Trait("Tier", "L1")]
+[Collection(SubstDriveScope.CollectionName)]
 public sealed class RenamerExecutorIntegrationTests
 {
     [Fact]

@@ -22,6 +22,7 @@ namespace Renamer.Tests.Concurrency;
 /// <see cref="ConcurrentFakeStore"/> so it is not a confounder.
 /// </summary>
 [Trait("Tier", "L1")]
+[Collection(SubstDriveScope.CollectionName)]
 public sealed class ParallelBatchTests
 {
     /// <summary>Wires the extension over a SCOPED DbContext factory so each worker gets its OWN context over the shared DB.</summary>
