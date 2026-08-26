@@ -120,6 +120,7 @@ export function FilenameSection({
           description="The destination for an item no rule matched: a library path, plus the folders made under it."
         >
           <DestinationField
+            rootHelper="Which of Cove's library paths this destination measures from."
             value={{ Root: options.FolderRoot, Template: options.FolderTemplate }}
             onChange={(destination) => {
               set("FolderRoot", destination.Root);

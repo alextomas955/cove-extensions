@@ -106,8 +106,8 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
       <h3 className="text-base font-semibold text-foreground">Undo last rename</h3>
       <p className="mb-4 mt-1 text-sm text-secondary">
         This moves every file in that batch back to its original name. It can&apos;t be undone
-        again. Only the most recent rename is kept, and a rename too large to record isn&apos;t kept
-        at all — the dry run is the check before those.
+        again. One rename is kept at a time — the newest one you can still undo — and a rename too
+        large to record isn&apos;t kept at all. The dry run is the check before those.
       </p>
 
       {loading ? (

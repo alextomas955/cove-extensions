@@ -82,6 +82,7 @@ export function DestinationRoutingSection({
         />
         {options.UnorganizedDestination === null ? null : (
           <DestinationField
+            rootHelper="Which of Cove's library paths this destination measures from."
             value={options.UnorganizedDestination}
             onChange={(destination) => {
               set("UnorganizedDestination", destination);

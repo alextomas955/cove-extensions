@@ -28,6 +28,12 @@ export interface DestinationFieldProps {
   /** Shown above the template input; omit inside a row that already names itself. */
   label?: string;
   helper?: string;
+  /**
+   * Explains what the root picker measures from. No default: a section listing one row per
+   * studio, tag or path rule already says it once in its own description, and a per-row copy
+   * would repeat the same sentence down the whole list.
+   */
+  rootHelper?: string;
   templatePlaceholder?: string;
   /** Handed to the template input so the panel's at-caret token insertion can reach it. */
   templateRef?: Ref<HTMLInputElement>;
@@ -40,6 +46,7 @@ export function DestinationField({
   library,
   label = "Folder template",
   helper,
+  rootHelper,
   templatePlaceholder = "$studio/$year",
   templateRef,
   onTemplateFocus,
@@ -69,7 +76,7 @@ export function DestinationField({
         </StatusText>
       ) : null}
       {showPicker ? (
-        <Field label="Under" helper="Which of Cove's library paths this destination measures from.">
+        <Field label="Under" helper={rootHelper}>
           <Select
             // The MATCHED path, so a root stored in Cove's own platform spelling selects the library
             // path it names rather than falling off the list. The stored value is left as it is: it
