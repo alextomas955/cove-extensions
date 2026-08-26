@@ -5,6 +5,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Renamer.Tests.TestSupport;
 
@@ -68,6 +69,12 @@ internal sealed class LibraryDatabase : IAsyncDisposable
                 .Options,
             Principals);
 
+    /// <summary>
+    /// Registered as the extension's logger when set. The host forwards one and the extension falls back
+    /// to <c>NullLogger</c>, so a suite whose subject is what the load RECORDED has to supply its own.
+    /// </summary>
+    public ILogger<global::Renamer.Renamer>? Log { get; set; }
+
     public ServiceProvider BuildProvider(params string[] libraryPaths)
     {
         var services = new ServiceCollection();
@@ -75,6 +82,11 @@ internal sealed class LibraryDatabase : IAsyncDisposable
         services.AddScoped<DbContext>(_ => NewContext());
         services.AddSingleton<Cove.Core.Events.IEventBus>(new CapturingEventBus());
         services.AddLibraryPaths(libraryPaths);
+        if (Log is not null)
+        {
+            services.AddSingleton(Log);
+        }
+
         return services.BuildServiceProvider();
     }
 
