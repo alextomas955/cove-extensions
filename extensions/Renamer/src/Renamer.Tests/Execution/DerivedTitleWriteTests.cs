@@ -1,4 +1,5 @@
 using Renamer.Execution;
+using Renamer.Options;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
 
@@ -51,6 +52,71 @@ public sealed class DerivedTitleWriteTests
 
             Assert.Equal("one", await ExecutorTestSeed.ReadVideoTitleAsync(db, titlelessId));
             Assert.Equal("Typed In By Hand", await ExecutorTestSeed.ReadVideoTitleAsync(db, titledId));
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Undo puts the file back under its old name and leaves the recorded title standing, so a later
+    /// rename of that item renders the same name again.
+    /// </summary>
+    /// <remarks>
+    /// The undo path restores names and folders, not metadata, so this is what the documented behaviour
+    /// actually is rather than an oversight to correct here. Pinned because the settings reference states
+    /// it: without the recorded title the second plan would derive one from whatever the file is called
+    /// at the time, which after an undo is the old name again.
+    /// </remarks>
+    [Fact]
+    public async Task Undo_RestoresTheName_KeepsTheRecordedTitle_AndTheNextRenamerRendersTheSameName()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(
+                db, folderPath, "raw clip.mkv", title: null!,
+                date: new DateOnly(2021, 3, 14), height: 2160);
+            File.WriteAllText(Path.Combine(dir.Root, "raw clip.mkv"), "video-bytes");
+
+            var options = new RenamerOptions
+            {
+                FilenameTemplate = "{$date - }$title{ [$resolution]}",
+                FilenameAsTitle = true,
+            };
+            var port = new CoveRenamerDataPort(db);
+            var planner = new RenamerPlanner(port);
+            var journal = new FakeRevertJournal();
+
+            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
+            var forward = await new RenamerExecutor(
+                    port, new CapturingEventBus(), journal, "run-test", new DiskMover())
+                .ExecuteAsync(
+                    await planner.PlanAsync(RenamerFileKind.Video, videoId, options, default),
+                    options, default);
+            Assert.Single(forward.Renamed);
+
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
+            Assert.NotNull(batch);
+            var undone = await new UndoReplayer(port, new CapturingEventBus(), new DiskMover())
+                .RevertAsync(batch!, default);
+            Assert.Equal(1, undone.Undone);
+
+            Assert.True(File.Exists(Path.Combine(dir.Root, "raw clip.mkv")), "undo must restore the name");
+            var (restoredBasename, _) = await ExecutorTestSeed.ReadFileAsync(db, fileId);
+            Assert.Equal("raw clip.mkv", restoredBasename);
+            Assert.Equal("raw clip", await ExecutorTestSeed.ReadVideoTitleAsync(db, videoId));
+
+            // The stored title decides the next name, so it is the SAME name rather than one derived
+            // from the restored filename.
+            var again = Assert.Single(
+                (await planner.PlanAsync(RenamerFileKind.Video, videoId, options, default)).Items);
+            Assert.Equal("2021-03-14 - raw clip [4k].mkv", again.NewBasename);
+            Assert.Null(again.DerivedTitle);
         }
         finally
         {

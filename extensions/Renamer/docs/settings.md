@@ -74,9 +74,13 @@ rename. It is the only setting that makes Renamer change metadata rather than on
 has to write: a title derived fresh on every run is read from the name the previous run wrote, so any
 template carrying more than `$title` would wrap its own decorations again each pass and the name would
 grow without end. Once the title is recorded the item has one, so the fallback never runs for it again
-and a second run over the same library changes nothing. A title you typed yourself is never
-overwritten. With the setting off nothing is written, a title-less item resolves `$title` to nothing,
-and the shipped `title` required field then skips it.
+and a second run over that item changes nothing. A title you typed yourself is never overwritten. With
+the setting off nothing is written, a title-less item resolves `$title` to nothing, and the shipped
+`title` required field then skips it.
+
+Undoing a rename puts the file back under its old name; the recorded title stays. A later rename of
+that item therefore renders the same name again rather than deriving a new one from whatever the file
+is called at the time.
 
 ## Run & automation
 
