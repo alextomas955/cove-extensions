@@ -16,6 +16,11 @@ a one-time conversion and turn **Save** off until it has run. Restart Cove and r
 before then would replace those rules with the empty ones the page is able to show, so it is refused
 rather than allowed to lose them.
 
+Your destinations are converted by their own one-time conversion, and the page turns **Save** off for
+that one too. It needs at least one library path configured in Cove, because that is what a
+destination now measures from; until then your stored folders show as blank and a save would store
+the blanks. Add a library path in Cove if there is none, then restart Cove and reload the page.
+
 ## Picking a studio, tag or performer
 
 Several settings below ask you to pick studios, tags or performers. Each one searches your library as

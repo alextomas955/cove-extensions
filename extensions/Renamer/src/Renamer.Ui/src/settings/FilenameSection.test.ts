@@ -67,6 +67,7 @@ async function renderSection(overrides: Partial<FilenameSectionProps>) {
     emptySamples: [],
     recoveredFromBadBlob: false,
     pendingNameMigration: false,
+    pendingDestinationMigration: false,
     library: LIBRARY,
     ...overrides,
   };
@@ -100,11 +101,28 @@ test("a pending conversion says why saving is off and whose move it is", async (
   view.unmount();
 });
 
+test("a pending destination conversion says what unblocks it, which is not a restart alone", async () => {
+  const view = await renderSection({ pendingDestinationMigration: true });
+
+  const text = view.text();
+  expect(text).toContain("still stored as plain paths");
+  expect(text).toContain("Saving is disabled until then");
+  // The two halves wait on different things. Telling this user only to restart sends them round the
+  // loop forever, because the conversion has no root to place a folder under until Cove has one.
+  expect(text).toContain("needs at least one library path configured in Cove");
+  expect(text).toContain("then restart Cove and reload this page");
+  // And it must not borrow the other half's diagnosis: nothing here is stored by name.
+  expect(text).not.toContain("still stored by name");
+
+  view.unmount();
+});
+
 test("a converted install is told none of that", async () => {
   const view = await renderSection({});
 
   expect(view.text()).not.toContain("Saving is disabled");
   expect(view.text()).not.toContain("still stored by name");
+  expect(view.text()).not.toContain("still stored as plain paths");
 
   view.unmount();
 });

@@ -34,7 +34,9 @@ and says nothing about the rest.
   stored path is split into the library path containing it plus the rest as a folder template, which
   names the same folder - so nothing moves on the first run afterwards. A rule whose path lies under
   no Cove library path is dropped and named in the log; its items follow the default destination from
-  then on.
+  then on. The conversion needs at least one library path configured in Cove and waits until there is
+  one. Until it has run, the settings page says so and turns **Save** off: your stored folders show as
+  blank there, so a save from it would have replaced them with nothing and left no copy anywhere.
 - **The _Relocate unmatched items_ switch is gone, and the default destination replaces it.** An item
   matching no rule now takes _Where files go_, the same field the live preview has always shown. It
   ships naming no root and no folder, which renames in place and moves nothing.

@@ -594,6 +594,63 @@ export function hasUnmigratedNameRules(raw: unknown): boolean {
   );
 }
 
+/** A plain object, the only shape the backend's destination walk descends into: a JSON array is not one. */
+function plainObject(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+/**
+ * A destination stored the way it was before it became a root plus a template: a bare path string.
+ * That is the whole of what the backend's site walk takes, so the empty string is one too.
+ */
+function isBarePath(value: unknown): boolean {
+  return typeof value === "string";
+}
+
+function hasBarePathValue(raw: Record<string, unknown>, field: string): boolean {
+  const map = plainObject(findMember(raw, field));
+  return map !== undefined && Object.values(map).some(isBarePath);
+}
+
+function hasBarePathRule(raw: Record<string, unknown>): boolean {
+  const rules = findMember(raw, "PathDestinations");
+  return (
+    Array.isArray(rules) &&
+    rules.some((rule) => {
+      const r = plainObject(rule);
+      return r !== undefined && isBarePath(findMember(r, "Dest"));
+    })
+  );
+}
+
+/**
+ * True when a stored blob still holds destinations as the bare absolute paths they were before a
+ * destination became a Cove library root plus a relative template.
+ *
+ * Deliberately the same sites the backend rewrites (`OptionsMigration.ConvertDestinationsToRoots`):
+ * a JSON STRING under either routing map, on a path rule's `Dest`, or on `UnorganizedDestination`.
+ * The global folder template and root are strings the conversion leaves exactly as stored, so reading
+ * either as a site would refuse a save on every install that configured one - permanently, since the
+ * conversion stamps the blob done once it finds no site.
+ *
+ * {@link normalizeOptions} reads a bare path as {@link NO_DESTINATION}, and `UnorganizedDestination`
+ * as no route at all, so a save while this is true persists those blanks over folders nothing else
+ * keeps a copy of. That conversion DEFERS while Cove has supplied no library paths, because there
+ * would be no root to choose, so the old shape can sit in the store across restarts.
+ */
+export function hasUnmigratedDestinations(raw: unknown): boolean {
+  const r = plainObject(raw);
+  if (r === undefined) return false;
+  return (
+    hasBarePathValue(r, "StudioDestinations") ||
+    hasBarePathValue(r, "TagDestinations") ||
+    hasBarePathRule(r) ||
+    isBarePath(findMember(r, "UnorganizedDestination"))
+  );
+}
+
 /**
  * Rebuild a fully-canonical {@link RenamerOptions} from an untrusted/legacy blob, reading only the known
  * PascalCase keys and dropping everything else (including stale camelCase duplicates). Returns
