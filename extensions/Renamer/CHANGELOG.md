@@ -2,7 +2,13 @@
 
 User-facing changes, newest first.
 
-## Unreleased — Undo you can retry, and one that survives the next rename
+## 0.4.0 — Undo you can retry, and one that survives the next rename
+
+**Needs Cove 1.3.0.** An older host does not load Renamer at all — no Rename tab under Settings →
+Extensions, no "Rename selected" on your lists — so stay on 0.3.0 until you have upgraded Cove.
+Nothing here is a feature you lose. The floor rose because Renamer now relies on the host publishing
+entity events for bulk mutations; without those, editing several items at once renames one of them
+and says nothing about the rest.
 
 - **A destination is now a library path you pick, plus the folders made under it.** Every
   destination - the default _Where files go_, the unorganized route, and each per-studio, per-tag and
@@ -55,7 +61,15 @@ User-facing changes, newest first.
   Cove's log where it belongs. The message you see counts every affected file, not just the examples.
 - **The undo panel can say how much of a rename is left.** The last-rename line now carries how many
   files are still restorable and how many can never go back, so a partly-undone rename describes
-  itself instead of looking finished.
+  itself instead of looking finished. The confirmation and the button quote the number of files still
+  to move rather than the size the rename started at.
+- **The undo panel shows the date its window closes, and stops offering an undo it cannot promise.**
+  The last-rename line ends with that rename's own expiry date instead of a static "kept for 7 days"
+  note. Past it the line reads "undo expired" and the button is withheld: the files may still be where
+  the rename left them, but the next rename drops the record with no further warning.
+- **A whole-library rename now says how far one undo reaches.** A run across several media kinds
+  records each kind separately and a single undo replays one record, so the success banner closes with
+  "Undo covers only the last media kind in this run." rather than leaving that to be discovered.
 - **Renaming into a folder that does not exist yet, on a drive you allowed, now works.** The safety
   check that keeps a move inside your allowed folders was refusing every destination whose nearest
   existing parent was a drive root - which is the ordinary case of allowing a whole drive and letting
@@ -64,8 +78,9 @@ User-facing changes, newest first.
   a copy writes under is now unique per attempt, so two runs touching the same destination cannot
   overwrite each other's in-progress file.
 - **A skipped file says which kind of problem it hit.** "Locked or already there" is now two separate
-  reasons, and a permission refusal, a copy that read back wrong, and a cancelled run each get their
-  own label in the dry run instead of being grouped with ordinary skips.
+  reasons, and a permission refusal, a copy that read back wrong, and a cancelled run each carry their
+  own reason instead of being grouped with ordinary skips. Every reason a dry run can produce now has
+  a badge of its own in the table, so no row lands in _Needs attention_ without saying why.
 - **Auto-rename can no longer chase its own tail.** Renaming a file makes Cove announce that the item
   changed, which is what wakes auto-rename in the first place - so auto-rename was hearing its own
   work. It stopped only when a second pass found nothing left to do, and two destination rules that
@@ -95,6 +110,36 @@ User-facing changes, newest first.
   as the page stays open. A rename that ends this way says the library may already have changed,
   because it may have - the job can still be running. A job that keeps reporting is never given up on,
   however long it takes.
+- **Renamer now states that it renames audio, which it has been doing all along.** The manifest
+  described video and image only, so Cove's extension list understated both what Renamer touches and
+  the permissions it asks for — which is what you read before granting it access. It now declares all
+  three kinds and all three pairs: `videos.read`/`videos.write`, `images.read`/`images.write` and
+  `audios.read`/`audios.write`. Nothing about renaming changed. **Rename selected** and _Auto-rename on
+  update_ remain video and image only, so rename audio from the Rename settings page.
+- **A rename that had nothing to do no longer repeats itself on Windows.** A file already sitting at
+  its computed destination compared unequal to its own path, because Cove supplies a folder path with
+  the platform's own separator while Renamer's target came back forward-slashed. So the file was planned
+  as a move to where it already was, and with _Auto-rename on update_ on, each pass raised the event
+  that started the next. Both paths are now normalized before the comparison, and a file at its
+  destination is reported as needing no change.
+- **A settings page left open no longer breaks once your session refreshes.** The panel's calls went
+  out with no credential attached, and two of the three routes it used to read and write your settings
+  were not routes Cove serves at all. Every call now goes through the host's authenticated fetch and the
+  routes Cove actually exposes, so a save or a dry run started after your access token lapses succeeds
+  instead of failing.
+- **The Rename settings page recovers instead of coming up blank.** Two host behaviours could leave it
+  unreachable: a failed fetch of the settings chunk painted an error on the right address, and a page
+  opened before Cove finished loading extensions was switched to a built-in tab with the address
+  rewritten. The panel now retries through both cases within one budget rather than waiting forever.
+- **The dry run's warning badges are visible again on a released Cove.** The amber and red pills asked
+  for two Tailwind utilities that Cove's prebuilt stylesheet does not contain, so they rendered with no
+  fill at all and no error anywhere. They now carry their fill directly, built from Cove's own colour
+  variables so they still follow your theme.
+- **A sidecar listed in a different case than the file on disk now moves with it.** _Also move sidecar
+  files with these extensions_ documented a case-insensitive match, but the lookup only behaved that
+  way where the filesystem did — so `SRT` next to a `clip.srt` worked on Windows and silently did
+  nothing on a case-sensitive volume, which is what Cove's own container runs on. The comparison is now
+  done in Renamer, and a moved sidecar keeps the extension casing it had on disk.
 
 ## 0.3.0 — Undo that cannot grow without bound
 

@@ -25,6 +25,10 @@ Every module is exactly one of six kinds:
 Classify a file by what it _is_, then place it by its tier's convention. Modules depend downward
 (toward models) and sideways onto shared code — never upward, and never across sibling features.
 
+On the frontend, lint enforces the last part rather than leaving it to review: importing a sibling
+feature slice is an error, and the route between two features is `common/` or the extension entry.
+Nothing needs configuring per extension — the rule finds each UI bundle through `catalog.json`.
+
 ## Structure each tier to its own idiom
 
 The backend and the frontend are separate build artifacts that talk over an HTTP wire. Their honest
@@ -64,9 +68,13 @@ section its own folder only when it holds more than one file.
 
 ## Two levels of shared code
 
-"Shared" is reserved for **repo-level, cross-extension** code — exactly two packages,
-`shared/ui-shared` (frontend) and `shared/Cove.Extensions.Shared` (backend). A module earns a
-place there only by being business-agnostic and reusable by _both_ extensions unchanged.
+"Shared" is reserved for **repo-level, cross-extension** code — the frontend package
+`shared/ui-shared` and the backend package `shared/Cove.Extensions.Shared`. A module earns a
+place there only by being business-agnostic and reusable by _every_ extension unchanged.
+
+Before adding to one of them, check whether the host already provides it. Cove exposes shared runtime
+modules and a component library to extensions, and reimplementing those is the most common way this
+rule gets violated.
 
 The frontend package's `src/` is **flat**: `index.ts` sits beside `primitives.tsx`, `primitivesLogic.ts`,
 `actions.ts`, `postAction.ts`, `overlay.ts` and `entityPickerLogic.ts`. That is the suffix-as-kind rule
@@ -83,15 +91,24 @@ unchanged: if yes it is repo-level, if only one extension can it belongs in that
 and if only one feature can it stays inside that feature's slice. Business-agnosticism is what the test
 measures — never whether the code happens to be presentational.
 
-## One wire contract, all camelCase
+## The wire contract
 
-The entire C#↔TypeScript wire is camelCase — property names and enum values alike — because that is the
+A response an extension writes is camelCase, property names and enum values alike, because that is the
 convention on the external boundary (the Cove host). Every response the UI reads is a projection type,
 never a live domain object, so the backend can evolve without breaking the wire.
 
+**A request is not automatically the same.** The host serializer binds incoming properties
+case-insensitively, so a request body is free to carry another spelling, and one here does: an
+extension that persists a settings blob sends that blob back in the spelling it stores. Read the casing
+off the server for each direction rather than assuming one convention covers both, and expect a request
+body an extension parses itself to answer to whatever options that parse names.
+
 **Derive the contract; do not restate it.** A hand-written TypeScript wire type is checked by the
 compiler against itself and never against the server, so a wrong one still type-checks and every field
-then reads `undefined` at runtime with nothing failing anywhere.
+then reads `undefined` at runtime with nothing failing anywhere. That has shipped here. Where you
+cannot derive a type, pin the wire values in a test whose expectation you transcribe by hand from the
+server's own spelling — an expectation computed from the module it checks agrees with itself forever
+and reports nothing.
 
 The C# handler signatures are the source of truth, and each tier has one home:
 
@@ -126,13 +143,24 @@ comment.
 - On shutdown, work classifies as cancelled, never as failed.
 - When a backend can't honor a role or a version, it simply doesn't implement that role interface —
   there is no capability probe and no version-mismatch throw to trip over.
-- Append-only stores are bounded and compact themselves; a journal nothing displays becomes a small
-  status record rather than growing forever.
+- A journal that must persist lives as rows in a table the extension owns, bounded by a retention
+  window, never as one growing value under a host store key: a value under one key puts every writer
+  into a read-modify-write race, and one such value has already grown large enough to fail an
+  extension's whole settings page.
 
 ## Testing and tooling
 
 Tag every backend test with a tier trait — pure-logic, host-double, in-process endpoint, or
 containerized end-to-end — and mirror the source folders so a test is easy to find from its subject.
+
+The in-process endpoint tier (`Tier=L2`) covers a suite that builds a real ASP.NET host and exercises
+the endpoint pipeline through it: it sends requests to mapped routes, or reads back what route
+registration produced. A suite that calls a handler as a plain method belongs to the host-double tier
+however endpoint-shaped its subject, and so does one that executes a result against a
+`DefaultHttpContext` — that context is an ordinary object and needs no host. The trait is a
+class-level fact, so a class takes the tier of the strongest dependency any of its cases needs.
+
 The lightweight "bare" CI leg is a compile-and-pure-logic smoke test; the containerized end-to-end job
 is the real safety gate. Copy-paste, dead-export, dependency-drift, and import-direction checks run as
-blocking merge gates once they are green on `main`.
+merge gates in the lint workflow. Only a check a CI workflow runs is a gate — an entry in the local
+hook runner is advice a contributor can skip, so wire a check you need enforced into a workflow.
