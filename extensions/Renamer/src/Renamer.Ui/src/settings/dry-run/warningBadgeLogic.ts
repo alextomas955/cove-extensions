@@ -93,6 +93,42 @@ const STATUS_BADGING: Record<RenamerStatus, StatusBadging> = {
     readsAdvisoryFlags: false,
   },
   failed: { badge: { label: "Failed — rolled back", variant: "red" }, readsAdvisoryFlags: false },
+  // Planner-produced by the destination model, so each reaches a row. Each label names the half the
+  // user can act on, which differs per status: the library for one, the rule for another.
+  skipUnanchored: {
+    badge: { label: "Skipped — file is outside your Cove library", variant: "amber" },
+    readsAdvisoryFlags: false,
+  },
+  skipRootMissing: {
+    badge: {
+      label: "Skipped — the rule's destination is no longer a library path",
+      variant: "amber",
+    },
+    readsAdvisoryFlags: false,
+  },
+  skipNotAllowed: {
+    badge: { label: "Skipped — destination outside your allowed roots", variant: "amber" },
+    readsAdvisoryFlags: false,
+  },
+  skipTooLong: {
+    badge: { label: "Skipped — path too long", variant: "amber" },
+    readsAdvisoryFlags: false,
+  },
+  skipPermissionDenied: {
+    badge: { label: "Skipped — permission denied", variant: "amber" },
+    readsAdvisoryFlags: false,
+  },
+  // Red rather than amber: the copy was written and then read back different, so the destination or
+  // the transport is suspect, which is not the same ask as retrying a busy file.
+  skipVerifyFailed: {
+    badge: { label: "Skipped — copy did not verify", variant: "red" },
+    readsAdvisoryFlags: false,
+  },
+  // Gray rather than amber: a clean stop on shutdown is not a defect and must not read as one.
+  skipCancelled: {
+    badge: { label: "Skipped — cancelled", variant: "gray" },
+    readsAdvisoryFlags: false,
+  },
   // The two below reach no preview or scan row, so neither earns copy — inventing a label for one
   // would ship dead text, and the reason each is unreachable is recorded instead.
   //

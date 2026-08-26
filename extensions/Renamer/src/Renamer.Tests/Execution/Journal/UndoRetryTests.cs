@@ -33,7 +33,10 @@ namespace Renamer.Tests.Execution.Journal;
 public sealed class UndoRetryTests
 {
     private const string RunId = "retry-run";
-    private static readonly DateTime Opened = new(2026, 8, 11, 9, 0, 0, DateTimeKind.Utc);
+    // Relative, never a calendar date. The undo path refuses a batch outside the retention window, and
+    // these cases are about retry accounting rather than expiry - so a fixed date would hold while it
+    // was written and then start failing these tests on its own, for a reason none of them names.
+    private static readonly DateTime Opened = DateTime.UtcNow;
 
     /// <summary>One seeded video, and where the forward rename moves its file from and to.</summary>
     private sealed record Seeded(int VideoId, int FileId, string OldFull, string NewFull);
