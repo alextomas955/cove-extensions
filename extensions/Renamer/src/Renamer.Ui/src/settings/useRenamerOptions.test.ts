@@ -151,7 +151,7 @@ test("the same install saves normally once the conversion has run", async () => 
   await hook.current.onSave();
   await sleep(COMMIT_MS);
 
-  expect(store.writes.length).toBe(1);
+  expect(store.writes).toHaveLength(1);
   const [key, value] = store.writes[0];
   expect(key).toBe("options");
   const written = value as Record<string, unknown>;
@@ -181,7 +181,7 @@ test("a blob storing the empty legacy keys is not held back by them", async () =
   await hook.current.onSave();
   await sleep(COMMIT_MS);
 
-  expect(store.writes.length).toBe(1);
+  expect(store.writes).toHaveLength(1);
 
   hook.unmount();
 }, 30_000);

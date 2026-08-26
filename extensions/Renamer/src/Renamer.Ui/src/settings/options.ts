@@ -558,7 +558,7 @@ function countGroupNames(raw: Record<string, unknown>, group: string): number {
  * is one a save erases.
  */
 function isIdKey(key: string): boolean {
-  if (!/^[ \t\n\v\f\r]*[+-]?[0-9]+[ \t\n\v\f\r]*$/.test(key)) return false;
+  if (!/^[ \t\n\v\f\r]*[+-]?\d+[ \t\n\v\f\r]*$/.test(key)) return false;
   const n = Number(key);
   return n >= -2147483648 && n <= 2147483647;
 }
