@@ -63,6 +63,8 @@ export interface FilenameSectionProps {
   activeTemplateRef: RefObject<"filename" | "folder">;
   emptySamples: string[];
   recoveredFromBadBlob: boolean;
+  /** Save is refused for the stored blob's sake, and the banner below is where a user learns why. */
+  pendingNameMigration: boolean;
   /** Cove's library paths, so the default destination offers them as choices. */
   library: LibraryPathsState;
 }
@@ -76,6 +78,7 @@ export function FilenameSection({
   activeTemplateRef,
   emptySamples,
   recoveredFromBadBlob,
+  pendingNameMigration,
   library,
 }: FilenameSectionProps) {
   return (
@@ -84,6 +87,14 @@ export function FilenameSection({
         <StatusText kind="error">
           Your saved settings couldn't be read and have been reset to defaults. Review the options
           below and save to store a clean copy.
+        </StatusText>
+      ) : null}
+
+      {pendingNameMigration ? (
+        <StatusText kind="error">
+          Your tag and performer rules are still stored by name and are waiting for a one-time
+          conversion that runs when Cove starts. Saving is disabled until then, because this page
+          can't show those rules and would replace them. Restart Cove, then reload this page.
         </StatusText>
       ) : null}
 

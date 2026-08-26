@@ -109,7 +109,9 @@ and says nothing about the rest.
 - **Your existing tag and performer rules are converted once, on the first load after this upgrade.**
   A rule naming a tag or performer that no longer exists in your library is dropped, and each dropped
   rule is named in the log so you can see what went. Two spellings of one name collapse into a single
-  rule. Studio rules and path rules are untouched.
+  rule. Studio rules and path rules are untouched. Until that conversion has run, the settings page
+  says so and turns **Save** off: it cannot show rules stored by name, so a save from it would have
+  replaced them with nothing and left no copy anywhere. Restart Cove and reload the page.
 - **Picking a studio, tag or performer now uses Cove's own picker.** It searches your library as you
   type instead of loading every tag and performer in the library the moment you open the field, so the
   settings page stays fast on a large library. It also will not create a new tag or performer from the
