@@ -307,6 +307,140 @@ public sealed class OptionsMigrationConvertTests
             JsonNode.Parse(twice.Json)!.ToJsonString());
     }
 
+    [Theory]
+    [InlineData("drama", 14)]
+    [InlineData("DRAMA", 14)]
+    [InlineData("dRaMa", 14)]
+    [InlineData("drama ", null)]
+    public void AStoredNameResolves_RegardlessOfLetterCase(string stored, int? expected)
+    {
+        // Matching a rule against a live entity name was OrdinalIgnoreCase before this conversion, so a
+        // rule stored in a different case was LIVE and a case-sensitive lookup here drops it silently.
+        // Trimming was never part of that matching, which is why the padded name resolves to nothing.
+        var conversion = OptionsMigration.Convert(
+            $$"""{ "ExcludeTags": ["{{stored}}"] }""", Tags, Performers);
+
+        var options = JsonSerializer.Deserialize<RenamerOptions>(
+            conversion.Json, RenamerOptions.JsonOptions)!;
+
+        Assert.Equal(expected is null ? [] : (int[])[expected.Value], options.ExcludeTagIds);
+    }
+
+    [Fact]
+    public void ARuleThatCoveredCaseVariantRows_ReportsTheNarrowing_AndPicksTheRowByData()
+    {
+        // Three rows sharing one name is a real library state: an entity's identity is its name paired
+        // with a disambiguation, so distinct disambiguations coexist under one name. The rule covered all
+        // three before the conversion and covers one after, so every file featuring the other two starts
+        // behaving differently. The name RESOLVED, so the dropped-name trail says nothing about it, and
+        // without this report the narrowing is invisible.
+        //
+        // "Dupe"/"dupe" is a case-variant pair no stored rule names. Reporting every such pair in a
+        // library would bury the ones a rule actually narrows, so it stays out of the report.
+        (int, string)[] rows = [(70, "Ada Vex"), (71, "ada vex"), (72, "Ada Vex"), (80, "Dupe"), (81, "dupe")];
+        const string blob =
+            """{ "Performers": { "Whitelist": ["Ada Vex", "ada vex"], "Blacklist": ["ADA VEX"] } }""";
+
+        var conversion = OptionsMigration.Convert(blob, Tags, rows);
+
+        // One report per stored spelling that named the entity, each naming the row the rule now covers
+        // and the rows it no longer does. The pair "Dupe"/"dupe" is a case variant NO stored rule names,
+        // and reporting every such pair in a library would bury the ones a rule actually narrows.
+        Assert.Equal(
+            ["ADA VEX", "Ada Vex", "ada vex"],
+            conversion.CaseCollapses.Select(c => c.Name).Order(StringComparer.Ordinal));
+        Assert.All(
+            conversion.CaseCollapses,
+            c =>
+            {
+                Assert.Equal(70, c.MatchedId);
+                Assert.Equal([71, 72], c.AlsoMatchedIds.Order());
+            });
+        Assert.Empty(conversion.DroppedNames);
+
+        // Which row the rule now covers is decided by the DATA - the lowest id - and not by the order the
+        // rows came back in, which is not something the user chose.
+        (int, string)[] descending =
+            [(81, "dupe"), (80, "Dupe"), (72, "Ada Vex"), (71, "ada vex"), (70, "Ada Vex")];
+
+        Assert.All(
+            OptionsMigration.Convert(blob, Tags, descending).CaseCollapses,
+            c =>
+            {
+                Assert.Equal(70, c.MatchedId);
+                Assert.Equal([71, 72], c.AlsoMatchedIds.Order());
+            });
+    }
+
+    [Fact]
+    public void EveryDroppedName_AcrossAllSixSites_IsReported()
+    {
+        // Every lookup table here is POPULATED and none of these names is in it, so each site is exercised
+        // on the resolve-and-miss path rather than on the no-rows path. A name lost from any one site is
+        // configuration the user does not get back.
+        const string blob = """
+            {
+              "Performers": { "Whitelist": ["Nobody"], "Blacklist": ["Nobody Else"] },
+              "Tags": { "Whitelist": ["ghost-a"], "Blacklist": ["ghost-b"] },
+              "TagDestinations": { "ghost-c": "/media/x" },
+              "ExcludeTags": ["ghost-d"]
+            }
+            """;
+
+        var conversion = OptionsMigration.Convert(blob, Tags, Performers);
+
+        Assert.Equal(
+            ["Nobody", "Nobody Else", "ghost-a", "ghost-b", "ghost-c", "ghost-d"],
+            conversion.DroppedNames.Order(StringComparer.Ordinal));
+
+        var root = (JsonObject)JsonNode.Parse(conversion.Json)!;
+        Assert.Empty(Ids(root["Tags"]!["WhitelistIds"]));
+        Assert.Empty(Ids(root["Tags"]!["BlacklistIds"]));
+        Assert.Empty(Ids(root["Performers"]!["WhitelistIds"]));
+        Assert.Empty(Ids(root["Performers"]!["BlacklistIds"]));
+        Assert.Empty(Ids(root["ExcludeTagIds"]));
+        Assert.Empty(root["TagDestinations"]!.AsObject());
+    }
+
+    [Fact]
+    public void AllSixMigratedSites_SerializeAsIdValued_SoReintroducingNameKeyingFailsHere()
+    {
+        // Goes red the moment a migrated site is name-keyed again: a change that reintroduces a
+        // name-valued whitelist, exclude list or destination key fails on this shape rather than at run
+        // time, as a rule that quietly stops matching. Both halves run first, because a stored destination
+        // left as a bare string does not bind to the current model at all.
+        var named = OptionsMigration.Convert(LegacyBlob, Tags, Performers);
+        var placed = OptionsMigration.ConvertDestinationsToRoots(named.Json, ["/drama"]);
+        var options = JsonSerializer.Deserialize<RenamerOptions>(placed.Json, RenamerOptions.JsonOptions)!;
+
+        using var raw = JsonDocument.Parse(JsonSerializer.Serialize(options, RenamerOptions.JsonOptions));
+
+        AssertIdArray(raw.RootElement.GetProperty("Tags"), "WhitelistIds");
+        AssertIdArray(raw.RootElement.GetProperty("Tags"), "BlacklistIds");
+        AssertIdArray(raw.RootElement.GetProperty("Performers"), "WhitelistIds");
+        AssertIdArray(raw.RootElement.GetProperty("Performers"), "BlacklistIds");
+        AssertIdArray(raw.RootElement, "ExcludeTagIds");
+
+        foreach (var entry in raw.RootElement.GetProperty("TagDestinations").EnumerateObject())
+        {
+            Assert.True(
+                int.TryParse(entry.Name, out _),
+                $"TagDestinations key '{entry.Name}' is not an id - a name-keyed tag rule is back.");
+        }
+
+        static void AssertIdArray(JsonElement owner, string property)
+        {
+            var array = owner.GetProperty(property);
+            Assert.NotEqual(0, array.GetArrayLength());
+            foreach (var item in array.EnumerateArray())
+            {
+                Assert.True(
+                    item.ValueKind == JsonValueKind.Number,
+                    $"{property} holds {item.ValueKind} - a name-valued rule list is back.");
+            }
+        }
+    }
+
     [Fact]
     public void NoRowsAtAll_DropsEveryNameAndReportsEachOne()
     {
