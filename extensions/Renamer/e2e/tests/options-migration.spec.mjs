@@ -282,12 +282,18 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     routedRow.getByText(names.tagRoute, { exact: true }),
     "the destination row shows its opaque id rather than the tag name the host resolves it to",
   ).toBeVisible();
-  // Only the map KEY is re-keyed; the destination the rule routed to is carried across verbatim, so a
-  // row preserved in name only fails here.
+  // The map key is re-keyed AND the stored path is split: a destination now names one of Cove's library
+  // paths plus a folder rendered under it, so the single legacy string becomes the library path that
+  // holds it and the remainder. Asserting both halves is what distinguishes a real split from a row
+  // preserved in name only, and from a path dropped into the template with no root behind it.
+  await expect(
+    routedRow.getByRole("combobox"),
+    "the stored path did not become the library path holding it",
+  ).toHaveValue("/data");
   await expect(
     routedRow.getByRole("textbox"),
-    "the destination the rule routed to did not survive the re-key",
-  ).toHaveValue("/data/routed");
+    "the remainder of the stored path did not survive as the folder rendered under that root",
+  ).toHaveValue("routed");
 
   // ── Fields the conversion does not model are untouched ──────────────────────────────────────────
   await expect(
@@ -303,10 +309,17 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     field(advancedRouting, "Source path").getByRole("textbox"),
     "the stored source-path rule did not survive the conversion",
   ).toHaveValue("/data/legacy");
+  // The rule's destination splits the same way the per-tag one above does, so both halves are read: a
+  // row preserved in name only fails the first, and a path dropped whole into the folder field fails
+  // the second.
   await expect(
-    field(advancedRouting, "Destination root").getByRole("textbox"),
-    "the source-path rule survived but its destination did not, so the row is preserved in name only",
-  ).toHaveValue("/data/archive");
+    field(advancedRouting, "Under").getByRole("combobox"),
+    "the source-path rule survived but its destination root did not",
+  ).toHaveValue("/data");
+  await expect(
+    field(advancedRouting, "Folder template").getByRole("textbox"),
+    "the source-path rule's destination root survived but the folder under it did not",
+  ).toHaveValue("archive");
 
   expect(errors, `the settings surface raised page errors: ${errors.join("; ")}`).toEqual([]);
 });

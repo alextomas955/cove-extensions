@@ -226,8 +226,10 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   const undo = await api.post(`${ROUTE}/undo`);
   expect(undo.status, `undo failed: ${undo.text}`).toBe(200);
   expect(undo.json.undone).toBe(1);
-  expect(undo.json.failed).toEqual([]);
-  expect(undo.json.skipped).toEqual([]);
+  expect(undo.json.failedCount).toBe(0);
+  expect(undo.json.skippedCount).toBe(0);
+  expect(undo.json.failedSample).toEqual([]);
+  expect(undo.json.skippedSample).toEqual([]);
 
   await assertRestoredTo({
     api,
@@ -310,13 +312,14 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   expect(partialUndo.status, `undo failed: ${partialUndo.text}`).toBe(200);
   expect(partialUndo.json.undone, "the unobstructed file should have come back").toBe(1);
   // Summed across the two channels rather than read as "failed or skipped", so there is no shape this
-  // can pass in two different ways.
+  // can pass in two different ways. The COUNTERS are what the response promises to total; the samples
+  // beside them are capped, so one file stopping has to show in both.
   expect(
-    partialUndo.json.failed.length + partialUndo.json.skipped.length,
+    partialUndo.json.failedCount + partialUndo.json.skippedCount,
     "exactly one file should have stopped",
   ).toBe(1);
   expect(
-    [...partialUndo.json.failed, ...partialUndo.json.skipped].map((e) => e.fileId),
+    [...partialUndo.json.failedSample, ...partialUndo.json.skippedSample].map((e) => e.fileId),
     "the stopped entry should name the obstructed file",
   ).toEqual([blocked.fileId]);
 
@@ -358,8 +361,10 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
   const retry = await api.post(`${ROUTE}/undo`);
   expect(retry.status, `retry failed: ${retry.text}`).toBe(200);
   expect(retry.json.undone, "the retry must act on the remainder, not on the whole batch").toBe(1);
-  expect(retry.json.failed).toEqual([]);
-  expect(retry.json.skipped).toEqual([]);
+  expect(retry.json.failedCount).toBe(0);
+  expect(retry.json.skippedCount).toBe(0);
+  expect(retry.json.failedSample).toEqual([]);
+  expect(retry.json.skippedSample).toEqual([]);
 
   await assertRestoredTo({
     api,
