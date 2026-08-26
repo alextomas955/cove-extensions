@@ -14,6 +14,7 @@ import { Undo2 } from "lucide-react";
 import { Dialog } from "../common/ui/Dialog";
 import { Button, StatusText, Spinner } from "@cove-extensions/ui-shared";
 import { api } from "../common/lib/extension";
+import type { LastBatchSummary, UndoResult } from "../wire/api";
 
 const LAST_BATCH_PATH = api("last-batch");
 const UNDO_PATH = api("undo");
@@ -22,28 +23,9 @@ const UNDO_TITLE_ID = "rename-undo-confirm-title";
 const UNDO_DESC_ID = "rename-undo-confirm-message";
 
 /** GET /last-batch. */
-interface LastBatchSummary {
-  hasBatch: boolean;
-  count: number;
-  writtenAtUtcTicks: number;
-  consumed: boolean;
-}
-
-/** POST /undo: failed/skipped entries are { fileId, oldPath, newPath, reason }. */
-interface UndoEntryError {
-  fileId: number;
-  oldPath: string;
-  newPath: string;
-  reason: string;
-}
-interface UndoResult {
-  undone: number;
-  // Optional on the wire: /undo may return a minimal/empty 200 in edge cases (see onUndo), so the
-  // arrays are not guaranteed present in the response. Typing them optional keeps the defensive
-  // `?.`/`?? 0` reads honest rather than asserting a shape the server doesn't promise.
-  failed?: UndoEntryError[];
-  skipped?: UndoEntryError[];
-}
+// The response carries a COUNT per problem channel beside a bounded sample of it, so the panel states
+// the count and never a sample's length. Both types come from the generated wire module; a
+// hand-written mirror of this shape is what let a sample's length read as the number of problems.
 
 /**
  * .NET DateTime ticks → epoch ms (ticks are 100ns since 0001-01-01).
@@ -123,21 +105,25 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
       // /undo takes NO body. It may return an empty 200 in edge cases — but the happy path
       // returns the UndoResult JSON. Tolerate a parse-throw on a 2xx as a non-informative success.
       const res = await requestJson<UndoResult>(UNDO_PATH, { method: "POST" });
-      const failedCount = (res.failed?.length ?? 0) + (res.skipped?.length ?? 0);
+      const failedCount = res.failedCount + res.skippedCount;
       if (failedCount === 0) {
         setFeedback({
           kind: "success",
           text: `Undone — ${res.undone} file${res.undone === 1 ? "" : "s"} moved back to their original names.`,
         });
-      } else if (res.undone > 0) {
-        const reason = res.failed?.[0]?.reason ?? res.skipped?.[0]?.reason ?? "unknown reason";
-        setFeedback({
-          kind: "error",
-          text: `Undo finished with problems — ${failedCount} file${failedCount === 1 ? "" : "s"} couldn't be moved back (${reason}). The rest were restored.`,
-        });
       } else {
-        const reason = res.failed?.[0]?.reason ?? res.skipped?.[0]?.reason ?? "unknown reason";
-        setFeedback({ kind: "error", text: `Couldn't undo — ${reason}. Nothing was changed.` });
+        // The samples are bounded, so a non-zero count can arrive with an empty sample; the fallback
+        // wording covers that rather than rendering an undefined reason.
+        const sampled = [...res.failedSample, ...res.skippedSample];
+        const reason = sampled.length > 0 ? sampled[0].reason : "unknown reason";
+        setFeedback(
+          res.undone > 0
+            ? {
+                kind: "error",
+                text: `Undo finished with problems — ${failedCount} file${failedCount === 1 ? "" : "s"} couldn't be moved back (${reason}). The rest were restored.`,
+              }
+            : { kind: "error", text: `Couldn't undo — ${reason}. Nothing was changed.` },
+        );
       }
     } catch (err) {
       if (err instanceof ApiError) {

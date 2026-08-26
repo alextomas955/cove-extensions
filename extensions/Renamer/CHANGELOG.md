@@ -49,6 +49,13 @@ User-facing changes, newest first.
   had just taken away.
 - **An undo pending from an earlier version is carried over, not thrown away.** The first load after
   this upgrade moves it into the new table and removes the two old keys. It runs once.
+- **Undoing a very large rename no longer risks the settings page.** The undo response listed every
+  file that could not go back, so a big undo answered with a list as long as the problem. It now
+  reports how many hit each kind of problem plus a short example of each, and the full detail goes to
+  Cove's log where it belongs. The message you see counts every affected file, not just the examples.
+- **The undo panel can say how much of a rename is left.** The last-rename line now carries how many
+  files are still restorable and how many can never go back, so a partly-undone rename describes
+  itself instead of looking finished.
 - **Renamer's entry in Cove's extension list now shows the right link and the full description.** The
   link pointed at a repository that does not hold this extension, and the description was a single
   sentence that left out which permissions a rename needs and the fact that Renamer makes no network
