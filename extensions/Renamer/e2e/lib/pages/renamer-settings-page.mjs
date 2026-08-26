@@ -3,8 +3,9 @@ const SETTINGS_PATH = "/settings/renamer";
 
 // The budget for one visit, spent across however many navigations it takes. It has to cover a cold
 // container on a loaded CI runner and still leave the rest of a spec's work inside the per-test
-// timeout.
-const PANEL_READY_TIMEOUT_MS = 30_000;
+// timeout. Generous rather than tight, because it covers only a slow paint: both ways the panel goes
+// permanently out of reach are detected as signals below, so they still fail without spending this.
+const PANEL_READY_TIMEOUT_MS = 90_000;
 
 // The host renders its settings page from a lazily-imported chunk. When that fetch fails the host
 // catches it and paints this sentence instead of the page, so the route stays correct and no locator
