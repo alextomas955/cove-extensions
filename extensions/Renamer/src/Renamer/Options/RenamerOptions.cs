@@ -1,12 +1,15 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Cove.Extensions.Shared;
 
 namespace Renamer.Options;
 
 /// <summary>Optional case transform applied to a rendered name.</summary>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum CaseTransform { None, Lower, Title }
 
 /// <summary>What to do when a multi-value field exceeds its max count.</summary>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum OverflowPolicy { DropAll, KeepFirst }
 
 /// <summary>
@@ -16,6 +19,7 @@ public enum OverflowPolicy { DropAll, KeepFirst }
 /// deliberately no rating order: performer rating is per-user data and the detached renamer job
 /// runs without a signed-in user, so there is no defined rating to order by.
 /// </summary>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
 public enum SortOrder
 {
     /// <summary>Order by name, case-insensitively (the default).</summary>
