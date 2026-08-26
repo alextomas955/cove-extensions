@@ -79,6 +79,13 @@ that needs attention always says why:
 | Skipped — destination outside your allowed roots             | _Allowed roots_ does not cover where the rule would write.                                     |
 | Skipped — path too long                                      | The full path would exceed _Full-path max length_.                                             |
 
+One badge is red rather than amber: **Too long to copy across drives**. That row moves to a different
+drive, and Renamer copies to a temporary name beside the destination before putting the final name in
+place. The temporary path is a little longer than the one the row shows, and it does not fit
+_Full-path max length_, so the move cannot complete even though the new path does fit. Shorten the
+destination folder or the filename template for that row. The confirm shown before a rename counts
+these files too, so you see the warning whether you started from the dry run or from a list.
+
 ## Rename
 
 1. When the preview looks right, **save** your settings (the sticky Save bar at the bottom).

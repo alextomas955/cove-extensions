@@ -609,6 +609,7 @@
           "reason",
           "suffixed",
           "sanitized",
+          "inFlightPathOverflow",
           "resolvedDestinationRoot",
           "matchedRule",
           "targetVolume"
@@ -644,6 +645,9 @@
             "type": "boolean"
           },
           "sanitized": {
+            "type": "boolean"
+          },
+          "inFlightPathOverflow": {
             "type": "boolean"
           },
           "resolvedDestinationRoot": {
@@ -741,7 +745,8 @@
           "crossVolumeBytes",
           "volumePairs",
           "confirmLevel",
-          "undoable"
+          "undoable",
+          "inFlightPathOverflowCount"
         ],
         "type": "object",
         "properties": {
@@ -772,6 +777,10 @@
           },
           "undoable": {
             "type": "boolean"
+          },
+          "inFlightPathOverflowCount": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -1039,7 +1048,8 @@
           "status",
           "reason",
           "suffixed",
-          "sanitized"
+          "sanitized",
+          "inFlightPathOverflow"
         ],
         "type": "object",
         "properties": {
@@ -1073,6 +1083,9 @@
             "type": "boolean"
           },
           "sanitized": {
+            "type": "boolean"
+          },
+          "inFlightPathOverflow": {
             "type": "boolean"
           }
         }
