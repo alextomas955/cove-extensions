@@ -66,12 +66,17 @@ than sending its items somewhere you did not choose. Re-pick a root, or add the 
 | Setting                                | What it does                                                                                                                                              | Default |
 | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
 | Only rename organized items            | Skip items whose _Organized_ flag is off, so un-curated items don't get names. (Turning on the _Unorganized destination_ overrides this for those items.) | Off     |
-| Use filename as title when none is set | When an item has no title, derive `$title` from the file's current basename instead of skipping it.                                                       | On      |
+| Use filename as title when none is set | When an item has no title, derive `$title` from the item's first filename (without extension) instead of skipping it, and record it as the item's title.  | On      |
 | Required fields                        | Token names that must resolve to a non-empty value, or the item is skipped. Empty = no gate.                                                              | `title` |
 
-_Use filename as title when none is set_ affects the rendered name only — it does not write a title
-onto the item, so the item still has no title in Cove after the rename. With it off, a title-less item
-resolves `$title` to nothing, and the shipped `title` required field then skips it.
+_Use filename as title when none is set_ saves the derived title onto the item, in the same save as the
+rename. It is the only setting that makes Renamer change metadata rather than only move files, and it
+has to write: a title derived fresh on every run is read from the name the previous run wrote, so any
+template carrying more than `$title` would wrap its own decorations again each pass and the name would
+grow without end. Once the title is recorded the item has one, so the fallback never runs for it again
+and a second run over the same library changes nothing. A title you typed yourself is never
+overwritten. With the setting off nothing is written, a title-less item resolves `$title` to nothing,
+and the shipped `title` required field then skips it.
 
 ## Run & automation
 

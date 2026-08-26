@@ -392,6 +392,133 @@ public sealed class RenamerExecutorIntegrationTests
     }
 
     /// <summary>
+    /// A filename-derived title reaches the database, only where the item had none, and the rename it
+    /// came from then settles.
+    /// </summary>
+    /// <remarks>
+    /// <c>PlanFixedPointTests</c> MODELS the commit, so it would keep passing against an executor that
+    /// never wrote the title at all and the rename would go on re-deriving it forever in production.
+    /// Only a real context answers whether the write happened. The second half is the safety one: this
+    /// is the only place the extension touches metadata rather than location, so a title someone typed
+    /// must survive a rename untouched.
+    /// </remarks>
+    [Fact]
+    public async Task DerivedTitle_ReachesTheDatabase_OnlyOnAnItemThatHadNone_AndTheRenamerSettles()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            // One folder row per seeded item: Folder.Path is unique and SeedVideoAsync mints its own.
+            string folderPath = dir.Root.Replace('\\', '/');
+            string siblingDir = Path.Combine(dir.Root, "sibling");
+            Directory.CreateDirectory(siblingDir);
+
+            var date = new DateOnly(2021, 3, 14);
+            var (_, titlelessId, _) = await ExecutorTestSeed.SeedVideoAsync(
+                db, folderPath, "raw clip.mkv", title: null!, date: date, height: 2160);
+            var (_, titledId, _) = await ExecutorTestSeed.SeedVideoAsync(
+                db, siblingDir.Replace('\\', '/'), "other raw.mkv", "Kept Title", date: date, height: 2160);
+            File.WriteAllText(Path.Combine(dir.Root, "raw clip.mkv"), "a");
+            File.WriteAllText(Path.Combine(siblingDir, "other raw.mkv"), "b");
+
+            // A template rendering more than a bare $title - the shape whose derived title grew a
+            // decoration per run. Without the $date group the derivation equals the stem it came from
+            // and nothing acts, which looks like an absence of the defect.
+            var options = new RenamerOptions
+            {
+                FilenameTemplate = "{$date - }$title{ [$resolution]}",
+                FilenameAsTitle = true,
+            };
+
+            var port = new CoveRenamerDataPort(db);
+            var planner = new RenamerPlanner(port);
+            var executor = new RenamerExecutor(
+                port, new CapturingEventBus(), new FakeRevertJournal(), "run-test", new DiskMover());
+
+            foreach (int id in new[] { titlelessId, titledId })
+            {
+                var plan = await planner.PlanAsync(RenamerFileKind.Video, id, options, default);
+                var run = await executor.ExecuteAsync(plan, options, default);
+                Assert.Empty(run.Failed);
+                Assert.Single(run.Renamed);
+            }
+
+            // Transcribed by hand from the arrangement above, never computed from the engine.
+            Assert.True(
+                File.Exists(Path.Combine(dir.Root, "2021-03-14 - raw clip [4k].mkv")),
+                "the title-less item was not renamed to the name its derived title produces");
+
+            Assert.Equal("raw clip", await ExecutorTestSeed.ReadVideoTitleAsync(db, titlelessId));
+            Assert.Equal("Kept Title", await ExecutorTestSeed.ReadVideoTitleAsync(db, titledId));
+
+            // The loop closed: the recorded title is what the second pass reads, so it finds nothing to do.
+            var second = await planner.PlanAsync(RenamerFileKind.Video, titlelessId, options, default);
+            Assert.All(second.Items, i => Assert.Equal(RenamerStatus.NoOp, i.Status));
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// A rename whose save fails records no title either: the write rides that one save, so it cannot
+    /// commit on its own.
+    /// </summary>
+    /// <remarks>
+    /// The failure is the real unique-index violation, reached by pointing the item at a basename another
+    /// row in the destination folder already holds and blinding the executor's pre-check to it. A title
+    /// written by a second save would survive this and leave an item renamed nowhere but titled anyway.
+    /// </remarks>
+    [Fact]
+    public async Task DerivedTitle_IsNotRecorded_WhenTheRenamerSaveFails()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (folderId, videoId, fileId) = await ExecutorTestSeed.SeedVideoAsync(
+                db, folderPath, "raw clip.mkv", title: null!);
+
+            // The row that already occupies the name the item below is aimed at. Only the ROW exists, so
+            // the executor's on-disk pre-check passes and the save is what refuses.
+            await ExecutorTestSeed.SeedAdditionalFileAsync(db, folderId, videoId, "taken.mkv");
+
+            string oldFull = Path.Combine(dir.Root, "raw clip.mkv");
+            File.WriteAllText(oldFull, "video-bytes");
+
+            var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
+            [
+                new RenamerPlanItem(
+                    fileId, folderPath + "/raw clip.mkv", folderPath + "/taken.mkv",
+                    RenamerStatus.Renamer, "taken.mkv", folderPath, DerivedTitle: "raw clip"),
+            ]);
+
+            var executor = new RenamerExecutor(
+                new CollisionBlindDataPort(db), new CapturingEventBus(), new FakeRevertJournal(),
+                "run-test", new DiskMover());
+
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+
+            var failedItem = Assert.Single(result.Failed);
+            Assert.Contains("rolled back", failedItem.Reason);
+            Assert.True(File.Exists(oldFull), "the rollback must restore the source");
+
+            Assert.True(
+                string.IsNullOrEmpty(await ExecutorTestSeed.ReadVideoTitleAsync(db, videoId)),
+                "a title was recorded for a rename that never committed");
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
     /// Test-only port: on save, re-creates a file at <c>oldSlot</c> (simulating the source slot getting
     /// re-occupied between the move and the rollback) and then throws, so the subsequent rollback's
     /// copy-back finds its target taken and records a warning instead of restoring.

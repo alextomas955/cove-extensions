@@ -449,12 +449,63 @@ public class CoveRenamerDataPort : IRenamerDataPort
                 }
             }
 
+            if (m.EntityTitle is RenamerEntityTitleWrite titleWrite)
+            {
+                await ApplyDerivedTitleAsync(titleWrite, ct);
+            }
+
             touched.Add(file);
         }
 
         await _db.SaveChangesAsync(ct);  // ComputeFilePaths recomputes every touched file's Path here.
 
         return [.. touched.Select(f => new SavedFile(f.Id, f.Path))];
+    }
+
+    /// <summary>
+    /// Records a filename-derived title on its media entity, and only on one that still has none.
+    /// </summary>
+    /// <remarks>
+    /// This is the ONE place this extension writes metadata rather than location, and the emptiness
+    /// re-check against the TRACKED row is what keeps that safe: the planner derives a title only for a
+    /// title-less item, but a person can type one between the preview and the run, and a rename must
+    /// never overwrite what they wrote. The same check makes the write idempotent across the files of a
+    /// multi-file item, which save one at a time. No <c>SaveChangesAsync</c> here - the caller's single
+    /// save carries it, so a recorded title and its rename cannot come apart. Why record it at all:
+    /// <c>MetadataProjector.DerivedTitle</c>.
+    /// </remarks>
+    private async Task ApplyDerivedTitleAsync(RenamerEntityTitleWrite write, CancellationToken ct)
+    {
+        switch (write.Kind)
+        {
+            case RenamerFileKind.Video:
+                var video = await _db.Set<Video>().FirstOrDefaultAsync(x => x.Id == write.EntityId, ct);
+                if (video is not null && string.IsNullOrEmpty(video.Title))
+                {
+                    video.Title = write.Title;
+                }
+
+                break;
+            case RenamerFileKind.Image:
+                var image = await _db.Set<Image>().FirstOrDefaultAsync(x => x.Id == write.EntityId, ct);
+                if (image is not null && string.IsNullOrEmpty(image.Title))
+                {
+                    image.Title = write.Title;
+                }
+
+                break;
+            case RenamerFileKind.Audio:
+                var audio = await _db.Set<Audio>().FirstOrDefaultAsync(x => x.Id == write.EntityId, ct);
+                if (audio is not null && string.IsNullOrEmpty(audio.Title))
+                {
+                    audio.Title = write.Title;
+                }
+
+                break;
+            default:
+                // Gallery is not a renamable kind, so no plan carries one here.
+                break;
+        }
     }
 
     // ── DTO mapping ──────────────────────────────────────────────────────────

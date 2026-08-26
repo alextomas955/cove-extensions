@@ -40,12 +40,7 @@ public static class MetadataProjector
         var tokens = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         // --- Entity-level scalar tokens (omit when empty so {} groups degrade). ---
-        // The fallback derives the title from the CURRENT source basename without re-applying the
-        // template's own decorations, so re-projecting an already-renamed item yields the same title —
-        // no progressive re-append, no drift; a stable name then hits the executor's no-op-renamer skip.
-        var title = string.IsNullOrEmpty(entity.Title) && options.FilenameAsTitle
-            ? BasenameStem(file.Basename)
-            : entity.Title;
+        var title = string.IsNullOrEmpty(entity.Title) ? DerivedTitle(entity, options) : entity.Title;
         Put(tokens, Tokens.Title, title);
         Put(tokens, Tokens.StudioCode, entity.Code);
         Put(tokens, Tokens.Studio, entity.StudioName);
@@ -121,6 +116,35 @@ public static class MetadataProjector
 
         return (tokens, multi, entity.Performers, entity.TagRefs);
     }
+
+    /// <summary>
+    /// The title an item with none falls back to: its FIRST file's basename without the extension, or
+    /// <c>null</c> when the item already has a title, the <c>FilenameAsTitle</c> fallback is off, or the
+    /// item has no files.
+    /// </summary>
+    /// <remarks>
+    /// The canonical statement of why this fallback is RECORDED rather than repeated; the sites that
+    /// carry the value onward (<see cref="RenamerPlanItem.DerivedTitle"/>,
+    /// <see cref="RenamerEntityTitleWrite"/>) point here.
+    /// <para>
+    /// Derived per run, the title is a function of the basename the PREVIOUS run wrote, and the rename
+    /// is a function of the title - so any template rendering more than a bare <c>$title</c> wraps its
+    /// own decorations again on every pass and the name grows without bound. No cure keeps both
+    /// directions live: parsing the template back out of its own output is post-hoc cleanup, and
+    /// refusing the fallback for a decorated template only converts the runaway into a required-fields
+    /// skip. So the derivation is broken instead - the executor records this value on the entity in the
+    /// same save as the rename, after which the item HAS a title and this path never runs for it again.
+    /// </para>
+    /// <para>
+    /// Entity-level, not per-file: a title belongs to the ITEM, so deriving it from the file being
+    /// projected gives a multi-file item as many titles as it has files, and leaves the recorded one
+    /// decided by whichever file the executor saved last.
+    /// </para>
+    /// </remarks>
+    internal static string? DerivedTitle(RenamerEntity entity, RenamerOptions options)
+        => string.IsNullOrEmpty(entity.Title) && options.FilenameAsTitle && entity.Files.Count > 0
+            ? BasenameStem(entity.Files[0].Basename)
+            : null;
 
     /// <summary>
     /// Renders a stored duration in seconds through the user-configured <c>DurationFormat</c>.

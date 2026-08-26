@@ -91,7 +91,11 @@ disk or database mutation.
 - `RenamerPlan.cs` / the plan-item types — the dry-run result the API returns as the old→new diff.
 - `IRenamerDataPort.cs` — the abstraction over Cove's entities, so the planner doesn't depend on the
   concrete DbContext or entity types directly (which keeps it testable).
-- `MetadataProjector.cs` — projects a Cove media item into the token set the engine consumes.
+- `MetadataProjector.cs` — projects a Cove media item into the token set the engine consumes. It also
+  derives the filename-as-title fallback, once per item rather than once per file. The executor records
+  that title in the same save as the rename, which is what makes the rename settle: a title re-derived
+  on every run is read from the name the previous run wrote, so a template holding more than `$title`
+  would wrap its own decorations again on each pass.
 - `ScanAggregator.cs` — folds a whole-library scan into per-kind counters as it goes, so the job never
   holds a per-file list and what it stores is a fixed size. The one part that would otherwise grow with
   the library's shape — the itemised list of volume pairs a move spans — is capped; the cross-volume
