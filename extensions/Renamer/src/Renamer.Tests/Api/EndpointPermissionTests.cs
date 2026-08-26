@@ -190,4 +190,17 @@ public sealed class EndpointPermissionTests
 
         Assert.Equal(403, StatusOf(result));
     }
+
+    [Fact]
+    public void LibraryPaths_WithoutVideosRead_Returns403()
+    {
+        // This route answers with Cove's real filesystem layout, so the deny path has to be pinned on
+        // the STATUS: an anonymous 200 carrying those paths satisfies a route-resolves check exactly as
+        // a 403 does.
+        var ext = NewExtension();
+
+        var result = ext.LibraryPaths(FakePrincipalAccessor.None());
+
+        Assert.Equal(403, StatusOf(result));
+    }
 }
