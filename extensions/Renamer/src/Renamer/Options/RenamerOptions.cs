@@ -339,19 +339,6 @@ public sealed record RenamerOptions
         ["videoCodec", "audioCodec", "frameRate", "resolution", "tags", "studioCode", "studio", "performers", "date"];
 
     /// <summary>
-    /// An optional NARROWING of where a rename may write: when non-empty, a resolved target folder
-    /// is accepted only if it also lies inside one of these absolute directories. Empty (the shipped
-    /// default) applies no narrowing.
-    /// </summary>
-    /// <remarks>
-    /// It cannot widen. A destination is a Cove library path plus a relative, sanitized template, so
-    /// every target is inside the library by construction; drawing this list narrower than a library
-    /// path is the only thing it can express. It never decides where a relative template is PLACED:
-    /// that is the destination's own root.
-    /// </remarks>
-    public List<string> AllowedRoots { get; init; } = [];
-
-    /// <summary>
     /// File extensions whose same-basename neighbor files move and renamer alongside the primary,
     /// supplementing the DB-tracked caption sidecars Cove already follows. A neighbor is taken only
     /// when it shares the primary's exact stem AND its extension is listed here, so this never widens
@@ -580,7 +567,6 @@ public sealed record RenamerOptions
         yield return PreventConsecutiveSegments;
         yield return StructuralEquality.Sequence(DropOrder);
         yield return StructuralEquality.Sequence(RequiredFields);
-        yield return StructuralEquality.Sequence(AllowedRoots);
         yield return StructuralEquality.Sequence(AssociatedExtensions);
         yield return StructuralEquality.Map(StudioDestinations, EqualityComparer<int>.Default);
         yield return StructuralEquality.Map(TagDestinations, EqualityComparer<int>.Default);

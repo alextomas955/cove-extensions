@@ -81,7 +81,6 @@ public sealed class AutoRenamerNoDribbleTests
                 AutoRenamerOnUpdate = true,
                 FilenameTemplate = "$title",
                 FolderRoot = defaultRootFwd,
-                AllowedRoots = [srcPathFwd, defaultRootFwd],
             };
             var (ext, bus, _) = await EventTestHarness.BuildAsync(
                 db, options, srcPathFwd, defaultRootFwd);

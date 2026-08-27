@@ -252,7 +252,6 @@ public sealed class ParallelBatchTests
             {
                 FilenameTemplate = "$title",
                 FolderTemplate = "Films",
-                AllowedRoots = [srcPathFwd, destRootFwd],
                 PathDestinations =
                 [
                     new PathDestinationRule

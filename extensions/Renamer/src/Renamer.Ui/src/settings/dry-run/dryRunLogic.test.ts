@@ -42,7 +42,6 @@ const SERVER_BUCKETS: Record<RenamerStatus, DryRunBucket> = {
   skipLocked: "attention",
   skipMissingSource: "attention",
   skipNoSpace: "attention",
-  skipBlocked: "attention",
   failed: "attention",
   skipUnanchored: "attention",
   skipRootMissing: "attention",

@@ -47,7 +47,6 @@ public sealed class PreviewRoutingTests
             {
                 FilenameTemplate = "$title",
                 FolderTemplate = "Sorted",
-                AllowedRoots = [srcFolder, PathRoot],
                 PathDestinations =
                 [
                     new PathDestinationRule

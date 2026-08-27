@@ -154,34 +154,14 @@ export function DestinationRoutingSection({
       </ToggleHeaderCard>
 
       <ToggleHeaderCard
-        title="Advanced routing & safety"
-        description="Allowed roots and source-path rules."
+        title="Source-path destinations"
+        description="Match an item's source path to a destination, top rule first. An exact match or a regex."
         enabled={options.EnableAdvancedRouting}
         onToggle={(v) => {
           set("EnableAdvancedRouting", v);
         }}
       >
         <div>
-          <h4 className="text-sm font-semibold text-foreground">Allowed roots</h4>
-          <p className="mb-4 mt-1 text-sm text-secondary">
-            An optional narrowing: when set, a rename may only write inside these absolute
-            directories, even when a destination allows more. Empty = no narrowing.
-          </p>
-          <TagListInput
-            values={options.AllowedRoots}
-            onChange={(v) => {
-              set("AllowedRoots", v);
-            }}
-            placeholder="Add an absolute directory, press Enter"
-          />
-        </div>
-
-        <div>
-          <h4 className="text-sm font-semibold text-foreground">Source-path destinations</h4>
-          <p className="mb-4 mt-1 text-sm text-secondary">
-            Match an item&apos;s source path to a destination, top rule first. An exact match or a
-            regex.
-          </p>
           <ObjectArrayEditor<PathDestinationRule>
             rows={options.PathDestinations}
             onChange={(rows) => {

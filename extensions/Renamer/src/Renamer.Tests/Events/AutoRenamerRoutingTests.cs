@@ -38,7 +38,6 @@ public sealed class AutoRenamerRoutingTests
                 AutoRenamerOnUpdate = true,
                 FilenameTemplate = "$title",
                 FolderTemplate = "Films",
-                AllowedRoots = [srcPathFwd, destRootFwd],
                 PathDestinations =
                     [new PathDestinationRule
                     {

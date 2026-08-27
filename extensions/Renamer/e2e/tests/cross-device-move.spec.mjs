@@ -33,10 +33,7 @@ test("a move routed into a genuinely different filesystem (EXDEV) fails safely, 
   const originalPath = video.files[0].path;
 
   // /data2 is one of the container's Cove library paths, so the default destination may name it.
-  const optionsBody = JSON.stringify({
-    FolderRoot: "/data2",
-    AllowedRoots: ["/data", "/data2"],
-  });
+  const optionsBody = JSON.stringify({ FolderRoot: "/data2" });
   const put = await api.put(`/api/extensions/${EXTENSION_ID}/data/options`, optionsBody);
   expect(put.ok).toBe(true);
 
@@ -79,7 +76,7 @@ test("a move routed into a genuinely different filesystem (EXDEV) fails safely, 
       );
     }
   } finally {
-    // This test PUTs GLOBAL Renamer options (FolderRoot + AllowedRoots) into the Cove instance,
+    // This test PUTs a GLOBAL Renamer option (FolderRoot) into the Cove instance,
     // which is SHARED across every sibling spec on the same Playwright worker. Restore the defaults
     // so a later spec that relies on the file's own library path — notably rename-ui-coverage's
     // folder-template relocate, which needs the default destination to name no root so it stays
@@ -88,7 +85,7 @@ test("a move routed into a genuinely different filesystem (EXDEV) fails safely, 
     // assertion above still cannot leak routing state into the next test.
     await api.put(
       `/api/extensions/${EXTENSION_ID}/data/options`,
-      JSON.stringify({ AllowedRoots: [], FolderRoot: "" }),
+      JSON.stringify({ FolderRoot: "" }),
     );
   }
 });

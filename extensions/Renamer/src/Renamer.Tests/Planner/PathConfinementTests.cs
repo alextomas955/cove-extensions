@@ -17,7 +17,7 @@ public sealed class PathConfinementTests
 
     private static PathConfinement.ConfinementResult Resolve(
         string folder, string basename = "film.mkv", RenamerOptions? options = null)
-        => PathConfinement.Resolve([], Root, folder, basename, options ?? new RenamerOptions());
+        => PathConfinement.Resolve(Root, folder, basename, options ?? new RenamerOptions());
 
     [Fact]
     public void EmptyFolder_IsInPlace_Accepted_UnderRoot()

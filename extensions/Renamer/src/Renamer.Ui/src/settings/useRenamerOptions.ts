@@ -143,10 +143,7 @@ export function useRenamerOptions(): UseRenamerOptions {
             parsed.EnableStudioDestinations || Object.keys(parsed.StudioDestinations).length > 0,
           EnableTagDestinations:
             parsed.EnableTagDestinations || Object.keys(parsed.TagDestinations).length > 0,
-          EnableAdvancedRouting:
-            parsed.EnableAdvancedRouting ||
-            parsed.AllowedRoots.length > 0 ||
-            parsed.PathDestinations.length > 0,
+          EnableAdvancedRouting: parsed.EnableAdvancedRouting || parsed.PathDestinations.length > 0,
         };
         setOptions(withDerivedGates);
         setSaved(withDerivedGates);

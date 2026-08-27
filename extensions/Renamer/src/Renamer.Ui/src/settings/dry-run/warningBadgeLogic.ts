@@ -115,7 +115,7 @@ const STATUS_BADGING: Record<RenamerStatus, StatusBadging> = {
     readsAdvisoryFlags: false,
   },
   skipNotAllowed: {
-    badge: { label: "Skipped — destination outside your allowed roots", variant: "amber" },
+    badge: { label: "Skipped — destination outside its own root", variant: "amber" },
     readsAdvisoryFlags: false,
   },
   skipTooLong: {
@@ -144,7 +144,6 @@ const STATUS_BADGING: Record<RenamerStatus, StatusBadging> = {
   skipNoSpace: { badge: null, readsAdvisoryFlags: false },
   // Executor-only, and produced only AFTER the confirm gate: the write-boundary guard refuses a
   // destination at move time, by which point the user has already approved.
-  skipBlocked: { badge: null, readsAdvisoryFlags: false },
 };
 
 /**

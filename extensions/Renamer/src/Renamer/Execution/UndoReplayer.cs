@@ -55,27 +55,19 @@ public sealed class UndoReplayer
     private readonly IEventBus _eventBus;
     private readonly DiskMover _disk;
     private readonly CrossVolumeMover _cross;
-    private readonly IReadOnlyList<string> _allowedRoots;
 
     // The optional <paramref name="cross"/> mover is used when the reverse move crosses volumes
     // (the NEW and OLD paths have different roots). It defaults to a fresh CrossVolumeMover() when
     // omitted, so every existing 3-arg construction site (the /undo endpoint + the test suite) stays
     // source-compatible; a test may inject a fault-seam / recording mover via this parameter. This
     // mirrors RenamerExecutor's optional-cross-param ctor verbatim.
-    //
-    // The optional <paramref name="allowedRoots"/> is the owner-configured write boundary the undo
-    // RE-GATES the restore target against, mirroring the forward executor's allowlist. It is
-    // additive AFTER the cross param so every existing 3-/4-arg call site stays source-compatible;
-    // omitted (or null) → an empty list, which makes the re-gate a no-op (an undo with no configured
-    // allowlist is unaffected). The /undo endpoint passes options.AllowedRoots.
     public UndoReplayer(IRenamerDataPort port, IEventBus eventBus, DiskMover disk,
-        CrossVolumeMover? cross = null, IReadOnlyList<string>? allowedRoots = null)
+        CrossVolumeMover? cross = null)
     {
         _port = port;
         _eventBus = eventBus;
         _disk = disk;
         _cross = cross ?? new CrossVolumeMover();
-        _allowedRoots = allowedRoots ?? [];
     }
 
     /// <summary>One failed/skipped reverse-replay entry surfaced in the run result's buckets.</summary>
@@ -204,7 +196,7 @@ public sealed class UndoReplayer
         CancellationToken ct)
     {
         // (1) Resolve the OLD directory + OLD basename, then validate + resolve the restore target
-        //     (allowlist re-gate → dir-missing → old-slot collision). A rejected target is a reported
+        //     (dir-missing → old-slot collision). A rejected target is a reported
         //     skip that never advances to a folder-row create or a disk write.
         string oldDir = DirOf(entry.OldPath);
         string oldBasename = BasenameOf(entry.OldPath);
@@ -328,7 +320,7 @@ public sealed class UndoReplayer
     // ── restore-spine sub-steps (extracted from RevertEntryAsync; control flow unchanged) ──────
 
     /// <summary>
-    /// Validates and resolves the restore target BEFORE any mutation: the allowlist re-gate, the
+    /// Validates and resolves the restore target BEFORE any mutation: the
     /// dir-missing guard, then the old-slot collision re-check — returning the skip that halts the
     /// entry, or the resolved OLD folder id when the target is clear to write.
     /// </summary>
@@ -336,29 +328,6 @@ public sealed class UndoReplayer
         RevertRow entry, string currentPath, string oldDir, string oldBasename,
         CancellationToken ct)
     {
-        // RESTORE-TARGET RE-GATE — an undo is a WRITE back to the recorded OLD location, so a RELOCATING
-        // undo must pass the SAME write-boundary gate the forward move used (in case the allowlist changed
-        // or the OLD dir is now a junction-to-elsewhere). RE-GATE ONLY RELOCATIONS — the undo-direction
-        // analog of the forward executor's `isMove && AllowedRoots.Count > 0`: an in-place restore (OLD and
-        // NEW share a directory) crosses no write boundary, so gating it would make ordinary in-place
-        // renames permanently non-undoable the moment any AllowedRoot is set. With an EMPTY allowlist this
-        // is skipped entirely (byte-identical to no-allowlist). Gate `oldDir` (the FOLDER), matching the
-        // forward executor's primary folder gate; the collision re-check below proves the OLD leaf does not
-        // currently exist, so the leaf cannot be a junction-to-elsewhere. Placed before the folder-row
-        // create and any disk write so a rejected target leaves no trace.
-        bool isRelocation = !PathsEqual(oldDir, DirOf(currentPath));
-        if (isRelocation && _allowedRoots.Count > 0)
-        {
-            var guard = CanonicalPathGuard.Check(oldDir, _allowedRoots);
-            if (!guard.Accepted)
-            {
-                return (new RevertOutcome.Skipped(new UndoFailure(
-                    entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath,
-                    $"skipped: restore target rejected by allowlist: {guard.Reason}",
-                    UndoStopReason.RestoreTargetRejectedByAllowlist)), 0);
-            }
-        }
-
         // DIR-MISSING / OFFLINE-OLD-DRIVE — do NOT recreate a missing OLD directory: recreating could
         // restore the file to a wrong place when the original drive is offline or the folder was deleted,
         // violating never-lose-track-of-a-file. Directory.Exists returns false (never throws) on an

@@ -288,7 +288,6 @@ public sealed class ScanRowPagerTests
     private static readonly RenamerOptions OverflowOptions = new()
     {
         FilenameTemplate = "$title",
-        AllowedRoots = [SourceRoot, DestRoot],
         FullPathMax = Budget,
     };
 

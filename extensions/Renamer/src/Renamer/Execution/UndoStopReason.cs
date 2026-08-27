@@ -25,9 +25,6 @@ public enum UndoStopReason
     /// </summary>
     FileNoLongerInLibrary,
 
-    /// <summary>The restore target failed the owner-configured write boundary the undo re-gates against.</summary>
-    RestoreTargetRejectedByAllowlist,
-
     /// <summary>The original directory is gone, or its volume is not mounted right now.</summary>
     OriginalDirectoryUnavailable,
 
@@ -63,7 +60,7 @@ public enum UndoStopReason
 /// <para>
 /// EXACTLY ONE reason is terminal, and the asymmetry is a product judgement rather than a technical
 /// one. Every other reason describes a condition the world can clear on its own or the owner can
-/// correct: a lock is released, a drive is remounted, an allowlist is widened, an occupied slot is
+/// correct: a lock is released, a drive is remounted, an occupied slot is
 /// emptied. Keeping those rows pending costs nothing but a row, while retiring one wrongly removes the
 /// only recovery path the user has for that file. The retention window sweeps whatever never resolves,
 /// so erring this way cannot leak rows forever.

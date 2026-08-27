@@ -183,7 +183,7 @@ unorganized route at all, so _Only rename organized items_ decides what happens 
 | Per-studio destinations | Map a studio → a destination. Keyed on the studio's stable id, so a rename in Cove keeps the rule and never splits one studio across two trees. | _(none)_ |
 | Per-tag destinations    | Map a tag → a destination. Keyed on the tag's stable id, the same way as a studio rule.                                                         | _(none)_ |
 
-These two cards and [Advanced routing & safety](#advanced-routing--safety) each have a header switch
+These two cards and [Source-path destinations](#source-path-destinations) each have a header switch
 that shows or hides their rules. The switch controls the panel only - it is not a setting the rename
 engine reads, so hiding a card does not stop its rules applying. A card whose rules are non-empty
 opens on its own when you load the page.
@@ -201,12 +201,13 @@ read the destination column. To keep one child where it is, give that child its 
 _Exclude by studio_ reads the same ancestry: an item is excluded when its own studio or any studio
 above it is on the exclude list.
 
-### Advanced routing & safety
+### Source-path destinations
 
-| Setting                  | What it does                                                                                                                                                 | Default   |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
-| Allowed roots            | An optional **narrowing**: when set, a rename may only write inside these absolute folders, even where a destination would allow more. Empty = no narrowing. | _(empty)_ |
-| Source-path destinations | Ordered rules matching an item's source path (exact, or a regex) → a destination. Exact matches are tried before regex.                                      | _(none)_  |
+| Setting                  | What it does                                                                                                            | Default  |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------- | -------- |
+| Source-path destinations | Ordered rules matching an item's source path (exact, or a regex) → a destination. Exact matches are tried before regex. | _(none)_ |
+
+A rule matches the folder an item's first file sits in, not the file itself.
 
 A source-path rule matches on where a file **is**, so it stops matching once it has moved the item.
 On the next run that item matches no rule and takes the default destination instead, which moves it a

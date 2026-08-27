@@ -31,7 +31,6 @@ public sealed class RenamerOptionsEqualityTests
         RenamerOptions Make() => new()
         {
             DropOrder = ["studio", "date"],
-            AllowedRoots = ["/media/a", "/media/b"],
             StudioDestinations = new() { [1] = Dest.At("/x"), [2] = Dest.At("/y") },
             TagDestinations = new() { [31] = Dest.At("/anime") },
             PathDestinations = [new PathDestinationRule { Pattern = "p", Dest = Dest.At("/d") }],
@@ -50,7 +49,6 @@ public sealed class RenamerOptionsEqualityTests
         Assert.NotEqual(baseline, baseline with { DropOrder = ["date", "studio"] });   // order-sensitive
         Assert.NotEqual(baseline, baseline with { DropOrder = ["studio"] });           // length
         Assert.NotEqual(new RenamerOptions(), new RenamerOptions { RequiredFields = ["title", "studio"] });
-        Assert.NotEqual(new RenamerOptions(), new RenamerOptions { AllowedRoots = ["/media"] });
         Assert.NotEqual(new RenamerOptions(), new RenamerOptions { AssociatedExtensions = ["srt"] });
         Assert.NotEqual(
             new RenamerOptions(),

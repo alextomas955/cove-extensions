@@ -26,7 +26,7 @@ public sealed class EmptySourceFolderCleanerTests
         Directory.CreateDirectory(src);
         File.WriteAllText(Path.Combine(src, "untracked.txt"), "the batch never moved this");
 
-        var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(src.Replace('\\', '/'), []);
+        var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(src.Replace('\\', '/'));
 
         Assert.False(removed);
         Assert.Null(warning); // a non-empty dir is the expected common case, not an error
@@ -41,7 +41,7 @@ public sealed class EmptySourceFolderCleanerTests
         string src = Path.Combine(dir.Root, "sub");
         Directory.CreateDirectory(Path.Combine(src, "nested"));
 
-        var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(src.Replace('\\', '/'), []);
+        var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(src.Replace('\\', '/'));
 
         Assert.False(removed);
         Assert.Null(warning);
@@ -56,7 +56,7 @@ public sealed class EmptySourceFolderCleanerTests
         string src = Path.Combine(dir.Root, "sub");
         Directory.CreateDirectory(src);
 
-        var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(src.Replace('\\', '/'), []);
+        var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(src.Replace('\\', '/'));
 
         Assert.True(removed);
         Assert.Null(warning);
@@ -67,43 +67,11 @@ public sealed class EmptySourceFolderCleanerTests
     public void DriveRoot_IsNeverDeleted()
     {
         string root = Path.GetPathRoot(Path.GetTempPath())!; // e.g. "C:\" — a real, existing root
-        var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(root.Replace('\\', '/'), []);
+        var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(root.Replace('\\', '/'));
 
         Assert.False(removed);
         Assert.Null(warning);
         Assert.True(Directory.Exists(root), "the drive root must survive untouched");
-    }
-
-    [Fact]
-    public void ConfiguredAllowedRoot_IsNeverDeleted_EvenWhenEmpty()
-    {
-        using var dir = new TempDir();
-        // The temp root itself is the configured allowed root; point the cleaner AT it while it is empty.
-        // Emptying a folder INSIDE a root is fine; deleting the root itself is refused.
-        string root = dir.Root.Replace('\\', '/');
-
-        var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(root, [root]);
-
-        Assert.False(removed);
-        Assert.NotNull(warning);
-        Assert.Contains("allowed root", warning);
-        Assert.True(Directory.Exists(dir.Root), "a configured allowed root must never be deleted");
-    }
-
-    [Fact]
-    public void DirOutsideAllowedRoots_IsRefused_NotDeleted()
-    {
-        using var inside = new TempDir();
-        using var outside = new TempDir();
-        string src = Path.Combine(outside.Root, "sub");
-        Directory.CreateDirectory(src); // empty, but OUTSIDE the configured allowlist
-
-        var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(
-            src.Replace('\\', '/'), [inside.Root.Replace('\\', '/')]);
-
-        Assert.False(removed);
-        Assert.NotNull(warning);
-        Assert.True(Directory.Exists(src), "a dir outside every allowed root must not be deleted");
     }
 
     [Fact]
@@ -112,25 +80,10 @@ public sealed class EmptySourceFolderCleanerTests
         using var dir = new TempDir();
         string gone = Path.Combine(dir.Root, "never-existed").Replace('\\', '/');
 
-        var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(gone, []);
+        var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(gone);
 
         Assert.False(removed);
         Assert.Null(warning);
-    }
-
-    [Fact]
-    public void EmptyDirInsideConfiguredRoot_IsDeleted()
-    {
-        using var dir = new TempDir();
-        string root = dir.Root.Replace('\\', '/');
-        string src = Path.Combine(dir.Root, "sub");
-        Directory.CreateDirectory(src); // a genuinely empty CHILD of the allowed root
-
-        var (removed, warning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(src.Replace('\\', '/'), [root]);
-
-        Assert.True(removed);
-        Assert.Null(warning);
-        Assert.False(Directory.Exists(src));
     }
 
     // ── end-to-end through the executor (Tests 1, 8, 9) ──────────────────────
@@ -171,55 +124,6 @@ public sealed class EmptySourceFolderCleanerTests
 
             Assert.True(File.Exists(Path.Combine(dir.Root, "dst", "My Film.mkv")), "file must be at the destination");
             Assert.False(Directory.Exists(Path.Combine(dir.Root, "src")), "the emptied source dir must be deleted");
-        }
-        finally
-        {
-            await db.DisposeAsync();
-            await conn.DisposeAsync();
-        }
-    }
-
-    [Fact]
-    public async Task CleanupGuardReject_DoesNotFailTheMove_WarningSurfaced()
-    {
-        using var dir = new TempDir();
-        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
-        try
-        {
-            // The destination is inside the allowlist (so the move passes the guard); the SOURCE dir
-            // sits OUTSIDE it, so the cleanup guard refuses — a non-fatal warning, not a failed move.
-            string dstRoot = Path.Combine(dir.Root, "dst").Replace('\\', '/');
-            Directory.CreateDirectory(dstRoot.Replace('/', Path.DirectorySeparatorChar));
-            string srcFolder = Path.Combine(dir.Root, "src").Replace('\\', '/');
-            var (_, videoId, fileId) =
-                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "My Film");
-
-            string oldFull = Path.Combine(dir.Root, "src", "clip.mkv");
-            Directory.CreateDirectory(Path.GetDirectoryName(oldFull)!);
-            File.WriteAllText(oldFull, "video-bytes");
-
-            var executor = NewExecutor(db, out _);
-            var options = new RenamerOptions
-            {
-                RemoveEmptyFolder = true,
-                AllowedRoots = [dstRoot],
-            };
-
-            var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
-            [
-                new RenamerPlanItem(fileId, srcFolder + "/clip.mkv", dstRoot + "/My Film.mkv",
-                    RenamerStatus.Move, "My Film.mkv", dstRoot),
-            ]);
-
-            var result = await executor.ExecuteAsync(plan, options, default);
-
-            // The move still reports moved — a cleanup refusal never flips it to failed.
-            var moved = Assert.Single(result.Renamed);
-            Assert.Equal(RenamerStatus.Move, moved.Status);
-            Assert.Empty(result.Failed);
-            Assert.NotNull(moved.Reason); // the cleanup warning is surfaced on the moved result
-            Assert.True(File.Exists(Path.Combine(dir.Root, "dst", "My Film.mkv")), "the move itself succeeded");
-            Assert.True(Directory.Exists(Path.Combine(dir.Root, "src")), "the refused source dir is left intact");
         }
         finally
         {

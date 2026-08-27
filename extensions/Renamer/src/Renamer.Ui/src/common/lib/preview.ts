@@ -55,8 +55,8 @@ const SKIP_CLAUSES: Record<RenamerStatus, SkipClause | null> = {
     reason: "destination is no longer a library path",
   },
   skipNotAllowed: {
-    clause: "would land outside your allowed roots",
-    reason: "destination outside your allowed roots",
+    clause: "would land outside their destination root",
+    reason: "destination outside its own root",
   },
   skipTooLong: { clause: "would make too long a path", reason: "path too long" },
   // The executor produces this one at move time, past this gate, so no preview item carries it. The
@@ -72,7 +72,6 @@ const SKIP_CLAUSES: Record<RenamerStatus, SkipClause | null> = {
   skipPermissionDenied: null,
   skipVerifyFailed: null,
   skipCancelled: null,
-  skipBlocked: null,
   // Log-only: a disk-full skip is reported through the run log and never becomes an item result.
   skipNoSpace: null,
 };

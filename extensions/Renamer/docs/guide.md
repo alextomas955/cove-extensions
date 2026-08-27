@@ -80,7 +80,7 @@ that needs attention always says why:
 | Skipped — permission denied                                  | Cove is not allowed to write where the row would go, or to move the file at all.               |
 | Skipped — file is outside your Cove library                  | The destination measures from the file's own library path, and the file is under none of them. |
 | Skipped — the rule's destination is no longer a library path | The root the matched rule names is no longer one of Cove's library paths.                      |
-| Skipped — destination outside your allowed roots             | _Allowed roots_ does not cover where the rule would write.                                     |
+| Skipped — destination outside its own root                   | The folder template is not relative, or it climbs out of the destination it measures from.     |
 | Skipped — path too long                                      | The full path would exceed _Full-path max length_.                                             |
 
 A stop that is not a defect is gray instead: **Skipped — cancelled** means Cove shut down part-way

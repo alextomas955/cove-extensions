@@ -999,12 +999,6 @@
               "type": "string"
             }
           },
-          "allowedRoots": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
           "associatedExtensions": {
             "type": "array",
             "items": {
@@ -1142,7 +1136,6 @@
           "skipLocked",
           "skipMissingSource",
           "skipNoSpace",
-          "skipBlocked",
           "failed",
           "skipUnanchored",
           "skipRootMissing",

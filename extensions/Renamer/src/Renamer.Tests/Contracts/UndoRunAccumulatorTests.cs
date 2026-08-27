@@ -208,7 +208,6 @@ public sealed class UndoRunAccumulatorTests
     {
         { UndoStopReason.UnexpectedError, false },
         { UndoStopReason.FileNoLongerInLibrary, true },
-        { UndoStopReason.RestoreTargetRejectedByAllowlist, false },
         { UndoStopReason.OriginalDirectoryUnavailable, false },
         { UndoStopReason.OriginalLocationOccupied, false },
         { UndoStopReason.ReverseMoveLockedOrTargetExists, false },

@@ -189,8 +189,8 @@ public sealed class UndoEndpointTests
     {
         // A run that restores NOTHING (every entry skipped) must NOT consume the batch: the undo is
         // the only recovery path, and consuming it on an all-skipped run would strand the file at its
-        // new location forever. Here the restore target is rejected by an allowlist that does not yet
-        // cover the original folder; after the allowlist is corrected, a retry must still recover.
+        // new location forever. Here the original folder is missing when the undo runs; once it is
+        // back, a retry must still recover.
         using var srcDir = new TempDir();
         using var destDir = new TempDir();
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -205,12 +205,10 @@ public sealed class UndoEndpointTests
             File.WriteAllText(oldFull, "video-bytes");
 
             var (ext, store) = await BuildExtensionAsync(db, new CapturingEventBus(), srcPath, destPath);
-            // Forward: a routed move OFF the source folder onto the dest folder (a relocation, so the
-            // undo re-gate applies). Both roots allowed for the forward move.
+            // Forward: a routed move OFF the source folder onto the dest folder.
             await new global::Renamer.Options.OptionsStore(store).SaveAsync(new global::Renamer.Options.RenamerOptions
             {
                 FilenameTemplate = "$title",
-                AllowedRoots = [srcPath, destPath],
                 PathDestinations = [new global::Renamer.Options.PathDestinationRule { Pattern = srcPath, Dest = Dest.At(destPath) }],
             });
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", [videoId]), new FakeJobProgress(), default);
@@ -220,13 +218,9 @@ public sealed class UndoEndpointTests
             var write = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
             var read = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
 
-            // Undo with an allowlist that NO LONGER covers the original source folder → every entry is
-            // skipped (restore target rejected by allowlist), undone == 0.
-            await new global::Renamer.Options.OptionsStore(store).SaveAsync(new global::Renamer.Options.RenamerOptions
-            {
-                FilenameTemplate = "$title",
-                AllowedRoots = [destPath],   // source root deliberately omitted
-            });
+            // Undo while the original folder is gone → every entry is skipped, because a missing
+            // original directory is never recreated, so undone == 0.
+            Directory.Delete(srcDir.Root, recursive: true);
             var skippedRun = UndoValue(await ext.UndoAsync(write, default));
             Assert.Equal(0, skippedRun.Undone);
             Assert.Single(skippedRun.SkippedSample);
@@ -238,12 +232,8 @@ public sealed class UndoEndpointTests
             Assert.True(afterSkip.HasBatch);
             Assert.False(afterSkip.Consumed, "an all-skipped undo must NOT consume the batch");
 
-            // Correct the allowlist to cover the original location, then retry: the recovery succeeds.
-            await new global::Renamer.Options.OptionsStore(store).SaveAsync(new global::Renamer.Options.RenamerOptions
-            {
-                FilenameTemplate = "$title",
-                AllowedRoots = [srcPath, destPath],
-            });
+            // Put the original folder back, then retry: the recovery succeeds.
+            Directory.CreateDirectory(srcDir.Root);
             var retryRun = UndoValue(await ext.UndoAsync(write, default));
             Assert.Equal(1, retryRun.Undone);
             Assert.Empty(retryRun.SkippedSample);

@@ -193,8 +193,6 @@ export interface RenamerOptions {
   ExcludeTagIds: number[];
   ExcludeStudioIds: number[];
   ExcludePaths: ExcludeRule[];
-  // An optional NARROWING of where a rename may write; empty applies none.
-  AllowedRoots: string[];
   // Extra sidecar extensions whose same-basename file moves with the primary (supplementing the
   // DB-tracked captions); a target that already exists is skipped, never overwritten.
   AssociatedExtensions: string[];
@@ -289,7 +287,6 @@ export const DEFAULT_OPTIONS: RenamerOptions = {
   ExcludeTagIds: [],
   ExcludeStudioIds: [],
   ExcludePaths: [],
-  AllowedRoots: [],
   AssociatedExtensions: [],
   UnorganizedDestination: null,
   EnableStudioDestinations: false,
@@ -337,7 +334,6 @@ export function cloneDefaults(): RenamerOptions {
     ExcludeTagIds: [...DEFAULT_OPTIONS.ExcludeTagIds],
     ExcludeStudioIds: [...DEFAULT_OPTIONS.ExcludeStudioIds],
     ExcludePaths: DEFAULT_OPTIONS.ExcludePaths.map((r) => ({ ...r })),
-    AllowedRoots: [...DEFAULT_OPTIONS.AllowedRoots],
     AssociatedExtensions: [...DEFAULT_OPTIONS.AssociatedExtensions],
     FieldReplacers: DEFAULT_OPTIONS.FieldReplacers.map((r) => ({ ...r })),
     Articles: [...DEFAULT_OPTIONS.Articles],
@@ -690,7 +686,6 @@ export function normalizeOptions(raw: unknown): RenamerOptions {
     ExcludeTagIds: numArray(r.ExcludeTagIds, []),
     ExcludeStudioIds: numArray(r.ExcludeStudioIds, []),
     ExcludePaths: excludeRules(r.ExcludePaths),
-    AllowedRoots: strArray(r.AllowedRoots, []),
     AssociatedExtensions: strArray(r.AssociatedExtensions, [...d.AssociatedExtensions]),
     // Absent (or anything that is not an object) is how "there is no unorganized route" is spelled,
     // and it is a different destination from one naming neither a root nor a folder.

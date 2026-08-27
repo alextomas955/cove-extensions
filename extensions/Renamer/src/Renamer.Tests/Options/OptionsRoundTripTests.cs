@@ -139,47 +139,4 @@ public sealed class OptionsRoundTripTests
         Assert.Equal(OverflowPolicy.KeepFirst, loaded.Performers.OnOverflow);
     }
 
-    [Fact]
-    public void AllowedRoots_RoundTrips_StructurallyEqual()
-    {
-        // A non-empty AllowedRoots must survive a C# serialize→deserialize loop value-equal —
-        // proves the List<string> compares structurally (SequenceEqual), not by reference.
-        var original = new RenamerOptions
-        {
-            AllowedRoots = ["D:/media", "E:/archive/movies"],
-        };
-
-        var json = JsonSerializer.Serialize(original, RenamerOptions.JsonOptions);
-        var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        Assert.Equal(original, reloaded);
-        Assert.Equal(["D:/media", "E:/archive/movies"], reloaded!.AllowedRoots);
-    }
-
-    [Fact]
-    public void AllowedRoots_MissingProperty_DefaultsToEmpty_NoThrow()
-    {
-        // Forward-compat: a blob written before AllowedRoots existed (omits the property) must
-        // deserialize to an EMPTY list — the legacy source-confine behavior — without throwing.
-        const string json = """{ "filenameTemplate": "$title" }""";
-
-        var opts = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
-
-        Assert.NotNull(opts);
-        Assert.Empty(opts!.AllowedRoots);
-    }
-
-    [Fact]
-    public void AllowedRoots_Equality_Discriminates_On_Content_And_Order()
-    {
-        var baseline = new RenamerOptions { AllowedRoots = ["D:/media", "E:/archive"] };
-        var same = new RenamerOptions { AllowedRoots = ["D:/media", "E:/archive"] };
-        var reordered = new RenamerOptions { AllowedRoots = ["E:/archive", "D:/media"] };
-        var different = new RenamerOptions { AllowedRoots = ["D:/media"] };
-
-        Assert.Equal(baseline, same);
-        Assert.Equal(baseline.GetHashCode(), same.GetHashCode());
-        Assert.NotEqual(baseline, reordered);
-        Assert.NotEqual(baseline, different);
-    }
 }

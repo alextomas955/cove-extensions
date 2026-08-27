@@ -130,8 +130,8 @@ the two never drift.
 - `RevertDelta.cs` — the sidecar and caption moves that rode along with one renamed file, recorded in
   the forward direction so undo replays what happened rather than recomputing a target from the names.
 - `UndoStopReason.cs` — why one entry stopped short, as a value. Exactly one reason is terminal — the
-  file has left the library, which no retry can improve on — so a lock, an unmounted drive or a
-  narrowed allowlist all leave the row pending for a later retry. The decision reads the typed reason,
+  file has left the library, which no retry can improve on — so a lock or an unmounted drive leaves
+  the row pending for a later retry. The decision reads the typed reason,
   never the human-readable note beside it.
 - `RevertLog.cs` — the legacy stored journal, kept only as a one-way migration source.
 - `JournalBlobMigration.cs` — moves an upgrading installation's stored journal into the table exactly
