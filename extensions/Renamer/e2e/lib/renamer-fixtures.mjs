@@ -16,4 +16,4 @@ export const test = baseTest.extend({
 
 export { expect } from "@cove-extensions/e2e";
 export { seedVideo } from "@cove-extensions/e2e/seed-media";
-export { pollJob, pollUntil } from "@cove-extensions/e2e/poll";
+export { pollUntil } from "@cove-extensions/e2e/poll";

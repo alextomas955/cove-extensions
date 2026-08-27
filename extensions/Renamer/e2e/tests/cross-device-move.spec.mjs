@@ -18,7 +18,8 @@
 // locks in that safety property and documents the misleading-message gap as a known finding for
 // Renamer's own backlog (a message-text fix is a Renamer source change, out of scope for this
 // E2E-infrastructure task).
-import { test, expect, seedVideo, pollJob } from "../lib/renamer-fixtures.mjs";
+import { test, expect, seedVideo } from "../lib/renamer-fixtures.mjs";
+import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
 
 const EXTENSION_ID = "com.alextomas955.renamer";
 const ROUTE = `/api/extensions/${EXTENSION_ID}`;
@@ -46,7 +47,7 @@ test("a move routed into a genuinely different filesystem (EXDEV) fails safely, 
     });
     expect(enqueue.status).toBe(202);
 
-    const job = await pollJob(api, enqueue.json.jobId);
+    const job = await pollRenamerJob(api, ROUTE, enqueue.json.jobId);
     // The batch job itself always reports "completed" — per-item outcomes (renamed/skipped/failed)
     // are in the batch log, not the job status. A skip is not a job failure.
     expect(job.status.toLowerCase()).toBe("completed");

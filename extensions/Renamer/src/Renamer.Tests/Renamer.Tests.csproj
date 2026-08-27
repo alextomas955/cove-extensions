@@ -154,6 +154,8 @@
     <Compile Remove="Api\RenamerLibraryEndpointTests.cs" />
     <Compile Remove="Api\RequestPathPrincipalTests.cs" />
     <Compile Remove="Api\ScanLibraryEndpointTests.cs" />
+    <Compile Remove="Api\JobStatusEndpointTests.cs" />
+    <Compile Remove="Api\OrphanedRulesEndpointTests.cs" />
     <Compile Remove="Api\UndoEndpointTests.cs" />
     <Compile Remove="Jobs\RenamerBatchJobTests.cs" />
     <Compile Remove="Options\OptionsMigrationInitializeTests.cs" />

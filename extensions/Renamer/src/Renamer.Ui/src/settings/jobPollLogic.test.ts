@@ -126,9 +126,9 @@ test("read failures at the allowance expire even while the stall budget has room
 });
 
 test("an unrecognised status keeps polling and never resolves", () => {
-  // A status this UI does not know is not a success. The /jobs/{id} shape is hand-declared against
-  // the host's endpoint, so a vocabulary change upstream arrives here as an unknown string — and it
-  // must degrade to an expiry with a message, never to a false "renamed" banner.
+  // A status this UI does not know is not a success. This module takes the status as a plain string,
+  // so a vocabulary it has not been told about arrives as an unknown one — and it must degrade to an
+  // expiry with a message, never to a false "renamed" banner.
   assert.deepEqual(decidePoll({ read: "ok", status: "queued" }, ctx()), { action: "continue" });
   assert.deepEqual(decidePoll({ read: "ok", status: "" }, ctx()), { action: "continue" });
   assert.equal(
