@@ -7,7 +7,6 @@ namespace Renamer.Tests.Planner;
 /// Exercises the <see cref="IRenamerDataPort"/> seam contract through the in-memory fake
 /// so the seam is asserted, not merely compiled.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class IRenamerDataPortSeamTests
 {
     [Fact]

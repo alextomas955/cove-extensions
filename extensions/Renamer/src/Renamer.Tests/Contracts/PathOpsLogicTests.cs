@@ -12,7 +12,6 @@ namespace Renamer.Tests.Contracts;
 /// a pure suite placed beside the code it covers stops running on the leg where this repository's
 /// coverage is thinnest. <c>Contracts/</c> is named by no removal entry.
 /// </remarks>
-[Trait("Tier", "L0")]
 public sealed class PathOpsLogicTests
 {
     [Fact]

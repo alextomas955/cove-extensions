@@ -1,11 +1,13 @@
 /**
  * Pure, DOM-free derivation of a row's warning badges. A badge comes from the row's `status` STRING
- * enum PLUS its advisory bools (`suffixed`, `sanitized`) — there is NO `flags[]` array on /preview.
+ * enum PLUS its advisory bools (`suffixed`, `sanitized`, `inFlightPathOverflow`) — there is NO
+ * `flags[]` array on /preview.
  *
  * Deliberately a sibling of dryRunLogic.ts rather than an addition to it: that module's header claims
  * it is import-free, and the derivation here needs the generated wire union.
  */
 import type { RenamerStatus } from "../../wire/api";
+import { inFlightOverflowLabel } from "./dryRunLogic";
 
 type Variant = "amber" | "gray" | "red";
 
@@ -27,6 +29,12 @@ export interface Badgeable {
   status: RenamerStatus;
   suffixed: boolean;
   sanitized: boolean;
+  /**
+   * Required, because both wire shapes that reach a badge carry it — `/preview`'s item view and the
+   * paged `/scan-rows` row. Required rather than optional so a caller that forgets to pass it fails to
+   * compile, instead of silently rendering a row whose warning was never asked for.
+   */
+  inFlightPathOverflow: boolean;
 }
 
 /**
@@ -168,7 +176,8 @@ function badgingFor(status: string): StatusBadging {
 /**
  * Map an item to its badges (one per warning kind, with user-facing labels).
  * Rename/Move with no extra signal returns [] (the positive default, no badge). suffixed/sanitized
- * add amber advisory badges even on a will-rename row.
+ * add amber advisory badges even on a will-rename row; an in-flight path overflow adds a red one,
+ * because that row's move cannot complete rather than merely completing differently.
  */
 export function badgesFor(item: Badgeable): Badge[] {
   const badges: Badge[] = [];
@@ -178,5 +187,10 @@ export function badgesFor(item: Badgeable): Badge[] {
     if (item.suffixed) badges.push({ label: "Numbered to avoid a clash", variant: "amber" });
     if (item.sanitized) badges.push({ label: "Cleaned for the filesystem", variant: "amber" });
   }
+  // No status guard: the server sets this flag only on an acting cross-volume item, and re-testing the
+  // status here would let a flag the server DID set go unrendered whenever the two vocabularies drifted.
+  // Red rather than amber, because the two advisories above describe a rename that still happens.
+  const overflow = inFlightOverflowLabel(item);
+  if (overflow !== null) badges.push({ label: overflow, variant: "red" });
   return badges;
 }

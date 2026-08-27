@@ -18,7 +18,6 @@ namespace Renamer.Tests.Execution.Undo;
 /// rollback (disk moved back to NEW), and an empty batch no-op. SQLite (not EF-InMemory) so the unique
 /// index + transactions are faithful.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class UndoReplayerTests
 {
     [Fact]

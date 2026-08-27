@@ -12,7 +12,6 @@ namespace Renamer.Tests.Concurrency;
 /// N ids must produce exactly N loads (not 2N), and the surfaced entity must still carry the seeded
 /// sizes so the de-dup cannot silently drop them.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class PhaseALoadOnceTests
 {
     private static RenamerFile File(int id, string basename, long sizeBytes) =>

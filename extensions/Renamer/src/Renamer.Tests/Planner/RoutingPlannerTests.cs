@@ -13,7 +13,6 @@ namespace Renamer.Tests.Planner;
 /// matched takes the DEFAULT destination, measured from the library path holding the file. PURE - no
 /// disk, no DB; every test asserts zero <c>SaveAsync</c> calls.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class RoutingPlannerTests
 {
     // OS-aware absolute roots (path-syntax valid on the current OS), mirroring PathConfinementAllowlistTests.

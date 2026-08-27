@@ -128,6 +128,11 @@ public sealed class RenamerPlanner
             return new RenamerPlan(entity.EntityId, entity.Kind, gated);
         }
 
+        // Derived ONCE per entity, like the route above: the title is an entity-level scalar, and every
+        // file of the item must plan against the one value the executor will record. See
+        // MetadataProjector.DerivedTitle.
+        string? derivedTitle = MetadataProjector.DerivedTitle(entity, options);
+
         // ONE lookup, ONE destination. The route above answered where this item goes, and its answer
         // is a whole destination: a root chosen from Cove's library paths plus a relative template. A
         // matched rule's destination REPLACES the default, and an item no rule matched takes the
@@ -162,7 +167,7 @@ public sealed class RenamerPlanner
         foreach (var file in entity.Files)         // process every file, never just the first.
         {
             ct.ThrowIfCancellationRequested();
-            items.Add(await PlanFileAsync(entity, file, effective, route, destination, ct));
+            items.Add(await PlanFileAsync(entity, file, effective, route, destination, derivedTitle, ct));
         }
 
         return new RenamerPlan(entity.EntityId, entity.Kind, items);
@@ -227,7 +232,7 @@ public sealed class RenamerPlanner
     /// <summary>Classifies a single file: render → anchor → confine → collision → status.</summary>
     private async Task<RenamerPlanItem> PlanFileAsync(
         RenamerEntity entity, RenamerFile file, RenamerOptions options, RouteResult route,
-        Destination destination, CancellationToken ct)
+        Destination destination, string? derivedTitle, CancellationToken ct)
     {
         string oldFullPath = JoinPath(file.ParentFolderPath, file.Basename);
 
@@ -342,6 +347,20 @@ public sealed class RenamerPlanner
             candidate = ApplySuffix(rendered.Filename, rendered.Ext, options.DuplicateSuffixFormat, attempt);
         }
 
+        // (4b) Re-measure the budget against the SETTLED candidate. The gate at (2b) ran BEFORE the loop
+        //      above, which lengthens the name by whatever DuplicateSuffixFormat spells and repeats up
+        //      to MaxSuffixAttempts, so an item accepted at the budget can leave the loop past it.
+        //      Measured against confined.TargetFolderPath and not relTargetFolder: the gate resolves
+        //      under the synthetic anchor when the anchor is not itself absolute, so that is the basis
+        //      the first measurement used and a different one would describe a different path.
+        var recheck = PathConfinement.WithinBudget(confined.TargetFolderPath, candidate, options);
+        if (!recheck.Accepted)
+        {
+            return new RenamerPlanItem(
+                file.FileId, oldFullPath, oldFullPath, RenamerStatus.SkipTooLong,
+                file.Basename, file.ParentFolderPath, recheck.Reason);
+        }
+
         string newFullPath = JoinPath(relTargetFolder, candidate);
 
         // UI badge signals (set only on the final Renamer/Move item; skip/no-op paths keep the
@@ -367,7 +386,7 @@ public sealed class RenamerPlanner
             file.FileId, oldFullPath, newFullPath,
             isMove ? RenamerStatus.Move : RenamerStatus.Renamer,
             candidate, relTargetFolder, null, suffixed, sanitized,
-            resolvedRoot, route.MatchedRule, targetVolume);
+            resolvedRoot, route.MatchedRule, targetVolume, derivedTitle);
     }
 
     /// <summary>Builds a skip/gated item that keeps the file at its current path (no mutation).</summary>

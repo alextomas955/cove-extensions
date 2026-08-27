@@ -292,7 +292,7 @@ jobs:
         env:
           EXTENSION_ID: ${{ matrix.extension.id }}
 
-      - name: Verify frontend (typecheck + format:check + test)
+      - name: Verify frontend
         if: ${{ matrix.extension.uiPath != '' }}
         working-directory: ${{ matrix.extension.uiPath }}
         run: npm run verify

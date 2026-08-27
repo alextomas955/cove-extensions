@@ -1,5 +1,7 @@
+using System.Reflection;
 using System.Text.Json;
 using Cove.Plugins;
+using Renamer.Planner;
 using Renamer.Tests.TestSupport;
 
 namespace Renamer.Tests;
@@ -11,7 +13,6 @@ namespace Renamer.Tests;
 /// silently dropping at install time. It also pins the runtime-permissions posture, the richer
 /// admin-facing description, and that the extension instance the host builds answers from this file.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class ExtensionManifestFileTests
 {
     // The manifest is copied next to the test assembly via the Renamer project reference's
@@ -94,5 +95,87 @@ public sealed class ExtensionManifestFileTests
         Assert.Equal(manifest.Url, extension.Url);
         Assert.Equal(manifest.MinCoveVersion, extension.MinCoveVersion);
         Assert.Equal(manifest.Categories, extension.Categories);
+    }
+
+    /// <summary>
+    /// The extension redeclares none of its metadata in code, so the manifest is what the host reads.
+    /// </summary>
+    /// <remarks>
+    /// The host reads each value straight off the property, so an override here silently WINS over the
+    /// shipped manifest. The regression is therefore not a wrong value but a REDECLARED one, which no
+    /// value assertion can catch while the copy still happens to agree with the manifest.
+    /// </remarks>
+    [Theory]
+    [InlineData("Id")]
+    [InlineData("Name")]
+    [InlineData("Version")]
+    [InlineData("MinCoveVersion")]
+    [InlineData("Description")]
+    [InlineData("Author")]
+    [InlineData("Url")]
+    [InlineData("IconUrl")]
+    [InlineData("Categories")]
+    public void Metadata_IsNotRedeclaredInCode(string member)
+    {
+        var property = typeof(global::Renamer.Renamer).GetProperty(member);
+
+        Assert.NotNull(property);
+        Assert.NotEqual(typeof(global::Renamer.Renamer), property!.DeclaringType);
+    }
+
+    /// <summary>
+    /// Every renamable kind's permission pair is named in the shipped description.
+    /// </summary>
+    /// <remarks>
+    /// The manifest has no structured per-kind permission field, so the claim an operator reads before
+    /// granting access lives in the description prose. Prose has no compiler, which makes an
+    /// understatement here silent: the endpoints go on accepting a kind the manifest never mentions.
+    /// <para>
+    /// The expectation is owned by the code the manifest DESCRIBES - the backend's own renamable kinds,
+    /// and the permission pair the backend itself returns for each - so a kind added to the backend
+    /// fails this test until the manifest names its permissions.
+    /// </para>
+    /// <para>
+    /// It deliberately does NOT assert the reach of the registered bulk actions or of the auto-rename
+    /// hook. Both cover fewer kinds than the endpoints do, on purpose, so widening it to them would
+    /// demand a manifest sentence that is false.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void EveryRenamableKindsPermissionPairIsNamedInTheShippedManifestDescription()
+    {
+        // The shipped bytes, through the one seam that reads them, rather than a second path literal.
+        var description = RenamerFixture.Manifest.Description;
+        Assert.False(
+            string.IsNullOrWhiteSpace(description),
+            "extension.json declares no description. The per-kind permission claim lives there and "
+                + "nowhere else, so an empty one states nothing to an operator granting access.");
+
+        var kinds = RenamableKinds();
+        Assert.NotEmpty(kinds);
+
+        foreach (var kind in kinds)
+        {
+            var (read, write) = global::Renamer.Renamer.PermissionsFor(kind);
+
+            Assert.Contains(read, description, StringComparison.Ordinal);
+            Assert.Contains(write, description, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// Reads the backend's renamable-kind set out of the field that defines it. Reflection because the
+    /// field is private and this pin is not a reason to widen its visibility; the null check is what
+    /// keeps a rename of the field a loud failure instead of a pin that inspects nothing.
+    /// </summary>
+    private static RenamerFileKind[] RenamableKinds()
+    {
+        var field = typeof(global::Renamer.Renamer).GetField(
+            "RenamableKinds",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(field);
+
+        return Assert.IsType<RenamerFileKind[]>(field!.GetValue(null));
     }
 }

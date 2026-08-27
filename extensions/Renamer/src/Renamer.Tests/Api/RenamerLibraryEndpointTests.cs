@@ -22,7 +22,6 @@ namespace Renamer.Tests.Api;
 /// methods (no HTTP host) with a real SQLite <c>CoveContext</c> and real on-disk files, mirroring
 /// <c>RenamerBatchJobTests</c>/<c>EntityIdsCapTests</c>.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class RenamerLibraryEndpointTests
 {
     /// <summary>Records every <c>Enqueue</c> call; all other members are unused and throw.</summary>

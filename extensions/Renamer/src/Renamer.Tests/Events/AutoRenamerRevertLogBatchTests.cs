@@ -16,7 +16,6 @@ namespace Renamer.Tests.Events;
 /// file id so /undo can publish the forward-equivalent event. The decoy video makes
 /// <c>videoId ≠ fileId</c>, so a row that confused the two is distinguishable from a correct one.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class AutoRenamerRevertLogBatchTests
 {
     [Fact]

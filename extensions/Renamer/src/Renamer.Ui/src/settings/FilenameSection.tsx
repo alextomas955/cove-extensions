@@ -63,6 +63,10 @@ export interface FilenameSectionProps {
   activeTemplateRef: RefObject<"filename" | "folder">;
   emptySamples: string[];
   recoveredFromBadBlob: boolean;
+  /** Save is refused for the stored blob's sake, and the banner below is where a user learns why. */
+  pendingNameMigration: boolean;
+  /** The same refusal for the destination half, which waits on a different thing and says so. */
+  pendingDestinationMigration: boolean;
   /** Cove's library paths, so the default destination offers them as choices. */
   library: LibraryPathsState;
 }
@@ -76,6 +80,8 @@ export function FilenameSection({
   activeTemplateRef,
   emptySamples,
   recoveredFromBadBlob,
+  pendingNameMigration,
+  pendingDestinationMigration,
   library,
 }: FilenameSectionProps) {
   return (
@@ -84,6 +90,23 @@ export function FilenameSection({
         <StatusText kind="error">
           Your saved settings couldn't be read and have been reset to defaults. Review the options
           below and save to store a clean copy.
+        </StatusText>
+      ) : null}
+
+      {pendingNameMigration ? (
+        <StatusText kind="error">
+          Your tag and performer rules are still stored by name and are waiting for a one-time
+          conversion that runs when Cove starts. Saving is disabled until then, because this page
+          can't show those rules and would replace them. Restart Cove, then reload this page.
+        </StatusText>
+      ) : null}
+
+      {pendingDestinationMigration ? (
+        <StatusText kind="error">
+          Your destination folders are still stored as plain paths and are waiting for a one-time
+          conversion that runs when Cove starts. Saving is disabled until then, because this page
+          can't show those folders and would replace them. The conversion needs at least one library
+          path configured in Cove; add one if there is none, then restart Cove and reload this page.
         </StatusText>
       ) : null}
 
@@ -120,6 +143,7 @@ export function FilenameSection({
           description="The destination for an item no rule matched: a library path, plus the folders made under it."
         >
           <DestinationField
+            rootHelper="Which of Cove's library paths this destination measures from."
             value={{ Root: options.FolderRoot, Template: options.FolderTemplate }}
             onChange={(destination) => {
               set("FolderRoot", destination.Root);

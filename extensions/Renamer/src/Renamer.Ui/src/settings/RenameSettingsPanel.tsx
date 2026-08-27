@@ -58,10 +58,14 @@ function SaveBar({
         className="pointer-events-auto flex w-full max-w-3xl items-center gap-4 rounded-2xl border border-border bg-card px-5 shadow-lg"
         style={{ paddingTop: "0.875rem", paddingBottom: "0.875rem" }}
       >
+        {/* Cove's own UI writes the red-400 fill only at 80% alpha, so its prebuilt stylesheet omits
+            the full-strength utility and the error dot resolved to no fill. The colour scale's custom
+            property is declared whether or not a utility using it is, so inline the tone off that. */}
         <span
           className={`h-2 w-2 shrink-0 rounded-full ${
-            saveError ? "bg-red-400" : savedFlash ? "bg-green-400" : "bg-amber-400"
+            saveError ? "" : savedFlash ? "bg-green-400" : "bg-amber-400"
           }`}
+          style={saveError ? { backgroundColor: "var(--color-red-400)" } : undefined}
         />
         <div className="min-w-0 flex-1">
           {saveError ? (
@@ -107,6 +111,8 @@ export function RenamePanelBody() {
     saveError,
     savedFlash,
     recoveredFromBadBlob,
+    pendingNameMigration,
+    pendingDestinationMigration,
     dirty,
     canSave,
     load,
@@ -202,6 +208,8 @@ export function RenamePanelBody() {
           activeTemplateRef={activeTemplateRef}
           emptySamples={emptySamples}
           recoveredFromBadBlob={recoveredFromBadBlob}
+          pendingNameMigration={pendingNameMigration}
+          pendingDestinationMigration={pendingDestinationMigration}
         />
         <LivePreviewPane preview={preview} previewError={previewError} />
       </div>

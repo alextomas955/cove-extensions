@@ -8,7 +8,6 @@ namespace Renamer.Tests.Jobs;
 /// host's string-only map and tolerate bad/empty input with a clean empty array (never throwing),
 /// so a malformed batch is a no-op.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class JobParamTests
 {
     [Fact]

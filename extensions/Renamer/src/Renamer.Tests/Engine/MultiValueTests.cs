@@ -4,7 +4,6 @@ using Renamer.Planner;
 
 namespace Renamer.Tests.Engine;
 
-[Trait("Tier", "L0")]
 public class MultiValueTests
 {
     // ---- ResolutionLabel.FromHeight ----

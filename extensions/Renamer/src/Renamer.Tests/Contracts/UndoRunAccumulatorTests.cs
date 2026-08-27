@@ -22,7 +22,6 @@ namespace Renamer.Tests.Contracts;
 /// fails here instead of agreeing with its own arithmetic.
 /// </para>
 /// </remarks>
-[Trait("Tier", "L0")]
 public sealed class UndoRunAccumulatorTests
 {
     private static UndoReplayer.UndoRunResult Page(

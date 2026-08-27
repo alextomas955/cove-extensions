@@ -9,12 +9,29 @@ extensions, following [yourcove](https://github.com/yourcove)'s official
 (`shared/Cove.Extensions.Shared` for C#, `shared/ui-shared` for the UI bundles) it
 consumes. See `README.md` for the extension list and dev setup.
 
+## What belongs in this file
+
+Durable principles that guide judgment — the reasoning behind a rule, so a reader can apply it to a
+case this file never anticipated. Not a snapshot of implementation state.
+
+Concretely: no file inventories, no module counts, no incident figures, no configuration values
+copied from where they actually live, no keyword lists. Those go stale silently, and a stale rule is
+worse than no rule — a reader cannot tell whether the rule or the code is wrong. Prefer a stated
+principle with one illustrative example over an enumeration. A field list copied from
+`catalog.json` into this file is the worked example: it drifted, and three documents then named a
+`versionSourcePath` field the build had already dropped.
+
+**Treat every rule here as a claim, not as truth.** Verify against the live system before relying on
+one. When a change invalidates a rule, rewrite or delete it in that same change; leaving both the old
+rule and the new reality in place is the failure mode this section exists to prevent. Removing
+content from this file is a valid outcome.
+
 ## Registry and CI
 
-- `extensions/catalog.json` is the extension registry and the source of truth CI reads to compute
-  its build matrix. Each entry declares that extension's `name`, `id`, `path`, `tagPrefix`,
-  `projectPath`, `manifestPath`, `versionSourcePath`, and (optionally) `uiPath`. Adding a new
-  extension's release capability is a `catalog.json` edit, not a workflow-logic change.
+- `extensions/catalog.json` is the extension registry and the source of truth CI reads to compute its
+  build matrix. Read the field set off the file and off
+  `scripts/validate-extension-repo.mjs`, which is what enforces it. Adding a new extension's release
+  capability is a `catalog.json` edit, not a workflow-logic change.
 - CI (`.github/workflows/build.yml`) is a catalog-driven `validate → build → release` matrix: every
   catalog entry builds on every PR (no `paths:` filtering); a release for one extension is cut by
   pushing a tag of the form `<tagPrefix>v<semver>` (e.g. `renamer/v1.0.0`), which builds, strip-
@@ -66,9 +83,10 @@ what is specific to it. Shared first-party code lives in `shared/` — `Cove.Ext
   `Cove.Sdk` reference and the source-selection math are wired once at the repo root (see _Build
   wiring_).
 - **Never bundle host-provided assemblies.** `Cove.Core` / `Cove.Plugins` / `Cove.Sdk`, EF Core,
-  Npgsql, and Pgvector are provided by the host and referenced `Private=false`. Shipping them causes
-  `AssemblyLoadContext` type-identity mismatches at runtime. `Cove.Sdk.targets` strips them — verify
-  the published output rather than trusting it.
+  Npgsql, and Pgvector are provided by the host and referenced `Private=false`. The host prefers the
+  assembly already loaded into its own context and warns once naming the shipped copy, so a leak costs
+  package weight, not correctness. `Cove.Sdk.targets` strips them, and `catalog.json`'s `artifacts`
+  array declares what ships — verify the published output rather than trusting either.
 - **Never write to Cove's database directly** (the "Stash" anti-pattern) — direct SQLite/Postgres
   writes are schema-fragile and corrupt the DB. Go through `CoveContext` + `SaveChangesAsync`.
 - **Register the extension in `extensions/catalog.json`** so CI can build and release it.
@@ -84,7 +102,12 @@ human-facing version lives at `website/docs/contributing/authoring-patterns.md`.
   HTTP/DB/disk/store/timers) · **UIP** (business-agnostic UI primitive) · **TOOL** (commit/CI/build
   gate). Classify by what a file _is_, then place it by its tier's convention. The one dependency
   rule: depend **downward** (toward MODEL) and sideways onto shared/UIP, never **upward** and never
-  **across sibling features**.
+  **across sibling features**. On the frontend that last part is enforced at lint time by the
+  `boundaries/dependencies` block in `eslint.config.mjs`, not left to review: a slice may reach
+  `common/`, the shared package and `wire`, and a sibling slice is an error. The resolver derives its
+  project list from `catalog.json`, so a second extension is classified with no config edit; each
+  extension's entry is deliberately unclassified, because the entry is the one module allowed to reach
+  any slice.
 - **Structure per tier — do NOT mirror FE and BE.** The honest full-stack seam is the wire contract,
   not a directory layout. C# backend = capability/vertical slices at the project root (`Ingest/ ·
 Matching/ · Monitor/ · Push/ · SceneStatus/`) alongside foundation folders (`Contracts/ · Adapters/
@@ -122,13 +145,26 @@ Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ 
   GENERATED, never hand-mirrored: `npm run generate:wire` turns the committed `wire/openapi.json` into
   `src/wire/api.ts` (gitignored), consumed via `import type` (erases at runtime, so `*Logic.ts` stays
   offline-gate-clean).
-- **Wire is all-camelCase — properties AND enum values, no island.** It is the convention on the
+- **A RESPONSE is all-camelCase — properties AND enum values, no island.** It is the convention on the
   external boundary (Cove `JsonSerializerDefaults.Web`). Every UI response is a projection DTO, never a
   live domain/EF type. An enum's wire spelling is declared on the enum TYPE via
   `[JsonConverter(typeof(CamelCaseStringEnumConverter))]`, never on an options object — an options-level
   converter OUTRANKS a type attribute, so a second declaration can drift and win silently. The C#
   handler signatures are the source of truth: the emit test derives `wire/openapi.json` from the shipped
   registrations and fails on drift, so that document is the drift check rather than a hand-kept mirror.
+- **A REQUEST is not automatically the same, so read the casing off the server per direction.** The
+  host serializer binds incoming properties case-insensitively, so a request body is free to carry
+  another spelling, and one here does: the settings blob an extension persists travels in the
+  PascalCase spelling its own C# record uses, and the wire document does not describe it. A request
+  body an extension parses itself answers to whatever options that parse names, never to the response
+  convention.
+- **A hand-declared wire type is an unverified assumption.** The compiler checks a TypeScript
+  declaration against itself and never against the server, so a wrong one still type-checks and every
+  field then reads `undefined` at runtime with no error anywhere. That has shipped here. Prefer a type
+  the server itself produces — an error made impossible beats one detected afterwards — and where you
+  cannot derive one, pin the values in a test whose expectation you transcribed by hand from the
+  server's own spelling. An expectation computed from the module it checks agrees with itself forever
+  and reports nothing.
 - **UI conventions.** Named exports only (the `defineExtension` default in `index.ts` is the one
   default export); no barrels bar `index.ts` + the curated `shared/` public barrel; data access
   through a named `use*` hook beside its `*Store.ts`, never a raw `request()` in `useEffect`; no
@@ -140,9 +176,13 @@ Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ 
   Anonymous principal returns zero rows with no error). No silent swallow — a best-effort `catch` emits
   exactly one `[LoggerMessage]` line. Cancellation on shutdown classifies `Cancelled`, never `Failed`.
   A version/role a backend can't honor is simply **not registered** as a role interface — no
-  `Supports*` probe, no `VersionMismatch` throw. Single-writer `IExtensionStore` journals are bounded
-  and compact via the thin, opt-in `SingleWriterBlobStore<T>` (mirror `RevertLog.Compact`); a journal
-  nothing renders reduces to a tiny bounded status record.
+  `Supports*` probe, no `VersionMismatch` throw.
+- **A `*Logic.ts` module imports nothing but its relative siblings.** That is what keeps the pure tier
+  worth having — mock-free, deterministic, runnable with no environment — so a test of one needs no
+  setup and no doubles. The constraint is a `no-restricted-imports` rule in `eslint.config.mjs`, so it
+  fails at lint time rather than depending on how the suite happens to run. Purity is not drift
+  detection: a pin catches drift only because its expectation was transcribed by hand, which is a
+  property of how the expectation was written and holds wherever the pin lives.
 - **Nothing may be O(library).** Libraries here reach **millions** of files, so treat library size as
   unbounded input in every design — storage, memory, wire payload, and browser state alike. Concretely:
   never persist a per-file collection to `IExtensionStore` (Cove's bulk `GET /api/extensions/{id}/data`
@@ -152,26 +192,28 @@ Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ 
   **aggregates**, serve **rows paged on demand** — planning and projection here are pure per entity, so a
   slice computes identically to a full pass. A row cap is NOT the remedy: it converts a hard failure into
   a silently truncated answer, which is worse. When a design cannot avoid a full pass (a count, a
-  reconcile), the pass may be O(library) in _time_ but its output must still be O(1) in size. Renamer's
-  `last-scan-result` reaching 595 MB (~1.04M files) is the worked example.
-- **Testing.** Every xUnit test class carries exactly one class-level `[Trait("Tier", …)]` — L0
-  pure-logic · L1 host-double (real SQLite `CoveContext` / `TempDir` / principal) · L2 in-process
-  endpoint (the `NewExtension` harness + permission-gated handlers) · L3 containerized / live-instance
-  e2e — so a tier runs in isolation (`dotnet test -- --filter-trait "Tier=L0"`) as a design fact independent of
-  the csproj Compile-Remove build fact. A shared reflection guard (`TierTraitGuard` in
-  `Cove.Extensions.Shared.Testing`, driven by a per-project coverage test) fails the suite if any test
-  class lacks a Tier trait, so the taxonomy stays exhaustive by mechanism rather than by hand. Tests
-  MIRROR their source folders; only test-only groups (`TestSupport/`, `TransportSmoke/`, e2e) sit
-  outside the mirror. The bare-CI (cove-absent) leg is a compile/pure SMOKE — any test that references
-  a Cove source type is Compile-Removed there and is L1/L2 — and is NOT the safety gate; the
-  containerized e2e job is the required safety gate. Keep `*Logic.ts` offline-gated so pinned
-  wire-casing enums fail a gate on drift.
+  reconcile), the pass may be O(library) in _time_ but its output must still be O(1) in size. This has
+  already happened here: Renamer persisted one scan row per file under a store key, and that value grew
+  large enough to fail the extension's whole settings page, survive a reinstall, and need SQL to remove.
+  Where a journal must persist at all, persist it as **rows in a table the extension owns**, bounded by
+  a retention window rather than by a row cap, and never as one growing value under a store key. The
+  undo journal is the worked example: a value under one key put every writer into a read-modify-write
+  race and made "how much history is kept" a number someone had to choose, where a row insert is atomic
+  and a whole batch either falls inside the window or is gone.
+- **Testing.** Tests MIRROR their source folders; only test-only groups (`TestSupport/`,
+  `TransportSmoke/`, e2e) sit outside the mirror. The bare-CI (cove-absent) leg is a compile/pure
+  SMOKE — any test that references a Cove source type is Compile-Removed there — and is NOT the
+  safety gate; the containerized e2e job is the required safety gate. Keep `*Logic.ts` offline-gated
+  so pinned wire-casing enums fail a gate on drift.
 - **Tooling as merge gates.** jscpd, knip, syncpack, and import-boundaries run as **blocking** merge
-  gates. Rollout: land each tool, get it green on `main`, THEN flip to blocking.
+  gates. Rollout: land each tool, get it green on `main`, THEN flip to blocking. **Only a check a CI
+  workflow runs can block a merge** — an entry in the local hook runner is advice a contributor can
+  skip, and lefthook is silently absent whenever npm withholds its install script, so wire a check you
+  need enforced into a workflow.
 - **Adding a new extension:** register in `catalog.json` → manifest + `FullExtensionBase` → structure
   by tier (no `features/`, capability-not-entity, suffix-as-kind, `common/` for local shared) → wire
   camelCase + `Contracts/` + generated `wire/` → UI (named exports, `use*` hooks, no `hooks/`) → correctness
-  (RunAsSystem, no silent swallow, `Cancelled`, bounded stores) → tests (Tier traits, mirror source,
+  (RunAsSystem, no silent swallow, `Cancelled`, bounded stores) → tests (mirror source,
   safety behind e2e) → green under the merge gates → docs (README + site + CHANGELOG + own CLAUDE.md).
 
 ## C# comments and XML docs
@@ -287,6 +329,20 @@ behavior, update that extension's docs in the same change — `extensions/<Name>
 `README.md`, and `CHANGELOG.md` as applicable, plus the matching docs-site page. Docs are part of
 done. Do not defer them to a later change.
 
+**A changelog entry is headed with the version it will ship as — never "Unreleased" — and carries
+user impact rather than an inventory of the version.** The version is knowable when the first change
+lands, since semver follows what the change does and not when a tag is pushed, so a placeholder is
+only a second edit someone has to remember at release; forget it and the published changelog says the
+shipped release has not shipped. Refactors, tests, internal renames and tooling do not appear at all,
+because padding an entry with them buries the two lines that mattered; a change with no user-facing
+effect earns a bullet only where a user would still want to know, such as a data-loss fix or a raised
+host floor. The full rule, with the entry-shape guidance, is at
+`website/docs/contributing/releasing.md`.
+
+**A documented setting the code ignores is a defect, not a doc.** Verify a claim against the code
+before shipping the sentence that makes it, and where the code is wrong, say what the code does and
+report the defect — never restate the intent as though it were behavior.
+
 ## How to write documentation
 
 The docs site (`website/docs/`) follows a research-backed playbook (Diátaxis + Google/Microsoft
@@ -298,7 +354,7 @@ style guides). When writing or reviewing docs:
   - **Reference** (information-oriented, neutral, factual): its structure **mirrors the product**
     (group settings by the UI panel section, in the same order the user sees). → the settings and
     token references.
-  - **Explanation** (understanding-oriented): the "why" / design & safety model. → `ARCHITECTURE`.
+  - **Explanation** (understanding-oriented): the "why" / design & safety model. → `architecture.md`.
   - **Tutorial** (a single happy-path lesson): usually unnecessary for one extension.
 - **Settings reference — per-setting anatomy:** name/label (as in the UI) · one neutral sentence of
   what it does · default · valid values/type · a short example when it clarifies. Uniform rows →

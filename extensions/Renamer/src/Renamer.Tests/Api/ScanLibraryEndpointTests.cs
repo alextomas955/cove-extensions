@@ -28,7 +28,6 @@ namespace Renamer.Tests.Api;
 /// host) with a real SQLite <c>CoveContext</c>, mirroring
 /// <c>PreviewEndpointTests</c>/<c>EntityIdsCapTests</c>/<c>RenamerBatchJobTests</c>.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class ScanLibraryEndpointTests
 {
     /// <summary>Records every <c>Enqueue</c> call; all other members are unused and throw.</summary>
@@ -422,7 +421,9 @@ public sealed class ScanLibraryEndpointTests
         new(kind, Entities: files, Files: files,
             StatusCounts: [.. Enum.GetValues<RenamerStatus>()
                 .Select(s => new global::Renamer.Contracts.ScanStatusCount(s, s == status ? files : 0))],
-            BlastRadius: new PreviewSummary(files, files, 0, 0, [], ConfirmLevel.Light, Undoable: true),
+            BlastRadius: new PreviewSummary(
+                files, files, 0, 0, [], ConfirmLevel.Light, Undoable: true,
+                InFlightPathOverflowCount: 0),
             VolumePairsTruncated: false);
 
     private static Task StoreSummaryAsync(FakeStore store, params global::Renamer.Contracts.ScanKindSummary[] kinds)
