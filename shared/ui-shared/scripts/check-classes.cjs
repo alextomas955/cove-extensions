@@ -55,10 +55,15 @@ function tsxFiles(dir) {
 }
 const PANEL_FILES = [...tsxFiles(SRC_DIR), ...tsxFiles(SHARED_SRC_DIR)];
 
-// Host-absent Tailwind classes (verified 0× in cove-ui). An alpha border or fill utility Cove's own
-// source never writes is not emitted, so the class resolves to no declaration: the border falls back
-// to currentColor, the fill to transparent, and the element still renders. Inline those off the
-// custom property Cove defines for them instead.
+// Tailwind classes this repo must not rely on. An alpha border or fill utility Cove's own source
+// never writes is not emitted, so the class resolves to no declaration: the border falls back to
+// currentColor, the fill to transparent, and the element still renders. Inline those off the custom
+// property Cove defines for them instead.
+//
+// "Must not rely on" rather than "absent": which utilities a host emits depends on what Cove's own
+// source happens to write, so a class can resolve on one supported host and not the next. Measured
+// on the released floor and on a newer build, `border-amber-400/40` differs between them. An entry
+// earns its place by being absent from ANY host this extension supports.
 const FORBIDDEN = [
   "focus-visible:ring-1",
   "focus-visible:ring-accent",
