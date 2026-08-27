@@ -58,6 +58,13 @@ and says nothing about the rest.
   destination just inside _Full-path max length_ previewed as a clean move and then failed at the
   filesystem. Such a row now carries a red **Too long to copy across drives** badge, and the confirm
   before a rename says how many files are affected and what to shorten.
+- **Numbering a name to avoid a clash can no longer push the path over the length limit.** _Full-path
+  max length_ was measured against the name your template produced, and the number appended to free a
+  name already taken was added afterwards — so a file sitting just inside the limit was previewed as a
+  clean rename and then written, or attempted, at a path past it. The length is now measured again once
+  the final numbered name is settled, both when the dry run plans it and again at the moment of the
+  rename, where a name already taken since the dry run can add a longer number. Such a file is reported
+  as **Skipped — path too long** and left exactly where it is.
 - **A rename no longer erases the undo of the one before it.** The undo record moved out of Cove's
   extension-data store and into a table Renamer owns, so a background auto-rename no longer destroys
   the record of a deliberate 500-file run. Each rename is kept for 7 days and then expires. The
@@ -154,6 +161,17 @@ and says nothing about the rest.
   unreachable: a failed fetch of the settings chunk painted an error on the right address, and a page
   opened before Cove finished loading extensions was switched to a built-in tab with the address
   rewritten. The panel now retries through both cases within one budget rather than waiting forever.
+- **The dry run no longer stops part-way through a large library.** The server reads your library in
+  stages, and a stage can go by holding nothing that matches the filter you picked. Such a stage
+  changed nothing on screen, and the table only asked for another one when the row count moved — so a
+  narrow filter came up a handful of rows in, said the server had paused, and told you to scroll a
+  table with nothing left to scroll. The table now follows the search through empty stages by itself,
+  and the line under it reports how many items have been checked so far rather than asking you to
+  keep going.
+- **The live preview no longer shows the result for settings you have moved on from.** Each edit sends
+  a fresh preview, and a slow one issued earlier could answer after a later one and repaint the pane
+  over it — so the sample names under your template could be the names some earlier version of it
+  produced. A superseded answer is now discarded, and the request it replaces is cancelled.
 - **The dry run's warning badges are visible again on a released Cove.** The amber and red pills asked
   for two Tailwind utilities that Cove's prebuilt stylesheet does not contain, so they rendered with no
   fill at all and no error anywhere. They now carry their fill directly, built from Cove's own colour

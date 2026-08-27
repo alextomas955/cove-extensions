@@ -223,6 +223,18 @@ public sealed class RenamerExecutor
             newFull = JoinPath(targetFolder, candidate);
         }
 
+        // (3b) Re-measure the absolute-path budget against the SETTLED candidate. The loop above
+        //      re-suffixes against a fresher snapshot than the plan saw, so it can reach a name longer
+        //      than any the plan measured. Nothing is mutated yet - this precedes the sidecar plan, the
+        //      canonical guard and every disk write - so the source stays where it is.
+        var budget = PathConfinement.WithinBudget(targetFolder, candidate, options);
+        if (!budget.Accepted)
+        {
+            skipped.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.SkipTooLong,
+                budget.Reason));
+            return;
+        }
+
         // (4) Sidecar moves: DB-tracked captions + configured same-stem neighbors that ride with the primary.
         var (plannedSidecars, captionRenames) = PlanSidecarMoves(srcFile, item.OldFullPath, targetFolder, candidate, options);
 

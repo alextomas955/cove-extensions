@@ -110,6 +110,13 @@ public enum RenamerStatus
     /// Kept distinct from <see cref="SkipCollision"/> because the two clear differently: a collision
     /// clears by itself once the other file moves, while an over-long path stands until someone
     /// shortens the template or picks a shallower destination.
+    /// <para>
+    /// The budget is measured against the rendered name, and again against the name a duplicate-suffix
+    /// loop settles on: that loop lengthens the name by whatever the configured suffix format spells.
+    /// The executor repeats the second measurement because its own loop re-suffixes against a fresher
+    /// snapshot than the plan saw; that emission arrives after the confirm gate and before anything is
+    /// written.
+    /// </para>
     /// </remarks>
     SkipTooLong,
 
