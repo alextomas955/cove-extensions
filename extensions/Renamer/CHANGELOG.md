@@ -222,9 +222,8 @@ a small one.
 - **Renamer's endpoints now say who may call them, and an account with no Renamer permission is turned
   away before it reaches them.** Cove was logging a warning at every startup that these endpoints
   declared nothing and so accepted anonymous callers; each one always checked the caller itself and
-  refused, but the check now happens at the door as well. Scanning, renaming or reversing the whole
-  library asks for the matching read or write permission; the settings panel's own reads - your rules,
-  your library paths, a job's progress - ask only that you are signed in.
+  refused, but the check now happens at the door as well. Every route asks for the read or write
+  permission its own work needs.
 
 ## 0.3.0 — Undo that cannot grow without bound
 

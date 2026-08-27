@@ -123,7 +123,7 @@ test("Cove's row-level filters bite for a restricted principal and not for the o
   ).not.toBe(ownerTotal);
 });
 
-test("the whole-library endpoints refuse a caller without the permission, and answer the owner", async ({
+test("every endpoint refuses a caller holding no renamer permission, and answers the owner", async ({
   authz,
 }) => {
   const { owner, harness, routeBase } = authz;
@@ -131,16 +131,16 @@ test("the whole-library endpoints refuse a caller without the permission, and an
   // WHAT THIS DOES AND DOES NOT GATE, measured rather than assumed.
   //
   // `RequireCovePermission` is evaluated against the caller's PERMISSIONS: the host returns true as
-  // soon as `principal.Has(permission)` does. It does not consult content rules. So it refuses a caller
-  // that lacks the permission outright - which is what is asserted here - and it does NOT refuse one
-  // that holds the permission while a role content rule denies it rows. The `restricted` fixture user
-  // is the second kind, and it still gets 202 from scan-library; that is the host's model, not a gap in
-  // this declaration.
+  // soon as `principal.Has(permission)` does, and never consults role content rules. So it refuses a
+  // caller holding no permission - asserted below - and it does NOT refuse one that holds the
+  // permission while a content rule denies it rows. The `restricted` fixture user is the second kind
+  // and still reaches these routes; the next test pins that, because it is the host's model rather
+  // than a gap in the declaration.
   //
   // Refusing THAT caller would need the content-rule check Cove applies to its own routes with
-  // [RequiresUnscopedEntityAccess], which is an MVC action filter and never reaches a minimal-API
-  // endpoint. `IAuthorizationService` offers no unrestricted-access query either, so an extension could
-  // only reach it by reading RoleContentRules itself - a host table outside the extension surface.
+  // [RequiresUnscopedEntityAccess], an MVC action filter that never reaches a minimal-API endpoint.
+  // `IAuthorizationService` offers no unrestricted-access query either, so an extension could only get
+  // there by reading RoleContentRules itself - a host table outside the extension surface.
   const noPermission = await harness.createRestrictedUser({
     username: "e2e-nopermission",
     roleName: "e2e-nopermission",
@@ -148,15 +148,24 @@ test("the whole-library endpoints refuse a caller without the permission, and an
   });
   const withoutPermission = createApiClient(() => harness.baseUrl, noPermission.token);
 
-  const wholeLibrary = [
+  // EVERY route, not a chosen few: each one declares the any-of gate its handler re-checks, so a
+  // caller holding no renamer permission is refused at all twelve doors.
+  const everyRoute = [
+    { method: "post", path: "preview", body: { entityType: "video", ids: [] } },
+    { method: "post", path: "renamer", body: { entityType: "video", ids: [] } },
+    { method: "post", path: "preview-sample", body: {} },
+    { method: "post", path: "undo", body: {} },
+    { method: "get", path: "last-batch" },
     { method: "post", path: "scan-library", body: {} },
     { method: "get", path: "last-scan" },
     { method: "post", path: "scan-rows", body: {} },
     { method: "post", path: "renamer-library", body: {} },
-    { method: "post", path: "undo", body: {} },
+    { method: "get", path: "library-paths" },
+    { method: "get", path: "job-status/no-such-job" },
+    { method: "get", path: "orphaned-rules" },
   ];
 
-  for (const call of wholeLibrary) {
+  for (const call of everyRoute) {
     const refused =
       call.method === "get"
         ? await withoutPermission.get(`${routeBase}/${call.path}`)
@@ -168,7 +177,7 @@ test("the whole-library endpoints refuse a caller without the permission, and an
     ).toBe(403);
   }
 
-  // Driven as the owner too: the refusals above would also pass against an endpoint broken for
+  // Driven as the owner too: the refusals above would all pass against an endpoint broken for
   // everyone. `renamer-library` is left out - this is about the boundary, not about moving every file.
   const asOwner = await owner.post(`${routeBase}/scan-library`, {});
   expect(
@@ -195,10 +204,9 @@ test("a scoped account still reaches what is its own: its rules, and a job it st
 }) => {
   const { restricted, routeBase } = authz;
 
-  // These endpoints disclose no library content - which of the caller's own rules are broken, the
-  // configured library roots, the progress of a job it started - so demanding an unrestricted grant
-  // for them would lock out a scoped account for nothing. They keep the authenticated-caller
-  // declaration and their own in-handler check.
+  // This caller HOLDS a renamer permission; what limits it is a role content rule denying it rows. A
+  // permission policy does not consult those, so it passes every door above - which is the half of the
+  // host's model the previous test does not cover, and the reason these endpoints stay reachable.
   const ownState = await restricted.get(`${routeBase}/orphaned-rules`);
   expect(
     ownState.status,
