@@ -11,16 +11,11 @@
 // "$title" filename template so both items' computed target names are deterministic, and a global
 // option would otherwise leak into every other test sharing that worker's instance.
 // `@smoke` - part of the selection core-paths.spec.mjs explains.
-import {
-  test as base,
-  expect,
-  pollJob,
-  pollUntil,
-  RENAMER_EXTENSION,
-} from "../lib/renamer-fixtures.mjs";
+import { test as base, expect, pollUntil, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { seedVideo } from "@cove-extensions/e2e/seed-media";
 import { assertRenamedTo, basename } from "../lib/rename-assertions.mjs";
+import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
 
 const EXTENSION_ID = "com.alextomas955.renamer";
 const ROUTE = `/api/extensions/${EXTENSION_ID}`;
@@ -99,7 +94,7 @@ test(
       EntityIds: [first.id],
     });
     expect(renameFirst.status).toBe(202);
-    const firstJob = await pollJob(api, renameFirst.json.jobId);
+    const firstJob = await pollRenamerJob(api, ROUTE, renameFirst.json.jobId);
     expect(firstJob.status.toLowerCase()).toBe("completed");
 
     const firstNewPath = await assertRenamedTo({
@@ -131,7 +126,7 @@ test(
       EntityIds: [second.id],
     });
     expect(renameSecond.status).toBe(202);
-    const secondJob = await pollJob(api, renameSecond.json.jobId);
+    const secondJob = await pollRenamerJob(api, ROUTE, renameSecond.json.jobId);
     expect(secondJob.status.toLowerCase()).toBe("completed");
 
     // Same read-after-write gap observed with /undo: a GET immediately after the job reports

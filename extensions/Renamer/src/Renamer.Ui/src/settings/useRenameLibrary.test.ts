@@ -5,7 +5,7 @@
  *
  * The pure decision has its own suite, and a green one there proves nothing on its own — a poller
  * that never consults it is unbounded however correct the decision is. So this renders the REAL hook
- * and drives the real `pollJob` loop over a stubbed `/jobs/{id}`, then asserts the two things a user
+ * and drives the real `pollJob` loop over a stubbed job-status route, then asserts the two things a user
  * would notice: the request stream stops, and the button comes back with a banner.
  *
  * Two seams are stubbed, and neither is the subject. The host request helper, because it reaches
@@ -31,9 +31,9 @@ import { useRenameLibrary, type UseRenameLibrary } from "./useRenameLibrary";
 const host = vi.hoisted(() => ({
   /** Every path the hook requested, in order. */
   reads: [] as string[],
-  /** The status every `/jobs/{id}` read answers with. */
+  /** The status every job-status read answers with. */
   status: "running",
-  /** The progress every `/jobs/{id}` read answers with. Held constant to starve the stall clock. */
+  /** The progress every job-status read answers with. Held constant to starve the stall clock. */
   progress: 0.25,
 }));
 
@@ -42,7 +42,7 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   requestJson: (path: string) => {
     host.reads.push(path);
     return Promise.resolve(
-      path.startsWith("/jobs/")
+      path.includes("/job-status/")
         ? { status: host.status, progress: host.progress }
         : { jobId: "job-under-test" },
     );
@@ -121,7 +121,7 @@ test("a job that stops reporting progress ends the run instead of polling foreve
   // require the count not to move.
   await sleep(3_000);
 
-  expect(host.reads.length, "the poll kept reading /jobs/{id} after the run ended").toBe(
+  expect(host.reads.length, "the poll kept reading job status after the run ended").toBe(
     readsAtSettlement,
   );
   expect(hook.current.renamingLibrary, "the button never came back").toBe(false);
@@ -152,10 +152,11 @@ test("a completed job still resolves through the same poll", async () => {
   });
   expect(hook.current.undoRefreshKey).toBe(1);
   // The rename POST, then exactly one job read: the job answered on the first look, so the loop
-  // stopped there. The `/jobs/{id}` path is `pollJob`'s own, not the stub's.
+  // stopped there. Both paths are written out here rather than built from the same route helper the
+  // code under test uses.
   expect(host.reads).toEqual([
     "/extensions/com.alextomas955.renamer/renamer-library",
-    "/jobs/job-under-test",
+    "/extensions/com.alextomas955.renamer/job-status/job-under-test",
   ]);
 
   hook.unmount();
