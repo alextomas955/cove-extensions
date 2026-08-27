@@ -181,6 +181,23 @@ and says nothing about the rest.
   way where the filesystem did — so `SRT` next to a `clip.srt` worked on Windows and silently did
   nothing on a case-sensitive volume, which is what Cove's own container runs on. The comparison is now
   done in Renamer, and a moved sidecar keeps the extension casing it had on disk.
+- **An undo that did not happen no longer reports success.** When the undo request failed outright —
+  Cove restarting, the network dropping — the panel still showed _Undone — your files were moved back to
+  their original names_. It now reports the failure and leaves the undo available to retry.
+- **The rename confirm counts every kind of skip.** The dialog you approve a rename from counted only
+  some of the reasons an item is left alone, so a selection where every item was excluded by a rule
+  showed no skip line at all and read as though everything would be renamed. Every reason is counted
+  now, and the box says which.
+- **A cross-drive move states a size you can read.** The line naming how much is about to move across
+  drives was always written in gigabytes, so anything under roughly 50 MB read as _0.0 GB_ — nothing,
+  in the one dialog whose job is to say how much. Each size now uses a unit that fits it.
+- **A failed preview stops pretending it is still loading.** When the live preview could not be built,
+  the pane showed the error and a _Rendering preview…_ spinner underneath it, forever.
+- **Three smaller corrections in the settings panel.** The `mm-ss` duration example showed `83-45` for
+  a 1h 23m 45s file where the format produces `23-45`; a destination hint told you to pick a library
+  root "beside it" on a Cove with no library paths configured, where no picker is drawn; and the dot
+  marking a failed save drew no colour at all, because the shade it asked for is not in Cove's
+  stylesheet.
 
 ## 0.3.0 — Undo that cannot grow without bound
 
