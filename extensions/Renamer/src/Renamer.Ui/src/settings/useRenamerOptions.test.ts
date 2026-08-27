@@ -185,3 +185,104 @@ test("a blob storing the empty legacy keys is not held back by them", async () =
 
   hook.unmount();
 }, 30_000);
+
+/**
+ * A blob whose destinations are still the bare absolute paths an install before them stored. The
+ * global folder template is set too, because that is what the conversion renders UNDER each converted
+ * root and therefore part of what a save over one loses.
+ */
+const LEGACY_DESTINATION_BLOB = JSON.stringify({
+  FilenameTemplate: "$title",
+  FolderTemplate: "$studio",
+  StudioDestinations: { 101: "D:/library/videos" },
+  PathDestinations: [{ Pattern: "D:/in", Dest: "D:/library/sorted", IsRegex: false }],
+  UnorganizedDestination: "D:/library/unsorted",
+});
+
+/** The same install after a host start converted it: the same folders, as root plus template. */
+const CONVERTED_DESTINATION_BLOB = JSON.stringify({
+  FilenameTemplate: "$title",
+  FolderTemplate: "$studio",
+  StudioDestinations: { 101: { Root: "D:/library", Template: "videos/$studio" } },
+  PathDestinations: [
+    { Pattern: "D:/in", Dest: { Root: "D:/library", Template: "sorted/$studio" }, IsRegex: false },
+  ],
+  UnorganizedDestination: { Root: "D:/library", Template: "unsorted/$studio" },
+});
+
+test("an unconverted blob refuses the save that would erase its destination folders", async () => {
+  store.blob = LEGACY_DESTINATION_BLOB;
+  const hook = await mountHook();
+
+  expect(hook.current.pendingDestinationMigration).toBe(true);
+  // What the refusal is protecting: every stored folder already reads as the destination that moves
+  // nothing, so this is what a save would have written over them.
+  expect(hook.current.options.StudioDestinations[101]).toEqual({ Root: "", Template: "" });
+  expect(hook.current.options.PathDestinations[0].Dest).toEqual({ Root: "", Template: "" });
+  expect(hook.current.options.UnorganizedDestination).toBeNull();
+
+  // Editing must not unblock it: `dirty` is the usual reason Save lights up.
+  hook.current.set("FilenameTemplate", "$studio - $title");
+  await sleep(COMMIT_MS);
+  expect(hook.current.dirty).toBe(true);
+  expect(hook.current.canSave).toBe(false);
+
+  await hook.current.onSave();
+  await sleep(COMMIT_MS);
+
+  expect(store.writes, "a save reached the store over unconverted destinations").toEqual([]);
+  expect(hook.current.savedFlash).toBe(false);
+
+  hook.unmount();
+}, 30_000);
+
+test("the same install saves normally once the destination conversion has run", async () => {
+  // The refusal above must not be reachable by refusing everything, so the converted blob is driven
+  // through the same wiring to the other outcome.
+  store.blob = CONVERTED_DESTINATION_BLOB;
+  const hook = await mountHook();
+
+  expect(hook.current.pendingDestinationMigration).toBe(false);
+  expect(hook.current.options.StudioDestinations[101]).toEqual({
+    Root: "D:/library",
+    Template: "videos/$studio",
+  });
+
+  hook.current.set("FilenameTemplate", "$studio - $title");
+  await sleep(COMMIT_MS);
+  expect(hook.current.canSave).toBe(true);
+
+  await hook.current.onSave();
+  await sleep(COMMIT_MS);
+
+  expect(store.writes).toHaveLength(1);
+  const written = store.writes[0][1] as Record<string, unknown>;
+  expect(written.UnorganizedDestination).toEqual({
+    Root: "D:/library",
+    Template: "unsorted/$studio",
+  });
+
+  hook.unmount();
+}, 30_000);
+
+test("an install that configured no destination at all is not held back", async () => {
+  // The state a fresh install saves: no routing map, no path rule, no unorganized route. The backend
+  // finds no site to rewrite in it and stamps it done, so refusing here would lock the panel out.
+  store.blob = JSON.stringify({
+    FilenameTemplate: "$title",
+    StudioDestinations: {},
+    PathDestinations: [],
+  });
+  const hook = await mountHook();
+
+  expect(hook.current.pendingDestinationMigration).toBe(false);
+
+  hook.current.set("FilenameTemplate", "$studio");
+  await sleep(COMMIT_MS);
+  await hook.current.onSave();
+  await sleep(COMMIT_MS);
+
+  expect(store.writes).toHaveLength(1);
+
+  hook.unmount();
+}, 30_000);

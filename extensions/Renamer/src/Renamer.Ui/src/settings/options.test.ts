@@ -11,6 +11,7 @@ import {
   normalizeOptions,
   extractUnmodeledFields,
   hasUnmigratedNameRules,
+  hasUnmigratedDestinations,
   cloneDefaults,
   toStringKeyed,
   fromStringKeyed,
@@ -430,4 +431,94 @@ test("only the tag map is scanned for name keys, matching which rules the conver
   // Studio and path rules were never name-keyed, so the conversion does not touch them and a
   // non-integer key there is not something a host start will ever resolve.
   assert.equal(hasUnmigratedNameRules({ StudioDestinations: { Vixen: "D:/v" } }), false);
+});
+
+// -- hasUnmigratedDestinations: the same refusal for the destination half of that conversion --
+//
+// A destination stored before a destination became a root plus a template is a bare absolute path.
+// `normalizeOptions` reads one as
+// NO_DESTINATION (pinned above, "a stored destination that is still a bare string loads as the
+// moves-nothing one"), and `UnorganizedDestination` as no route at all, so a save carries those blanks
+// into the store over folders nothing else holds a copy of. The conversion that would rewrite them
+// needs at least one Cove library path to choose a root from and defers while there is none, so the
+// old shape survives restarts.
+
+test("a stored destination counts as unconverted exactly when the backend finds a site to rewrite", () => {
+  // Transcribed by hand from `OptionsMigration.ConvertDestinationsToRoots`, whose site walk takes a
+  // JSON STRING and nothing else; the same table is pinned against the real converter in
+  // OptionsMigrationDestinationTests, so a C# change breaks a test that names this one.
+  const valueKinds: [unknown, boolean][] = [
+    ["D:/library/videos", true],
+    // The empty string is a site too: the conversion rewrites it to the global folder template under
+    // the file's own library path, which is not what this panel reads it as.
+    ["", true],
+    [{ Root: "D:/library", Template: "videos" }, false],
+    [null, false],
+    [7, false],
+    [true, false],
+    [["D:/library/videos"], false],
+  ];
+
+  for (const [value, unconverted] of valueKinds) {
+    assert.equal(
+      hasUnmigratedDestinations({ StudioDestinations: { 101: value } }),
+      unconverted,
+      `StudioDestinations value ${JSON.stringify(value)}`,
+    );
+  }
+});
+
+test("every place the conversion rewrites a destination is a place this predicate reads", () => {
+  for (const blob of [
+    { StudioDestinations: { 101: "D:/a" } },
+    { TagDestinations: { 7: "D:/a" } },
+    { PathDestinations: [{ Pattern: "D:/in", Dest: "D:/a", IsRegex: false }] },
+    { UnorganizedDestination: "D:/a" },
+    // Key casing is forgiving on the backend's own walk, so a hand-edited spelling must not read as
+    // converted here and unblock a save the backend has not converted for.
+    { studiodestinations: { 101: "D:/a" } },
+    { pathDestinations: [{ pattern: "D:/in", dest: "D:/a" }] },
+    { unorganizeddestination: "D:/a" },
+  ]) {
+    assert.equal(hasUnmigratedDestinations(blob), true, JSON.stringify(blob));
+  }
+});
+
+test("the global folder template is a string the conversion leaves alone, so it is not a site", () => {
+  // It is the one destination the conversion deliberately keeps as stored, because FolderRoot's
+  // default already means what a relative template was always measured from. Reading it as a site
+  // would refuse a save on every install that set a folder template, and permanently: the conversion
+  // stamps the blob done once it finds nothing to rewrite.
+  assert.equal(
+    hasUnmigratedDestinations({ FolderTemplate: "$studio", FolderRoot: "D:/library" }),
+    false,
+  );
+});
+
+test("a converted destination, the defaults and a non-object are all reported as converted", () => {
+  const converted = {
+    FolderTemplate: "$studio",
+    StudioDestinations: { 101: { Root: "D:/library", Template: "videos/$studio" } },
+    PathDestinations: [
+      { Pattern: "D:/in", Dest: { Root: "D:/library", Template: "sorted" }, IsRegex: false },
+    ],
+    UnorganizedDestination: { Root: "D:/library", Template: "unsorted" },
+  };
+
+  assert.equal(hasUnmigratedDestinations(converted), false);
+  assert.equal(hasUnmigratedDestinations({ StudioDestinations: {}, PathDestinations: [] }), false);
+  assert.equal(hasUnmigratedDestinations(cloneDefaults()), false);
+  assert.equal(hasUnmigratedDestinations(null), false);
+  assert.equal(hasUnmigratedDestinations("not an object"), false);
+  // A JSON array root is not a blob the backend's own parse accepts either.
+  assert.equal(hasUnmigratedDestinations([{ StudioDestinations: { 101: "D:/a" } }]), false);
+});
+
+test("what a save persists never reads as unconverted, so one save cannot lock out the next", () => {
+  const persisted: Record<string, unknown> = {
+    ...extractUnmodeledFields(fullyPopulatedBlob()),
+    ...normalizeOptions(fullyPopulatedBlob()),
+  };
+
+  assert.equal(hasUnmigratedDestinations(persisted), false);
 });
