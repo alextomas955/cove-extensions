@@ -1112,7 +1112,7 @@ public sealed partial class Renamer
             await RunRenamerBatchAsync(parameters, progress, ct);
         }
 
-        progress.Report(1d, "Library renamer complete.");
+        progress.Report(1d, "Library rename complete.");
     }
 
     /// <summary>

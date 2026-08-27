@@ -684,7 +684,7 @@ public sealed partial class Renamer : FullExtensionBase
         }
 
         LogBatchDone(runId, totalRenamed, totalSkipped, totalFailed);
-        progress.Report(1d, "Renamer complete.");
+        progress.Report(1d, "Rename complete.");
     }
 
     /// <summary>
