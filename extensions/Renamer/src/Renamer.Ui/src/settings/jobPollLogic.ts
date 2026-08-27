@@ -1,5 +1,5 @@
 /**
- * The pure decision both job pollers take on each read of `GET /jobs/{id}`.
+ * The pure decision the job poller takes on each read of the run's status.
  *
  * Import-free (no React, no request helper, no clock) so it stays L0 — deterministic and testable with
  * no environment. Elapsed time and the read outcome are parameters rather than things this module
@@ -28,7 +28,7 @@
 export const JOB_STALL_BUDGET_MS = 10 * 60 * 1000;
 
 /**
- * How many consecutive unanswered reads of `/jobs/{id}` are tolerated before the run ends.
+ * How many consecutive unanswered status reads are tolerated before the run ends.
  *
  * Counted in polls, not seconds, because this module does not own the poll interval. A transient
  * failure is one or two reads; this many in a row means the id is not coming back — the host
@@ -48,7 +48,7 @@ export type PollObservation =
 export interface PollContext {
   /** Milliseconds since progress last CHANGED — not since the job started. */
   msSinceProgress: number;
-  /** Consecutive reads of `/jobs/{id}` that failed. */
+  /** Consecutive status reads that failed. */
   consecutiveFailures: number;
   stallBudgetMs: number;
   failureAllowance: number;
@@ -106,10 +106,10 @@ export function nextFailureCount(current: number, readSucceeded: boolean): numbe
  * it one. A terminal status then beats the stall budget, since news that the job finished is the news
  * the budget was waiting for. Only after both does the stall budget apply.
  *
- * An unrecognised status is treated as "still going", never as success. `/jobs/{id}` is the host's
- * endpoint and its shape here is hand-declared, so a vocabulary change upstream arrives as a string
- * this UI does not know — and that must degrade to an expiry carrying a message rather than to a
- * banner announcing a rename that may not have happened.
+ * An unrecognised status is treated as "still going", never as success. This module is handed a
+ * status as a plain string, so a vocabulary the caller has not been told about arrives here as one
+ * — and that must degrade to an expiry carrying a message rather than to a banner announcing a
+ * rename that may not have happened.
  */
 export function decidePoll(observation: PollObservation, context: PollContext): PollDecision {
   if (observation.read === "failed") {

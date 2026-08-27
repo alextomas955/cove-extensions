@@ -9,7 +9,6 @@
  * through `set`.
  */
 import { useState } from "react";
-import { EntityReferenceValue } from "@cove/runtime/components";
 
 import {
   NO_DESTINATION,
@@ -37,6 +36,8 @@ import {
 import { EntitySelectField } from "./EntitySelectField";
 import { DestinationField } from "./DestinationField";
 import { StudioDestinationsEditor } from "./StudioMap";
+import { RuleKeyLabel } from "./RuleKeyLabel";
+import { useOrphanedRules } from "./useOrphanedRules";
 
 /** Strip one leading dot if present, then lowercase — the add-time transform for a sidecar extension. */
 function normalizeSidecarExtension(raw: string): string {
@@ -60,6 +61,7 @@ export function DestinationRoutingSection({
   // Live (not-yet-committed) AssociatedExtensions input, so the sidecar-extension advisory reflects
   // what the user is currently typing, before Enter commits it.
   const [sidecarLiveInput, setSidecarLiveInput] = useState("");
+  const orphaned = useOrphanedRules();
 
   return (
     <SectionCard
@@ -145,7 +147,13 @@ export function DestinationRoutingSection({
           renderValue={(value, setValue) => (
             <DestinationField value={value} onChange={setValue} library={library} />
           )}
-          renderKeyLabel={(key) => <EntityReferenceValue entityType="tag" value={Number(key)} />}
+          renderKeyLabel={(key) => (
+            <RuleKeyLabel
+              entityType="tag"
+              id={Number(key)}
+              orphaned={orphaned.tags.has(Number(key))}
+            />
+          )}
           addLabel="Add tag rule"
         />
       </ToggleHeaderCard>

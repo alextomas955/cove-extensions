@@ -1,9 +1,10 @@
 // Whole-library job flow coverage: the scan-library (whole-library Dry Run) and renamer-library
 // (Rename All) job pair, driven through the job-polling API.
-import { test as base, expect, pollJob, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
+import { test as base, expect, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { seedVideo } from "@cove-extensions/e2e/seed-media";
 import { assertRenamedTo } from "../lib/rename-assertions.mjs";
+import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
 
 const EXTENSION_ID = "com.alextomas955.renamer";
 const ROUTE = `/api/extensions/${EXTENSION_ID}`;
@@ -39,7 +40,7 @@ test("scan-library aggregates and pages every seeded item without mutating any o
   const enqueue = await api.post(`${ROUTE}/scan-library`);
   expect(enqueue.status).toBe(202);
 
-  const job = await pollJob(api, enqueue.json.jobId);
+  const job = await pollRenamerJob(api, ROUTE, enqueue.json.jobId);
   expect(job.status.toLowerCase()).toBe("completed");
 
   // The scan persists an AGGREGATE, so the readback reports counts; the rows themselves come from the
@@ -125,7 +126,7 @@ test("renamer-library renames every seeded item in one run", async ({ isolatedHa
   const enqueue = await api.post(`${ROUTE}/renamer-library`);
   expect(enqueue.status).toBe(202);
 
-  const job = await pollJob(api, enqueue.json.jobId, { timeoutMs: 60_000 });
+  const job = await pollRenamerJob(api, ROUTE, enqueue.json.jobId, { timeoutMs: 60_000 });
   expect(job.status.toLowerCase()).toBe("completed");
 
   for (let i = 0; i < videos.length; i++) {

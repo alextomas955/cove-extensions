@@ -1,5 +1,8 @@
 /**
- * The one poller over the host's `GET /jobs/{id}` endpoint (INFRA: HTTP + timers).
+ * The one poller over this extension's own `GET job-status/{jobId}` route (INFRA: HTTP + timers).
+ *
+ * The host's equivalent route is gated on unrestricted read, so a scoped account is refused there
+ * even for a run it started itself. This reads the extension's own projection instead.
  *
  * Deliberately NOT named `*Logic.ts`: that glob's purity rule in the root ESLint config restricts a
  * module to relative imports, and the request helper below is a package import — the name is a
@@ -8,9 +11,12 @@
  * The clock reads live here, in the poll handler, so that module stays testable without one.
  *
  * ONE loop for every caller, deliberately: a second one would be the same state machine over the same
- * decisions and the same hand-declared response shape, so every fix to either would be owed to both.
+ * decisions and the same response shape, so every fix to either would be owed to both.
  */
 import { requestJson } from "@cove-extensions/ui-shared/extensionRequest";
+
+import { api } from "../common/lib/extension";
+import type { RenamerJobStatus } from "../wire/api";
 
 import {
   JOB_FAILURE_ALLOWANCE,
@@ -23,7 +29,7 @@ import {
 } from "./jobPollLogic";
 
 /**
- * How often `/jobs/{id}` is read, in milliseconds.
+ * How often the status route is read, in milliseconds.
  *
  * One value because both callers independently chose the same one. If a caller ever needs a
  * different cadence, take it as a parameter rather than moving this number — the two flows poll at
@@ -32,27 +38,13 @@ import {
 const JOB_POLL_INTERVAL_MS = 1000;
 
 /**
- * Mirrors `Cove.Core.Interfaces.JobInfo` — only the fields the UI reads. The host's minimal-API JSON
- * options apply `JsonStringEnumConverter(JsonNamingPolicy.CamelCase)`, which lowercases the leading
- * character of the C# `JobStatus` enum's PascalCase member names (`Completed` → `"completed"`), not
- * just the field names — so the string values here must be camelCase too, not just `status` itself.
+ * The poll response, as the extension's own OpenAPI document describes it.
  *
- * Declared by hand deliberately: `/jobs/{id}` is the HOST's endpoint, absent from the extension's
- * OpenAPI document, so no generated type for it can exist. The extension's own responses come from
- * `../wire/api`. This is the single statement of that rationale; the two callers carry a pointer to
- * it rather than their own telling.
+ * Generated rather than hand-declared: a hand-written wire type type-checks against itself and never
+ * against the server, so a wrong field reads `undefined` at runtime with nothing reporting it. Only
+ * `status`, `progress` and `error` drive a decision; `subTask` and `etaSeconds` feed the progress bars.
  */
-export interface JobInfo {
-  status: "pending" | "running" | "completed" | "failed" | "cancelled";
-  progress: number;
-  error?: string | null;
-  // The host reports these on every poll; only the progress bars read them. `subTask` is the
-  // free-text phase message ("Scanning library… {done}/{total}"); `etaSeconds` is the server's own
-  // estimate (null when it can't compute one); `startedAt` anchors the client-side ETA fallback.
-  subTask?: string | null;
-  etaSeconds?: number | null;
-  startedAt?: string;
-}
+export type JobInfo = RenamerJobStatus;
 
 /**
  * How a poll ended when it ended on the job's own verdict.
@@ -91,7 +83,7 @@ export interface JobPoll {
 const POLL_STOPPED = "the poll was stopped";
 
 /**
- * Poll `GET /jobs/{jobId}` until {@link decidePoll} says to stop.
+ * Poll `GET job-status/{jobId}` until {@link decidePoll} says to stop.
  *
  * Both bounds come from the logic module, and they are what stop this polling forever: an earlier
  * version cleared its interval only on a terminal status, so a job stuck running kept a request per
@@ -124,7 +116,7 @@ export function pollJob(jobId: string, onProgress?: (job: JobInfo) => void): Job
     });
 
     const interval = setInterval(() => {
-      requestJson<JobInfo>(`/jobs/${jobId}`)
+      requestJson<JobInfo>(api(`job-status/${jobId}`))
         .then((job) => {
           if (settled) return;
           const now = Date.now();
