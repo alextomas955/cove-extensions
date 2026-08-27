@@ -58,6 +58,13 @@ and says nothing about the rest.
   destination just inside _Full-path max length_ previewed as a clean move and then failed at the
   filesystem. Such a row now carries a red **Too long to copy across drives** badge, and the confirm
   before a rename says how many files are affected and what to shorten.
+- **Numbering a name to avoid a clash can no longer push the path over the length limit.** _Full-path
+  max length_ was measured against the name your template produced, and the number appended to free a
+  name already taken was added afterwards — so a file sitting just inside the limit was previewed as a
+  clean rename and then written, or attempted, at a path past it. The length is now measured again once
+  the final numbered name is settled, both when the dry run plans it and again at the moment of the
+  rename, where a name already taken since the dry run can add a longer number. Such a file is reported
+  as **Skipped — path too long** and left exactly where it is.
 - **A rename no longer erases the undo of the one before it.** The undo record moved out of Cove's
   extension-data store and into a table Renamer owns, so a background auto-rename no longer destroys
   the record of a deliberate 500-file run. Each rename is kept for 7 days and then expires. The

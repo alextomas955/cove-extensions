@@ -347,6 +347,20 @@ public sealed class RenamerPlanner
             candidate = ApplySuffix(rendered.Filename, rendered.Ext, options.DuplicateSuffixFormat, attempt);
         }
 
+        // (4b) Re-measure the budget against the SETTLED candidate. The gate at (2b) ran BEFORE the loop
+        //      above, which lengthens the name by whatever DuplicateSuffixFormat spells and repeats up
+        //      to MaxSuffixAttempts, so an item accepted at the budget can leave the loop past it.
+        //      Measured against confined.TargetFolderPath and not relTargetFolder: the gate resolves
+        //      under the synthetic anchor when the anchor is not itself absolute, so that is the basis
+        //      the first measurement used and a different one would describe a different path.
+        var recheck = PathConfinement.WithinBudget(confined.TargetFolderPath, candidate, options);
+        if (!recheck.Accepted)
+        {
+            return new RenamerPlanItem(
+                file.FileId, oldFullPath, oldFullPath, RenamerStatus.SkipTooLong,
+                file.Basename, file.ParentFolderPath, recheck.Reason);
+        }
+
         string newFullPath = JoinPath(relTargetFolder, candidate);
 
         // UI badge signals (set only on the final Renamer/Move item; skip/no-op paths keep the
