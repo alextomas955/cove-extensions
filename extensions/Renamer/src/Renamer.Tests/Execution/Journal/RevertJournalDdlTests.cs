@@ -19,7 +19,6 @@ namespace Renamer.Tests.Execution.Journal;
 /// already there cannot tell a statement that creates it from a statement that does nothing.
 /// </para>
 /// </remarks>
-[Trait("Tier", "L1")]
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RevertJournalDdlTests
 {

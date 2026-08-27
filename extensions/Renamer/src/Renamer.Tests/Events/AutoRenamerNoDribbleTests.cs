@@ -12,7 +12,6 @@ namespace Renamer.Tests.Events;
 /// re-raised update event to re-enter on. The companion <c>AutoRenamerRoutingTests</c> proves a
 /// matched rule still relocates.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class AutoRenamerNoDribbleTests
 {
     [Fact]

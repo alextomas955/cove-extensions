@@ -163,9 +163,14 @@ public sealed partial class Renamer
         // string enum values (e.g. "case":"Lower") would 400 on typed binding before the handler
         // ran. Extension code cannot touch host startup (ConfigureHttpJsonOptions), so we parse
         // the body ourselves with the converter-aware options.
+        // The handler reads the raw request so it can parse the options blob with the extension's own
+        // tolerant serializer rather than the host's. No parameter therefore declares the body, and
+        // without .Accepts<> the emitted document carries no request schema for this route at all -
+        // which also silently exempts that body from the drift check the document exists for.
         endpoints.MapPost(PreviewSampleRoute,
             (HttpContext http, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => PreviewSampleAsync(http.Request, principal, ct));
+                => PreviewSampleAsync(http.Request, principal, ct))
+            .Accepts<PreviewSampleRequest>("application/json");
 
         // /undo takes NO request body — it operates on "the last batch", so binding no body avoids
         // the host's enum-converter 400 trap (see the preview-sample note above); /last-batch is a plain read.
@@ -269,15 +274,21 @@ public sealed partial class Renamer
             }
         }
 
-        // The whole-batch blast radius: a pure aggregate over the acting items + their sizes.
-        var summary = BatchPreview.Summarize(items, sizeByFileId);
+        // The whole-batch blast radius: a pure aggregate over the acting items + their sizes. The path
+        // budget is read from the loaded options ONCE and handed to both halves of the response below, so
+        // the aggregate's in-flight overflow COUNT and the per-item FLAGS cannot be measured against
+        // different limits and disagree.
+        var summary = BatchPreview.Summarize(items, sizeByFileId, options.FullPathMax);
 
         // The host's serializer is camelCase but emits NUMERIC enums (status:0), which the frontend's
         // buildConfirmSummary reads as a non-renamer — so the renamer would silently never fire. The
         // string spelling comes from CamelCaseStringEnumConverter declared ON RenamerStatus and
         // ConfirmLevel, never from an options instance chosen here.
         return TypedResults.Ok(
-            new PreviewResponse([.. items.Select(PreviewItemView.From)], summary));
+            new PreviewResponse(
+                [.. items.Select(i => PreviewItemView.From(
+                    i, BatchPreview.InFlightPathOverflows(i, options.FullPathMax)))],
+                summary));
     }
 
     /// <summary>
@@ -814,7 +825,7 @@ public sealed partial class Renamer
     {
         var lookups = BuildLookups(options);
         var planner = new RenamerPlanner(port);
-        var aggregator = new ScanAggregator();
+        var aggregator = new ScanAggregator(options.FullPathMax);
 
         // Load every kind's ids up front so the TOTAL is known before planning — the scan previously
         // reported only a single Report(1.0) at the end, so the job jumped 0%→100% with no intermediate

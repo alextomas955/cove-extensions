@@ -11,7 +11,6 @@ namespace Renamer.Tests.Events;
 /// produce. Before the fix the hook called the empty-lookups overload, so auto-renames silently never
 /// relocated even when a matching destination rule was configured.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class AutoRenamerRoutingTests
 {
     [Fact]

@@ -15,7 +15,6 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// So the same-volume case is asserted on every OS, not gated: the misconfiguration is possible
 /// everywhere the variable can be set.
 /// </remarks>
-[Trait("Tier", "L1")]
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class SecondVolumeOverrideTests
 {

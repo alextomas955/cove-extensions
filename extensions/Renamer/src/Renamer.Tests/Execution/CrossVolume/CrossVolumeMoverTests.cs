@@ -22,7 +22,6 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// source, a cancel), the case asserts on the destination directory's whole contents instead, which
 /// needs no name at all.
 /// </remarks>
-[Trait("Tier", "L1")]
 public sealed class CrossVolumeMoverTests
 {
     [Fact]

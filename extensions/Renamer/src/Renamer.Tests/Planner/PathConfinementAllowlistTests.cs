@@ -10,7 +10,6 @@ namespace Renamer.Tests.Planner;
 /// check, so an escape is rejected against the anchor itself, whether or not a narrowing list is
 /// configured. The empty list narrows nothing. PURE - no disk access.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class PathConfinementAllowlistTests
 {
     // An absolute allowed root that exists in path-syntax terms on the current OS.

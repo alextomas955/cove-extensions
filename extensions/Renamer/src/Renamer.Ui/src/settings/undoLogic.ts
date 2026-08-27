@@ -191,3 +191,21 @@ export function buildUndoFeedback(result: UndoResult): UndoFeedback {
 
   return { kind: "error", text: `Couldn't undo — ${firstReason}. Nothing was changed.` };
 }
+
+/**
+ * Compose the sentence for an undo whose response never arrived.
+ *
+ * `/undo` answers every arm it reaches with a body, the "nothing open to undo" arm included, so a
+ * bodyless reply is raised as an `ApiError` before this one is asked for. What is left is a request
+ * whose fate is unknown: the connection dropped, or the reply would not parse. The server may have
+ * moved part or all of the batch back first.
+ *
+ * So the sentence deliberately omits "Nothing was changed", which would tell the user there is
+ * nothing left to re-check, and sends them to the batch instead.
+ */
+export function buildUndoUnconfirmed(detail: string): UndoFeedback {
+  return {
+    kind: "error",
+    text: `Couldn't confirm the undo — ${detail}. Some files may already have been moved back; check the batch before trying again.`,
+  };
+}

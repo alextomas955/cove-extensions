@@ -8,7 +8,6 @@ namespace Renamer.Tests.Planner;
 /// Every file of a multi-file item is planned independently — one
 /// <see cref="RenamerPlanItem"/> per file, no first-file-only assumption, none dropped.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class MultiFileTests
 {
     private static RenamerFile File(int id, string basename) =>

@@ -16,7 +16,6 @@ namespace Renamer.Tests.Execution.Sidecars;
 /// extension compare normalizes a leading dot + casing. All assertions are against the actual on-disk
 /// state; disposables released in a finally, mirroring the sibling executor tests.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class AssociatedExtensionSidecarTests
 {
     private static RenamerPlan RenamerPlan(int videoId, int fileId, string folderPath, string oldBasename, string newBasename)

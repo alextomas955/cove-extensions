@@ -1,10 +1,15 @@
 // Page Object for the Renamer settings panel at /settings/renamer.
 const SETTINGS_PATH = "/settings/renamer";
 
-// The budget for one visit, spent across however many navigations it takes. It has to cover a cold
-// container on a loaded CI runner and still leave the rest of a spec's work inside the per-test
-// timeout.
+// The budget for ONE navigation's wait, not for the whole visit. It has to cover a cold container on
+// a loaded CI runner and still leave the rest of a spec's work inside the per-test timeout.
 const PANEL_READY_TIMEOUT_MS = 30_000;
+
+// How many times the host may answer with a recoverable signal before the page is called unreachable.
+// The budget bounds waiting for something that will never arrive; a signal is proof the wait was not
+// that, so the navigation it triggers earns a fresh budget. Bounded, because the host can keep giving
+// the same answer, and an unbounded retry turns a permanent failure into a hung test.
+const MAX_RECOVERIES = 3;
 
 // The host renders its settings page from a lazily-imported chunk. When that fetch fails the host
 // catches it and paints this sentence instead of the page, so the route stays correct and no locator
@@ -35,6 +40,9 @@ export class RenamerSettingsPage {
     // The in-app (React) confirm modal's accept button — dynamic label ("Undo 1 rename",
     // "Undo 3 renames"), NOT a native browser dialog.
     this.undoConfirmButton = page.getByRole("button", { name: /^Undo \d+ renames?$/ });
+    // The panel's own sentence for "there is nothing to put back" — the branch that replaces the whole
+    // status-line-plus-button row, so it is what a withheld control looks like to a user.
+    this.noRenameToUndoText = page.getByText("No rename to undo.");
     // Always-visible switch under the flat "Run & automation" section (the settings redesign
     // replaced the old collapsible "Automation" sub-section, so there is no header to expand).
     this.autoRenameOnUpdateSwitch = page.getByRole("switch", { name: "Auto-rename on update" });
@@ -64,7 +72,7 @@ export class RenamerSettingsPage {
   /**
    * Waits for the panel, re-navigating for as long as the host keeps resolving the route away from it.
    *
-   * Two failures put the panel permanently out of reach, and waiting longer fixes neither.
+   * Two host behaviours put the panel permanently out of reach, and waiting longer fixes neither.
    *
    * `/settings/renamer` is not one of the host's own routes. The host carries the unknown key only
    * until it finishes loading extensions, then resolves it against the settings tabs that load
@@ -78,9 +86,10 @@ export class RenamerSettingsPage {
    * Each is a signal rather than a timeout, and a fresh navigation recovers both.
    */
   async waitForPanel() {
-    const deadline = Date.now() + PANEL_READY_TIMEOUT_MS;
+    let deadline = Date.now() + PANEL_READY_TIMEOUT_MS;
     let discards = 0;
     let chunkFailures = 0;
+    let recoveries = 0;
     for (;;) {
       // A non-positive Playwright timeout means "never time out", so the budget is checked before it
       // is handed over rather than after.
@@ -108,14 +117,17 @@ export class RenamerSettingsPage {
       if (outcome === "rendered") return;
       if (outcome === "discarded") discards += 1;
       if (outcome === "chunkFailed") chunkFailures += 1;
-      if (outcome === "expired") {
+      if (outcome !== "expired") recoveries += 1;
+      if (outcome === "expired" || recoveries > MAX_RECOVERIES) {
         throw new Error(
-          `The Renamer settings panel did not render within ${PANEL_READY_TIMEOUT_MS}ms at ${this.panelUrl}. ` +
+          `The Renamer settings panel did not render at ${this.panelUrl}, giving up after ` +
+            `${recoveries} recovered navigation(s) and a ${PANEL_READY_TIMEOUT_MS}ms wait on the last. ` +
             `The page is now at ${this.page.url()}. ` +
             `The host sent the route to one of its own tabs ${discards} time(s) and failed to fetch ` +
             `its own settings chunk ${chunkFailures} time(s) on the way.`,
         );
       }
+      deadline = Date.now() + PANEL_READY_TIMEOUT_MS;
       await this.page.goto(this.panelUrl);
     }
   }
@@ -174,6 +186,18 @@ export class RenamerSettingsPage {
 
   hasUndoAvailable() {
     return this.undoLastRenameButton.isVisible();
+  }
+
+  /**
+   * Waits until the panel has settled on its "No rename to undo." branch.
+   *
+   * A caller asserting that the undo control is WITHHELD must wait on this sentence first, never on the
+   * control's absence alone: the section renders a "Checking for a recent rename…" spinner until its
+   * /last-batch fetch resolves, and the control is absent throughout that window too — so an immediate
+   * absence check passes on a panel that has not yet decided.
+   */
+  async waitForNoRenameToUndo() {
+    await this.noRenameToUndoText.waitFor({ state: "visible", timeout: 30_000 });
   }
 
   /** Clicks "Undo last rename" and confirms the in-app modal. Throws if the button isn't present. */

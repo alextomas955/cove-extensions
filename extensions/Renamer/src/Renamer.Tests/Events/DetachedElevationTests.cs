@@ -62,7 +62,6 @@ namespace Renamer.Tests.Events;
 /// count anywhere, end to end, against a live host under auth. What that leaves is these assertions.
 /// </para>
 /// </remarks>
-[Trait("Tier", "L1")]
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class DetachedElevationTests
 {
@@ -514,7 +513,6 @@ public sealed class DetachedElevationTests
 /// which is the same vacuous pass the entry-point assertions refuse with their non-empty-first rule.
 /// </para>
 /// </remarks>
-[Trait("Tier", "L0")]
 public sealed class RunAsSystemContractTests
 {
     [Fact]

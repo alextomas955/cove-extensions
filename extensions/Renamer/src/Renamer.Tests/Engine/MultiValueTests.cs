@@ -4,7 +4,6 @@ using Renamer.Planner;
 
 namespace Renamer.Tests.Engine;
 
-[Trait("Tier", "L0")]
 public class MultiValueTests
 {
     // ---- ResolutionLabel.FromHeight ----
@@ -83,6 +82,22 @@ public class MultiValueTests
         Assert.Equal("alice,Bob,Charlie", MultiValue.Resolve(Three, m));
     }
 
+    [Fact]
+    public void Resolve_NameOnlyList_IsNotFilteredByTheIdWhitelistOrBlacklist()
+    {
+        // A name carries no id, so neither id list can be tested against it. Reading "not in the
+        // whitelist" as a match failure would empty the $tags token of every preview sample.
+        var m = new MultiValueOptions
+        {
+            Separator = ",",
+            Sort = SortOrder.None,
+            WhitelistIds = [1],
+            BlacklistIds = [2],
+        };
+
+        Assert.Equal("Charlie,alice,Bob", MultiValue.Resolve(Three, m));
+    }
+
     // The whitelist/blacklist live on the id-carrying overloads, so these exercise the tag pairs
     // rather than the bare name list. The names differ in case from nothing here on purpose: the
     // filter no longer reads them at all.
@@ -129,6 +144,29 @@ public class MultiValueTests
     {
         var m = new MultiValueOptions { WhitelistIds = [999] };
         Assert.Equal("", MultiValue.Resolve(ThreeTags, m));
+    }
+
+    [Fact]
+    public void Resolve_TagRefs_EmptyList_ReturnsEmpty_LikeTheStringOverload()
+    {
+        var m = new MultiValueOptions { Separator = ",", WhitelistIds = [1] };
+
+        Assert.Equal(
+            MultiValue.Resolve(Array.Empty<string>(), m),
+            MultiValue.Resolve(Array.Empty<(int, string)>(), m));
+        Assert.Equal("", MultiValue.Resolve(Array.Empty<(int, string)>(), m));
+    }
+
+    [Fact]
+    public void Resolve_TagRefs_DefaultOptions_RenderNamesLikeTheStringPath()
+    {
+        // With no id filter configured the two overloads must agree byte for byte, so an unchanged
+        // library renders the same filename whichever one a caller reaches for.
+        var m = new MultiValueOptions { Separator = ", " };
+
+        Assert.Equal(
+            MultiValue.Resolve(Three, m),
+            MultiValue.Resolve(ThreeTags, m));
     }
 
     [Fact]
@@ -199,6 +237,29 @@ public class MultiValueTests
         new RenamerPerformer(1, "alice", Favorite: true, Gender: "Female"),
         new RenamerPerformer(2, "Bob", Favorite: false, Gender: "Male"),
     };
+
+    [Fact]
+    public void Resolve_Performers_WhitelistIds_KeepsOnlyListedIds_AndRendersNames()
+    {
+        var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.None, WhitelistIds = [1, 2] };
+        Assert.Equal("alice,Bob", MultiValue.Resolve(Performers, m));
+    }
+
+    [Fact]
+    public void Resolve_Performers_BlacklistIds_DropsListedIds()
+    {
+        var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.None, BlacklistIds = [2] };
+        Assert.Equal("Charlie,alice", MultiValue.Resolve(Performers, m));
+    }
+
+    [Fact]
+    public void Resolve_Performers_FilterSurvivesARename()
+    {
+        var m = new MultiValueOptions { Separator = ",", Sort = SortOrder.None, WhitelistIds = [1] };
+
+        Assert.Equal("alice", MultiValue.Resolve([new RenamerPerformer(1, "alice", false, null)], m));
+        Assert.Equal("Alicia", MultiValue.Resolve([new RenamerPerformer(1, "Alicia", false, null)], m));
+    }
 
     [Fact]
     public void Resolve_Performers_SortById_OrdersByAscendingId()

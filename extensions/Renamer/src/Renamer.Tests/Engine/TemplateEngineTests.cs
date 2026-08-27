@@ -9,7 +9,6 @@ namespace Renamer.Tests.Engine;
 /// (CoreTokens*), {} optional-group collapse incl. no-dangling-punctuation (OptionalGroup*),
 /// and independent filename/folder rendering with correct '/' handling (FolderTemplate*).
 /// </summary>
-[Trait("Tier", "L0")]
 public class TemplateEngineTests
 {
     private static IReadOnlyDictionary<string, string> NoTokens => new Dictionary<string, string>();
@@ -351,6 +350,32 @@ public class TemplateEngineTests
         var r = Render("x", tokens, folder: "$studio/$year");
         // ':' illegal stripped per-segment, '/' kept as separator
         Assert.Equal("Acme/2026", r.FolderPath);
+    }
+
+    // ---- FolderTemplate: always relative, whatever the template looks like ----
+
+    [Theory]
+    [InlineData("G:/media/$studio", "G/media/Acme")]
+    [InlineData("/srv/media/$studio", "srv/media/Acme")]
+    [InlineData("//nas/share/$studio", "nas/share/Acme")]
+    public void FolderTemplate_ThatLooksRooted_StillRendersRelative(string template, string expected)
+    {
+        // A destination names its root by choosing one of Cove's library paths, so a template never
+        // does: the per-segment sanitizer strips ':' and empty segments drop, which leaves a typed root
+        // as ordinary folder names under whichever root the destination chose.
+        var tokens = new Dictionary<string, string> { ["studio"] = "Acme" };
+
+        Assert.Equal(expected, Render("x", tokens, folder: template).FolderPath);
+    }
+
+    [Fact]
+    public void FolderTemplate_ATokenValue_CannotMakeTheDestinationAbsolute()
+    {
+        // A studio name is metadata, and metadata choosing a drive would be a path injection. The value
+        // is sanitized into one ordinary segment.
+        var tokens = new Dictionary<string, string> { ["studio"] = @"C:\Windows" };
+
+        Assert.Equal("Archive/CWindows", Render("x", tokens, folder: "Archive/$studio").FolderPath);
     }
 
     // ---- FIELD-01: squeeze_studio_names (engine) ----

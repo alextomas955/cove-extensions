@@ -336,8 +336,27 @@ public readonly record struct SavedFile(int FileId, string RecomputedPath);
 /// <param name="NewBasename">The new basename to set.</param>
 /// <param name="NewParentFolderId">The new parent folder id, or null for an in-place renamer.</param>
 /// <param name="CaptionRenames">(captionId, newFilename) pairs for moved sidecars.</param>
+/// <param name="EntityTitle">
+/// The one-time title write that rides with this file's save, or <c>null</c> when the item already
+/// carries a title or the filename-as-title fallback is off. It names the OWNING entity rather than the
+/// file because a title belongs to the item; it travels on the file mutation so it lands in the same
+/// <c>SaveChangesAsync</c> as the rename that derived it, which is what makes "renamed but title not
+/// recorded" unreachable rather than merely unlikely.
+/// </param>
 public sealed record RenamerFileMutation(
     int FileId,
     string NewBasename,
     int? NewParentFolderId,
-    IReadOnlyList<(int CaptionId, string NewFilename)>? CaptionRenames = null);
+    IReadOnlyList<(int CaptionId, string NewFilename)>? CaptionRenames = null,
+    RenamerEntityTitleWrite? EntityTitle = null);
+
+/// <summary>A filename-derived title to record on a media entity that has none.</summary>
+/// <remarks>
+/// Recording the derivation once is what turns the filename-as-title fallback into a first-run-only
+/// path; left un-recorded it re-reads its own output every pass. See
+/// <c>MetadataProjector.DerivedTitle</c> for the whole statement.
+/// </remarks>
+/// <param name="Kind">Which media table holds the entity.</param>
+/// <param name="EntityId">The entity row to write.</param>
+/// <param name="Title">The derived title; never empty, since an empty derivation travels as no write at all.</param>
+public readonly record struct RenamerEntityTitleWrite(RenamerFileKind Kind, int EntityId, string Title);

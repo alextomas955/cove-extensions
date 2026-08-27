@@ -9,7 +9,6 @@ namespace Renamer.Tests.Options;
 /// path plus the relative template rendered under it. Every case here is a way a user's routing changes
 /// without them touching it, so each asserts the rule that survives beside the one that does not.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class OptionsMigrationDestinationTests
 {
     // ContainingRoot resolves a stored root against the platform's path rules, so a drive-letter
@@ -131,6 +130,58 @@ public sealed class OptionsMigrationDestinationTests
         Assert.True(converted.Deferred);
         Assert.False(converted.Changed);
         Assert.Equal(Configured, converted.Json);
+    }
+
+    [Theory]
+    [InlineData("\"D:/library/videos\"", true)]
+    [InlineData("\"\"", true)]
+    [InlineData("{ \"Root\": \"D:/library\", \"Template\": \"videos\" }", false)]
+    [InlineData("null", false)]
+    [InlineData("7", false)]
+    [InlineData("true", false)]
+    [InlineData("[ \"D:/library/videos\" ]", false)]
+    public void AStoredValue_IsWorkForThisHalf_ExactlyWhenItIsAString(string valueJson, bool isWork)
+    {
+        // Asked with NO library paths, because Deferred is true for exactly "there is a site and
+        // nothing to place it under" - so it reports the site walk's answer and no part of the
+        // arithmetic that follows.
+        //
+        // The settings panel refuses to save while this half has work, so its own
+        // `hasUnmigratedDestinations` has to read every value the way the walk does here. This theory
+        // is the C# half of that agreement, transcribed into the panel's `options.test.ts` as the same
+        // table.
+        var converted = OptionsMigration.ConvertDestinationsToRoots(
+            $$"""{ "StudioDestinations": { "101": {{valueJson}} } }""", []);
+
+        Assert.Equal(isWork, converted.Deferred);
+    }
+
+    [Theory]
+    [InlineData("""{ "StudioDestinations": { "101": "D:/a" } }""")]
+    [InlineData("""{ "TagDestinations": { "7": "D:/a" } }""")]
+    [InlineData("""{ "PathDestinations": [ { "Pattern": "D:/in", "Dest": "D:/a" } ] }""")]
+    [InlineData("""{ "UnorganizedDestination": "D:/a" }""")]
+    [InlineData("""{ "studiodestinations": { "101": "D:/a" } }""")]
+    [InlineData("""{ "pathDestinations": [ { "pattern": "D:/in", "dest": "D:/a" } ] }""")]
+    [InlineData("""{ "unorganizeddestination": "D:/a" }""")]
+    public void EveryPlaceThisHalfRewrites_CountsAsWork(string json)
+    {
+        Assert.True(OptionsMigration.ConvertDestinationsToRoots(json, []).Deferred);
+    }
+
+    [Theory]
+    [InlineData("""{ "FolderTemplate": "$studio", "FolderRoot": "D:/library" }""")]
+    [InlineData("""{ "StudioDestinations": {}, "PathDestinations": [] }""")]
+    [InlineData("""{ "StudioDestinations": [ "D:/a" ] }""")]
+    [InlineData("""{ "PathDestinations": { "Dest": "D:/a" } }""")]
+    [InlineData("""[ { "UnorganizedDestination": "D:/a" } ]""")]
+    public void WhatThisHalfLeavesAlone_IsNotWork(string json)
+    {
+        // The global folder template and root head the list, and they are the reason this is a theory
+        // rather than one assertion: they are top-level STRINGS the conversion deliberately keeps as
+        // stored, so a walk that read either as a site would defer forever on any install that
+        // configured a folder template.
+        Assert.False(OptionsMigration.ConvertDestinationsToRoots(json, []).Deferred);
     }
 
     [Fact]

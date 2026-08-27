@@ -29,6 +29,8 @@ import { api } from "../../common/lib/extension";
 import type { ScanSummaryView } from "../../wire/api";
 import type { RenamerOptions } from "../options";
 import { useScanRows } from "./useScanRows";
+import { JobUnresponsiveError } from "../jobPollLogic";
+import { pollJob, type JobInfo } from "../pollJob";
 import {
   assetHref,
   classifyItem,
@@ -36,6 +38,7 @@ import {
   formatEta,
   isFinalizing,
   progressPercent,
+  shouldContinueWalk,
   summaryCounts,
   type DryRunCounts,
   type DryRunFilter,
@@ -61,7 +64,6 @@ const LAST_SCAN_PATH = api("last-scan");
 
 const TITLE_ID = "rename-dry-run-title";
 const DESC_ID = "rename-dry-run-summary";
-const POLL_INTERVAL_MS = 1000;
 
 // Each keystroke would otherwise be a server-side plan of a slice of the library, not a filter over an
 // array already in memory. Long enough that typing a word is one request, short enough to feel live.
@@ -73,25 +75,6 @@ const PREFETCH_ROWS = 12;
 
 /** The header labels, in the same order as GRID_TEMPLATE's content tracks. */
 const COLUMNS = ["Type", "Current name", "New name", "Destination"] as const;
-
-/**
- * Mirrors `Cove.Core.Interfaces.JobInfo` — only the fields this modal reads. The host's minimal-API
- * JSON options apply `JsonStringEnumConverter(JsonNamingPolicy.CamelCase)`, which lowercases the
- * leading character of the C# `JobStatus` enum's PascalCase member names (`Completed` → `"completed"`),
- * not just the field names — so the string values here must be camelCase too, not just `status` itself.
- */
-interface JobInfo {
-  id: string;
-  status: "pending" | "running" | "completed" | "failed" | "cancelled";
-  progress: number;
-  error?: string | null;
-  // The host reports these on every poll; only the bar reads them. `subTask` is the free-text phase
-  // message ("Scanning library… {done}/{total}"); `etaSeconds` is the server's own estimate (null
-  // when it can't compute one); `startedAt` anchors the client-side ETA fallback.
-  subTask?: string | null;
-  etaSeconds?: number | null;
-  startedAt?: string;
-}
 
 function errText(err: unknown): string {
   return err instanceof ApiError ? `${err.status} ${err.body}` : String(err);
@@ -111,39 +94,42 @@ function dirname(p: string): string {
 }
 
 /**
- * Polls `GET /jobs/{jobId}` every second until the job leaves Pending/Running, then calls
- * `onDone` once. Clears its interval on unmount or job change so no timer leaks and no state
+ * Watches the scan job through the shared {@link pollJob} helper, calling `onDone` once when the job
+ * reaches its own verdict — or `onExpire` when the run ended on a bound instead. The loop, its two
+ * bounds and the hand-declared response shape all live in that module; what this hook adds is the
+ * React lifecycle: start on a job id, stop on unmount or job change, so no timer leaks and no state
  * updates fire after unmount.
+ *
+ * A cancelled poll rejects too, and that rejection is this hook's own cleanup — nothing to report to
+ * a component that is already gone — so only an expiry is passed on.
  */
 function usePollJob(
   jobId: string | null,
   onDone: (job: JobInfo) => void,
   onProgress?: (job: JobInfo) => void,
+  onExpire?: (message: string) => void,
 ) {
   useEffect(() => {
     if (!jobId) return;
-    let cancelled = false;
-    const interval = setInterval(() => {
-      requestJson<JobInfo>(`/jobs/${jobId}`)
-        .then((job) => {
-          if (cancelled) return;
-          if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
-            clearInterval(interval);
-            onDone(job);
-          } else {
-            // Still pending/running — surface live progress. Terminal polls never fire onProgress.
-            onProgress?.(job);
-          }
-        })
-        .catch(() => {
-          // Transient poll failure — keep polling; a real failure surfaces via job.status.
-        });
-    }, POLL_INTERVAL_MS);
+    const poll = pollJob(jobId, onProgress);
+    poll.done
+      .then(({ job }) => {
+        // A resolve and a reject verdict both hand the job back: the caller reads its status to
+        // decide between the summary and an error, which is the split it has always made.
+        onDone(job);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof JobUnresponsiveError) onExpire?.(err.message);
+      });
     return () => {
-      cancelled = true;
-      clearInterval(interval);
+      poll.cancel();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- onDone/onProgress are stable refs from the caller
+    // The three callbacks are inline arrows, rebuilt on every render, and are left out of the
+    // dependency list on purpose: listing them would restart the poll on each render. What makes the
+    // captured first-render closures safe to keep is that they touch only useState setters and useRef
+    // values, both stable for the component's life. Give one of them a render-scoped value to capture
+    // and the poll would report against a snapshot from the first render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate; see above
   }, [jobId]);
 }
 
@@ -294,6 +280,11 @@ export function DryRunModal({
         line: finalizing ? "Finalizing…" : (job.subTask ?? `Scanning your library… ${percent}%`),
       });
     },
+    (message) => {
+      // A scan that went quiet or an id that stopped answering. Reported as a scan error because from
+      // this modal's side that is what it is — there is no summary to render and none is coming.
+      setScanError(message);
+    },
   );
 
   // Hold the keystrokes back from the server (see SEARCH_DEBOUNCE_MS).
@@ -314,7 +305,6 @@ export function DryRunModal({
     loadMore,
     loading: rowsLoading,
     complete: rowsComplete,
-    budgetExhausted,
     examined,
     error: rowsError,
   } = useScanRows(scanOptionsBlob, summary !== null, query, filter);
@@ -332,11 +322,27 @@ export function DryRunModal({
 
   const virtualRows = rowVirtualizer.getVirtualItems();
   const lastVisible = virtualRows.length > 0 ? virtualRows[virtualRows.length - 1].index : -1;
-  // Scrolling within a prefetch window of the loaded end continues the walk. Overlapping calls are
-  // deduplicated in the store, so firing this on consecutive scroll frames costs one request.
+  // How many rows the loaded window needs to cover: one prefetch window past the last row the
+  // virtualizer handed back, so the next page is requested before the user reaches the end.
+  const targetRows = lastVisible + PREFETCH_ROWS + 1;
+  // Whether another page is wanted is shouldContinueWalk's decision; this effect is only its wiring.
+  // The in-flight flag is the dependency that makes the re-evaluation reliable: a page can land
+  // carrying no rows at all, leaving both the row count and the last visible index identical, and that
+  // page is precisely the one whose successor still has to be requested. The flag flips on every
+  // request this client issues, so the trigger cannot go quiet. Overlapping calls are deduplicated in
+  // the store, so a condition holding across consecutive scroll frames costs one request.
   useEffect(() => {
-    if (lastVisible >= rows.length - PREFETCH_ROWS) loadMore();
-  }, [lastVisible, rows.length, loadMore]);
+    if (
+      shouldContinueWalk({
+        loadedRows: rows.length,
+        targetRows,
+        hasMore: !rowsComplete,
+        loading: rowsLoading,
+        hasError: rowsError !== null,
+      })
+    )
+      loadMore();
+  }, [rows.length, targetRows, rowsComplete, rowsLoading, rowsError, loadMore]);
 
   // What the footer can honestly claim as a denominator. With a search active the matching total is
   // unknown until the walk ends — only the server knows how many rows a query matches, and finding out
@@ -576,9 +582,12 @@ export function DryRunModal({
                   )}
                 </div>
 
-                {/* Footer: what is loaded, in what order, and whether the walk is finished. The
-                    budget case must never read as "that's everything" — it means the server stopped
-                    looking for now, and asking again continues the search. */}
+                {/* Footer: what is loaded, in what order, and whether the walk is finished. While it
+                    is unfinished the line reports how much of the library has been checked, because
+                    the walk continues itself and the count is what shows it moving through windows
+                    that match nothing. It must never read as "that's everything", and it must never
+                    ask for a gesture: a handful of rows in a virtualized list leaves nothing to
+                    scroll. */}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-card px-3 py-2 text-xs text-muted">
                   <span>
                     {showTotal
@@ -589,9 +598,7 @@ export function DryRunModal({
                       ? searching
                         ? "Your whole library has been searched."
                         : "That is all of them."
-                      : budgetExhausted
-                        ? `The server paused after checking ${examined} items — scroll to keep searching.`
-                        : "Scroll for more."}
+                      : `Checked ${examined} items so far…`}
                   </span>
                   {rowsComplete ? null : (
                     <Button variant="ghost" onClick={loadMore} disabled={rowsLoading}>

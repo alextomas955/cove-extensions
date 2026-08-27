@@ -16,7 +16,6 @@ namespace Renamer.Tests.Execution.Undo;
 /// Every fixture is hand-written. There is no writer left to build one with, and that is the point:
 /// a fixture produced by the code under test agrees with it forever, whatever the real stored format is.
 /// </remarks>
-[Trait("Tier", "L0")]
 public sealed class RevertLogBatchTests
 {
     private static (RevertLog.LegacyBatch Batch, List<RevertLog.RevertEntry> Rows) Read(string blob)

@@ -8,7 +8,6 @@ namespace Renamer.Tests.Execution;
 /// a join, a separator that arrived in the other form, and a dot that is not an extension boundary.
 /// PURE — no disk.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class PathOpsTests
 {
     [Theory]

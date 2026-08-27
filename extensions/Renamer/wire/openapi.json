@@ -108,6 +108,16 @@
         "tags": [
           "Renamer"
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewSampleRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -396,12 +406,30 @@
   },
   "components": {
     "schemas": {
+      "CaseTransform": {
+        "enum": [
+          "none",
+          "lower",
+          "title"
+        ]
+      },
       "ConfirmLevel": {
         "enum": [
           "light",
           "standard",
           "heavy"
         ]
+      },
+      "Destination": {
+        "type": "object",
+        "properties": {
+          "root": {
+            "type": "string"
+          },
+          "template": {
+            "type": "string"
+          }
+        }
       },
       "ErrorCode": {
         "required": [
@@ -418,6 +446,31 @@
               "integer"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "ExcludeRule": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string"
+          },
+          "isRegex": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FieldReplaceRule": {
+        "type": "object",
+        "properties": {
+          "targetToken": {
+            "type": "string"
+          },
+          "find": {
+            "type": "string"
+          },
+          "replace": {
+            "type": "string"
           }
         }
       },
@@ -481,6 +534,70 @@
           }
         }
       },
+      "MultiValueOptions": {
+        "type": "object",
+        "properties": {
+          "separator": {
+            "type": "string"
+          },
+          "maxCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "onOverflow": {
+            "$ref": "#/components/schemas/OverflowPolicy"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortOrder"
+          },
+          "whitelistIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "blacklistIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "ignoreGenders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "genderOrder": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "OverflowPolicy": {
+        "enum": [
+          "dropAll",
+          "keepFirst"
+        ]
+      },
+      "PathDestinationRule": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string"
+          },
+          "dest": {
+            "$ref": "#/components/schemas/Destination"
+          },
+          "isRegex": {
+            "type": "boolean"
+          }
+        }
+      },
       "PreviewItemView": {
         "required": [
           "fileId",
@@ -492,6 +609,7 @@
           "reason",
           "suffixed",
           "sanitized",
+          "inFlightPathOverflow",
           "resolvedDestinationRoot",
           "matchedRule",
           "targetVolume"
@@ -529,6 +647,9 @@
           "sanitized": {
             "type": "boolean"
           },
+          "inFlightPathOverflow": {
+            "type": "boolean"
+          },
           "resolvedDestinationRoot": {
             "type": [
               "null",
@@ -558,6 +679,24 @@
           },
           "summary": {
             "$ref": "#/components/schemas/PreviewSummary"
+          }
+        }
+      },
+      "PreviewSampleRequest": {
+        "required": [
+          "options"
+        ],
+        "type": "object",
+        "properties": {
+          "options": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RenamerOptions"
+              }
+            ]
           }
         }
       },
@@ -606,7 +745,8 @@
           "crossVolumeBytes",
           "volumePairs",
           "confirmLevel",
-          "undoable"
+          "undoable",
+          "inFlightPathOverflowCount"
         ],
         "type": "object",
         "properties": {
@@ -637,6 +777,10 @@
           },
           "undoable": {
             "type": "boolean"
+          },
+          "inFlightPathOverflowCount": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -647,6 +791,181 @@
           "audio",
           "gallery"
         ]
+      },
+      "RenamerOptions": {
+        "type": "object",
+        "properties": {
+          "filenameTemplate": {
+            "type": "string"
+          },
+          "folderTemplate": {
+            "type": "string"
+          },
+          "folderRoot": {
+            "type": "string"
+          },
+          "dateFormat": {
+            "type": "string"
+          },
+          "durationFormat": {
+            "type": "string"
+          },
+          "performers": {
+            "$ref": "#/components/schemas/MultiValueOptions"
+          },
+          "tags": {
+            "$ref": "#/components/schemas/MultiValueOptions"
+          },
+          "illegalReplacement": {
+            "type": "string"
+          },
+          "spaceReplacement": {
+            "type": "string"
+          },
+          "case": {
+            "$ref": "#/components/schemas/CaseTransform"
+          },
+          "removeCharacters": {
+            "type": "string"
+          },
+          "filenameAsTitle": {
+            "type": "boolean"
+          },
+          "removeEmptyFolder": {
+            "type": "boolean"
+          },
+          "asciiTransliterate": {
+            "type": "boolean"
+          },
+          "normalizePunctuation": {
+            "type": "boolean"
+          },
+          "filenameMax": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fullPathMax": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dropOrder": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowedRoots": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "associatedExtensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "onlyOrganized": {
+            "type": "boolean"
+          },
+          "requiredFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "duplicateSuffixFormat": {
+            "type": "string"
+          },
+          "autoRenamerOnUpdate": {
+            "type": "boolean"
+          },
+          "squeezeStudioNames": {
+            "type": "boolean"
+          },
+          "fieldReplacers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldReplaceRule"
+            }
+          },
+          "stripLeadingArticles": {
+            "type": "boolean"
+          },
+          "articles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "preventTitlePerformer": {
+            "type": "boolean"
+          },
+          "preventConsecutiveSegments": {
+            "type": "boolean"
+          },
+          "studioDestinations": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Destination"
+            }
+          },
+          "tagDestinations": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Destination"
+            }
+          },
+          "pathDestinations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PathDestinationRule"
+            }
+          },
+          "excludeTagIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "excludeStudioIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "excludePaths": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExcludeRule"
+            }
+          },
+          "unorganizedDestination": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Destination"
+              }
+            ]
+          },
+          "freeSpaceHeadroomBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "crossVolumeConcurrency": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sameVolumeConcurrency": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
       },
       "RenamerRequest": {
         "required": [
@@ -729,7 +1048,8 @@
           "status",
           "reason",
           "suffixed",
-          "sanitized"
+          "sanitized",
+          "inFlightPathOverflow"
         ],
         "type": "object",
         "properties": {
@@ -763,6 +1083,9 @@
             "type": "boolean"
           },
           "sanitized": {
+            "type": "boolean"
+          },
+          "inFlightPathOverflow": {
             "type": "boolean"
           }
         }
@@ -926,6 +1249,14 @@
             }
           }
         }
+      },
+      "SortOrder": {
+        "enum": [
+          "nameAsc",
+          "none",
+          "idAsc",
+          "favoriteFirst"
+        ]
       },
       "UndoEntryError": {
         "required": [

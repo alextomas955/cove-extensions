@@ -39,7 +39,6 @@ internal static class TagFixtures
 /// within-category list order, direct-outranks-ancestor, route-on-stable-id for both studio and
 /// tag, source-path exact-beats-regex, and the unorganized slot.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class DestinationResolverPrecedenceTests
 {
     // --- builders -------------------------------------------------------------------------------
@@ -174,7 +173,6 @@ public sealed class DestinationResolverPrecedenceTests
 }
 
 /// <summary>Route-on-stable-id: the studio NAME never affects the match.</summary>
-[Trait("Tier", "L0")]
 public sealed class DestinationResolverRouteOnStableStudioIdTests
 {
     [Fact]
@@ -201,7 +199,6 @@ public sealed class DestinationResolverRouteOnStableStudioIdTests
 }
 
 /// <summary>Tag routing keys on the stable tag id, never on the name the tag currently carries.</summary>
-[Trait("Tier", "L0")]
 public sealed class DestinationResolverTagRoutingTests
 {
     [Fact]
@@ -220,10 +217,26 @@ public sealed class DestinationResolverTagRoutingTests
         Assert.Equal(RouteCategory.Tag, r.Category);
         Assert.Equal("T:anime", r.Destination?.Root);
     }
+
+    [Fact]
+    public void AnEntityWithNoTags_NeverMatchesATagRule()
+    {
+        var lk = new RouteLookups(
+            new Dictionary<int, Destination>(),
+            new Dictionary<int, Destination> { [7] = new Destination { Root = "T:anime" } },
+            new Dictionary<string, Destination>(StringComparer.Ordinal), []);
+
+        var e = new RenamerEntity(1, RenamerFileKind.Video, "T", null, null, null, true,
+            [], [], [new RenamerFile(1, RenamerFileKind.Video, "a.mkv", 1, "x")]);
+
+        var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
+
+        Assert.Equal(RouteCategory.Unmatched, r.Category);
+        Assert.Null(r.Destination);
+    }
 }
 
 /// <summary>Source-path routing: exact beats regex; a regex-only match still routes.</summary>
-[Trait("Tier", "L0")]
 public sealed class DestinationResolverSourcePathRoutingTests
 {
     private static RenamerEntity AtPath(string path)
@@ -280,7 +293,6 @@ public sealed class DestinationResolverSourcePathRoutingTests
 /// compiles fine then exhibits catastrophic backtracking throws RegexMatchTimeoutException at IsMatch
 /// time, which the resolver now catches and falls through.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class DestinationResolverRegexTimeoutTests
 {
     private static RenamerEntity AtPath(string path)
@@ -337,7 +349,6 @@ public sealed class DestinationResolverRegexTimeoutTests
 }
 
 /// <summary>Unorganized items route to the unorganized destination, not skipped.</summary>
-[Trait("Tier", "L0")]
 public sealed class DestinationResolverUnorganizedRouteTests
 {
     [Fact]
@@ -377,7 +388,6 @@ public sealed class DestinationResolverUnorganizedRouteTests
 /// <see cref="RouteCategory.Unmatched"/> and the planner reads the default destination from the
 /// options, so the two never join two folder expressions.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class DestinationResolverUnmatchedTests
 {
     private static RenamerEntity Unmatched()
@@ -409,7 +419,6 @@ public sealed class DestinationResolverUnmatchedTests
 /// match-time ReDoS timeout on an exclude regex is treated as no-match (classify-not-throw), never
 /// aborting resolution. PURE — no DB, no disk.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class DestinationResolverExcludeTests
 {
     private static RenamerEntity Entity(
@@ -469,6 +478,26 @@ public sealed class DestinationResolverExcludeTests
         var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
 
         Assert.Equal(RouteCategory.Excluded, r.Category);
+    }
+
+    [Fact]
+    public void ExcludeByTag_SurvivesARename_AndTheReasonShowsTheNewName()
+    {
+        // The id is written out rather than derived from the name, because the name is what varies:
+        // a rule stored against tag 11 keeps excluding after the tag is renamed. The reason string
+        // reads the entity, so it follows the rename instead of degrading to the bare id.
+        var e = new RenamerEntity(
+            EntityId: 1, Kind: RenamerFileKind.Video, Title: "T", Code: null,
+            StudioName: null, Date: null, Organized: true,
+            Performers: [], TagRefs: [(11, "Japanese Animation")],
+            Files: [new RenamerFile(1, RenamerFileKind.Video, "clip.mkv", 1, "media/in")]);
+        var lk = Lookups(excludeTags: new HashSet<int> { 11 });
+
+        var r = DestinationResolver.Resolve(e, new RenamerOptions(), lk);
+
+        Assert.Equal(RouteCategory.Excluded, r.Category);
+        Assert.Equal("Exclude:Tag:Japanese Animation", r.MatchedRule);
+        Assert.Null(r.Destination);
     }
 
     // --- EXCL-02: studio (direct + ancestor, stable id) -----------------------------------------

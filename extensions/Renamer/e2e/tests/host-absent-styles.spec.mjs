@@ -146,7 +146,9 @@ test("host account page is unaffected by the extension (no CSS leak)", async ({
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`${baseUrl}/settings/my/account`);
   const logout = page.getByRole("button", { name: /log ?out/i }).first();
-  await expect(logout).toBeVisible({ timeout: 15_000 });
+  // The `page` fixture warms the app ROOT, not this route, so this navigation is the one that pays
+  // for its chunk. Same budget the other first-visit waits carry.
+  await expect(logout).toBeVisible({ timeout: 45_000 });
   const rowFlexDir = await logout.evaluate((btn) => {
     const row = btn.parentElement;
     return row ? getComputedStyle(row).flexDirection : "no-row";

@@ -3,7 +3,6 @@ using Renamer.Options;
 
 namespace Renamer.Tests.Options;
 
-[Trait("Tier", "L0")]
 public sealed class RenamerOptionsJsonTests
 {
     [Fact]
@@ -152,6 +151,27 @@ public sealed class RenamerOptionsJsonTests
             var reloaded = JsonSerializer.Deserialize<RenamerOptions>(json, RenamerOptions.JsonOptions);
             Assert.Equal(sort, reloaded!.Performers.Sort);
         }
+    }
+
+    [Fact]
+    public void PersistedEnums_KeepTheMemberNameSpelling_NotTheWireSpelling()
+    {
+        // The enum TYPES carry [JsonConverter(typeof(CamelCaseStringEnumConverter))] so the wire document
+        // describes them as camelCase. RenamerOptions.JsonOptions declares a converter of its own at the
+        // OPTIONS level, which outranks a type attribute, so the persisted blob keeps the member name.
+        // Asserted as literal text because a round-trip is symmetric: it agrees with itself whichever
+        // spelling is written, and a flipped spelling would silently rewrite every saved setting.
+        var options = new RenamerOptions
+        {
+            Case = CaseTransform.Title,
+            Performers = new MultiValueOptions { OnOverflow = OverflowPolicy.KeepFirst, Sort = SortOrder.FavoriteFirst },
+        };
+
+        var json = JsonSerializer.Serialize(options, RenamerOptions.JsonOptions);
+
+        Assert.Contains(@"""Case"":""Title""", json, StringComparison.Ordinal);
+        Assert.Contains(@"""OnOverflow"":""KeepFirst""", json, StringComparison.Ordinal);
+        Assert.Contains(@"""Sort"":""FavoriteFirst""", json, StringComparison.Ordinal);
     }
 
     [Fact]
