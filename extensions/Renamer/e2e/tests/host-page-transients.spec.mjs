@@ -1,5 +1,6 @@
-// The panel's tolerance for a slow response on its critical path, asserted deterministically rather
-// than left to whether a CI runner happens to be loaded.
+// What the page objects survive on the way to a page the host serves, asserted deterministically
+// rather than left to whether a CI runner happens to be loaded. Both failures below have cost a red
+// run, and neither is a defect in the extension: the host was slow, or its own chunk fetch failed.
 //
 // Two requests stand between a navigation and a rendered panel: the extension bundle the host serves,
 // and the settings blob the panel reads once that bundle has mounted. A slow answer to either leaves
@@ -9,6 +10,7 @@
 // produced was reported as an unrelated spec failing at random.
 import { test, expect } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
+import { VideosPage } from "@cove-extensions/e2e/pages/videos-page";
 
 // Chosen against the failure, not against the constant: a budget this stall does not clear is one a
 // loaded runner can also exhaust. It stays well under the visit budget so the assertion is about
@@ -46,3 +48,29 @@ for (const { what, glob } of CRITICAL_PATH) {
     await expect(settingsPage.filenameTemplateInput).toBeVisible();
   });
 }
+
+// The other half of the same host behaviour, on the other page an extension's specs drive. A rejected
+// chunk import leaves the host painting an error on the correct URL for good, so the grid never
+// renders and no card locator resolves - which reads as the extension failing to rename anything and
+// spends the whole per-test budget getting there. Aborting once is enough: the recovery is a fresh
+// navigation, and what needs proving is that one happens at all.
+test("the videos grid recovers when the host fails to fetch its own page chunk", async ({
+  page,
+  baseUrl,
+}) => {
+  let aborted = 0;
+  await page.route("**/assets/VideosPage-*.js", async (route) => {
+    if (aborted === 0) {
+      aborted += 1;
+      await route.abort("failed");
+      return;
+    }
+    await route.continue();
+  });
+
+  const videosPage = new VideosPage(page, baseUrl);
+  await videosPage.goto();
+
+  expect(aborted, "the chunk fetch was never aborted, so no recovery was exercised").toBe(1);
+  await expect(page.getByText(/Failed to fetch dynamically imported module/)).toHaveCount(0);
+});

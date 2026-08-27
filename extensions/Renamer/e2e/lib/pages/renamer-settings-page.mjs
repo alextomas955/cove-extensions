@@ -10,7 +10,7 @@ const SETTINGS_PATH = "/settings/renamer";
 // It has to cover a slow response on the panel's critical path - the extension bundle the host serves,
 // and the settings blob the panel reads - on a cold container under a loaded CI runner. Neither is
 // broken when it is slow, and neither raises any of the signals below, so waiting is the only
-// instrument that helps. `panel-slow-response.spec.mjs` pins how slow a response this survives.
+// instrument that helps. `host-page-transients.spec.mjs` pins how slow a response this survives.
 const PANEL_VISIT_BUDGET_MS = 120_000;
 
 // How many times the host may answer with a recoverable signal before the page is called unreachable.
