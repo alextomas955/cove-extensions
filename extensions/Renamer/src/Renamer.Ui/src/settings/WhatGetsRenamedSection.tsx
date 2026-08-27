@@ -15,17 +15,13 @@ export interface WhatGetsRenamedSectionProps {
 
 export function WhatGetsRenamedSection({ options, set }: WhatGetsRenamedSectionProps) {
   return (
-    <SectionCard
-      title="What gets renamed"
-      description="Which items are eligible, and the fields they must have."
-    >
+    <SectionCard title="What gets renamed">
       <Toggle
         label="Only rename organized items"
         checked={options.OnlyOrganized}
         onChange={(v) => {
           set("OnlyOrganized", v);
         }}
-        helper="Only touches items you've marked Organized — un-curated files are skipped."
       />
       <Toggle
         label="Use filename as title when none is set"
@@ -33,11 +29,11 @@ export function WhatGetsRenamedSection({ options, set }: WhatGetsRenamedSectionP
         onChange={(v) => {
           set("FilenameAsTitle", v);
         }}
-        helper="When an item has no title, use its current filename (without extension) as the title — and save it on the item, so later renames read the stored title."
+        helper="The filename without its extension, saved onto the item so later renames read the stored title."
       />
       <Field
         label="Required fields"
-        helper="Items whose listed tokens resolve to nothing are skipped instead of renamed. Default: title."
+        helper="An item whose listed tokens resolve to nothing is skipped."
       >
         <TagListInput
           values={options.RequiredFields}

@@ -991,6 +991,9 @@ export function ObjectArrayEditor<T>({
  * silently overwriting the existing value (a silent overwrite would lose the prior mapping). The
  * pending key/value are local draft state; only a successful add commits them through `onChange`.
  * Keys render as React text nodes (auto-escaped).
+ *
+ * The key column is capped: a key is one short label, while a value cell can hold a whole row of
+ * controls.
  */
 export function KeyValueMapEditor<TValue>({
   map,
@@ -1060,7 +1063,7 @@ export function KeyValueMapEditor<TValue>({
           key={key}
           className="flex items-center gap-2 rounded-xl border border-border bg-card p-3"
         >
-          <span className="min-w-0 flex-1 truncate font-mono text-sm text-foreground">
+          <span className="min-w-0 max-w-xs flex-1 truncate font-mono text-sm text-foreground">
             {renderKeyLabel?.(key) ?? key}
           </span>
           <span className="flex-1">
@@ -1081,12 +1084,15 @@ export function KeyValueMapEditor<TValue>({
         </div>
       ))}
       <div className="flex items-start gap-2 rounded-xl border border-border bg-card p-3">
-        <span className="min-w-0 flex-1">{renderKey(draftKey, setDraftKey, keys)}</span>
+        <span className="min-w-0 max-w-xs flex-1">{renderKey(draftKey, setDraftKey, keys)}</span>
         <span className="min-w-0 flex-1">{renderValue(pendingValue, setDraftValue)}</span>
-        <Button onClick={add} disabled={draftKey.trim().length === 0 || duplicate}>
-          {addLabel}
-        </Button>
+        {/* Stands in for a committed row's remove button, so the add row's controls sit in the same
+            columns as the rows above. */}
+        <span className="w-4 shrink-0" />
       </div>
+      <Button onClick={add} disabled={draftKey.trim().length === 0 || duplicate}>
+        {addLabel}
+      </Button>
       {duplicate ? <StatusText kind="error">That key already has a value.</StatusText> : null}
     </div>
   );
@@ -1280,7 +1286,9 @@ export function SectionCard({
   headerRight?: ReactNode;
   children: ReactNode;
 }) {
-  const hasHeader = Boolean(title) || badge != null || headerRight != null;
+  // A description with no title is a card whose section header already names it, so the header block
+  // has to render for that line alone.
+  const hasHeader = Boolean(title) || Boolean(description) || badge != null || headerRight != null;
   return (
     <section
       className="rounded-2xl border border-border bg-surface p-5"
@@ -1302,32 +1310,6 @@ export function SectionCard({
       ) : null}
       <div className="space-y-4">{children}</div>
     </section>
-  );
-}
-
-/**
- * A titled sub-section INSIDE a {@link SectionCard}: a title-case bold heading with an optional
- * one-line description, then its controls. Groups related fields within one card (e.g. "Filename"
- * and "Where files go" under a single card) without nesting another bordered card — the pattern
- * Cove core uses for sub-groups within a settings section. Presentational.
- */
-export function Subsection({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="space-y-4">
-      <div>
-        <h4 className="text-sm font-semibold text-foreground">{title}</h4>
-        {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
-      </div>
-      {children}
-    </div>
   );
 }
 

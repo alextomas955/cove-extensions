@@ -26,14 +26,14 @@ The **filename template** decides what each file is named. It is made of plain t
 that Cove fills in from each item's metadata — for example `$title` becomes the item's title and
 `$resolution` becomes `1080p`.
 
-1. In the **Filename & folder** section, either pick a **preset** chip (for example
+1. In the **Filename** section, either pick a **preset** chip (for example
    _Date – Title [Resolution]_) or type your own template.
 2. Watch the **live preview** below the field — it shows the new name for a few sample items and
    updates as you type. Nothing is renamed yet.
-3. To move files into folders as well as rename them, fill in the **folder template** (for example
-   `$studio/$year`). Leave it blank to rename each file in place. The folders are made under the
-   library path shown in **Under**, which defaults to whichever of Cove's library paths already
-   holds the file.
+3. To move files into folders as well as rename them, fill in the **folder template** in the
+   **Where files go** section (for example `$studio/$year`). Leave it blank to rename each file in
+   place. The folders are made under the library path shown in **Under**, which defaults to
+   whichever of Cove's library paths already holds the file.
 
 If a token might be empty for some items, wrap it in a `{ … }` group so its surrounding punctuation
 disappears when the value is missing — `$title{ [$resolution]}` produces `My Movie [1080p]` when
@@ -180,7 +180,7 @@ re-run is how you change your mind about a template. Before the first run on a s
   `$studio/$year`. To put them under a different library path, pick it in **Under** beside the
   template.
 - **Route certain studios or tags to specific drives** — use _Per-studio destinations_ or
-  _Per-tag destinations_ (Destination routing).
+  _Per-tag destinations_ (Routing).
 - **Skip certain items entirely** — add exclude rules by tag, studio, or path (Advanced → Excludes).
 
 Every one of these is documented field-by-field in the [Settings reference](./settings).

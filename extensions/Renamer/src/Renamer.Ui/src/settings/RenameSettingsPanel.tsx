@@ -9,10 +9,14 @@
  * TokenSettingsSection, DestinationRoutingSection, AdvancedSection) plus the DryRunModal, UndoSection,
  * and the fixed save bar. It owns only cross-section glue: the template-input refs used for at-caret
  * token insertion, and the empty-sample advisory derived from the live preview.
+ *
+ * The cards are grouped under five {@link SectionGroupHeader}s — Filename & folder, Scope & run,
+ * Token settings, Routing, Advanced. A group holding one card leaves that card's own title off, so
+ * the header is the only place its name appears. Undo sits outside the groups, at the bottom.
  */
 import { useRef } from "react";
 
-import { Button, StatusText, Spinner } from "@cove-extensions/ui-shared";
+import { Button, SectionGroupHeader, StatusText, Spinner } from "@cove-extensions/ui-shared";
 import { UndoSection } from "./UndoSection";
 import { DryRunModal } from "./dry-run/DryRunModal";
 import { FilenameSection } from "./FilenameSection";
@@ -78,7 +82,7 @@ function SaveBar({
             <>
               <div className="text-sm font-semibold text-foreground">Unsaved changes</div>
               <div className="mt-0.5 text-xs text-secondary">
-                Nothing on disk changes until you save. Running a rename requires saving first.
+                Nothing on disk changes until you save.
               </div>
             </>
           )}
@@ -192,41 +196,46 @@ export function RenamePanelBody() {
   // pb-20 (5rem bottom clearance for the sticky save bar) is host-absent — inline it.
   return (
     <div className="space-y-6" style={dirty ? { paddingBottom: "5rem" } : undefined}>
-      {/* Two-pane shell, narrowed to the Filename & destination card only: the panel (2/3 via
-        col-span-2) + the live preview (1/3) sticky on lg+. The other 5 panels render as full-width
-        siblings below this grid, so the preview's sticky containing block is that first card's own
-        height, not the whole page. Standard grid-cols-3 + col-span-2 only — the host Tailwind never
-        compiles arbitrary [..] values for this bundle (verified live). */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <FilenameSection
-          library={library}
-          options={options}
-          set={set}
-          insertToken={insertToken}
-          filenameRef={filenameRef}
-          folderRef={folderRef}
-          activeTemplateRef={activeTemplateRef}
-          emptySamples={emptySamples}
-          recoveredFromBadBlob={recoveredFromBadBlob}
-          pendingNameMigration={pendingNameMigration}
-          pendingDestinationMigration={pendingDestinationMigration}
-        />
-        <LivePreviewPane preview={preview} previewError={previewError} />
+      <div className="space-y-4">
+        <SectionGroupHeader title="Filename & folder" />
+        {/* Two-pane shell, narrowed to the two naming cards: they take 2/3 via col-span-2, the live
+          preview 1/3, sticky on lg+. Every other panel renders as a full-width sibling below this
+          grid, so the preview's sticky containing block is that column's height, not the whole page.
+          Standard grid-cols-3 + col-span-2 only — the host Tailwind never compiles arbitrary [..]
+          values for this bundle (verified live). */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <FilenameSection
+            library={library}
+            options={options}
+            set={set}
+            insertToken={insertToken}
+            filenameRef={filenameRef}
+            folderRef={folderRef}
+            activeTemplateRef={activeTemplateRef}
+            emptySamples={emptySamples}
+            recoveredFromBadBlob={recoveredFromBadBlob}
+            pendingNameMigration={pendingNameMigration}
+            pendingDestinationMigration={pendingDestinationMigration}
+          />
+          <LivePreviewPane preview={preview} previewError={previewError} />
+        </div>
       </div>
 
-      <WhatGetsRenamedSection options={options} set={set} />
-
-      <RunAutomationSection
-        options={options}
-        set={set}
-        dirty={dirty}
-        renamingLibrary={renamingLibrary}
-        runLibraryFeedback={runLibraryFeedback}
-        onDryRun={() => {
-          setDryRunOpen(true);
-        }}
-        onRenameAll={() => void renameLibrary()}
-      />
+      <div className="space-y-4">
+        <SectionGroupHeader title="Scope & run" />
+        <WhatGetsRenamedSection options={options} set={set} />
+        <RunAutomationSection
+          options={options}
+          set={set}
+          dirty={dirty}
+          renamingLibrary={renamingLibrary}
+          runLibraryFeedback={runLibraryFeedback}
+          onDryRun={() => {
+            setDryRunOpen(true);
+          }}
+          onRenameAll={() => void renameLibrary()}
+        />
+      </div>
 
       {dryRunOpen ? (
         <DryRunModal
@@ -240,16 +249,25 @@ export function RenamePanelBody() {
         />
       ) : null}
 
-      <TokenSettingsSection
-        options={options}
-        set={set}
-        setMulti={setMulti}
-        insertToken={insertToken}
-      />
+      <div className="space-y-4">
+        <SectionGroupHeader title="Token settings" />
+        <TokenSettingsSection
+          options={options}
+          set={set}
+          setMulti={setMulti}
+          insertToken={insertToken}
+        />
+      </div>
 
-      <DestinationRoutingSection options={options} set={set} library={library} />
+      <div className="space-y-4">
+        <SectionGroupHeader title="Routing" />
+        <DestinationRoutingSection options={options} set={set} library={library} />
+      </div>
 
-      <AdvancedSection options={options} set={set} />
+      <div className="space-y-4">
+        <SectionGroupHeader title="Advanced" />
+        <AdvancedSection options={options} set={set} />
+      </div>
 
       {/* ── UNDO — the action surface, distinct from configuration, at the bottom. ── */}
       <div id="rename-undo-section">

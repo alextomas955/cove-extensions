@@ -1,7 +1,9 @@
 /**
- * AdvancedSection — the "Advanced" card (all collapsed by default): name cleanup (illegal/space
- * handling, case, ASCII), length & collisions, cross-drive concurrency, the pre-routing excludes,
- * and field rewriting & name shaping. Presentational — every field flows up through `set`.
+ * AdvancedSection — the "Advanced" section's panels, all collapsed by default: name cleanup
+ * (illegal/space handling, case, ASCII), length & collisions, cross-drive concurrency, the
+ * pre-routing excludes, and field rewriting & name shaping. Sits directly under the section header
+ * rather than inside a card of its own, so the header is what names the group. Presentational —
+ * every field flows up through `set`.
  */
 import {
   type RenamerOptions,
@@ -18,7 +20,6 @@ import {
   TagListInput,
   CollapsibleSection,
   GroupCard,
-  SectionCard,
   ObjectArrayEditor,
   RegexValidity,
   SegmentedReplace,
@@ -74,7 +75,7 @@ export interface AdvancedSectionProps {
 
 export function AdvancedSection({ options, set }: AdvancedSectionProps) {
   return (
-    <SectionCard title="Advanced" description="Power-user controls — collapsed by default.">
+    <div className="space-y-4">
       <CollapsibleSection
         title="Clean up the name"
         summary="Illegal-character and space handling, case, ASCII"
@@ -108,7 +109,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           </Field>
           <Field
             label="Remove characters"
-            helper="Characters to delete from the name, e.g. ,# — separate from illegal-character handling."
+            helper="Deleted before illegal-character handling, e.g. ,#"
           >
             <TextInput
               value={options.RemoveCharacters}
@@ -226,7 +227,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           </Field>
           <Field
             label="Same-volume concurrency"
-            helper="How many same-drive renames to run at once (these are instant; the default is fine)."
+            helper="Same-drive renames are instant; the default is fine."
           >
             <NumberInput
               value={options.SameVolumeConcurrency}
@@ -248,10 +249,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
         title="Excludes"
         summary="Skip items by tag, studio, or source path — evaluated before any routing"
       >
-        <GroupCard
-          title="Exclude by tag"
-          description="An item carrying any of these tags is skipped — never renamed, never moved. Evaluated before any routing rule."
-        >
+        <GroupCard title="Exclude by tag">
           <EntitySelectField
             entityType="tag"
             label="Tags"
@@ -263,10 +261,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           />
         </GroupCard>
 
-        <GroupCard
-          title="Exclude by studio"
-          description="An item under any of these studios — or under a child of one — is skipped entirely. Evaluated before any routing rule."
-        >
+        <GroupCard title="Exclude by studio" description="A child studio counts too.">
           <EntitySelectField
             entityType="studio"
             label="Studios"
@@ -278,10 +273,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           />
         </GroupCard>
 
-        <GroupCard
-          title="Exclude by source path"
-          description="An item whose source path matches a rule is skipped entirely. Evaluated before any routing rule. An exact match or a regex."
-        >
+        <GroupCard title="Exclude by source path" description="An exact match or a regex.">
           <ObjectArrayEditor<ExcludeRule>
             rows={options.ExcludePaths}
             onChange={(rows) => {
@@ -325,7 +317,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
       >
         <GroupCard
           title="Per-token replacements"
-          description="A literal find/replace on a single token's value, before the name is shaped. The target is a canonical token name (e.g. studio, title), matched case-insensitively."
+          description="A literal find/replace on one token's value, before the name is shaped."
         >
           <ObjectArrayEditor<FieldReplaceRule>
             rows={options.FieldReplacers}
@@ -386,7 +378,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
             onChange={(v) => {
               set("StripLeadingArticles", v);
             }}
-            helper="Removes one leading article from the title (case-insensitive). A mid-title article, or a word merely starting with one, is left alone."
+            helper="Case-insensitive, and only a whole word at the start."
           />
           <Field label="Articles">
             <TagListInput
@@ -405,7 +397,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           onChange={(v) => {
             set("SqueezeStudioNames", v);
           }}
-          helper="Removes all spaces from the studio value so one studio renders to one stable folder name."
+          helper="So one studio renders to one stable folder name."
         />
         <Toggle
           label="Drop a performer already in the title"
@@ -413,7 +405,7 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           onChange={(v) => {
             set("PreventTitlePerformer", v);
           }}
-          helper="Drops a performer whose name already appears as a whole word in the title."
+          helper="Only when the whole name appears in the title."
         />
         <Toggle
           label="Collapse repeated folder segments"
@@ -421,9 +413,9 @@ export function AdvancedSection({ options, set }: AdvancedSectionProps) {
           onChange={(v) => {
             set("PreventConsecutiveSegments", v);
           }}
-          helper="Collapses consecutive duplicate folder path segments to one — affects the folder path, not the filename."
+          helper="Affects the folder path, not the filename."
         />
       </CollapsibleSection>
-    </SectionCard>
+    </div>
   );
 }

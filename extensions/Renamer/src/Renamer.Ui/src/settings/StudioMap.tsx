@@ -87,7 +87,7 @@ function StudioKeyCell({
   return (
     <EntitySelectField
       entityType="studio"
-      label=""
+      label="Studio"
       values={current}
       onChange={(values) => {
         const latest = values.at(-1);

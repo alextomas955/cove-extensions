@@ -30,12 +30,12 @@ export class RenamerSettingsPage {
     this.baseUrl = baseUrl;
     this.panelUrl = `${baseUrl}${SETTINGS_PATH}`;
     this.filenameTemplateInput = page.getByRole("textbox", { name: "Filename template" });
-    // Scoped to the default destination's own subsection: every destination on the panel draws a
-    // folder-template input, so the page-wide name is not unique once any rule exists. The class is
-    // the Subsection primitive's own container, which is the only structural handle it offers; a
-    // change there fails this locator loudly rather than silently matching the wrong input.
+    // Scoped to the default destination's own card: every destination on the panel draws a
+    // folder-template input, so the page-wide name is not unique once any rule exists. SectionCard
+    // renders a <section>, which is the structural handle that scopes this; a change there fails
+    // this locator loudly rather than silently matching the wrong input.
     this.folderTemplateInput = page
-      .locator("div.space-y-4")
+      .locator("section")
       .filter({ has: page.getByRole("heading", { name: "Where files go" }) })
       .getByRole("textbox", { name: "Folder template" });
     this.saveChangesButton = page.getByRole("button", { name: "Save changes" });
