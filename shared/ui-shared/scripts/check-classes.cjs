@@ -68,7 +68,20 @@ const FORBIDDEN = [
   "bg-red-950/40",
   "bg-green-500/10",
   "border-green-500/40",
+  "bg-red-400",
 ];
+
+// A class name continues through these, so an entry is only a hit when the text does NOT continue past
+// it: `bg-red-400/80` is a DIFFERENT class from `bg-red-400`, and Cove ships that one.
+const CLASS_CHAR = /[A-Za-z0-9/_-]/;
+
+function usesClass(text, cls) {
+  for (let i = text.indexOf(cls); i !== -1; i = text.indexOf(cls, i + 1)) {
+    if (CLASS_CHAR.test(text[i + cls.length] ?? "")) continue;
+    return true;
+  }
+  return false;
+}
 
 // The raw-HTML React prop — banned as actual JSX usage (`dangerouslySetInnerHTML=` or `:`), but NOT when
 // it merely appears in a comment/doc string (e.g. "NO dangerouslySetInnerHTML"). Render escaped only.
@@ -99,7 +112,7 @@ for (const full of PANEL_FILES) {
   const file = path.relative(SRC_DIR, full);
   const text = fs.readFileSync(full, "utf8");
   for (const bad of FORBIDDEN) {
-    if (text.includes(bad)) {
+    if (usesClass(text, bad)) {
       console.error(`FORBIDDEN "${bad}" found in src/${file}`);
       failed = true;
     }
