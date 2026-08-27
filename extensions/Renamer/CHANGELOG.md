@@ -10,6 +10,15 @@ Nothing here is a feature you lose. The floor rose because Renamer now relies on
 entity events for bulk mutations; without those, editing several items at once renames one of them
 and says nothing about the rest.
 
+- **A rename no longer lengthens the filename every time it runs.** With _Use filename as title when
+  none is set_ on, an item with no title borrowed one from its own filename — the name the previous
+  run wrote — so any template holding more than `$title` added its decorations again on each pass:
+  `raw clip.mkv` became `2021-03-14 - raw clip [4k].mkv`, then
+  `2021-03-14 - 2021-03-14 - raw clip [4k].mkv`, and on until the path was too long to write. The
+  derived title is now saved onto the item in the same save as the rename, so a second run finds a real
+  title and changes nothing. A title you typed yourself is never overwritten, and nothing is written
+  when the setting is off. With _Auto-rename on update_ also on, an item holding more than one file
+  could keep re-triggering itself after a single edit; that stops too.
 - **The duration format setting now works.** `$duration` renders through whatever you pick under Token
   settings, so a template using it produces the name the live preview showed. Before, the setting was
   offered and ignored: every file got its duration as a raw number of seconds whichever format was

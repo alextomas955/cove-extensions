@@ -73,10 +73,10 @@ with no value is simply omitted.
 
 ### Core
 
-| Token    | Produces                                                                                                                       | Example      |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------ |
-| `$title` | The item's title. If the item has no title and _Use filename as title_ is on, the file's current basename (without extension). | `The Matrix` |
-| `$ext`   | The file extension (added automatically at the end; include it explicitly only for unusual placements).                        | `mp4`        |
+| Token    | Produces                                                                                                                                                                 | Example      |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------ |
+| `$title` | The item's title. If the item has no title and _Use filename as title_ is on, the item's first filename (without extension), which is then recorded as the item's title. | `The Matrix` |
+| `$ext`   | The file extension (added automatically at the end; include it explicitly only for unusual placements).                                                                  | `mp4`        |
 
 ### Titles, studios, people
 

@@ -160,6 +160,12 @@ public enum RenamerStatus
 /// <param name="ResolvedDestinationRoot">The routed destination-root template the <c>DestinationResolver</c> produced; <c>null</c> for a source-confine / legacy in-place item. Present only on a routed Renamer/Move item.</param>
 /// <param name="MatchedRule">The resolver's matched-rule label (e.g. <c>"Studio:42(direct)"</c>, <c>"Tag:anime"</c>, <c>"InPlace"</c>) for preview/log. Defaults <c>""</c> on skip/no-op.</param>
 /// <param name="TargetVolume">The destination volume (<see cref="Path.GetPathRoot(string)"/> of the resolved absolute target), set only on the final Renamer/Move item; consumed by the free-space sum and the cross-drive preview flag. Defaults <c>""</c>.</param>
+/// <param name="DerivedTitle">
+/// The filename-derived title the executor records on the entity in the same save as this rename, or
+/// <c>null</c> when the item keeps a stored title, the fallback is off, or the item does not act. Set
+/// only on a final Renamer/Move item, because a plan that changes nothing must write nothing. See
+/// <c>MetadataProjector.DerivedTitle</c>.
+/// </param>
 public sealed record RenamerPlanItem(
     int FileId,
     string OldFullPath,
@@ -172,7 +178,8 @@ public sealed record RenamerPlanItem(
     bool Sanitized = false,
     string? ResolvedDestinationRoot = null,
     string MatchedRule = "",
-    string TargetVolume = "");
+    string TargetVolume = "",
+    string? DerivedTitle = null);
 
 /// <summary>
 /// The dry-run output of <c>RenamerPlanner.PlanAsync</c>: one <see cref="RenamerPlanItem"/> per

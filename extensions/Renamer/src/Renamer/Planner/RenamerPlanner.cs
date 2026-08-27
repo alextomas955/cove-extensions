@@ -128,6 +128,11 @@ public sealed class RenamerPlanner
             return new RenamerPlan(entity.EntityId, entity.Kind, gated);
         }
 
+        // Derived ONCE per entity, like the route above: the title is an entity-level scalar, and every
+        // file of the item must plan against the one value the executor will record. See
+        // MetadataProjector.DerivedTitle.
+        string? derivedTitle = MetadataProjector.DerivedTitle(entity, options);
+
         // ONE lookup, ONE destination. The route above answered where this item goes, and its answer
         // is a whole destination: a root chosen from Cove's library paths plus a relative template. A
         // matched rule's destination REPLACES the default, and an item no rule matched takes the
@@ -162,7 +167,7 @@ public sealed class RenamerPlanner
         foreach (var file in entity.Files)         // process every file, never just the first.
         {
             ct.ThrowIfCancellationRequested();
-            items.Add(await PlanFileAsync(entity, file, effective, route, destination, ct));
+            items.Add(await PlanFileAsync(entity, file, effective, route, destination, derivedTitle, ct));
         }
 
         return new RenamerPlan(entity.EntityId, entity.Kind, items);
@@ -227,7 +232,7 @@ public sealed class RenamerPlanner
     /// <summary>Classifies a single file: render → anchor → confine → collision → status.</summary>
     private async Task<RenamerPlanItem> PlanFileAsync(
         RenamerEntity entity, RenamerFile file, RenamerOptions options, RouteResult route,
-        Destination destination, CancellationToken ct)
+        Destination destination, string? derivedTitle, CancellationToken ct)
     {
         string oldFullPath = JoinPath(file.ParentFolderPath, file.Basename);
 
@@ -367,7 +372,7 @@ public sealed class RenamerPlanner
             file.FileId, oldFullPath, newFullPath,
             isMove ? RenamerStatus.Move : RenamerStatus.Renamer,
             candidate, relTargetFolder, null, suffixed, sanitized,
-            resolvedRoot, route.MatchedRule, targetVolume);
+            resolvedRoot, route.MatchedRule, targetVolume, derivedTitle);
     }
 
     /// <summary>Builds a skip/gated item that keeps the file at its current path (no mutation).</summary>

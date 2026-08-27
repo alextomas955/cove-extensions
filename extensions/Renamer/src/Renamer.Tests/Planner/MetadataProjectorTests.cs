@@ -324,8 +324,8 @@ public sealed class MetadataProjectorTests
     [Fact]
     public void Title_FilenameDerived_IsStableAcrossReRender()
     {
-        // The fallback derives from the CURRENT source basename and never re-applies the template's
-        // own decorations, so feeding a just-rendered name back as the basename yields the same title.
+        // The derivation reads the ENTITY's first file, not the file being projected, so feeding a
+        // just-rendered name back in as the projected basename yields the same title.
         var firstFile = VideoFileRow() with { Basename = "My Clip.mkv" };
         var entity = VideoEntity(firstFile) with { Title = null };
         var options = new RenamerOptions { FilenameTemplate = "$title", FilenameAsTitle = true };

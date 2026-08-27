@@ -33,7 +33,7 @@ export function WhatGetsRenamedSection({ options, set }: WhatGetsRenamedSectionP
         onChange={(v) => {
           set("FilenameAsTitle", v);
         }}
-        helper="When an item has no title, use its current filename (without extension) as the title."
+        helper="When an item has no title, use its current filename (without extension) as the title — and save it on the item, so later renames read the stored title."
       />
       <Field
         label="Required fields"
