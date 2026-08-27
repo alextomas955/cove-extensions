@@ -1,14 +1,22 @@
 // Page Object for the Renamer settings panel at /settings/renamer.
 const SETTINGS_PATH = "/settings/renamer";
 
-// The budget for ONE navigation's wait, not for the whole visit. It has to cover a cold container on
-// a loaded CI runner and still leave the rest of a spec's work inside the per-test timeout.
-const PANEL_READY_TIMEOUT_MS = 30_000;
+// The budget for the WHOLE visit, however many navigations it takes.
+//
+// One clock rather than a fresh one per navigation, because what has to hold is that this file's own
+// error arrives before the per-test timeout: a wait that outlives the test reports Playwright's
+// generic timeout instead, which names none of the causes below.
+//
+// It has to cover a slow response on the panel's critical path - the extension bundle the host serves,
+// and the settings blob the panel reads - on a cold container under a loaded CI runner. Neither is
+// broken when it is slow, and neither raises any of the signals below, so waiting is the only
+// instrument that helps. `host-page-transients.spec.mjs` pins how slow a response this survives.
+const PANEL_VISIT_BUDGET_MS = 120_000;
 
 // How many times the host may answer with a recoverable signal before the page is called unreachable.
-// The budget bounds waiting for something that will never arrive; a signal is proof the wait was not
-// that, so the navigation it triggers earns a fresh budget. Bounded, because the host can keep giving
-// the same answer, and an unbounded retry turns a permanent failure into a hung test.
+// A signal is proof the wait was not for something that will never arrive, so it earns another
+// navigation - but not more time, because the host can keep giving the same answer and an unbounded
+// retry turns a permanent failure into a hung test.
 const MAX_RECOVERIES = 3;
 
 // The host renders its settings page from a lazily-imported chunk. When that fetch fails the host
@@ -84,9 +92,13 @@ export class RenamerSettingsPage {
    * {@link CHUNK_FAILURE_TEXT} on the correct route indefinitely.
    *
    * Each is a signal rather than a timeout, and a fresh navigation recovers both.
+   *
+   * Everything else is the host being slow rather than wrong, and it looks identical from here: the
+   * route stays correct, no signal fires, and no locator has anything to match yet. There is nothing
+   * to wait ON in that state, so the budget is the whole instrument.
    */
   async waitForPanel() {
-    let deadline = Date.now() + PANEL_READY_TIMEOUT_MS;
+    const deadline = Date.now() + PANEL_VISIT_BUDGET_MS;
     let discards = 0;
     let chunkFailures = 0;
     let recoveries = 0;
@@ -121,14 +133,32 @@ export class RenamerSettingsPage {
       if (outcome === "expired" || recoveries > MAX_RECOVERIES) {
         throw new Error(
           `The Renamer settings panel did not render at ${this.panelUrl}, giving up after ` +
-            `${recoveries} recovered navigation(s) and a ${PANEL_READY_TIMEOUT_MS}ms wait on the last. ` +
+            `${recoveries} recovered navigation(s) and a ${PANEL_VISIT_BUDGET_MS}ms budget for the visit. ` +
             `The page is now at ${this.page.url()}. ` +
             `The host sent the route to one of its own tabs ${discards} time(s) and failed to fetch ` +
-            `its own settings chunk ${chunkFailures} time(s) on the way.`,
+            `its own settings chunk ${chunkFailures} time(s) on the way. ` +
+            `The page's own headings read: ${await this.describePage()}.`,
         );
       }
-      deadline = Date.now() + PANEL_READY_TIMEOUT_MS;
       await this.page.goto(this.panelUrl);
+    }
+  }
+
+  /**
+   * The page's headings, for the failure message above. With no signal raised the message would
+   * otherwise say only that nothing appeared, and a page showing the host's own settings reads
+   * identically there to one showing nothing at all.
+   *
+   * Never throws: it runs only on a path that is already failing, and an error here would replace a
+   * real diagnosis with this helper's own stack.
+   */
+  async describePage() {
+    try {
+      const headings = await this.page.locator("h1, h2").allInnerTexts();
+      const readable = headings.map((text) => text.trim()).filter(Boolean);
+      return readable.length ? readable.slice(0, 6).join(" | ") : "(no headings rendered)";
+    } catch (error) {
+      return `(unreadable: ${error.message})`;
     }
   }
 

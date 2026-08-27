@@ -3,6 +3,15 @@
 // affordance and lives here so a second extension can add its own beside it.
 import { expect } from "@cove-extensions/e2e";
 
+// The host imports each route's page as a lazily-fetched chunk. When that fetch fails it catches the
+// rejection and paints this sentence in place of the page, on the correct URL, indefinitely - so the
+// grid never renders and no card locator can ever resolve. A fresh navigation refetches the chunk.
+const CHUNK_FAILURE_TEXT = /Failed to fetch dynamically imported module/;
+
+// The chunk fetch may fail again on a retry, so the recovery is bounded rather than a loop that turns
+// a permanent failure into a hung test.
+const MAX_CHUNK_RETRIES = 3;
+
 export class VideosPage {
   constructor(page, baseUrl) {
     this.page = page;
@@ -11,11 +20,29 @@ export class VideosPage {
     this.renameSelectedButton = page.getByRole("button", { name: "Rename selected" });
   }
 
+  /**
+   * Opens the grid, re-navigating while the host answers with a failed chunk fetch.
+   *
+   * LIMIT worth stating: the check reads the page once the network is idle, which is where the host's
+   * error boundary has already painted for a rejection raised during load. An error appearing after
+   * that point is not caught here, and shows up as a card locator that never resolves.
+   */
   async goto() {
-    await this.page.goto(`${this.baseUrl}/videos`);
-    // The grid's content loads via a client-side fetch after navigation — waiting for the network
-    // to go idle (not just the initial HTML load) avoids reading the DOM before cards render.
-    await this.page.waitForLoadState("networkidle");
+    for (let attempt = 0; ; attempt += 1) {
+      await this.page.goto(`${this.baseUrl}/videos`);
+      // The grid's content loads via a client-side fetch after navigation — waiting for the network
+      // to go idle (not just the initial HTML load) avoids reading the DOM before cards render.
+      await this.page.waitForLoadState("networkidle");
+
+      const failed = await this.page.getByText(CHUNK_FAILURE_TEXT).isVisible();
+      if (!failed) return;
+      if (attempt >= MAX_CHUNK_RETRIES) {
+        throw new Error(
+          `The videos grid never rendered at ${this.baseUrl}/videos: the host failed to fetch its own ` +
+            `page chunk on ${attempt + 1} consecutive navigations.`,
+        );
+      }
+    }
   }
 
   /**
