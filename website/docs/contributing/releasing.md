@@ -15,28 +15,33 @@ old single-extension-repo scheme, which used a flat `v*` tag with no extension p
 
 `.github/workflows/build.yml` reads `extensions/catalog.json` to compute its build matrix:
 
-- **validate** — on every PR and every push, confirms the catalog is well-formed and (on a tag
-  push) that the tag matches exactly one catalog entry's `tagPrefix` with a valid semver suffix.
+- **validate** — on every PR and every push, confirms the catalog is well-formed. On a tag push it
+  additionally confirms the tag matches exactly one catalog entry's `tagPrefix` with a valid semver
+  suffix, that the entry's `extension.json` declares exactly the tag's version, and that the
+  extension's registry manifest — when it has one — already carries that version as its **first**
+  `versions[]` row. All of these fail before any extension builds.
 - **build** — runs for every extension in `extensions/catalog.json` on every PR (there is no
   `paths:` filtering; this matches the upstream template convention, not a CI-minute optimization —
   every extension's build is exercised on every PR regardless of which extension the PR actually
   touched). On a tag push, only the tagged extension's entry builds and is versioned; every other
   extension in the matrix builds with a placeholder version and is not packaged.
   - Packaging paths are driven entirely by each catalog entry's fields — `projectPath`,
-    `manifestPath`, `uiPath` (only present when the extension ships a frontend), and
-    `versionSourcePath` — not hardcoded to one extension. Adding a new extension's release
-    capability requires only a correct `catalog.json` entry; the workflow logic itself does not
-    need editing.
-  - Packaging copies only the names the entry's `artifacts` array declares, so whatever else the
-    build emits alongside them — debug symbols, XML docs, a host-provided assembly — cannot reach
-    a release. Every shipped `.json` is also refused if it carries an absolute path.
-  - The packaged `extension.json` has its `version` field stamped with the tag's version before
-    zipping, so the shipped manifest always agrees with the release it came from.
+    `manifestPath`, and `uiPath` (only present when the extension ships a frontend) — not hardcoded
+    to one extension. Adding a new extension's release capability requires only a correct
+    `catalog.json` entry; the workflow logic itself does not need editing.
+  - Packaging is one `Assemble package` step. The job publishes into a throwaway directory, then that
+    step copies the file set the entry's `artifacts` array declares into a clean package directory,
+    stamping the release version into the packaged `extension.json` as it copies — so the shipped
+    manifest always agrees with the release it came from, and whatever else the build emits alongside
+    the declared names (debug symbols, XML docs, a host-provided assembly) cannot reach a release. A
+    declared file the build did not produce fails the job before anything is zipped, and the step
+    prints every file it copied and a count. Every shipped `.json` is also refused if it carries an
+    absolute path.
 - **release** — triggers only on a tag push, downloads every build job's artifact, and attaches
   the matching `.zip` to a GitHub release for that tag.
 
 Renamer is the concrete worked example today: its `tagPrefix` is `renamer/`, its manifest id is
-`com.alextomas955.renamer`, and cutting `renamer/v0.1.0` builds, strip-verifies, and packages
+`com.alextomas955.renamer`, and cutting `renamer/v0.1.0` builds, assembles, and packages
 `com.alextomas955.renamer-0.1.0.zip`.
 
 ## Publish order: release asset first, then the registry pull request
@@ -56,6 +61,55 @@ That gives a strict order, for any extension being released:
 If the registry pull request is opened before the asset exists, the checksum computation has
 nothing to hash and the pull request fails. Publishing the asset first is what makes the checksum
 step succeed against the real asset bytes.
+
+## Write a changelog entry
+
+Every extension keeps a `CHANGELOG.md` of user-facing changes, newest first, and each registry
+`versions[]` row carries a two-or-three-sentence version of the same thing. Write the entry in the
+change that earns it, not at release time. Two rules govern both.
+
+**Head the entry with the version it will ship as — never "Unreleased".** The version is knowable
+the moment the first change lands, because semver is decided by what the change does and not by when
+somebody pushes a tag. A placeholder heading is a second edit someone has to remember at release,
+and forgetting it publishes a changelog telling users that the release they are reading about has
+not happened. Write `## 0.4.0` from the first bullet, and cutting `renamer/v0.4.0` then needs no
+changelog edit at all.
+
+**An entry says what a user needs to know, not everything the version contains.** A refactor, a new
+test, an internal rename, a dependency bump and a tooling change do not appear — the git history
+already has them, and padding the entry with them buries the two lines that mattered. A change earns
+a bullet when it changes what the user sees, what they must do, or what they can rely on. A change
+with no user-facing effect earns one only when a user would still want to know: a data-loss or
+security fix, a breaking API change, or a raised host floor.
+
+Then, for the entry itself:
+
+- **Lead with what to do before upgrading** whenever anything moves files, converts stored settings
+  or raises the floor. That sentence is why a user opened the changelog.
+- **One bullet per thing the user must act on; fold the rest into themes.** Ten bullets a user reads
+  beat twenty-two they skim. Several fixes to one feature are one bullet.
+- **Say what changed, why it is better, and what it means for the reader** — never which files moved
+  or which internals were touched.
+- **Leave released entries as they shipped.** An entry describes what users actually got at the time,
+  so a later convention applies from the next version forward rather than backwards over history.
+
+## Raise minCoveVersion
+
+An extension's minimum host version is declared once, in its `extension.json` `minCoveVersion`.
+That is the only place you edit it; the loaded assembly reads it from the shipped manifest, and
+`scripts/validate-extension-repo.mjs` checks it is at least the repo-wide `CoveMinVersion` in
+`Directory.Build.props` on every push.
+
+The `minCoveVersion` in a registry manifest's `versions[]` row is a different thing that happens to
+share a name. Each row describes an immutable zip a user can still download, and its floor is the
+floor _that_ artifact needs — not a copy of the source tree's current one. So a raised floor reaches
+the registry by prepending a new row for the release you are cutting, never by editing an existing
+row: a row claiming a higher floor than its zip actually needs both misdescribes that file and locks
+out users for whom it works.
+
+Raising the floor is a user-facing change — a user below the new floor loses the extension entirely,
+rather than losing a feature. Say so in that extension's `CHANGELOG.md`, and name the capability
+that forced the floor, so the requirement reads as a reason rather than a version number.
 
 ## What the registry computes — do not hand-write it
 

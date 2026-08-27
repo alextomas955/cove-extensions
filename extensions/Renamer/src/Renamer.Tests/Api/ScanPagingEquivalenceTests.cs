@@ -18,7 +18,6 @@ namespace Renamer.Tests.Api;
 /// deliberately not addressed here. A later change that makes the planner accumulate any cross-entity
 /// state breaks these facts, which is the intent.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class ScanPagingEquivalenceTests
 {
     private const int EntitiesPerKind = 40;
@@ -162,7 +161,13 @@ public sealed class ScanPagingEquivalenceTests
                 if (byId.TryGetValue(id, out var entity))
                 {
                     var plan = await planner.PlanLoadedEntity(entity, Options, Lookups, default);
-                    rows.AddRange(plan.Items.Select(item => ScanRow.From(kind, plan.EntityId, item)));
+                    // The overflow flag is sourced exactly as the pager sources it - the same predicate,
+                    // the same budget out of the same options, and no mount table on either side - so a
+                    // difference between the two sequences can only be the traversal, which is what this
+                    // class compares.
+                    rows.AddRange(plan.Items.Select(item => ScanRow.From(
+                        kind, plan.EntityId, item,
+                        BatchPreview.InFlightPathOverflows(item, Options.FullPathMax))));
                 }
             }
         }

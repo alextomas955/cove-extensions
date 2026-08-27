@@ -15,7 +15,12 @@ import { Dialog } from "../common/ui/Dialog";
 import { Button, StatusText, Spinner } from "@cove-extensions/ui-shared";
 import { api } from "../common/lib/extension";
 import type { LastBatchSummary, UndoResult } from "../wire/api";
-import { buildUndoFeedback, buildUndoStatus, type UndoFeedback } from "./undoLogic";
+import {
+  buildUndoFeedback,
+  buildUndoStatus,
+  buildUndoUnconfirmed,
+  type UndoFeedback,
+} from "./undoLogic";
 
 const LAST_BATCH_PATH = api("last-batch");
 const UNDO_PATH = api("undo");
@@ -74,8 +79,9 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
     setUndoing(true);
     setFeedback(null);
     try {
-      // /undo takes NO body. It may return an empty 200 in edge cases — but the happy path
-      // returns the UndoResult JSON. Tolerate a parse-throw on a 2xx as a non-informative success.
+      // /undo takes NO body, and answers every arm with counts — the "nothing open to undo" arm
+      // included. So a bodyless reply is an anomaly rather than an outcome, and `requestJson` raises
+      // it as one instead of resolving a success this panel would have to invent a sentence for.
       const res = await requestJson<UndoResult>(UNDO_PATH, { method: "POST" });
       // Composed by a pure module, not here: every figure in that sentence has to come from a total
       // and never from the length of the response's capped sample, and that is a claim a test can hold
@@ -89,11 +95,9 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
         });
         return;
       }
-      // res.ok was true but res.json() failed on an empty body → treat as a plain success.
-      setFeedback({
-        kind: "success",
-        text: "Undone — your files were moved back to their original names.",
-      });
+      // No response the panel can read: the outcome of a destructive operation is unknown, and
+      // `undoLogic` owns which sentence that earns.
+      setFeedback(buildUndoUnconfirmed(errText(err)));
     } finally {
       setUndoing(false);
       setConfirming(false);
@@ -106,8 +110,8 @@ export function UndoSection({ refreshKey }: { refreshKey: number }) {
       <h3 className="text-base font-semibold text-foreground">Undo last rename</h3>
       <p className="mb-4 mt-1 text-sm text-secondary">
         This moves every file in that batch back to its original name. It can&apos;t be undone
-        again. Only the most recent rename is kept, and a rename too large to record isn&apos;t kept
-        at all — the dry run is the check before those.
+        again. One rename is kept at a time — the newest one you can still undo — and a rename too
+        large to record isn&apos;t kept at all. The dry run is the check before those.
       </p>
 
       {loading ? (

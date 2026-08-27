@@ -19,7 +19,6 @@ namespace Renamer.Tests.Events;
 /// however far the two drift, which is the one failure these assertions exist to catch.
 /// </para>
 /// </remarks>
-[Trait("Tier", "L1")]
 public sealed class AutoRenamerSelfSaveTests
 {
     [Fact]

@@ -22,7 +22,6 @@ namespace Renamer.Tests.Contracts;
 /// to the format has to be made here deliberately rather than absorbed silently.
 /// </para>
 /// </remarks>
-[Trait("Tier", "L0")]
 public sealed class RevertDeltaLogicTests
 {
     /// <summary>

@@ -30,7 +30,6 @@ namespace Renamer.Tests.Execution.CanonicalGuard;
 /// on containment.
 /// </para>
 /// </summary>
-[Trait("Tier", "L1")]
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class CanonicalPathGuardRootTests
 {

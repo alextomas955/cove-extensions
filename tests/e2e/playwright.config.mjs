@@ -71,6 +71,13 @@ export default defineConfig({
   // runs, so the report distinguishes flaky from broken.
   failOnFlakyTests: true,
   timeout: 180_000,
+
+  // Playwright's own default here is 5s, which is shorter than a cold container takes to fetch and
+  // render one of the host's lazily-imported route chunks. So an assertion that follows a navigation
+  // to a route this run has not visited yet loses on the first attempt and wins on the retry - and
+  // `failOnFlakyTests` above correctly refuses to call that green. The per-test budget stays the
+  // ceiling; this only stops a single assertion giving up long before the test has to.
+  expect: { timeout: 20_000 },
   reporter: [["list"]],
   use: {
     trace: process.env.CI ? "on-first-retry" : "retain-on-failure",

@@ -299,11 +299,13 @@ public sealed record RenamerOptions
     public string RemoveCharacters { get; init; } = ",#";  // default strips comma + hash; "" = remove nothing
 
     /// <summary>
-    /// Fallback: when an item has no title, derive <c>$title</c> from the file's basename
-    /// (extension stripped) instead of omitting the token. Default <c>true</c> = a fresh install
-    /// gives a title-less item a name from its basename rather than skipping it under the
-    /// <c>title</c>-required gate. A previously-saved value is preserved on load (the default applies
-    /// only to a first run); set it <c>false</c> to keep the strict omit-not-blank behavior.
+    /// Fallback: when an item has no title, derive <c>$title</c> from the item's first file's basename
+    /// (extension stripped) instead of omitting the token - and RECORD that title on the item, which is
+    /// what stops the derivation re-reading its own output (see <c>MetadataProjector.DerivedTitle</c>).
+    /// Default <c>true</c> = a fresh install gives a title-less item a name from its basename rather
+    /// than skipping it under the <c>title</c>-required gate. A previously-saved value is preserved on
+    /// load (the default applies only to a first run); set it <c>false</c> to keep the strict
+    /// omit-not-blank behavior, which also writes nothing.
     /// </summary>
     public bool FilenameAsTitle { get; init; } = true;
 

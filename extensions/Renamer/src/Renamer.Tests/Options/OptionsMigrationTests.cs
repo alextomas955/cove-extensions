@@ -8,7 +8,6 @@ namespace Renamer.Tests.Options;
 /// The name-to-id options conversion. Every case here is a way a user's configuration can be lost
 /// silently, so each asserts what SURVIVES rather than only that the conversion ran.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class OptionsMigrationScanTests
 {
     [Theory]
@@ -108,10 +107,49 @@ public sealed class OptionsMigrationScanTests
 
         Assert.Equal(["anime", "drama", "raw"], scan.Tags.Order(StringComparer.Ordinal));
     }
+
+    [Theory]
+    [InlineData("9", false)]
+    [InlineData("0", false)]
+    [InlineData("2147483647", false)]
+    [InlineData("-9", false)]
+    [InlineData("+9", false)]
+    [InlineData("09", false)]
+    [InlineData(" 9 ", false)]
+    [InlineData("\t9\n", false)]
+    [InlineData("1e3", true)]
+    [InlineData("1.5", true)]
+    [InlineData("9,9", true)]
+    [InlineData("2147483648", true)]
+    [InlineData("-2147483649", true)]
+    [InlineData("\u00A09", true)]
+    [InlineData("", true)]
+    [InlineData("Anime", true)]
+    public void DestinationKeySpelling_DecidesNameOrId(string key, bool isName)
+    {
+        // The settings panel refuses to save while this scan reports work, so its own `isIdKey` has to
+        // read every spelling the way `int.TryParse` does here. This theory is the C# half of that
+        // agreement, transcribed into the panel's `options.test.ts` as the same table.
+        var root = new JsonObject
+        {
+            ["TagDestinations"] = new JsonObject { [key] = "D:/x" },
+        };
+
+        var scan = OptionsMigration.Scan(root.ToJsonString());
+
+        Assert.Equal(isName, scan.Any);
+        if (isName)
+        {
+            Assert.Equal([key], scan.Tags);
+        }
+        else
+        {
+            Assert.Empty(scan.Tags);
+        }
+    }
 }
 
 /// <summary>The conversion itself: what it rewrites, what it keeps, and what it reports losing.</summary>
-[Trait("Tier", "L0")]
 public sealed class OptionsMigrationConvertTests
 {
     private const string LegacyBlob = """

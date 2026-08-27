@@ -19,7 +19,6 @@ namespace Renamer.Tests.Execution.Journal;
 /// every case is deterministic and nothing waits. Driven through the real EF implementation because the
 /// property under test — that no row of an expired batch is left behind — is a property of the storage.
 /// </remarks>
-[Trait("Tier", "L1")]
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RevertJournalRetentionTests
 {

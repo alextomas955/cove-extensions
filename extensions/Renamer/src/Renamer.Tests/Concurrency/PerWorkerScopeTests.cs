@@ -19,7 +19,6 @@ namespace Renamer.Tests.Concurrency;
 /// asserts the set of contexts the workers resolved has exactly one DISTINCT instance per worker (by
 /// reference). It never relies on an EF exception.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class PerWorkerScopeTests
 {
     /// <summary>

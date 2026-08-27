@@ -10,7 +10,6 @@ namespace Renamer.Tests.Events;
 /// with the flag ON but the planner's require-fields gate excluding the item, it still does nothing
 /// — no junk names on incomplete metadata.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class AutoRenamerGateTests
 {
     [Fact]

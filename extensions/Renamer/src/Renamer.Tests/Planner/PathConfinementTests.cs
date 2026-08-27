@@ -11,7 +11,6 @@ namespace Renamer.Tests.Planner;
 /// <see cref="PathConfinement.ConfinementRejection.TooLong"/>. The sibling case ("root" vs
 /// "rootEvil") proves the prefix check is boundary-aware. PURE - no disk.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class PathConfinementTests
 {
     private const string Root = "media/videos";
@@ -58,6 +57,41 @@ public sealed class PathConfinementTests
         Assert.Contains("not relative", r.Reason);
     }
 
+    /// <summary>
+    /// Every rooted spelling this platform recognises is refused, before it is ever combined with the
+    /// anchor.
+    /// </summary>
+    /// <remarks>
+    /// A leading separator is rooted everywhere, so that case carries the pin on either runner. A
+    /// drive-qualified path and a UNC share are rooted only on Windows - on Linux they are ordinary
+    /// relative names - so asserting a refusal for them there would pin the opposite of the truth. The
+    /// gate is the platform, never <see cref="Path.IsPathRooted(string)"/> itself: computing the
+    /// expectation from the predicate under test would make this case agree with the resolver whatever
+    /// it does.
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(RootedFolderTemplates))]
+    public void RootedFolderTemplate_Rejected(string destinationFolder)
+    {
+        var r = Resolve(destinationFolder);
+
+        Assert.Equal(PathConfinement.ConfinementRejection.NotAllowed, r.Rejection);
+        Assert.Contains("not relative", r.Reason);
+    }
+
+    public static TheoryData<string> RootedFolderTemplates()
+    {
+        var cells = new TheoryData<string> { "/etc" };
+
+        if (OperatingSystem.IsWindows())
+        {
+            cells.Add(@"C:\Windows");
+            cells.Add(@"\\server\share");
+        }
+
+        return cells;
+    }
+
     [Fact]
     public void Sibling_NotMistakenForChild_Rejected()
     {
@@ -93,7 +127,6 @@ public sealed class PathConfinementTests
 /// The longest match wins so a nested library path anchors on the nearer boundary; a path under none
 /// of them has no anchor at all. PURE - no disk.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class ContainingRootTests
 {
     [Fact]

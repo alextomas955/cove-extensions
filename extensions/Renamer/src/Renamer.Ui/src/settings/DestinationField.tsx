@@ -28,6 +28,12 @@ export interface DestinationFieldProps {
   /** Shown above the template input; omit inside a row that already names itself. */
   label?: string;
   helper?: string;
+  /**
+   * Explains what the root picker measures from. No default: a section listing one row per
+   * studio, tag or path rule already says it once in its own description, and a per-row copy
+   * would repeat the same sentence down the whole list.
+   */
+  rootHelper?: string;
   templatePlaceholder?: string;
   /** Handed to the template input so the panel's at-caret token insertion can reach it. */
   templateRef?: Ref<HTMLInputElement>;
@@ -40,6 +46,7 @@ export function DestinationField({
   library,
   label = "Folder template",
   helper,
+  rootHelper,
   templatePlaceholder = "$studio/$year",
   templateRef,
   onTemplateFocus,
@@ -69,7 +76,7 @@ export function DestinationField({
         </StatusText>
       ) : null}
       {showPicker ? (
-        <Field label="Under" helper="Which of Cove's library paths this destination measures from.">
+        <Field label="Under" helper={rootHelper}>
           <Select
             // The MATCHED path, so a root stored in Cove's own platform spelling selects the library
             // path it names rather than falling off the list. The stored value is left as it is: it
@@ -99,9 +106,16 @@ export function DestinationField({
           mono
           placeholder={templatePlaceholder}
         />
+        {/* Reworded rather than suppressed when the picker is hidden. A typed path is still about to
+            become literal folder names, and this is the only line that says so — while naming a
+            control that is not on screen leaves the user nothing to act on. */}
         <PathShapeHint
           value={value.Template}
-          message="This is a folder template, not a path - pick the root beside it instead."
+          message={
+            showPicker
+              ? "This is a folder template, not a path — pick the root beside it instead."
+              : "This is a folder template, not a path — the whole thing becomes folder names under this destination's root."
+          }
         />
       </Field>
     </>

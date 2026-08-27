@@ -3,7 +3,6 @@ using Renamer.Options;
 
 namespace Renamer.Tests.Engine;
 
-[Trait("Tier", "L0")]
 public class SanitizerTests
 {
     // ---- CleanSegment: illegal / control chars ----

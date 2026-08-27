@@ -14,6 +14,9 @@ import {
   etaFromSamples,
   ETA_SMOOTHING,
   ETA_MIN_RATES,
+  IN_FLIGHT_OVERFLOW_LABEL,
+  inFlightOverflowLabel,
+  shouldContinueWalk,
   type DryRunBucket,
 } from "./dryRunLogic";
 import type { RenamerStatus } from "../../wire/api";
@@ -72,6 +75,45 @@ test("bucketWireValue emits the camelCase ScanBucketKind names the server parses
   assert.equal(bucketWireValue("no-change"), "noChange");
   assert.equal(bucketWireValue("attention"), "attention");
   assert.equal(bucketWireValue("all"), "all");
+});
+
+/**
+ * A walk stopped part-way: some rows accumulated, a cursor still live, and the last page having added
+ * nothing at all. `targetRows` is what the viewport and its prefetch window ask for at an unscrolled
+ * open. Each case below flips exactly one field, so the field it flipped is what decided the answer.
+ */
+const STALLED_WALK = {
+  loadedRows: 6,
+  targetRows: 35,
+  hasMore: true,
+  loading: false,
+  hasError: false,
+} as const;
+
+test("a page that returned no rows while the cursor is still live continues the walk", () => {
+  // A zero-row page changes no row count, so anything watching the counts reads a finished walk.
+  assert.equal(shouldContinueWalk(STALLED_WALK), true);
+});
+
+test("a walk whose cursor has gone null does not continue, however few rows it loaded", () => {
+  // The end of the library is the one honest reason to stop short of the target.
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, hasMore: false }), false);
+});
+
+test("a walk that has covered its row target does not continue", () => {
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 34 }), true);
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 35 }), false);
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 36 }), false);
+});
+
+test("a failed page does not continue, so a failing server is not asked without end", () => {
+  // A failure leaves the cursor live and clears the in-flight flag, so every other input still reads
+  // as "more to fetch, nothing in flight".
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, hasError: true }), false);
+});
+
+test("a page already in flight does not continue", () => {
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loading: true }), false);
 });
 
 test("summaryCounts partitions the aggregate's status counts into three buckets summing to the total", () => {
@@ -281,4 +323,32 @@ test("etaFromSamples withholds the estimate until it has ETA_MIN_RATES smoothed 
 
 test("ETA_SMOOTHING is tqdm's 0.3 default", () => {
   assert.equal(ETA_SMOOTHING, 0.3);
+});
+
+/**
+ * The wire field name the server spells for the in-flight overflow flag, TRANSCRIBED BY HAND from the
+ * `InFlightPathOverflow` member of `PreviewItemView` and `ScanRow`, camel-cased by the response
+ * serializer. Written out here rather than read from the generated wire types, because a key spelled
+ * wrong reads `undefined` - falsy - so the badge would simply never render and nothing would fail:
+ * not the type-check, not the request, not this suite if it asked the module for the name it already uses.
+ */
+const OVERFLOW_WIRE_FIELD = "inFlightPathOverflow";
+
+test("a row the server flagged earns the overflow label, and an unflagged row earns none", () => {
+  assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: true }), IN_FLIGHT_OVERFLOW_LABEL);
+  assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: false }), null);
+});
+
+test("the overflow label carries words, so the badge is never colour alone", () => {
+  // The badge leads with a lucide glyph, and the glyph is not the message: a red pill with no text tells a
+  // colour-blind or screen-reader user nothing about what is wrong with the row.
+  assert.match(IN_FLIGHT_OVERFLOW_LABEL, /[A-Za-z]{3}/);
+});
+
+test("a row that arrives without the overflow field reads as unflagged, not as flagged", () => {
+  // Both wire shapes declare the field, so the case is not a wire that lacks one - it is how a row from a
+  // build that predates it must read. A missing field is `undefined`, and treating that as truthy would
+  // put a red pill on every row of the dry-run table.
+  assert.equal(inFlightOverflowLabel({}), null);
+  assert.equal(inFlightOverflowLabel({ [OVERFLOW_WIRE_FIELD]: undefined }), null);
 });

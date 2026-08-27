@@ -18,6 +18,8 @@ import {
   cloneDefaults,
   normalizeOptions,
   extractUnmodeledFields,
+  hasUnmigratedNameRules,
+  hasUnmigratedDestinations,
 } from "./options";
 import { EXTENSION_ID } from "../common/lib/extension";
 
@@ -48,6 +50,8 @@ export interface UseRenamerOptions {
   saveError: string | null;
   savedFlash: boolean;
   recoveredFromBadBlob: boolean;
+  pendingNameMigration: boolean;
+  pendingDestinationMigration: boolean;
   dirty: boolean;
   canSave: boolean;
   load: () => Promise<void>;
@@ -68,6 +72,16 @@ export function useRenamerOptions(): UseRenamerOptions {
   // Set when a stored blob could not be parsed and we fell back to defaults. Non-blocking: the panel
   // still renders so a Save rewrites a clean blob and clears the bad data.
   const [recoveredFromBadBlob, setRecoveredFromBadBlob] = useState(false);
+  // Set when the stored blob still holds NAME-keyed tag/performer rules the backend's one-time
+  // conversion has not resolved yet. Saving then would persist this panel's id-only view of those
+  // rules over the names, and nothing else keeps a copy — so it blocks Save until a host start has
+  // converted them.
+  const [pendingNameMigration, setPendingNameMigration] = useState(false);
+  // Set when the stored blob still holds destinations as the bare paths they were before a destination
+  // became a library root plus a template. The conversion that rewrites them defers while Cove has
+  // supplied no library path to choose from, so the old shape can outlive a restart - and this panel
+  // reads such a folder as the destination that moves nothing, which is what a save would store.
+  const [pendingDestinationMigration, setPendingDestinationMigration] = useState(false);
 
   // Stored keys this panel does not model (backend-only settings, e.g. path routing). Captured on a
   // successful load and merged back on Save so editing here never erases them.
@@ -76,12 +90,15 @@ export function useRenamerOptions(): UseRenamerOptions {
   const dirty = JSON.stringify(options) !== JSON.stringify(saved);
   // After recovering from an unreadable blob, defaults match `saved` so nothing looks "dirty" — but a
   // Save is still needed to overwrite the bad stored data, so allow it explicitly.
-  const canSave = dirty || recoveredFromBadBlob;
+  const canSave =
+    (dirty || recoveredFromBadBlob) && !pendingNameMigration && !pendingDestinationMigration;
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     setRecoveredFromBadBlob(false);
+    setPendingNameMigration(false);
+    setPendingDestinationMigration(false);
     try {
       const all = await store.getAll();
       const blob = all[OPTIONS_KEY];
@@ -108,6 +125,8 @@ export function useRenamerOptions(): UseRenamerOptions {
         }
         // Keep any stored keys this panel does not model (backend-only settings) so Save preserves them.
         preservedExtras.current = extractUnmodeledFields(raw);
+        setPendingNameMigration(hasUnmigratedNameRules(raw));
+        setPendingDestinationMigration(hasUnmigratedDestinations(raw));
         // normalizeOptions rebuilds a clean canonical RenamerOptions, DROPPING any stale camelCase
         // duplicate keys a legacy blob may carry (the /preview-sample dual-source fix). The old spread
         // merge preserved them, so they overwrote live edits in the preview body. Because `options`
@@ -148,6 +167,9 @@ export function useRenamerOptions(): UseRenamerOptions {
   }, [load]);
 
   const onSave = useCallback(async () => {
+    // Enforced here and not only on the Save button: this is the single call site of the store write,
+    // so the refusal holds however onSave is reached.
+    if (pendingNameMigration || pendingDestinationMigration) return;
     setSaving(true);
     setSaveError(null);
     try {
@@ -163,7 +185,7 @@ export function useRenamerOptions(): UseRenamerOptions {
     } finally {
       setSaving(false);
     }
-  }, [options]);
+  }, [options, pendingNameMigration, pendingDestinationMigration]);
 
   const discard = useCallback(() => {
     setOptions(saved);
@@ -188,6 +210,8 @@ export function useRenamerOptions(): UseRenamerOptions {
     saveError,
     savedFlash,
     recoveredFromBadBlob,
+    pendingNameMigration,
+    pendingDestinationMigration,
     dirty,
     canSave,
     load,

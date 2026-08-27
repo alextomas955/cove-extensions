@@ -139,6 +139,15 @@ public sealed partial class Renamer
                 // resolves the destination folder itself, safe because this call is not parallelized.
                 var result = await executor.ExecuteAsync(plan, options, ct: ct);
 
+                if (result.Renamed.Count == 0)
+                {
+                    // Nothing saved, so no event is coming to consume the claim. Released here for the
+                    // same reason the catches below release it: a claim nothing consumes is taken by the
+                    // user's next genuine edit instead, which mutes the hook for this item until some
+                    // other edit arrives.
+                    _selfSaved.TryRemove(selfSaveKey, out _);
+                }
+
                 foreach (var r in result.Renamed)
                 {
                     LogAutoRenamed(kind, entityId, r.Status, r.OldPath, r.NewPath);
@@ -155,9 +164,9 @@ public sealed partial class Renamer
             // not as a swallowed "failure". Nothing was committed past the executor's own
             // per-item transaction boundary.
             //
-            // The claim is released on both non-happy exits. A claim left behind would be consumed by
-            // the user's NEXT edit of this entity, silently skipping a rename they asked for; releasing
-            // one the save already raised an event for costs at most one extra idempotent pass.
+            // A claim left behind would be consumed by the user's NEXT edit of this entity, silently
+            // skipping a rename they asked for; releasing one the save already raised an event for costs
+            // at most one extra idempotent pass.
             _selfSaved.TryRemove(selfSaveKey, out _);
             throw;
         }
