@@ -23,7 +23,7 @@
     <PackageVersion Include="xunit.v3.assert" Version="4.0.0" />
     <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
     <!--
       Microsoft.AspNetCore.OpenApi 10.0.10 resolves Microsoft.OpenApi 2.0.0, which carries a HIGH
       advisory (GHSA-v5pm-xwqc-g5wc, circular schema references terminate parsing; first patched in
