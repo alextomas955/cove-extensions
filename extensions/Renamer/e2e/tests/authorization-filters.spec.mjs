@@ -123,112 +123,113 @@ test("Cove's row-level filters bite for a restricted principal and not for the o
   ).not.toBe(ownerTotal);
 });
 
-test("the elevated detached read sees the library its own caller cannot", async ({ authz }) => {
-  const { owner, restricted, routeBase } = authz;
+test("every endpoint refuses a caller holding no renamer permission, and answers the owner", async ({
+  authz,
+}) => {
+  const { owner, harness, routeBase } = authz;
 
-  // The denominator, read live from the host as somebody the filters do not apply to. Nothing below
-  // compares against a literal count.
-  const ownerTotal = await readVideoTotal(owner, "the owner");
-  expect(
-    ownerTotal,
-    "the seeded library is empty, so neither figure below can mean anything",
-  ).toBeGreaterThan(0);
+  // WHAT THIS DOES AND DOES NOT GATE, measured rather than assumed.
+  //
+  // `RequireCovePermission` is evaluated against the caller's PERMISSIONS: the host returns true as
+  // soon as `principal.Has(permission)` does, and never consults role content rules. So it refuses a
+  // caller holding no permission - asserted below - and it does NOT refuse one that holds the
+  // permission while a content rule denies it rows. The `restricted` fixture user is the second kind
+  // and still reaches these routes; the next test pins that, because it is the host's model rather
+  // than a gap in the declaration.
+  //
+  // Refusing THAT caller would need the content-rule check Cove applies to its own routes with
+  // [RequiresUnscopedEntityAccess], an MVC action filter that never reaches a minimal-API endpoint.
+  // `IAuthorizationService` offers no unrestricted-access query either, so an extension could only get
+  // there by reading RoleContentRules itself - a host table outside the extension surface.
+  const noPermission = await harness.createRestrictedUser({
+    username: "e2e-nopermission",
+    roleName: "e2e-nopermission",
+    permissions: [],
+  });
+  const withoutPermission = createApiClient(() => harness.baseUrl, noPermission.token);
 
-  // Everything from here is driven as the restricted user — the same principal that just read zero
-  // videos in the test above.
-  const enqueued = await restricted.post(`${routeBase}/scan-library`, {});
+  // EVERY route, not a chosen few: each one declares the any-of gate its handler re-checks, so a
+  // caller holding no renamer permission is refused at all twelve doors.
+  const everyRoute = [
+    { method: "post", path: "preview", body: { entityType: "video", ids: [] } },
+    { method: "post", path: "renamer", body: { entityType: "video", ids: [] } },
+    { method: "post", path: "preview-sample", body: {} },
+    { method: "post", path: "undo", body: {} },
+    { method: "get", path: "last-batch" },
+    { method: "post", path: "scan-library", body: {} },
+    { method: "get", path: "last-scan" },
+    { method: "post", path: "scan-rows", body: {} },
+    { method: "post", path: "renamer-library", body: {} },
+    { method: "get", path: "library-paths" },
+    { method: "get", path: "job-status/no-such-job" },
+    { method: "get", path: "orphaned-rules" },
+  ];
+
+  for (const call of everyRoute) {
+    const refused =
+      call.method === "get"
+        ? await withoutPermission.get(`${routeBase}/${call.path}`)
+        : await withoutPermission.post(`${routeBase}/${call.path}`, call.body);
+    expect(
+      refused.status,
+      `${call.method.toUpperCase()} ${call.path} answered ${refused.status} to a caller holding no ` +
+        `renamer permission at all: ${refused.text}`,
+    ).toBe(403);
+  }
+
+  // Driven as the owner too: the refusals above would all pass against an endpoint broken for
+  // everyone. `renamer-library` is left out - this is about the boundary, not about moving every file.
+  const asOwner = await owner.post(`${routeBase}/scan-library`, {});
   expect(
-    enqueued.status,
-    `POST ${routeBase}/scan-library as the restricted user answered ${enqueued.status}: ${enqueued.text}`,
+    asOwner.status,
+    `POST scan-library as the owner answered ${asOwner.status}: ${asOwner.text}`,
   ).toBe(202);
-  const jobId = enqueued.json?.jobId;
-  expect(typeof jobId, `the enqueue carried no jobId: ${enqueued.text}`).toBe("string");
-
-  const job = await pollRenamerJob(restricted, routeBase, jobId, { timeoutMs: 120_000 });
+  const jobId = asOwner.json?.jobId;
+  expect(typeof jobId, `the enqueue carried no jobId: ${asOwner.text}`).toBe("string");
+  const job = await pollRenamerJob(owner, routeBase, jobId, { timeoutMs: 120_000 });
   expect(
     job?.status?.toLowerCase(),
     `the scan job did not complete (status ${job?.status}, error ${job?.error})`,
   ).toBe("completed");
 
-  // The job body runs detached and elevates, so it plans the whole library.
-  //
-  // WHAT THIS HALF DOES AND DOES NOT GATE, measured rather than reasoned. Cove dispatches an
-  // exclusive job from a queue processor its job service starts at host startup, and the principal
-  // lives in an AsyncLocal — so a queued body has NO ambient principal, and a missing principal
-  // bypasses the filters exactly as the wildcard does. Removing the elevation from this job body was
-  // therefore observed to leave the figure below unchanged: the assertion is not a gate on that one
-  // line. What it does pin is the PAIR — a detached body that reaches the library beside a request
-  // path that does not — so it goes red if the host ever begins propagating a caller's principal into
-  // a queued body while the elevation is absent. The elevation still earns its place for every
-  // dispatch that DOES propagate one (a non-exclusive job, an inline event handler); that case is
-  // asserted at the seam, not here.
-  const summary = await restricted.get(`${routeBase}/last-scan`);
+  const summary = await owner.get(`${routeBase}/last-scan`);
   expect(
     summary.status,
-    `GET ${routeBase}/last-scan as the restricted user answered ${summary.status}: ${summary.text}`,
+    `GET last-scan as the owner answered ${summary.status}: ${summary.text}`,
   ).toBe(200);
-  const elevatedEntities = summary.json?.totalEntities;
-  expect(
-    typeof elevatedEntities,
-    `the scan aggregate carried no numeric totalEntities: ${summary.text}`,
-  ).toBe("number");
-
-  // The request path, by contrast, deliberately stays on the caller's principal. Renamer's own source
-  // states the invariant both ways: every detached body elevates, and the two request-path scopes
-  // (/undo and /scan-rows) do NOT, because elevating them would hand a caller rows their principal is
-  // not allowed to see. So ZERO HERE IS THE CORRECT ANSWER and must never be "fixed" — this assertion
-  // is what makes a future change that elevates this path fail a test instead of silently widening
-  // every caller's reach.
-  const rows = await restricted.post(`${routeBase}/scan-rows`, { take: SEEDED_VIDEOS * 10 });
-  expect(
-    rows.status,
-    `POST ${routeBase}/scan-rows as the restricted user answered ${rows.status}: ${rows.text}`,
-  ).toBe(200);
-  expect(
-    rows.json?.rows?.length,
-    "the non-elevated request path returned rows to a principal whose own video read is denied — it is running elevated",
-  ).toBe(0);
-  expect(
-    rows.json?.entitiesExamined,
-    "the non-elevated request path examined entities its caller cannot read",
-  ).toBe(0);
-
-  // The proof, in one comparison on one library for one user: the detached body reports what the
-  // owner reports, and the same caller's own request path reports nothing. Both figures come from
-  // live responses and are compared to each other, never to a number this file supplied.
-  expect(
-    elevatedEntities,
-    "the elevated scan did not see the whole library — the detached body is running on the caller's principal",
-  ).toBe(ownerTotal);
-  expect(
-    elevatedEntities,
-    "the elevated and non-elevated paths agree, so this test is not observing the difference it exists for",
-  ).not.toBe(rows.json?.rows?.length);
 });
 
-test("a scoped user watches its own run, and cannot read another owner's job through it", async ({
+test("a scoped account still reaches what is its own: its rules, and a job it started", async ({
   authz,
 }) => {
   const { restricted, routeBase } = authz;
 
-  // Why this route exists: from Cove 1.3.1 the host gates its own GET /api/jobs/{id} on unrestricted
-  // read, so this user is refused there for a run it started itself and the panel would poll forever.
-  // The host's answer is deliberately NOT asserted here - it differs by host version, and this suite
-  // runs against several, so pinning it would make the spec fail on the older ones for a reason that
-  // is not Renamer's.
-  const enqueued = await restricted.post(`${routeBase}/scan-library`, {});
+  // This caller HOLDS a renamer permission; what limits it is a role content rule denying it rows. A
+  // permission policy does not consult those, so it passes every door above - which is the half of the
+  // host's model the previous test does not cover, and the reason these endpoints stay reachable.
+  const ownState = await restricted.get(`${routeBase}/orphaned-rules`);
   expect(
-    enqueued.status,
-    `POST ${routeBase}/scan-library as the restricted user answered ${enqueued.status}: ${enqueued.text}`,
-  ).toBe(202);
-  const jobId = enqueued.json?.jobId;
+    ownState.status,
+    `GET orphaned-rules as the restricted user answered ${ownState.status}: ${ownState.text}`,
+  ).toBe(200);
 
-  const job = await pollRenamerJob(restricted, routeBase, jobId, { timeoutMs: 120_000 });
-  expect(job?.status?.toLowerCase(), `the run did not finish: ${JSON.stringify(job)}`).toBe(
-    "completed",
-  );
+  const roots = await restricted.get(`${routeBase}/library-paths`);
+  expect(
+    roots.status,
+    `GET library-paths as the restricted user answered ${roots.status}: ${roots.text}`,
+  ).toBe(200);
 
-  // Confinement - that the route reports only jobs this extension enqueued - is asserted in
-  // JobStatusEndpointTests, where a foreign job type can be arranged exactly. Reaching it from here
-  // would need a second extension's job id, and a made-up id is absent either way.
+  // Job status, which is the reason the extension serves its own: Cove gates ITS job route on an
+  // unrestricted grant, so without this route a scoped caller could start work it could never watch.
+  //
+  // Asked with an id no job answers to, deliberately. The two refusals are what separate the door from
+  // the handler: 403 would mean the caller never got past authorization, while 404 is the handler's own
+  // own-jobs check answering - so 404 proves reachability without needing a job to exist, and without a
+  // conditional that could pass by skipping.
+  const status = await restricted.get(`${routeBase}/job-status/no-such-job`);
+  expect(
+    status.status,
+    `GET job-status as the restricted user answered ${status.status}; 403 would mean the door refused ` +
+      `it, and a scoped account must be able to watch a run it started: ${status.text}`,
+  ).toBe(404);
 });

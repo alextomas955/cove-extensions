@@ -149,15 +149,40 @@ public sealed partial class Renamer
     /// parameters from the request scope; <c>ICurrentPrincipalAccessor</c> is populated by the host's
     /// CurrentPrincipalMiddleware.
     /// </summary>
+    /// <summary>
+    /// Registers every endpoint, each DECLARING the coarse gate its own handler re-checks.
+    /// </summary>
+    /// <remarks>
+    /// An endpoint carrying none of the SDK's authorization conventions is treated as anonymous for
+    /// backward compatibility, and the host warns at boot naming every such route. The declaration is
+    /// what the host reads and audits; the in-handler check stays, because it is what keeps behaviour
+    /// identical on a host predating policy enforcement.
+    /// <para>
+    /// The gate is the any-of form, from the same <see cref="AnyReadPermissions"/> /
+    /// <see cref="AnyWritePermissions"/> array the handler reads, so the two cannot drift.
+    /// </para>
+    /// <para>
+    /// COARSE is the most the host can express here, and the handler keeps the rest. The precise
+    /// per-kind re-checks have no endpoint-level equivalent: the kind travels in the request body and
+    /// the host binds an entity policy to a ROUTE value only. Nor does a permission policy see role
+    /// content rules - it admits any caller that HOLDS the permission - so a caller restricted to part
+    /// of the library still reaches these routes, and only the handler narrows what it gets back.
+    /// Refusing such a caller outright would need the check Cove applies to its own routes with
+    /// <c>[RequiresUnscopedEntityAccess]</c>, an MVC action filter that never reaches a minimal-API
+    /// endpoint.
+    /// </para>
+    /// </remarks>
     public override void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost(PreviewRoute,
             (RenamerRequest req, DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => PreviewAsync(req, db, principal, ct));
+                => PreviewAsync(req, db, principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapPost(RenamerRoute,
             (RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs)
-                => RenamerEnqueue(req, principal, jobs));
+                => RenamerEnqueue(req, principal, jobs))
+            .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
 
         // NB: this endpoint binds the RAW HttpContext (not a typed PreviewSampleRequest) so the
         // handler can deserialize the body with RenamerOptions.JsonOptions — the host's default
@@ -172,40 +197,50 @@ public sealed partial class Renamer
         endpoints.MapPost(PreviewSampleRoute,
             (HttpContext http, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => PreviewSampleAsync(http.Request, principal, ct))
-            .Accepts<PreviewSampleRequest>("application/json");
+            .Accepts<PreviewSampleRequest>("application/json")
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         // /undo takes NO request body — it operates on "the last batch", so binding no body avoids
         // the host's enum-converter 400 trap (see the preview-sample note above); /last-batch is a plain read.
         endpoints.MapPost(UndoRoute,
-            (ICurrentPrincipalAccessor principal, CancellationToken ct) => UndoAsync(principal, ct));
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => UndoAsync(principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
 
         endpoints.MapGet(LastBatchRoute,
-            (ICurrentPrincipalAccessor principal, CancellationToken ct) => LastBatchAsync(principal, ct));
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => LastBatchAsync(principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapPost(ScanLibraryRoute,
             (ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs) =>
-                ScanLibraryEnqueue(body, principal, jobs));
+                ScanLibraryEnqueue(body, principal, jobs))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapGet(LastScanRoute,
-            (ICurrentPrincipalAccessor principal, CancellationToken ct) => ScanLibraryResultAsync(principal, ct));
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => ScanLibraryResultAsync(principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapPost(ScanRowsRoute,
             (ScanRowsRequest? body, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => ScanRowsAsync(body, principal, ct));
+                => ScanRowsAsync(body, principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapPost(RenamerLibraryRoute,
-            (ICurrentPrincipalAccessor principal, IJobService jobs) => RenamerLibraryEnqueue(principal, jobs));
+            (ICurrentPrincipalAccessor principal, IJobService jobs) => RenamerLibraryEnqueue(principal, jobs))
+            .RequireCovePermission(PermissionMode.Any, AnyWritePermissions);
 
         endpoints.MapGet(LibraryPathsRoute,
-            (ICurrentPrincipalAccessor principal) => LibraryPaths(principal));
+            (ICurrentPrincipalAccessor principal) => LibraryPaths(principal))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapGet(JobStatusRoute,
             (string jobId, ICurrentPrincipalAccessor principal, IJobService jobs)
-                => JobStatus(jobId, principal, jobs));
+                => JobStatus(jobId, principal, jobs))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
 
         endpoints.MapGet(OrphanedRulesRoute,
             (ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => OrphanedRulesAsync(principal, ct));
+                => OrphanedRulesAsync(principal, ct))
+            .RequireCovePermission(PermissionMode.Any, AnyReadPermissions);
     }
 
     /// <summary>
@@ -670,17 +705,24 @@ public sealed partial class Renamer
             Consumed: summary is not null && summary.Value.Remaining == 0));
     }
 
+    /// <summary>The read gate every renamer route declares, and the one its handler re-checks.</summary>
+    /// <remarks>
+    /// ONE array, read by both, because the divergence is what would go unnoticed: an endpoint
+    /// advertising one gate to the host while enforcing another still passes every test that drives the
+    /// handler directly.
+    /// </remarks>
+    private static readonly string[] AnyReadPermissions =
+        [Permissions.VideosRead, Permissions.ImagesRead, Permissions.AudiosRead];
+
+    /// <summary>The write gate, on the same terms as <see cref="AnyReadPermissions"/>.</summary>
+    private static readonly string[] AnyWritePermissions =
+        [Permissions.VideosWrite, Permissions.ImagesWrite, Permissions.AudiosWrite];
+
     private static bool HasAnyReadPermission(ICurrentPrincipalAccessor principal)
-        => principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosRead)
-                || principal.Current.Has(Permissions.ImagesRead)
-                || principal.Current.Has(Permissions.AudiosRead));
+        => principal.Current is { } current && Array.Exists(AnyReadPermissions, current.Has);
 
     private static bool HasAnyWritePermission(ICurrentPrincipalAccessor principal)
-        => principal.Current is not null
-            && (principal.Current.Has(Permissions.VideosWrite)
-                || principal.Current.Has(Permissions.ImagesWrite)
-                || principal.Current.Has(Permissions.AudiosWrite));
+        => principal.Current is { } current && Array.Exists(AnyWritePermissions, current.Has);
 
     /// <summary>
     /// Every renamable kind, in a fixed iteration order. Gallery is excluded — it is not yet a

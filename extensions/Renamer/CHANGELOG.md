@@ -219,6 +219,11 @@ a small one.
   used to route now follow your default destination instead. The rule used to show an endless
   _"Loading studio…"_, so there was nothing to notice. It now reads _"Deleted studio (was #210) — this
   rule no longer applies"_, and you can remove the row. Nothing is deleted for you.
+- **Renamer's endpoints now say who may call them, and an account with no Renamer permission is turned
+  away before it reaches them.** Cove was logging a warning at every startup that these endpoints
+  declared nothing and so accepted anonymous callers; each one always checked the caller itself and
+  refused, but the check now happens at the door as well. Every route asks for the read or write
+  permission its own work needs.
 
 ## 0.3.0 — Undo that cannot grow without bound
 
