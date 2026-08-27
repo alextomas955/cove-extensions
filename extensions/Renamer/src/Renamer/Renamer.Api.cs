@@ -50,6 +50,7 @@ public sealed partial class Renamer
     private string RenamerLibraryRoute => RouteBase + "/renamer-library";
     private string LibraryPathsRoute => RouteBase + "/library-paths";
     private string JobStatusRoute => RouteBase + "/job-status/{jobId}";
+    private string OrphanedRulesRoute => RouteBase + "/orphaned-rules";
 
     /// <summary>
     /// The key a pre-0.2.1 scan wrote one wire row PER FILE to. Retained only so
@@ -201,6 +202,10 @@ public sealed partial class Renamer
         endpoints.MapGet(JobStatusRoute,
             (string jobId, ICurrentPrincipalAccessor principal, IJobService jobs)
                 => JobStatus(jobId, principal, jobs));
+
+        endpoints.MapGet(OrphanedRulesRoute,
+            (ICurrentPrincipalAccessor principal, CancellationToken ct)
+                => OrphanedRulesAsync(principal, ct));
     }
 
     /// <summary>
@@ -253,6 +258,59 @@ public sealed partial class Renamer
         }
 
         return TypedResults.Ok(RenamerJobStatus.From(job));
+    }
+
+    /// <summary>
+    /// Which per-studio and per-tag rule keys name an entity Cove no longer holds.
+    /// </summary>
+    /// <remarks>
+    /// Read as System, because the question is whether the entity EXISTS and a caller who cannot see it
+    /// would otherwise be told it is gone. Nothing about the entity is returned — only which of the
+    /// caller's own rule keys no longer resolve — so elevating discloses no more than the rules the
+    /// caller already holds.
+    /// <para>
+    /// Asks about exactly the ids the rules name, so both the query and the answer are bounded by how
+    /// many rules the user wrote rather than by library size. No rules means no query at all.
+    /// </para>
+    /// </remarks>
+    internal async Task<Results<Ok<OrphanedRulesView>, ForbiddenCode>> OrphanedRulesAsync(
+        ICurrentPrincipalAccessor principal, CancellationToken ct = default)
+    {
+        if (!HasAnyReadPermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
+        int[] studioIds = [.. options.StudioDestinations.Keys];
+        int[] tagIds = [.. options.TagDestinations.Keys];
+
+        if (studioIds.Length == 0 && tagIds.Length == 0)
+        {
+            return TypedResults.Ok(new OrphanedRulesView([], []));
+        }
+
+        (int[] missingStudios, int[] missingTags) = await RunAsSystem.RunInSystemScopeAsync(
+            ScopeFactory,
+            async services =>
+            {
+                var db = services.GetRequiredService<DbContext>();
+
+                List<int> liveStudios = studioIds.Length == 0
+                    ? []
+                    : await db.Set<Cove.Core.Entities.Studio>()
+                        .Where(x => studioIds.Contains(x.Id)).Select(x => x.Id).ToListAsync(ct);
+                List<int> liveTags = tagIds.Length == 0
+                    ? []
+                    : await db.Set<Cove.Core.Entities.Tag>()
+                        .Where(x => tagIds.Contains(x.Id)).Select(x => x.Id).ToListAsync(ct);
+
+                return (
+                    Studios: studioIds.Except(liveStudios).Order().ToArray(),
+                    Tags: tagIds.Except(liveTags).Order().ToArray());
+            });
+
+        return TypedResults.Ok(new OrphanedRulesView(missingStudios, missingTags));
     }
 
     /// <summary>
