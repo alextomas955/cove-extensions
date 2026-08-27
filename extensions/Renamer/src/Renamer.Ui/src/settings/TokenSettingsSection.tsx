@@ -60,7 +60,7 @@ const GENDER_OPTIONS: readonly ValueOption[] = [
 ];
 
 // Common DateFormat options; the example column uses the reference date 2026-03-12.
-const DATE_FORMAT_OPTIONS: readonly ExampleOption[] = [
+export const DATE_FORMAT_OPTIONS: readonly ExampleOption[] = [
   { value: "yyyy-MM-dd", example: "2026-03-12" },
   { value: "yyyy", example: "2026" },
   { value: "MM-dd-yyyy", example: "03-12-2026" },
@@ -70,10 +70,12 @@ const DATE_FORMAT_OPTIONS: readonly ExampleOption[] = [
 
 // Common DurationFormat options; the example column uses the reference duration 1h 23m 45s.
 // Values carry the engine's literal backslash escapes exactly (TS "hh\\-mm\\-ss" = literal hh\-mm\-ss).
-const DURATION_FORMAT_OPTIONS: readonly ExampleOption[] = [
+// The engine renders a duration through TimeSpan.ToString, where `mm` is the minutes COMPONENT
+// rather than the total minutes.
+export const DURATION_FORMAT_OPTIONS: readonly ExampleOption[] = [
   { value: String.raw`hh\-mm\-ss`, example: "01-23-45" },
   { value: String.raw`hh\.mm\.ss`, example: "01.23.45" },
-  { value: String.raw`mm\-ss`, example: "83-45" },
+  { value: String.raw`mm\-ss`, example: "23-45" },
 ];
 
 // Common separators; each label makes the literal whitespace visible.

@@ -127,15 +127,28 @@ public static class PathConfinement
                 "destination is not under any allowed root");
         }
 
-        // Re-check the ABSOLUTE full path (folder + new basename) the engine never saw.
-        string fullAbs = Combine(targetAbs, newBasename);
-        if (fullAbs.Length > options.FullPathMax)
-        {
-            return new(ConfinementRejection.TooLong, string.Empty,
-                $"resolved absolute path length {fullAbs.Length} exceeds FullPathMax {options.FullPathMax}");
-        }
+        return WithinBudget(targetAbs, newBasename, options);
+    }
 
-        return new(ConfinementRejection.None, NormalizeSlash(targetAbs), null);
+    /// <summary>
+    /// Accepts <paramref name="targetAbs"/> when the ABSOLUTE full path (folder +
+    /// <paramref name="newBasename"/>) fits <see cref="RenamerOptions.FullPathMax"/>, which the engine
+    /// could not measure because it never sees the root. The single site of the length comparison.
+    /// </summary>
+    /// <remarks>
+    /// <c>internal</c> because the duplicate-suffix loops re-measure through it once they settle on a
+    /// candidate: a loop lengthens the name to free a taken slot, so the name this is first called
+    /// with is not the name that gets written. A caller must pass the SAME folder basis the original
+    /// call used, or the two verdicts describe different paths.
+    /// </remarks>
+    internal static ConfinementResult WithinBudget(
+        string targetAbs, string newBasename, RenamerOptions options)
+    {
+        string fullAbs = Combine(targetAbs, newBasename);
+        return fullAbs.Length > options.FullPathMax
+            ? new(ConfinementRejection.TooLong, string.Empty,
+                $"resolved absolute path length {fullAbs.Length} exceeds FullPathMax {options.FullPathMax}")
+            : new(ConfinementRejection.None, NormalizeSlash(targetAbs), null);
     }
 
     /// <summary>

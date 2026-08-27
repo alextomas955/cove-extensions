@@ -173,6 +173,46 @@ public sealed class DestAnchoredMaxPathTests
             item.Reason);
     }
 
+    // The id the destination folder's row carries, so the planner's read-only resolve finds it: a folder
+    // it cannot find holds no rows, and no name can then be taken in it.
+    private const int BoundaryFolderId = 77;
+
+    private static async Task<RenamerPlanItem> PlanAtBudgetWithTheNameTakenAsync(int fullPathMax)
+    {
+        var port = new FakeRenamerDataPort();
+        port.SeedLibraryPaths(ShortSource, BoundaryRoot);
+        port.SeedEntity(Entity(BoundaryTitle, VideoFile(ShortSource)));
+        port.SeedFolder($"{Fwd(BoundaryRoot)}/{BoundaryFolder}", BoundaryFolderId);
+        port.SeedOccupied(BoundaryFolderId, BoundaryBasename, fileId: 2);
+        var opts = new RenamerOptions
+        {
+            FilenameTemplate = "$title",
+            AllowedRoots = [BoundaryRoot],
+            FullPathMax = fullPathMax,
+        };
+
+        var plan = await new RenamerPlanner(port).PlanAsync(
+            RenamerFileKind.Video, 10, opts, BoundaryLookup(), default);
+        return Assert.Single(plan.Items);
+    }
+
+    [Fact]
+    public async Task AtTheBudgetExactly_WithTheRenderedNameTaken_IsRejectedRatherThanPlannedSuffixed()
+    {
+        var item = await PlanAtBudgetWithTheNameTakenAsync(BoundaryAbsoluteLength);
+
+        Assert.Equal(RenamerStatus.SkipTooLong, item.Status);
+        // The length the suffixed candidate reaches, transcribed from the default suffix format:
+        // " (1)" between the stem and the extension is four characters past the boundary above.
+        Assert.Equal(
+            $"resolved absolute path length {BoundaryAbsoluteLength + 4} exceeds "
+                + $"FullPathMax {BoundaryAbsoluteLength}",
+            item.Reason);
+        // The item keeps the name and the folder it already has, so nothing over the budget is planned.
+        Assert.Equal("raw.mkv", item.NewBasename);
+        Assert.Equal(item.OldFullPath, item.NewFullPath);
+    }
+
     [Fact]
     public async Task WithTheInFlightHeadroomAdded_TheBasenameIsByteIdentical()
     {

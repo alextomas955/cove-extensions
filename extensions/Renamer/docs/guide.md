@@ -55,10 +55,12 @@ destination, and any warnings — without changing anything.
 4. To find a particular file, type part of its path or its new name into the search box. The search
    runs on the server and covers the current path, the new path, the new name and the destination
    folder, ignoring case.
-5. Scroll the table to load more rows. Rows arrive in scan order — videos, then images, then audio,
-   each in library order — and the line under the table says how many are loaded and whether there
-   are more. On a large library the server searches in stages: if it says it paused, keep scrolling
-   (or click **Keep searching**) and it picks up where it left off.
+5. Rows load as you scroll, in scan order — videos, then images, then audio, each in library
+   order. On a large library the server reads it in stages, and a stage can pass with nothing in it
+   that matches your filter; the table keeps asking for the next stage until the rows in view are
+   covered, so a narrow filter fills in on its own. The line under the table says how many rows are
+   loaded and, until the whole library has been read, how many items have been checked so far.
+   **Load more** (**Keep searching** with a search active) asks for the next stage straight away.
 6. The dry run uses your current settings, including edits you haven't saved yet, so you can
    iterate on the template and re-run until the preview looks right. If something looks wrong,
    adjust the template or the relevant setting and dry-run again.
@@ -74,17 +76,24 @@ that needs attention always says why:
 | Skipped — an exclude rule matched                            | One of your exclude rules covers it.                                                           |
 | Skipped — name conflict                                      | Another file already holds the computed name, and Renamer never overwrites.                    |
 | Skipped — file missing on disk                               | Cove holds a record for a file that is not there.                                              |
+| Skipped — file in use                                        | Something else held the file open, and Renamer never forces a lock.                            |
+| Skipped — permission denied                                  | Cove is not allowed to write where the row would go, or to move the file at all.               |
 | Skipped — file is outside your Cove library                  | The destination measures from the file's own library path, and the file is under none of them. |
 | Skipped — the rule's destination is no longer a library path | The root the matched rule names is no longer one of Cove's library paths.                      |
 | Skipped — destination outside your allowed roots             | _Allowed roots_ does not cover where the rule would write.                                     |
 | Skipped — path too long                                      | The full path would exceed _Full-path max length_.                                             |
 
-One badge is red rather than amber: **Too long to copy across drives**. That row moves to a different
-drive, and Renamer copies to a temporary name beside the destination before putting the final name in
-place. The temporary path is a little longer than the one the row shows, and it does not fit
+A stop that is not a defect is gray instead: **Skipped — cancelled** means Cove shut down part-way
+through the run. Nothing was half-written, and starting the rename again picks the row up.
+
+Two badges are red rather than amber. **Too long to copy across drives** means that row moves to a
+different drive, and Renamer copies to a temporary name beside the destination before putting the final
+name in place. The temporary path is a little longer than the one the row shows, and it does not fit
 _Full-path max length_, so the move cannot complete even though the new path does fit. Shorten the
 destination folder or the filename template for that row. The confirm shown before a rename counts
 these files too, so you see the warning whether you started from the dry run or from a list.
+**Skipped — copy did not verify** means a cross-drive copy was written and then read back different, so
+the file was left where it was — check the destination drive before running that row again.
 
 ## Rename
 

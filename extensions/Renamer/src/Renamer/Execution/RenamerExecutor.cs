@@ -223,6 +223,18 @@ public sealed class RenamerExecutor
             newFull = JoinPath(targetFolder, candidate);
         }
 
+        // (3b) Re-measure the absolute-path budget against the SETTLED candidate. The loop above
+        //      re-suffixes against a fresher snapshot than the plan saw, so it can reach a name longer
+        //      than any the plan measured. Nothing is mutated yet - this precedes the sidecar plan, the
+        //      canonical guard and every disk write - so the source stays where it is.
+        var budget = PathConfinement.WithinBudget(targetFolder, candidate, options);
+        if (!budget.Accepted)
+        {
+            skipped.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.SkipTooLong,
+                budget.Reason));
+            return;
+        }
+
         // (4) Sidecar moves: DB-tracked captions + configured same-stem neighbors that ride with the primary.
         var (plannedSidecars, captionRenames) = PlanSidecarMoves(srcFile, item.OldFullPath, targetFolder, candidate, options);
 
@@ -257,15 +269,17 @@ public sealed class RenamerExecutor
         string nativeNew = ToNative(newFull);
         bool sameVolume = VolumeClassifier.SameVolume(item.OldFullPath, newFull);
 
-        var (moved, moveReason, movedSidecars) = await MoveOnDisk(sameVolume, nativeOld, nativeNew, plannedSidecars, ct);
+        var (moved, moveReason, moveOutcome, movedSidecars) =
+            await MoveOnDisk(sameVolume, nativeOld, nativeNew, plannedSidecars, ct);
 
         if (!moved)
         {
-            // Locked source / existing destination / failed verify at move time → skip+report.
-            // The cross MoveResult shape matches DiskMover's, so VerifyFailed/LockedOrExists/
-            // PermissionDenied all flow into the SkipLocked bucket exactly as today —
-            // one item's failure never aborts the batch. Never force the lock.
-            skipped.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.SkipLocked, moveReason));
+            // The mover's own classification decides the status, through the one mapping both tiers
+            // share: a lock, a denial, a failed verify and a clean shutdown ask an operator for
+            // different things. One item's failure never aborts the batch, and the lock is never forced.
+            skipped.Add(new ItemResult(
+                item.FileId, item.OldFullPath, newFull,
+                MoveOutcomeClassifier.StatusFor(moveOutcome), moveReason));
             return;
         }
 
@@ -555,7 +569,8 @@ public sealed class RenamerExecutor
     /// copy→verify→promote→delete-source-last <see cref="CrossVolumeMover.MoveAsync"/>. Both tiers return
     /// the identical shape.
     /// </summary>
-    private async Task<(bool moved, string? reason, IReadOnlyList<(string From, string To)> movedSidecars)> MoveOnDisk(
+    private async Task<(bool moved, string? reason, MoveOutcome outcome,
+        IReadOnlyList<(string From, string To)> movedSidecars)> MoveOnDisk(
         bool sameVolume, string nativeOld, string nativeNew,
         IReadOnlyList<DiskMover.SidecarMove> plannedSidecars, CancellationToken ct)
     {
@@ -563,12 +578,12 @@ public sealed class RenamerExecutor
         {
             var move = _disk.Move(nativeOld, nativeNew,
                 [.. plannedSidecars.Select(s => new DiskMover.SidecarMove(ToNative(s.From), ToNative(s.To)))]);
-            return (move.Moved, move.Reason, [.. move.MovedSidecars.Select(s => (s.From, s.To))]);
+            return (move.Moved, move.Reason, move.Outcome, [.. move.MovedSidecars.Select(s => (s.From, s.To))]);
         }
 
         var cross = await _cross.MoveAsync(nativeOld, nativeNew,
             [.. plannedSidecars.Select(s => new CrossVolumeMover.SidecarMove(ToNative(s.From), ToNative(s.To)))], ct);
-        return (cross.Moved, cross.Reason, [.. cross.MovedSidecars.Select(s => (s.From, s.To))]);
+        return (cross.Moved, cross.Reason, cross.Outcome, [.. cross.MovedSidecars.Select(s => (s.From, s.To))]);
     }
 
     /// <summary>

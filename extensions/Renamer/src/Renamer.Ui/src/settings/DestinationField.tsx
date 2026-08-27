@@ -106,9 +106,16 @@ export function DestinationField({
           mono
           placeholder={templatePlaceholder}
         />
+        {/* Reworded rather than suppressed when the picker is hidden. A typed path is still about to
+            become literal folder names, and this is the only line that says so — while naming a
+            control that is not on screen leaves the user nothing to act on. */}
         <PathShapeHint
           value={value.Template}
-          message="This is a folder template, not a path - pick the root beside it instead."
+          message={
+            showPicker
+              ? "This is a folder template, not a path — pick the root beside it instead."
+              : "This is a folder template, not a path — the whole thing becomes folder names under this destination's root."
+          }
         />
       </Field>
     </>
