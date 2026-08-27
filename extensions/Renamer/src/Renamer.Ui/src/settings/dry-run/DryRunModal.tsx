@@ -38,6 +38,7 @@ import {
   formatEta,
   isFinalizing,
   progressPercent,
+  shouldContinueWalk,
   summaryCounts,
   type DryRunCounts,
   type DryRunFilter,
@@ -304,7 +305,6 @@ export function DryRunModal({
     loadMore,
     loading: rowsLoading,
     complete: rowsComplete,
-    budgetExhausted,
     examined,
     error: rowsError,
   } = useScanRows(scanOptionsBlob, summary !== null, query, filter);
@@ -322,11 +322,27 @@ export function DryRunModal({
 
   const virtualRows = rowVirtualizer.getVirtualItems();
   const lastVisible = virtualRows.length > 0 ? virtualRows[virtualRows.length - 1].index : -1;
-  // Scrolling within a prefetch window of the loaded end continues the walk. Overlapping calls are
-  // deduplicated in the store, so firing this on consecutive scroll frames costs one request.
+  // How many rows the loaded window needs to cover: one prefetch window past the last row the
+  // virtualizer handed back, so the next page is requested before the user reaches the end.
+  const targetRows = lastVisible + PREFETCH_ROWS + 1;
+  // Whether another page is wanted is shouldContinueWalk's decision; this effect is only its wiring.
+  // The in-flight flag is the dependency that makes the re-evaluation reliable: a page can land
+  // carrying no rows at all, leaving both the row count and the last visible index identical, and that
+  // page is precisely the one whose successor still has to be requested. The flag flips on every
+  // request this client issues, so the trigger cannot go quiet. Overlapping calls are deduplicated in
+  // the store, so a condition holding across consecutive scroll frames costs one request.
   useEffect(() => {
-    if (lastVisible >= rows.length - PREFETCH_ROWS) loadMore();
-  }, [lastVisible, rows.length, loadMore]);
+    if (
+      shouldContinueWalk({
+        loadedRows: rows.length,
+        targetRows,
+        hasMore: !rowsComplete,
+        loading: rowsLoading,
+        hasError: rowsError !== null,
+      })
+    )
+      loadMore();
+  }, [rows.length, targetRows, rowsComplete, rowsLoading, rowsError, loadMore]);
 
   // What the footer can honestly claim as a denominator. With a search active the matching total is
   // unknown until the walk ends — only the server knows how many rows a query matches, and finding out
@@ -566,9 +582,12 @@ export function DryRunModal({
                   )}
                 </div>
 
-                {/* Footer: what is loaded, in what order, and whether the walk is finished. The
-                    budget case must never read as "that's everything" — it means the server stopped
-                    looking for now, and asking again continues the search. */}
+                {/* Footer: what is loaded, in what order, and whether the walk is finished. While it
+                    is unfinished the line reports how much of the library has been checked, because
+                    the walk continues itself and the count is what shows it moving through windows
+                    that match nothing. It must never read as "that's everything", and it must never
+                    ask for a gesture: a handful of rows in a virtualized list leaves nothing to
+                    scroll. */}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-card px-3 py-2 text-xs text-muted">
                   <span>
                     {showTotal
@@ -579,9 +598,7 @@ export function DryRunModal({
                       ? searching
                         ? "Your whole library has been searched."
                         : "That is all of them."
-                      : budgetExhausted
-                        ? `The server paused after checking ${examined} items — scroll to keep searching.`
-                        : "Scroll for more."}
+                      : `Checked ${examined} items so far…`}
                   </span>
                   {rowsComplete ? null : (
                     <Button variant="ghost" onClick={loadMore} disabled={rowsLoading}>

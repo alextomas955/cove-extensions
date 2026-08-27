@@ -16,6 +16,7 @@ import {
   ETA_MIN_RATES,
   IN_FLIGHT_OVERFLOW_LABEL,
   inFlightOverflowLabel,
+  shouldContinueWalk,
   type DryRunBucket,
 } from "./dryRunLogic";
 import type { RenamerStatus } from "../../wire/api";
@@ -74,6 +75,45 @@ test("bucketWireValue emits the camelCase ScanBucketKind names the server parses
   assert.equal(bucketWireValue("no-change"), "noChange");
   assert.equal(bucketWireValue("attention"), "attention");
   assert.equal(bucketWireValue("all"), "all");
+});
+
+/**
+ * A walk stopped part-way: some rows accumulated, a cursor still live, and the last page having added
+ * nothing at all. `targetRows` is what the viewport and its prefetch window ask for at an unscrolled
+ * open. Each case below flips exactly one field, so the field it flipped is what decided the answer.
+ */
+const STALLED_WALK = {
+  loadedRows: 6,
+  targetRows: 35,
+  hasMore: true,
+  loading: false,
+  hasError: false,
+} as const;
+
+test("a page that returned no rows while the cursor is still live continues the walk", () => {
+  // A zero-row page changes no row count, so anything watching the counts reads a finished walk.
+  assert.equal(shouldContinueWalk(STALLED_WALK), true);
+});
+
+test("a walk whose cursor has gone null does not continue, however few rows it loaded", () => {
+  // The end of the library is the one honest reason to stop short of the target.
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, hasMore: false }), false);
+});
+
+test("a walk that has covered its row target does not continue", () => {
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 34 }), true);
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 35 }), false);
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loadedRows: 36 }), false);
+});
+
+test("a failed page does not continue, so a failing server is not asked without end", () => {
+  // A failure leaves the cursor live and clears the in-flight flag, so every other input still reads
+  // as "more to fetch, nothing in flight".
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, hasError: true }), false);
+});
+
+test("a page already in flight does not continue", () => {
+  assert.equal(shouldContinueWalk({ ...STALLED_WALK, loading: true }), false);
 });
 
 test("summaryCounts partitions the aggregate's status counts into three buckets summing to the total", () => {
