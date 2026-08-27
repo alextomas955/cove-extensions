@@ -161,6 +161,10 @@ and says nothing about the rest.
   unreachable: a failed fetch of the settings chunk painted an error on the right address, and a page
   opened before Cove finished loading extensions was switched to a built-in tab with the address
   rewritten. The panel now retries through both cases within one budget rather than waiting forever.
+- **The live preview no longer shows the result for settings you have moved on from.** Each edit sends
+  a fresh preview, and a slow one issued earlier could answer after a later one and repaint the pane
+  over it — so the sample names under your template could be the names some earlier version of it
+  produced. A superseded answer is now discarded, and the request it replaces is cancelled.
 - **The dry run's warning badges are visible again on a released Cove.** The amber and red pills asked
   for two Tailwind utilities that Cove's prebuilt stylesheet does not contain, so they rendered with no
   fill at all and no error anywhere. They now carry their fill directly, built from Cove's own colour
