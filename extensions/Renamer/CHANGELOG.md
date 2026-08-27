@@ -207,6 +207,11 @@ and says nothing about the rest.
   run.** When every file of an edited item was skipped — a name already taken at the destination, say —
   the hook stayed muted for that item, so your next edit of it was ignored and nothing said so. It
   now acts on the next edit.
+- **A dry run or library rename now finishes for an account that is not the owner.** Renamer watched a
+  run through one of Cove's own endpoints, and from Cove 1.3.1 that endpoint answers only to accounts
+  with unrestricted read. So for anyone else the run started and then appeared to stall, ending in
+  _"Cove stopped answering when asked about this job"_ — the work usually finished, but the panel could
+  not see it. Renamer now reports its own progress, and only for its own runs.
 
 ## 0.3.0 — Undo that cannot grow without bound
 

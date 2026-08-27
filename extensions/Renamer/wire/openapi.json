@@ -402,6 +402,48 @@
           }
         }
       }
+    },
+    "/api/extensions/com.alextomas955.renamer/job-status/{jobId}": {
+      "get": {
+        "tags": [
+          "Renamer"
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenamerJobStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -791,6 +833,57 @@
           "audio",
           "gallery"
         ]
+      },
+      "RenamerJobState": {
+        "enum": [
+          "pending",
+          "running",
+          "completed",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "RenamerJobStatus": {
+        "required": [
+          "id",
+          "status",
+          "progress",
+          "subTask",
+          "error",
+          "etaSeconds"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RenamerJobState"
+          },
+          "progress": {
+            "type": "number",
+            "format": "double"
+          },
+          "subTask": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "etaSeconds": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        }
       },
       "RenamerOptions": {
         "type": "object",

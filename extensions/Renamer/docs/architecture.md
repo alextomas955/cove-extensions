@@ -166,8 +166,14 @@ Minimal-API endpoints the frontend calls, mounted under
 - `GET /library-paths` — Cove's configured library paths. Every destination root is chosen from this
   list rather than typed, so a rule holds a reference to a folder Cove owns instead of a copy of its
   path.
+- `GET /job-status/{jobId}` — where one of this extension's own runs has got to. Cove's equivalent
+  route is gated on unrestricted read, so a scoped caller is refused there even for a run it started
+  itself; this serves the few fields the panel's poller needs under the same read check the enqueue
+  used. It answers only for a job whose type carries this extension's prefix, and reports anything
+  else as NOT FOUND — so it replaces the part of the host's gate this extension owns rather than
+  working around the rest of it.
 
-The committed `wire/openapi.json` is the contract these ten routes answer to. A test builds a real
+The committed `wire/openapi.json` is the contract these eleven routes answer to. A test builds a real
 host over the shipped registrations, emits the document from them, and fails when the committed copy
 no longer matches — so the document cannot go stale without a red build, and the UI's TypeScript wire
 types are generated from it rather than declared a second time by hand.
@@ -225,7 +231,7 @@ A Vite library build that Cove loads as `index.mjs`. Its home is a dedicated **S
   query using the same match rule the browser used to apply.
 
 - `renameSelected.ts` — the bulk-action handler: preview → confirm → `/renamer`, cancellable.
-- `pollJob.ts` / `jobPollLogic.ts` — the single poller over the host's `GET /jobs/{id}`, and the pure
+- `pollJob.ts` / `jobPollLogic.ts` — the single poller over `GET /job-status/{jobId}`, and the pure
   decision it takes on each read. Both bounds live in the logic module: a job that stops reporting
   progress and a job id that stops answering each end the wait. An expiry is kept distinct from the
   job's own reported failure, because only the second one means nothing was written.

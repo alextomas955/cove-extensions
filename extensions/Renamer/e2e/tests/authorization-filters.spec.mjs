@@ -19,8 +19,8 @@
 import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { seedVideo } from "@cove-extensions/e2e/seed-media";
-import { pollJob } from "@cove-extensions/e2e/poll";
 import { RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
+import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
 
 // Small and fixed. Every assertion below compares two live responses to each other, so nothing here
 // depends on this number — it exists only so the library is provably non-empty for the owner, which
@@ -144,7 +144,7 @@ test("the elevated detached read sees the library its own caller cannot", async 
   const jobId = enqueued.json?.jobId;
   expect(typeof jobId, `the enqueue carried no jobId: ${enqueued.text}`).toBe("string");
 
-  const job = await pollJob(restricted, jobId, { timeoutMs: 120_000 });
+  const job = await pollRenamerJob(restricted, routeBase, jobId, { timeoutMs: 120_000 });
   expect(
     job?.status?.toLowerCase(),
     `the scan job did not complete (status ${job?.status}, error ${job?.error})`,
@@ -204,4 +204,31 @@ test("the elevated detached read sees the library its own caller cannot", async 
     elevatedEntities,
     "the elevated and non-elevated paths agree, so this test is not observing the difference it exists for",
   ).not.toBe(rows.json?.rows?.length);
+});
+
+test("a scoped user watches its own run, and cannot read another owner's job through it", async ({
+  authz,
+}) => {
+  const { restricted, routeBase } = authz;
+
+  // Why this route exists: from Cove 1.3.1 the host gates its own GET /api/jobs/{id} on unrestricted
+  // read, so this user is refused there for a run it started itself and the panel would poll forever.
+  // The host's answer is deliberately NOT asserted here - it differs by host version, and this suite
+  // runs against several, so pinning it would make the spec fail on the older ones for a reason that
+  // is not Renamer's.
+  const enqueued = await restricted.post(`${routeBase}/scan-library`, {});
+  expect(
+    enqueued.status,
+    `POST ${routeBase}/scan-library as the restricted user answered ${enqueued.status}: ${enqueued.text}`,
+  ).toBe(202);
+  const jobId = enqueued.json?.jobId;
+
+  const job = await pollRenamerJob(restricted, routeBase, jobId, { timeoutMs: 120_000 });
+  expect(job?.status?.toLowerCase(), `the run did not finish: ${JSON.stringify(job)}`).toBe(
+    "completed",
+  );
+
+  // Confinement - that the route reports only jobs this extension enqueued - is asserted in
+  // JobStatusEndpointTests, where a foreign job type can be arranged exactly. Reaching it from here
+  // would need a second extension's job id, and a made-up id is absent either way.
 });
