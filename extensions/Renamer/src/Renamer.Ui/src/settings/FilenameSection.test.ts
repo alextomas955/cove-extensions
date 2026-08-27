@@ -37,7 +37,6 @@ vi.mock("@cove-extensions/ui-shared", async () => {
   return {
     Field: stub("Field"),
     TextInput: stub("TextInput"),
-    Subsection: stub("Subsection"),
     SectionCard: stub("SectionCard"),
     Chip: stub("Chip"),
     StatusText: stub("StatusText"),

@@ -115,10 +115,7 @@ export function TokenSettingsSection({
   );
 
   return (
-    <SectionCard
-      title="Token settings"
-      description="Formatting for individual tokens. Only shown for tokens your template uses."
-    >
+    <SectionCard description="Formatting for individual tokens.">
       {usesPerformers ? (
         <GroupCard title="Performers" badge={<Badge mono>$performers</Badge>}>
           <Field label="Separator">
@@ -174,10 +171,7 @@ export function TokenSettingsSection({
               />
             </Field>
           </div>
-          <Field
-            label="Gender order"
-            helper="Preferred gender order, most-preferred first. Empty = off."
-          >
+          <Field label="Gender order" helper="Most-preferred first. Empty = off.">
             <OrderedPickToAdd
               options={GENDER_OPTIONS}
               values={mv("Performers").GenderOrder}

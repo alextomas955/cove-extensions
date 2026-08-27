@@ -30,7 +30,6 @@ export function EntitySelectField({
   excludeIds,
 }: Readonly<{
   entityType: EntityReferenceType;
-  /** Empty for an in-row cell, where the surrounding row already identifies the field. */
   label: string;
   helper?: string;
   /** The stored stable ids. Controlled: persistence stays with the panel. */

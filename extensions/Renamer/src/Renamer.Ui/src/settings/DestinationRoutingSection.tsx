@@ -64,10 +64,7 @@ export function DestinationRoutingSection({
   const orphaned = useOrphanedRules();
 
   return (
-    <SectionCard
-      title="Destination routing"
-      description="Where renamed files land. Per-studio and per-tag rules override the default."
-    >
+    <SectionCard description="Per-studio and per-tag rules override the default.">
       <GroupCard
         title="Unorganized destination"
         description="Where un-curated items go instead of being skipped."
@@ -80,11 +77,9 @@ export function DestinationRoutingSection({
             // through to the only-organized gate, which is what decides whether the item is skipped.
             set("UnorganizedDestination", on ? { ...NO_DESTINATION } : null);
           }}
-          helper="When on, an un-curated item goes here rather than being skipped by the only-organized gate."
         />
         {options.UnorganizedDestination === null ? null : (
           <DestinationField
-            rootHelper="Which of Cove's library paths this destination measures from."
             value={options.UnorganizedDestination}
             onChange={(destination) => {
               set("UnorganizedDestination", destination);
@@ -96,7 +91,7 @@ export function DestinationRoutingSection({
 
       <ToggleHeaderCard
         title="Per-studio destinations"
-        description="Pick a studio, then the library path its items go to and the folders made under it."
+        description="Route a studio's items to their own destination."
         enabled={options.EnableStudioDestinations}
         onToggle={(v) => {
           set("EnableStudioDestinations", v);
@@ -113,7 +108,7 @@ export function DestinationRoutingSection({
 
       <ToggleHeaderCard
         title="Per-tag destinations"
-        description="Pick a tag, then the library path its items go to and the folders made under it."
+        description="Route a tag's items to their own destination."
         enabled={options.EnableTagDestinations}
         onToggle={(v) => {
           set("EnableTagDestinations", v);
@@ -133,7 +128,7 @@ export function DestinationRoutingSection({
           renderKey={(draftKey, setDraftKey, existingKeys) => (
             <EntitySelectField
               entityType="tag"
-              label=""
+              label="Tag"
               values={draftKey === "" ? [] : [Number(draftKey)]}
               onChange={(values) => {
                 // Last-id-wins: the selector is multi-value but a map key holds exactly one tag.
@@ -230,7 +225,7 @@ export function DestinationRoutingSection({
 
       <GroupCard
         title="Sidecar files"
-        description="Files sharing the primary's basename with these extensions move and rename with it — an existing target is never overwritten. Cove-tracked captions always move."
+        description="A file sharing the primary's basename moves and renames with it; an existing target is never overwritten. Cove-tracked captions always move."
       >
         <Field label="Also move sidecar files with these extensions">
           <TagListInput
@@ -259,7 +254,7 @@ export function DestinationRoutingSection({
           onChange={(v) => {
             set("RemoveEmptyFolder", v);
           }}
-          helper="Deletes a source folder only when a move leaves it empty — never a non-empty folder or a root. Undo won't recreate a deleted folder. Off by default."
+          helper="Never a non-empty folder or a root. Undo won't recreate it."
         />
       </div>
     </SectionCard>

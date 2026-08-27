@@ -1,21 +1,14 @@
 /**
- * FilenameSection — the "Filename & folder" card: presets, the filename/folder template inputs with
- * their at-caret token insertion, inline template validation, and the token legend. Presentational
- * only — every edit flows up through the `set`/`insertToken` callbacks the panel threads in from
- * useRenamerOptions. Owns the `col-span-2` grid cell (with the bad-blob recovery banner) so it can
- * sit beside the sticky live-preview column.
+ * FilenameSection — the two naming cards, "Filename" and "Where files go": presets, the
+ * filename/folder template inputs with their at-caret token insertion, inline template validation,
+ * and the token legend. Presentational only — every edit flows up through the `set`/`insertToken`
+ * callbacks the panel threads in from useRenamerOptions. Owns the `col-span-2` grid cell (with the
+ * bad-blob recovery banner) so both cards sit beside the sticky live-preview column.
  */
 import type { Ref, RefObject } from "react";
 
 import { type RenamerOptions, type LibraryPathsState } from "./options";
-import {
-  Field,
-  TextInput,
-  Subsection,
-  SectionCard,
-  Chip,
-  StatusText,
-} from "@cove-extensions/ui-shared";
+import { Field, TextInput, SectionCard, Chip, StatusText } from "@cove-extensions/ui-shared";
 import { DestinationField } from "./DestinationField";
 import { TokenLegend } from "./TokenLegend";
 import { TemplateValidation } from "./templateAdvisories";
@@ -47,9 +40,6 @@ function PresetRow({ onApply }: { onApply: (filenameTemplate: string) => void })
           </Chip>
         ))}
       </div>
-      <p className="mt-1 text-xs text-muted">
-        Click a preset to fill the filename template. You can edit it afterwards.
-      </p>
     </div>
   );
 }
@@ -110,52 +100,44 @@ export function FilenameSection({
         </StatusText>
       ) : null}
 
+      <SectionCard title="Filename" description="Pick a preset or write your own.">
+        <PresetRow
+          onApply={(t) => {
+            set("FilenameTemplate", t);
+          }}
+        />
+        <Field label="Filename template">
+          <TextInput
+            value={options.FilenameTemplate}
+            onChange={(v) => {
+              set("FilenameTemplate", v);
+            }}
+            onFocus={() => (activeTemplateRef.current = "filename")}
+            inputRef={filenameRef}
+            mono
+            placeholder="$title"
+          />
+        </Field>
+        <TemplateValidation value={options.FilenameTemplate} emptySamples={emptySamples} />
+        <TokenLegend onInsert={insertToken} />
+      </SectionCard>
+
       <SectionCard
-        title="Filename & folder"
-        description="The name each file gets, and where it lands."
+        title="Where files go"
+        description="The destination for an item no rule matched."
       >
-        <Subsection
-          title="Filename"
-          description="Pick a preset or write your own. Click a token to insert it."
-        >
-          <PresetRow
-            onApply={(t) => {
-              set("FilenameTemplate", t);
-            }}
-          />
-          <Field label="Filename template">
-            <TextInput
-              value={options.FilenameTemplate}
-              onChange={(v) => {
-                set("FilenameTemplate", v);
-              }}
-              onFocus={() => (activeTemplateRef.current = "filename")}
-              inputRef={filenameRef}
-              mono
-              placeholder="$title"
-            />
-          </Field>
-          <TemplateValidation value={options.FilenameTemplate} emptySamples={emptySamples} />
-          <TokenLegend onInsert={insertToken} />
-        </Subsection>
-        <Subsection
-          title="Where files go"
-          description="The destination for an item no rule matched: a library path, plus the folders made under it."
-        >
-          <DestinationField
-            rootHelper="Which of Cove's library paths this destination measures from."
-            value={{ Root: options.FolderRoot, Template: options.FolderTemplate }}
-            onChange={(destination) => {
-              set("FolderRoot", destination.Root);
-              set("FolderTemplate", destination.Template);
-            }}
-            library={library}
-            helper="Blank = no folder move (rename in place). Use / for sub-folders, e.g. $studio/$year."
-            templateRef={folderRef}
-            onTemplateFocus={() => (activeTemplateRef.current = "folder")}
-          />
-          <TemplateValidation value={options.FolderTemplate} />
-        </Subsection>
+        <DestinationField
+          value={{ Root: options.FolderRoot, Template: options.FolderTemplate }}
+          onChange={(destination) => {
+            set("FolderRoot", destination.Root);
+            set("FolderTemplate", destination.Template);
+          }}
+          library={library}
+          helper="Blank = no folder move (rename in place). Use / for sub-folders, e.g. $studio/$year."
+          templateRef={folderRef}
+          onTemplateFocus={() => (activeTemplateRef.current = "folder")}
+        />
+        <TemplateValidation value={options.FolderTemplate} />
       </SectionCard>
     </div>
   );

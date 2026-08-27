@@ -24,18 +24,24 @@ const MAX_RECOVERIES = 3;
 // will ever resolve. It is transient, and a fresh navigation refetches the chunk.
 const CHUNK_FAILURE_TEXT = /Failed to fetch dynamically imported module/;
 
+// How many times one navigation may lose the transport before it is reported as a failed visit. A
+// runner can change its network under an in-flight request (`net::ERR_NETWORK_CHANGED`), which is
+// neither the host nor the panel: nothing has answered yet, so there is nothing to diagnose and the
+// only useful response is to ask again immediately.
+const NAVIGATION_ATTEMPTS = 3;
+
 export class RenamerSettingsPage {
   constructor(page, baseUrl) {
     this.page = page;
     this.baseUrl = baseUrl;
     this.panelUrl = `${baseUrl}${SETTINGS_PATH}`;
     this.filenameTemplateInput = page.getByRole("textbox", { name: "Filename template" });
-    // Scoped to the default destination's own subsection: every destination on the panel draws a
-    // folder-template input, so the page-wide name is not unique once any rule exists. The class is
-    // the Subsection primitive's own container, which is the only structural handle it offers; a
-    // change there fails this locator loudly rather than silently matching the wrong input.
+    // Scoped to the default destination's own card: every destination on the panel draws a
+    // folder-template input, so the page-wide name is not unique once any rule exists. SectionCard
+    // renders a <section>, which is the structural handle that scopes this; a change there fails
+    // this locator loudly rather than silently matching the wrong input.
     this.folderTemplateInput = page
-      .locator("div.space-y-4")
+      .locator("section")
       .filter({ has: page.getByRole("heading", { name: "Where files go" }) })
       .getByRole("textbox", { name: "Folder template" });
     this.saveChangesButton = page.getByRole("button", { name: "Save changes" });
@@ -67,14 +73,31 @@ export class RenamerSettingsPage {
 
   /** Opens the panel and returns once it has rendered. */
   async goto() {
-    await this.page.goto(this.panelUrl);
+    await this.#navigate(() => this.page.goto(this.panelUrl));
     await this.waitForPanel();
   }
 
   /** Reloads the panel and returns once it has rendered again. */
   async reload() {
-    await this.page.reload();
+    await this.#navigate(() => this.page.reload());
     await this.waitForPanel();
+  }
+
+  /**
+   * Runs one navigation, retrying it while the transport itself fails, and reports whether it
+   * landed. A lost transport is not an answer from the host, so it is not a signal the visit can
+   * count; the caller's budget still bounds the visit, and {@link waitForPanel} names the failures in
+   * its own error rather than letting one escape from here.
+   */
+  async #navigate(navigate) {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await navigate();
+        return true;
+      } catch {
+        if (attempt >= NAVIGATION_ATTEMPTS) return false;
+      }
+    }
   }
 
   /**
@@ -101,6 +124,7 @@ export class RenamerSettingsPage {
     const deadline = Date.now() + PANEL_VISIT_BUDGET_MS;
     let discards = 0;
     let chunkFailures = 0;
+    let lostTransport = 0;
     let recoveries = 0;
     for (;;) {
       // A non-positive Playwright timeout means "never time out", so the budget is checked before it
@@ -136,11 +160,15 @@ export class RenamerSettingsPage {
             `${recoveries} recovered navigation(s) and a ${PANEL_VISIT_BUDGET_MS}ms budget for the visit. ` +
             `The page is now at ${this.page.url()}. ` +
             `The host sent the route to one of its own tabs ${discards} time(s) and failed to fetch ` +
-            `its own settings chunk ${chunkFailures} time(s) on the way. ` +
+            `its own settings chunk ${chunkFailures} time(s) on the way, and a navigation lost the ` +
+            `transport ${lostTransport} time(s). ` +
             `The page's own headings read: ${await this.describePage()}.`,
         );
       }
-      await this.page.goto(this.panelUrl);
+      if (!(await this.#navigate(() => this.page.goto(this.panelUrl)))) {
+        lostTransport += 1;
+        recoveries += 1;
+      }
     }
   }
 

@@ -1,6 +1,6 @@
 /**
  * DestinationField - the one editor every destination in this panel uses: a ROOT chosen from Cove's
- * library paths, plus a relative folder template rendered under it.
+ * library paths, plus a relative folder template rendered under it, side by side on one row.
  *
  * No path is ever typed. Cove owns the library paths, so a typed copy of one here would point at
  * nothing the moment the user changed it in Cove; a chosen root is a reference that follows.
@@ -61,6 +61,53 @@ export function DestinationField({
     ...(stale ? [{ value: value.Root, label: `${value.Root} (no longer a library path)` }] : []),
   ];
 
+  const rootField = (
+    <Field label="Under" helper={rootHelper}>
+      <Select
+        // The MATCHED path, so a root stored in Cove's own platform spelling selects the library
+        // path it names rather than falling off the list. The stored value is left as it is: it
+        // names the right folder, and rewriting it on load would be an edit the user did not make.
+        value={chosen ?? value.Root}
+        onChange={(root) => {
+          onChange({ ...value, Root: root });
+        }}
+        options={options}
+      />
+      {stale ? (
+        <StatusText kind="error">
+          This root is no longer one of Cove&apos;s library paths, so the rule is skipped. Pick
+          another.
+        </StatusText>
+      ) : null}
+    </Field>
+  );
+
+  const templateField = (
+    <Field label={label} helper={helper}>
+      <TextInput
+        value={value.Template}
+        onChange={(template) => {
+          onChange({ ...value, Template: template });
+        }}
+        onFocus={onTemplateFocus}
+        inputRef={templateRef}
+        mono
+        placeholder={templatePlaceholder}
+      />
+      {/* Reworded rather than suppressed when the picker is hidden. A typed path is still about to
+          become literal folder names, and this is the only line that says so — while naming a
+          control that is not on screen leaves the user nothing to act on. */}
+      <PathShapeHint
+        value={value.Template}
+        message={
+          showPicker
+            ? "This is a folder template, not a path — pick the root beside it instead."
+            : "This is a folder template, not a path — the whole thing becomes folder names under this destination's root."
+        }
+      />
+    </Field>
+  );
+
   return (
     <>
       {notice === "unreadable" ? (
@@ -76,48 +123,13 @@ export function DestinationField({
         </StatusText>
       ) : null}
       {showPicker ? (
-        <Field label="Under" helper={rootHelper}>
-          <Select
-            // The MATCHED path, so a root stored in Cove's own platform spelling selects the library
-            // path it names rather than falling off the list. The stored value is left as it is: it
-            // names the right folder, and rewriting it on load would be an edit the user did not make.
-            value={chosen ?? value.Root}
-            onChange={(root) => {
-              onChange({ ...value, Root: root });
-            }}
-            options={options}
-          />
-          {stale ? (
-            <StatusText kind="error">
-              This root is no longer one of Cove&apos;s library paths, so the rule is skipped. Pick
-              another.
-            </StatusText>
-          ) : null}
-        </Field>
-      ) : null}
-      <Field label={label} helper={helper}>
-        <TextInput
-          value={value.Template}
-          onChange={(template) => {
-            onChange({ ...value, Template: template });
-          }}
-          onFocus={onTemplateFocus}
-          inputRef={templateRef}
-          mono
-          placeholder={templatePlaceholder}
-        />
-        {/* Reworded rather than suppressed when the picker is hidden. A typed path is still about to
-            become literal folder names, and this is the only line that says so — while naming a
-            control that is not on screen leaves the user nothing to act on. */}
-        <PathShapeHint
-          value={value.Template}
-          message={
-            showPicker
-              ? "This is a folder template, not a path — pick the root beside it instead."
-              : "This is a folder template, not a path — the whole thing becomes folder names under this destination's root."
-          }
-        />
-      </Field>
+        <div className="grid gap-4 md:grid-cols-2">
+          {rootField}
+          {templateField}
+        </div>
+      ) : (
+        templateField
+      )}
     </>
   );
 }

@@ -33,17 +33,25 @@ it here.
 
 ## Filename & folder
 
-| Setting           | What it does                                                                                                             | Default                            |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
-| Filename template | The pattern used to build each new filename. Plain text plus `$tokens`. See [Naming templates](./templates).             | `{$date - }$title{ [$resolution]}` |
-| Under             | Which of Cove's library paths the default destination measures from. Also offers _(the file's own library path)_.        | _(the file's own library path)_    |
-| Folder template   | The pattern for the folders made under that root (use `/` for sub-folders). **Blank = rename in place, no folder move.** | _(blank)_                          |
+### Filename
 
-The two controls sit under the sub-headings **Filename** and **Where files go**. The **preset** chips
-set the filename template to a starter pattern; the **live preview** beside the section shows the
-result on sample items as you type.
+| Setting           | What it does                                                                                                 | Default                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| Filename template | The pattern used to build each new filename. Plain text plus `$tokens`. See [Naming templates](./templates). | `{$date - }$title{ [$resolution]}` |
 
-### A destination is a root plus a folder template
+The **preset** chips set the filename template to a starter pattern; the **live preview** beside the
+card shows the result on sample items as you type.
+
+### Where files go
+
+This is the destination for an item no routing rule matched.
+
+| Setting         | What it does                                                                                                             | Default                         |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| Under           | Which of Cove's library paths the default destination measures from. Also offers _(the file's own library path)_.        | _(the file's own library path)_ |
+| Folder template | The pattern for the folders made under that root (use `/` for sub-folders). **Blank = rename in place, no folder move.** | _(blank)_                       |
+
+#### A destination is a root plus a folder template
 
 Every destination in Renamer - the default above, the unorganized route, and each per-studio,
 per-tag and source-path rule - has the same two parts:
@@ -61,7 +69,9 @@ folder to Cove's library paths, or pick a library path for the destination inste
 If you remove a folder from Cove's library paths, every rule that named it stops and says so rather
 than sending its items somewhere you did not choose. Re-pick a root, or add the folder back in Cove.
 
-## What gets renamed
+## Scope & run
+
+### What gets renamed
 
 | Setting                                | What it does                                                                                                                                              | Default |
 | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
@@ -82,7 +92,7 @@ Undoing a rename puts the file back under its old name; the recorded title stays
 that item therefore renders the same name again rather than deriving a new one from whatever the file
 is called at the time.
 
-## Run & automation
+### Run & automation
 
 | Setting               | What it does                                                                                | Default |
 | --------------------- | ------------------------------------------------------------------------------------------- | ------- |
@@ -130,14 +140,14 @@ Both are multi-value lists shaped by the same options (a few apply to performers
 | Date format     | .NET date format for `$date`. Options include `yyyy-MM-dd`, `yyyy`, `MM-dd-yyyy`, `dd.MM.yyyy`, `yyyy.MM.dd`.                                                                                                               | `yyyy-MM-dd` |
 | Duration format | .NET duration format for `$duration`: `hh\-mm\-ss`, `hh\.mm\.ss`, `mm\-ss`, or your own. The backslashes escape the separators. A format .NET rejects falls back to the duration in seconds rather than failing the rename. | `hh\-mm\-ss` |
 
-## Destination routing
+## Routing
 
 Renamer decides where each item goes by checking rules in a fixed **precedence order**:
 
 > **Excludes → Unorganized → Tag → Studio (including parent studios) → Source path**
 
 An item that matches no rule at all takes the default destination — the _Under_ and _Folder
-template_ pair in [Filename & folder](#filename--folder). A rule that does match replaces
+template_ pair in [Where files go](#where-files-go). A rule that does match replaces
 that default outright: its own folder template is the only one rendered, never appended to the
 default's.
 
@@ -214,8 +224,6 @@ sidecar keeps the extension casing it had on disk. An existing file at the sidec
 never overwritten. The captions Cove tracks for an item always move, whatever this list holds.
 
 ## Advanced
-
-Collapsed by default.
 
 ### Clean up the name
 
