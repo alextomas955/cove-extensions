@@ -444,6 +444,35 @@
           }
         }
       }
+    },
+    "/api/extensions/com.alextomas955.renamer/orphaned-rules": {
+      "get": {
+        "tags": [
+          "Renamer"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrphanedRulesView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -616,6 +645,29 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          }
+        }
+      },
+      "OrphanedRulesView": {
+        "required": [
+          "studios",
+          "tags"
+        ],
+        "type": "object",
+        "properties": {
+          "studios": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
             }
           }
         }

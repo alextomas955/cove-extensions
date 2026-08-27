@@ -173,7 +173,14 @@ Minimal-API endpoints the frontend calls, mounted under
   else as NOT FOUND — so it replaces the part of the host's gate this extension owns rather than
   working around the rest of it.
 
-The committed `wire/openapi.json` is the contract these eleven routes answer to. A test builds a real
+- `GET /orphaned-rules` — which per-studio and per-tag rule keys name an entity Cove no longer holds.
+  A rule keys on a stable id so a rename cannot break it; a merge or delete removes that id and the rule
+  then matches nothing. Read from the database as System, because the browser cannot tell a deleted
+  entity apart from one this viewer may not read or a request that failed — and mislabelling a valid
+  rule would be worse than the host control's permanent "Loading…". Asks about exactly the ids the
+  rules name, so it is bounded by how many rules the user wrote, never by library size.
+
+The committed `wire/openapi.json` is the contract these twelve routes answer to. A test builds a real
 host over the shipped registrations, emits the document from them, and fails when the committed copy
 no longer matches — so the document cannot go stale without a red build, and the UI's TypeScript wire
 types are generated from it rather than declared a second time by hand.

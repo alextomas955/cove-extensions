@@ -214,6 +214,11 @@ a small one.
   with unrestricted read. So for anyone else the run started and then appeared to stall, ending in
   _"Cove stopped answering when asked about this job"_ — the work usually finished, but the panel could
   not see it. Renamer now reports its own progress, and only for its own runs.
+- **A per-studio or per-tag rule now says when its studio or tag is gone.** Merging or deleting one
+  leaves the rule pointing at something Cove no longer has, and it quietly stops applying — files it
+  used to route now follow your default destination instead. The rule used to show an endless
+  _"Loading studio…"_, so there was nothing to notice. It now reads _"Deleted studio (was #210) — this
+  rule no longer applies"_, and you can remove the row. Nothing is deleted for you.
 
 ## 0.3.0 — Undo that cannot grow without bound
 
