@@ -4,11 +4,13 @@ User-facing changes, newest first.
 
 ## 0.4.0 — Undo you can retry, and one that survives the next rename
 
-**Needs Cove 1.3.0.** An older host does not load Renamer at all — no Rename tab under Settings →
+**Needs Cove 1.3.1.** An older host does not load Renamer at all — no Rename tab under Settings →
 Extensions, no "Rename selected" on your lists — so stay on 0.3.0 until you have upgraded Cove.
-Nothing here is a feature you lose. The floor rose because Renamer now relies on the host publishing
-entity events for bulk mutations; without those, editing several items at once renames one of them
-and says nothing about the rest.
+Nothing here is a feature you lose. A floor exists at all because Renamer relies on the host
+publishing entity events for bulk mutations; without those, editing several items at once renames one
+of them and says nothing about the rest. It sits at 1.3.1 rather than 1.3.0 because that is the host
+release Renamer is built against, and 1.3.1 is a patch on 1.3.0 — if you are on 1.3.0 the upgrade is
+a small one.
 
 - **A rename no longer lengthens the filename every time it runs.** With _Use filename as title when
   none is set_ on, an item with no title borrowed one from its own filename — the name the previous
