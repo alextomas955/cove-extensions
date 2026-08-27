@@ -11,15 +11,9 @@
 // the host component's props in an ambient .d.ts, so a type-check only confirms the call sites agree
 // with that transcription - it would agree just as happily with a wrong one.
 import { test as base, createApiClient, isolatedHarnessFixture } from "@cove-extensions/e2e";
-import {
-  test,
-  expect,
-  RENAMER_EXTENSION,
-  seedVideo,
-  pollJob,
-  pollUntil,
-} from "../lib/renamer-fixtures.mjs";
+import { test, expect, RENAMER_EXTENSION, seedVideo, pollUntil } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
+import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
 
 const EXTENSION_ID = "com.alextomas955.renamer";
 const ROUTE = `/api/extensions/${EXTENSION_ID}`;
@@ -113,7 +107,7 @@ restartTest(
       EntityIds: [video.id],
     });
     expect(enqueue.status).toBe(202);
-    await pollJob(after, enqueue.json.jobId);
+    await pollRenamerJob(after, ROUTE, enqueue.json.jobId);
 
     expect(
       (await after.get(`/api/videos/${video.id}`)).json.files[0].path,

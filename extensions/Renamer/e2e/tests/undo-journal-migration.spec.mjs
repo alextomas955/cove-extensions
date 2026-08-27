@@ -12,8 +12,9 @@
 // running against the same worker instance.
 import { test as base, expect, createApiClient } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
-import { RENAMER_EXTENSION, seedVideo, pollJob, pollUntil } from "../lib/renamer-fixtures.mjs";
+import { RENAMER_EXTENSION, seedVideo, pollUntil } from "../lib/renamer-fixtures.mjs";
 import { basename } from "../lib/rename-assertions.mjs";
+import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
 
 const EXTENSION_ID = "com.alextomas955.renamer";
 const ROUTE = `/api/extensions/${EXTENSION_ID}`;
@@ -80,7 +81,7 @@ test("a stored journal carried by an upgrading install is migrated into the tabl
     EntityIds: [video.id],
   });
   expect(enqueue.status).toBe(202);
-  await pollJob(api, enqueue.json.jobId);
+  await pollRenamerJob(api, ROUTE, enqueue.json.jobId);
 
   const renamed = await pollUntil(
     () => api.get(`/api/videos/${video.id}`).then((r) => r.json),

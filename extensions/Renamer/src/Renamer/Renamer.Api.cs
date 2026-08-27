@@ -49,6 +49,7 @@ public sealed partial class Renamer
     private string ScanRowsRoute => RouteBase + "/scan-rows";
     private string RenamerLibraryRoute => RouteBase + "/renamer-library";
     private string LibraryPathsRoute => RouteBase + "/library-paths";
+    private string JobStatusRoute => RouteBase + "/job-status/{jobId}";
 
     /// <summary>
     /// The key a pre-0.2.1 scan wrote one wire row PER FILE to. Retained only so
@@ -196,6 +197,10 @@ public sealed partial class Renamer
 
         endpoints.MapGet(LibraryPathsRoute,
             (ICurrentPrincipalAccessor principal) => LibraryPaths(principal));
+
+        endpoints.MapGet(JobStatusRoute,
+            (string jobId, ICurrentPrincipalAccessor principal, IJobService jobs)
+                => JobStatus(jobId, principal, jobs));
     }
 
     /// <summary>
@@ -214,6 +219,41 @@ public sealed partial class Renamer
         => HasAnyReadPermission(principal)
             ? TypedResults.Ok(new LibraryPathsView(LibraryRoots))
             : new ForbiddenCode();
+
+    /// <summary>The prefix the host mints onto every job type this extension enqueues.</summary>
+    private string OwnJobTypePrefix => "ext:" + Id + ":";
+
+    /// <summary>
+    /// Where one of this extension's own runs has got to.
+    /// </summary>
+    /// <remarks>
+    /// The panel cannot read the host's job route: Cove gates it on unrestricted read, so a scoped
+    /// account is refused there even for a run it started itself. This serves the same few fields from
+    /// <see cref="IJobService"/> under the extension's own permission check, which is why it is a
+    /// minimal-API route — the host's MVC access filter does not reach one.
+    /// <para>
+    /// A job whose type does not carry <see cref="OwnJobTypePrefix"/> is reported as NOT FOUND rather
+    /// than forbidden. Answering "forbidden" would confirm that id names a real job, which is the fact
+    /// the host's own gate withholds; reporting on it at all would make this route a way around that
+    /// gate rather than a replacement for the part of it this extension owns.
+    /// </para>
+    /// </remarks>
+    internal Results<Ok<RenamerJobStatus>, NotFound, ForbiddenCode> JobStatus(
+        string jobId, ICurrentPrincipalAccessor principal, IJobService jobs)
+    {
+        if (!HasAnyReadPermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        var job = jobs.GetJob(jobId);
+        if (job is null || !job.Type.StartsWith(OwnJobTypePrefix, StringComparison.Ordinal))
+        {
+            return TypedResults.NotFound();
+        }
+
+        return TypedResults.Ok(RenamerJobStatus.From(job));
+    }
 
     /// <summary>
     /// The synchronous, read-only dry-run: runs the planner over each requested
