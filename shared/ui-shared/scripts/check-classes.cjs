@@ -55,8 +55,20 @@ function tsxFiles(dir) {
 }
 const PANEL_FILES = [...tsxFiles(SRC_DIR), ...tsxFiles(SHARED_SRC_DIR)];
 
-// Host-absent Tailwind classes (verified 0× in cove-ui).
-const FORBIDDEN = ["focus-visible:ring-1", "focus-visible:ring-accent", "lg:top-4"];
+// Host-absent Tailwind classes (verified 0× in cove-ui). An alpha border or fill utility Cove's own
+// source never writes is not emitted, so the class resolves to no declaration: the border falls back
+// to currentColor, the fill to transparent, and the element still renders. Inline those off the
+// custom property Cove defines for them instead.
+const FORBIDDEN = [
+  "focus-visible:ring-1",
+  "focus-visible:ring-accent",
+  "lg:top-4",
+  "bg-amber-400/10",
+  "border-amber-400/40",
+  "bg-red-950/40",
+  "bg-green-500/10",
+  "border-green-500/40",
+];
 
 // The raw-HTML React prop — banned as actual JSX usage (`dangerouslySetInnerHTML=` or `:`), but NOT when
 // it merely appears in a comment/doc string (e.g. "NO dangerouslySetInnerHTML"). Render escaped only.

@@ -1177,24 +1177,35 @@ export type StatusPillVariant = "accent" | "amber" | "red" | "green" | "gray";
 const tint = (variable: string, percent: number) =>
   `color-mix(in oklab, var(${variable}) ${percent}%, transparent)`;
 
-// A utility the host's prebuilt stylesheet never emits renders as nothing at all - no fill, and no
-// error anywhere - because the host Tailwind JIT does not scan this bundle. Cove defines the color
-// scale as custom properties even for the utilities it never emits, so a `style` follows the host
-// theme rather than freezing a literal. Anything the host does emit stays a class; measure a
-// candidate against the floor `extension.json` declares before inlining it. A consumer whose text
-// color rides on inner spans overrides the `text-*` class.
+// A utility the host's prebuilt stylesheet never emits contributes no declaration at all, and no
+// error anywhere, because the host Tailwind JIT does not scan this bundle. The pill still renders: a
+// missing fill leaves it transparent, and a missing border color falls back to currentColor, so the
+// outline picks up the text color at full strength. Cove defines the color scale as custom
+// properties even for the utilities it never emits, so a `style` follows the host theme rather than
+// freezing a literal. Anything the host does emit stays a class; measure a candidate against the
+// floor `extension.json` declares before inlining it, and list the host-absent ones in
+// check-classes. A consumer whose text color rides on inner spans overrides the `text-*` class.
 const STATUS_PILL_VARIANT: Record<StatusPillVariant, { className: string; style?: CSSProperties }> =
   {
     accent: { className: "border-accent/40 bg-accent/10 text-accent" },
     amber: {
-      className: "border-amber-400/40 text-amber-400",
-      style: { backgroundColor: tint("--color-amber-400", 10) },
+      className: "text-amber-400",
+      style: {
+        borderColor: tint("--color-amber-400", 40),
+        backgroundColor: tint("--color-amber-400", 10),
+      },
     },
     red: {
       className: "border-red-700/50 text-red-400",
       style: { backgroundColor: tint("--color-red-950", 40) },
     },
-    green: { className: "border-green-500/40 bg-green-500/10 text-green-400" },
+    green: {
+      className: "text-green-400",
+      style: {
+        borderColor: tint("--color-green-500", 40),
+        backgroundColor: tint("--color-green-500", 10),
+      },
+    },
     gray: { className: "border-border bg-card text-muted" },
   };
 
