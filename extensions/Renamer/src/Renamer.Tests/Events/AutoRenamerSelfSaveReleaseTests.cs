@@ -54,7 +54,6 @@ public sealed class AutoRenamerSelfSaveReleaseTests
                 FilenameTemplate = "$title",
                 FolderTemplate = "",
                 DuplicateSuffixFormat = " (copy)",
-                AllowedRoots = [libraryFwd, sortedFwd],
                 PathDestinations =
                 [
                     new PathDestinationRule

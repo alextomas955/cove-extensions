@@ -58,7 +58,7 @@ test("setting a folder template through the UI relocates a renamed file to the e
   const originalPath = video.files[0].path;
 
   // A literal "relocated" folder (no tokens) plus a "$title"-only filename makes the whole landing
-  // path deterministic. With no routing rules and empty AllowedRoots the move is source-confined —
+  // path deterministic. With no routing rules the move is source-confined —
   // the file may only move WITHIN its own source root (/data) — so a bare relative sub-folder under
   // /data is a genuinely permitted target; a routed root outside /data would be rejected. The file
   // must therefore land at exactly /data/relocated/<title>.mp4.

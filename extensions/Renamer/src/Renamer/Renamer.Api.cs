@@ -555,12 +555,10 @@ public sealed partial class Renamer
 
         // Load the configured options AFTER the 403-first check and the empty-batch early-return (so an
         // unauthorized or no-op request still short-circuits without the load), mirroring PreviewAsync.
-        // The undo RE-GATES each restore target against options.AllowedRoots — the same write boundary
-        // the forward move used — so a restore can never land outside the allowed roots.
         var options = await new OptionsStore(Store, _log).LoadAsync(ct);
 
         var replayer = new UndoReplayer(new CoveRenamerDataPort(db, _coveConfig), EventBus, new DiskMover(),
-            cross: new CrossVolumeMover(), allowedRoots: options.AllowedRoots);
+            cross: new CrossVolumeMover());
 
         // Each page's outcome is folded into a total plus a bounded sample. Retaining every page's
         // entries would rebuild in this handler's memory - and then on the wire - exactly the
@@ -579,7 +577,7 @@ public sealed partial class Renamer
 
             // Retire each row whose file actually came back. A row that stopped for a reason the world
             // can clear STAYS, so it is offered again on the next undo — which is what makes a retry act
-            // on exactly the work still outstanding after the cause is corrected (an allowlist that
+            // on exactly the work still outstanding after the cause is corrected (a folder that
             // didn't yet cover the original location, an offline source drive, a locked file).
             foreach (var row in run.Restored)
             {

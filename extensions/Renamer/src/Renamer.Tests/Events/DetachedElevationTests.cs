@@ -161,7 +161,6 @@ public sealed class DetachedElevationTests
         // command at all; an in-place rename skips it entirely.
         var options = TitleOnlyOptions() with
         {
-            AllowedRoots = [folderPath],
             PathDestinations =
                 [new PathDestinationRule
                 {

@@ -36,9 +36,9 @@ a small one.
   to write. It now measures from the Cove library path that holds the file, so a second run over the
   same library changes nothing.
 - **A rule that cannot be honoured says so instead of guessing.** The dry run and the log now name
-  four reasons an item was left alone: its destination measures from a library path and the file is
-  under none; the root the rule names is no longer one of Cove's library paths; the destination falls
-  outside the folders _Allowed roots_ permits; or the resulting path is longer than the path limit.
+  three reasons an item was left alone: its destination measures from a library path and the file is
+  under none; the root the rule names is no longer one of Cove's library paths; or the resulting path
+  is longer than the path limit.
   None of them fall back to another destination, so a broken rule never relocates files somewhere you
   did not choose.
 - **Your existing destination rules are converted once, on the first load after this upgrade.** Each
@@ -51,9 +51,11 @@ a small one.
 - **The _Relocate unmatched items_ switch is gone, and the default destination replaces it.** An item
   matching no rule now takes _Where files go_, the same field the live preview has always shown. It
   ships naming no root and no folder, which renames in place and moves nothing.
-- **_Allowed roots_ is now only a narrowing.** Every destination is a Cove library path plus a
-  relative template, so a rename is inside the library by construction; the list can still restrict
-  it to a smaller subtree, and an empty list restricts nothing.
+- **_Allowed roots_ is gone.** Every destination is a Cove library path plus a relative template, so
+  a rename is already confined to your library and the list could only narrow that further. Any roots
+  you had are ignored and dropped the next time settings are saved; nothing about where files land
+  changes. The _Advanced routing & safety_ card is now _Source-path destinations_, which is what it
+  still holds.
 - **A cross-drive move that cannot fit is warned about before it runs, not after it fails.**
   Renaming onto another drive copies to a temporary name beside the destination first, and that
   temporary path is longer than the final one. The dry run only ever measured the final path, so a

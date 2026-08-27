@@ -78,7 +78,7 @@ public sealed class RenamerExecutor
     /// classified as skip/no-op are carried into the skipped bucket untouched.
     /// </summary>
     /// <param name="plan">The single-entity plan whose items this executor acts on.</param>
-    /// <param name="options">The renamer options (template / allowlist / suffix format).</param>
+    /// <param name="options">The renamer options (template / suffix format).</param>
     /// <param name="preResolvedFolderIds">
     /// An optional <c>TargetFolderPath → folderId</c> map pre-resolved ONCE in the caller's
     /// sequential phase. When supplied, a Move item reads its destination folder id from this map
@@ -138,7 +138,7 @@ public sealed class RenamerExecutor
         }
 
         // (1a) SOURCE-PRESENCE PRE-CHECK — the first thing done for an item we will actually act on,
-        //      BEFORE the allowlist guard, the folder resolve, the collision loop, and the mover.
+        //      BEFORE the folder resolve, the collision loop, and the mover.
         //      A source that is in the DB but gone from disk would otherwise fall through to the mover
         //      and surface as a swallowed FileNotFoundException/DirectoryNotFoundException — both
         //      derive from IOException, which the mover buckets as LockedOrExists → SkipLocked, so a
@@ -152,28 +152,6 @@ public sealed class RenamerExecutor
         }
 
         bool isMove = item.Status == RenamerStatus.Move;
-
-        // (1b) CANONICAL ALLOWLIST GUARD — PRE-MUTATION. This MUST precede GetOrCreateFolderIdAsync
-        //      (which persists a Folder DB row) and the collision loop (which calls File.Exists),
-        //      so a destination the allowlist will reject never materializes a DB folder row pointing
-        //      outside the allowlist nor touches disk. We canonically resolve the destination FOLDER's
-        //      real on-disk target (following any junction/symlink and expanding 8.3) and reject when
-        //      it escapes every configured root. Only runs on a destination move with a configured
-        //      allowlist — with empty AllowedRoots the source-confine path is byte-identical and
-        //      there is no allowlist to canonically re-check. A reject is a SkipBlocked skip
-        //      carrying the guard reason (never a throw); the source then stays put as the fallback.
-        //      The FINAL full destination path is re-checked again at (4b) once the candidate basename
-        //      settles, so the leaf is guarded too — belt-and-suspenders for the security boundary.
-        if (isMove && options.AllowedRoots.Count > 0)
-        {
-            var folderGuard = CanonicalPathGuard.Check(item.TargetFolderPath, options.AllowedRoots);
-            if (!folderGuard.Accepted)
-            {
-                skipped.Add(new ItemResult(item.FileId, item.OldFullPath, item.NewFullPath,
-                    RenamerStatus.SkipBlocked, folderGuard.Reason));
-                return;
-            }
-        }
 
         // (2) Resolve the destination folder id. For an in-place renamer it is the source folder.
         //     For a Move, prefer the folder id the caller PRE-RESOLVED once in its sequential
@@ -238,28 +216,9 @@ public sealed class RenamerExecutor
         // (4) Sidecar moves: DB-tracked captions + configured same-stem neighbors that ride with the primary.
         var (plannedSidecars, captionRenames) = PlanSidecarMoves(srcFile, item.OldFullPath, targetFolder, candidate, options);
 
-        // (4b) CANONICAL ALLOWLIST RE-CHECK on the FINAL FULL DESTINATION PATH — the latest point
-        //      before disk is touched, now that the candidate basename has settled. Unlike the
-        //      pre-mutation folder check at (1b), this resolves the REAL on-disk target of the WHOLE
-        //      path Move() actually writes to (folder + candidate), so a reparse point / 8.3 alias /
-        //      separator introduced at the LEAF level — including a check/use swap of the leaf into a
-        //      junction-to-elsewhere between (1b) and here — is re-resolved and re-contained.
-        //      ResolveRealTargetFolder stacks the non-existent leaf, so passing the file path is safe.
-        //      A reject is a SkipBlocked skip carrying the guard reason (never a throw); the source
-        //      then stays put as the durable fallback.
-        if (isMove && options.AllowedRoots.Count > 0)
-        {
-            var guard = CanonicalPathGuard.Check(newFull, options.AllowedRoots);
-            if (!guard.Accepted)
-            {
-                skipped.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.SkipBlocked, guard.Reason));
-                return;
-            }
-        }
-
         // (5) DISK MOVE FIRST — move on disk before touching the DB, so a failed move leaves the
         //     database untouched (the DB stays authoritative and never points at a missing file).
-        //     VOLUME BRANCH (runs STRICTLY AFTER the allowlist guards at (1b)/(4b)): a
+        //     VOLUME BRANCH: a
         //     same-volume renamer takes the atomic synchronous DiskMover.Move fast path; a
         //     cross-volume move takes the verified copy→verify→promote→delete-source-last
         //     CrossVolumeMover.MoveAsync. Both return the identical MoveResult shape, so the skip
@@ -361,7 +320,7 @@ public sealed class RenamerExecutor
             string? cleanupWarning = null;
             if (isMove && options.RemoveEmptyFolder && !PathsEqual(DirOf(item.OldFullPath), DirOf(newFull)))
             {
-                (_, cleanupWarning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(DirOf(item.OldFullPath), options.AllowedRoots);
+                (_, cleanupWarning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(DirOf(item.OldFullPath));
             }
 
             renamed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, item.Status, cleanupWarning));

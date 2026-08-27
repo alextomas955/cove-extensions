@@ -65,7 +65,6 @@ public sealed class DestAnchoredMaxPathTests
         {
             FilenameTemplate = "$title",
             FolderTemplate = "Sorted",
-            AllowedRoots = [ShortSource, DeepRoot],
             FullPathMax = Max,
         };
 
@@ -91,7 +90,6 @@ public sealed class DestAnchoredMaxPathTests
         {
             FilenameTemplate = "$title",
             FolderTemplate = "Sorted",
-            AllowedRoots = [ShortSource],
             FullPathMax = Max,
         };
 
@@ -142,7 +140,6 @@ public sealed class DestAnchoredMaxPathTests
         var opts = new RenamerOptions
         {
             FilenameTemplate = "$title",
-            AllowedRoots = [BoundaryRoot],
             FullPathMax = fullPathMax,
         };
 
@@ -187,7 +184,6 @@ public sealed class DestAnchoredMaxPathTests
         var opts = new RenamerOptions
         {
             FilenameTemplate = "$title",
-            AllowedRoots = [BoundaryRoot],
             FullPathMax = fullPathMax,
         };
 

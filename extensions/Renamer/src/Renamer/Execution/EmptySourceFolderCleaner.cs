@@ -5,8 +5,8 @@ namespace Renamer.Execution;
 /// <summary>
 /// The opt-in post-move step that deletes a source directory the move left empty. It is the one
 /// destructive directory write the renamer slice performs, so it inherits the mover's safety discipline:
-/// only-if-empty, non-recursive, never a drive root or a configured allowed root, confined to the
-/// allowlist, link-resolved, idempotent, and classify-not-throw.
+/// only-if-empty, non-recursive, never a drive root, link-resolved, idempotent, and
+/// classify-not-throw.
 ///
 /// <para>
 /// It runs ONLY on the move success path (after the DB save + on-disk path assertion both pass), so a
@@ -28,18 +28,16 @@ public static class EmptySourceFolderCleaner
     /// <summary>
     /// Deletes <paramref name="sourceDirFwd"/> when, and only when, it is safe to: the directory exists,
     /// is completely empty (no files, no subdirectories — untracked entries count), is not a drive root
-    /// or a parentless path, is confined to <paramref name="allowedRoots"/> (when any are configured)
-    /// and is not itself a configured allowed root, and resolves to a real directory rather than a
-    /// junction/symlink target. Any other state is a no-op.
+    /// or a parentless path, and resolves to a real directory rather than a junction/symlink target. Any
+    /// other state is a no-op.
     /// </summary>
     /// <param name="sourceDirFwd">The former source directory (forward-slash) the moved file left behind.</param>
-    /// <param name="allowedRoots">The owner-configured write boundary; empty = legacy source-confine (no allowlist).</param>
     /// <returns>
     /// <c>removed=true</c> with no warning when the directory was deleted; otherwise <c>removed=false</c>
     /// with a warning when a guard refused or an IO/permission error interrupted the delete, or a null
     /// warning when the directory was simply not eligible (non-empty, a root, or already gone).
     /// </returns>
-    public static (bool Removed, string? Warning) TryRemoveIfEmpty(string sourceDirFwd, IReadOnlyList<string> allowedRoots)
+    public static (bool Removed, string? Warning) TryRemoveIfEmpty(string sourceDirFwd)
     {
         string native = ToNative(sourceDirFwd);
 
@@ -58,35 +56,14 @@ public static class EmptySourceFolderCleaner
         }
 
         // Resolve to the real on-disk target so a junction/symlink is not deleted as if it were the
-        // empty directory it points at. With a configured allowlist, the same CanonicalPathGuard.Check
-        // the move's destination passed also confines (and link-resolves) the delete target; the
-        // resolved target it returns is the path actually deleted.
-        string deleteTarget;
-        if (allowedRoots.Count > 0)
+        // empty directory it points at.
+        string? resolved = ResolveCanonical(native);
+        if (resolved is null)
         {
-            var guard = CanonicalPathGuard.Check(sourceDirFwd, allowedRoots);
-            if (!guard.Accepted)
-            {
-                return (false, $"empty-folder cleanup skipped: {guard.Reason}");
-            }
-
-            if (ResolvesToAnyRoot(guard.ResolvedTarget, allowedRoots))
-            {
-                return (false, "empty-folder cleanup skipped: directory is a configured allowed root");
-            }
-
-            deleteTarget = ToNative(guard.ResolvedTarget);
+            return (false, "empty-folder cleanup skipped: source directory could not be resolved");
         }
-        else
-        {
-            string? resolved = ResolveCanonical(native);
-            if (resolved is null)
-            {
-                return (false, "empty-folder cleanup skipped: source directory could not be resolved");
-            }
 
-            deleteTarget = resolved;
-        }
+        string deleteTarget = resolved;
 
         // Re-check root-ness on the RESOLVED target, not just the pre-resolution path: a junction
         // could resolve to a drive root, which the earlier check on the unresolved path would miss.
@@ -143,26 +120,6 @@ public static class EmptySourceFolderCleaner
                 NormalizeSlash(nativeDir).TrimEnd('/'),
                 NormalizeSlash(root).TrimEnd('/'),
                 OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
-    }
-
-    // Canonicalizes each allowed root the SAME way the resolved target is canonicalized (Check resolves
-    // a root passed as its own sole allowlist back through the identical link-/8.3-resolution), so the
-    // "is this dir a configured root" compare is real-target vs real-target.
-    private static bool ResolvesToAnyRoot(string resolvedTargetFwd, IReadOnlyList<string> allowedRoots)
-    {
-        var cmp = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        string target = NormalizeSlash(resolvedTargetFwd).TrimEnd('/');
-        foreach (var root in allowedRoots)
-        {
-            var rootGuard = CanonicalPathGuard.Check(root, [root]);
-            string canonicalRoot = (rootGuard.Accepted ? rootGuard.ResolvedTarget : NormalizeSlash(root)).TrimEnd('/');
-            if (string.Equals(target, canonicalRoot, cmp))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static string? ResolveCanonical(string nativeDir)

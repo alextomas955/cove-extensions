@@ -46,8 +46,8 @@ public sealed class RoutingPlannerTests
 
     // A move-producing render: a non-empty folder template makes isMove true, so the destination root is
     // the confinement anchor and the absolute target lands on the destination volume.
-    private static RenamerOptions MoveOptions(List<string> roots) =>
-        new() { FilenameTemplate = "$title", FolderTemplate = "Sorted", AllowedRoots = roots };
+    private static RenamerOptions MoveOptions() =>
+        new() { FilenameTemplate = "$title", FolderTemplate = "Sorted" };
 
     private static RouteLookups Lookups(
         IReadOnlyDictionary<int, Destination>? studio = null,
@@ -71,7 +71,7 @@ public sealed class RoutingPlannerTests
         var port = Port(SrcRoot, StudioRoot);
         port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
         var planner = new RenamerPlanner(port);
-        var opts = MoveOptions([SrcRoot, StudioRoot]);
+        var opts = MoveOptions();
         var lk = Lookups(studio: new Dictionary<int, Destination> { [42] = Dest.At(StudioRoot) });
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
@@ -98,7 +98,6 @@ public sealed class RoutingPlannerTests
         var opts = new RenamerOptions
         {
             FilenameTemplate = "$title",
-            AllowedRoots = [SrcRoot, StudioRoot],
         };
         var lk = Lookups(studio: new Dictionary<int, Destination> { [42] = Dest.At(StudioRoot) });
 
@@ -144,7 +143,7 @@ public sealed class RoutingPlannerTests
         // rename cannot break it, and the reason shows the name the tag carries NOW.
         port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { TagRefs = [(7, "Anime (renamed)")] });
         var planner = new RenamerPlanner(port);
-        var opts = MoveOptions([SrcRoot, TagRoot]);
+        var opts = MoveOptions();
         var lk = Lookups(tag: new Dictionary<int, Destination> { [7] = Dest.At(TagRoot) });
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
@@ -163,7 +162,7 @@ public sealed class RoutingPlannerTests
         var port = Port(SrcRoot, PathRoot);
         port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { TagRefs = [] });
         var planner = new RenamerPlanner(port);
-        var opts = MoveOptions([SrcRoot, PathRoot]);
+        var opts = MoveOptions();
         var lk = Lookups(exact: new Dictionary<string, Destination>(StringComparer.Ordinal)
         {
             [Fwd(SrcRoot)] = Dest.At(PathRoot),
@@ -189,7 +188,6 @@ public sealed class RoutingPlannerTests
         {
             FilenameTemplate = "$title",
             FolderTemplate = "Sorted",
-            AllowedRoots = [SrcRoot, UnorgRoot],
             UnorganizedDestination = Dest.At(UnorgRoot, "Sorted"),
         };
 
@@ -293,7 +291,7 @@ public sealed class RoutingPlannerTests
             VideoFile(2, "b.mkv", SrcRoot)) with
         { StudioId = 42, TagRefs = [] });
         var planner = new RenamerPlanner(port);
-        var opts = MoveOptions([SrcRoot, StudioRoot]);
+        var opts = MoveOptions();
         var lk = Lookups(studio: new Dictionary<int, Destination> { [42] = Dest.At(StudioRoot) });
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
@@ -309,25 +307,6 @@ public sealed class RoutingPlannerTests
     }
 
     [Fact]
-    public async Task DestinationOutsideEveryAllowedRoot_IsSkipNotAllowed()
-    {
-        var port = Port(SrcRoot, StudioRoot);
-        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
-        var planner = new RenamerPlanner(port);
-        // The narrowing list covers the source but not the studio root the rule names.
-        var opts = MoveOptions([SrcRoot]);
-        var lk = Lookups(studio: new Dictionary<int, Destination> { [42] = Dest.At(StudioRoot) });
-
-        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
-
-        var item = Assert.Single(plan.Items);
-        Assert.Equal(RenamerStatus.SkipNotAllowed, item.Status);
-        Assert.Equal(item.OldFullPath, item.NewFullPath);
-        Assert.Contains("allowed root", item.Reason);
-        Assert.Empty(port.SaveCalls);
-    }
-
-    [Fact]
     public async Task Excluded_ProducesSkipExcluded_ForEveryFile_NotSkipGated()
     {
         // An excluded multi-file entity yields a SkipExcluded skip-with-reason for EVERY file
@@ -339,7 +318,7 @@ public sealed class RoutingPlannerTests
             VideoFile(2, "b.mkv", SrcRoot)) with
         { TagRefs = [(7, "anime")] });
         var planner = new RenamerPlanner(port);
-        var opts = MoveOptions([SrcRoot]);
+        var opts = MoveOptions();
         var lk = Lookups(excludeTags: new HashSet<int>([7]));
 
         var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, opts, lk, default);
@@ -367,7 +346,6 @@ public sealed class RoutingPlannerTests
         {
             FilenameTemplate = "$title",
             FolderTemplate = "Sorted",
-            AllowedRoots = [SrcRoot],
             OnlyOrganized = true,            // would gate the unorganized item …
             // … and no unorganized route to fall through to (the absent member is how that is spelled).
         };
@@ -397,7 +375,6 @@ public sealed class RoutingPlannerTests
         var opts = new RenamerOptions
         {
             FilenameTemplate = "$title",     // renders "My Film" → "My Film.mkv" == current basename
-            AllowedRoots = [SrcRoot],
             FolderRoot = SrcRoot,            // … and the destination IS the file's own folder
         };
 
@@ -432,7 +409,6 @@ public sealed class RoutingPlannerTests
         var opts = new RenamerOptions
         {
             FilenameTemplate = "$title",
-            AllowedRoots = [rawSrcRoot],
             FolderRoot = rawSrcRoot,
         };
 
@@ -454,7 +430,6 @@ public sealed class RoutingPlannerTests
         {
             FilenameTemplate = "$title",
             FolderTemplate = "Sorted",
-            AllowedRoots = [SrcRoot, DefaultRoot],
             FolderRoot = DefaultRoot,
         };
 

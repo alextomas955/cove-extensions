@@ -56,7 +56,6 @@ public sealed class PreviewWholeBatchTests
             {
                 FilenameTemplate = "$title",
                 FolderTemplate = "Sorted",
-                AllowedRoots = [srcFolder, PathRoot],
                 PathDestinations =
                 [
                     new PathDestinationRule

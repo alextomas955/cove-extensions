@@ -48,7 +48,6 @@ public sealed class AutoRenamerSelfSaveTests
                 // Empty on purpose: a rendered subfolder would deepen the path until neither pattern
                 // matched, which converges and hides the case under test.
                 FolderTemplate = "",
-                AllowedRoots = [libraryFwd, sortedFwd],
                 // The pair that never settles. Each rule matches where the OTHER one puts the file, and
                 // both are explicitly matched rules rather than the default relocate the hook excludes,
                 // so every pass acts.

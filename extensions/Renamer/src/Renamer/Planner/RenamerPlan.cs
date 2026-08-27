@@ -6,8 +6,8 @@ namespace Renamer.Planner;
 /// <summary>
 /// The shared classification vocabulary for a planned per-file renamer. The dry-run planner
 /// produces <see cref="Renamer"/>/<see cref="Move"/>/<see cref="NoOp"/>/
-/// <see cref="SkipCollision"/>/<see cref="SkipGated"/>; <see cref="SkipLocked"/>,
-/// <see cref="SkipBlocked"/> and <see cref="Failed"/> are produced by the executor but defined here
+/// <see cref="SkipCollision"/>/<see cref="SkipGated"/>; <see cref="SkipLocked"/> and
+/// <see cref="Failed"/> are produced by the executor but defined here
 /// so the planner and executor speak one enum. <see cref="SkipMissingSource"/> is produced by BOTH
 /// halves — the executor's move-time source pre-check and the preview planner's read-only
 /// source-presence check.
@@ -59,24 +59,14 @@ public enum RenamerStatus
     /// </summary>
     SkipNoSpace,
 
-    /// <summary>
-    /// Executor-only: the destination was REFUSED by the canonical write-boundary guard
-    /// (<c>Renamer.Execution.CanonicalPathGuard</c>) because its real on-disk target resolves
-    /// outside every configured allowed root (a junction/symlink/8.3/UNC escape), or its rendered
-    /// basename is not a single path segment. A SECURITY denial — kept distinct from
-    /// <see cref="SkipCollision"/> (a name-taken skip) so run output and log monitoring can tell a
-    /// policy block apart from a benign collision.
-    /// </summary>
-    SkipBlocked,
-
     /// <summary>Executor-only: the DB save failed after a disk move and was rolled back.</summary>
     Failed,
 
     /// <summary>
     /// Planner-only: the destination measures from the Cove library path holding the file, and the
     /// file lies under none of them, so there is no anchor left standing by the move it names. The
-    /// item keeps its current name and folder. Kept distinct from <see cref="SkipBlocked"/> (a
-    /// security denial): the destination is not forbidden, it cannot be computed.
+    /// item keeps its current name and folder. Kept distinct from <see cref="SkipNotAllowed"/>: the
+    /// destination is not refused, it cannot be computed.
     /// </summary>
     SkipUnanchored,
 
@@ -94,10 +84,8 @@ public enum RenamerStatus
 
     /// <summary>
     /// Planner-only: the rendered destination lies outside the area the configuration permits writing
-    /// into - a folder template that is not relative, one that traversed out of its own root, or an
-    /// <c>AllowedRoots</c> list that does not cover it. A pure string decision taken before anything
-    /// is touched, where <see cref="SkipBlocked"/> is the executor's guard refusing a real on-disk
-    /// target at move time, so the two can disagree and each is worth reading.
+    /// into - a folder template that is not relative, or one that traversed out of its own root. A pure
+    /// string decision, taken before anything is touched.
     /// </summary>
     SkipNotAllowed,
 

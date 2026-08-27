@@ -17,6 +17,9 @@ namespace Renamer.Tests.Execution.CrossVolume;
 /// from the mapping by hand: asking the classifier would agree with the executor however far either
 /// drifts from the other.
 /// </remarks>
+// It maps a subst drive of its own, so it joins the classes that must not map one concurrently: a
+// letter freed by a sibling mid-test is one this class can take back before that sibling asserts.
+[Collection(SubstDriveScope.CollectionName)]
 public sealed class MoveOutcomeReportingTests
 {
     [Fact]

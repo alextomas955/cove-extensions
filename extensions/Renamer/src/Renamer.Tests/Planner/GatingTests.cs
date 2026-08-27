@@ -93,7 +93,6 @@ public sealed class GatingTests
             OnlyOrganized = true,
             FilenameTemplate = "$title",
             FolderTemplate = "Sorted",
-            AllowedRoots = [srcFolder, unorgRoot],
             UnorganizedDestination = Dest.At(unorgRoot, "Sorted"),
         };
 

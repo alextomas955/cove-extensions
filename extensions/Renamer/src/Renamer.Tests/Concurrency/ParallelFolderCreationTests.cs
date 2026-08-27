@@ -78,7 +78,6 @@ public sealed class ParallelFolderCreationTests
             {
                 FilenameTemplate = "$title",
                 FolderTemplate = "sorted",
-                AllowedRoots = [destRootFwd],
                 PathDestinations =
                 [
                     new PathDestinationRule

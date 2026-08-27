@@ -78,7 +78,6 @@ function fullyPopulatedBlob() {
     ExcludeTagIds: [31],
     ExcludeStudioIds: [3, 9],
     ExcludePaths: [{ Pattern: "C:/skip", IsRegex: false }],
-    AllowedRoots: ["D:/", "E:/"],
     AssociatedExtensions: ["srt", "vtt"],
     UnorganizedDestination: { Root: "D:/unorganized", Template: "$studio" },
     EnableStudioDestinations: true,
@@ -143,7 +142,6 @@ test("cloneDefaults isolates every mutable collection from DEFAULT_OPTIONS", () 
   clone.FieldReplacers.push({ TargetToken: "t", Find: "f", Replace: "r" });
   clone.ExcludeTagIds.push(77);
   clone.ExcludeStudioIds.push(99);
-  clone.AllowedRoots.push("Z:/");
   clone.Articles.push("Der");
   clone.DropOrder.push("x");
   clone.RequiredFields.push("x");

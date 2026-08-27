@@ -29,13 +29,12 @@ const EXPECTED_LABEL: Record<RenamerStatus, string | null> = {
   failed: "Failed — rolled back",
   skipUnanchored: "Skipped — file is outside your Cove library",
   skipRootMissing: "Skipped — the rule's destination is no longer a library path",
-  skipNotAllowed: "Skipped — destination outside your allowed roots",
+  skipNotAllowed: "Skipped — destination outside its own root",
   skipTooLong: "Skipped — path too long",
   skipPermissionDenied: "Skipped — permission denied",
   skipVerifyFailed: "Skipped — copy did not verify",
   skipCancelled: "Skipped — cancelled",
   skipNoSpace: null, // log-only, never an item result
-  skipBlocked: null, // executor-only, and only after the confirm gate
 };
 
 function row(status: RenamerStatus, flags: Partial<Badgeable> = {}): Badgeable {

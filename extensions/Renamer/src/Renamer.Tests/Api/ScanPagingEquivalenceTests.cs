@@ -35,7 +35,7 @@ public sealed class ScanPagingEquivalenceTests
 
     /// <summary>
     /// A title-only filename template with a studio-driven folder, so one fixture reaches both an
-    /// in-place rename and a folder move; the allowed roots admit the source tree and the routed one.
+    /// in-place rename and a folder move.
     /// The only-organized gate is on so an unorganized entity reaches the gate branch — an empty title
     /// would not, because <see cref="RenamerOptions.FilenameAsTitle"/> falls back to the basename.
     /// </summary>
@@ -43,7 +43,6 @@ public sealed class ScanPagingEquivalenceTests
     {
         FilenameTemplate = "$title",
         FolderTemplate = "{$studio}",
-        AllowedRoots = [LibRoot, DestRoot],
         OnlyOrganized = true,
     };
 

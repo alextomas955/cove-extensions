@@ -153,6 +153,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
   // off, so a user who wrote these rules had them on.
   const legacyBlob = {
     FilenameTemplate: "$title - $performers [$tags]",
+    // A key the current model no longer has: an old blob must still load, with this ignored.
     AllowedRoots: ["/data"],
     PathDestinations: [{ Pattern: "/data/legacy", Dest: "/data/archive", IsRegex: false }],
     EnableAdvancedRouting: true,
@@ -300,11 +301,7 @@ test("a legacy blob stored before the host starts converts at initialize, and th
     settings.filenameTemplateInput,
     "the filename template changed across a conversion that has no business touching it — this is the field a typed converter would have reset to its default, and the whole reason the conversion works on raw JSON",
   ).toHaveValue(legacyBlob.FilenameTemplate);
-  const advancedRouting = toggleCard(page, "Advanced routing & safety");
-  await expect(
-    advancedRouting.getByRole("button", { name: "Remove /data", exact: true }),
-    "the stored allowed root did not survive the conversion",
-  ).toHaveCount(1);
+  const advancedRouting = toggleCard(page, "Source-path destinations");
   await expect(
     field(advancedRouting, "Source path").getByRole("textbox"),
     "the stored source-path rule did not survive the conversion",

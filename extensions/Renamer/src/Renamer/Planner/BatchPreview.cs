@@ -163,7 +163,7 @@ public static class BatchPreview
     /// </summary>
     /// <remarks>
     /// The gap is a real platform limit rather than a self-imposed budget: no <c>\\?\</c> extended-length
-    /// prefix is ever applied (<see cref="CanonicalPathGuard"/> rejects that form), and a cross-volume move
+    /// prefix is ever applied, and a cross-volume move
     /// copies to a name <see cref="CrossVolumeMover.InFlightSuffixLength"/> characters longer beside the
     /// destination before promoting it. <see cref="PathConfinement"/> budgets only the FINAL path, so an
     /// item accepted at the limit still overruns while its copy is in flight. Warned about here, beside

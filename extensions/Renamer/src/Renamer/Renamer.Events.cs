@@ -104,7 +104,7 @@ public sealed partial class Renamer
                 // is planned, and it lands where preview and the batch would put it - a matched rule's own
                 // destination, or the DEFAULT destination for an item no rule matched, which leaves the
                 // item in place only while that default names neither a root nor a folder template. Either
-                // way the move passes the allowlist/canonical confinement gate via the routed anchor.
+                // way the move passes the confinement gate via the routed anchor.
                 // Preview, auto-renamer, and batch all resolve destinations identically.
                 var lookups = BuildLookups(options);
                 var plan = await new RenamerPlanner(port).PlanAsync(kind, entityId, options, lookups, ct);

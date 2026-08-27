@@ -30,7 +30,7 @@ public static class PathConfinement
         /// <summary>Accepted: the target is inside the permitted area and within the path budget.</summary>
         None,
 
-        /// <summary>The resolved target lies outside every root the configuration permits writing into.</summary>
+        /// <summary>The resolved target lies outside the destination root it is measured from.</summary>
         NotAllowed,
 
         /// <summary>The resolved absolute path exceeds <see cref="RenamerOptions.FullPathMax"/>.</summary>
@@ -63,10 +63,7 @@ public static class PathConfinement
     /// <list type="bullet">
     /// <item>the resolved target must stay inside <paramref name="anchor"/>, the destination root the
     /// user chose from Cove's own library paths (or the one containing the file). This is what a
-    /// destination MEANS, so it holds whether or not an allowlist is configured;</item>
-    /// <item>with <paramref name="allowedRoots"/> configured the target must ALSO be under one of
-    /// them - an optional narrowing, never a widening, since the anchor check above already bounds
-    /// every destination to a library path;</item>
+    /// destination MEANS;</item>
     /// <item>the <c>..</c> collapse runs BEFORE containment, so a target that walks out of its anchor
     /// (e.g. <c>&lt;root&gt;/../sibling</c>) is rejected;</item>
     /// <item>containment uses an ordinal, separator-normalized prefix check that is NOT fooled by a
@@ -78,13 +75,11 @@ public static class PathConfinement
     /// On acceptance, <see cref="ConfinementResult.TargetFolderPath"/> is the resolved absolute
     /// target folder (forward-slash). This is a PURE string decision — no disk access.
     /// </summary>
-    /// <param name="allowedRoots">The optional narrowing list; empty (the shipped default) narrows nothing.</param>
     /// <param name="anchor">What the destination is measured from: the destination's chosen library root, the library path containing the file, or the file's own folder for an item that does not move.</param>
     /// <param name="destinationFolder">The engine's rendered folder path, always relative.</param>
     /// <param name="newBasename">The rendered basename, measured into the absolute-length re-check.</param>
     /// <param name="options">Supplies <see cref="RenamerOptions.FullPathMax"/>.</param>
     public static ConfinementResult Resolve(
-        IReadOnlyList<string> allowedRoots,
         string anchor,
         string destinationFolder,
         string newBasename,
@@ -116,15 +111,6 @@ public static class PathConfinement
             return new(
                 ConfinementRejection.NotAllowed, string.Empty,
                 "folder template escapes its destination root");
-        }
-
-        // The optional narrowing, judged on the SAME resolved target, and BEFORE the length check so a
-        // destination that is refused outright is never reported as merely too long.
-        if (allowedRoots.Count > 0 && !allowedRoots.Any(r => IsUnderRoot(targetAbs, ToAbsolute(r))))
-        {
-            return new(
-                ConfinementRejection.NotAllowed, string.Empty,
-                "destination is not under any allowed root");
         }
 
         return WithinBudget(targetAbs, newBasename, options);

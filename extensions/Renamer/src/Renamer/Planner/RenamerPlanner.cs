@@ -271,11 +271,11 @@ public sealed class RenamerPlanner
                     + "library path for the destination instead");
         }
 
-        // (2b) Confine: the optional AllowedRoots narrowing, and the single site of the absolute
+        // (2b) Confine: containment in the destination's own root, and the single site of the absolute
         //      FullPathMax re-check. Every destination goes through it, so the measured path is real.
         string anchor = isMove ? libraryRoot! : file.ParentFolderPath;
         var confined = PathConfinement.Resolve(
-            options.AllowedRoots, anchor, rendered.FolderPath, newBasename, options);
+            anchor, rendered.FolderPath, newBasename, options);
         if (!confined.Accepted)
         {
             return new RenamerPlanItem(
