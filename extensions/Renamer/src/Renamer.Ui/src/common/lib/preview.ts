@@ -77,15 +77,27 @@ const SKIP_CLAUSES: Record<RenamerStatus, SkipClause | null> = {
   skipNoSpace: null,
 };
 
-/** Render a byte count as a compact GB string for the blast-radius lines (e.g. "1.5 GB"). */
-function formatGb(bytes: number): string {
-  const gb = bytes / (1024 * 1024 * 1024);
-  // Show one decimal for sub-10 GB so a 1.5 GB move doesn't read as "2 GB"; whole numbers above.
-  return gb >= 10 ? `${Math.round(gb)} GB` : `${gb.toFixed(1)} GB`;
+const SIZE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
+
+/** Render a byte count for the blast-radius lines, in the largest unit that leaves a figure to read. */
+function formatSize(bytes: number): string {
+  let value = Math.max(0, bytes);
+  let unit = 0;
+  while (value >= 1024 && unit < SIZE_UNITS.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  // Bytes are whole. Above that, one decimal below 10 so a 1.5 GB move doesn't read as "2 GB", and
+  // whole numbers above, where a tenth is noise next to the count it sits beside.
+  if (unit === 0) return `${Math.round(value)} ${SIZE_UNITS[unit]}`;
+  return value >= 10
+    ? `${Math.round(value)} ${SIZE_UNITS[unit]}`
+    : `${value.toFixed(1)} ${SIZE_UNITS[unit]}`;
 }
 
 /**
- * The per-cross-volume blast-radius lines: one "↪ N items (X GB) move from A to B." line per pair.
+ * The per-cross-volume blast-radius lines: one "↪ N items (X MB) move from A to B." line per pair,
+ * each size in the largest unit that leaves a figure to read.
  * Single source shared by the bulk-action window.confirm and the settings-panel Review dialog, so
  * both rename entry points describe a cross-drive batch identically. A same-drive batch has no
  * `volumePairs` and yields an empty array.
@@ -93,7 +105,7 @@ function formatGb(bytes: number): string {
 function buildBlastLines(summary?: PreviewSummary): string[] {
   return (summary?.volumePairs ?? []).map(
     (p) =>
-      `↪ ${p.count} item${p.count === 1 ? "" : "s"} (${formatGb(p.bytes)}) move from ${p.from} to ${p.to}.`,
+      `↪ ${p.count} item${p.count === 1 ? "" : "s"} (${formatSize(p.bytes)}) move from ${p.from} to ${p.to}.`,
   );
 }
 
@@ -134,7 +146,7 @@ function confirmCallToAction(level: ConfirmLevel, undoable: boolean): string {
  * - When N == 0 the body states nothing will be renamed (the handler then cancels even on OK).
  *
  * Blast radius: when `summary` is supplied and the batch moves files across
- * drives, the confirm wording SCALES with `summary.confirmLevel` — an explicit "N items (X GB) move
+ * drives, the confirm wording SCALES with `summary.confirmLevel` — an explicit "N items (X MB) move
  * from A to B" line per cross-volume pair is added, and the call-to-action is heavier for a Heavy
  * batch than a Light one. A same-drive-only batch (Light, no `volumePairs`) reads exactly as before.
  * Pure (no DOM/fetch) so it stays unit-reasonable.

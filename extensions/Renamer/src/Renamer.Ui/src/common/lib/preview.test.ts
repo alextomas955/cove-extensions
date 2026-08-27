@@ -48,6 +48,37 @@ test("a batch the server will not journal says so, promises no undo, and names t
   assert.doesNotMatch(text, /You can undo/);
 });
 
+// The figure a user reads before approving a cross-drive move. Every expectation below is the size
+// written out by hand from the byte count beside it, never computed from the module under test.
+const SIZE_CASES: readonly { bytes: number; reads: string }[] = [
+  { bytes: 0, reads: "0 B" },
+  { bytes: 512, reads: "512 B" },
+  { bytes: 5 * 1024 * 1024, reads: "5.0 MB" },
+  { bytes: 700 * 1024 * 1024, reads: "700 MB" },
+  { bytes: 1536 * 1024 * 1024, reads: "1.5 GB" },
+  { bytes: 42 * 1024 * 1024 * 1024, reads: "42 GB" },
+];
+
+for (const { bytes, reads } of SIZE_CASES) {
+  test(`a cross-drive batch of ${bytes} bytes reads as ${reads}`, () => {
+    const { text } = buildConfirmSummary(
+      [RENAME_ITEM],
+      summary({
+        crossVolumeCount: 1,
+        sameVolumeCount: 0,
+        crossVolumeBytes: bytes,
+        volumePairs: [{ from: "D:", to: "E:", count: 1, bytes }],
+        confirmLevel: "standard",
+      }),
+    );
+    assert.ok(
+      text.includes(`↪ 1 item (${reads}) move from D: to E:.`),
+      `the blast line did not read as ${reads}. Full text:
+${text}`,
+    );
+  });
+}
+
 const CONFIRM_LEVELS: readonly ConfirmLevel[] = ["light", "standard", "heavy"];
 
 for (const level of CONFIRM_LEVELS) {
