@@ -149,15 +149,43 @@ public sealed partial class Renamer
     /// parameters from the request scope; <c>ICurrentPrincipalAccessor</c> is populated by the host's
     /// CurrentPrincipalMiddleware.
     /// </summary>
+    /// <summary>
+    /// Registers every endpoint, each declaring the access intent they share: an authenticated caller,
+    /// with the permission itself decided in the handler.
+    /// </summary>
+    /// <remarks>
+    /// An endpoint carrying none of the SDK's authorization conventions allows ANONYMOUS access for
+    /// backward compatibility, and the host warns about it by name at every registration. So the
+    /// declaration is the point here rather than a change of who may call: each handler already checks
+    /// the caller and answers <c>403</c>.
+    /// <para>
+    /// Which declaration an endpoint gets is decided by its REACH, not by its verb. An endpoint whose
+    /// subject is the whole library - scanning it, renaming it, serving that scan's rows, or reversing a
+    /// batch of unknown extent - has no "which item" for the host to authorize, so "may this caller
+    /// touch everything" is the honest question and it is asked with a concrete policy. The host answers
+    /// it from an unrestricted grant, which is the point: a caller who can see part of the library has no
+    /// business renaming all of it.
+    /// </para>
+    /// <para>
+    /// The rest keep the authenticated-caller declaration, because a concrete policy would ask the wrong
+    /// question of them. Some name their items in the request BODY as a list, which no route-bound entity
+    /// check can express, so authorizing those ids is this extension's own job and the handler does it
+    /// per kind. The others - job progress, which of the caller's own rules are broken, the configured
+    /// library paths, the fixed sample render - disclose no library content at all, and demanding an
+    /// unrestricted grant for them would lock out scoped accounts for nothing.
+    /// </para>
+    /// </remarks>
     public override void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost(PreviewRoute,
             (RenamerRequest req, DbContext db, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => PreviewAsync(req, db, principal, ct));
+                => PreviewAsync(req, db, principal, ct))
+            .AllowWithoutCovePermission();
 
         endpoints.MapPost(RenamerRoute,
             (RenamerRequest req, ICurrentPrincipalAccessor principal, IJobService jobs)
-                => RenamerEnqueue(req, principal, jobs));
+                => RenamerEnqueue(req, principal, jobs))
+            .AllowWithoutCovePermission();
 
         // NB: this endpoint binds the RAW HttpContext (not a typed PreviewSampleRequest) so the
         // handler can deserialize the body with RenamerOptions.JsonOptions — the host's default
@@ -172,40 +200,60 @@ public sealed partial class Renamer
         endpoints.MapPost(PreviewSampleRoute,
             (HttpContext http, ICurrentPrincipalAccessor principal, CancellationToken ct)
                 => PreviewSampleAsync(http.Request, principal, ct))
-            .Accepts<PreviewSampleRequest>("application/json");
+            .Accepts<PreviewSampleRequest>("application/json")
+            .AllowWithoutCovePermission();
 
         // /undo takes NO request body — it operates on "the last batch", so binding no body avoids
         // the host's enum-converter 400 trap (see the preview-sample note above); /last-batch is a plain read.
         endpoints.MapPost(UndoRoute,
-            (ICurrentPrincipalAccessor principal, CancellationToken ct) => UndoAsync(principal, ct));
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => UndoAsync(principal, ct))
+            .RequireCovePermission(
+                PermissionMode.Any,
+                Permissions.VideosWrite, Permissions.ImagesWrite, Permissions.AudiosWrite);
 
         endpoints.MapGet(LastBatchRoute,
-            (ICurrentPrincipalAccessor principal, CancellationToken ct) => LastBatchAsync(principal, ct));
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => LastBatchAsync(principal, ct))
+            .AllowWithoutCovePermission();
 
         endpoints.MapPost(ScanLibraryRoute,
             (ScanLibraryRequest? body, ICurrentPrincipalAccessor principal, IJobService jobs) =>
-                ScanLibraryEnqueue(body, principal, jobs));
+                ScanLibraryEnqueue(body, principal, jobs))
+            .RequireCovePermission(
+                PermissionMode.Any,
+                Permissions.VideosRead, Permissions.ImagesRead, Permissions.AudiosRead);
 
         endpoints.MapGet(LastScanRoute,
-            (ICurrentPrincipalAccessor principal, CancellationToken ct) => ScanLibraryResultAsync(principal, ct));
+            (ICurrentPrincipalAccessor principal, CancellationToken ct) => ScanLibraryResultAsync(principal, ct))
+            .RequireCovePermission(
+                PermissionMode.Any,
+                Permissions.VideosRead, Permissions.ImagesRead, Permissions.AudiosRead);
 
         endpoints.MapPost(ScanRowsRoute,
             (ScanRowsRequest? body, ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => ScanRowsAsync(body, principal, ct));
+                => ScanRowsAsync(body, principal, ct))
+            .RequireCovePermission(
+                PermissionMode.Any,
+                Permissions.VideosRead, Permissions.ImagesRead, Permissions.AudiosRead);
 
         endpoints.MapPost(RenamerLibraryRoute,
-            (ICurrentPrincipalAccessor principal, IJobService jobs) => RenamerLibraryEnqueue(principal, jobs));
+            (ICurrentPrincipalAccessor principal, IJobService jobs) => RenamerLibraryEnqueue(principal, jobs))
+            .RequireCovePermission(
+                PermissionMode.Any,
+                Permissions.VideosWrite, Permissions.ImagesWrite, Permissions.AudiosWrite);
 
         endpoints.MapGet(LibraryPathsRoute,
-            (ICurrentPrincipalAccessor principal) => LibraryPaths(principal));
+            (ICurrentPrincipalAccessor principal) => LibraryPaths(principal))
+            .AllowWithoutCovePermission();
 
         endpoints.MapGet(JobStatusRoute,
             (string jobId, ICurrentPrincipalAccessor principal, IJobService jobs)
-                => JobStatus(jobId, principal, jobs));
+                => JobStatus(jobId, principal, jobs))
+            .AllowWithoutCovePermission();
 
         endpoints.MapGet(OrphanedRulesRoute,
             (ICurrentPrincipalAccessor principal, CancellationToken ct)
-                => OrphanedRulesAsync(principal, ct));
+                => OrphanedRulesAsync(principal, ct))
+            .AllowWithoutCovePermission();
     }
 
     /// <summary>

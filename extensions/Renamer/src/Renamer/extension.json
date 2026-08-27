@@ -14,5 +14,26 @@
     "scraperRuntime": [],
     "downloaderRuntime": []
   },
+  "tutorialTopics": [
+    {
+      "id": "com.alextomas955.renamer.docs",
+      "title": "Renamer",
+      "description": "Build each file's name from the metadata Cove already holds, preview every change before anything touches disk, then rename - and undo the last run.",
+      "order": 100,
+      "slides": [
+        {
+          "id": "documentation",
+          "title": "Renamer documentation",
+          "caption": "The settings panel is under Settings, Extensions, Renamer. Templates, tokens, destinations and undo are covered in full on the docs site.",
+          "links": [
+            {
+              "label": "Read the Renamer docs",
+              "url": "https://alextomas955.github.io/cove-extensions/extensions/renamer"
+            }
+          ]
+        }
+      ]
+    }
+  ],
   "dependencies": {}
 }
