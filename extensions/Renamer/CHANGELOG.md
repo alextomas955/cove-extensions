@@ -198,6 +198,15 @@ and says nothing about the rest.
   root "beside it" on a Cove with no library paths configured, where no picker is drawn; and the dot
   marking a failed save drew no colour at all, because the shade it asked for is not in Cove's
   stylesheet.
+- **A skipped rename now says why it was skipped.** A move that did not happen was reported as
+  _Skipped — file in use_ whatever stopped it, so a permission Cove does not have, a copy that failed
+  its content check, and a shutdown part-way through a large move all read as a locked file — and the
+  advice that follows from each is different. Each now reports its own reason: _Skipped — permission
+  denied_, _Skipped — copy did not verify_, and _Skipped — cancelled_.
+- **With _Auto-rename on update_ on, an edit is no longer swallowed after a rename that could not
+  run.** When every file of an edited item was skipped — a name already taken at the destination, say —
+  the hook stayed muted for that item, so your next edit of it was ignored and nothing said so. It
+  now acts on the next edit.
 
 ## 0.3.0 — Undo that cannot grow without bound
 

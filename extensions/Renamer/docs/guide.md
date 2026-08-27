@@ -76,17 +76,24 @@ that needs attention always says why:
 | Skipped — an exclude rule matched                            | One of your exclude rules covers it.                                                           |
 | Skipped — name conflict                                      | Another file already holds the computed name, and Renamer never overwrites.                    |
 | Skipped — file missing on disk                               | Cove holds a record for a file that is not there.                                              |
+| Skipped — file in use                                        | Something else held the file open, and Renamer never forces a lock.                            |
+| Skipped — permission denied                                  | Cove is not allowed to write where the row would go, or to move the file at all.               |
 | Skipped — file is outside your Cove library                  | The destination measures from the file's own library path, and the file is under none of them. |
 | Skipped — the rule's destination is no longer a library path | The root the matched rule names is no longer one of Cove's library paths.                      |
 | Skipped — destination outside your allowed roots             | _Allowed roots_ does not cover where the rule would write.                                     |
 | Skipped — path too long                                      | The full path would exceed _Full-path max length_.                                             |
 
-One badge is red rather than amber: **Too long to copy across drives**. That row moves to a different
-drive, and Renamer copies to a temporary name beside the destination before putting the final name in
-place. The temporary path is a little longer than the one the row shows, and it does not fit
+A stop that is not a defect is gray instead: **Skipped — cancelled** means Cove shut down part-way
+through the run. Nothing was half-written, and starting the rename again picks the row up.
+
+Two badges are red rather than amber. **Too long to copy across drives** means that row moves to a
+different drive, and Renamer copies to a temporary name beside the destination before putting the final
+name in place. The temporary path is a little longer than the one the row shows, and it does not fit
 _Full-path max length_, so the move cannot complete even though the new path does fit. Shorten the
 destination folder or the filename template for that row. The confirm shown before a rename counts
 these files too, so you see the warning whether you started from the dry run or from a list.
+**Skipped — copy did not verify** means a cross-drive copy was written and then read back different, so
+the file was left where it was — check the destination drive before running that row again.
 
 ## Rename
 
