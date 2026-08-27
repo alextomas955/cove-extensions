@@ -63,7 +63,10 @@ export default defineConfig({
   // A committed `.only` silently shrinks the suite to the focused test and still exits 0, which reads
   // as a green run over work nothing checked. Keyed on CI so a local focused run stays possible.
   forbidOnly: !!process.env.CI,
-  workers: process.env.CI ? 2 : 4,
+  // Each worker holds a Cove container and a database of its own, so the ceiling is the runner's cores
+  // rather than the spec count. CI and a development machine answer to the same ceiling, so they take
+  // the same number.
+  workers: 4,
   retries: process.env.CI ? 2 : 0,
 
   // Retries exist so an infrastructure hiccup does not fail a run, not so a flaky test can hide behind
