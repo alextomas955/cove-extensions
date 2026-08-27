@@ -161,6 +161,13 @@ and says nothing about the rest.
   unreachable: a failed fetch of the settings chunk painted an error on the right address, and a page
   opened before Cove finished loading extensions was switched to a built-in tab with the address
   rewritten. The panel now retries through both cases within one budget rather than waiting forever.
+- **The dry run no longer stops part-way through a large library.** The server reads your library in
+  stages, and a stage can go by holding nothing that matches the filter you picked. Such a stage
+  changed nothing on screen, and the table only asked for another one when the row count moved — so a
+  narrow filter came up a handful of rows in, said the server had paused, and told you to scroll a
+  table with nothing left to scroll. The table now follows the search through empty stages by itself,
+  and the line under it reports how many items have been checked so far rather than asking you to
+  keep going.
 - **The live preview no longer shows the result for settings you have moved on from.** Each edit sends
   a fresh preview, and a slow one issued earlier could answer after a later one and repaint the pane
   over it — so the sample names under your template could be the names some earlier version of it

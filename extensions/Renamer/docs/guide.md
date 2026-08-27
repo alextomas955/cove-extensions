@@ -55,10 +55,12 @@ destination, and any warnings — without changing anything.
 4. To find a particular file, type part of its path or its new name into the search box. The search
    runs on the server and covers the current path, the new path, the new name and the destination
    folder, ignoring case.
-5. Scroll the table to load more rows. Rows arrive in scan order — videos, then images, then audio,
-   each in library order — and the line under the table says how many are loaded and whether there
-   are more. On a large library the server searches in stages: if it says it paused, keep scrolling
-   (or click **Keep searching**) and it picks up where it left off.
+5. Rows load as you scroll, in scan order — videos, then images, then audio, each in library
+   order. On a large library the server reads it in stages, and a stage can pass with nothing in it
+   that matches your filter; the table keeps asking for the next stage until the rows in view are
+   covered, so a narrow filter fills in on its own. The line under the table says how many rows are
+   loaded and, until the whole library has been read, how many items have been checked so far.
+   **Load more** (**Keep searching** with a search active) asks for the next stage straight away.
 6. The dry run uses your current settings, including edits you haven't saved yet, so you can
    iterate on the template and re-run until the preview looks right. If something looks wrong,
    adjust the template or the relevant setting and dry-run again.
