@@ -10,7 +10,7 @@
  * can be unit-reasoned in isolation; the handler (renameSelected.ts) wraps it with window.confirm + fetch.
  */
 
-import type { ConfirmLevel, PreviewItemView, PreviewSummary } from "../../wire/api";
+import type { ConfirmLevel, PreviewItemView, PreviewSummary, RenamerStatus } from "../../wire/api";
 
 /** Last path segment, tolerant of both `/` and `\` separators (Windows paths). */
 function basename(p: string): string {
@@ -20,6 +20,62 @@ function basename(p: string): string {
 }
 
 const SAMPLE_LIMIT = 5;
+
+/**
+ * The two spellings one skip kind needs: the plural `clause` the multi-reason line joins behind a
+ * count, and the singular `reason` the compact single-kind form parenthesises.
+ */
+interface SkipClause {
+  readonly clause: string;
+  readonly reason: string;
+}
+
+/**
+ * Every status the wire can carry, and whether it counts as a skip in the confirm dialog.
+ *
+ * Total by TYPE, keyed on the union generated from the extension's own OpenAPI document, so a status
+ * the server grows fails this build (TS2741, naming the missing key) rather than going uncounted. One
+ * map rather than a filter pass per status: this is the number a user approves a destructive operation
+ * against, and independent passes each omitted the same five planner-produced statuses, so a selection
+ * skipped entirely by an exclude rule reached the dialog with no reason given at all.
+ *
+ * DECLARATION ORDER IS THE RENDERED CLAUSE ORDER.
+ *
+ * The labels track the row pills in `warningBadgeLogic.ts`, because the two surfaces describe the same
+ * outcome to the same user.
+ */
+const SKIP_CLAUSES: Record<RenamerStatus, SkipClause | null> = {
+  skipGated: { clause: "need a required field", reason: "needs a required field" },
+  skipCollision: { clause: "have a name conflict", reason: "name conflict" },
+  skipExcluded: { clause: "are excluded by a rule", reason: "excluded by a rule" },
+  skipMissingSource: { clause: "are missing on disk", reason: "missing on disk" },
+  skipUnanchored: { clause: "sit outside your Cove library", reason: "outside your Cove library" },
+  skipRootMissing: {
+    clause: "use a rule whose destination is no longer a library path",
+    reason: "destination is no longer a library path",
+  },
+  skipNotAllowed: {
+    clause: "would land outside your allowed roots",
+    reason: "destination outside your allowed roots",
+  },
+  skipTooLong: { clause: "would make too long a path", reason: "path too long" },
+  // The executor produces this one at move time, past this gate, so no preview item carries it. The
+  // copy stays because retiring live user-facing text is a decision of its own.
+  skipLocked: { clause: "are in use", reason: "in use" },
+  // Not a skip: the two statuses counted by `willRename`, and the item that needs no change.
+  renamer: null,
+  move: null,
+  noOp: null,
+  // Executor-only, and produced only AFTER this confirm: by the time a move fails, the OS refuses it,
+  // the read-back mismatches or a shutdown interrupts the copy, the user has already approved.
+  failed: null,
+  skipPermissionDenied: null,
+  skipVerifyFailed: null,
+  skipCancelled: null,
+  skipBlocked: null,
+  // Log-only: a disk-full skip is reported through the run log and never becomes an item result.
+  skipNoSpace: null,
+};
 
 /** Render a byte count as a compact GB string for the blast-radius lines (e.g. "1.5 GB"). */
 function formatGb(bytes: number): string {
@@ -94,11 +150,24 @@ export function buildConfirmSummary(
   const n = willRename.length;
   const m = items.length;
 
-  const gated = items.filter((it) => it.status === "skipGated").length;
-  const collision = items.filter((it) => it.status === "skipCollision").length;
-  const lockedSkipped = items.filter((it) => it.status === "skipLocked").length;
-  const missingSkipped = items.filter((it) => it.status === "skipMissingSource").length;
-  const skipped = gated + collision + lockedSkipped + missingSkipped;
+  const tally = new Map<string, number>();
+  // Membership, not `!== null`: an undeclared status also satisfies `!== null`, so the looser test
+  // would count it here and lose it again below, where the clause list reads only declared keys.
+  // Counted separately instead, because a number the user approves a rename on must not omit rows it
+  // could not classify.
+  let unclassified = 0;
+  for (const it of items) {
+    const clause = (SKIP_CLAUSES as Record<string, SkipClause | null | undefined>)[it.status];
+    if (clause === undefined) unclassified += 1;
+    else if (clause !== null) tally.set(it.status, (tally.get(it.status) ?? 0) + 1);
+  }
+  // Read in the MAP's declaration order, never the tally's — that one follows whatever order the items
+  // happened to arrive in, which would let the same selection word its sentence differently twice.
+  const skipKinds = Object.entries(SKIP_CLAUSES).flatMap(([status, clause]) => {
+    const count = tally.get(status) ?? 0;
+    return clause !== null && count > 0 ? [{ ...clause, count }] : [];
+  });
+  const skipped = skipKinds.reduce((sum, kind) => sum + kind.count, 0) + unclassified;
   const numbered = willRename.filter((it) => it.suffixed).length;
   const cleaned = willRename.filter((it) => it.sanitized).length;
 
@@ -116,23 +185,13 @@ export function buildConfirmSummary(
     );
   }
   if (skipped > 0) {
-    const clauses: string[] = [];
-    if (gated > 0) clauses.push(`${gated} need a required field`);
-    if (collision > 0) clauses.push(`${collision} have a name conflict`);
-    if (lockedSkipped > 0) clauses.push(`${lockedSkipped} are in use`);
-    if (missingSkipped > 0) clauses.push(`${missingSkipped} are missing on disk`);
     // If only one reason kind, collapse to the compact "(reason)" form.
-    if (clauses.length === 1) {
-      const onlyReason =
-        gated > 0
-          ? "needs a required field"
-          : collision > 0
-            ? "name conflict"
-            : lockedSkipped > 0
-              ? "in use"
-              : "missing on disk";
-      warningLines.push(`⚠ ${skipped} skipped (${onlyReason}).`);
+    const onlyKind = skipKinds.length === 1 ? skipKinds[0] : undefined;
+    if (onlyKind && unclassified === 0) {
+      warningLines.push(`⚠ ${skipped} skipped (${onlyKind.reason}).`);
     } else {
+      const clauses = skipKinds.map((kind) => `${kind.count} ${kind.clause}`);
+      if (unclassified > 0) clauses.push(`${unclassified} for an unrecognised reason`);
       warningLines.push(`⚠ ${skipped} skipped — ${clauses.join(", ")}.`);
     }
   }
