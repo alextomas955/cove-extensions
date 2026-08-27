@@ -1,8 +1,9 @@
 /**
  * Pure, DOM-free logic behind the Dry Run modal: the status→bucket classification the table and the
- * server's filter share, the reduction of a scan aggregate to display counts, and the scan-progress
- * ETA maths. Kept import-free (no React, no DOM, no SDK) so it stays L0 — testable with no
- * environment — exactly like studioFilterLogic.ts/options.ts.
+ * server's filter share, the rule deciding whether the paged row walk asks for another page, the
+ * reduction of a scan aggregate to display counts, and the scan-progress ETA maths. Kept import-free
+ * (no React, no DOM, no SDK) so it stays L0 — testable with no environment — exactly like
+ * studioFilterLogic.ts/options.ts.
  */
 
 /**
@@ -49,6 +50,66 @@ export function bucketWireValue(filter: DryRunFilter): string {
     case "all":
       return "all";
   }
+}
+
+/**
+ * The state of a paged row walk that a continuation decision reads. Declared structurally rather than
+ * over the wire types, so this module keeps to its relative siblings and stays environment-free.
+ */
+export interface WalkProgress {
+  /** Rows accumulated across every page of the walk so far. */
+  readonly loadedRows: number;
+  /** How many rows the viewport and its prefetch window want loaded. */
+  readonly targetRows: number;
+  /** A cursor survives, so the server has more of the library left to read. */
+  readonly hasMore: boolean;
+  /** A page is already in flight. */
+  readonly loading: boolean;
+  /** The last page failed. */
+  readonly hasError: boolean;
+}
+
+/**
+ * Whether the row walk should ask for another page.
+ *
+ * The decision reads the cursor and the row target, and never how many rows the last page carried. The
+ * server's per-request ceiling is a budget on entities EXAMINED, not on rows RETURNED, so a page of
+ * zero rows arriving with a live cursor is a normal resumable answer rather than the end of the data.
+ * It is also the commonest answer over a sparse filter, where whole budget windows hold nothing the
+ * filter matches.
+ *
+ * The error arm is what keeps the retry bounded: a failed page clears the in-flight flag and leaves the
+ * cursor untouched, so every other input still reads as "more to fetch, nothing in flight", and a
+ * caller re-evaluating whenever a request settles would reissue the same failing request without end.
+ * Refusing here leaves the manual retry as the way forward.
+ */
+export function shouldContinueWalk(progress: WalkProgress): boolean {
+  return (
+    progress.hasMore &&
+    !progress.loading &&
+    !progress.hasError &&
+    progress.loadedRows < progress.targetRows
+  );
+}
+
+/**
+ * The badge copy for a row whose cross-volume copy would not fit. Stated in the user's terms — what will
+ * happen and where — because the mechanism (a temporary name minted beside the destination) is the
+ * server's business, and a path-length number the user cannot act on is not advice.
+ */
+export const IN_FLIGHT_OVERFLOW_LABEL = "Too long to copy across drives";
+
+/**
+ * The label a row earns from the server's `inFlightPathOverflow` flag, or `null` for a row without one.
+ *
+ * Both wire shapes that reach a badge declare the flag, so the compile-time requirement lives at the
+ * `Badgeable` boundary rather than here. What stays optional on the way IN is a runtime guard: a response
+ * decoded from a build that predates the field has no field, and that must read as "no warning" rather than
+ * throw. It is read with `=== true` for the neighbouring reason — an absent field is `undefined`, and a
+ * truthiness test would also swallow a wire value that arrived as the string `"false"`.
+ */
+export function inFlightOverflowLabel(item: { inFlightPathOverflow?: boolean }): string | null {
+  return item.inFlightPathOverflow === true ? IN_FLIGHT_OVERFLOW_LABEL : null;
 }
 
 /** Per-bucket file counts of a whole scan: the header line, the segment labels and the rename banner. */

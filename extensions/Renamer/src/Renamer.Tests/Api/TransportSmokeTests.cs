@@ -28,7 +28,6 @@ namespace Renamer.Tests.Api;
 /// a minimal WebApplication driving the extension's own MapEndpoints does mount and serve them.
 /// </para>
 /// </summary>
-[Trait("Tier", "L2")]
 public sealed class TransportSmokeTests
 {
     private const string Base = "/api/extensions/com.alextomas955.renamer";
@@ -144,7 +143,8 @@ public sealed class TransportSmokeTests
             CrossVolumeBytes: 0,
             VolumePairs: [],
             ConfirmLevel: ConfirmLevel.Light,
-            Undoable: true);
+            Undoable: true,
+            InFlightPathOverflowCount: 0);
 
         return new ScanSummary(
             ScanSummary.CurrentSchemaVersion,

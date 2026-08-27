@@ -14,7 +14,6 @@ namespace Renamer.Tests.Execution;
 /// behavior: a deleted source folder makes a later undo of that move SKIP the restore (the file stays
 /// at its verified destination, never lost).
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class EmptySourceFolderCleanerTests
 {
     // ── helper-level invariants (Tests 2-7) ──────────────────────────────────

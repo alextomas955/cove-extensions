@@ -20,7 +20,6 @@ namespace Renamer.Tests.Execution.Collisions;
 /// the only path that reaches SaveChangesAsync is AFTER a successful move; we additionally assert the
 /// failure reason names the rollback, proving the catch — not the move — produced the terminal state).
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class RollbackTests
 {
     [Fact]

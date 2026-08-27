@@ -21,7 +21,6 @@ namespace Renamer.Tests.Concurrency;
 /// the journal rows) — never on an EF exception. The store is a thread-safe
 /// <see cref="ConcurrentFakeStore"/> so it is not a confounder.
 /// </summary>
-[Trait("Tier", "L1")]
 [Collection(SubstDriveScope.CollectionName)]
 public sealed class ParallelBatchTests
 {

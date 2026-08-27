@@ -28,7 +28,6 @@ namespace Renamer.Tests.Execution.Journal;
 /// value is a judgement and is pinned nowhere.
 /// </para>
 /// </remarks>
-[Trait("Tier", "L1")]
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class JournalPagingTests
 {

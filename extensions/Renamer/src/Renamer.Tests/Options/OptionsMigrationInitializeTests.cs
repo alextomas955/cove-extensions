@@ -15,7 +15,6 @@ namespace Renamer.Tests.Options;
 /// cannot read yet, so the decision not to convert lives here, and getting it wrong destroys the
 /// user's entity rules with nothing observable happening.
 /// </remarks>
-[Trait("Tier", "L1")]
 public sealed class OptionsMigrationInitializeTests
 {
     /// <summary>The library path every stored destination in these blobs lives under.</summary>

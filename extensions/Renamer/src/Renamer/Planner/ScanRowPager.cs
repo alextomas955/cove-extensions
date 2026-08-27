@@ -15,7 +15,14 @@ namespace Renamer.Planner;
 /// </remarks>
 /// <param name="planner">The one planner; a second planning path would break the equivalence this rests on.</param>
 /// <param name="port">The read seam ids and entity graphs come from.</param>
-public sealed class ScanRowPager(RenamerPlanner planner, IRenamerDataPort port)
+/// <param name="mountPoints">
+/// Mount table to resolve Unix volumes against; omit for the real one. Carried for the same reason
+/// <see cref="ScanAggregator"/> and <see cref="BatchPreview.Summarize"/> carry it: a page's in-flight
+/// overflow flag is a cross-volume decision, and on Unix volume identity comes from the RUNNER's mount
+/// table, so a flagged row is otherwise not reproducible off the machine that produced it.
+/// </param>
+public sealed class ScanRowPager(
+    RenamerPlanner planner, IRenamerDataPort port, IReadOnlyCollection<string>? mountPoints = null)
 {
     // A page the UI virtualises comfortably: enough rows that scrolling rarely waits on a request, few
     // enough that one request stays a small response and a short planning burst.
@@ -101,7 +108,11 @@ public sealed class ScanRowPager(RenamerPlanner planner, IRenamerDataPort port)
                         var plan = await planner.PlanLoadedEntity(entity, options, lookups, ct);
                         foreach (var item in plan.Items)
                         {
-                            var row = ScanRow.From(kind, plan.EntityId, item);
+                            // The budget comes from the SAME options instance the planner just planned
+                            // against, so the row cannot be measured against a separately-sourced one.
+                            var row = ScanRow.From(
+                                kind, plan.EntityId, item,
+                                BatchPreview.InFlightPathOverflows(item, options.FullPathMax, mountPoints));
                             if (bucket is { } wanted && ScanBucket.Of(row.Status) != wanted)
                             {
                                 continue;

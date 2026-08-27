@@ -17,7 +17,6 @@ namespace Renamer.Tests.Execution.Journal;
 /// that what remains in the table IS the work left — is a property of the storage, and a fake that
 /// reimplements it would only prove the fake agrees with itself.
 /// </remarks>
-[Trait("Tier", "L1")]
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RevertJournalTests
 {

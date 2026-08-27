@@ -11,7 +11,6 @@ namespace Renamer.Tests.Planner;
 /// was cleaned. Both default to false (additive) so existing constructions keep compiling. DB-free
 /// over <see cref="FakeRenamerDataPort"/> (mirrors <c>CollisionTests</c>).
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class PlanItemFlagsTests
 {
     private static RenamerFile File(int id, string basename, int folderId = 5) =>

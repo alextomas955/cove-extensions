@@ -24,16 +24,20 @@ export function LivePreviewPane({ preview, previewError }: LivePreviewPaneProps)
         {previewError ? (
           <StatusText kind="error">Preview unavailable — saved naming still works.</StatusText>
         ) : null}
-        {preview == null ? (
-          <div className="flex items-center gap-2 text-sm text-secondary">
-            <Spinner />
-            Rendering preview…
-          </div>
-        ) : (
+        {preview != null ? (
           <div className="space-y-3">
             {preview.map((r) => (
               <PreviewCard key={r.sampleLabel} result={r} />
             ))}
+          </div>
+        ) : previewError ? null : (
+          // Only while no failure has been reported. The hook keeps the last good preview on a failed
+          // refresh, so a null preview beside a raised error is the FIRST request having failed: there
+          // is nothing further in flight, and a spinner beneath the error line above would promise a
+          // render that never arrives.
+          <div className="flex items-center gap-2 text-sm text-secondary">
+            <Spinner />
+            Rendering preview…
           </div>
         )}
       </div>

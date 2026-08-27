@@ -14,7 +14,6 @@ namespace Renamer.Tests.Execution.Undo;
 /// the executor must restore the source and classify the item Failed, never leaving the file abandoned
 /// at the new path with the DB unchanged.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class RollbackTests
 {
     [Fact]

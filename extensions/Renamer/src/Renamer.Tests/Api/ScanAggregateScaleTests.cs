@@ -24,7 +24,6 @@ namespace Renamer.Tests.Api;
 /// larger fixture would cost minutes of runtime and add no information. It was not overlooked.
 /// </para>
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class ScanAggregateScaleTests
 {
     private const int SmallFixture = 10;
@@ -166,7 +165,7 @@ public sealed class ScanAggregateScaleTests
         // totals stay exact — is unaffected by which code path fed the fold.
         int pairs = ScanSummary.MaxVolumePairsPerKind + 20;
 
-        var aggregator = new ScanAggregator(SynthMounts(pairs + 1));
+        var aggregator = new ScanAggregator(new RenamerOptions().FullPathMax, SynthMounts(pairs + 1));
         long expectedBytes = 0;
         for (int i = 0; i < pairs; i++)
         {

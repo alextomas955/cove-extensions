@@ -9,7 +9,6 @@ namespace Renamer.Tests.Execution;
 /// running the existing per-id planner over each candidate. Exercised against a real SQLite
 /// <c>CoveContext</c> so the EF query shape (and zero-tracking contract) is proven, not faked.
 /// </summary>
-[Trait("Tier", "L1")]
 public sealed class LoadAllEntityIdsAsyncTests
 {
     [Fact]

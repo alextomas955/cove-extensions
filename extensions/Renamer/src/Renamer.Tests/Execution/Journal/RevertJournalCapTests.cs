@@ -14,7 +14,6 @@ namespace Renamer.Tests.Execution.Journal;
 /// to page over at all. Driven through the real EF implementation rather than the fake, because that
 /// is a property of the storage and a fake reimplementing it would only agree with itself.
 /// </remarks>
-[Trait("Tier", "L1")]
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RevertJournalCapTests
 {

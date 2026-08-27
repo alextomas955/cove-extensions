@@ -44,8 +44,11 @@ to place it somewhere unusual.
 - **A literal dollar sign** is written `$$`.
 - **Missing tokens are omitted**, not rendered as blank — which is what makes the `{ … }` groups
   collapse.
-- **Folders**: in a folder template, use `/` to separate sub-folders, e.g. `$studio/$year`. A folder
-  template is always relative to its destination's root, so it never starts with a drive or a `/`.
+- **Folders**: in a folder template, use `/` to separate sub-folders, e.g. `$studio/$year`. Only `/`
+  separates; a backslash is treated as a character the filesystem forbids and is removed (or
+  replaced, per _Illegal-char replacement_). A folder template is always relative to its
+  destination's root, so it never starts with a drive or a `/`. A level whose tokens all render empty
+  is dropped rather than made as a folder with no name.
 
 ## Presets
 
@@ -70,10 +73,10 @@ with no value is simply omitted.
 
 ### Core
 
-| Token    | Produces                                                                                                                       | Example      |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------ |
-| `$title` | The item's title. If the item has no title and _Use filename as title_ is on, the file's current basename (without extension). | `The Matrix` |
-| `$ext`   | The file extension (added automatically at the end; include it explicitly only for unusual placements).                        | `mp4`        |
+| Token    | Produces                                                                                                                                                                 | Example      |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------ |
+| `$title` | The item's title. If the item has no title and _Use filename as title_ is on, the item's first filename (without extension), which is then recorded as the item's title. | `The Matrix` |
+| `$ext`   | The file extension (added automatically at the end; include it explicitly only for unusual placements).                                                                  | `mp4`        |
 
 ### Titles, studios, people
 
@@ -88,11 +91,11 @@ with no value is simply omitted.
 
 ### Date & time
 
-| Token       | Produces                                                           | Example      |
-| ----------- | ------------------------------------------------------------------ | ------------ |
-| `$date`     | The item's date, formatted by the **Date format** setting.         | `1999-03-31` |
-| `$year`     | The calendar year of the item's date.                              | `1999`       |
-| `$duration` | The file's duration, formatted by the **Duration format** setting. | `02-16-00`   |
+| Token       | Produces                                                               | Example      |
+| ----------- | ---------------------------------------------------------------------- | ------------ |
+| `$date`     | The item's date, formatted by the **Date format** setting.             | `1999-03-31` |
+| `$year`     | The calendar year of the item's date.                                  | `1999`       |
+| `$duration` | The file's duration, rendered through the **Duration format** setting. | `02-16-00`   |
 
 ### Media info
 
@@ -110,14 +113,14 @@ with no value is simply omitted.
 
 `$resolution` maps the frame height to a friendly label:
 
-| Height (px) | `$resolution`              |
-| ----------- | -------------------------- |
-| ≥ 2160      | `4k`                       |
-| ≥ 1440      | `1440p`                    |
-| ≥ 1080      | `1080p`                    |
-| ≥ 720       | `720p`                     |
-| ≥ 480       | `480p`                     |
-| below 480   | the raw height as a number |
+| Height (px) | `$resolution`                                 |
+| ----------- | --------------------------------------------- |
+| ≥ 2160      | `4k`                                          |
+| ≥ 1440      | `1440p`                                       |
+| ≥ 1080      | `1080p`                                       |
+| ≥ 720       | `720p`                                        |
+| ≥ 480       | `480p`                                        |
+| below 480   | the raw height with a `p` suffix, e.g. `368p` |
 
 If a title already ends with a resolution label (for example `My Movie [1080p]`) and your template
 also renders `$resolution`, Renamer removes the duplicate from the title so the label isn't repeated.

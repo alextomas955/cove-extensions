@@ -11,7 +11,6 @@ namespace Renamer.Tests.Options;
 /// — including a <see cref="MultiValueOptions"/> member — must flip equality. This is the exact footgun
 /// (45-R4): a collection member that compared by reference would break the save/load round-trip.
 /// </summary>
-[Trait("Tier", "L0")]
 public sealed class RenamerOptionsEqualityTests
 {
     [Fact]

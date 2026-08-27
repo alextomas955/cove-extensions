@@ -21,7 +21,6 @@ namespace Renamer.Tests.Concurrency;
 /// throwing. Every assertion is therefore on the rows that came back, never on an exception.
 /// </para>
 /// </remarks>
-[Trait("Tier", "L1")]
 [Collection(CoveDataExtensionScope.CollectionName)]
 public sealed class RevertJournalConcurrencyTests
 {

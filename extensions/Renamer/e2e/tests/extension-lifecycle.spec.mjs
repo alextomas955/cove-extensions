@@ -10,6 +10,7 @@
 // under parallelism, which matters more here than in the read-mostly/uniquely-seeded-data tests
 // elsewhere in this suite. Playwright also forbids re-registering an existing fixture at a
 // different scope via .extend(), so this can't just be a rescoped `harness`.
+// `@smoke` - part of the selection core-paths.spec.mjs explains.
 import { test as base, expect } from "@cove-extensions/e2e";
 import { startHarness } from "@cove-extensions/e2e/harness";
 import { RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
@@ -45,43 +46,44 @@ async function callApi(baseUrlGetter, method, path, body) {
   return { status: res.status, ok: res.ok, json, text };
 }
 
-test("disabling the extension removes it from the API and UI; re-enabling restores both", async ({
-  page,
-  isolatedHarness,
-}) => {
-  const api = {
-    get: (path) => callApi(() => isolatedHarness.baseUrl, "GET", path),
-    post: (path, body) => callApi(() => isolatedHarness.baseUrl, "POST", path, body),
-  };
+test(
+  "disabling the extension removes it from the API and UI; re-enabling restores both",
+  { tag: "@smoke" },
+  async ({ page, isolatedHarness }) => {
+    const api = {
+      get: (path) => callApi(() => isolatedHarness.baseUrl, "GET", path),
+      post: (path, body) => callApi(() => isolatedHarness.baseUrl, "POST", path, body),
+    };
 
-  const before = await api.get("/api/extensions");
-  expect(before.json.find((e) => e.id === EXTENSION_ID)?.enabled).toBe(true);
+    const before = await api.get("/api/extensions");
+    expect(before.json.find((e) => e.id === EXTENSION_ID)?.enabled).toBe(true);
 
-  const disable = await api.post(`/api/extensions/${EXTENSION_ID}/disable`);
-  expect(disable.ok).toBe(true);
+    const disable = await api.post(`/api/extensions/${EXTENSION_ID}/disable`);
+    expect(disable.ok).toBe(true);
 
-  const afterDisable = await api.get("/api/extensions");
-  const disabledEntry = afterDisable.json.find((e) => e.id === EXTENSION_ID);
-  // A disabled extension either drops off the list or reports enabled:false — assert whichever
-  // the real API does, rather than assuming.
-  expect(disabledEntry === undefined || disabledEntry.enabled === false).toBe(true);
+    const afterDisable = await api.get("/api/extensions");
+    const disabledEntry = afterDisable.json.find((e) => e.id === EXTENSION_ID);
+    // A disabled extension either drops off the list or reports enabled:false — assert whichever
+    // the real API does, rather than assuming.
+    expect(disabledEntry === undefined || disabledEntry.enabled === false).toBe(true);
 
-  // The settings tab must no longer be listed once disabled — proves the UI actually reads live
-  // extension state, not a cached list from before disable. Navigating straight to /settings/extensions/installed
-  // (rather than clicking through the sidebar) avoids depending on which sub-section the sidebar
-  // last expanded to, which is unrelated UI state this test shouldn't need to know about.
-  await page.goto(`${isolatedHarness.baseUrl}/settings/extensions/installed`);
-  await expect(page.getByRole("button", { name: "Renamer", exact: true })).not.toBeVisible();
+    // The settings tab must no longer be listed once disabled — proves the UI actually reads live
+    // extension state, not a cached list from before disable. Navigating straight to /settings/extensions/installed
+    // (rather than clicking through the sidebar) avoids depending on which sub-section the sidebar
+    // last expanded to, which is unrelated UI state this test shouldn't need to know about.
+    await page.goto(`${isolatedHarness.baseUrl}/settings/extensions/installed`);
+    await expect(page.getByRole("button", { name: "Renamer", exact: true })).not.toBeVisible();
 
-  const enable = await api.post(`/api/extensions/${EXTENSION_ID}/enable`);
-  expect(enable.ok).toBe(true);
+    const enable = await api.post(`/api/extensions/${EXTENSION_ID}/enable`);
+    expect(enable.ok).toBe(true);
 
-  const afterEnable = await api.get("/api/extensions");
-  expect(afterEnable.json.find((e) => e.id === EXTENSION_ID)?.enabled).toBe(true);
+    const afterEnable = await api.get("/api/extensions");
+    expect(afterEnable.json.find((e) => e.id === EXTENSION_ID)?.enabled).toBe(true);
 
-  await page.goto(`${isolatedHarness.baseUrl}/settings/extensions/installed`);
-  await expect(page.getByRole("button", { name: "Renamer", exact: true })).toBeVisible();
-});
+    await page.goto(`${isolatedHarness.baseUrl}/settings/extensions/installed`);
+    await expect(page.getByRole("button", { name: "Renamer", exact: true })).toBeVisible();
+  },
+);
 
 test("uninstalling the extension removes it entirely; a fresh install brings it back clean", async ({
   isolatedHarness,

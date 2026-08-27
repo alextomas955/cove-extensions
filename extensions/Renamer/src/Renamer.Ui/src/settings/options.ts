@@ -354,6 +354,12 @@ export function cloneDefaults(): RenamerOptions {
 // from cloneDefaults() reading ONLY the known PascalCase keys (coerced by declared type), DROPPING every
 // unknown/stale key. Applied at the load boundary, it fixes the preview AND self-heals the stored blob on
 // the next Save (since the canonical state is what gets persisted). Frontend-only; no backend change.
+//
+// The id-keyed fields read through the numeric coercers, so a blob still holding the pre-migration
+// NAMES coerces to an empty list or map rather than surviving as unusable strings. A parallel field
+// holding the old names would re-create the duplicate state the backend's one-time name-to-id
+// conversion exists to remove; the panel keeps the erasure and refuses to SAVE instead, while any name
+// is still awaiting conversion (hasUnmigratedNameRules below).
 
 function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
@@ -514,6 +520,135 @@ export function extractUnmodeledFields(raw: unknown): Record<string, unknown> {
     if (!MODELED_KEYS.has(key)) extras[key] = value;
   }
   return extras;
+}
+
+/** Member lookup ignoring letter case, mirroring the host serializer's own key matching. */
+function findMember(owner: Record<string, unknown>, name: string): unknown {
+  const key = Object.keys(owner).find((k) => k.toLowerCase() === name.toLowerCase());
+  return key === undefined ? undefined : owner[key];
+}
+
+/**
+ * How many names one legacy list still holds. A blank entry is not a name: the backend's own scan
+ * skips one, so counting it would refuse a save the conversion is never going to act on.
+ */
+function countNames(owner: Record<string, unknown>, legacyKey: string): number {
+  const list = findMember(owner, legacyKey);
+  return Array.isArray(list)
+    ? list.filter((x) => typeof x === "string" && x.trim().length > 0).length
+    : 0;
+}
+
+function countGroupNames(raw: Record<string, unknown>, group: string): number {
+  const owner = findMember(raw, group);
+  if (!owner || typeof owner !== "object") return 0;
+  const r = owner as Record<string, unknown>;
+  return countNames(r, "Whitelist") + countNames(r, "Blacklist");
+}
+
+/**
+ * True when a routing-map key is one the backend reads as an id rather than as a tag name.
+ *
+ * Parity with `int.TryParse(key, NumberStyles.Integer, InvariantCulture)` down to spellings nobody
+ * writes by hand: hence the leading sign, the ASCII-only surrounding whitespace and the leading zeroes
+ * an `int` parse accepts, and the int32 bound past which it accepts nothing. Both directions of a
+ * disagreement are unrecoverable. A key called a name here that the backend calls an id is never
+ * rewritten, since the conversion runs only when its own scan finds work and stamps the blob done
+ * otherwise, so Save would be refused forever; a key called an id here that the backend calls a name
+ * is one a save erases.
+ */
+function isIdKey(key: string): boolean {
+  if (!/^[ \t\n\v\f\r]*[+-]?\d+[ \t\n\v\f\r]*$/.test(key)) return false;
+  const n = Number(key);
+  return n >= -2147483648 && n <= 2147483647;
+}
+
+function countNameKeyedDestinations(raw: Record<string, unknown>): number {
+  const map = findMember(raw, "TagDestinations");
+  if (!map || typeof map !== "object") return 0;
+  return Object.keys(map as Record<string, unknown>).filter((k) => !isIdKey(k)).length;
+}
+
+/**
+ * True when a stored blob still holds tag or performer rules keyed on NAMES, which the backend's
+ * one-time conversion has not resolved to ids yet.
+ *
+ * Deliberately the same predicate the backend scans with (`OptionsMigration.Scan(...).Any`): count the
+ * names awaiting an id, never the legacy keys present. The pre-migration panel serialised its whole
+ * defaults object, so an install that configured neither group still stores an empty `Whitelist`,
+ * `Blacklist` and `ExcludeTags`; treating those as pending would lock this panel out of saving forever
+ * on a blob that has nothing left to convert.
+ *
+ * {@link normalizeOptions} rebuilds both groups and `TagDestinations` from the id-valued keys alone, so
+ * a save while this is true persists those emptied fields over rules nothing else keeps a copy of.
+ */
+export function hasUnmigratedNameRules(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return false;
+  const r = raw as Record<string, unknown>;
+  return (
+    countNames(r, "ExcludeTags") +
+      countGroupNames(r, "Tags") +
+      countGroupNames(r, "Performers") +
+      countNameKeyedDestinations(r) >
+    0
+  );
+}
+
+/** A plain object, the only shape the backend's destination walk descends into: a JSON array is not one. */
+function plainObject(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+/**
+ * A destination stored the way it was before it became a root plus a template: a bare path string.
+ * That is the whole of what the backend's site walk takes, so the empty string is one too.
+ */
+function isBarePath(value: unknown): boolean {
+  return typeof value === "string";
+}
+
+function hasBarePathValue(raw: Record<string, unknown>, field: string): boolean {
+  const map = plainObject(findMember(raw, field));
+  return map !== undefined && Object.values(map).some(isBarePath);
+}
+
+function hasBarePathRule(raw: Record<string, unknown>): boolean {
+  const rules = findMember(raw, "PathDestinations");
+  return (
+    Array.isArray(rules) &&
+    rules.some((rule) => {
+      const r = plainObject(rule);
+      return r !== undefined && isBarePath(findMember(r, "Dest"));
+    })
+  );
+}
+
+/**
+ * True when a stored blob still holds destinations as the bare absolute paths they were before a
+ * destination became a Cove library root plus a relative template.
+ *
+ * Deliberately the same sites the backend rewrites (`OptionsMigration.ConvertDestinationsToRoots`):
+ * a JSON STRING under either routing map, on a path rule's `Dest`, or on `UnorganizedDestination`.
+ * The global folder template and root are strings the conversion leaves exactly as stored, so reading
+ * either as a site would refuse a save on every install that configured one - permanently, since the
+ * conversion stamps the blob done once it finds no site.
+ *
+ * {@link normalizeOptions} reads a bare path as {@link NO_DESTINATION}, and `UnorganizedDestination`
+ * as no route at all, so a save while this is true persists those blanks over folders nothing else
+ * keeps a copy of. That conversion DEFERS while Cove has supplied no library paths, because there
+ * would be no root to choose, so the old shape can sit in the store across restarts.
+ */
+export function hasUnmigratedDestinations(raw: unknown): boolean {
+  const r = plainObject(raw);
+  if (r === undefined) return false;
+  return (
+    hasBarePathValue(r, "StudioDestinations") ||
+    hasBarePathValue(r, "TagDestinations") ||
+    hasBarePathRule(r) ||
+    isBarePath(findMember(r, "UnorganizedDestination"))
+  );
 }
 
 /**

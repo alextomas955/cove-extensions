@@ -274,15 +274,21 @@ public sealed partial class Renamer
             }
         }
 
-        // The whole-batch blast radius: a pure aggregate over the acting items + their sizes.
-        var summary = BatchPreview.Summarize(items, sizeByFileId);
+        // The whole-batch blast radius: a pure aggregate over the acting items + their sizes. The path
+        // budget is read from the loaded options ONCE and handed to both halves of the response below, so
+        // the aggregate's in-flight overflow COUNT and the per-item FLAGS cannot be measured against
+        // different limits and disagree.
+        var summary = BatchPreview.Summarize(items, sizeByFileId, options.FullPathMax);
 
         // The host's serializer is camelCase but emits NUMERIC enums (status:0), which the frontend's
         // buildConfirmSummary reads as a non-renamer — so the renamer would silently never fire. The
         // string spelling comes from CamelCaseStringEnumConverter declared ON RenamerStatus and
         // ConfirmLevel, never from an options instance chosen here.
         return TypedResults.Ok(
-            new PreviewResponse([.. items.Select(PreviewItemView.From)], summary));
+            new PreviewResponse(
+                [.. items.Select(i => PreviewItemView.From(
+                    i, BatchPreview.InFlightPathOverflows(i, options.FullPathMax)))],
+                summary));
     }
 
     /// <summary>
@@ -819,7 +825,7 @@ public sealed partial class Renamer
     {
         var lookups = BuildLookups(options);
         var planner = new RenamerPlanner(port);
-        var aggregator = new ScanAggregator();
+        var aggregator = new ScanAggregator(options.FullPathMax);
 
         // Load every kind's ids up front so the TOTAL is known before planning — the scan previously
         // reported only a single Report(1.0) at the end, so the job jumped 0%→100% with no intermediate
