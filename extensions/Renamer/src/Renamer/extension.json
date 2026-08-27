@@ -6,7 +6,7 @@
   "author": "alextomas955",
   "url": "https://github.com/alextomas955/cove-extensions",
   "categories": ["tools", "automation"],
-  "minCoveVersion": "1.3.0",
+  "minCoveVersion": "1.3.1",
   "entryDll": "Renamer.dll",
   "jsBundle": "index.mjs",
   "permissions": {

@@ -34,9 +34,10 @@ import {
   createApiClient,
   isolatedHarnessFixture,
 } from "@cove-extensions/e2e";
-import { pollJob, pollUntil, seedVideo, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
+import { pollUntil, seedVideo, RENAMER_EXTENSION } from "../lib/renamer-fixtures.mjs";
 import { RenamerSettingsPage } from "../lib/pages/renamer-settings-page.mjs";
 import { assertRenamedTo, assertRestoredTo } from "../lib/rename-assertions.mjs";
+import { pollRenamerJob } from "../lib/poll-renamer-job.mjs";
 
 const EXTENSION_ID = "com.alextomas955.renamer";
 const ROUTE = `/api/extensions/${EXTENSION_ID}`;
@@ -186,7 +187,9 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
     EntityIds: [primary.id],
   });
   expect(rename.status).toBe(202);
-  expect((await pollJob(api, rename.json.jobId)).status.toLowerCase()).toBe("completed");
+  expect((await pollRenamerJob(api, ROUTE, rename.json.jobId)).status.toLowerCase()).toBe(
+    "completed",
+  );
 
   await assertRenamedTo({
     api,
@@ -293,7 +296,9 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
     EntityIds: pair.map((item) => item.id),
   });
   expect(renamePair.status).toBe(202);
-  expect((await pollJob(api, renamePair.json.jobId)).status.toLowerCase()).toBe("completed");
+  expect((await pollRenamerJob(api, ROUTE, renamePair.json.jobId)).status.toLowerCase()).toBe(
+    "completed",
+  );
 
   for (const item of pair) {
     await assertRenamedTo({
@@ -437,9 +442,9 @@ test("the host creates the journal on Postgres, undo brings sidecars home, a par
     EntityIds: [revenant.id],
   });
   expect(renameAfterReinstall.status).toBe(202);
-  expect((await pollJob(api, renameAfterReinstall.json.jobId)).status.toLowerCase()).toBe(
-    "completed",
-  );
+  expect(
+    (await pollRenamerJob(api, ROUTE, renameAfterReinstall.json.jobId)).status.toLowerCase(),
+  ).toBe("completed");
 
   await assertRenamedTo({
     api,

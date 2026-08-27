@@ -4,11 +4,13 @@ User-facing changes, newest first.
 
 ## 0.4.0 — Undo you can retry, and one that survives the next rename
 
-**Needs Cove 1.3.0.** An older host does not load Renamer at all — no Rename tab under Settings →
+**Needs Cove 1.3.1.** An older host does not load Renamer at all — no Rename tab under Settings →
 Extensions, no "Rename selected" on your lists — so stay on 0.3.0 until you have upgraded Cove.
-Nothing here is a feature you lose. The floor rose because Renamer now relies on the host publishing
-entity events for bulk mutations; without those, editing several items at once renames one of them
-and says nothing about the rest.
+Nothing here is a feature you lose. A floor exists at all because Renamer relies on the host
+publishing entity events for bulk mutations; without those, editing several items at once renames one
+of them and says nothing about the rest. It sits at 1.3.1 rather than 1.3.0 because that is the host
+release Renamer is built against, and 1.3.1 is a patch on 1.3.0 — if you are on 1.3.0 the upgrade is
+a small one.
 
 - **A rename no longer lengthens the filename every time it runs.** With _Use filename as title when
   none is set_ on, an item with no title borrowed one from its own filename — the name the previous
@@ -207,6 +209,16 @@ and says nothing about the rest.
   run.** When every file of an edited item was skipped — a name already taken at the destination, say —
   the hook stayed muted for that item, so your next edit of it was ignored and nothing said so. It
   now acts on the next edit.
+- **A dry run or library rename now finishes for an account that is not the owner.** Renamer watched a
+  run through one of Cove's own endpoints, and from Cove 1.3.1 that endpoint answers only to accounts
+  with unrestricted read. So for anyone else the run started and then appeared to stall, ending in
+  _"Cove stopped answering when asked about this job"_ — the work usually finished, but the panel could
+  not see it. Renamer now reports its own progress, and only for its own runs.
+- **A per-studio or per-tag rule now says when its studio or tag is gone.** Merging or deleting one
+  leaves the rule pointing at something Cove no longer has, and it quietly stops applying — files it
+  used to route now follow your default destination instead. The rule used to show an endless
+  _"Loading studio…"_, so there was nothing to notice. It now reads _"Deleted studio (was #210) — this
+  rule no longer applies"_, and you can remove the row. Nothing is deleted for you.
 
 ## 0.3.0 — Undo that cannot grow without bound
 

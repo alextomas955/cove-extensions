@@ -4,7 +4,6 @@
  * shared destination editor. Reuses both primitives verbatim; the only new logic is the numeric-key
  * coercion, which lives in options.ts beside the load-path coercion it has to agree with.
  */
-import { EntityReferenceValue } from "@cove/runtime/components";
 
 import { KeyValueMapEditor } from "@cove-extensions/ui-shared";
 import { EntitySelectField } from "./EntitySelectField";
@@ -16,6 +15,8 @@ import {
   type Destination,
   type LibraryPathsState,
 } from "./options";
+import { RuleKeyLabel } from "./RuleKeyLabel";
+import { useOrphanedRules } from "./useOrphanedRules";
 
 /**
  * The studio destination-rule editor. Accepts/emits the persisted `Record<number, Destination>`;
@@ -37,6 +38,8 @@ export function StudioDestinationsEditor({
   onChange: (map: Record<number, Destination>) => void;
   library: LibraryPathsState;
 }) {
+  const orphaned = useOrphanedRules();
+
   return (
     <KeyValueMapEditor<Destination>
       map={toStringKeyed(map)}
@@ -50,7 +53,13 @@ export function StudioDestinationsEditor({
       renderValue={(value, setValue) => (
         <DestinationField value={value} onChange={setValue} library={library} />
       )}
-      renderKeyLabel={(key) => <EntityReferenceValue entityType="studio" value={Number(key)} />}
+      renderKeyLabel={(key) => (
+        <RuleKeyLabel
+          entityType="studio"
+          id={Number(key)}
+          orphaned={orphaned.studios.has(Number(key))}
+        />
+      )}
       addLabel="Add studio rule"
     />
   );
