@@ -439,6 +439,64 @@ public sealed class UndoReplayerTests
     }
 
     /// <summary>
+    /// The reverse save COMMITS but reports no row for the file. That is not a restored-path mismatch —
+    /// there is no recomputed path to disagree with — so the entry must say so and the restored file
+    /// must stay at OLD rather than be rolled back to NEW.
+    /// </summary>
+    [Fact]
+    public async Task ReverseSaveReturnsNoRowForTheFile_ReportedAsMissing_NotAsAMismatch_AndNotRolledBack()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, videoId, _) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film");
+
+            string oldFull = Path.Combine(dir.Root, "raw.mkv");
+            File.WriteAllText(oldFull, "bytes");
+
+            var port = new CoveRenamerDataPort(db);
+            var journal = new FakeRevertJournal();
+            var options = new RenamerOptions { FilenameTemplate = "$title" };
+
+            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
+            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
+            await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
+                .ExecuteAsync(plan, options, default);
+
+            string newFull = Path.Combine(dir.Root, "My Film.mkv");
+            Assert.True(File.Exists(newFull));
+
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
+            Assert.NotNull(batch);
+
+            var undoBus = new CapturingEventBus();
+            var result = await new UndoReplayer(new EmptySaveResultDataPort(db), undoBus, new DiskMover())
+                .RevertAsync(batch!, default);
+
+            var failure = Assert.Single(result.Failed);
+            Assert.Contains("no row", failure.Reason);
+            Assert.DoesNotContain("recomputed Path", failure.Reason);
+            Assert.DoesNotContain("rolled back", failure.Reason);
+            Assert.Equal(UndoStopReason.SaveReportedNoRow, failure.Stop);
+            Assert.Equal(0, result.Undone);
+            Assert.Empty(result.Restored);
+            Assert.Empty(undoBus.Published);
+
+            // The committed restore stands: the file is back at OLD, not rolled forward to NEW.
+            Assert.True(File.Exists(oldFull), "a committed restore must not be rolled back");
+            Assert.False(File.Exists(newFull), "the renamed slot must stay empty");
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
     /// Seeds one throwaway Video (no file) so the next <see cref="ExecutorTestSeed.SeedVideoAsync"/>
     /// hands back a Video id that is one ahead of its VideoFile id — guaranteeing videoId ≠ fileId so
     /// the round-trip test can PROVE the published event uses the entity id, not the file id.
@@ -491,5 +549,19 @@ public sealed class UndoReplayerTests
         public override Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
             IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
             => throw new OperationCanceledException("host shutting down mid-replay");
+    }
+
+    /// <summary>A port whose reverse save COMMITS but reports no rows. The production port throws when a
+    /// file id is absent, so a fake is the only way to reach the replayer's missing-row arm.</summary>
+    private sealed class EmptySaveResultDataPort : CoveRenamerDataPort
+    {
+        public EmptySaveResultDataPort(CoveContext db) : base(db) { }
+
+        public override async Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
+            IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
+        {
+            await base.ApplyAndSaveAsync(mutations, ct);
+            return [];
+        }
     }
 }

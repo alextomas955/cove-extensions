@@ -156,4 +156,35 @@ public class LengthReducerTests
         var r = TemplateEngine.Render(tokens, new Dictionary<string, IReadOnlyList<string>>(), options);
         Assert.True(LengthReducer.FitsBoth(r.FolderPath, r.Filename, r.Ext, options));
     }
+
+    // ---- The hard truncate cuts between characters, never through one ----
+
+    // "a" ×9, then U+1F600 (a surrogate PAIR, code units 9 and 10), then filler to force a truncate.
+    private static readonly string PairAtNine = new string('a', 9) + "\U0001F600" + new string('b', 40);
+
+    [Fact]
+    public void Fit_BudgetLandsInsideASurrogatePair_TruncatesOneUnitShorter()
+    {
+        // Truncation is the LAST step of the pipeline, after sanitization, so a lone surrogate cut
+        // here reaches the planner's candidate basename with nothing left to repair it.
+        var o = new RenamerOptions { FilenameMax = 14, FullPathMax = 1000 }; // budget 14 - 4 = 10
+
+        var r = LengthReducer.Fit("", PairAtNine, ".mp4", o, _ => ("", PairAtNine));
+
+        Assert.Equal(9, r.Filename.Length);
+        Assert.DoesNotContain(r.Filename, char.IsSurrogate);
+    }
+
+    [Fact]
+    public void Fit_BudgetLandsAfterASurrogatePair_KeepsTheWholePair()
+    {
+        // The control: a budget ending ON the low half is already a character boundary and must not
+        // lose a unit, so the shortening is keyed on the pair and not applied to every truncate.
+        var o = new RenamerOptions { FilenameMax = 15, FullPathMax = 1000 }; // budget 15 - 4 = 11
+
+        var r = LengthReducer.Fit("", PairAtNine, ".mp4", o, _ => ("", PairAtNine));
+
+        Assert.Equal(11, r.Filename.Length);
+        Assert.EndsWith("\U0001F600", r.Filename, StringComparison.Ordinal);
+    }
 }

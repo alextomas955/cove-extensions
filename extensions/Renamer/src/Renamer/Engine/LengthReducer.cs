@@ -83,7 +83,7 @@ public static class LengthReducer
     /// <summary>
     /// Last resort: trims the filename component so that name+ext ≤ FilenameMax AND
     /// folder + "/" + name + ext ≤ FullPathMax. Computes the tightest of the two budgets and
-    /// truncates the name to it (never below zero).
+    /// truncates the name to it (never below zero) at a character boundary.
     /// </summary>
     private static string HardTruncate(string folder, string name, string ext, RenamerOptions o)
     {
@@ -96,6 +96,19 @@ public static class LengthReducer
             budget = 0;
         }
 
-        return name.Length <= budget ? name : name.Substring(0, budget);
+        if (name.Length <= budget)
+        {
+            return name;
+        }
+
+        // Cutting between the two halves of a surrogate pair leaves a lone surrogate, and this is the
+        // LAST step of the pipeline — after sanitization — so nothing downstream repairs it before the
+        // name becomes a candidate basename.
+        if (budget > 0 && char.IsHighSurrogate(name[budget - 1]))
+        {
+            budget--;
+        }
+
+        return name[..budget];
     }
 }

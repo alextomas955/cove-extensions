@@ -339,6 +339,31 @@ public sealed record RenamerOptions
         ["videoCodec", "audioCodec", "frameRate", "resolution", "tags", "studioCode", "studio", "performers", "date"];
 
     /// <summary>
+    /// These options with any length cap that cannot be a budget replaced by its default. Applied by
+    /// <c>OptionsStore</c> to a blob that bound, so the rule is stated here once instead of at each read.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Engine.LengthReducer"/> clamps a negative budget to zero and hard-truncates the
+    /// basename to nothing, which is worse than a throw because an empty name looks like a result. A
+    /// cap that is merely tight is left alone — a small positive budget is a configuration, and
+    /// widening it would overrule a value a user chose.
+    /// </remarks>
+    public RenamerOptions WithUsableLengthCaps()
+    {
+        if (FilenameMax > 0 && FullPathMax > 0)
+        {
+            return this;
+        }
+
+        var defaults = new RenamerOptions();
+        return this with
+        {
+            FilenameMax = FilenameMax > 0 ? FilenameMax : defaults.FilenameMax,
+            FullPathMax = FullPathMax > 0 ? FullPathMax : defaults.FullPathMax,
+        };
+    }
+
+    /// <summary>
     /// File extensions whose same-basename neighbor files move and renamer alongside the primary,
     /// supplementing the DB-tracked caption sidecars Cove already follows. A neighbor is taken only
     /// when it shares the primary's exact stem AND its extension is listed here, so this never widens
