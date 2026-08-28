@@ -226,6 +226,23 @@ a small one.
   declared nothing and so accepted anonymous callers; each one always checked the caller itself and
   refused, but the check now happens at the door as well. Every route asks for the read or write
   permission its own work needs.
+- **A rename that succeeded is no longer undone behind your back.** Renamer moves the file, saves
+  Cove's record, then writes the entry that makes the rename undoable. If that last write failed, the
+  file was moved back to its old name while Cove's record kept the new one — so the library and the
+  disk disagreed, and the row blamed a database failure that had not happened. A failure there now
+  leaves the rename in place and says on that row that its undo was not recorded.
+- **A long name containing an emoji is no longer cut in half mid-character.** Shortening a name to fit
+  _Filename max length_ counted storage units rather than characters, so a cut landing inside an emoji
+  — or one of the less common Chinese, Japanese and Korean characters — left half of one behind and
+  produced a name the filesystem refuses. The cut now falls on a character boundary.
+- **The progress bar for a whole-library rename no longer goes backwards.** A run covering more than
+  one media kind took each kind from nothing to complete in turn, so the bar filled, jumped back to
+  the start and filled again, once per kind. It now advances once, across the whole run.
+- **The banner after a whole-library rename no longer states a count of renamed files it never
+  learned.** It read "Renamed 412 files, 9 skipped", but both figures came from the dry run that ran
+  first, and a file that scan planned can still be skipped when the rename reaches it. It now reads
+  "Rename finished. The scan found 412 files to rename, 9 skipped" — the same figures, attributed to
+  where they came from. Dry-run again to see where the library stands afterwards.
 
 ## 0.3.0 — Undo that cannot grow without bound
 
