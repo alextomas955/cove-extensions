@@ -401,8 +401,6 @@ public sealed class RenamerExecutor
             itemWarnings.Count > 0 ? string.Join("; ", itemWarnings) : null));
     }
 
-    // ── move-spine sub-steps (extracted from ExecuteItemAsync; control flow unchanged) ─────────
-
     /// <summary>
     /// Plans the sidecar moves that ride with the primary: each DB-tracked caption (retargeted to the
     /// new stem, with its rename recorded for the DB save) and each configured same-stem neighbor whose
@@ -633,8 +631,6 @@ public sealed class RenamerExecutor
         => sameVolume
             ? _disk.Rollback(nativeOld, nativeNew, [.. movedSidecars.Select(s => new DiskMover.SidecarMove(s.From, s.To))])
             : await _cross.RollbackAsync(nativeOld, nativeNew, [.. movedSidecars.Select(s => new CrossVolumeMover.SidecarMove(s.From, s.To))], ct);
-
-    // ── event mapping ────────────────────────────────────────────────────────
 
     private static EventType EventTypeFor(RenamerFileKind kind) => kind switch
     {

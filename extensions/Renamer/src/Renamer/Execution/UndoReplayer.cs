@@ -333,8 +333,6 @@ public sealed class UndoReplayer
         }
     }
 
-    // ── restore-spine sub-steps (extracted from RevertEntryAsync; control flow unchanged) ──────
-
     /// <summary>
     /// Validates and resolves the restore target BEFORE any mutation: the
     /// dir-missing guard, then the old-slot collision re-check — returning the skip that halts the
@@ -434,8 +432,6 @@ public sealed class UndoReplayer
             : await _cross.RollbackAsync(nativeNew, nativeOld,
                 [.. movedSidecars.Select(s => new CrossVolumeMover.SidecarMove(s.From, s.To))], ct);
 
-    // ── per-entry outcome (a tiny tagged union) ───────────────────────────────
-
     private abstract record RevertOutcome
     {
         public static readonly Undone UndoneInstance = new();
@@ -443,8 +439,6 @@ public sealed class UndoReplayer
         public sealed record Skipped(UndoFailure Failure) : RevertOutcome;
         public sealed record Failed(UndoFailure Failure) : RevertOutcome;
     }
-
-    // ── event mapping — the exact forward-equivalent reconstruction ───────────
 
     private static EventType EventTypeFor(RenamerFileKind kind) => kind switch
     {
