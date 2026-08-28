@@ -106,9 +106,11 @@ the file was left where it was — check the destination drive before running th
 The run leaves one of three banners behind, and the difference between the last two decides whether
 you have anything to check:
 
-- **It worked**: "Renamed 412 files, 9 skipped. Undo covers only the last media kind in this run."
-  The skipped figure is the _Needs attention_ count from the scan. The closing sentence is explained
-  under [Undo the last rename](#undo-the-last-rename).
+- **It worked**: "Queued 412 files for renaming, 9 skipped. Undo covers only the last media kind in
+  this run." Both figures come from the scan taken before the run, which is why the banner says queued
+  rather than renamed: the rename job reports no per-file totals of its own, so this count is what the
+  run was handed and not what it finished. The skipped figure is the _Needs attention_ count. The
+  closing sentence is explained under [Undo the last rename](#undo-the-last-rename).
 - **The job reported failure**: "Couldn't rename — [reason]. Nothing was changed; you can try again."
   Cove reported that the work stopped, so nothing was written. Fix the cause it names and run again.
 - **The outcome is unknown**: "Couldn't confirm the rename — [reason]." Renamer stopped watching before

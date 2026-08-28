@@ -24,13 +24,16 @@ export const UNDO_REACH_CLAUSE = "Undo covers only the last media kind in this r
 /**
  * The banner for a completed run.
  *
- * The counts come from a scan rather than from the rename job, which reports no per-status totals of
- * its own.
+ * Says QUEUED, not renamed, and the wording is load-bearing rather than cautious phrasing to soften
+ * later: the number comes from the scan taken BEFORE the run, and the rename job reports no
+ * per-status totals of its own, so nothing here knows what the run actually did. Claiming "Renamed N"
+ * asserted an outcome this code cannot observe, and overstated it whenever the run skipped a file the
+ * scan had counted. Restoring the confident wording needs execution counts to read back first.
  */
 export function buildRenameLibrarySuccess(counts: DryRunCounts): string {
   const skipped = counts.attention > 0 ? `, ${counts.attention} skipped` : "";
 
-  return `Renamed ${counts.willChange} file${counts.willChange === 1 ? "" : "s"}${skipped}. ${UNDO_REACH_CLAUSE}`;
+  return `Queued ${counts.willChange} file${counts.willChange === 1 ? "" : "s"} for renaming${skipped}. ${UNDO_REACH_CLAUSE}`;
 }
 
 /** The banner for a run the job itself reported as failed or cancelled. */

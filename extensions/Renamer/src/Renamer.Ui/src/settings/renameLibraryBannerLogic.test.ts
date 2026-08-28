@@ -15,33 +15,45 @@ function counts(willChange: number, attention: number): DryRunCounts {
   return { willChange, attention, noChange: 0, scanned: willChange + attention };
 }
 
-test("a run with nothing skipped states the renamed count and undo's reach", () => {
+test("a run with nothing skipped states the queued count and undo's reach", () => {
   assert.equal(
     buildRenameLibrarySuccess(counts(1200, 0)),
-    "Renamed 1200 files. Undo covers only the last media kind in this run.",
+    "Queued 1200 files for renaming. Undo covers only the last media kind in this run.",
   );
 });
 
-test("one renamed file is one file", () => {
+test("one queued file is one file", () => {
   assert.equal(
     buildRenameLibrarySuccess(counts(1, 0)),
-    "Renamed 1 file. Undo covers only the last media kind in this run.",
+    "Queued 1 file for renaming. Undo covers only the last media kind in this run.",
   );
 });
 
 test("a run that changed nothing still reports its size", () => {
   assert.equal(
     buildRenameLibrarySuccess(counts(0, 0)),
-    "Renamed 0 files. Undo covers only the last media kind in this run.",
+    "Queued 0 files for renaming. Undo covers only the last media kind in this run.",
   );
 });
 
 test("skipped files are stated only when there are some", () => {
   assert.equal(
     buildRenameLibrarySuccess(counts(1200, 30)),
-    "Renamed 1200 files, 30 skipped. Undo covers only the last media kind in this run.",
+    "Queued 1200 files for renaming, 30 skipped. Undo covers only the last media kind in this run.",
   );
   assert.ok(!buildRenameLibrarySuccess(counts(1200, 0)).includes("skipped"));
+});
+
+test("the success banner never claims files were renamed", () => {
+  // The count is the SCAN's, taken before the run, and the rename job reports no per-status totals, so
+  // the banner cannot know what happened. Claiming an outcome here overstated it whenever the run
+  // skipped a file the scan had counted. Restoring the confident wording needs execution counts first.
+  for (const c of [counts(0, 0), counts(1, 0), counts(1200, 30), counts(0, 42)]) {
+    assert.ok(
+      !buildRenameLibrarySuccess(c).includes('Renamed'),
+      `the success banner claims a completed rename: ${buildRenameLibrarySuccess(c)}`,
+    );
+  }
 });
 
 test("the reach clause is on every success, whatever the counts", () => {
@@ -93,7 +105,7 @@ test("useRenameLibrary reads every banner from this module", () => {
 
 test("useRenameLibrary composes none of the sentences itself", () => {
   for (const inlined of [
-    "Renamed ${counts",
+    "Queued ${counts",
     "Nothing was changed",
     "skipped`",
     "Couldn't confirm the rename",
