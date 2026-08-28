@@ -54,19 +54,28 @@ public sealed class RenamerExecutor
     /// <param name="OldPath">The path before execution.</param>
     /// <param name="NewPath">The path after execution (or the intended/attempted path on skip/fail).</param>
     /// <param name="Status">The terminal status (Renamer/Move/NoOp/SkipGated/SkipCollision/SkipLocked/SkipMissingSource/SkipBlocked/Failed).</param>
-    /// <param name="Reason">A human-readable note for a skip/fail; null on success.</param>
+    /// <param name="Reason">
+    /// A human-readable note: why a skip or a failure happened, or — on a renamed item — what went wrong
+    /// alongside a rename that still succeeded (a rejected sidecar, an unwritten revert-log entry, a
+    /// source folder that could not be cleaned up). Null when a rename had nothing to report.
+    /// </param>
     public sealed record ItemResult(int FileId, string OldPath, string NewPath, RenamerStatus Status, string? Reason);
 
     /// <summary>
     /// The result of executing a plan: the items that renamed/moved, the items skipped (gated /
-    /// collision / locked / no-op), and the items that failed (save threw → disk rolled back).
+    /// collision / locked / no-op), and the items that failed.
     /// </summary>
     /// <remarks>
+    /// A failed item is one whose save threw or whose saved row could not be verified. Only the first
+    /// rolls the disk back; a save that committed is never reverted, so the two are distinguished by the
+    /// item's <see cref="ItemResult.Reason"/> rather than by the bucket.
+    /// <para>
     /// It deliberately carries NO copy of the journalled rows. The journal table is the durable record
     /// of what can be put back, so a second in-memory list of the same facts could only drift from it —
     /// and it would have to be thread-safe as well, since one result object is built per worker while
     /// one journal is shared by all of them. A caller that wants to know what was journalled reads the
     /// journal.
+    /// </para>
     /// </remarks>
     public sealed record RenamerRunResult(
         IReadOnlyList<ItemResult> Renamed,

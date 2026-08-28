@@ -104,7 +104,11 @@ public sealed class UndoReplayer
 
     /// <summary>The result of reverse-replaying a batch: what was restored + the failed/skipped buckets.</summary>
     /// <param name="Undone">How many entries were restored (disk + DB) and published.</param>
-    /// <param name="Failed">Entries whose reverse move succeeded but the save threw (disk rolled back to NEW).</param>
+    /// <param name="Failed">
+    /// Entries whose reverse move succeeded but the save did not complete: it threw, or it committed
+    /// without a row this replayer could verify the restored path against. Only the first rolls the disk
+    /// back to NEW; a save that committed is never reverted.
+    /// </param>
     /// <param name="Skipped">Entries skipped because the OLD slot was occupied/locked (never clobbered).</param>
     /// <param name="Restored">
     /// The rows that terminated as restored, so the caller can retire exactly those in the journal.
