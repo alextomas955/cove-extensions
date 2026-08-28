@@ -47,9 +47,11 @@ export class RenamerSettingsPage {
     this.saveChangesButton = page.getByRole("button", { name: "Save changes" });
     this.unsavedChangesIndicator = page.getByText("Unsaved changes");
     this.renameAllButton = page.getByRole("button", { name: "Rename all files" });
-    // The whole-library run's success banner ("Renamed N file(s)") — the poll target that proves the
-    // scan+rename job pair settled, NOT the correctness proof (disk+DB state is asserted separately).
-    this.renameAllFeedback = page.getByText(/Renamed \d+ file/);
+    // The whole-library run's success banner — the poll target that proves the scan+rename job pair
+    // settled, NOT the correctness proof (disk+DB state is asserted separately). The banner says
+    // QUEUED because its number comes from the scan taken before the run, so this matches the verb
+    // the panel actually renders rather than an outcome the panel never learns.
+    this.renameAllFeedback = page.getByText(/Queued \d+ file/);
     this.undoLastRenameButton = page.getByRole("button", { name: "Undo last rename" });
     // The in-app (React) confirm modal's accept button — dynamic label ("Undo 1 rename",
     // "Undo 3 renames"), NOT a native browser dialog.
