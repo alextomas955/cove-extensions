@@ -214,7 +214,8 @@ public sealed class RenamerExecutor
         }
 
         // (4) Sidecar moves: DB-tracked captions + configured same-stem neighbors that ride with the primary.
-        var (plannedSidecars, captionRenames) = PlanSidecarMoves(srcFile, item.OldFullPath, targetFolder, candidate, options);
+        var (plannedSidecars, captionRenames, sidecarWarnings) =
+            PlanSidecarMoves(srcFile, item.OldFullPath, targetFolder, candidate, options);
 
         // (5) DISK MOVE FIRST — move on disk before touching the DB, so a failed move leaves the
         //     database untouched (the DB stays authoritative and never points at a missing file).
@@ -338,7 +339,13 @@ public sealed class RenamerExecutor
                 (_, cleanupWarning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(DirOf(item.OldFullPath));
             }
 
-            renamed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, item.Status, cleanupWarning));
+            if (cleanupWarning is not null)
+            {
+                sidecarWarnings.Add(cleanupWarning);
+            }
+
+            renamed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, item.Status,
+                sidecarWarnings.Count > 0 ? string.Join("; ", sidecarWarnings) : null));
         }
         catch (Exception ex)
         {
@@ -378,7 +385,9 @@ public sealed class RenamerExecutor
     /// extension is listed. Extension neighbors go to the disk-move list ONLY — never to the caption
     /// rename list — because they carry no DB row to update.
     /// </summary>
-    private static (List<DiskMover.SidecarMove> plannedSidecars, List<(int CaptionId, string NewFilename)> captionRenames)
+    private static (List<DiskMover.SidecarMove> plannedSidecars,
+        List<(int CaptionId, string NewFilename)> captionRenames,
+        List<string> warnings)
         PlanSidecarMoves(RenamerFile? srcFile, string oldFullPath, string targetFolder, string candidate, RenamerOptions options)
     {
         string oldDir = DirOf(oldFullPath);
@@ -386,8 +395,20 @@ public sealed class RenamerExecutor
         var captions = srcFile?.Captions ?? [];
         var plannedSidecars = new List<DiskMover.SidecarMove>(captions.Count);
         var captionRenames = new List<(int CaptionId, string NewFilename)>(captions.Count);
+        var warnings = new List<string>();
         foreach (var cap in captions)
         {
+            // A caption filename is a basename only, never a path fragment: reject any separator or
+            // parent-traversal so a malformed row can't build a sidecar move that reaches outside the
+            // primary's source and target folders. The invariant is only DOCUMENTED on the port, and
+            // nothing downstream re-checks it — the canonical guard resolves the primary, not the
+            // sidecars, and the movers apply no confinement.
+            if (!IsPlainBasename(cap.Filename))
+            {
+                warnings.Add($"sidecar skipped: caption filename '{cap.Filename}' is not a plain basename");
+                continue;
+            }
+
             string newCaptionName = RetargetCaption(cap.Filename, oldStem: StemOf(srcFile!.Basename), newStem);
             plannedSidecars.Add(new DiskMover.SidecarMove(
                 JoinPath(oldDir, cap.Filename), JoinPath(targetFolder, newCaptionName)));
@@ -448,8 +469,23 @@ public sealed class RenamerExecutor
             }
         }
 
-        return (plannedSidecars, captionRenames);
+        return (plannedSidecars, captionRenames, warnings);
     }
+
+    /// <summary>
+    /// True iff <paramref name="filename"/> is a leaf name: no directory part under either separator
+    /// convention, and no parent-traversal segment.
+    /// </summary>
+    /// <remarks>
+    /// Both separators are tested whatever the host is, because the value comes from a database row a
+    /// different platform may have written; <see cref="Path.GetFileName(string)"/> alone splits on the
+    /// running platform's separator only.
+    /// </remarks>
+    private static bool IsPlainBasename(string filename)
+        => filename.Length > 0
+            && filename.IndexOfAny(['/', '\\']) < 0
+            && !filename.Contains("..", StringComparison.Ordinal)
+            && string.Equals(Path.GetFileName(filename), filename, StringComparison.Ordinal);
 
     /// <summary>
     /// The extensions of the files in <paramref name="dir"/> whose stem is exactly
