@@ -371,6 +371,11 @@ public sealed partial class Renamer
             return denied;
         }
 
+        if (req.EntityIds is null)
+        {
+            return TypedResults.BadRequest(new ErrorCode("MISSING_ENTITY_IDS"));
+        }
+
         // Reject an oversized id array before any per-id DB work (see MaxEntityIdsPerRequest).
         if (req.EntityIds.Length > MaxEntityIdsPerRequest)
         {
@@ -444,6 +449,11 @@ public sealed partial class Renamer
         if (Forbidden(principal, writePermission) is { } denied)
         {
             return denied;
+        }
+
+        if (req.EntityIds is null)
+        {
+            return TypedResults.BadRequest(new ErrorCode("MISSING_ENTITY_IDS"));
         }
 
         // Reject an oversized id array before encoding/enqueuing the job (see MaxEntityIdsPerRequest).
