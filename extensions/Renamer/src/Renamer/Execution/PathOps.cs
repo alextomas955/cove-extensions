@@ -105,8 +105,7 @@ internal static class PathOps
     /// CIFS/SMB — common for a media library — is case-insensitive while this comparer stays
     /// Ordinal (under-permissive: the suffix bug survives on that mount). Closing the gap needs a
     /// per-volume probe rather than an OS test; the cross-file no-clobber guarantee does not
-    /// depend on it, and is pinned independently by
-    /// <c>CollisionAndRollbackTests.DifferentFileAtCaseVariantName_StillCollides_NoClobber</c>.
+    /// depend on it, and is pinned independently.
     /// </para>
     /// A null <paramref name="a"/> compares as the empty string; this never throws.
     /// </remarks>
