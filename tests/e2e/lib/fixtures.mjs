@@ -64,7 +64,7 @@ export const test = base.extend({
     await use(harness.baseUrl);
   },
 
-  page: async ({ page, baseUrl }, use) => {
+  page: async ({ page, baseUrl }, use, testInfo) => {
     // Two independent gates hide the real app behind the first-run wizard (App.tsx
     // `showSetupWizard`). `ownerMissing` is closed by the `harness` fixture's bootstrapOwner().
     // `needsSetup` the host may raise for its own reasons on a container whose library is empty, and
@@ -77,6 +77,18 @@ export const test = base.extend({
     });
     await page.goto(baseUrl);
     await use(page);
+
+    // A host that died mid-run serves nothing, so every spec still to come times out against a page
+    // that renders no content and reports itself as a panel that never opened. That reads as a UI
+    // defect and sends the reader to the extension, which is the wrong place. Ask the host whether it
+    // is still there and say so, once, on the failure that noticed.
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const note = await describeHostIfUnreachable(baseUrl);
+      if (note) {
+        testInfo.annotations.push({ type: "infrastructure", description: note });
+        console.error(`[infrastructure] ${testInfo.title}: ${note}`);
+      }
+    }
   },
 
   // Both are read through the handle as getters, for the reason createApiClient documents: a restart
@@ -93,6 +105,29 @@ export const test = base.extend({
     );
   },
 });
+
+// Long enough to cross a loaded runner, short enough that a dead host does not add a further wait to
+// a spec that has already failed.
+const HOST_LIVENESS_TIMEOUT_MS = 5_000;
+
+/**
+ * Returns a sentence naming the host as unreachable, or null when it answers.
+ *
+ * Deliberately probes over HTTP rather than asking Docker: what matters to a failing spec is whether
+ * the host answered it, and that question has the same answer whether the container was killed, the
+ * port went away, or the process inside stopped listening.
+ */
+async function describeHostIfUnreachable(baseUrl) {
+  try {
+    const response = await fetch(`${baseUrl}/health`, {
+      signal: AbortSignal.timeout(HOST_LIVENESS_TIMEOUT_MS),
+    });
+    if (response.ok) return null;
+    return `the Cove host answered ${response.status} at ${baseUrl}/health, so this failure is the host's, not the extension's`;
+  } catch (error) {
+    return `the Cove host did not answer at ${baseUrl}/health (${error instanceof Error ? error.message : String(error)}) — it stopped during the run, so this failure is infrastructure rather than a defect in the page under test`;
+  }
+}
 
 /**
  * Signs in through Cove's own login form, the way a user does, so the host frontend populates its

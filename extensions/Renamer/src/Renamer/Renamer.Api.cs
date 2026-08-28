@@ -553,10 +553,9 @@ public sealed partial class Renamer
             return denied;
         }
 
-        // Load the configured options AFTER the 403-first check and the empty-batch early-return (so an
-        // unauthorized or no-op request still short-circuits without the load), mirroring PreviewAsync.
-        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
-
+        // No options load here: undo restores paths the journal recorded and renders no name, so it
+        // reads nothing from the configuration. The load that used to sit here was dead work whose
+        // result was discarded.
         var replayer = new UndoReplayer(new CoveRenamerDataPort(db, _coveConfig), EventBus, new DiskMover(),
             cross: new CrossVolumeMover());
 

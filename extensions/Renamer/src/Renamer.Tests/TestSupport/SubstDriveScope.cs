@@ -11,7 +11,7 @@ namespace Renamer.Tests.TestSupport;
 /// handles two classes racing for the same FREE letter, which is not this.
 /// </remarks>
 [CollectionDefinition(SubstDriveScope.CollectionName)]
-public sealed class SubstDriveScope
+public static class SubstDriveScope
 {
     internal const string CollectionName = "subst drive letters";
 }
