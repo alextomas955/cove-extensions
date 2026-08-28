@@ -206,7 +206,7 @@ Three surfaces reach different numbers of kinds, and the difference is deliberat
 | The "Rename selected" bulk action     | video, image        | `GetUIManifest`     |
 | The opt-in auto-rename hook           | video, image        | `Renamer.Events.cs` |
 
-So audio is renamed from the Rename tab or through the API, and an audio list carries no "Rename
+So audio is renamed from the Renamer tab or through the API, and an audio list carries no "Rename
 selected" action. The manifest's description states the endpoint reach and the bulk action's narrower
 one together, because that description is what an operator reads before granting the extension access.
 
@@ -218,7 +218,7 @@ background job runner in `src/Renamer/Jobs/`.
 ### Frontend — `src/Renamer.Ui/src/`
 
 A Vite library build that Cove loads as `index.mjs`. Its home is a dedicated **Settings → Extensions
-→ Rename** tab; it also registers the "Rename selected" bulk action on video and image lists.
+→ Renamer** tab; it also registers the "Rename selected" bulk action on video and image lists.
 
 - `index.ts` — the bundle entry that registers the components and the bulk-action handler.
 - `RenamePage.tsx` / `RenameSettingsPanel.tsx` — the settings tab and its body (the controls + the

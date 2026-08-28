@@ -26,7 +26,7 @@
 **/package-lock.json
 
 # Wire snapshots are compared byte for byte, so reformatting one rewrites what the test expects
-# rather than tidying it. They carry their own WIRE_SNAPSHOT_UPDATE path for the deliberate case.
+# rather than tidying it. The emit test names the environment variable that rewrites them deliberately.
 **/Renamer.Tests/Contracts/fixtures/
 
 # Written verbatim by the emitter and diffed by CI; reformatting it makes that diff permanent.

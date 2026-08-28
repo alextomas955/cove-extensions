@@ -4,8 +4,8 @@ title: Settings reference
 sidebar_position: 3
 ---
 
-Every Renamer setting, grouped by the section it appears in on the **Rename** settings tab
-(Settings → Extensions → Rename). Defaults are what a fresh install uses. For how these fit
+Every Renamer setting, grouped by the section it appears in on the **Renamer** settings tab
+(Settings → Extensions → Renamer). Defaults are what a fresh install uses. For how these fit
 together in practice, start with the [User guide](./guide); for the template tokens, see
 [Naming templates](./templates).
 
@@ -126,8 +126,8 @@ Both are multi-value lists shaped by the same options (a few apply to performers
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
 | Separator                          | Text inserted between joined items.                                                                                                      | `" "` (a space) |
 | Max count                          | Maximum items to include; `0` = unlimited.                                                                                               | `0`             |
-| On overflow                        | When over the max: _Drop all_ or _Keep the first N_.                                                                                     | Drop all        |
-| Sort                               | Order before joining: Name (A→Z), Keep original order, and — performers only — By internal id, Favorites first then name.                | Name (A→Z)      |
+| On overflow                        | When over the max: _Drop all when over the max_ or _Keep the first N_.                                                                   | Drop all        |
+| Sort                               | Order before joining: Name (A→Z), Keep original order, and - performers only - By internal id, Favorites first, then name.               | Name (A→Z)      |
 | Whitelist                          | If non-empty, only the performers or tags you pick here are kept. Each is stored as a stable id, so renaming one in Cove keeps the rule. | _(empty)_       |
 | Blacklist                          | The performers or tags you pick here are removed. Stored as stable ids, the same way as the whitelist.                                   | _(empty)_       |
 | Ignore genders _(performers only)_ | Genders to drop before the max-count limit. A performer with no gender set is always kept.                                               | _(empty)_       |
@@ -151,8 +151,17 @@ template_ pair in [Where files go](#where-files-go). A rule that does match repl
 that default outright: its own folder template is the only one rendered, never appended to the
 default's.
 
-Within a category the first matching rule (in your order) wins; excludes always run first. The
-order of the cards below in the UI is for convenience and does not change this precedence.
+Excludes always run first. What decides the winner within a category depends on the category, and
+only one of them uses an order you control:
+
+- **Source-path rules** are a list in _your_ order, and the first one that matches wins. Reordering
+  them changes the result.
+- **Tag rules** have no order of yours. Renamer walks the item's own tags and takes the first one that
+  has a rule, so which rule wins is a property of the item, not of how you arranged the cards.
+- **Studio rules** resolve by relationship, not order: a rule on the item's own studio beats a rule on
+  an ancestor studio, and the nearest ancestor wins among ancestors.
+
+The order of the cards below in the UI is for convenience and does not change any of this.
 
 **Rules match on a tag, a studio or a source path; there is no per-performer destination.**
 `$performers` shapes names and folder templates, and nothing routes on it.

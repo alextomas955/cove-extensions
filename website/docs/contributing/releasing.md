@@ -1,3 +1,7 @@
+---
+sidebar_position: 9
+---
+
 # Releasing
 
 This describes how a release is built and how an extension is published to the official Cove
@@ -15,7 +19,9 @@ old single-extension-repo scheme, which used a flat `v*` tag with no extension p
 
 `.github/workflows/build.yml` reads `extensions/catalog.json` to compute its build matrix:
 
-- **validate** — on every PR and every push, confirms the catalog is well-formed. On a tag push it
+- **validate** — on every pull request, on a tag push, and on the daily scheduled run, confirms the
+  catalog is well-formed. It does not run on a direct branch push: `build.yml` has no branch-push
+  trigger. On a tag push it
   additionally confirms the tag matches exactly one catalog entry's `tagPrefix` with a valid semver
   suffix, that the entry's `extension.json` declares exactly the tag's version, and that the
   extension's registry manifest — when it has one — already carries that version as its **first**
@@ -23,8 +29,8 @@ old single-extension-repo scheme, which used a flat `v*` tag with no extension p
 - **build** — runs for every extension in `extensions/catalog.json` on every PR (there is no
   `paths:` filtering; this matches the upstream template convention, not a CI-minute optimization —
   every extension's build is exercised on every PR regardless of which extension the PR actually
-  touched). On a tag push, only the tagged extension's entry builds and is versioned; every other
-  extension in the matrix builds with a placeholder version and is not packaged.
+  touched). Those pull-request builds carry a placeholder version, because no tag names one. On a tag
+  push the matrix narrows to the tagged extension alone — no other extension builds on that run.
   - Packaging paths are driven entirely by each catalog entry's fields — `projectPath`,
     `manifestPath`, and `uiPath` (only present when the extension ships a frontend) — not hardcoded
     to one extension. Adding a new extension's release capability requires only a correct
@@ -41,8 +47,10 @@ old single-extension-repo scheme, which used a flat `v*` tag with no extension p
   the matching `.zip` to a GitHub release for that tag.
 
 Renamer is the concrete worked example today: its `tagPrefix` is `renamer/`, its manifest id is
-`com.alextomas955.renamer`, and cutting `renamer/v0.1.0` builds, assembles, and packages
-`com.alextomas955.renamer-0.1.0.zip`.
+`com.alextomas955.renamer`, and cutting `renamer/v<semver>` builds, assembles, and packages
+`com.alextomas955.renamer-<semver>.zip`. The version is not yours to pick freely at tag time: validate
+refuses a tag whose version the extension's `extension.json` does not already declare, so the manifest
+bump lands first and the tag follows it.
 
 ## Publish order: release asset first, then the registry pull request
 
@@ -52,7 +60,8 @@ version's `downloadUrl` and hashing it, and it fails the pull request if that UR
 
 That gives a strict order, for any extension being released:
 
-1. Tag the release (`<tagPrefix>v<semver>`, e.g. `renamer/v0.1.0`) and let the workflow publish
+1. Tag the release (`<tagPrefix>v<semver>`, matching the version `extension.json` already declares)
+   and let the workflow publish
    the packaged `.zip` asset to the GitHub release.
 2. Confirm the asset is reachable at its `downloadUrl`.
 3. Only then open the registry pull request that adds that extension's registry entry (e.g.
@@ -98,7 +107,8 @@ Then, for the entry itself:
 An extension's minimum host version is declared once, in its `extension.json` `minCoveVersion`.
 That is the only place you edit it; the loaded assembly reads it from the shipped manifest, and
 `scripts/validate-extension-repo.mjs` checks it is at least the repo-wide `CoveMinVersion` in
-`Directory.Build.props` on every push.
+`Directory.Build.props`. That check runs in the validate job, so it sees pull requests, tag pushes and
+the scheduled run — not a direct branch push.
 
 The `minCoveVersion` in a registry manifest's `versions[]` row is a different thing that happens to
 share a name. Each row describes an immutable zip a user can still download, and its floor is the

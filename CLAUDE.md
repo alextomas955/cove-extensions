@@ -56,14 +56,19 @@ dotnet build CoveExtensions.slnx
 **Central Package Management:** every NuGet package version lives in one root
 `Directory.Packages.props` (`ManagePackageVersionsCentrally=true`); individual `.csproj` files carry
 version-less `<PackageReference>`s. `Cove.Sdk`/`Cove.Plugins` are the one exception — their
-`<PackageVersion>` references the `$(CoveSdkVersion)` property in `Directory.Build.props` (the single
-source of truth `scripts/validate-extension-repo.mjs` reads as the host-SDK version floor), so the
-host SDK stays hand-bumped in lockstep with the local `../cove` host rather than Dependabot-managed.
+`<PackageVersion>` references the `$(CoveSdkVersion)` property in `Directory.Build.props`, which
+derives from `$(CoveMinVersion)` in the same file — and it is `CoveMinVersion`, not `CoveSdkVersion`,
+that `scripts/validate-extension-repo.mjs` reads as the declared host floor. The two are deliberately
+separable, so do not treat the pin and the floor as one property. The host SDK stays hand-bumped in
+lockstep with the local `../cove` host rather than Dependabot-managed.
 
 **Cove source selection precedence:** an explicit `-p:CoveSourceMode=source|none` > a `COVE_REPO`
 checkout > the `../cove` sibling auto-detect (relative to the monorepo root) > the published NuGet
-packages (pinned `CoveSdkVersion`). `COVE_REPO` takes an environment variable or a `-p:` switch;
-there is no second property name for it. On a local ProjectReference the `Cove.Sdk` host-assembly
+packages (pinned `CoveSdkVersion`). Each knob has BOTH a property and an environment spelling:
+`CoveRepoRoot`/`COVE_REPO` for the location, `CoveSourceMode`/`COVE_SOURCE_MODE` for the mode, and
+`-p:UseLocalCoveSource` is honoured as an older spelling of the mode. Read the resolved answer back
+off `UseLocalCoveSource` and `CoveRepoRootResolved`, never off the switch you set. On a local
+ProjectReference the `Cove.Sdk` host-assembly
 stripping rules (which ship in the package's `buildTransitive/`) are not auto-imported, so the root
 `Directory.Build.targets` explicitly imports `Cove.Sdk.targets` to strip the transitive
 `Cove.Core.dll`; on the NuGet path that import comes transitively from the package.
@@ -85,7 +90,10 @@ what is specific to it. Shared first-party code lives in `shared/` — `Cove.Ext
 - **Never bundle host-provided assemblies.** `Cove.Core` / `Cove.Plugins` / `Cove.Sdk`, EF Core,
   Npgsql, and Pgvector are provided by the host and referenced `Private=false`. The host prefers the
   assembly already loaded into its own context and warns once naming the shipped copy, so a leak costs
-  package weight, not correctness. `Cove.Sdk.targets` strips them, and `catalog.json`'s `artifacts`
+  package weight. It is NOT purely a weight question, though: the SDK's own stripping rules give a
+  second reason, that a bundled copy loaded into the extension's own load context creates a second
+  identity for types crossing the host boundary, breaking casts and DI silently. `Cove.Sdk.targets`
+  strips them, and `catalog.json`'s `artifacts`
   array declares what ships — verify the published output rather than trusting either.
 - **Never write to Cove's database directly** (the "Stash" anti-pattern) — direct SQLite/Postgres
   writes are schema-fragile and corrupt the DB. Go through `CoveContext` + `SaveChangesAsync`.
@@ -109,26 +117,30 @@ human-facing version lives at `website/docs/contributing/authoring-patterns.md`.
   extension's entry is deliberately unclassified, because the entry is the one module allowed to reach
   any slice.
 - **Structure per tier — do NOT mirror FE and BE.** The honest full-stack seam is the wire contract,
-  not a directory layout. C# backend = capability/vertical slices at the project root (`Ingest/ ·
-Matching/ · Monitor/ · Push/ · SceneStatus/`) alongside foundation folders (`Contracts/ · Adapters/
-· Client/ · State/ · …`); a single rich capability is domain-layered instead (Renamer's `Engine/ ·
-Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ · scene/ · monitor/
-· …`) next to `index.ts`, `wire/`, `common/`. Seeing the same capability name on both tiers
-  (`Monitor/` + `monitor/`) is intended alignment, **not** duplication to collapse.
+  not a directory layout. C# backend = capability/vertical slices at the project root alongside
+  foundation folders; a single rich capability is domain-layered instead, which is what the only
+  extension here does today (Renamer's `Engine/ · Planner/ · Execution/` beside `Api/ · Contracts/ ·
+Jobs/ · Options/`). UI = feature slices directly under `src/` next to `index.ts`, `wire/`,
+  `common/` (Renamer's `settings/ · rename-action/`). Read the tier's real folders before citing one.
+  Where a capability spans both tiers, the same name on both — differing only in each tier's casing —
+  is intended alignment, **not** duplication to collapse.
 - **No `features/` wrapper.** Slices live at the tier root, not under `features/`/`Features/` — that
   is a large-app (FSD/Bulletproof-React) pattern that discriminates nothing in a plugin that is almost
   entirely slices. Sub-concerns reachable from only one slice NEST under it (Renamer's
   `settings/dry-run/`). Add a `features/` grouping later only if a tier grows a real body of
   non-feature code.
-- **Capability naming, not entity naming (C#).** Slice by _what the code does_, never by entity —
-  **no `Studio/`, `Performer/`, or `Scene/` folder**. Entity ops live in the capability acting on them
-  (studio + performer monitoring → `Monitor/`; scene add → `Push/`). Name a projection for its
-  capability: `SceneStatus/`, never bare `Scene/`.
+- **Capability naming, not entity naming (C#).** Slice by _what the code does_, never by entity. A
+  folder carrying an entity's bare name becomes the home for everything that entity touches, which is
+  how a slice stops having a boundary. So entity ops live in the capability acting on them — monitoring
+  two kinds of entity is ONE monitoring folder, not one per kind — and a projection is named for the
+  projection, never given the entity's bare name. Renamer's `Planner/` and `Execution/` are the shape:
+  named for the work, naming no media kind.
 - **Legibility is suffix-as-kind, not deep segment folders.** TS `*Logic.ts`=DOM, `*Store.ts`=INFRA,
-  `use*.ts`=INFRA hook, `*.tsx`=view, `wire/api.ts`=MODEL (generated); C# `*Service`/`*Guard`/`*Projector`/
-  `*Detector`=DOM, `*Port`/`*Client`=INFRA, `*Contracts`/`*Models`=MODEL. No `ui/lib/model/` segments
-  inside a slice — the suffix carries it. Folder-per-section only when a section holds more than one
-  file.
+  `use*.ts`=INFRA hook, `*.tsx`=view, `wire/api.ts`=MODEL (generated); C# `*Guard`/`*Projector`=DOM,
+  `*Port`=INFRA, `*Contracts`=MODEL. That C# list is the set actually in use — read the suffixes off
+  the tier before citing or adding one, and add one only when it names a kind the set cannot. No
+  `ui/lib/model/` segments inside a slice — the suffix carries it. Folder-per-section only when a
+  section holds more than one file.
 - **Two-level shared — "shared" is repo-level only.** Repo-level `shared/` = cross-extension only:
   exactly `shared/ui-shared` (FE) + `shared/Cove.Extensions.Shared` (BE). The FE package's
   `src/` is **flat** — `index.ts` beside `primitives.tsx`, `primitivesLogic.ts`, `actions.ts`,
@@ -141,7 +153,9 @@ Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ 
   domain vocabulary belongs in its `common/ui`, not in `ui-shared`.
 - **Models live with their behavior; only wire contracts get a home.** Do not strip behavior into a
   data-only "models layer" (anemic-domain anti-pattern). C# wire DTOs → a `Contracts/` unit in the
-  SAME assembly, cross-cutting enums defined once in a neutral `Vocabulary.cs`. TS wire types are
+  SAME assembly. Define an enum once, beside the behavior that owns it, and give it a neutral home
+  only when a SECOND slice needs it — a vocabulary file that exists before a second reader does is a
+  layer with one member, and there is none here today. TS wire types are
   GENERATED, never hand-mirrored: `npm run generate:wire` turns the committed `wire/openapi.json` into
   `src/wire/api.ts` (gitignored), consumed via `import type` (erases at runtime, so `*Logic.ts` stays
   offline-gate-clean).
@@ -169,8 +183,10 @@ Planner/ · Execution/`). UI = feature slices directly under `src/` (`settings/ 
   default export); no barrels bar `index.ts` + the curated `shared/` public barrel; data access
   through a named `use*` hook beside its `*Store.ts`, never a raw `request()` in `useEffect`; no
   `hooks/` folder (co-locate; a generic cross-feature hook → `common/lib`); multi-root stores stay
-  hand-rolled but unify on `resourceEntryLogic` + `useSyncExternalStore`; overlays are the two
-  native/hand-rolled primitives (popover + native `<dialog>`), no library; host-token Tailwind classes
+  hand-rolled but unify on `resourceEntryLogic` + `useSyncExternalStore`; overlays rest on the one
+  hand-rolled foundation in `shared/ui-shared` (a focus/keyboard/outside-click hook with a
+  `menu` and a `dialog` nav mode) — deliberately NOT a library and NOT the native `<dialog>`, because
+  the two modes keep Escape and focus semantics that differ on purpose; host-token Tailwind classes
   only (no arbitrary values, no `dangerouslySetInnerHTML`).
 - **Correctness standards.** Background DB reads run as System via one `RunAsSystemAsync` seam (an
   Anonymous principal returns zero rows with no error). No silent swallow — a best-effort `catch` emits

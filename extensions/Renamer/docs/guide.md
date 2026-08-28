@@ -17,7 +17,7 @@ This guide walks the everyday workflow. For the meaning of every setting see the
 1. Install the extension into your Cove instance (drop the built extension into Cove's extensions
    folder, or install it from a release URL).
 2. In Cove, open **Settings → Extensions** and confirm **Renamer** is enabled.
-3. Open the **Rename** settings tab (Settings → Extensions → Rename). This is where you set the
+3. Open the **Renamer** settings tab (Settings → Extensions → Renamer). This is where you set the
    naming template and every other option, and where you run a rename.
 
 ## Set a naming template
@@ -103,8 +103,9 @@ the file was left where it was — check the destination drive before running th
 ## Rename
 
 1. When the preview looks right, **save** your settings (the sticky Save bar at the bottom).
-2. Click **Rename all files** (in the panel or from the dry-run footer). If you started it from the
-   dry-run footer, a progress bar and the current phase (planning, then per-file) show while it runs.
+2. Start the rename — **Rename all files** in the panel, or the footer button in the dry-run dialog,
+   which is labelled with the number of files it will rename. If you started it from the dry-run
+   footer, a progress bar and the current phase (planning, then per-file) show while it runs.
 3. Renamer renames each file and updates its Cove record together. A file is never renamed onto an
    existing file — a collision gets a numbered suffix such as `(1)` instead.
 

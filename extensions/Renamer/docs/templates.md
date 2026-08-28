@@ -30,8 +30,9 @@ The same template degrades cleanly as metadata gets sparser:
 | title + resolution (no date) | `The Matrix [1080p].mp4`              |
 | title only                   | `The Matrix.mp4`                      |
 
-The extension is always added automatically — you don't put `$ext` in the template unless you want
-to place it somewhere unusual.
+The extension is always added automatically, at the end. Leave `$ext` out of a filename template:
+writing it changes nothing, because the renderer resolves it to nothing there and appends the real
+extension afterwards either way. It cannot be moved.
 
 ## Syntax
 
@@ -76,7 +77,7 @@ with no value is simply omitted.
 | Token    | Produces                                                                                                                                                                 | Example      |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------ |
 | `$title` | The item's title. If the item has no title and _Use filename as title_ is on, the item's first filename (without extension), which is then recorded as the item's title. | `The Matrix` |
-| `$ext`   | The file extension (added automatically at the end; include it explicitly only for unusual placements).                                                                  | `mp4`        |
+| `$ext`   | The file extension. Appended automatically at the end of a filename; writing `$ext` in a filename template resolves to nothing and does not move it.                     | `mp4`        |
 
 ### Titles, studios, people
 
