@@ -68,7 +68,7 @@ public sealed class ParallelBatchTests
                 File.WriteAllText(Path.Combine(dir.Root, $"raw {i}.mkv"), $"bytes-{i}");
             }
 
-            var (ext, store, _) = await BuildAsync(shared, new RenamerOptions { FilenameTemplate = "$title" });
+            var (ext, _, _) = await BuildAsync(shared, new RenamerOptions { FilenameTemplate = "$title" });
             var progress = new FakeJobProgress();
 
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);

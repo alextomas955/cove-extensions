@@ -15,6 +15,13 @@
 
     <PackageVersion Include="System.IO.Hashing" Version="10.0.11" />
 
+    <!--
+      Sonar's C# rules as a build-time Roslyn analyzer: no server, no token, no workflow step. The
+      package is marked developmentDependency and carries no dependencies and no runtime assets, so it
+      reaches no publish output and needs no catalog.json declaration.
+    -->
+    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.32.0.713" />
+
     <PackageVersion Include="xunit.v3" Version="4.0.0" />
     <!-- Bundled inside xunit.v3, but not inside the split packages the test-support library takes, so
          that library references the analyzers directly. Hold this at the version xunit.v3 resolves:
