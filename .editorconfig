@@ -109,6 +109,32 @@ dotnet_diagnostic.IDE0060.severity = error
 # flowing and satisfies the rule.
 dotnet_diagnostic.CA1031.severity = warning
 
+# Sonar's C# rules run as a build-time analyzer (see Directory.Build.targets). Four of its rules are
+# turned off here, each because it was measured against this tree and found not to earn its keep. The
+# rest are on and their findings were fixed rather than silenced.
+#
+# S125 (remove commented-out code) fired 4 times, all FALSE: every hit is explanatory prose that
+# happens to contain code-like tokens (`i++`, `->`, `$$title`). Rewriting those sentences to satisfy a
+# heuristic would delete exactly the comments the comment policy says are earned.
+dotnet_diagnostic.S125.severity = none
+#
+# S127 (do not update the loop's stop condition) fired 5 times, all DELIBERATE: every hit is a
+# hand-written tokenizer or template parser where advancing the index inside the loop IS the algorithm
+# (consuming a two-character escape, skipping past a closed group). Converting them to while loops is
+# churn on covered code and reads worse.
+dotnet_diagnostic.S127.severity = none
+#
+# S2325 (make member static) duplicates CA1822, which is enabled and which every site S2325 flags
+# already suppresses WITH a written justification (the movers and the endpoint handlers are
+# constructor-injected or instance-invoked collaborators). One rule with one recorded answer beats two
+# rules needing two.
+dotnet_diagnostic.S2325.severity = none
+#
+# S3267 (simplify the loop with Where) fired 3 times, each on an early-returning lookup — foreach, if,
+# return. A Where/FirstOrDefault rewrite loses the early return and adds an enumerator chain for no
+# gain.
+dotnet_diagnostic.S3267.severity = none
+
 # Tests: xUnit's Method_Scenario_Expectation naming is deliberate, and CA1707 governs public API
 # naming for cross-language consumers — which a test method is not. Keyed on the *.Tests shape, not
 # one extension's path, so a second extension needs no edit.
@@ -118,6 +144,17 @@ dotnet_diagnostic.CA1707.severity = none
 # inline literal arrays in test arrange/assert (e.g. Assert.Equal(new[] { 3, 2, 1 }, ...)); test
 # readability wins over a non-measurable allocation in a unit test.
 dotnet_diagnostic.CA1861.severity = none
+
+# S6966 (prefer the async file/stream overload) fires ~200 times in test ARRANGE code, which writes a
+# fixture file and waits. The rule guards against occupying a thread-pool thread on a hot path; a test
+# has no such path, and File.WriteAllText is the clearer way to state a fixture. Left ON for production
+# code, where the concern is real.
+dotnet_diagnostic.S6966.severity = none
+# S8969 (redundant null-forgiving operator) fires ~50 times on assertions that index into a fixture the
+# test itself just built. The `!` states the author's knowledge at the assertion, and the compiler's
+# agreement with it today is not a reason to delete it — a later edit that reintroduces the null makes
+# the operator load-bearing again. Left ON for production code.
+dotnet_diagnostic.S8969.severity = none
 # xUnit1051 asks every call accepting a CancellationToken to be handed
 # TestContext.Current.CancellationToken. In xUnit v3 a timeout does not stop a test, it only signals
 # that token, so the rule buys cancellation and nothing else — and no test here declares a Timeout.

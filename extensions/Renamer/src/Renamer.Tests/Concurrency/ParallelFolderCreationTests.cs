@@ -86,7 +86,7 @@ public sealed class ParallelFolderCreationTests
                     },
                 ],
             };
-            var (ext, store, _) = await BuildAsync(shared, options, destRootFwd);
+            var (ext, _, _) = await BuildAsync(shared, options, destRootFwd);
             var progress = new FakeJobProgress();
 
             await ext.RunRenamerBatchAsync(RenamerJob.Encode("video", ids), progress, default);

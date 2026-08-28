@@ -131,7 +131,7 @@ public abstract class ExtensionOpenApiDocumentTests
 
             // One call: an interrupted run then leaves a complete document, old or new, never a
             // half-written one the next comparison would report as a wire change.
-            File.WriteAllText(path, json);
+            await File.WriteAllTextAsync(path, json);
             return;
         }
 
@@ -142,7 +142,7 @@ public abstract class ExtensionOpenApiDocumentTests
             File.Exists(path),
             $"No committed wire document at {relativePath}. Re-run with {UpdateVariable}=1 to write it.");
 
-        Assert.Equal(File.ReadAllText(path).ReplaceLineEndings("\n"), json);
+        Assert.Equal((await File.ReadAllTextAsync(path)).ReplaceLineEndings("\n"), json);
     }
 
     // A StringWriter takes its line breaks from Environment.NewLine, which would otherwise leave the
