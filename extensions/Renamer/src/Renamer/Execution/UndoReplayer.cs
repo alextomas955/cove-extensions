@@ -263,8 +263,24 @@ public sealed class UndoReplayer
             var saved = await _port.ApplyAndSaveAsync([mutation], ct);
 
             // (5) RUNTIME assertion: the recomputed Path must equal the OLD path we just restored to.
-            var savedFile = saved.FirstOrDefault(s => s.FileId == entry.FileId);
+            //     Found into SavedFile? for the reason given at the forward executor's matching site: over
+            //     a readonly record struct a plain FirstOrDefault turns a missing row into a null path that
+            //     reads as a mismatch against a path never compared.
+            SavedFile? savedFileOrNull = saved.Cast<SavedFile?>().FirstOrDefault(s => s!.Value.FileId == entry.FileId);
             string expected = NormalizeSlash(entry.OldPath);
+            if (savedFileOrNull is null)
+            {
+                IReadOnlyList<string> missingRowWarnings =
+                    await RollbackReverseMove(sameVolume, nativeNew, nativeOld, movedSidecars, ct);
+                string missingRowNote = missingRowWarnings.Count > 0
+                    ? $"the save reported no row for this file; rollback INCOMPLETE: {string.Join("; ", missingRowWarnings)}"
+                    : "the save reported no row for this file; rolled back";
+                return new RevertOutcome.Failed(new UndoFailure(
+                    entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath, missingRowNote,
+                    UndoStopReason.SaveReportedNoRow));
+            }
+
+            var savedFile = savedFileOrNull.Value;
             if (!PathsEqual(savedFile.RecomputedPath, expected))
             {
                 // Disk and DB disagree: roll the disk back to NEW through the MATCHING mover and
@@ -317,7 +333,6 @@ public sealed class UndoReplayer
         }
     }
 
-    // ── restore-spine sub-steps (extracted from RevertEntryAsync; control flow unchanged) ──────
 
     /// <summary>
     /// Validates and resolves the restore target BEFORE any mutation: the
@@ -418,7 +433,6 @@ public sealed class UndoReplayer
             : await _cross.RollbackAsync(nativeNew, nativeOld,
                 [.. movedSidecars.Select(s => new CrossVolumeMover.SidecarMove(s.From, s.To))], ct);
 
-    // ── per-entry outcome (a tiny tagged union) ───────────────────────────────
 
     private abstract record RevertOutcome
     {
@@ -428,7 +442,6 @@ public sealed class UndoReplayer
         public sealed record Failed(UndoFailure Failure) : RevertOutcome;
     }
 
-    // ── event mapping — the exact forward-equivalent reconstruction ───────────
 
     private static EventType EventTypeFor(RenamerFileKind kind) => kind switch
     {

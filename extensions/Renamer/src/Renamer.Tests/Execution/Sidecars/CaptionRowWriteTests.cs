@@ -17,6 +17,76 @@ namespace Renamer.Tests.Execution.Sidecars;
 /// </remarks>
 public sealed class CaptionRowWriteTests
 {
+    /// <summary>
+    /// A caption filename carrying a separator or a parent traversal moves nothing outside the folder.
+    /// </summary>
+    /// <remarks>
+    /// The caption branch joins <c>Filename</c> into both the source and the target path, while the
+    /// configured-extension branch rejects separators and <c>..</c> before building either. The
+    /// basename-only invariant is stated on <c>IRenamerDataPort</c> and enforced nowhere: the canonical
+    /// allowlist re-check resolves the PRIMARY's target, not the sidecars', and the mover applies no
+    /// confinement of its own.
+    /// </remarks>
+    [Fact]
+    public async Task CaptionFilenameWithTraversal_IsRejected_NoSidecarEscapesTheFolder()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            // Source and destination sit at DIFFERENT depths on purpose. A traversal resolves against
+            // each of them separately, so equal depths would make the escaped source and the escaped
+            // target the same path and the move a silent no-op — passing for the wrong reason.
+            string srcDir = Path.Combine(dir.Root, "a");
+            string destDir = Path.Combine(dir.Root, "b", "c");
+            Directory.CreateDirectory(srcDir);
+            Directory.CreateDirectory(destDir);
+            string srcFolder = srcDir.Replace('\\', '/');
+            string destFolder = destDir.Replace('\\', '/');
+
+            var (_, videoId, fileId) =
+                await ExecutorTestSeed.SeedVideoAsync(db, srcFolder, "clip.mkv", "Film A");
+
+            db.Set<VideoCaption>().Add(new VideoCaption
+            {
+                FileId = fileId,
+                Filename = "../escape.en.vtt",
+                LanguageCode = "en",
+                CaptionType = "vtt",
+            });
+            await db.SaveChangesAsync();
+
+            File.WriteAllText(Path.Combine(srcDir, "clip.mkv"), "video");
+            // Sits at root/escape.en.vtt — where srcDir/../escape.en.vtt resolves.
+            string outsideSource = Path.Combine(dir.Root, "escape.en.vtt");
+            File.WriteAllText(outsideSource, "outside-bytes");
+            db.ChangeTracker.Clear();
+
+            var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
+            [
+                new RenamerPlanItem(fileId, srcFolder + "/clip.mkv", destFolder + "/Film A.mkv",
+                    RenamerStatus.Move, "Film A.mkv", destFolder),
+            ]);
+
+            var result = await RealExecutor(db).ExecuteAsync(plan, new RenamerOptions(), default);
+
+            // The primary still moves; only the malformed caption is refused.
+            Assert.Single(result.Renamed);
+            Assert.True(File.Exists(Path.Combine(destDir, "Film A.mkv")), "primary still moves");
+
+            // destDir/../escape.en.vtt is root/b/escape.en.vtt — outside the destination folder.
+            Assert.False(File.Exists(Path.Combine(dir.Root, "b", "escape.en.vtt")),
+                "no sidecar may be written outside the destination folder");
+            Assert.True(File.Exists(outsideSource),
+                "a caption naming a traversal must not be read out of its folder either");
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
     [Fact]
     public async Task ARenamedCaption_HasItsRowWritten_WhenNothingHasLoadedTheFilesCaptions()
     {

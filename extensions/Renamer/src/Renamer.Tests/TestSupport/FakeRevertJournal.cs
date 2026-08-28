@@ -38,8 +38,17 @@ public sealed class FakeRevertJournal : IRevertJournal
         return Task.CompletedTask;
     }
 
+    /// <summary>When set, <see cref="AppendAsync"/> throws it — the seam that drives the executor's
+    /// post-commit failure path, where the save has already committed.</summary>
+    public Exception? AppendThrow { get; set; }
+
     public Task AppendAsync(RevertRow row, CancellationToken ct = default)
     {
+        if (AppendThrow is not null)
+        {
+            throw AppendThrow;
+        }
+
         if (Volatile.Read(ref _suppressed))
         {
             return Task.CompletedTask;

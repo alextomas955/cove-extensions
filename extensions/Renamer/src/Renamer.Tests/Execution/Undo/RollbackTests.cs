@@ -103,6 +103,104 @@ public sealed class RollbackTests
         Assert.False(File.Exists(oldA), "renamed file must not linger at the old path");
     }
 
+    /// <summary>
+    /// A failure AFTER the save committed degrades the result; it never rolls the rename back.
+    /// </summary>
+    /// <remarks>
+    /// The journal append and the reindex publish used to sit inside the same <c>try</c> as the save,
+    /// whose <c>catch</c> rolls the disk back. So a throw from either undid a rename the database had
+    /// already committed, and reported "DB save failed" for a save that had succeeded.
+    /// </remarks>
+    [Fact]
+    public async Task JournalAppendThrowsAfterCommit_ItemStaysRenamed_WithAWarning_NoRollback()
+    {
+        using var dir = new TempDir();
+        string folderPath = dir.Root.Replace('\\', '/');
+
+        const int fileId = 42;
+        const int videoId = 7;
+        string oldA = Path.Combine(dir.Root, "a.mkv");
+        string newB = Path.Combine(dir.Root, "b.mkv");
+        File.WriteAllText(oldA, "A-bytes");
+
+        var fake = SeedSingleFilePort(videoId, fileId, folderPath, "a.mkv");
+        fake.RecomputedPaths[fileId] = folderPath + "/b.mkv";
+
+        var bus = new CapturingEventBus();
+        var journal = new FakeRevertJournal { AppendThrow = new InvalidOperationException("journal is full") };
+        var executor = new RenamerExecutor(fake, bus, journal, "run-test", new DiskMover());
+
+        var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
+        [
+            new RenamerPlanItem(fileId, folderPath + "/a.mkv", folderPath + "/b.mkv",
+                RenamerStatus.Renamer, "b.mkv", folderPath),
+        ]);
+
+        var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+
+        // The rename stands: the database committed it, so unmaking it on disk would be the divergence.
+        Assert.Empty(result.Failed);
+        var renamedItem = Assert.Single(result.Renamed);
+        Assert.Equal(RenamerStatus.Renamer, renamedItem.Status);
+        Assert.NotNull(renamedItem.Reason);
+        Assert.Contains("undo record", renamedItem.Reason!, StringComparison.OrdinalIgnoreCase);
+        // The old wording blamed the save, which had not failed.
+        Assert.DoesNotContain("DB save failed", renamedItem.Reason!);
+
+        Assert.True(File.Exists(newB), "the committed rename must stand on disk");
+        Assert.False(File.Exists(oldA), "the file must not be rolled back to its old path");
+        Assert.Single(fake.ApplyAndSaveCalls);
+    }
+
+    /// <summary>
+    /// A save that reports NO row for the file is reported as exactly that, not as a path mismatch.
+    /// </summary>
+    /// <remarks>
+    /// <c>saved.FirstOrDefault(…)</c> over a <c>readonly record struct</c> yields <c>default(SavedFile)</c>
+    /// with a null <c>RecomputedPath</c>, and <c>PathsEqual</c> coalesces null to <c>""</c> — so a missing
+    /// entry takes the mismatch branch and blames a path that was never compared. The rollback is correct
+    /// either way (the save's outcome is unknown, and leaving the file at the new path is the
+    /// silently-abandoned bug that branch exists to prevent); it is the REASON that was false.
+    /// </remarks>
+    [Fact]
+    public async Task SaveReportsNoRowForTheFile_FailedNamesTheMissingRow_NotAPathMismatch()
+    {
+        using var dir = new TempDir();
+        string folderPath = dir.Root.Replace('\\', '/');
+
+        const int fileId = 42;
+        const int videoId = 7;
+        string oldA = Path.Combine(dir.Root, "a.mkv");
+        string newB = Path.Combine(dir.Root, "b.mkv");
+        File.WriteAllText(oldA, "A-bytes");
+
+        var fake = SeedSingleFilePort(videoId, fileId, folderPath, "a.mkv");
+        fake.OmitSavedRowsFor.Add(fileId);
+
+        var bus = new CapturingEventBus();
+        var journal = new FakeRevertJournal();
+        var executor = new RenamerExecutor(fake, bus, journal, "run-test", new DiskMover());
+
+        var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
+        [
+            new RenamerPlanItem(fileId, folderPath + "/a.mkv", folderPath + "/b.mkv",
+                RenamerStatus.Renamer, "b.mkv", folderPath),
+        ]);
+
+        var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+
+        var failedItem = Assert.Single(result.Failed);
+        Assert.Equal(RenamerStatus.Failed, failedItem.Status);
+        Assert.Contains("no row", failedItem.Reason, StringComparison.OrdinalIgnoreCase);
+        // The old wording is the defect: it quotes an empty recomputed path as though one were compared.
+        Assert.DoesNotContain("recomputed Path ''", failedItem.Reason);
+
+        Assert.Empty(journal.Rows);
+        Assert.Empty(bus.Published);
+        Assert.True(File.Exists(oldA), "the file must be rolled back to its old path");
+        Assert.False(File.Exists(newB), "rolled-back file must not linger at the new path");
+    }
+
     private static FakeRenamerDataPort SeedSingleFilePort(int entityId, int fileId, string folderPath, string basename)
     {
         var fake = new FakeRenamerDataPort();

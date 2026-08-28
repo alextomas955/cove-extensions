@@ -267,8 +267,29 @@ public sealed class RenamerExecutor
             // (7) RUNTIME assertion (NOT Debug.Assert — that no-ops in Release): the Path Cove
             //     recomputed on save must match the on-disk location we just moved to. A divergence
             //     means disk and DB disagree → surface a Failed result (do NOT silently accept).
-            var savedFile = saved.FirstOrDefault(s => s.FileId == item.FileId);
+            // SavedFile is a readonly record struct, so a plain FirstOrDefault yields default(SavedFile)
+            // with a null RecomputedPath — which PathsEqual coalesces to "" and reports as a mismatch
+            // against a path that was never compared. Find into SavedFile? so a missing row is its own
+            // outcome. The production port throws instead, but the method is virtual and the interface
+            // states no such guarantee.
+            SavedFile? savedFileOrNull = saved.Cast<SavedFile?>().FirstOrDefault(s => s!.Value.FileId == item.FileId);
             string expected = NormalizeSlash(newFull);
+            if (savedFileOrNull is null)
+            {
+                // Rolled back for the same reason the mismatch branch rolls back: the save's outcome is
+                // unknown, and leaving the file at the new path is the silent abandonment that branch
+                // exists to prevent.
+                IReadOnlyList<string> missingRowWarnings =
+                    await RollbackMove(sameVolume, nativeOld, nativeNew, movedSidecars, ct);
+                string missingRowNote = missingRowWarnings.Count > 0
+                    ? $"the save reported no row for this file; rollback INCOMPLETE: {string.Join("; ", missingRowWarnings)}"
+                    : "the save reported no row for this file; rolled back";
+                failed.Add(new ItemResult(
+                    item.FileId, item.OldFullPath, newFull, RenamerStatus.Failed, missingRowNote));
+                return;
+            }
+
+            var savedFile = savedFileOrNull.Value;
             if (!PathsEqual(savedFile.RecomputedPath, expected))
             {
                 // Disk and DB disagree after a SUCCESSFUL save. Roll the disk back to the OLD path
@@ -306,24 +327,6 @@ public sealed class RenamerExecutor
             //     applied only for a sidecar whose file really moved on disk (see the moved-only filter
             //     above), which is a runtime fact no string arithmetic recovers afterwards. One row and
             //     one delta at this single append site, so a crash cannot leave the two disagreeing.
-            var delta = BuildRevertDelta(srcFile, movedSidecars, appliedCaptionRenames);
-            await _journal.AppendAsync(
-                new RevertRow(_runId, Seq: 0, plan.EntityId, item.FileId, item.OldFullPath, delta.Serialize()), ct);
-            _eventBus.Publish(new EntityEvent(EventTypeFor(plan.Kind), EntityTypeName(plan.Kind), plan.EntityId));
-
-            // (9) Opt-in empty-source-folder cleanup, AFTER the save + assertion pass — never before
-            //     (a failed save rolls the disk back, so deleting the source dir earlier could be
-            //     unrecoverable). Fires only when a move actually changed the parent directory: a
-            //     same-folder renamer leaves the file in that dir, so the dir is never empty. A cleanup
-            //     failure is a non-fatal warning carried on the moved result — the move already
-            //     succeeded and the DB agrees, so it must never reclassify the item as failed.
-            string? cleanupWarning = null;
-            if (isMove && options.RemoveEmptyFolder && !PathsEqual(DirOf(item.OldFullPath), DirOf(newFull)))
-            {
-                (_, cleanupWarning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(DirOf(item.OldFullPath));
-            }
-
-            renamed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, item.Status, cleanupWarning));
         }
         catch (Exception ex)
         {
@@ -352,10 +355,65 @@ public sealed class RenamerExecutor
                 ? $"DB save failed; rollback INCOMPLETE: {ex.Message}; rollback warnings: {string.Join("; ", rbWarnings)}"
                 : $"DB save failed; file rolled back: {ex.Message}";
             failed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.Failed, note));
+            return;
         }
+
+        // PAST THIS POINT THE SAVE HAS COMMITTED and its recomputed path was verified, so nothing below
+        // may roll the disk back: the row already points at the new location. A failure here degrades the
+        // result (no undo record, or no reindex) without unmaking the rename, and is carried as a warning
+        // on the RENAMED item. Inside the rolling try above, a throw from the append or the publish took
+        // the rollback branch and reported "DB save failed" — undoing committed work and naming a cause
+        // that had not failed.
+        string? postCommitWarning = null;
+        try
+        {
+            // (8) Success: journal row + reindex event. The row carries plan.EntityId — the SAME value
+            //     published on the next line — so the journalled id and the event id are identical by
+            //     construction (undo reconstructs the exact forward event from the row).
+            //     Seq is passed as 0 because the journal mints it on append.
+            //
+            //     The delta is built from what ACTUALLY moved, never from what was planned, and it is
+            //     RECORDED rather than left to be recomputed at undo time. RetargetCaption only rewrites a
+            //     caption whose name starts with the old stem, so the forward transform is not invertible
+            //     in general; and a caption rename is applied only for a sidecar whose file really moved on
+            //     disk, which is a runtime fact no string arithmetic recovers afterwards. One row and one
+            //     delta at this single append site, so a crash cannot leave the two disagreeing.
+            var delta = BuildRevertDelta(srcFile, movedSidecars, appliedCaptionRenames);
+            await _journal.AppendAsync(
+                new RevertRow(_runId, Seq: 0, plan.EntityId, item.FileId, item.OldFullPath, delta.Serialize()), ct);
+            _eventBus.Publish(new EntityEvent(EventTypeFor(plan.Kind), EntityTypeName(plan.Kind), plan.EntityId));
+        }
+        // The filter keeps cancellation flowing (a shutdown is not a data failure, and still must not
+        // roll back a committed save) while leaving the open-ended set to the warning.
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            postCommitWarning =
+                $"renamed, but the undo record or the reindex event failed, so this file may not be "
+                    + $"undoable and its index entry may be stale: {ex.Message}";
+        }
+
+        // (9) Opt-in empty-source-folder cleanup, AFTER the save + assertion pass — never before
+        //     (a failed save rolls the disk back, so deleting the source dir earlier could be
+        //     unrecoverable). Fires only when a move actually changed the parent directory: a
+        //     same-folder renamer leaves the file in that dir, so the dir is never empty. A cleanup
+        //     failure is a non-fatal warning carried on the moved result — the move already
+        //     succeeded and the DB agrees, so it must never reclassify the item as failed.
+        string? cleanupWarning = null;
+        if (isMove && options.RemoveEmptyFolder && !PathsEqual(DirOf(item.OldFullPath), DirOf(newFull)))
+        {
+            (_, cleanupWarning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(DirOf(item.OldFullPath));
+        }
+
+        string? reason = (postCommitWarning, cleanupWarning) switch
+        {
+            (null, null) => null,
+            (null, var c) => c,
+            (var p, null) => p,
+            var (p, c) => $"{p}; {c}",
+        };
+        renamed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, item.Status, reason));
     }
 
-    // ── move-spine sub-steps (extracted from ExecuteItemAsync; control flow unchanged) ─────────
 
     /// <summary>
     /// Plans the sidecar moves that ride with the primary: each DB-tracked caption (retargeted to the
@@ -373,6 +431,19 @@ public sealed class RenamerExecutor
         var captionRenames = new List<(int CaptionId, string NewFilename)>(captions.Count);
         foreach (var cap in captions)
         {
+            // A caption Filename is a basename only — stated on IRenamerDataPort and enforced nowhere
+            // else on this path: it is joined into BOTH the source and the target, the canonical
+            // allowlist re-check resolves the primary's target rather than the sidecars', and the movers
+            // apply no confinement of their own. A traversal resolves against source and destination
+            // separately, so it can read one file and write another, both outside the folders. Refused
+            // in the same shape as the configured-extension branch below.
+            if (cap.Filename != Path.GetFileName(cap.Filename)
+                || cap.Filename.IndexOfAny(['/', '\\']) >= 0
+                || cap.Filename.Contains("..", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             string newCaptionName = RetargetCaption(cap.Filename, oldStem: StemOf(srcFile!.Basename), newStem);
             plannedSidecars.Add(new DiskMover.SidecarMove(
                 JoinPath(oldDir, cap.Filename), JoinPath(targetFolder, newCaptionName)));
@@ -559,7 +630,6 @@ public sealed class RenamerExecutor
             ? _disk.Rollback(nativeOld, nativeNew, [.. movedSidecars.Select(s => new DiskMover.SidecarMove(s.From, s.To))])
             : await _cross.RollbackAsync(nativeOld, nativeNew, [.. movedSidecars.Select(s => new CrossVolumeMover.SidecarMove(s.From, s.To))], ct);
 
-    // ── event mapping ────────────────────────────────────────────────────────
 
     private static EventType EventTypeFor(RenamerFileKind kind) => kind switch
     {

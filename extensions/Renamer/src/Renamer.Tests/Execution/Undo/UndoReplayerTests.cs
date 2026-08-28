@@ -247,6 +247,60 @@ public sealed class UndoReplayerTests
     }
 
     /// <summary>
+    /// A reverse save reporting NO row for the file is classified as that, not as a path mismatch.
+    /// </summary>
+    /// <remarks>
+    /// Over a <c>readonly record struct</c>, <c>FirstOrDefault</c> turns a missing row into a null
+    /// recomputed path, which <c>PathsEqual</c> coalesces to <c>""</c> and reports as a mismatch against a
+    /// path the save never returned. The rollback is right either way; the classification was not.
+    /// </remarks>
+    [Fact]
+    public async Task ReverseSaveReportsNoRow_ClassifiedSaveReportedNoRow_NotAMismatch()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, videoId, _) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "raw.mkv", "My Film");
+
+            File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "bytes");
+
+            var port = new CoveRenamerDataPort(db);
+            var journal = new FakeRevertJournal();
+            var options = new RenamerOptions { FilenameTemplate = "$title" };
+
+            await journal.BeginBatchAsync("run-test", RenamerFileKind.Video, DateTime.UtcNow);
+            var plan = await new RenamerPlanner(port).PlanAsync(RenamerFileKind.Video, videoId, options, default);
+            await new RenamerExecutor(port, new CapturingEventBus(), journal, "run-test", new DiskMover())
+                .ExecuteAsync(plan, options, default);
+
+            string newFull = Path.Combine(dir.Root, "My Film.mkv");
+            var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
+            Assert.NotNull(batch);
+
+            var undoBus = new CapturingEventBus();
+            var result = await new UndoReplayer(new NoRowOnSaveDataPort(db), undoBus, new DiskMover())
+                .RevertAsync(batch!, default);
+
+            Assert.Equal(0, result.Undone);
+            var failure = Assert.Single(result.Failed);
+            Assert.Equal(UndoStopReason.SaveReportedNoRow, failure.Stop);
+            Assert.Contains("no row", failure.Reason, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("recomputed Path ''", failure.Reason);
+
+            Assert.Empty(undoBus.Published);
+            Assert.True(File.Exists(newFull), "disk rolled back to new when the save reports no row");
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
     /// T3: a host shutdown mid-replay (an <see cref="OperationCanceledException"/> from the reverse save)
     /// is cancellation, not a data failure. The post-reverse-move rollback to NEW still runs, then the OCE
     /// propagates out of the batch — it must NOT land as an <c>UndoFailure</c> row.
@@ -480,6 +534,16 @@ public sealed class UndoReplayerTests
         public override Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
             IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
             => throw new InvalidOperationException("forced save failure");
+    }
+
+    /// <summary>A save that succeeds but reports no rows — what <c>default(SavedFile)</c> comes from.</summary>
+    private sealed class NoRowOnSaveDataPort : CoveRenamerDataPort
+    {
+        public NoRowOnSaveDataPort(CoveContext db) : base(db) { }
+
+        public override Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
+            IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<SavedFile>>([]);
     }
 
     /// <summary>A port whose reverse save throws a cancellation (a host shutdown mid-replay), forcing the

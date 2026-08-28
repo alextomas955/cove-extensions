@@ -144,6 +144,17 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
     /// <summary>Every <see cref="ApplyAndSaveAsync"/> call's mutations, in order, for assertions.</summary>
     public List<IReadOnlyList<RenamerFileMutation>> ApplyAndSaveCalls { get; } = new();
 
+    /// <summary>
+    /// File ids a successful <see cref="ApplyAndSaveAsync"/> reports NO row for, returning a shorter list
+    /// than it was handed.
+    /// </summary>
+    /// <remarks>
+    /// The production port throws on a missing row, so this state is unreachable through it — but the
+    /// method is <c>virtual</c> and the interface states no such guarantee, which is what makes the
+    /// callers' handling of it worth pinning.
+    /// </remarks>
+    public HashSet<int> OmitSavedRowsFor { get; } = new();
+
     public Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
     {
         ApplyAndSaveCalls.Add(mutations);
@@ -153,6 +164,8 @@ public sealed class FakeRenamerDataPort : IRenamerDataPort
         }
 
         return Task.FromResult<IReadOnlyList<SavedFile>>(
-            [.. mutations.Select(m => new SavedFile(m.FileId, RecomputedPaths.GetValueOrDefault(m.FileId, m.NewBasename)))]);
+            [.. mutations
+                .Where(m => !OmitSavedRowsFor.Contains(m.FileId))
+                .Select(m => new SavedFile(m.FileId, RecomputedPaths.GetValueOrDefault(m.FileId, m.NewBasename)))]);
     }
 }
