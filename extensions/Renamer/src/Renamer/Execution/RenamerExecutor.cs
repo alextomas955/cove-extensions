@@ -267,9 +267,24 @@ public sealed class RenamerExecutor
             // (7) RUNTIME assertion (NOT Debug.Assert — that no-ops in Release): the Path Cove
             //     recomputed on save must match the on-disk location we just moved to. A divergence
             //     means disk and DB disagree → surface a Failed result (do NOT silently accept).
-            var savedFile = saved.FirstOrDefault(s => s.FileId == item.FileId);
+            // Found as a nullable, never as default(SavedFile): that default carries a null
+            // RecomputedPath, which the comparison below reads as a path that differs — so a save
+            // reporting no row for this file would take the rollback branch and revert a save that
+            // committed, blaming a path mismatch that never happened.
+            SavedFile? savedFile = saved
+                .Where(s => s.FileId == item.FileId)
+                .Select(s => (SavedFile?)s)
+                .FirstOrDefault();
+            if (savedFile is null)
+            {
+                failed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.Failed,
+                    "the save reported no row for this file, so the on-disk path could not be verified"));
+                return;
+            }
+
+            string recomputed = savedFile.Value.RecomputedPath;
             string expected = NormalizeSlash(newFull);
-            if (!PathsEqual(savedFile.RecomputedPath, expected))
+            if (!PathsEqual(recomputed, expected))
             {
                 // Disk and DB disagree after a SUCCESSFUL save. Roll the disk back to the OLD path
                 // through the SAME mover the move used (and the catch below uses), capturing rollback
@@ -288,8 +303,8 @@ public sealed class RenamerExecutor
                 IReadOnlyList<string> rbWarnings = await RollbackMove(sameVolume, nativeOld, nativeNew, movedSidecars, ct);
 
                 string note = rbWarnings.Count > 0
-                    ? $"recomputed Path '{savedFile.RecomputedPath}' != on-disk '{expected}'; rollback INCOMPLETE: {string.Join("; ", rbWarnings)}"
-                    : $"recomputed Path '{savedFile.RecomputedPath}' != on-disk '{expected}'; rolled back";
+                    ? $"recomputed Path '{recomputed}' != on-disk '{expected}'; rollback INCOMPLETE: {string.Join("; ", rbWarnings)}"
+                    : $"recomputed Path '{recomputed}' != on-disk '{expected}'; rolled back";
                 failed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.Failed, note));
                 return;
             }

@@ -263,9 +263,25 @@ public sealed class UndoReplayer
             var saved = await _port.ApplyAndSaveAsync([mutation], ct);
 
             // (5) RUNTIME assertion: the recomputed Path must equal the OLD path we just restored to.
-            var savedFile = saved.FirstOrDefault(s => s.FileId == entry.FileId);
+            //     Found as a nullable, never as default(SavedFile): that default carries a null
+            //     RecomputedPath, which the comparison below reads as a path that differs — so a save
+            //     reporting no row for this file would take the rollback branch and undo a restore that
+            //     committed, blaming a path mismatch that never happened.
+            SavedFile? savedFile = saved
+                .Where(s => s.FileId == entry.FileId)
+                .Select(s => (SavedFile?)s)
+                .FirstOrDefault();
+            if (savedFile is null)
+            {
+                return new RevertOutcome.Failed(new UndoFailure(
+                    entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath,
+                    "the save reported no row for this file, so the restored path could not be verified",
+                    UndoStopReason.UnexpectedError));
+            }
+
+            string recomputed = savedFile.Value.RecomputedPath;
             string expected = NormalizeSlash(entry.OldPath);
-            if (!PathsEqual(savedFile.RecomputedPath, expected))
+            if (!PathsEqual(recomputed, expected))
             {
                 // Disk and DB disagree: roll the disk back to NEW through the MATCHING mover and
                 // report failed (no half-state). The file currently sits at OLD (the reverse move
@@ -277,8 +293,8 @@ public sealed class UndoReplayer
                 // back" — mirroring the forward executor's rollback reporting.
                 IReadOnlyList<string> rbWarnings = await RollbackReverseMove(sameVolume, nativeNew, nativeOld, movedSidecars, ct);
                 string note = rbWarnings.Count > 0
-                    ? $"recomputed Path '{savedFile.RecomputedPath}' != restored path '{expected}'; rollback INCOMPLETE: {string.Join("; ", rbWarnings)}"
-                    : $"recomputed Path '{savedFile.RecomputedPath}' != restored path '{expected}'; rolled back";
+                    ? $"recomputed Path '{recomputed}' != restored path '{expected}'; rollback INCOMPLETE: {string.Join("; ", rbWarnings)}"
+                    : $"recomputed Path '{recomputed}' != restored path '{expected}'; rolled back";
                 return new RevertOutcome.Failed(new UndoFailure(
                     entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath, note,
                     UndoStopReason.RestoredPathMismatch));
