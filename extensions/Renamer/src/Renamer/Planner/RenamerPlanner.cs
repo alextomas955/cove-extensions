@@ -163,11 +163,30 @@ public sealed class RenamerPlanner
         // back to the default.
         var effective = options with { FolderTemplate = destination.Template };
 
+        // The destination paths this plan has already handed out. The port's collision check sees only
+        // existing ROWS, and a sibling of the plan being built is not one yet, so without this two files
+        // of one entity that render one name are planned at one path. Bounded by the entity's own file
+        // count — one entry per placed file, one hash lookup per candidate, nothing library-sized.
+        //
+        // Membership follows the platform's own case rule, because what it decides is whether two planned
+        // paths name ONE file on disk; the resolver's comparer owns that rule.
+        var claimedTargets = new HashSet<string>(DestinationResolver.SourcePathComparer);
+
         var items = new List<RenamerPlanItem>(entity.Files.Count);
         foreach (var file in entity.Files)         // process every file, never just the first.
         {
             ct.ThrowIfCancellationRequested();
-            items.Add(await PlanFileAsync(entity, file, effective, route, destination, derivedTitle, ct));
+            var item = await PlanFileAsync(
+                entity, file, effective, route, destination, derivedTitle, claimedTargets, ct);
+            items.Add(item);
+
+            // This loop is the set's only writer and the callee only reads it. Claimed only for an item
+            // that PLACES the file: a no-op or a skip leaves the file where its own row already records
+            // it, so the port's row check sees it.
+            if (item.Status is RenamerStatus.Renamer or RenamerStatus.Move)
+            {
+                claimedTargets.Add(item.NewFullPath);
+            }
         }
 
         return new RenamerPlan(entity.EntityId, entity.Kind, items);
@@ -230,9 +249,14 @@ public sealed class RenamerPlanner
     }
 
     /// <summary>Classifies a single file: render → anchor → confine → collision → status.</summary>
+    /// <remarks>
+    /// <paramref name="claimedTargets"/> is the caller's set of destination paths already handed out in
+    /// this plan. Read-only here — the caller is its single writer.
+    /// </remarks>
     private async Task<RenamerPlanItem> PlanFileAsync(
         RenamerEntity entity, RenamerFile file, RenamerOptions options, RouteResult route,
-        Destination destination, string? derivedTitle, CancellationToken ct)
+        Destination destination, string? derivedTitle, HashSet<string> claimedTargets,
+        CancellationToken ct)
     {
         string oldFullPath = JoinPath(file.ParentFolderPath, file.Basename);
 
@@ -333,17 +357,23 @@ public sealed class RenamerPlanner
         //     suffix loop until the port reports free, or SkipCollision when exhausted.
         //     For a move, resolve the destination folder id READ-ONLY (never create it during a
         //     dry run — that was the preview-mutation bug). A null id means the destination folder
-        //     does not exist yet, so it holds no file rows and no name can collide: the candidate is
-        //     free as-is. The executor's PHASE A is the single site that actually creates the folder
-        //     when a renamer is performed. An in-place renamer keeps the file's own parent folder id.
+        //     does not exist yet, so it holds no file rows and no name can collide WITH AN EXISTING
+        //     FILE — a sibling of this same plan is not a row, which is why the claim check below is
+        //     not gated on this id. The executor's PHASE A is the single site that actually creates the
+        //     folder when a renamer is performed. An in-place renamer keeps the file's own parent folder id.
         int? targetFolderId = isMove
             ? await _port.TryGetFolderIdAsync(relTargetFolder, ct)
             : file.ParentFolderId;
 
+        // A candidate is taken by a path this plan has already handed out exactly as it is by an existing
+        // row. The in-memory test runs FIRST so a claimed candidate costs no round trip, and it compares
+        // the whole candidate PATH rather than the basename: a non-moving file keeps its own folder, and a
+        // whole-path comparison cannot be wrong about which folder a claim was made in.
         string candidate = newBasename;
         int attempt = 0;
-        while (targetFolderId is int folderId
-            && await _port.CollisionExistsAsync(folderId, candidate, file.FileId, ct))
+        while (claimedTargets.Contains(JoinPath(relTargetFolder, candidate))
+            || (targetFolderId is int folderId
+            && await _port.CollisionExistsAsync(folderId, candidate, file.FileId, ct)))
         {
             attempt++;
             if (attempt > MaxSuffixAttempts)
@@ -372,6 +402,22 @@ public sealed class RenamerPlanner
         }
 
         string newFullPath = JoinPath(relTargetFolder, candidate);
+
+        // (4c) The suffix loop can settle on the name this file already carries, so the verdict reached at
+        //      (3) — before the loop — cannot stand for one after it. Classified as an act, such an item is
+        //      executed and SAVED, and on the auto-rename path a save is what makes the host re-raise the
+        //      update event that re-plans it.
+        //
+        //      Ordinal, like (3) and NOT via PathsEqual: both parts went through JoinPath so separators are
+        //      exact, and a target differing from the source by case alone is a rename the user asked for.
+        if (string.Equals(newFullPath, oldFullPath, StringComparison.Ordinal))
+        {
+            return new RenamerPlanItem(
+                file.FileId, oldFullPath, oldFullPath, RenamerStatus.NoOp,
+                file.Basename, relTargetFolder,
+                "no-op: the name this file would take is in use by another file in this folder, and the "
+                    + "next free numbered name is the one this file already has");
+        }
 
         // UI badge signals (set only on the final Renamer/Move item; skip/no-op paths keep the
         // defaults). Suffixed iff the collision loop appended a number; Sanitized via the SAME engine
