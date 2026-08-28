@@ -371,6 +371,14 @@ public sealed partial class Renamer
             return denied;
         }
 
+        // EntityIds is a plain int[] on a positional record with no [Required] and no validation
+        // attribute, so an omitted or explicitly-null array binds to null and the length check below is
+        // an unhandled NRE - a 500 where every neighbouring rejection is a clean 400.
+        if (req.EntityIds is null)
+        {
+            return TypedResults.BadRequest(new ErrorCode("MISSING_ENTITY_IDS"));
+        }
+
         // Reject an oversized id array before any per-id DB work (see MaxEntityIdsPerRequest).
         if (req.EntityIds.Length > MaxEntityIdsPerRequest)
         {
@@ -444,6 +452,14 @@ public sealed partial class Renamer
         if (Forbidden(principal, writePermission) is { } denied)
         {
             return denied;
+        }
+
+        // EntityIds is a plain int[] on a positional record with no [Required] and no validation
+        // attribute, so an omitted or explicitly-null array binds to null and the length check below is
+        // an unhandled NRE - a 500 where every neighbouring rejection is a clean 400.
+        if (req.EntityIds is null)
+        {
+            return TypedResults.BadRequest(new ErrorCode("MISSING_ENTITY_IDS"));
         }
 
         // Reject an oversized id array before encoding/enqueuing the job (see MaxEntityIdsPerRequest).
@@ -1087,6 +1103,11 @@ public sealed partial class Renamer
     internal async Task RunRenamerLibraryJobAsync(
         IReadOnlyList<RenamerFileKind> writableKinds, Cove.Plugins.IJobProgress progress, CancellationToken ct)
     {
+        // Every kind's ids are resolved BEFORE any renaming, because the bar needs the run's total to
+        // give each kind a slice of it. Each batch rescales only within itself and reports 1.0 when it
+        // ends, so handing them the caller's sink directly made the bar complete once per kind and then
+        // restart below where it had just finished.
+        var work = new List<(RenamerFileKind Kind, IReadOnlyList<int> Ids)>(writableKinds.Count);
         foreach (var kind in writableKinds)
         {
             ct.ThrowIfCancellationRequested();
@@ -1099,18 +1120,47 @@ public sealed partial class Renamer
                     return new CoveRenamerDataPort(db, _coveConfig).LoadAllEntityIdsAsync(kind, ct);
                 });
 
-            if (ids.Count == 0)
+            if (ids.Count > 0)
             {
-                continue;
+                work.Add((kind, ids));
             }
+        }
 
+        int total = work.Sum(w => w.Ids.Count);
+        if (total == 0)
+        {
+            progress.Report(1d, "Library rename complete.");
+            return;
+        }
+
+        int placed = 0;
+        foreach (var (kind, ids) in work)
+        {
+            ct.ThrowIfCancellationRequested();
             LogLibraryKind(kind, ids.Count);
 
             var parameters = RenamerJob.Encode(EntityTypeFor(kind), ids);
-            await RunRenamerBatchAsync(parameters, progress, ct);
+            await RunRenamerBatchAsync(
+                parameters, new SliceProgress(progress, (double)placed / total, (double)ids.Count / total), ct);
+            placed += ids.Count;
         }
 
         progress.Report(1d, "Library rename complete.");
+    }
+
+    /// <summary>
+    /// Maps one batch's own 0→1 progress onto the <paramref name="share"/> of the bar that starts at
+    /// <paramref name="start"/>, so several batches fill one bar once between them.
+    /// </summary>
+    /// <remarks>
+    /// A batch's terminal 1.0 becomes <c>start + share</c> — the slice's own end — rather than the run's
+    /// end, which is what keeps the sequence non-decreasing across kinds.
+    /// </remarks>
+    internal sealed class SliceProgress(Cove.Plugins.IJobProgress inner, double start, double share)
+        : Cove.Plugins.IJobProgress
+    {
+        public void Report(double percent, string? message = null) =>
+            inner.Report(start + (Math.Clamp(percent, 0d, 1d) * share), message);
     }
 
     /// <summary>

@@ -90,6 +90,49 @@ public sealed class EntityIdsCapTests
         Assert.Empty(jobs.Enqueued); // no work scheduled for an over-cap request.
     }
 
+    /// <summary>
+    /// A null id array is a 400 at both endpoints, never an unhandled 500.
+    /// </summary>
+    /// <remarks>
+    /// <c>EntityIds</c> is a plain <c>int[]</c> on a positional record with no <c>required</c> and no
+    /// validation attribute, so an omitted or explicitly-null array binds to null and every neighbouring
+    /// rejection's clean 400 is preceded by an NRE on the length check.
+    /// </remarks>
+    [Fact]
+    public async Task PreviewAsync_NullIds_Returns400_NotAnUnhandledThrow()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            var ext = NewExtension();
+            var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosRead);
+
+            var result = await ext.PreviewAsync(
+                new global::Renamer.Api.RenamerRequest("video", null!), db, principal, default);
+
+            Assert.Equal(400, StatusOf(result));
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public void RenamerEnqueue_NullIds_Returns400_AndDoesNotEnqueue()
+    {
+        var ext = NewExtension();
+        var jobs = new RecordingJobService();
+        var principal = FakePrincipalAccessor.WithPermissions(Permissions.VideosWrite);
+
+        var result = ext.RenamerEnqueue(
+            new global::Renamer.Api.RenamerRequest("video", null!), principal, jobs);
+
+        Assert.Equal(400, StatusOf(result));
+        Assert.Empty(jobs.Enqueued);
+    }
+
     [Fact]
     public void RenamerEnqueue_AtCapIds_PassesTheBound_AndEnqueues()
     {

@@ -165,6 +165,62 @@ public sealed class RenamerLibraryEndpointTests
         }
     }
 
+    /// <summary>
+    /// A multi-kind run fills the bar once: the reported sequence never decreases.
+    /// </summary>
+    /// <remarks>
+    /// Each kind ran its own 0→1 lifecycle against the caller's sink, and the per-batch rescale only
+    /// spans one batch, so kind 2 restarted below kind 1's finish — the bar completed, went backward and
+    /// completed again. Asserted over the WHOLE sequence: a final-value check passes on that behaviour,
+    /// because the broken run also ends at 1.0.
+    /// </remarks>
+    [Fact]
+    public async Task RunRenamerLibraryJobAsync_TwoKinds_ProgressNeverGoesBackward()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string videoFolder = Path.Combine(dir.Root, "videos").Replace('\\', '/');
+            string imageFolder = Path.Combine(dir.Root, "images").Replace('\\', '/');
+            Directory.CreateDirectory(Path.Combine(dir.Root, "videos"));
+            Directory.CreateDirectory(Path.Combine(dir.Root, "images"));
+            await ExecutorTestSeed.SeedVideoAsync(db, videoFolder, "raw.mkv", "Film");
+            await ExecutorTestSeed.SeedImageAsync(db, imageFolder, "raw.jpg", "Pic");
+            File.WriteAllText(Path.Combine(dir.Root, "videos", "raw.mkv"), "video-bytes");
+            File.WriteAllText(Path.Combine(dir.Root, "images", "raw.jpg"), "image-bytes");
+
+            var (ext, _) = await NewExtensionAsync(conn);
+            var progress = new FakeJobProgress();
+
+            await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
+
+            var percents = progress.Reports.Select(r => r.Percent).ToList();
+            Assert.NotEmpty(percents);
+
+            for (int i = 1; i < percents.Count; i++)
+            {
+                Assert.True(
+                    percents[i] >= percents[i - 1],
+                    $"progress went backward at report {i}: {percents[i - 1]} then {percents[i]} "
+                        + $"(whole sequence: {string.Join(", ", percents)})");
+            }
+
+            Assert.Equal(1d, percents[^1]);
+
+            // The first kind must not report the run complete. Its slice ends at half the work here, so
+            // anything at or above 1.0 while it is still the only kind that has run is the old behaviour.
+            Assert.True(
+                percents[0] < 1d,
+                $"the first report already claimed the run was complete: {string.Join(", ", percents)}");
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
     [Fact]
     public async Task RunRenamerLibraryJobAsync_KindWithZeroCandidates_OpensNoBatchForThatKind()
     {
