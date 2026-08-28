@@ -548,8 +548,6 @@ public sealed class ScanLibraryEndpointTests
         }
     }
 
-    // ── The pre-0.2.1 per-file scan value: purged at load, never read ──────────
-
     /// <summary>An <c>IExtensionStore</c> whose delete always throws, to drive the purge's containment.</summary>
     private sealed class ThrowingDeleteStore : Cove.Plugins.IExtensionStore
     {

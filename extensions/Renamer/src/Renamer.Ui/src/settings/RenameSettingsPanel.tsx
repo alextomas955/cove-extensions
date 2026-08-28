@@ -269,7 +269,6 @@ export function RenamePanelBody() {
         <AdvancedSection options={options} set={set} />
       </div>
 
-      {/* ── UNDO — the action surface, distinct from configuration, at the bottom. ── */}
       <div id="rename-undo-section">
         <UndoSection refreshKey={undoRefreshKey} />
       </div>
