@@ -333,8 +333,30 @@ public sealed record RenamerOptions
     /// </summary>
     public bool NormalizePunctuation { get; init; } = true;
 
-    public int FilenameMax { get; init; } = 255;
-    public int FullPathMax { get; init; } = 259;
+    /// <summary>Smallest length cap that can still render a name; anything at or below it is refused.</summary>
+    /// <remarks>
+    /// A non-positive cap does not throw — the reducer clamps the computed budget to zero and returns a
+    /// deterministic EMPTY name, which looks like a result. Clamped in the accessor so construction and
+    /// JSON deserialization are covered by one rule rather than by a normalization step every caller has
+    /// to remember, and so the minimum is stated once instead of at each read.
+    /// </remarks>
+    public const int MinLengthCap = 1;
+
+    private readonly int _filenameMax = 255;
+    private readonly int _fullPathMax = 259;
+
+    public int FilenameMax
+    {
+        get => _filenameMax;
+        init => _filenameMax = Math.Max(MinLengthCap, value);
+    }
+
+    public int FullPathMax
+    {
+        get => _fullPathMax;
+        init => _fullPathMax = Math.Max(MinLengthCap, value);
+    }
+
     public List<string> DropOrder { get; init; } =
         ["videoCodec", "audioCodec", "frameRate", "resolution", "tags", "studioCode", "studio", "performers", "date"];
 

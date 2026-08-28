@@ -36,6 +36,52 @@ public sealed class OptionsStoreTests
         Assert.Equal(custom, loaded);
     }
 
+    /// <summary>
+    /// An explicitly-null collection in the stored blob loads as its default, not as null.
+    /// </summary>
+    /// <remarks>
+    /// An init-default applies only to an ABSENT key, so <c>"DropOrder": null</c> binds to null and the
+    /// safe-defaults contract is defeated. It is not a load-time crash either: the store catches only
+    /// <see cref="JsonException"/>, so the null escapes and NREs later, in the planner, on the first
+    /// file. Asserted through the real <c>LoadAsync</c> rather than a deserialize call, because the
+    /// coalescing has to sit on the load path every caller uses.
+    /// </remarks>
+    [Fact]
+    public async Task LoadAsync_ExplicitlyNullCollection_LoadsItsDefault_NotNull()
+    {
+        var fake = new FakeStore();
+        await fake.SetAsync("options", """{"FilenameTemplate":"$title","DropOrder":null,"AssociatedExtensions":null}""");
+        var store = new OptionsStore(fake);
+
+        var loaded = await store.LoadAsync();
+
+        // The blob's real value is kept; only the nulls are replaced.
+        Assert.Equal("$title", loaded.FilenameTemplate);
+        Assert.NotNull(loaded.DropOrder);
+        Assert.NotNull(loaded.AssociatedExtensions);
+        Assert.Equal(new RenamerOptions().DropOrder, loaded.DropOrder);
+    }
+
+    /// <summary>
+    /// A stored negative length cap is clamped on load, so a rendered name can never be emptied by it.
+    /// </summary>
+    /// <remarks>
+    /// A negative cap does not throw: the reducer clamps the computed budget to zero, which yields a
+    /// deterministic EMPTY name — worse than a throw, because it looks like a result.
+    /// </remarks>
+    [Fact]
+    public async Task LoadAsync_NegativeLengthCaps_AreClamped()
+    {
+        var fake = new FakeStore();
+        await fake.SetAsync("options", """{"FilenameMax":-5,"FullPathMax":-100}""");
+        var store = new OptionsStore(fake);
+
+        var loaded = await store.LoadAsync();
+
+        Assert.True(loaded.FilenameMax > 0, $"FilenameMax must be positive, was {loaded.FilenameMax}");
+        Assert.True(loaded.FullPathMax > 0, $"FullPathMax must be positive, was {loaded.FullPathMax}");
+    }
+
     [Fact]
     public async Task LoadAsync_CorruptBlob_ReturnsDefaults_AndSaysSo()
     {

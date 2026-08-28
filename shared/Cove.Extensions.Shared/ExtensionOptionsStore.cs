@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Reflection;
 using System.Text.Json;
 using Cove.Plugins;
 using Microsoft.Extensions.Logging;
@@ -45,7 +47,8 @@ public class ExtensionOptionsStore<TOptions>(
 
         try
         {
-            return JsonSerializer.Deserialize<TOptions>(json, jsonOptions) ?? defaultFactory();
+            var loaded = JsonSerializer.Deserialize<TOptions>(json, jsonOptions);
+            return loaded is null ? defaultFactory() : CoalesceNullCollections(loaded);
         }
         catch (JsonException ex)
         {
@@ -57,6 +60,45 @@ public class ExtensionOptionsStore<TOptions>(
             ExtensionOptionsStoreLog.StoredOptionsDiscarded(logger, typeof(TOptions).Name, ex);
             return defaultFactory();
         }
+    }
+
+    /// <summary>
+    /// Replaces every collection property that bound to <c>null</c> with the value the defaults carry.
+    /// </summary>
+    /// <remarks>
+    /// An init-default applies only to an ABSENT key, so an explicit <c>"Thing": null</c> in the stored
+    /// blob defeats the safe-defaults contract — and not loudly: the catch above sees only a
+    /// <see cref="JsonException"/>, so the null escapes and throws later, in whichever consumer iterates
+    /// it first.
+    /// <para>
+    /// Projected from the defaults rather than from a list of member names, so a collection property
+    /// added to an options model later is covered without editing this method — the failure mode of a
+    /// hand-kept list being that it goes stale silently.
+    /// </para>
+    /// </remarks>
+    private TOptions CoalesceNullCollections(TOptions loaded)
+    {
+        TOptions? defaults = null;
+
+        foreach (var prop in typeof(TOptions).GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            // A string is an IEnumerable and is NOT a collection for this purpose: a null string member
+            // is a legitimate "unset", and replacing it would overwrite the user's choice.
+            if (prop.PropertyType == typeof(string)
+                || !typeof(IEnumerable).IsAssignableFrom(prop.PropertyType)
+                || !prop.CanRead
+                || prop.SetMethod is null
+                || prop.GetIndexParameters().Length > 0
+                || prop.GetValue(loaded) is not null)
+            {
+                continue;
+            }
+
+            defaults ??= defaultFactory();
+            prop.SetValue(loaded, prop.GetValue(defaults));
+        }
+
+        return loaded;
     }
 
     /// <summary>Serializes the options to the single <c>"options"</c> JSON blob.</summary>

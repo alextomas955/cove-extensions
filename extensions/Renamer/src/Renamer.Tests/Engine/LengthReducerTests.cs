@@ -125,6 +125,57 @@ public class LengthReducerTests
         Assert.Equal(options.DropOrder, dropped);
     }
 
+    /// <summary>
+    /// A hard truncation never splits a surrogate pair, so the result is always well-formed UTF-16.
+    /// </summary>
+    /// <remarks>
+    /// The truncation substrings UTF-16 CODE UNITS, and an astral character (an emoji, most CJK
+    /// extension blocks) occupies two. Nothing downstream repairs it: truncation is the LAST step of the
+    /// template pipeline, after sanitization, so a lone surrogate reaches the planner's candidate
+    /// basename and becomes a filename the filesystem may reject.
+    /// </remarks>
+    [Fact]
+    public void HardTruncate_BudgetLandingInsideASurrogatePair_DoesNotSplitIt()
+    {
+        // Each emoji is TWO UTF-16 code units, so a 5-unit name budget falls inside the third pair.
+        const string Emoji = "\U0001F600";
+        string name = string.Concat(Enumerable.Repeat(Emoji, 4));
+        const string Ext = ".mkv";
+
+        // FilenameMax = budget + ext, so the name budget is exactly 5 — mid-pair.
+        var o = new RenamerOptions { FilenameMax = 5 + Ext.Length, FullPathMax = 1000, DropOrder = [] };
+        (string folder, string name) ReRender(IReadOnlyCollection<string> _) => ("", name);
+
+        var result = LengthReducer.Fit("", name, Ext, o, ReRender);
+
+        Assert.False(HasLoneSurrogate(result.Filename),
+            $"truncated name '{result.Filename}' contains an unpaired surrogate");
+        // The pair is dropped whole rather than halved, so the name is one unit shorter than the budget.
+        Assert.Equal(Emoji + Emoji, result.Filename);
+    }
+
+    private static bool HasLoneSurrogate(string s)
+    {
+        for (int i = 0; i < s.Length; i++)
+        {
+            if (char.IsHighSurrogate(s[i]))
+            {
+                if (i + 1 >= s.Length || !char.IsLowSurrogate(s[i + 1]))
+                {
+                    return true;
+                }
+
+                i++;
+            }
+            else if (char.IsLowSurrogate(s[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     [Fact]
     public void FitWithDropped_ShortName_EmptyDropped_AndDelegatingFitMatches()
     {

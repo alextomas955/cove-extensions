@@ -96,6 +96,20 @@ public static class LengthReducer
             budget = 0;
         }
 
-        return name.Length <= budget ? name : name.Substring(0, budget);
+        if (name.Length <= budget)
+        {
+            return name;
+        }
+
+        // The budget counts UTF-16 code units, and an astral character occupies two. Cutting between
+        // them leaves an unpaired surrogate, and nothing downstream repairs it: truncation is the last
+        // step of the pipeline, after sanitization, so the lone surrogate would reach the planner's
+        // candidate basename.
+        if (budget > 0 && char.IsHighSurrogate(name[budget - 1]))
+        {
+            budget--;
+        }
+
+        return name.Substring(0, budget);
     }
 }
