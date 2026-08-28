@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Renamer.Engine;
 using Renamer.Options;
 
 namespace Renamer.Tests.Options;
@@ -55,6 +56,100 @@ public sealed class OptionsStoreTests
         var entry = Assert.Single(log.Entries);
         Assert.Equal(LogLevel.Warning, entry.Level);
         Assert.IsAssignableFrom<JsonException>(entry.Error);
+    }
+
+    [Fact]
+    public async Task LoadAsync_CollectionStoredAsNull_KeepsItsDefault()
+    {
+        // A property initializer runs only for an ABSENT key, so an explicit null binds to null and
+        // the member then contradicts its own non-nullable declaration.
+        var fake = new FakeStore();
+        await fake.SetAsync(OptionsStore.Key, """{"FilenameTemplate":"$title","DropOrder":null}""");
+
+        var loaded = await new OptionsStore(fake).LoadAsync();
+
+        Assert.Equal(new RenamerOptions().DropOrder, loaded.DropOrder);
+        Assert.Equal("$title", loaded.FilenameTemplate); // the members that DID bind are untouched
+    }
+
+    [Fact]
+    public async Task LoadAsync_NestedCollectionStoredAsNull_KeepsItsDefault()
+    {
+        var fake = new FakeStore();
+        await fake.SetAsync(OptionsStore.Key, """{"Performers":{"Separator":" & ","WhitelistIds":null}}""");
+
+        var loaded = await new OptionsStore(fake).LoadAsync();
+
+        Assert.NotNull(loaded.Performers.WhitelistIds);
+        Assert.Empty(loaded.Performers.WhitelistIds);
+        Assert.Equal(" & ", loaded.Performers.Separator);
+    }
+
+    [Fact]
+    public async Task LoadAsync_NullDropOrder_ReducesInsteadOfThrowing()
+    {
+        var fake = new FakeStore();
+        await fake.SetAsync(OptionsStore.Key, """{"DropOrder":null}""");
+        var loaded = await new OptionsStore(fake).LoadAsync();
+
+        string name = new string('a', 400);
+        var reduced = LengthReducer.Fit("", name, ".mp4", loaded, _ => ("", name));
+
+        Assert.True(LengthReducer.FitsBoth("", reduced.Filename, reduced.Ext, loaded));
+    }
+
+    [Fact]
+    public async Task LoadAsync_NullableMemberStoredAsNull_StaysNull()
+    {
+        // The restore is keyed on the DECLARED nullability, so a member whose null is a real state
+        // keeps it — "there is no unorganized route" must not become a route.
+        var fake = new FakeStore();
+        await fake.SetAsync(OptionsStore.Key, """{"UnorganizedDestination":null}""");
+
+        var loaded = await new OptionsStore(fake).LoadAsync();
+
+        Assert.Null(loaded.UnorganizedDestination);
+    }
+
+    [Fact]
+    public async Task LoadAsync_NonPositiveLengthCaps_FallBackToTheDefaults()
+    {
+        var fake = new FakeStore();
+        await fake.SetAsync(OptionsStore.Key, """{"FilenameMax":-5,"FullPathMax":0}""");
+
+        var loaded = await new OptionsStore(fake).LoadAsync();
+
+        Assert.Equal(new RenamerOptions().FilenameMax, loaded.FilenameMax);
+        Assert.Equal(new RenamerOptions().FullPathMax, loaded.FullPathMax);
+    }
+
+    [Fact]
+    public async Task LoadAsync_NegativeLengthCap_StillRendersANonEmptyName()
+    {
+        // The reducer clamps a negative budget to zero and returns an EMPTY basename, which reads as
+        // a result rather than as a failure — the reason a nonsense cap has to be caught on load.
+        var fake = new FakeStore();
+        await fake.SetAsync(OptionsStore.Key, """{"FilenameMax":-5,"FullPathMax":-1}""");
+        var loaded = await new OptionsStore(fake).LoadAsync();
+
+        string name = new string('a', 400);
+        var reduced = LengthReducer.Fit("", name, ".mp4", loaded, _ => ("", name));
+
+        Assert.NotEmpty(reduced.Filename);
+    }
+
+    [Fact]
+    public async Task LoadAsync_SmallButPositiveLengthCap_IsKeptAsStored()
+    {
+        // A tight budget is a configuration, not a mistake: only a cap that cannot be a budget at all
+        // is replaced, so a stored value a user chose is never quietly widened.
+        var fake = new FakeStore();
+        await fake.SetAsync(OptionsStore.Key, """{"FilenameMax":14,"FullPathMax":40}""");
+
+        var loaded = await new OptionsStore(fake).LoadAsync();
+
+        Assert.Equal(14, loaded.FilenameMax);
+        Assert.Equal(40, loaded.FullPathMax);
     }
 
     [Fact]
