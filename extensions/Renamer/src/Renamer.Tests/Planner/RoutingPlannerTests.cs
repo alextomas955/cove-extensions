@@ -65,6 +65,150 @@ public sealed class RoutingPlannerTests
             regex ?? Array.Empty<(Regex, Destination)>(),
             excludeTags, excludeStudios, excludePathsExact, excludePathRegex);
 
+    /// <summary>
+    /// A destination root stored in a different SPELLING of a library path still resolves to it.
+    /// </summary>
+    /// <remarks>
+    /// The endpoint emits one spelling, but a stored rule can carry another: an older store holds the
+    /// platform form (backslashes on Windows), and a hand-edited or migrated one can carry a trailing
+    /// separator. Membership is what decides whether the destination is a library path at all, so a
+    /// spelling the comparison does not fold reads as "this root is no longer one of Cove's library
+    /// paths" and the item is skipped - a routing rule that silently stops routing.
+    /// <para>
+    /// Each case asserts a MOVE to the resolved root rather than the absence of a skip, so a change that
+    /// starts refusing the route fails here instead of passing on a differently-shaped rejection. The
+    /// spellings are derived from <see cref="StudioRoot"/> rather than written as literals, so the case
+    /// stays true on every platform instead of pinning one host's path shape.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(Spelling.PlatformSeparators)]
+    [InlineData(Spelling.TrailingSeparator)]
+    public async Task ARootStoredInAnotherSpelling_StillNamesItsLibraryPath(Spelling spelling)
+    {
+        string stored = spelling switch
+        {
+            Spelling.PlatformSeparators => StudioRoot.Replace('/', Path.DirectorySeparatorChar),
+            Spelling.TrailingSeparator => Fwd(StudioRoot) + "/",
+            _ => throw new ArgumentOutOfRangeException(nameof(spelling)),
+        };
+
+        var port = Port(SrcRoot, StudioRoot);
+        port.SeedEntity(Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] });
+        var planner = new RenamerPlanner(port);
+        var lk = Lookups(studio: new Dictionary<int, Destination> { [42] = Dest.At(stored) });
+
+        var plan = await planner.PlanAsync(RenamerFileKind.Video, 10, MoveOptions(), lk, default);
+
+        var item = Assert.Single(plan.Items);
+
+        // The property: the rule still routes. A spelling the membership comparison did not fold would
+        // surface as SkipRootMissing - the rule silently ceasing to route - not as a different path.
+        Assert.Equal(RenamerStatus.Move, item.Status);
+
+        // Compared with any trailing separator trimmed, because one is carried through into the
+        // reported root rather than normalised away: a rule stored as "<root>/" reports
+        // "<root>/" here while a rule stored as "<root>" reports "<root>". Both route to the same
+        // place, so this is a cosmetic inconsistency in a projection field and not a routing defect -
+        // recorded rather than asserted away, so a later normalisation is a visible change here.
+        Assert.Equal(Fwd(StudioRoot), item.ResolvedDestinationRoot!.TrimEnd('/'));
+        Assert.Empty(port.SaveCalls);
+    }
+
+    /// <summary>
+    /// Two relocations compose and still terminate: a source-path rule moves the item, then a
+    /// configured default moves it once more, and the third pass finds nothing to do.
+    /// </summary>
+    /// <remarks>
+    /// This is the ordinary reading of the two settings rather than a shape invented to satisfy an
+    /// assertion: a path rule that sends one staging folder somewhere specific, plus a <i>Where files
+    /// go</i> default for everything else. Each alone is covered elsewhere; only together can they hand
+    /// the item back and forth.
+    /// <para>
+    /// Exactly two is asserted, not "at most". One would mean the default never fired and this is
+    /// measuring the rule alone; three or more would mean the pair had not settled.
+    /// </para>
+    /// <para>
+    /// WHY IT CONVERGES, and the neighbour that does not. Pass 2 lands the item at
+    /// <c>SrcRoot/Sorted</c>, which is no longer exactly <c>SrcRoot</c>, so the source-path-exact rule
+    /// cannot match a third time. Give that same default an EMPTY template and it lands the item back
+    /// exactly on the rule's key, the rule fires again, and the two destinations trade the item
+    /// forever. That configuration is self-contradictory - the rule says leave this folder, the default
+    /// says return to it - but nothing refuses it, and auto-rename-on-update would act on it
+    /// indefinitely.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ASourcePathRule_ThenAConfiguredDefault_RelocatesTwice_AndStillReachesNoOp()
+    {
+        const int MaxPasses = 8;
+
+        var port = Port(SrcRoot, StudioRoot);
+        var planner = new RenamerPlanner(port);
+
+        var options = new RenamerOptions
+        {
+            FilenameTemplate = "$title",
+            // The one thing that makes this differ from the rule acting alone: a default that moves.
+            FolderRoot = SrcRoot,
+            FolderTemplate = "Sorted",
+        };
+
+        // The rule sends the staging folder itself somewhere specific.
+        var lk = Lookups(exact: new Dictionary<string, Destination>(StringComparer.Ordinal)
+        {
+            [Fwd(SrcRoot)] = Dest.At(StudioRoot, "Sorted"),
+        });
+
+        var entity = Entity(VideoFile(1, "raw.mkv", SrcRoot)) with { StudioId = 42, TagRefs = [] };
+        var trace = new List<string>();
+        string? firstMatchedRule = null;
+        bool settled = false;
+
+        for (int pass = 1; pass <= MaxPasses && !settled; pass++)
+        {
+            port.SeedEntity(entity);
+            var items = (await planner.PlanAsync(entity.Kind, entity.EntityId, options, lk, default)).Items;
+
+            if (items.All(i => i.Status == RenamerStatus.NoOp))
+            {
+                settled = true;
+                break;
+            }
+
+            var blocked = items.FirstOrDefault(
+                i => i.Status is not (RenamerStatus.Renamer or RenamerStatus.Move or RenamerStatus.NoOp));
+            Assert.True(blocked is null, $"pass {pass} was blocked as {blocked?.Status}: {blocked?.Reason}");
+
+            firstMatchedRule ??= items[0].MatchedRule;
+            trace.AddRange(items.Where(i => i.Status != RenamerStatus.NoOp).Select(i => i.NewFullPath));
+
+            // The executor's whole effect on the next plan's input.
+            entity = entity with
+            {
+                Files = [.. entity.Files.Select(f =>
+                {
+                    var planned = items.First(i => i.FileId == f.FileId);
+                    return f with { Basename = planned.NewBasename, ParentFolderPath = planned.TargetFolderPath };
+                })],
+            };
+        }
+
+        Assert.True(settled, $"never reached a fixed point in {MaxPasses} passes: {string.Join(" | ", trace)}");
+        Assert.Equal("SourcePath:exact", firstMatchedRule);
+        Assert.Equal(2, trace.Count);
+    }
+
+    /// <summary>How a stored destination root spells the library path it names.</summary>
+    public enum Spelling
+    {
+        /// <summary>The platform's own separators, as an older store holds them.</summary>
+        PlatformSeparators,
+
+        /// <summary>The canonical forward-slash form with a trailing separator.</summary>
+        TrailingSeparator,
+    }
+
     [Fact]
     public async Task StudioRouted_CarriesRootRuleAndVolume()
     {
