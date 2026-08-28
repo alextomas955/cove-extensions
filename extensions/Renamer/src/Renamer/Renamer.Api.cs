@@ -1155,7 +1155,10 @@ public sealed partial class Renamer
     {
         public void Report(double percent, string? message = null)
         {
-            double scaled = (offset + (percent * share)) / total;
+            // Clamped because the slice arithmetic trusts its input: a batch reporting below 0 would
+            // map under the offset this kind starts at, which is the backward step the slice exists to
+            // prevent.
+            double scaled = (offset + (Math.Clamp(percent, 0d, 1d) * share)) / total;
             if (scaled >= 1d)
             {
                 return;
