@@ -317,7 +317,7 @@ public sealed class ScanRowPagerTests
         port.SeedEntity(OverflowEntity(1, TitleForPathLength(Budget), DestStudioId));
         port.SeedEntity(OverflowEntity(2, TitleForPathLength(longestThatFits), DestStudioId));
         port.SeedEntity(OverflowEntity(3, TitleForPathLength(Budget), SourceStudioId));
-        port.SeedAllIds(RenamerFileKind.Video, [1, 2, 3]);
+        port.SeedAllIds(RenamerFileKind.Video, 1, 2, 3);
 
         var pager = new ScanRowPager(new RenamerPlanner(port), port, Mounts);
         var page = await pager.PageAsync(

@@ -126,7 +126,7 @@ public sealed class RenamerLibraryEndpointTests
             File.WriteAllText(Path.Combine(dir.Root, "videos", "raw.mkv"), "video-bytes");
             File.WriteAllText(Path.Combine(dir.Root, "images", "raw.jpg"), "image-bytes");
 
-            var (ext, store) = await NewExtensionAsync(conn);
+            var (ext, _) = await NewExtensionAsync(conn);
             var progress = new FakeJobProgress();
 
             await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
@@ -177,7 +177,7 @@ public sealed class RenamerLibraryEndpointTests
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "video-bytes");
             // No image/audio rows seeded at all.
 
-            var (ext, store) = await NewExtensionAsync(conn);
+            var (ext, _) = await NewExtensionAsync(conn);
             var progress = new FakeJobProgress();
 
             // Caller only holds videos.write + images.write (no audios.write) and there ARE zero

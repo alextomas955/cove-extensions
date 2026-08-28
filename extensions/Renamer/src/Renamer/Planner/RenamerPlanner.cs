@@ -43,11 +43,6 @@ public sealed class RenamerPlanner
         RenamerFileKind kind, int entityId, RenamerOptions options, CancellationToken ct)
         => PlanAsync(kind, entityId, options, EmptyLookups, ct);
 
-    /// <summary>Non-routing overload of <see cref="PlanWithEntityAsync(RenamerFileKind,int,RenamerOptions,RouteLookups,CancellationToken)"/>.</summary>
-    public Task<PlanResult> PlanWithEntityAsync(
-        RenamerFileKind kind, int entityId, RenamerOptions options, CancellationToken ct)
-        => PlanWithEntityAsync(kind, entityId, options, EmptyLookups, ct);
-
     /// <summary>
     /// Computes the per-file old→new plan for the given entity, performing zero disk/DB mutation.
     /// Returns an empty plan when the entity does not exist. Routing is resolved ONCE per entity
@@ -63,6 +58,11 @@ public sealed class RenamerPlanner
     public async Task<RenamerPlan> PlanAsync(
         RenamerFileKind kind, int entityId, RenamerOptions options, RouteLookups lookups, CancellationToken ct)
         => (await PlanWithEntityAsync(kind, entityId, options, lookups, ct)).Plan;
+
+    /// <summary>Non-routing overload of <see cref="PlanWithEntityAsync(RenamerFileKind,int,RenamerOptions,RouteLookups,CancellationToken)"/>.</summary>
+    public Task<PlanResult> PlanWithEntityAsync(
+        RenamerFileKind kind, int entityId, RenamerOptions options, CancellationToken ct)
+        => PlanWithEntityAsync(kind, entityId, options, EmptyLookups, ct);
 
     /// <summary>
     /// Same as <see cref="PlanAsync(RenamerFileKind,int,RenamerOptions,RouteLookups,CancellationToken)"/>
@@ -254,9 +254,19 @@ public sealed class RenamerPlanner
         //     own parent, so the FullPathMax re-check below sees its real depth.
         bool chosenRoot = destination.Root.Length > 0;
         bool isMove = chosenRoot || rendered.FolderPath.Length > 0;
-        string? libraryRoot = chosenRoot
-            ? destination.Root
-            : isMove ? PathConfinement.ContainingRoot(file.ParentFolderPath, _port.LibraryRoots) : null;
+        string? libraryRoot;
+        if (chosenRoot)
+        {
+            libraryRoot = destination.Root;
+        }
+        else if (isMove)
+        {
+            libraryRoot = PathConfinement.ContainingRoot(file.ParentFolderPath, _port.LibraryRoots);
+        }
+        else
+        {
+            libraryRoot = null;
+        }
 
         // Told to measure from the file's own library path, and the file is under none: the destination
         // is not forbidden, it is uncomputable, and every remaining candidate anchor is one the rename

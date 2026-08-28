@@ -1,6 +1,21 @@
 <Project>
 
   <!--
+    Sonar's C# rules, on every project including the test ones, and unconditional on how Cove is
+    located: the analyzer inspects this repo's own source and has nothing to do with the host.
+
+    Note what adoption does to the pre-commit hook, because nothing else says it: that hook runs
+    per-file, so from here on it is also a per-file Sonar gate - clean on a file you did not touch
+    while findings may stand elsewhere. And the CI workflows build with CoveSourceMode=none, which
+    sees a strict SUBSET of the findings a local source build sees, so a green CI leg is not evidence
+    that the tree is clean.
+  -->
+  <ItemGroup>
+    <PackageReference Include="SonarAnalyzer.CSharp" />
+  </ItemGroup>
+
+
+  <!--
     Cove.Sdk + Cove.Core wiring, centralized here so individual extension .csproj files under
     extensions/<Name>/src/<Name>/ don't each restate the local-vs-package selection or the
     relative-path math back to the sibling ../cove checkout. Cove.Sdk transitively carries

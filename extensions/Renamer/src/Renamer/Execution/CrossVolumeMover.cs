@@ -86,7 +86,7 @@ namespace Renamer.Execution;
 ///
 /// Hash algorithm: the hard default is to self-hash both sides with XxHash3 (a fast
 /// non-crypto integrity check, not a security control). Reusing Cove's stored MD5 to skip the source
-/// read is a deferred TODO — Cove's MD5 lives in a <c>FileFingerprint</c> row the renamer data port
+/// read is deliberately deferred — Cove's MD5 lives in a <c>FileFingerprint</c> row the renamer data port
 /// does not load today, so the stored hash is invisible to the mover; the reuse path is NOT built.
 /// </summary>
 public sealed class CrossVolumeMover
