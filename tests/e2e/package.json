@@ -11,11 +11,13 @@
     "./poll": "./lib/poll.mjs",
     "./config": "./playwright.config.mjs",
     "./resolve-extension": "./lib/resolve-extension.mjs",
+    "./whisparr": "./lib/whisparr-fixture.mjs",
     "./pages/videos-page": "./lib/pages/videos-page.mjs"
   },
   "scripts": {
     "pretest": "node ../../scripts/publish-extensions.mjs",
     "test": "playwright test",
+    "test:smoke": "node --test --test-timeout=900000 lib/whisparr-fixture.smoke.test.mjs",
     "test:ui": "playwright test --ui",
     "install:browsers": "playwright install --with-deps chromium"
   },
