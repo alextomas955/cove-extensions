@@ -16,13 +16,20 @@ namespace Cove.Extensions.Shared;
 /// these methods never block on the store. Each extension supplies its own <typeparamref name="TOptions"/>
 /// model, its own <see cref="JsonSerializerOptions"/>, and a default-value factory, so serialization
 /// behavior is identical to a per-extension store.
+/// <para>
+/// The optional <c>normalize</c> runs on a blob that bound, after the non-nullable members are
+/// restored, so an extension can replace a stored value its own model cannot honor. Such a rule
+/// belongs on the load path rather than at each read: a check the consumer performs is a check the
+/// next consumer can omit.
+/// </para>
 /// </remarks>
 /// <typeparam name="TOptions">The extension's options model.</typeparam>
 public class ExtensionOptionsStore<TOptions>(
     IExtensionStore store,
     JsonSerializerOptions jsonOptions,
     Func<TOptions> defaultFactory,
-    ILogger logger)
+    ILogger logger,
+    Func<TOptions, TOptions>? normalize = null)
     where TOptions : class
 {
     /// <summary>The single store key the options blob lives under.</summary>
@@ -37,7 +44,8 @@ public class ExtensionOptionsStore<TOptions>(
     /// Loads the persisted options. Returns defaults when the key is absent (first run) or when the
     /// stored blob is corrupt (catches <see cref="JsonException"/>) — a hand-edited/garbage blob never throws.
     /// A blob that binds is returned with every member the model declares non-nullable restored to its
-    /// default where the blob set it to <c>null</c> (see <see cref="RestoreDeclaredNonNull"/>).
+    /// default where the blob set it to <c>null</c> (see <see cref="RestoreDeclaredNonNull"/>), and then
+    /// passed through the caller's normalizer.
     /// </summary>
     public async Task<TOptions> LoadAsync(CancellationToken ct = default)
     {
@@ -56,7 +64,7 @@ public class ExtensionOptionsStore<TOptions>(
             }
 
             RestoreDeclaredNonNull(loaded, defaultFactory(), new NullabilityInfoContext());
-            return loaded;
+            return normalize is null ? loaded : normalize(loaded);
         }
         catch (JsonException ex)
         {
