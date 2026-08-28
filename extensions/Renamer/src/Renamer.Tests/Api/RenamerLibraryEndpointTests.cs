@@ -65,6 +65,23 @@ public sealed class RenamerLibraryEndpointTests
 
     private static int StatusOf(IResult result) => Assert.IsAssignableFrom<IStatusCodeHttpResult>(Unwrap(result)).StatusCode ?? 0;
 
+    /// <summary>
+    /// Seeds one video and one image — each in its own folder, since <c>Folder.Path</c> is
+    /// unique-indexed — with real bytes on disk, and returns the two file ids.
+    /// </summary>
+    private static async Task<(int VideoFileId, int ImageFileId)> SeedVideoAndImageAsync(CoveContext db, TempDir dir)
+    {
+        string videoFolder = Path.Combine(dir.Root, "videos").Replace('\\', '/');
+        string imageFolder = Path.Combine(dir.Root, "images").Replace('\\', '/');
+        Directory.CreateDirectory(Path.Combine(dir.Root, "videos"));
+        Directory.CreateDirectory(Path.Combine(dir.Root, "images"));
+        var (_, _, videoFileId) = await ExecutorTestSeed.SeedVideoAsync(db, videoFolder, "raw.mkv", "Film");
+        var (_, _, imageFileId) = await ExecutorTestSeed.SeedImageAsync(db, imageFolder, "raw.jpg", "Pic");
+        File.WriteAllText(Path.Combine(dir.Root, "videos", "raw.mkv"), "video-bytes");
+        File.WriteAllText(Path.Combine(dir.Root, "images", "raw.jpg"), "image-bytes");
+        return (videoFileId, imageFileId);
+    }
+
     [Fact]
     public async Task RenamerLibraryEnqueue_WithAnyWritePermission_Returns202_AndEnqueuesExclusiveOnce()
     {
@@ -116,17 +133,9 @@ public sealed class RenamerLibraryEndpointTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            // Folder.Path is unique-indexed, so video and image need distinct folder rows.
-            string videoFolder = Path.Combine(dir.Root, "videos").Replace('\\', '/');
-            string imageFolder = Path.Combine(dir.Root, "images").Replace('\\', '/');
-            Directory.CreateDirectory(Path.Combine(dir.Root, "videos"));
-            Directory.CreateDirectory(Path.Combine(dir.Root, "images"));
-            var (_, _, videoFileId) = await ExecutorTestSeed.SeedVideoAsync(db, videoFolder, "raw.mkv", "Film");
-            var (_, _, imageFileId) = await ExecutorTestSeed.SeedImageAsync(db, imageFolder, "raw.jpg", "Pic");
-            File.WriteAllText(Path.Combine(dir.Root, "videos", "raw.mkv"), "video-bytes");
-            File.WriteAllText(Path.Combine(dir.Root, "images", "raw.jpg"), "image-bytes");
+            var (videoFileId, imageFileId) = await SeedVideoAndImageAsync(db, dir);
 
-            var (ext, store) = await NewExtensionAsync(conn);
+            var (ext, _) = await NewExtensionAsync(conn);
             var progress = new FakeJobProgress();
 
             await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
@@ -165,6 +174,50 @@ public sealed class RenamerLibraryEndpointTests
         }
     }
 
+    /// <summary>
+    /// A run spanning two kinds reports a bar that only ever advances, and lands on 1.0 once.
+    /// </summary>
+    /// <remarks>
+    /// Each per-kind batch scales its own [0,1] bar and reports 1.0 when it ends, so a kind handed the
+    /// caller's sink verbatim restarts the bar below where the previous kind left it. Asserted over the
+    /// recorded SEQUENCE, because a final-value check passes on exactly that behavior.
+    /// </remarks>
+    [Fact]
+    public async Task RunRenamerLibraryJobAsync_TwoKinds_ReportsAdvancingProgress_AndReaches1Once()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            await SeedVideoAndImageAsync(db, dir);
+
+            var (ext, _) = await NewExtensionAsync(conn);
+            var progress = new FakeJobProgress();
+
+            await ext.RunRenamerLibraryJobAsync([RenamerFileKind.Video, RenamerFileKind.Image], progress, default);
+
+            var percents = progress.Reports.Select(r => r.Percent).ToList();
+            Assert.NotEmpty(percents);
+            for (int i = 1; i < percents.Count; i++)
+            {
+                Assert.True(
+                    percents[i] >= percents[i - 1],
+                    $"progress went backward at report {i}: [{string.Join(", ", percents)}]");
+            }
+
+            Assert.Equal(1d, percents[^1]);
+
+            // Compared within a tolerance rather than exactly: the slice drops anything that reaches
+            // the run's end, so the only report that can land here is the run's own final one.
+            Assert.Equal(1, percents.Count(p => Math.Abs(p - 1d) < 1e-9));
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
     [Fact]
     public async Task RunRenamerLibraryJobAsync_KindWithZeroCandidates_OpensNoBatchForThatKind()
     {
@@ -177,7 +230,7 @@ public sealed class RenamerLibraryEndpointTests
             File.WriteAllText(Path.Combine(dir.Root, "raw.mkv"), "video-bytes");
             // No image/audio rows seeded at all.
 
-            var (ext, store) = await NewExtensionAsync(conn);
+            var (ext, _) = await NewExtensionAsync(conn);
             var progress = new FakeJobProgress();
 
             // Caller only holds videos.write + images.write (no audios.write) and there ARE zero
@@ -204,15 +257,7 @@ public sealed class RenamerLibraryEndpointTests
         var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
         try
         {
-            // Folder.Path is unique-indexed, so video and image need distinct folder rows.
-            string videoFolder = Path.Combine(dir.Root, "videos").Replace('\\', '/');
-            string imageFolder = Path.Combine(dir.Root, "images").Replace('\\', '/');
-            Directory.CreateDirectory(Path.Combine(dir.Root, "videos"));
-            Directory.CreateDirectory(Path.Combine(dir.Root, "images"));
-            var (_, _, videoFileId) = await ExecutorTestSeed.SeedVideoAsync(db, videoFolder, "raw.mkv", "Film");
-            var (_, _, imageFileId) = await ExecutorTestSeed.SeedImageAsync(db, imageFolder, "raw.jpg", "Pic");
-            File.WriteAllText(Path.Combine(dir.Root, "videos", "raw.mkv"), "video-bytes");
-            File.WriteAllText(Path.Combine(dir.Root, "images", "raw.jpg"), "image-bytes");
+            var (videoFileId, imageFileId) = await SeedVideoAndImageAsync(db, dir);
 
             var (beforeImageName, beforeImagePath) = await ExecutorTestSeed.ReadFileAsync(db, imageFileId);
 

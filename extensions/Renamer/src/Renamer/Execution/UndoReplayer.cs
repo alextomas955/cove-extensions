@@ -104,7 +104,11 @@ public sealed class UndoReplayer
 
     /// <summary>The result of reverse-replaying a batch: what was restored + the failed/skipped buckets.</summary>
     /// <param name="Undone">How many entries were restored (disk + DB) and published.</param>
-    /// <param name="Failed">Entries whose reverse move succeeded but the save threw (disk rolled back to NEW).</param>
+    /// <param name="Failed">
+    /// Entries whose reverse move succeeded but the save did not complete: it threw, or it committed
+    /// without a row this replayer could verify the restored path against. Only the first rolls the disk
+    /// back to NEW; a save that committed is never reverted.
+    /// </param>
     /// <param name="Skipped">Entries skipped because the OLD slot was occupied/locked (never clobbered).</param>
     /// <param name="Restored">
     /// The rows that terminated as restored, so the caller can retire exactly those in the journal.
@@ -263,9 +267,25 @@ public sealed class UndoReplayer
             var saved = await _port.ApplyAndSaveAsync([mutation], ct);
 
             // (5) RUNTIME assertion: the recomputed Path must equal the OLD path we just restored to.
-            var savedFile = saved.FirstOrDefault(s => s.FileId == entry.FileId);
+            //     Found as a nullable, never as default(SavedFile): that default carries a null
+            //     RecomputedPath, which the comparison below reads as a path that differs — so a save
+            //     reporting no row for this file would take the rollback branch and undo a restore that
+            //     committed, blaming a path mismatch that never happened.
+            SavedFile? savedFile = saved
+                .Where(s => s.FileId == entry.FileId)
+                .Select(s => (SavedFile?)s)
+                .FirstOrDefault();
+            if (savedFile is null)
+            {
+                return new RevertOutcome.Failed(new UndoFailure(
+                    entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath,
+                    "the save reported no row for this file, so the restored path could not be verified",
+                    UndoStopReason.SaveReportedNoRow));
+            }
+
+            string recomputed = savedFile.Value.RecomputedPath;
             string expected = NormalizeSlash(entry.OldPath);
-            if (!PathsEqual(savedFile.RecomputedPath, expected))
+            if (!PathsEqual(recomputed, expected))
             {
                 // Disk and DB disagree: roll the disk back to NEW through the MATCHING mover and
                 // report failed (no half-state). The file currently sits at OLD (the reverse move
@@ -277,8 +297,8 @@ public sealed class UndoReplayer
                 // back" — mirroring the forward executor's rollback reporting.
                 IReadOnlyList<string> rbWarnings = await RollbackReverseMove(sameVolume, nativeNew, nativeOld, movedSidecars, ct);
                 string note = rbWarnings.Count > 0
-                    ? $"recomputed Path '{savedFile.RecomputedPath}' != restored path '{expected}'; rollback INCOMPLETE: {string.Join("; ", rbWarnings)}"
-                    : $"recomputed Path '{savedFile.RecomputedPath}' != restored path '{expected}'; rolled back";
+                    ? $"recomputed Path '{recomputed}' != restored path '{expected}'; rollback INCOMPLETE: {string.Join("; ", rbWarnings)}"
+                    : $"recomputed Path '{recomputed}' != restored path '{expected}'; rolled back";
                 return new RevertOutcome.Failed(new UndoFailure(
                     entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath, note,
                     UndoStopReason.RestoredPathMismatch));
@@ -316,8 +336,6 @@ public sealed class UndoReplayer
                 UndoStopReason.DatabaseSaveFailed));
         }
     }
-
-    // ── restore-spine sub-steps (extracted from RevertEntryAsync; control flow unchanged) ──────
 
     /// <summary>
     /// Validates and resolves the restore target BEFORE any mutation: the
@@ -418,8 +436,6 @@ public sealed class UndoReplayer
             : await _cross.RollbackAsync(nativeNew, nativeOld,
                 [.. movedSidecars.Select(s => new CrossVolumeMover.SidecarMove(s.From, s.To))], ct);
 
-    // ── per-entry outcome (a tiny tagged union) ───────────────────────────────
-
     private abstract record RevertOutcome
     {
         public static readonly Undone UndoneInstance = new();
@@ -427,8 +443,6 @@ public sealed class UndoReplayer
         public sealed record Skipped(UndoFailure Failure) : RevertOutcome;
         public sealed record Failed(UndoFailure Failure) : RevertOutcome;
     }
-
-    // ── event mapping — the exact forward-equivalent reconstruction ───────────
 
     private static EventType EventTypeFor(RenamerFileKind kind) => kind switch
     {

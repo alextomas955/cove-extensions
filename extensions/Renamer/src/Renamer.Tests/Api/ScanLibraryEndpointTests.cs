@@ -276,7 +276,8 @@ public sealed class ScanLibraryEndpointTests
         public int ReaderCount { get; set; }
 
         public override ValueTask<DbDataReader> ReaderExecutedAsync(
-            DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken ct = default)
+            DbCommand command, CommandExecutedEventData eventData, DbDataReader result,
+            CancellationToken cancellationToken = default)
         {
             ReaderCount++;
             return ValueTask.FromResult(result);

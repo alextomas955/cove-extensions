@@ -1,5 +1,9 @@
+using System.Net;
+using System.Text;
+using System.Text.Json;
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
+using Cove.Extensions.Shared;
 using Microsoft.AspNetCore.Http;
 using Renamer.Tests.Execution;
 using Renamer.Tests.TestSupport;
@@ -11,12 +15,15 @@ namespace Renamer.Tests.Api;
 /// The preview and renamer endpoints accept a caller-supplied id array, which is an unbounded fan-out:
 /// preview runs the planner (DB hits) per id on the request thread, and renamer fans the same ids into
 /// one job. Both reject an over-cap array with a 400 BEFORE any per-id work, so a runaway/oversized
-/// request can't tie up a request thread or enqueue a giant job.
+/// request can't tie up a request thread or enqueue a giant job. An ABSENT array is rejected the same
+/// way, with its own code.
 /// </summary>
 public sealed class EntityIdsCapTests
 {
     // Keep in sync with Renamer.Api.cs MaxEntityIdsPerRequest. Over-cap = cap + 1.
     private const int Cap = 1000;
+
+    private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
     /// <summary>Records every <c>Enqueue</c>; all other members are unused and throw.</summary>
     private sealed class RecordingJobService : IJobService
@@ -104,5 +111,44 @@ public sealed class EntityIdsCapTests
 
         Assert.Equal(202, StatusOf(result));
         Assert.Single(jobs.Enqueued);
+    }
+
+    public static TheoryData<string, string, string> AbsentIdArrayRequests()
+    {
+        var data = new TheoryData<string, string, string>();
+        foreach (var body in new[]
+        {
+            """{"entityType":"video"}""",
+            """{"entityType":"video","entityIds":null}""",
+        })
+        {
+            data.Add("/preview", Permissions.VideosRead, body);
+            data.Add("/renamer", Permissions.VideosWrite, body);
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    /// An omitted or explicitly-null <c>entityIds</c> is a 400 carrying its own code, not a 500.
+    /// </summary>
+    /// <remarks>
+    /// Driven over the REAL route rather than by calling the handler with a null argument: a direct
+    /// call supplies the null itself, so it says nothing about what the host's model binding actually
+    /// produces for these two bodies — which is the whole question.
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(AbsentIdArrayRequests))]
+    public async Task AbsentIdArray_Returns400_MissingEntityIds(string path, string permission, string body)
+    {
+        await using var host = await TransportHost.BootAsync(FakePrincipalAccessor.WithPermissions(permission));
+        using var content = new StringContent(body, Encoding.UTF8, "application/json");
+
+        var response = await host.Client.PostAsync(TransportHost.BaseRoute + path, content);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var error = JsonSerializer.Deserialize<ErrorCode>(await response.Content.ReadAsStringAsync(), Web);
+        Assert.Equal("MISSING_ENTITY_IDS", error?.Code);
     }
 }

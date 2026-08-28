@@ -30,6 +30,12 @@ public sealed class FakeRevertJournal : IRevertJournal
     /// <summary>Each <see cref="PurgeExpiredAsync"/> call's timestamp, in order.</summary>
     public IReadOnlyList<DateTime> PurgeCalls => [.. _purgeCalls];
 
+    /// <summary>
+    /// When set, <see cref="AppendAsync"/> throws this instead of recording the row — the seam that
+    /// drives the executor's post-commit failure path, where the database save has already committed.
+    /// </summary>
+    public Exception? AppendThrow { get; set; }
+
     public Task BeginBatchAsync(
         string runId, RenamerFileKind kind, DateTime nowUtc, CancellationToken ct = default)
     {
@@ -40,6 +46,11 @@ public sealed class FakeRevertJournal : IRevertJournal
 
     public Task AppendAsync(RevertRow row, CancellationToken ct = default)
     {
+        if (AppendThrow is not null)
+        {
+            throw AppendThrow;
+        }
+
         if (Volatile.Read(ref _suppressed))
         {
             return Task.CompletedTask;
