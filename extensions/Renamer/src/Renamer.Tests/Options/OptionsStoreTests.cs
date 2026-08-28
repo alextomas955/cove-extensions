@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Renamer.Engine;
 using Renamer.Options;
 
 namespace Renamer.Tests.Options;
@@ -55,6 +56,59 @@ public sealed class OptionsStoreTests
         var entry = Assert.Single(log.Entries);
         Assert.Equal(LogLevel.Warning, entry.Level);
         Assert.IsAssignableFrom<JsonException>(entry.Error);
+    }
+
+    [Fact]
+    public async Task LoadAsync_CollectionStoredAsNull_KeepsItsDefault()
+    {
+        // A property initializer runs only for an ABSENT key, so an explicit null binds to null and
+        // the member then contradicts its own non-nullable declaration.
+        var fake = new FakeStore();
+        await fake.SetAsync(OptionsStore.Key, """{"FilenameTemplate":"$title","DropOrder":null}""");
+
+        var loaded = await new OptionsStore(fake).LoadAsync();
+
+        Assert.Equal(new RenamerOptions().DropOrder, loaded.DropOrder);
+        Assert.Equal("$title", loaded.FilenameTemplate); // the members that DID bind are untouched
+    }
+
+    [Fact]
+    public async Task LoadAsync_NestedCollectionStoredAsNull_KeepsItsDefault()
+    {
+        var fake = new FakeStore();
+        await fake.SetAsync(OptionsStore.Key, """{"Performers":{"Separator":" & ","WhitelistIds":null}}""");
+
+        var loaded = await new OptionsStore(fake).LoadAsync();
+
+        Assert.NotNull(loaded.Performers.WhitelistIds);
+        Assert.Empty(loaded.Performers.WhitelistIds);
+        Assert.Equal(" & ", loaded.Performers.Separator);
+    }
+
+    [Fact]
+    public async Task LoadAsync_NullDropOrder_ReducesInsteadOfThrowing()
+    {
+        var fake = new FakeStore();
+        await fake.SetAsync(OptionsStore.Key, """{"DropOrder":null}""");
+        var loaded = await new OptionsStore(fake).LoadAsync();
+
+        string name = new string('a', 400);
+        var reduced = LengthReducer.Fit("", name, ".mp4", loaded, _ => ("", name));
+
+        Assert.True(LengthReducer.FitsBoth("", reduced.Filename, reduced.Ext, loaded));
+    }
+
+    [Fact]
+    public async Task LoadAsync_NullableMemberStoredAsNull_StaysNull()
+    {
+        // The restore is keyed on the DECLARED nullability, so a member whose null is a real state
+        // keeps it — "there is no unorganized route" must not become a route.
+        var fake = new FakeStore();
+        await fake.SetAsync(OptionsStore.Key, """{"UnorganizedDestination":null}""");
+
+        var loaded = await new OptionsStore(fake).LoadAsync();
+
+        Assert.Null(loaded.UnorganizedDestination);
     }
 
     [Fact]
