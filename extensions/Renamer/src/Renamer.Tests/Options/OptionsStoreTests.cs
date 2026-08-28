@@ -112,6 +112,47 @@ public sealed class OptionsStoreTests
     }
 
     [Fact]
+    public async Task LoadAsync_NonPositiveLengthCaps_FallBackToTheDefaults()
+    {
+        var fake = new FakeStore();
+        await fake.SetAsync(OptionsStore.Key, """{"FilenameMax":-5,"FullPathMax":0}""");
+
+        var loaded = await new OptionsStore(fake).LoadAsync();
+
+        Assert.Equal(new RenamerOptions().FilenameMax, loaded.FilenameMax);
+        Assert.Equal(new RenamerOptions().FullPathMax, loaded.FullPathMax);
+    }
+
+    [Fact]
+    public async Task LoadAsync_NegativeLengthCap_StillRendersANonEmptyName()
+    {
+        // The reducer clamps a negative budget to zero and returns an EMPTY basename, which reads as
+        // a result rather than as a failure — the reason a nonsense cap has to be caught on load.
+        var fake = new FakeStore();
+        await fake.SetAsync(OptionsStore.Key, """{"FilenameMax":-5,"FullPathMax":-1}""");
+        var loaded = await new OptionsStore(fake).LoadAsync();
+
+        string name = new string('a', 400);
+        var reduced = LengthReducer.Fit("", name, ".mp4", loaded, _ => ("", name));
+
+        Assert.NotEmpty(reduced.Filename);
+    }
+
+    [Fact]
+    public async Task LoadAsync_SmallButPositiveLengthCap_IsKeptAsStored()
+    {
+        // A tight budget is a configuration, not a mistake: only a cap that cannot be a budget at all
+        // is replaced, so a stored value a user chose is never quietly widened.
+        var fake = new FakeStore();
+        await fake.SetAsync(OptionsStore.Key, """{"FilenameMax":14,"FullPathMax":40}""");
+
+        var loaded = await new OptionsStore(fake).LoadAsync();
+
+        Assert.Equal(14, loaded.FilenameMax);
+        Assert.Equal(40, loaded.FullPathMax);
+    }
+
+    [Fact]
     public async Task SaveAsync_PersistsSingleBlob_UnderOptionsKey()
     {
         var fake = new FakeStore();
