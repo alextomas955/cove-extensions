@@ -371,6 +371,11 @@ public sealed partial class Renamer
             return denied;
         }
 
+        if (req.EntityIds is null)
+        {
+            return TypedResults.BadRequest(new ErrorCode("MISSING_ENTITY_IDS"));
+        }
+
         // Reject an oversized id array before any per-id DB work (see MaxEntityIdsPerRequest).
         if (req.EntityIds.Length > MaxEntityIdsPerRequest)
         {
@@ -444,6 +449,11 @@ public sealed partial class Renamer
         if (Forbidden(principal, writePermission) is { } denied)
         {
             return denied;
+        }
+
+        if (req.EntityIds is null)
+        {
+            return TypedResults.BadRequest(new ErrorCode("MISSING_ENTITY_IDS"));
         }
 
         // Reject an oversized id array before encoding/enqueuing the job (see MaxEntityIdsPerRequest).
@@ -1081,11 +1091,16 @@ public sealed partial class Renamer
     /// single-shot Undo button.
     /// </summary>
     /// <param name="writableKinds">The kinds the enqueuing principal held write permission for, captured at enqueue time (same rationale as <see cref="RunScanLibraryJobAsync"/>'s <c>readableKinds</c> parameter).</param>
-    /// <param name="progress">The job-progress sink, forwarded into each per-kind <see cref="RunRenamerBatchAsync"/> call.</param>
+    /// <param name="progress">The job-progress sink; each kind reports into its own slice of it (see <see cref="KindSliceProgress"/>).</param>
     /// <param name="ct">Cancellation token; a genuine cancellation aborts the remaining kinds.</param>
     internal async Task RunRenamerLibraryJobAsync(
         IReadOnlyList<RenamerFileKind> writableKinds, Cove.Plugins.IJobProgress progress, CancellationToken ct)
     {
+        // Every kind's ids are loaded before the first batch runs so the SUM is known: a batch scales
+        // its own [0,1] bar, so without a whole-run denominator there is nothing to map a kind onto and
+        // the second one restarts below where the first finished. RunScanCoreAsync hoists the same
+        // per-kind id queries for the same reason.
+        var idsByKind = new List<(RenamerFileKind Kind, IReadOnlyList<int> Ids)>(writableKinds.Count);
         foreach (var kind in writableKinds)
         {
             ct.ThrowIfCancellationRequested();
@@ -1098,18 +1113,58 @@ public sealed partial class Renamer
                     return new CoveRenamerDataPort(db, _coveConfig).LoadAllEntityIdsAsync(kind, ct);
                 });
 
-            if (ids.Count == 0)
+            if (ids.Count > 0)
             {
-                continue;
+                idsByKind.Add((kind, ids));
             }
+        }
+
+        int total = idsByKind.Sum(k => k.Ids.Count);
+        int planned = 0;
+
+        foreach (var (kind, ids) in idsByKind)
+        {
+            ct.ThrowIfCancellationRequested();
 
             LogLibraryKind(kind, ids.Count);
 
             var parameters = RenamerJob.Encode(EntityTypeFor(kind), ids);
-            await RunRenamerBatchAsync(parameters, progress, ct);
+            await RunRenamerBatchAsync(
+                parameters, new KindSliceProgress(progress, planned, ids.Count, total), ct);
+            planned += ids.Count;
         }
 
         progress.Report(1d, "Library rename complete.");
+    }
+
+    /// <summary>
+    /// Maps one kind's own <c>[0, 1]</c> batch progress onto that kind's share of a whole-library run.
+    /// </summary>
+    /// <remarks>
+    /// The run's own final report owns <c>1.0</c>. A batch reports <c>1.0</c> on every exit it has, so
+    /// the LAST kind's is dropped rather than landing the bar at 100% ahead of the run's own; an earlier
+    /// kind's maps to its slice end and passes through with whatever message it carried.
+    /// </remarks>
+    /// <param name="inner">The whole-run sink.</param>
+    /// <param name="offset">Entities already covered by earlier kinds.</param>
+    /// <param name="share">This kind's entity count.</param>
+    /// <param name="total">The run's summed entity count; never zero, since a kind is only run when it has ids.</param>
+    private sealed class KindSliceProgress(
+        Cove.Plugins.IJobProgress inner, int offset, int share, int total) : Cove.Plugins.IJobProgress
+    {
+        public void Report(double percent, string? message = null)
+        {
+            // Clamped because the slice arithmetic trusts its input: a batch reporting below 0 would
+            // map under the offset this kind starts at, which is the backward step the slice exists to
+            // prevent.
+            double scaled = (offset + (Math.Clamp(percent, 0d, 1d) * share)) / total;
+            if (scaled >= 1d)
+            {
+                return;
+            }
+
+            inner.Report(scaled, message);
+        }
     }
 
     /// <summary>
