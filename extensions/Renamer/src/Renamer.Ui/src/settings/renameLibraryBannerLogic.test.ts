@@ -15,33 +15,46 @@ function counts(willChange: number, attention: number): DryRunCounts {
   return { willChange, attention, noChange: 0, scanned: willChange + attention };
 }
 
-test("a run with nothing skipped states the renamed count and undo's reach", () => {
+test("a run with nothing skipped states the scan's count and undo's reach", () => {
   assert.equal(
     buildRenameLibrarySuccess(counts(1200, 0)),
-    "Renamed 1200 files. Undo covers only the last media kind in this run.",
+    "Rename finished. The scan found 1200 files to rename. Undo covers only the last media kind in this run.",
   );
 });
 
-test("one renamed file is one file", () => {
+test("one planned file is one file", () => {
   assert.equal(
     buildRenameLibrarySuccess(counts(1, 0)),
-    "Renamed 1 file. Undo covers only the last media kind in this run.",
+    "Rename finished. The scan found 1 file to rename. Undo covers only the last media kind in this run.",
   );
 });
 
 test("a run that changed nothing still reports its size", () => {
   assert.equal(
     buildRenameLibrarySuccess(counts(0, 0)),
-    "Renamed 0 files. Undo covers only the last media kind in this run.",
+    "Rename finished. The scan found 0 files to rename. Undo covers only the last media kind in this run.",
   );
 });
 
 test("skipped files are stated only when there are some", () => {
   assert.equal(
     buildRenameLibrarySuccess(counts(1200, 30)),
-    "Renamed 1200 files, 30 skipped. Undo covers only the last media kind in this run.",
+    "Rename finished. The scan found 1200 files to rename, 30 skipped. Undo covers only the last media kind in this run.",
   );
   assert.ok(!buildRenameLibrarySuccess(counts(1200, 0)).includes("skipped"));
+});
+
+test("the success sentence never states how many files were renamed", () => {
+  // Nothing on this path knows: the count is the scan's plan, and the rename job reports no totals.
+  for (const c of [counts(0, 0), counts(1, 0), counts(1200, 30), counts(0, 42)]) {
+    const success = buildRenameLibrarySuccess(c);
+
+    assert.ok(!/renamed/i.test(success), `claims a completed rename: ${success}`);
+    assert.ok(
+      success.includes("The scan found"),
+      `does not name the scan as the source: ${success}`,
+    );
+  }
 });
 
 test("the reach clause is on every success, whatever the counts", () => {
@@ -93,7 +106,7 @@ test("useRenameLibrary reads every banner from this module", () => {
 
 test("useRenameLibrary composes none of the sentences itself", () => {
   for (const inlined of [
-    "Renamed ${counts",
+    "The scan found",
     "Nothing was changed",
     "skipped`",
     "Couldn't confirm the rename",

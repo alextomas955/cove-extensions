@@ -90,12 +90,15 @@ public sealed class RevertLogBatchTests
             "#batch|R1|123456789|Video|open",    // valid open header
             "notanint|x|y|z",                    // non-int entityId → skipped
             "7|short",                           // too few fields → skipped
-            "7|70|media/a.mkv|media/A.mkv"));    // valid row, with a trailing field the parser ignores
+            "7|70|media/a|b.mkv"));              // valid row whose path carries the separator
 
         Assert.Equal("R1", batch.RunId);
         var only = Assert.Single(rows);
         Assert.Equal(7, only.EntityId);
         Assert.Equal(70, only.FileId);
-        Assert.Equal("media/a.mkv", only.OldPath);
+
+        // The path is the LAST field of a headered row, so everything past the second separator is
+        // part of it. Stopping at the next separator would hand undo a path the file never had.
+        Assert.Equal("media/a|b.mkv", only.OldPath);
     }
 }

@@ -24,13 +24,15 @@ export const UNDO_REACH_CLAUSE = "Undo covers only the last media kind in this r
 /**
  * The banner for a completed run.
  *
- * The counts come from a scan rather than from the rename job, which reports no per-status totals of
- * its own.
+ * Both numbers are a scan's, and the sentence names the scan as their source for that reason: the
+ * rename job reports no per-status totals of its own, so a stated renamed count is a claim nothing on
+ * this path has a source for. A file the scan planned can still be skipped by the run.
  */
 export function buildRenameLibrarySuccess(counts: DryRunCounts): string {
   const skipped = counts.attention > 0 ? `, ${counts.attention} skipped` : "";
+  const plural = counts.willChange === 1 ? "" : "s";
 
-  return `Renamed ${counts.willChange} file${counts.willChange === 1 ? "" : "s"}${skipped}. ${UNDO_REACH_CLAUSE}`;
+  return `Rename finished. The scan found ${counts.willChange} file${plural} to rename${skipped}. ${UNDO_REACH_CLAUSE}`;
 }
 
 /** The banner for a run the job itself reported as failed or cancelled. */

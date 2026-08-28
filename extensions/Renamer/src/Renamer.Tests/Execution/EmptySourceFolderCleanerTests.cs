@@ -16,8 +16,6 @@ namespace Renamer.Tests.Execution;
 /// </summary>
 public sealed class EmptySourceFolderCleanerTests
 {
-    // ── helper-level invariants (Tests 2-7) ──────────────────────────────────
-
     [Fact]
     public void NonEmptyDir_HoldingAnotherFile_IsLeftIntact()
     {
@@ -85,8 +83,6 @@ public sealed class EmptySourceFolderCleanerTests
         Assert.False(removed);
         Assert.Null(warning);
     }
-
-    // ── end-to-end through the executor (Tests 1, 8, 9) ──────────────────────
 
     [Fact]
     public async Task CrossFolderMove_WithOptionOn_DeletesEmptiedSourceDir_FileAtDestination()
@@ -172,8 +168,6 @@ public sealed class EmptySourceFolderCleanerTests
         }
     }
 
-    // ── same-folder renamer never triggers the cleaner (the trigger predicate skips it) ───
-
     [Fact]
     public async Task SameFolderRenamer_NeverEntersCleanup_SourceDirSurvives()
     {
@@ -219,8 +213,6 @@ public sealed class EmptySourceFolderCleanerTests
             await conn.DisposeAsync();
         }
     }
-
-    // ── undo contract: a deleted source folder makes undo SKIP the restore (file not lost) ───
 
     [Fact]
     public async Task UndoOfMoveAfterCleanup_Skips_BecauseOriginalDirectoryGone_FileStaysAtDestination()

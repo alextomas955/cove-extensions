@@ -82,6 +82,10 @@ public sealed class JournalBlobMigrationTests
         Assert.All(batch.Rows, r => Assert.Equal(r.FileId, r.EntityId));
         Assert.Equal([80, 70], batch.Rows.Select(r => r.FileId));
 
+        // The old path is FOLLOWED by the new one here, so it is one field and stops at the next
+        // separator — the opposite of the headered shape, where the path is the last field.
+        Assert.Equal(["/lib/b.mkv", "/lib/a.mkv"], batch.Rows.Select(r => r.OldPath));
+
         // No header means no timestamp to inherit. Treating an unknown age as EXPIRED would delete a
         // pending undo on the next batch open with nothing to say so, which is the outcome this phase
         // exists to make impossible — so an unknown age gets the full window instead.
@@ -90,6 +94,27 @@ public sealed class JournalBlobMigrationTests
         Assert.Equal(Now.Ticks, summary.Value.WrittenAtUtcTicks);
 
         await AssertBothKeysGoneAsync(store);
+    }
+
+    [Fact]
+    public async Task AHeaderedPathContainingTheFieldSeparator_ArrivesWhole()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        await using var _ = db;
+        await using var __ = conn;
+
+        // A truncated path is worse than a dropped row: undo would move the file to a shorter name
+        // that is not where it came from, and report success.
+        const string OldPath = "/lib/Rock|Pop/a|b.mkv";
+
+        var store = await StampedStoreAsync(string.Join("\n", Header(), $"7|70|{OldPath}"));
+        var journal = new CoveRevertJournal(db);
+
+        Assert.Equal(1, await JournalBlobMigration.RunAsync(store, journal, Now));
+
+        var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
+        Assert.NotNull(batch);
+        Assert.Equal(OldPath, Assert.Single(batch.Rows).OldPath);
     }
 
     [Fact]

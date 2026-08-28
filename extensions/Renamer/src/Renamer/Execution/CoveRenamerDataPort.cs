@@ -47,8 +47,6 @@ public class CoveRenamerDataPort : IRenamerDataPort
         _config = config;
     }
 
-    // ── IRenamerDataPort (planner read seam) ──────────────────────────────────
-
     /// <inheritdoc />
     public IReadOnlyList<string> LibraryRoots => ReadLibraryRoots(_config);
 
@@ -233,7 +231,8 @@ public class CoveRenamerDataPort : IRenamerDataPort
         return result;
     }
 
-    // ── Per-kind query + mapper: single-load and batch-load share BOTH so their DTOs cannot drift. ──
+    // Single-load and batch-load share BOTH the per-kind query and its mapper below, so their DTOs
+    // cannot drift apart.
 
     // Each query's ancestor Include hop count is bound to MaxParentDepth (== 3) and guarded by
     // StudioDepthLockstepTests — add or drop a ".ThenInclude(s => s!.Parent)" here without matching the
@@ -378,8 +377,6 @@ public class CoveRenamerDataPort : IRenamerDataPort
     public async Task<int> SaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
         => (await ApplyAndSaveAsync(mutations, ct)).Count;
 
-    // ── Executor-facing primitives ───────────────────────────────────────────
-
     /// <summary>Resolves an existing <see cref="Folder"/> by path or creates+saves one for its Id. Returns the tracked entity.</summary>
     public async Task<Folder> GetOrCreateFolderAsync(string folderPath, CancellationToken ct = default)
     {
@@ -404,6 +401,13 @@ public class CoveRenamerDataPort : IRenamerDataPort
     /// the recomputed Path of each saved file. Throws on a save failure (e.g. the unique-index
     /// violation) so the executor's catch can roll the disk back.
     /// </summary>
+    /// <remarks>
+    /// SINGLE-MUTATION IN PRACTICE. This costs a tracked query per mutation, and another per mutation
+    /// that changes folder, deduping neither; both callers — <see cref="RenamerExecutor"/> and
+    /// <see cref="UndoReplayer"/> — pass exactly one, so no batch shape is exercised. A batching caller
+    /// wants the chunked <c>WHERE Id IN (…)</c> of <see cref="LoadEntitiesAsync"/>, which is
+    /// deliberately not built ahead of one existing.
+    /// </remarks>
     public virtual async Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
         IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
     {
@@ -507,8 +511,6 @@ public class CoveRenamerDataPort : IRenamerDataPort
                 break;
         }
     }
-
-    // ── DTO mapping ──────────────────────────────────────────────────────────
 
     /// <summary>
     /// Walks the loaded studio's parent navigation into the Renamer-owned, NEAREST-FIRST

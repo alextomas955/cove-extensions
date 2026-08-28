@@ -277,8 +277,6 @@ public sealed class CrossVolumeMoverTests
         }
     }
 
-    // ── verify-failure data-loss proofs ───────────────────────────────────────
-    //
     // When the destination copy is corrupted (a flipped byte) or torn (truncated) before verify, the
     // verify FAILS, the SOURCE survives with its original bytes, and the suspect destination and
     // in-flight copy are gone — an interrupted/corrupted transfer never loses the original. The bit-flip
@@ -350,8 +348,6 @@ public sealed class CrossVolumeMoverTests
         Assert.False(File.Exists(inFlight), "no in-flight copy left behind");
     }
 
-    // ── temp-file ownership ───────────────────────────────────────────────────
-    //
     // The regression for the silent data loss this design removed: the mover used to derive one fixed,
     // guessable in-flight path from the destination and delete it before every copy, so a user's own
     // file sitting at that name was destroyed without a word.

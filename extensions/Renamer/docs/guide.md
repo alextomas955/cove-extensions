@@ -48,7 +48,12 @@ destination, and any warnings — without changing anything.
 1. In the **Run & automation** section, click **Dry run**. While the library scans, a progress bar
    shows how far along it is, the number scanned so far, and an estimated time left.
 2. When the scan finishes, the line above the table gives the exact totals: how many files will
-   change, how many need attention, how many are unchanged, and how many were scanned.
+   change, how many need attention, how many are unchanged, and how many were scanned. Renamer keeps
+   one scan result for the whole instance, so if you share it with other people, the totals waiting
+   for you when you open the page are from whichever scan ran most recently — yours or someone
+   else's. Dry-run again when you need figures you know are your own. Those totals are also narrowed
+   to the media kinds your Cove account may read, and the page doesn't name which ones they cover — so
+   a colleague who can read images where you cannot sees larger numbers from the very same scan.
 3. Use the filter (All / Will change / Needs attention / No change) to narrow the table. The
    counts on the buttons always describe the whole scan, so they don't move as you switch between
    them.
@@ -106,9 +111,12 @@ the file was left where it was — check the destination drive before running th
 The run leaves one of three banners behind, and the difference between the last two decides whether
 you have anything to check:
 
-- **It worked**: "Renamed 412 files, 9 skipped. Undo covers only the last media kind in this run."
-  The skipped figure is the _Needs attention_ count from the scan. The closing sentence is explained
-  under [Undo the last rename](#undo-the-last-rename).
+- **The run finished**: "Rename finished. The scan found 412 files to rename, 9 skipped. Undo covers
+  only the last media kind in this run." Both figures are the scan's — what it planned to change, and
+  its _Needs attention_ count — because the run itself reports no totals. A file the scan planned can
+  still be skipped when the rename reaches it, so treat the first number as what was attempted rather
+  than what was renamed; dry-run again to see where the library now stands. The closing sentence is
+  explained under [Undo the last rename](#undo-the-last-rename).
 - **The job reported failure**: "Couldn't rename — [reason]. Nothing was changed; you can try again."
   Cove reported that the work stopped, so nothing was written. Fix the cause it names and run again.
 - **The outcome is unknown**: "Couldn't confirm the rename — [reason]." Renamer stopped watching before
@@ -140,6 +148,10 @@ Know what undo covers:
   decides which record the button offers next.
 - Several renames can be waiting at once, and the button reaches the most recent one that **still has
   files to put back**. What you cannot do is reach past a newer rename to get to an older one.
+- **Undo is shared across everyone on the instance.** Renamer records a rename against the library,
+  not against the person who ran it, so the button offers the most recent rename _anyone_ made and
+  your undo puts those files back. If other people use your instance, check the line above the button
+  before you click it — it may describe a rename that is not yours.
 - **After a partial undo, the line and the button quote what is left rather than what the rename
   started as** — "37 of 500 restored", "463 remaining", and a button offering those 463. Files that
   can never go back are counted separately in the same line, so a partly-undone rename describes

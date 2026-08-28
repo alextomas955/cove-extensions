@@ -148,7 +148,7 @@ test("a completed job still resolves through the same poll", async () => {
   expect(hook.current.renamingLibrary).toBe(false);
   expect(hook.current.runLibraryFeedback).toEqual({
     kind: "success",
-    text: "Renamed 3 files. Undo covers only the last media kind in this run.",
+    text: "Rename finished. The scan found 3 files to rename. Undo covers only the last media kind in this run.",
   });
   expect(hook.current.undoRefreshKey).toBe(1);
   // The rename POST, then exactly one job read: the job answered on the first look, so the loop
