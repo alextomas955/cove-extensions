@@ -48,7 +48,10 @@ destination, and any warnings — without changing anything.
 1. In the **Run & automation** section, click **Dry run**. While the library scans, a progress bar
    shows how far along it is, the number scanned so far, and an estimated time left.
 2. When the scan finishes, the line above the table gives the exact totals: how many files will
-   change, how many need attention, how many are unchanged, and how many were scanned.
+   change, how many need attention, how many are unchanged, and how many were scanned. Renamer keeps
+   one scan result for the whole instance, so if you share it with other people, the totals waiting
+   for you when you open the page are from whichever scan ran most recently — yours or someone
+   else's. Dry-run again when you need figures you know are your own.
 3. Use the filter (All / Will change / Needs attention / No change) to narrow the table. The
    counts on the buttons always describe the whole scan, so they don't move as you switch between
    them.
@@ -140,6 +143,10 @@ Know what undo covers:
   decides which record the button offers next.
 - Several renames can be waiting at once, and the button reaches the most recent one that **still has
   files to put back**. What you cannot do is reach past a newer rename to get to an older one.
+- **Undo is shared across everyone on the instance.** Renamer records a rename against the library,
+  not against the person who ran it, so the button offers the most recent rename _anyone_ made and
+  your undo puts those files back. If other people use your instance, check the line above the button
+  before you click it — it may describe a rename that is not yours.
 - **After a partial undo, the line and the button quote what is left rather than what the rename
   started as** — "37 of 500 restored", "463 remaining", and a button offering those 463. Files that
   can never go back are counted separately in the same line, so a partly-undone rename describes
