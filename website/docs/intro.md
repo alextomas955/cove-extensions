@@ -17,7 +17,7 @@ independently.
 
 This site has two sections:
 
-- **[Contributing](./contributing/)** — how to work in this repo: branching, releasing, and
-  authoring end-to-end tests.
+- **[Contributing](./contributing/)** — how to work in this repo, from a first build through the
+  daily loop, the tests, the shape rules for an extension, and how a release is cut.
 - **[Extensions](./extensions/renamer/)** — documentation for each extension, starting with
   Renamer.
