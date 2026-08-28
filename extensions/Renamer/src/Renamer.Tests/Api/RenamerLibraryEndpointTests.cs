@@ -206,7 +206,10 @@ public sealed class RenamerLibraryEndpointTests
             }
 
             Assert.Equal(1d, percents[^1]);
-            Assert.Equal(1, percents.Count(p => p == 1d));
+
+            // Compared within a tolerance rather than exactly: the slice drops anything that reaches
+            // the run's end, so the only report that can land here is the run's own final one.
+            Assert.Equal(1, percents.Count(p => Math.Abs(p - 1d) < 1e-9));
         }
         finally
         {
