@@ -142,6 +142,11 @@ Know what undo covers:
   decides which record the button offers next.
 - Several renames can be waiting at once, and the button reaches the most recent one that **still has
   files to put back**. What you cannot do is reach past a newer rename to get to an older one.
+- **Undo is shared by everyone on the instance, not kept per person.** If two people use Renamer, the
+  button offers the most recent rename anyone ran, and undoing it puts back someone else's work as
+  readily as your own. The same applies to the scan on the settings page: you see whichever scan ran
+  most recently, whoever started it. This follows the permissions — anyone who can rename can rename
+  the whole library — so undo reaches exactly as far as the rename it reverses.
 - **After a partial undo, the line and the button quote what is left rather than what the rename
   started as** — "37 of 500 restored", "463 remaining", and a button offering those 463. Files that
   can never go back are counted separately in the same line, so a partly-undone rename describes
