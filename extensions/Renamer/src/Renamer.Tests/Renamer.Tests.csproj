@@ -169,5 +169,6 @@
     <Compile Remove="TestSupport\ExtensionHarness.cs" />
     <Compile Remove="TestSupport\JournalOnlyDatabase.cs" />
     <Compile Remove="TestSupport\LibraryDatabase.cs" />
+    <Compile Remove="TestSupport\TransportHost.cs" />
   </ItemGroup>
 </Project>

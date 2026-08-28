@@ -2,14 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Cove.Core.Auth;
-using Cove.Core.Interfaces;
-using Cove.Data;
-using Cove.Plugins;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Renamer.Contracts;
 using Renamer.Planner;
 using Renamer.Tests.TestSupport;
@@ -30,7 +22,7 @@ namespace Renamer.Tests.Api;
 /// </summary>
 public sealed class TransportSmokeTests
 {
-    private const string Base = "/api/extensions/com.alextomas955.renamer";
+    private const string Base = TransportHost.BaseRoute;
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
     public static TheoryData<string, string> Routes()
@@ -159,70 +151,5 @@ public sealed class TransportSmokeTests
                     BlastRadius: blastRadius,
                     VolumePairsTruncated: false),
             ]);
-    }
-
-    private sealed class RecordingJobService : IJobService
-    {
-        public string Enqueue(string type, string description, Func<Cove.Core.Interfaces.IJobProgress, CancellationToken, Task> work, bool exclusive = true)
-            => "job-1";
-
-        public bool Cancel(string jobId) => throw new NotSupportedException();
-        public bool ReorderQueued(string jobId, string? beforeJobId) => throw new NotSupportedException();
-        public JobInfo? GetJob(string jobId) => throw new NotSupportedException();
-        public IReadOnlyList<JobInfo> GetAllJobs() => throw new NotSupportedException();
-        public IReadOnlyList<JobInfo> GetJobHistory() => throw new NotSupportedException();
-    }
-
-    private sealed class TransportHost : IAsyncDisposable
-    {
-        private readonly WebApplication _app;
-        private readonly SqliteConnection _conn;
-        private readonly CoveContext _db;
-        public HttpClient Client { get; }
-
-        private TransportHost(WebApplication app, HttpClient client, SqliteConnection conn, CoveContext db)
-        {
-            _app = app;
-            Client = client;
-            _conn = conn;
-            _db = db;
-        }
-
-        public static async Task<TransportHost> BootAsync(
-            ICurrentPrincipalAccessor principal, IExtensionStore? store = null)
-        {
-            var conn = new SqliteConnection("Data Source=:memory:");
-            await conn.OpenAsync();
-            var db = new CoveContext(new DbContextOptionsBuilder<CoveContext>().UseSqlite(conn).Options, principalAccessor: null);
-            await db.Database.EnsureCreatedAsync();
-
-            var builder = WebApplication.CreateSlimBuilder();
-            builder.WebHost.UseTestServer();
-            builder.Services.AddSingleton(principal);
-            builder.Services.AddSingleton<DbContext>(db);
-            builder.Services.AddSingleton<IJobService>(new RecordingJobService());
-            builder.Services.AddSingleton<Cove.Core.Events.IEventBus>(new TestSupport.CapturingEventBus());
-            builder.Services.AddRouting();
-
-            var ext = RenamerFixture.Create();
-            ((IStatefulExtension)ext).SetStore(store ?? new FakeStore());
-
-            var app = builder.Build();
-            // Initialized the way the host does: the undo endpoints resolve a scope of their own now,
-            // so a handler reached without this throws before it can answer.
-            await ext.InitializeAsync(app.Services);
-            ext.MapEndpoints(app);
-            await app.StartAsync();
-
-            return new TransportHost(app, app.GetTestClient(), conn, db);
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            await _app.StopAsync();
-            await _app.DisposeAsync();
-            await _db.DisposeAsync();
-            await _conn.DisposeAsync();
-        }
     }
 }
