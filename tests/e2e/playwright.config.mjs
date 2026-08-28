@@ -63,10 +63,16 @@ export default defineConfig({
   // A committed `.only` silently shrinks the suite to the focused test and still exits 0, which reads
   // as a green run over work nothing checked. Keyed on CI so a local focused run stays possible.
   forbidOnly: !!process.env.CI,
-  // Each worker holds a Cove container and a database of its own, so the ceiling is the runner's cores
-  // rather than the spec count. CI and a development machine answer to the same ceiling, so they take
-  // the same number.
-  workers: 4,
+  // A worker holds a Cove container and a database of its own, and a spec that takes an isolated
+  // harness starts a SECOND pair alongside its worker's for as long as that spec runs — so the peak
+  // is twice the worker count, not equal to it. The database keeps its data directory on tmpfs, which
+  // is RAM, so that peak is paid in memory rather than on disk.
+  //
+  // CI and a development machine do NOT answer to the same ceiling: a shared runner has to hold the
+  // build as well, and when it runs short the kernel kills a container rather than failing a test.
+  // That arrives as a spec timing out against a host serving nothing, which reads as a UI defect and
+  // costs the run twice — once in the red, once in the wrong diagnosis.
+  workers: process.env.CI ? 2 : 4,
   retries: process.env.CI ? 2 : 0,
 
   // Retries exist so an infrastructure hiccup does not fail a run, not so a flaky test can hide behind
