@@ -319,6 +319,11 @@ public interface IRenamerDataPort
     /// Contract the executor's rollback spine depends on: an implementation throws on a save failure
     /// (e.g. a unique-index violation) rather than swallowing it, so the caller's catch can roll the
     /// on-disk move back.
+    /// <para>
+    /// SINGLE-MUTATION IN PRACTICE: the only two callers, <c>RenamerExecutor</c> and
+    /// <c>UndoReplayer</c>, each pass one mutation, so an implementation may cost a query per element.
+    /// A caller that starts passing many is asking for a batched implementation and has to say so.
+    /// </para>
     /// </remarks>
     Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default);
 }

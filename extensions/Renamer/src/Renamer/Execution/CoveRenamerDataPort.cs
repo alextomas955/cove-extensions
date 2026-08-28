@@ -401,6 +401,13 @@ public class CoveRenamerDataPort : IRenamerDataPort
     /// the recomputed Path of each saved file. Throws on a save failure (e.g. the unique-index
     /// violation) so the executor's catch can roll the disk back.
     /// </summary>
+    /// <remarks>
+    /// SINGLE-MUTATION IN PRACTICE. This costs a tracked query per mutation, and another per mutation
+    /// that changes folder, deduping neither; both callers — <see cref="RenamerExecutor"/> and
+    /// <see cref="UndoReplayer"/> — pass exactly one, so no batch shape is exercised. A batching caller
+    /// wants the chunked <c>WHERE Id IN (…)</c> of <see cref="LoadEntitiesAsync"/>, which is
+    /// deliberately not built ahead of one existing.
+    /// </remarks>
     public virtual async Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(
         IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default)
     {
