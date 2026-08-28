@@ -480,7 +480,7 @@ public sealed class UndoReplayerTests
             Assert.Contains("no row", failure.Reason);
             Assert.DoesNotContain("recomputed Path", failure.Reason);
             Assert.DoesNotContain("rolled back", failure.Reason);
-            Assert.NotEqual(UndoStopReason.RestoredPathMismatch, failure.Stop);
+            Assert.Equal(UndoStopReason.SaveReportedNoRow, failure.Stop);
             Assert.Equal(0, result.Undone);
             Assert.Empty(result.Restored);
             Assert.Empty(undoBus.Published);

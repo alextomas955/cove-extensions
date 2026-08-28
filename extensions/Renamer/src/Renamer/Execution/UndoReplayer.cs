@@ -280,7 +280,7 @@ public sealed class UndoReplayer
                 return new RevertOutcome.Failed(new UndoFailure(
                     entry.RunId, entry.Seq, entry.FileId, entry.OldPath, currentPath,
                     "the save reported no row for this file, so the restored path could not be verified",
-                    UndoStopReason.UnexpectedError));
+                    UndoStopReason.SaveReportedNoRow));
             }
 
             string recomputed = savedFile.Value.RecomputedPath;
