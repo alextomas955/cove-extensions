@@ -17,10 +17,11 @@ namespace Renamer.Execution;
 /// timestamp, the run's <see cref="RenamerFileKind"/> and a lifecycle marker; a <em>data row</em> is
 /// <c>entityId|fileId|old</c>, where the entityId is the PARENT entity (e.g. the Video) and the fileId
 /// the physical file row. The leading <c>#</c> cannot begin an integer entityId, so the two are
-/// unambiguous. Both parsers read a PREFIX of a line, so a row carrying extra trailing fields still
-/// yields its entry, and a blob with NO header at all is one implicit, still-replayable
-/// <see cref="RenamerFileKind.Video"/> batch whose rows are <c>fileId|old</c> with EntityId = FileId.
-/// A header or data line with missing/short fields or a non-integer id is skipped, never thrown.
+/// unambiguous. The header parser reads a PREFIX of its line, so a header carrying extra trailing
+/// fields still yields its entry. A blob with NO header at all is one implicit, still-replayable
+/// <see cref="RenamerFileKind.Video"/> batch whose rows are <c>fileId|old|new</c> with
+/// EntityId = FileId. A header or data line with missing/short fields or a non-integer id is skipped,
+/// never thrown.
 /// </para>
 /// </remarks>
 public static class RevertLog
@@ -43,7 +44,6 @@ public static class RevertLog
     /// </remarks>
     public const string CurrentSchema = "2";
 
-    // The field separator. Paths are forward-slash and never contain '|' on the platforms Cove runs.
     private const char FieldSep = '|';
 
     // Header line prefix + the marker a still-replayable batch carries.
@@ -140,9 +140,16 @@ public static class RevertLog
 
     /// <summary>
     /// Parses the data rows in <c>lines[start..end)</c>, in append order. When
-    /// <paramref name="headerless"/> the row form is <c>fileId|old</c> and EntityId is set to FileId;
-    /// otherwise <c>entityId|fileId|old</c>. Header lines and malformed/short lines are skipped.
+    /// <paramref name="headerless"/> the row form is <c>fileId|old|new</c> and EntityId is set to
+    /// FileId; otherwise <c>entityId|fileId|old</c>. Header lines and malformed/short lines are skipped.
     /// </summary>
+    /// <remarks>
+    /// The separator is legal in a path on every platform Cove runs on, so the two shapes cannot treat
+    /// it alike. In the headered form the path is the LAST field, so everything past the second
+    /// separator is part of it and rejoining is lossless. In the headerless form the path is followed
+    /// by the destination it moved to, so it ends at the next separator — a path carrying one is
+    /// unrecoverable there, and inventing a rejoin would corrupt every row that has a destination.
+    /// </remarks>
     public static List<RevertEntry> ParseRows(string[] lines, int start, int end, bool headerless)
     {
         var rows = new List<RevertEntry>();
@@ -174,7 +181,8 @@ public static class RevertLog
                     continue;
                 }
 
-                rows.Add(new RevertEntry(entityId, fileId, parts[2]));
+                rows.Add(new RevertEntry(
+                    entityId, fileId, string.Join(FieldSep, parts, 2, parts.Length - 2)));
             }
         }
 
