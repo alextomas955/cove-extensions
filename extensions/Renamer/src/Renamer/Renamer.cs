@@ -21,7 +21,6 @@ public sealed partial class Renamer : FullExtensionBase
     // (IManifestAware.ApplyManifest) before it reads any of them. The host reads each value straight
     // off the property, so an override declared here overrides the manifest silently.
 
-    // ── Executor wiring ───────────────────────────────────────────────────────
     // The executor needs a SCOPED CoveContext per run (a DbContext is scoped, not singleton) and the
     // host IEventBus for the post-renamer reindex event. Capture the scope factory + event bus
     // in InitializeAsync; a run opens its own scope via CreateAsyncScope() and resolves the scoped
@@ -306,7 +305,6 @@ public sealed partial class Renamer : FullExtensionBase
         }
     }
 
-    // ── Shared batch core ─────────────────────────────────────────────────────
     // The SINGLE method the job runner and the /renamer enqueued delegate both
     // call. A THIN adapter over the planner+executor: decode → scope → loop → report. No
     // renamer/move/collision/rollback logic lives here.
@@ -447,7 +445,6 @@ public sealed partial class Renamer : FullExtensionBase
 
         LogBatchStarted(runId, kind, ids.Length);
 
-        // ── PHASE A — sequential, read-only: plan + classify every id, capture file sizes ──────────
         // Kept sequential (not parallelized) for deterministic preview ordering; planning mutates
         // nothing the workers race (the port reads AsNoTracking). This single-threaded scope is ALSO
         // where every distinct destination Folder row is resolved/created ONCE — folder creation is
@@ -573,7 +570,6 @@ public sealed partial class Renamer : FullExtensionBase
         // completed file, so a later stall is legible as "stuck partway through {Acting}", not silence.
         LogPlanningDone(runId, acting.Count, ids.Length);
 
-        // ── PHASE B — execute, partitioned + bounded, per-worker scope ─────────────────────────────
         // Map a move back to its unit by the source full path so each partition group hands the worker
         // the right single-file plan. A duplicate OldFullPath (e.g. two Folder rows sharing one Path,
         // or two entities resolving to a colliding old path) would make ToDictionary throw an

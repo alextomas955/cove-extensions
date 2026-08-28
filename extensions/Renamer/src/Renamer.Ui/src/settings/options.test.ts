@@ -334,7 +334,6 @@ test("a name-valued whitelist coerces to empty rather than reaching the backend 
   assert.deepEqual(loaded.Performers.BlacklistIds, []);
 });
 
-// ── hasUnmigratedNameRules: what stops the erasure above from reaching the store ──
 //
 // The two tests above pin that normalizeOptions empties every name-keyed rule.
 // `extractUnmodeledFields` walks TOP-LEVEL keys only, and both groups and `TagDestinations` are

@@ -59,6 +59,45 @@ public sealed class JournalBlobMigrationTests
         await AssertBothKeysGoneAsync(store);
     }
 
+    /// <summary>
+    /// A legacy path containing the field separator migrates TRUNCATED. Known, and deliberately not
+    /// "fixed" by rejoining the split pieces.
+    /// </summary>
+    /// <remarks>
+    /// The blob never escaped a separator inside a path, and '|' is legal in a POSIX filename, so such a
+    /// row splits into more fields than its form has. It is not recoverable: both forms tolerate extra
+    /// trailing fields by design, and the older headerless form is `fileId|old|new`, so a long row is
+    /// ambiguous between a path containing a separator and a path followed by another field. Rejoining
+    /// would yield a plausible path that never existed — worse than a visibly truncated one, on a value
+    /// that decides where a user's file is restored to.
+    /// <para>
+    /// Pinned rather than left undocumented so the truncation is a known property with a stated reason
+    /// instead of a surprise. Settling it needs a measurement of what real stores hold; whether any
+    /// still carries such a blob is unmeasured.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ALegacyPathContainingTheSeparator_MigratesTruncated_AndIsNotGuessedAt()
+    {
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        await using var _ = db;
+        await using var __ = conn;
+
+        // Hand-written, and deliberately NOT produced by the writer under test.
+        var store = await StampedStoreAsync(
+            string.Join("\n", Header(), "7|70|/lib/Artist |Live| Session/a.mkv"));
+        var journal = new CoveRevertJournal(db);
+
+        int moved = await JournalBlobMigration.RunAsync(store, journal, Now);
+
+        Assert.Equal(1, moved);
+        var batch = await JournalPageReader.ReadWholeUndoTargetAsync(journal);
+        Assert.NotNull(batch);
+
+        // Truncated at the first separator, and NOT silently rejoined into something plausible.
+        Assert.Equal("/lib/Artist ", Assert.Single(batch!.Rows).OldPath);
+    }
+
     [Fact]
     public async Task AHeaderlessJournal_MigratesThroughTheTolerantLegacyPath()
     {

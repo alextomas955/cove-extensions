@@ -340,7 +340,6 @@ export function cloneDefaults(): RenamerOptions {
   };
 }
 
-// ── normalizeOptions: the /preview-sample dual-source fix ──
 //
 // A legacy stored "options" blob can carry STALE camelCase duplicate keys (e.g. `filenameTemplate`,
 // `dateFormat`) alongside the canonical PascalCase keys. The old load path spread-merged the raw blob,

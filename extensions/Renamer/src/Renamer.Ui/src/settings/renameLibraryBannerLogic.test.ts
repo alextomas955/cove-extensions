@@ -50,7 +50,7 @@ test("the success banner never claims files were renamed", () => {
   // skipped a file the scan had counted. Restoring the confident wording needs execution counts first.
   for (const c of [counts(0, 0), counts(1, 0), counts(1200, 30), counts(0, 42)]) {
     assert.ok(
-      !buildRenameLibrarySuccess(c).includes('Renamed'),
+      !buildRenameLibrarySuccess(c).includes("Renamed"),
       `the success banner claims a completed rename: ${buildRenameLibrarySuccess(c)}`,
     );
   }

@@ -319,6 +319,19 @@ public interface IRenamerDataPort
     /// Contract the executor's rollback spine depends on: an implementation throws on a save failure
     /// (e.g. a unique-index violation) rather than swallowing it, so the caller's catch can roll the
     /// on-disk move back.
+    /// <para>
+    /// The signature takes a SET, but both callers — the executor's per-item save and the undo
+    /// replayer's — pass exactly one mutation, and the shipped implementation is written for that: it
+    /// issues one tracked query per mutation, and another per mutation whose folder changed, with no
+    /// dedup. It is therefore single-mutation in practice, and a caller that ever passes a real batch
+    /// should chunk it the way <c>LoadEntitiesAsync</c> already does (one <c>WHERE Id IN (…)</c> per
+    /// chunk) rather than inherit the per-row shape.
+    /// </para>
+    /// <para>
+    /// An implementation may return FEWER rows than it was handed. The shipped one throws instead, but
+    /// that is its own behavior and not a guarantee stated here, so a caller reading a specific file's
+    /// result must handle its absence rather than index into the list.
+    /// </para>
     /// </remarks>
     Task<IReadOnlyList<SavedFile>> ApplyAndSaveAsync(IReadOnlyList<RenamerFileMutation> mutations, CancellationToken ct = default);
 }

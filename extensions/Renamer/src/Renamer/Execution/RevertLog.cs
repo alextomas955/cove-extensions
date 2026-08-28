@@ -43,7 +43,15 @@ public static class RevertLog
     /// </remarks>
     public const string CurrentSchema = "2";
 
-    // The field separator. Paths are forward-slash and never contain '|' on the platforms Cove runs.
+    // The field separator, unescaped. A path CAN contain it — '|' is legal in a POSIX filename, and the
+    // host runs on Linux — so a row whose path holds one splits into more fields than its form has and
+    // the path is read truncated at the first one. That is not repairable here and must not be guessed
+    // at: both forms tolerate extra trailing fields by design (see the format note above), and the older
+    // headerless form is `fileId|old|new`, so a long row is genuinely ambiguous between "a path
+    // containing a separator" and "a path followed by another field". Joining the pieces back would
+    // produce a plausible path that never existed, where a truncated one is at least visibly wrong, and
+    // this value decides where a user's file is restored to. Settling it needs a measurement of what
+    // real stores actually hold, not a parser change.
     private const char FieldSep = '|';
 
     // Header line prefix + the marker a still-replayable batch carries.
