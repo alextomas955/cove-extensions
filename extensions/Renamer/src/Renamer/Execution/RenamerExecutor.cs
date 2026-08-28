@@ -309,43 +309,6 @@ public sealed class RenamerExecutor
                 failed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.Failed, note));
                 return;
             }
-
-            // (8) Success: journal row + reindex event. The row carries plan.EntityId — the SAME value
-            //     published on the next line — so the journalled id and the event id are identical by
-            //     construction (undo reconstructs the exact forward event from the row).
-            //     Seq is passed as 0 because the journal mints it on append.
-            //
-            //     The delta is built from what ACTUALLY moved, never from what was planned, and it is
-            //     RECORDED rather than left to be recomputed at undo time. Two reasons, neither of them
-            //     stylistic: RetargetCaption only rewrites a caption whose name starts with the old
-            //     stem, so the forward transform is not invertible in general; and a caption rename is
-            //     applied only for a sidecar whose file really moved on disk (see the moved-only filter
-            //     above), which is a runtime fact no string arithmetic recovers afterwards. One row and
-            //     one delta at this single append site, so a crash cannot leave the two disagreeing.
-            var delta = BuildRevertDelta(srcFile, movedSidecars, appliedCaptionRenames);
-            await _journal.AppendAsync(
-                new RevertRow(_runId, Seq: 0, plan.EntityId, item.FileId, item.OldFullPath, delta.Serialize()), ct);
-            _eventBus.Publish(new EntityEvent(EventTypeFor(plan.Kind), EntityTypeName(plan.Kind), plan.EntityId));
-
-            // (9) Opt-in empty-source-folder cleanup, AFTER the save + assertion pass — never before
-            //     (a failed save rolls the disk back, so deleting the source dir earlier could be
-            //     unrecoverable). Fires only when a move actually changed the parent directory: a
-            //     same-folder renamer leaves the file in that dir, so the dir is never empty. A cleanup
-            //     failure is a non-fatal warning carried on the moved result — the move already
-            //     succeeded and the DB agrees, so it must never reclassify the item as failed.
-            string? cleanupWarning = null;
-            if (isMove && options.RemoveEmptyFolder && !PathsEqual(DirOf(item.OldFullPath), DirOf(newFull)))
-            {
-                (_, cleanupWarning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(DirOf(item.OldFullPath));
-            }
-
-            if (cleanupWarning is not null)
-            {
-                sidecarWarnings.Add(cleanupWarning);
-            }
-
-            renamed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, item.Status,
-                sidecarWarnings.Count > 0 ? string.Join("; ", sidecarWarnings) : null));
         }
         catch (Exception ex)
         {
@@ -374,7 +337,68 @@ public sealed class RenamerExecutor
                 ? $"DB save failed; rollback INCOMPLETE: {ex.Message}; rollback warnings: {string.Join("; ", rbWarnings)}"
                 : $"DB save failed; file rolled back: {ex.Message}";
             failed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, RenamerStatus.Failed, note));
+            return;
         }
+
+        // (8) POST-COMMIT. Everything from here runs with the save already committed and the on-disk
+        //     path already asserted, so it sits OUTSIDE the rollback catch above. A throw here is not a
+        //     save failure: reverting the move would undo a rename the database agrees with, and report
+        //     the item failed for something the save did not do. Each step is best-effort and its
+        //     failure is a warning on the renamed result.
+        var postCommitWarnings = new List<string>();
+
+        // The journal row carries plan.EntityId — the SAME value published on the next line — so the
+        // journalled id and the event id are identical by construction (undo reconstructs the exact
+        // forward event from the row). Seq is passed as 0 because the journal mints it on append.
+        //
+        // The delta is built from what ACTUALLY moved, never from what was planned, and it is RECORDED
+        // rather than left to be recomputed at undo time. Two reasons, neither of them stylistic:
+        // RetargetCaption only rewrites a caption whose name starts with the old stem, so the forward
+        // transform is not invertible in general; and a caption rename is applied only for a sidecar
+        // whose file really moved on disk (see the moved-only filter above), which is a runtime fact no
+        // string arithmetic recovers afterwards. One row and one delta at this single append site, so a
+        // crash cannot leave the two disagreeing.
+        //
+        // A failed append costs this item its undo entry, which is worth a warning and nothing more —
+        // the file is where the database says it is, which is what the safety spine promises.
+        try
+        {
+            var delta = BuildRevertDelta(srcFile, movedSidecars, appliedCaptionRenames);
+            await _journal.AppendAsync(
+                new RevertRow(_runId, Seq: 0, plan.EntityId, item.FileId, item.OldFullPath, delta.Serialize()), ct);
+            _eventBus.Publish(new EntityEvent(EventTypeFor(plan.Kind), EntityTypeName(plan.Kind), plan.EntityId));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A cancellation stays cancellation and aborts the run; what it must NOT do any more is roll
+            // a committed move back, which is the whole reason this region sits outside the catch above.
+            postCommitWarnings.Add($"revert-log entry not written: {ex.Message}");
+        }
+
+        // (9) Opt-in empty-source-folder cleanup, LAST — never before the save (a failed save rolls the
+        //     disk back, so deleting the source dir earlier could be unrecoverable). Fires only when a
+        //     move actually changed the parent directory: a same-folder renamer leaves the file in that
+        //     dir, so the dir is never empty. The cleaner classifies rather than throws for the states it
+        //     anticipates; the try covers the ones it does not.
+        if (isMove && options.RemoveEmptyFolder && !PathsEqual(DirOf(item.OldFullPath), DirOf(newFull)))
+        {
+            try
+            {
+                var (_, cleanupWarning) = EmptySourceFolderCleaner.TryRemoveIfEmpty(DirOf(item.OldFullPath));
+                if (cleanupWarning is not null)
+                {
+                    postCommitWarnings.Add(cleanupWarning);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                postCommitWarnings.Add($"empty-folder cleanup skipped: {ex.Message}");
+            }
+        }
+
+        var itemWarnings = sidecarWarnings.Concat(postCommitWarnings).ToList();
+        renamed.Add(new ItemResult(item.FileId, item.OldFullPath, newFull, item.Status,
+            itemWarnings.Count > 0 ? string.Join("; ", itemWarnings) : null));
     }
 
     // ── move-spine sub-steps (extracted from ExecuteItemAsync; control flow unchanged) ─────────

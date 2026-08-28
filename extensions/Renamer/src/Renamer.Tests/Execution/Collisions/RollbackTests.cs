@@ -249,6 +249,65 @@ public sealed class RollbackTests
     }
 
     /// <summary>
+    /// The journal append runs AFTER the save committed and the on-disk path was asserted, so a throw
+    /// there is not a save failure: rolling the disk back would revert a move the database already
+    /// agrees with, and would report the item failed for something the save did not do. The move stands
+    /// and the failure is a warning on it.
+    /// </summary>
+    [Fact]
+    public async Task JournalAppendThrowsAfterTheSaveCommitted_MoveStands_WarnedNotRolledBack()
+    {
+        using var dir = new TempDir();
+        var (db, conn) = await CoveContextFactory.CreateSqliteContextAsync();
+        try
+        {
+            string folderPath = dir.Root.Replace('\\', '/');
+            var (_, videoId, fileA) =
+                await ExecutorTestSeed.SeedVideoAsync(db, folderPath, "a.mkv", "Film A");
+
+            string oldA = Path.Combine(dir.Root, "a.mkv");
+            File.WriteAllText(oldA, "A-bytes");
+            string newPath = Path.Combine(dir.Root, "b.mkv");
+
+            var plan = new RenamerPlan(videoId, RenamerFileKind.Video,
+            [
+                new RenamerPlanItem(fileA, folderPath + "/a.mkv", folderPath + "/b.mkv",
+                    RenamerStatus.Renamer, "b.mkv", folderPath),
+            ]);
+
+            var journal = new FakeRevertJournal
+            {
+                AppendThrow = new InvalidOperationException("journal write failed"),
+            };
+            var executor = new RenamerExecutor(
+                new CoveRenamerDataPort(db), new CapturingEventBus(), journal, "run-test", new DiskMover());
+
+            var result = await executor.ExecuteAsync(plan, new RenamerOptions(), default);
+
+            // The file is renamed, not failed and not rolled back.
+            Assert.Empty(result.Failed);
+            var renamedItem = Assert.Single(result.Renamed);
+            Assert.Equal(RenamerStatus.Renamer, renamedItem.Status);
+            Assert.NotNull(renamedItem.Reason);
+            Assert.Contains("journal write failed", renamedItem.Reason);
+
+            Assert.True(File.Exists(newPath), "a committed move must survive a post-save failure");
+            Assert.Equal("A-bytes", File.ReadAllText(newPath));
+            Assert.False(File.Exists(oldA), "the old slot must stay empty");
+
+            // The database agrees with the disk — the whole point of not rolling back here.
+            var (basename, path) = await ExecutorTestSeed.ReadFileAsync(db, fileA);
+            Assert.Equal("b.mkv", basename);
+            Assert.Equal(folderPath + "/b.mkv", path);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <summary>
     /// Test-only port: performs the REAL save (so the DB row genuinely commits the new basename), then
     /// returns a <see cref="SavedFile"/> whose RecomputedPath is deliberately wrong,
     /// so the executor's post-save "recomputed Path == on-disk path" assertion fails on the success path.
