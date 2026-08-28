@@ -1,3 +1,7 @@
+---
+sidebar_position: 5
+---
+
 # Adding an Extension's E2E Suite
 
 The shared end-to-end harness lives at [`tests/e2e/`](https://github.com/alextomas955/cove-extensions/tree/main/tests/e2e) and is published as the
@@ -98,8 +102,11 @@ npm test -- --project=<yourext>
 which publishes every extension whose catalog entry declares an e2e suite. Running `npx playwright
 test` directly skips that hook, so the suite installs whatever publish output is already on disk.
 
-CI runs the same command for every catalog entry that declares `e2ePath`/`e2eProject` — see
-`.github/workflows/build.yml`'s `e2e` job. There is no CI-only fork of the harness.
+CI runs the same harness against every catalog entry that declares `e2ePath`/`e2eProject` — see
+`.github/workflows/build.yml`'s `e2e` job. There is no CI-only fork of the harness. The command is not
+byte-identical across legs, though: that job is a matrix over Cove images, and the leg pinned to the
+newest released host runs only the `@smoke`-tagged subset, while the other leg runs the suite
+unfiltered. So a spec left untagged is exercised on one leg, not both.
 
 See [`tests/e2e/README.md`](https://github.com/alextomas955/cove-extensions/blob/main/tests/e2e/README.md) for the full harness reference (fixtures,
 parallel execution, cleanup, implementation notes).

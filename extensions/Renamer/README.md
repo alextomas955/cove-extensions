@@ -58,7 +58,7 @@ npm run generate:wire
 Then, from `src/Renamer.Ui/`:
 
 ```sh
-npm install       # first time only (offline; installs the vendored SDK)
+npm ci            # first time only (offline; installs the vendored SDK)
 npm run verify    # typecheck + format:check + check-classes + check-host-imports + tests
 npm run build     # rebuild dist/index.mjs
 ```

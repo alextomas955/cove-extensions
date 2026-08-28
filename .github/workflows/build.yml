@@ -45,8 +45,8 @@ jobs:
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       # A SECOND output, deliberately: `build` and `e2e` both read `matrix`, so widening that one
-      # widening that one would multiply `build` — which compiles against CoveSourceMode=none and has
-      # nothing to do with a host version.
+      # would multiply `build` — which compiles against CoveSourceMode=none and has nothing to do
+      # with a host version.
       coveMatrix: ${{ steps.coveMatrix.outputs.coveMatrix }}
     steps:
       - uses: actions/checkout@v7

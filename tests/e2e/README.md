@@ -219,7 +219,8 @@ the cleanup command.
 
 - [`docker/docker-compose.yml`](docker/docker-compose.yml) — the official `ghcr.io/yourcove/cove-app`
   image + a `pgvector/pgvector` Postgres container, both using `tmpfs`/ephemeral state, published on
-  a random host port (`0:5073` — Docker assigns a free port) so parallel runs never collide. The
+  a host port that defaults to `0`, letting Docker assign a free one, so parallel runs never collide
+  (`COVE_E2E_PORT` overrides it). The
   `cove` service also mounts a `tmpfs` at `/data2` — see `lib/harness.mjs` and
   `cross-device-move.spec.mjs` for why.
 - [`lib/harness.mjs`](lib/harness.mjs) — `startHarness()` uses
@@ -254,11 +255,10 @@ the cleanup command.
 
 ## Scope
 
-This harness verifies extension install/lifecycle + behavior against a real Cove instance. It is also
-the **L3 gate** for the C# tier taxonomy: that taxonomy reserves L3 for containerized end-to-end, no
-xUnit class in this repo carries the trait, and this suite is what fills the role instead. See
-[`Renamer.Tests/README.md`](../../extensions/Renamer/src/Renamer.Tests/README.md) for the taxonomy
-itself.
+This harness verifies extension install/lifecycle + behavior against a real Cove instance. It is the
+only tier that exercises a shipped extension against a running host, so it covers what no unit tier
+can see. For how it sits against the C# tiers, see
+[`Renamer.Tests/README.md`](../../extensions/Renamer/src/Renamer.Tests/README.md).
 
 **Authentication is off by default, and a spec that needs it on provisions its own instance.** The
 worker-shared instances run `COVE__Auth__Enabled=false`, where every request resolves to a bypass
@@ -275,6 +275,6 @@ It does not (yet):
 
 - Support the GitHub-registry-backed install flow (container-copy is the only install path).
 - Run anywhere but on Linux containers. Cove ships no Windows container image, so the containerized
-  suite is Linux-only, and the Windows and macOS CI jobs build and run the unit tiers instead. On a
-  GitHub-hosted macOS runner that is permanent rather than pending — those runners ship no Docker
-  daemon at all.
+  suite is Linux-only and the Windows CI job builds and runs a unit tier instead. On a GitHub-hosted
+  macOS runner the limit is permanent rather than pending, since those runners ship no Docker daemon at
+  all — though no macOS job exists in this repo today.

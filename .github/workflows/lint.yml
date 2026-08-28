@@ -163,10 +163,10 @@ jobs:
       - name: knip (dead files / exports / dependencies)
         run: npm run knip
 
-      # Copy-paste, thresholded rather than absolute: .jscpd.json fails the run above 5% duplicated
-      # lines, and the tree sits at 3.75%. The point is to stop NEW accidental duplication entering
-      # silently, which is cheapest to fix while the pull request is still open -- a duplication check
-      # that only runs nightly is one nobody acts on. Generated and vendored code is excluded via
-      # gitignore:true and the ignore list, since both duplicate by construction.
+      # Copy-paste, thresholded rather than absolute: .jscpd.json declares the threshold and the tree
+      # sits under it. The point is to stop NEW accidental duplication entering silently, which is
+      # cheapest to fix while the pull request is still open -- a duplication check that only runs
+      # nightly is one nobody acts on. Generated and vendored code is excluded via gitignore:true and
+      # the ignore list, since both duplicate by construction.
       - name: jscpd (copy-paste)
         run: npm run jscpd

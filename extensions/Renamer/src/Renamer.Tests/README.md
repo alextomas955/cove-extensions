@@ -1,20 +1,39 @@
 # Renamer.Tests
 
-xUnit test suite for the Renamer extension. Tests mirror the source layers
-(`Engine/ · Planner/ · Execution/{…}/ · Options/ · Jobs/ · Api/`); the only directories outside that
-mirror are the test-only `TestSupport/` fakes and the `Api/TransportSmoke` in-process transport smoke.
+xUnit test suite for the Renamer extension. Tests mirror the source layers, so a folder here has a
+counterpart in `../Renamer/`. Read the folder list off the two projects rather than from a list here.
+The directories with no source counterpart are the test-only `TestSupport/` fakes plus the groups named
+for what they exercise instead of a layer, and `Api/TransportSmokeTests.cs` is the in-process transport
+smoke.
 
-Some path tests assert Windows path semantics (DOS-device, UNC and extended-length prefixes,
-8.3 short names, symlink/junction canonicalization). Each calls `Assert.SkipUnless`, so off Windows it
-skips with a reason rather than failing, and it runs on the Windows CI leg. The symlink case gates on
-the OS privilege symlink creation needs, so it can skip on Windows too.
+Some tests assert platform path semantics and gate with `Assert.SkipUnless`, so off the platform they
+skip with a stated reason rather than failing. Two distinct gates are in play, and it is worth knowing
+which one you hit: an `OperatingSystem.IsWindows()` gate for Windows-only semantics (case-insensitive
+paths, drive and UNC root classification, mandatory locking, backslash folder paths), and a
+`SecondVolume.IsAvailable` gate for the cross-volume tests, which need a real second mount and skip
+with the reason that helper reports.
 
-## The two CI legs
+**Do not read the Windows CI leg as coverage for those.** That leg builds with
+`-p:CoveSourceMode=none`, and in that mode the `.csproj` Compile-Removes whole directories — including
+the ones holding most of the Windows-gated path tests. So they compile and run on a Windows dev box
+with a `../cove` checkout, and mostly do not exist on the Windows CI leg at all. Check which set you
+actually ran rather than assuming; see the repo's Testing guide for how.
 
-- **Bare-CI (cove-absent) leg** — a compile / pure **SMOKE**. With no `../cove` checkout on disk,
-  every test that references a Cove _source_ type (`CoveContext`, `CovePrincipal`, host entities, …)
-  is Compile-Removed by the `.csproj` (leaving the pure core), and the project compiles and
-  runs against the NuGet `Cove.Plugins`. This leg proves the extension still builds and the pure tests
-  pass without the host; it is **not** the safety gate.
-- **Containerized e2e job** — the **required safety gate**. It stands up the Cove app image and drives
-  the real rename/relocate flow, covering the behaviours the bare leg cannot see.
+## The CI legs that see this suite
+
+`build.yml` aggregates several jobs into one required status check. Read its `needs:` list for the
+current set rather than a list here; what matters for this project is which leg runs which tests.
+
+- **The cove-absent leg** — a compile / pure **SMOKE**. With no `../cove` checkout on disk, every test
+  that references a Cove _source_ type (`CoveContext`, `CovePrincipal`, host entities, …) is
+  Compile-Removed by the `.csproj`, leaving the pure core, which compiles and runs against the NuGet
+  `Cove.Plugins`. It proves the extension still builds and the pure tests pass without the host. It is
+  **not** the safety gate, and a green here says nothing about the removed directories.
+- **The cove-present leg** — the only job that actually runs the tests needing a real `CoveContext`.
+  If you want to know whether this project's host-dependent tests passed in CI, this is the leg to
+  read; the end-to-end job never compiles them.
+- **The containerized end-to-end job** — drives the real rename and relocate flow against the Cove app
+  image, covering behaviour no unit tier can see. It exercises the shipped extension, not this test
+  project.
+- **The Windows leg** builds in the cove-absent mode, so the Windows-gated path tests above are mostly
+  not compiled there. See the note at the top of this file.

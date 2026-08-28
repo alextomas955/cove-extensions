@@ -53,17 +53,22 @@ extend an existing one), you work against the same contract:
   reference and the source-selection math are wired once at the repo root
   (`Directory.Build.props`/`Directory.Build.targets`); your extension inherits it.
 - Never bundle host-provided assemblies (`Cove.Core`/`Cove.Plugins`/`Cove.Sdk`, EF Core, Npgsql,
-  Pgvector) — the host loads its own copy and warns once naming the assembly, so a leak costs weight,
-  not correctness.
+  Pgvector) — `Cove.Sdk.targets` strips them for two reasons the SDK states itself. The host's copy is
+  normally the one that loads, so a leak usually costs only package weight and a warning naming the
+  assembly. But if a bundled copy ever loads into the extension's own load context it creates a second
+  identity for types that cross the host boundary, and casts and dependency injection then break
+  silently. Verify the published output rather than trusting either outcome.
 - Never write to Cove's database directly; go through `CoveContext` and `SaveChangesAsync`.
 
 Register the extension in [`extensions/catalog.json`](extensions/catalog.json) so CI can build and
-release it. Each entry declares `name`, `id`, `path`, `tagPrefix`, `projectPath`, `manifestPath` and
-the `artifacts` array of files a release ships, plus the optional `testProjectPath`, `uiPath`,
-`registryManifestPath`, and `e2ePath`/`e2eProject`. Every path you declare must exist:
-`scripts/validate-extension-repo.mjs` fails the build on one that does not, rather than letting the
-typo surface later as an `npm ci` in a missing directory partway through a matrix leg. Adding an
-extension's build and release capability is a catalog edit, not a workflow-logic change.
+release it. Read the field set off `extensions/catalog.json` itself and off
+`scripts/validate-extension-repo.mjs`, which is what enforces it — an enumeration copied into this file
+goes stale silently, and one here already had. Some fields do more than name a location: one of them
+marks an entry as manifest-only, and `.github/workflows/build.yml` then skips assembling, packaging and
+releasing it. Every path you declare must exist: the validator fails the build on one that does not,
+rather than letting the typo surface later as an `npm ci` in a missing directory partway through a
+matrix leg. Adding an extension's build and release capability is a catalog edit, not a workflow-logic
+change.
 
 For the full authoring rules and a real layout to copy (`src/<Name>/`, `src/<Name>.Tests/`,
 `src/<Name>.Ui/`), read the existing extension READMEs above and the Contributing guides on the
@@ -76,8 +81,9 @@ configuration options, public API, or user-facing behavior, update that extensio
 same PR — `extensions/<Name>/docs/`, its `README.md`, and `CHANGELOG.md` as applicable, plus the
 matching page under `website/docs/` (the docs site).
 
-A pre-commit check warns when an extension's source changed but its docs didn't; it's a reminder,
-not a gate. If a change genuinely needs no docs update, say so in the PR and check the box anyway.
+Nothing enforces this automatically. The pull request template carries a docs checkbox, and that
+checkbox is the whole reminder — no hook and no CI job compares changed source against changed docs.
+If a change genuinely needs no docs update, say so in the PR and check the box anyway.
 
 ## Releasing
 

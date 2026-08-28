@@ -12,8 +12,7 @@ namespace Renamer.Tests.TestSupport;
 /// Three arms, in precedence order — an EXPLICIT choice outranks an inferred one on every OS:
 /// <list type="number">
 /// <item><c>COVE_TEST_SECOND_VOLUME</c>, naming an existing directory on another filesystem. This is
-/// the only arm available on macOS, where neither of the others applies; see the test README for the
-/// <c>hdiutil</c> RAM-disk recipe that satisfies it.</item>
+/// the only arm available on macOS, where neither of the others applies.</item>
 /// <item>Windows — a <see cref="SubstDrive"/>, a second path root, which is what
 /// <see cref="Path.GetPathRoot(string)"/> keys on there.</item>
 /// <item>Unix — a directory under <c>/dev/shm</c>, a tmpfs that is a distinct entry in the kernel
