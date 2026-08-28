@@ -22,12 +22,22 @@
  * Never throws on an HTTP status; the status is returned for the caller to judge. Only a transport
  * failure, or an abort via `signal`, rejects.
  *
+ * `headers` (a value or a getter, like the two above) is merged into every request, for an instance
+ * that authenticates with something other than a bearer token. It is applied last, so it can also
+ * displace what this client would otherwise send.
+ *
+ * `contentType` on the returned record carries the response's raw `content-type`, or `""`. A status
+ * alone does not say what answered: an app that serves a single-page frontend answers an unmatched
+ * path with its index and a 200, so a status-only assertion reports every route as present.
+ *
  * @param {string|(() => string)} baseUrl
  * @param {string|undefined|(() => string|undefined)} [token]
+ * @param {{headers?: Record<string,string>|(() => Record<string,string>)}} [options]
  */
-export function createApiClient(baseUrl, token) {
+export function createApiClient(baseUrl, token, { headers } = {}) {
   const resolveBase = () => (typeof baseUrl === "function" ? baseUrl() : baseUrl);
   const resolveToken = () => (typeof token === "function" ? token() : token);
+  const resolveHeaders = () => (typeof headers === "function" ? headers() : headers) ?? {};
 
   /** @param {{signal?: AbortSignal}} [options] - `signal` bounds this single call. */
   async function call(method, path, body, { signal } = {}) {
@@ -38,6 +48,7 @@ export function createApiClient(baseUrl, token) {
       headers: {
         ...(hasBody ? { "Content-Type": "application/json" } : {}),
         ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+        ...resolveHeaders(),
       },
       body: hasBody ? JSON.stringify(body) : undefined,
       signal,
@@ -49,7 +60,13 @@ export function createApiClient(baseUrl, token) {
     } catch {
       json = undefined;
     }
-    return { status: res.status, ok: res.ok, json, text };
+    return {
+      status: res.status,
+      ok: res.ok,
+      json,
+      text,
+      contentType: res.headers.get("content-type") ?? "",
+    };
   }
 
   return {
