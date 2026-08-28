@@ -214,13 +214,9 @@ export interface RenamerOptions {
 }
 
 /**
- * The C# defaults (RenamerOptions.cs):
- *   FilenameTemplate "{$date - }$title{ [$resolution]}", FolderTemplate "", DateFormat "yyyy-MM-dd",
- *   DurationFormat verbatim `hh\-mm\-ss`, Performers.Separator ", ", Tags.Separator " ",
- *   FilenameMax 255, FullPathMax 259, the 9-field DropOrder, RequiredFields ["title"],
- *   DuplicateSuffixFormat " ({n})", Articles ["The","A","An"], FilenameAsTitle true and
- *   PreventConsecutiveSegments true (both on for a fresh install), RemoveEmptyFolder off
- *   (destructive stays opt-in), every routing map {} / list [] and every other flag/string off/empty.
+ * These mirror the defaults `RenamerOptions.cs` declares, which is where a value is read from. They
+ * are not restated here: a copy of a value is a second declaration free to disagree with the first,
+ * and nothing type-checks prose.
  *
  * CrossVolumeConcurrency / SameVolumeConcurrency ARE modeled — the Advanced panel edits them, so
  * they belong in DEFAULT_OPTIONS (and therefore MODELED_KEYS + normalizeOptions). FreeSpaceHeadroomBytes

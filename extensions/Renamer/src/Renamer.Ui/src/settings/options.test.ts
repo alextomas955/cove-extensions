@@ -16,6 +16,7 @@ import {
   toStringKeyed,
   fromStringKeyed,
   DEFAULT_OPTIONS,
+  chosenLibraryPath,
 } from "./options";
 
 // A blob with every modeled field at a value distinct from its default, in PascalCase (the wire
@@ -517,4 +518,37 @@ test("what a save persists never reads as unconverted, so one save cannot lock o
   };
 
   assert.equal(hasUnmigratedDestinations(persisted), false);
+});
+
+// The panel stores a destination root as the very string the library-path list gave it, then
+// re-checks membership against a later reading of that list. Cove hands paths back in the platform's
+// own spelling, so a root that arrives spelled differently must still name the same folder — a miss
+// makes chosenLibraryPath return undefined, which is the state that SKIPS the rule, so a user's
+// destination silently stops applying.
+test("a stored root still names its library path through a separator difference", () => {
+  const libraryPaths = ["C:/Videos", "/data"];
+
+  for (const stored of ["C:/Videos", "C:\\Videos", "C:/Videos/", "C:\\Videos\\"]) {
+    assert.equal(chosenLibraryPath(stored, libraryPaths), "C:/Videos", `stored as ${stored}`);
+  }
+
+  assert.equal(chosenLibraryPath("/data/", libraryPaths), "/data");
+});
+
+// The library path may carry the trailing separator instead of the stored root, and one folder must
+// still be one folder whichever side it is written on.
+test("a trailing separator on the library path side is forgiven too", () => {
+  assert.equal(chosenLibraryPath("C:/Videos", ["C:/Videos/"]), "C:/Videos/");
+});
+
+// Case is deliberately NOT forgiven: a converted root IS the library path's own casing and a picked
+// one is the string the endpoint gave, so folding case would invent a second opinion about when two
+// paths name one folder, on a host whose case rule the panel cannot see.
+test("case is not forgiven, so the panel never invents a case rule the host may not share", () => {
+  assert.equal(chosenLibraryPath("c:/videos", ["C:/Videos"]), undefined);
+});
+
+// A root naming no library path is the badge state, and it must be distinguishable from a match.
+test("a root naming no library path resolves to undefined", () => {
+  assert.equal(chosenLibraryPath("D:/Elsewhere", ["C:/Videos"]), undefined);
 });
