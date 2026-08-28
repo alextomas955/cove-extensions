@@ -245,6 +245,16 @@ the cleanup command.
   `File.Exists` before doing anything else). `seedVideo()` copies a tiny real fixture (see
   `lib/fixtures-media/`) into the container and registers it through that real API, so tests
   exercise the actual import path, not a shortcut around it.
+- [`lib/whisparr-fixture.mjs`](lib/whisparr-fixture.mjs) — `startWhisparr()` brings Whisparr
+  containers up on the network of an already-started harness Cove. Opt-in, so a suite that never
+  calls it pays neither the image pull nor the boot. Two things the signature cannot show: the two
+  generations take their API key by DIFFERENT mechanisms (one from its environment, the other from a
+  config file that has to be in place before it starts, at a file mode the app can rewrite), and this
+  handle's `stop()` must run BEFORE `harness.stop()` — a compose down removes the project network,
+  and the daemon refuses to remove one that a container is still attached to.
+- [`lib/whisparr-images.mjs`](lib/whisparr-images.mjs) — the one site those images are declared, by
+  exact release-channel tag. A floating tag is refused rather than allowed as a convenience:
+  `latest` is a v2 image, so a floating reference can silently select the wrong generation.
 - [`lib/poll.mjs`](lib/poll.mjs) — `pollJob()`/`pollUntil()` for polling job status and eventually-
   consistent reads. Some write paths are not read-your-writes on the very next request (observed
   directly: a `GET` immediately after a `200` from an undo endpoint can still return the pre-undo

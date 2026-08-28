@@ -18,6 +18,7 @@
     "pretest": "node ../../scripts/publish-extensions.mjs",
     "test": "playwright test",
     "test:smoke": "node --test --test-timeout=900000 lib/whisparr-fixture.smoke.test.mjs",
+    "test:unit": "node --test lib/*.unit.test.mjs",
     "test:ui": "playwright test --ui",
     "install:browsers": "playwright install --with-deps chromium"
   },
