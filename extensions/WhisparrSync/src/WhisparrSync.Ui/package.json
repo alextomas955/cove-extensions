@@ -1,0 +1,38 @@
+{
+  "name": "@cove-extensions/whisparr-sync-ui",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "WhisparrSyncPage — the Cove Whisparr Sync extension's settings frontend (Vite library bundle → index.mjs).",
+  "license": "AGPL-3.0",
+  "scripts": {
+    "generate:wire": "node ../../../../scripts/generate-wire-types.mjs --extension com.alextomas955.whisparrsync",
+    "build": "vite build",
+    "typecheck": "npm run generate:wire && tsc --noEmit",
+    "check-classes": "node ../../../../shared/ui-shared/scripts/check-classes.cjs",
+    "test": "npm run generate:wire && vitest run",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "verify": "npm run typecheck && npm run format:check && npm run check-classes && npm run check-host-imports && npm run test",
+    "check-host-imports": "node ../../../../scripts/check-host-imports.mjs"
+  },
+  "dependencies": {
+    "@cove/extension-sdk": "file:vendor/cove-extension-sdk-0.1.0.tgz"
+  },
+  "devDependencies": {
+    "@types/node": "26.2.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.0",
+    "lucide-react": "1.33.0",
+    "prettier": "3.9.6",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "typescript": "6.0.3",
+    "vite": "8.2.2",
+    "vitest": "4.1.10"
+  },
+  "volta": {
+    "node": "24.11.0"
+  }
+}
