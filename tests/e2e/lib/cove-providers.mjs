@@ -11,7 +11,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const CONFIG_FILE = "cove-config.json";
+export const CONFIG_FILE = "cove-config.json";
 
 /**
  * Provider entries for a fixture that has no real install to lift from.
@@ -58,21 +58,25 @@ export function coveDataRoot() {
  * `{ servers: [], skip }` or `{ servers, skip }`, because the caller's answer to all three is to
  * report the reason and carry on.
  *
+ * A skip names the FILE and never the directory holding it. A skip is a recordable string, and a
+ * record outlives the run and is read by someone who was not here, so where a person keeps their
+ * install is not something it may carry.
+ *
  * @param {string} text
- * @param {{path: string, names?: string[]}} options - `path` names the document in any skip reason.
+ * @param {{names?: string[]}} [options]
  * @returns {{servers: object[], skip: string|null}}
  */
-export function parseMetadataServers(text, { path, names } = {}) {
+export function parseMetadataServers(text, { names } = {}) {
   let document;
   try {
     document = JSON.parse(text);
   } catch (cause) {
-    return { servers: [], skip: `${path} is not readable as JSON: ${cause.message}` };
+    return { servers: [], skip: `${CONFIG_FILE} is not readable as JSON: ${cause.message}` };
   }
 
   const declared = document?.scraping?.metadataServers;
   if (!Array.isArray(declared)) {
-    return { servers: [], skip: `${path} declares no scraping.metadataServers` };
+    return { servers: [], skip: `${CONFIG_FILE} declares no scraping.metadataServers` };
   }
   if (names === undefined) return { servers: declared, skip: null };
 
@@ -82,7 +86,9 @@ export function parseMetadataServers(text, { path, names } = {}) {
   return {
     servers,
     skip:
-      absent.length === 0 ? null : `${path} declares no metadata server named ${absent.join(", ")}`,
+      absent.length === 0
+        ? null
+        : `${CONFIG_FILE} declares no metadata server named ${absent.join(", ")}`,
   };
 }
 
@@ -138,9 +144,10 @@ export function describeServers(servers) {
 /**
  * Lifts the metadata-server entries out of the machine's own Cove install.
  *
- * `path` is returned alongside so a caller can report where it looked. On a machine with no install
- * at all, which is the ordinary case off this developer's desk, the result is an empty list and a
- * skip naming the file.
+ * `path` is returned alongside for a caller that wants to print where it looked, and is deliberately
+ * absent from `skip`: `skip` is the half a caller records. On a machine with no install at all,
+ * which is the ordinary case off this developer's desk, the result is an empty list and a skip
+ * naming the file.
  *
  * @param {{names?: string[]}} [options]
  * @returns {{path: string, servers: object[], skip: string|null}}
@@ -151,13 +158,14 @@ export function liftMetadataServers({ names } = {}) {
   try {
     text = readFileSync(path, "utf8");
   } catch (cause) {
+    // The code rather than the message: a filesystem error quotes the path it failed on.
     const reason =
       cause.code === "ENOENT"
-        ? `no ${CONFIG_FILE} at ${path}`
-        : `${path} could not be read: ${cause.message}`;
+        ? `no ${CONFIG_FILE} on this machine`
+        : `${CONFIG_FILE} could not be read (${cause.code ?? cause.name})`;
     return { path, servers: [], skip: reason };
   }
-  return { path, ...parseMetadataServers(text, { path, names }) };
+  return { path, ...parseMetadataServers(text, { names }) };
 }
 
 /**

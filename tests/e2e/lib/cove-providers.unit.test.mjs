@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  CONFIG_FILE,
   PLACEHOLDER_SERVERS,
   coveDataRoot,
   describeServers,
@@ -54,6 +55,9 @@ const DOCUMENT = JSON.stringify({
   },
 });
 
+// A drive-letter path, a UNC path, or a rooted POSIX path — the three shapes a data root arrives in.
+const ABSOLUTE_PATH = /[A-Za-z]:[\\/]|\\\\[A-Za-z]|(?:^|[\s"'(])\/[\w.]/;
+
 test("coveDataRoot takes COVE_HOME when it is set, trimmed", () => {
   withEnv({ COVE_HOME: "  C:/probe/cove-home  " }, () => {
     assert.equal(coveDataRoot(), "C:/probe/cove-home");
@@ -75,28 +79,35 @@ test("a data root holding no cove-config.json is a named skip, not a throw", () 
     const lifted = liftMetadataServers();
     assert.deepEqual(lifted.servers, []);
     assert.match(lifted.skip, /no cove-config\.json/);
-    assert.ok(
-      lifted.skip.includes(empty),
-      `skip should name the path it looked in: ${lifted.skip}`,
-    );
+    assert.equal(lifted.path, join(empty, CONFIG_FILE));
+  });
+});
+
+test("the skip a caller records names the file, never the directory holding it", () => {
+  const empty = mkdtempSync(join(tmpdir(), "cove-providers-"));
+  withEnv({ COVE_HOME: empty }, () => {
+    for (const lifted of [liftMetadataServers(), liftMetadataServers({ names: ["ThePornDB"] })]) {
+      assert.ok(!lifted.skip.includes(empty), `skip carries the data root: ${lifted.skip}`);
+      assert.doesNotMatch(lifted.skip, ABSOLUTE_PATH);
+    }
   });
 });
 
 test("a document with no scraping.metadataServers is a named skip", () => {
-  const lifted = parseMetadataServers("{}", { path: "P" });
+  const lifted = parseMetadataServers("{}");
   assert.deepEqual(lifted.servers, []);
   assert.match(lifted.skip, /scraping\.metadataServers/);
-  assert.ok(lifted.skip.includes("P"));
+  assert.ok(lifted.skip.includes(CONFIG_FILE));
 });
 
 test("a document that is not JSON is a named skip", () => {
-  const lifted = parseMetadataServers("{not json", { path: "P" });
+  const lifted = parseMetadataServers("{not json");
   assert.deepEqual(lifted.servers, []);
-  assert.ok(lifted.skip.includes("P"));
+  assert.ok(lifted.skip.includes(CONFIG_FILE));
 });
 
 test("a document carrying metadata servers returns them with no skip", () => {
-  const lifted = parseMetadataServers(DOCUMENT, { path: "P" });
+  const lifted = parseMetadataServers(DOCUMENT);
   assert.equal(lifted.skip, null);
   assert.deepEqual(
     lifted.servers.map((server) => server.name),
@@ -105,7 +116,7 @@ test("a document carrying metadata servers returns them with no skip", () => {
 });
 
 test("a requested provider the document does not carry is named in the skip", () => {
-  const lifted = parseMetadataServers(DOCUMENT, { path: "P", names: ["ThePornDB", "FansDB"] });
+  const lifted = parseMetadataServers(DOCUMENT, { names: ["ThePornDB", "FansDB"] });
   assert.deepEqual(
     lifted.servers.map((server) => server.name),
     ["ThePornDB"],
@@ -115,7 +126,7 @@ test("a requested provider the document does not carry is named in the skip", ()
 });
 
 test("providerEnv writes the four keys per entry, indexed from zero", () => {
-  const env = providerEnv(parseMetadataServers(DOCUMENT, { path: "P" }).servers);
+  const env = providerEnv(parseMetadataServers(DOCUMENT).servers);
   assert.deepEqual(Object.keys(env).sort(), [
     "COVE__Scraping__MetadataServers__0__ApiKey",
     "COVE__Scraping__MetadataServers__0__Endpoint",
