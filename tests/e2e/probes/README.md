@@ -56,6 +56,13 @@ delivery that never carried them.
 A row that needs providers should read `ctx.providers`, never re-read the install for itself, and
 never widen `servers` back into raw entries.
 
+A row needing some OTHER fact about the machine's own install takes it from `lib/cove-providers.mjs`
+too, which is the one module that opens that file and imports nothing from `node:fs` that could
+write to it. Take the narrowest form of the fact that answers the question — a count rather than the
+values where a count will do — because a record outlives the run and a library path names where
+someone keeps their own media. `installConfigFingerprint()` is there so "this run wrote nothing to
+the install" is a comparison a reader can check rather than an assurance.
+
 ## Re-verifying after an image bump
 
 A fixture image bump is a deliberate edit to `lib/whisparr-images.mjs`, which is the one place the
