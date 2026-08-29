@@ -25,7 +25,13 @@
       ]
     },
     "tests/e2e": {
-      "entry": ["**/*.spec.mjs", "lib/**/*.mjs"],
+      "entry": [
+        "**/*.spec.mjs",
+        "lib/**/*.mjs",
+        "probes/run.mjs",
+        "probes/rows/*.mjs",
+        "probes/lib/check-record-bounds.mjs"
+      ],
       "project": ["**/*.mjs"]
     },
     "extensions/Renamer/e2e": {
