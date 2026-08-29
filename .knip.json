@@ -39,6 +39,10 @@
     "extensions/Renamer/e2e": {
       "entry": ["tests/**/*.spec.mjs", "lib/**/*.mjs"],
       "project": ["**/*.mjs"]
+    },
+    "extensions/WhisparrSync/e2e": {
+      "entry": ["tests/**/*.spec.mjs", "lib/**/*.mjs"],
+      "project": ["**/*.mjs"]
     }
   }
 }
