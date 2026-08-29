@@ -1,0 +1,13 @@
+{
+  "name": "@cove-extensions/whisparr-sync-e2e",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Whisparr Sync's own end-to-end tests. Runs as a Playwright project the shared tests/e2e/playwright.config.mjs derives from this extension's catalog entry — see tests/e2e/README.md for why this isn't its own separate Playwright install.",
+  "scripts": {
+    "test": "cd ../../../tests/e2e && npm test -- --project=whisparr-sync"
+  },
+  "dependencies": {
+    "@cove-extensions/e2e": "*"
+  }
+}
