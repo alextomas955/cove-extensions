@@ -13,9 +13,10 @@ Community extensions for [Cove](https://github.com/yourcove/cove), the self-host
 
 ## Extensions
 
-| Extension                      | What it does                                                                                                                                | Docs                                                                                         |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| [Renamer](extensions/Renamer/) | Renames your videos, images, audio and text documents to a pattern you choose, and sorts them into folders. Preview first, undo afterwards. | [Quick start](https://alextomas955.github.io/cove-extensions/extensions/renamer/quick-start) |
+| Extension                                 | What it does                                                                                                                                | Docs                                                                                         |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| [Renamer](extensions/Renamer/)            | Renames your videos, images, audio and text documents to a pattern you choose, and sorts them into folders. Preview first, undo afterwards. | [Quick start](https://alextomas955.github.io/cove-extensions/extensions/renamer/quick-start) |
+| [Whisparr Sync](extensions/WhisparrSync/) | Keeps your Cove library in step with the Whisparr instance you configure: what it holds, what it monitors, and what it is still missing.    | [Docs](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync)              |
 
 ![Renamer's settings page in Cove, with a live preview of the new names.](extensions/Renamer/docs/img/settings-overview.jpg)
 
