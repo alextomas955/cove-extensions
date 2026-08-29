@@ -88,11 +88,12 @@ export function skipReasonFor(row, { live }) {
 /**
  * Every row module in `rows/`, discovered by scanning the directory.
  *
- * There is no registry file to edit, so adding a row is adding one file.
+ * There is no registry file to edit, so adding a row is adding one file. A row's unit test sits
+ * beside it and is not one of them.
  */
 async function discoverRows() {
   const files = readdirSync(ROWS_DIR)
-    .filter((name) => name.endsWith(".mjs"))
+    .filter((name) => name.endsWith(".mjs") && !name.endsWith(".unit.test.mjs"))
     .sort();
   const rows = [];
   for (const name of files) {
