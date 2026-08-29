@@ -76,6 +76,7 @@ export const row = {
     whisparr: ["v3"],
     seedHistory: false,
     support: [],
+    rootFolder: false,
     network: false,
     live: false,
   },
@@ -110,6 +111,14 @@ containers on that network. `waitForCaptures` polls rather than sleeping, and `m
 every row in a run shares one listener: take the deliveries your row caused and leave the rest. A row
 that asserts anything about what arrived must read it from the capture, never from the registration's
 echo — a field a build accepts and then does not send answers the echo exactly as a working one does.
+
+`requires.rootFolder` asks for a library root registered on every Whisparr the run starts, and the
+instance reports the path it accepted back on `ctx.whisparr[generation].rootFolder`. A row that adds
+an entity needs one: both generations refuse an add whose destination is not a registered root, and
+the refusal names a validator rather than the missing registration. Registration is more than a
+`POST` — the directory has to exist and belong to the account the application runs as, and one
+generation reports a freshly created root as inaccessible in the very response that created it, so
+the fixture reads that field back from the listing instead.
 
 `requires.network` and `requires.live` are separate on purpose. `network` says the row depends on
 outbound internet, which the record then names as an external dependency; a row that cannot reach it
