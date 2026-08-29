@@ -30,6 +30,11 @@ const PROVIDER_ENV_PREFIX = "COVE__Scraping__MetadataServers__";
 // container, so a row asking for one asks for cove too.
 const SUPPORT_STARTERS = { "webhook-listener": startWebhookListener };
 
+// The library root registered on every instance a row asks `rootFolder` for. Registration is what
+// makes an entity add possible at all: both generations refuse one whose destination is not a
+// registered root, and the refusal names a validator rather than the missing registration.
+const PROBE_ROOT_FOLDER = "/probe-root";
+
 const READ_BACK_TIMEOUT_MS = 30_000;
 const READ_BACK_INTERVAL_MS = 1_000;
 
@@ -46,15 +51,24 @@ export function aggregateRequirements(rows) {
   let cove = false;
   let seedHistory = false;
   let network = false;
+  let rootFolder = false;
   for (const row of rows) {
     const requires = row.requires ?? {};
     cove ||= requires.cove === true;
     seedHistory ||= requires.seedHistory === true;
     network ||= requires.network === true;
+    rootFolder ||= requires.rootFolder === true;
     for (const generation of requires.whisparr ?? []) whisparr.add(generation);
     for (const name of requires.support ?? []) support.add(name);
   }
-  return { cove, seedHistory, network, whisparr: [...whisparr], support: [...support] };
+  return {
+    cove,
+    seedHistory,
+    network,
+    rootFolder,
+    whisparr: [...whisparr],
+    support: [...support],
+  };
 }
 
 /**
@@ -270,6 +284,7 @@ export async function startProbeContext(requirements, { outDir } = {}) {
         network,
         generations: requirements.whisparr,
         seedHistory: requirements.seedHistory,
+        rootFolder: requirements.rootFolder ? PROBE_ROOT_FOLDER : undefined,
       });
     }
     for (const name of requirements.support) {
