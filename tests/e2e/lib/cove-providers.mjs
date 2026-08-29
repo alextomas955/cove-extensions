@@ -7,6 +7,7 @@
 //
 // A provider this module cannot find is reported as a named skip in the value it returns. It is
 // never an error, and never a reason to change the install it read.
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -157,4 +158,50 @@ export function liftMetadataServers({ names } = {}) {
     return { path, servers: [], skip: reason };
   }
   return { path, ...parseMetadataServers(text, { path, names }) };
+}
+
+/**
+ * How many library roots the machine's own Cove install is configured with.
+ *
+ * The COUNT and never the paths: a library path names where someone keeps their own media, so it is
+ * the one thing here that must not survive into anything written down. Neither the paths nor the
+ * file's location are returned at all, which is what keeps a caller from recording either by
+ * accident rather than by discipline.
+ *
+ * @returns {{count: number|null, skip: string|null}}
+ */
+export function liftLibraryPathCount() {
+  let document;
+  try {
+    document = JSON.parse(readFileSync(join(coveDataRoot(), CONFIG_FILE), "utf8"));
+  } catch {
+    return { count: null, skip: `this machine has no readable ${CONFIG_FILE}` };
+  }
+  const declared = document?.covePaths;
+  return Array.isArray(declared)
+    ? { count: declared.length, skip: null }
+    : { count: null, skip: `${CONFIG_FILE} declares no covePaths` };
+}
+
+/**
+ * A fingerprint of the machine's own Cove configuration file.
+ *
+ * Taken on both sides of anything that reads the install, so "nothing was written to it" is a
+ * comparison a reader can check rather than an assurance. A digest is returned rather than any part
+ * of the content, so comparing two of them says only whether the bytes moved.
+ *
+ * @returns {{sha256: string|null, bytes: number|null, skip: string|null}}
+ */
+export function installConfigFingerprint() {
+  let contents;
+  try {
+    contents = readFileSync(join(coveDataRoot(), CONFIG_FILE));
+  } catch {
+    return { sha256: null, bytes: null, skip: `this machine has no readable ${CONFIG_FILE}` };
+  }
+  return {
+    sha256: createHash("sha256").update(contents).digest("hex"),
+    bytes: contents.length,
+    skip: null,
+  };
 }
