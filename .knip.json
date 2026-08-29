@@ -34,6 +34,7 @@
         "lib/**/*.mjs",
         "probes/run.mjs",
         "probes/rows/*.mjs",
+        "probes/support/*.mjs",
         "probes/lib/check-record-bounds.mjs"
       ],
       "project": ["**/*.mjs"]
