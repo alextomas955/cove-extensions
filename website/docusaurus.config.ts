@@ -14,7 +14,7 @@ const config: Config = {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4
   },
 
-  // GH-Pages project-subpath values — locked verbatim from content-strategy.md / context.md.
+  // GH-Pages project-subpath values — locked verbatim from CONTENT-STRATEGY.md / CONTEXT.md.
   url: "https://alextomas955.github.io", // domain ONLY — never put the subpath here
   baseUrl: "/cove-extensions/", // subpath, leading AND trailing slash
 
@@ -34,7 +34,7 @@ const config: Config = {
   },
 
   // Parse `.md` as CommonMark and reserve MDX for `.mdx`. Docusaurus 3 defaults to `mdx`, which
-  // parses every `.md` as MDX — so an HTML comment or a bare `<Word>` anywhere in a sourced file
+  // parses EVERY `.md` as MDX — so an HTML comment or a bare `<Word>` anywhere in a sourced file
   // fails the build. That is a live hazard here rather than a hypothetical one: this site sources
   // each extension's own `docs/` folder, and one of those pages imports the extension's
   // `CHANGELOG.md` — a file whose primary reader is GitHub, where `{/* */}` would render as
@@ -62,8 +62,8 @@ const config: Config = {
 
   // Each extension owns its docs under extensions/<Name>/docs; one plugin-content-docs
   // instance per extension sources that folder so there is a single doc source (no site copy to
-  // drift from). The preset above keeps the default instance id at routeBasePath '/' — giving only
-  // these extra instances custom ids is what avoids docusaurus#211 (which trips when every docs
+  // drift from). The preset above keeps the DEFAULT instance id at routeBasePath '/' — giving only
+  // these EXTRA instances custom ids is what avoids docusaurus#211 (which trips when EVERY docs
   // instance carries a custom id). routeBasePath prefixes stay distinct across instances.
   plugins: [
     [
@@ -73,6 +73,15 @@ const config: Config = {
         path: "../extensions/Renamer/docs",
         routeBasePath: "/extensions/renamer",
         sidebarPath: "./sidebars-renamer.ts",
+      },
+    ],
+    [
+      "@docusaurus/plugin-content-docs",
+      {
+        id: "whisparr-sync",
+        path: "../extensions/WhisparrSync/docs",
+        routeBasePath: "/extensions/whisparr-sync",
+        sidebarPath: "./sidebars-whisparrsync.ts",
       },
     ],
   ],
@@ -88,10 +97,14 @@ const config: Config = {
         indexDocs: true,
         // The blog plugin is disabled above, so indexing it would only warn about a missing blog/ dir.
         indexBlog: false,
-        // One entry per docs instance. docsRouteBasePath (where pages route) and docsDir (where the
-        // markdown lives) must be parallel arrays, or the indexer won't read the external instances.
-        docsRouteBasePath: ["/", "/extensions/renamer"],
-        docsDir: ["docs", "../extensions/Renamer/docs"],
+        // One entry per docs instance, in both arrays. The two are not paired by index: the search
+        // plugin reads docsRouteBasePath to decide which built routes count as docs, and walks
+        // docsDir only to hash the source markdown into the index's cache-busting query. An
+        // instance's pages reach the index because its content-docs plugin instance is registered
+        // above, so an omission here surfaces as a reader holding a stale index after a docs edit
+        // rather than as a build failure.
+        docsRouteBasePath: ["/", "/extensions/renamer", "/extensions/whisparr-sync"],
+        docsDir: ["docs", "../extensions/Renamer/docs", "../extensions/WhisparrSync/docs"],
       },
     ],
   ],
@@ -100,7 +113,7 @@ const config: Config = {
     navbar: {
       title: "alextomas955 / Cove Extensions",
       items: [
-        // pages-02: GitHub-special files stay at repo root (never moved/duplicated into the site) —
+        // PAGES-02: GitHub-special files stay at repo root (never moved/duplicated into the site) —
         // reached here via canonical github.com blob links, right-aligned by default position.
         {
           href: "https://github.com/alextomas955/cove-extensions/blob/main/README.md",
