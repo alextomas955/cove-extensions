@@ -4,10 +4,10 @@
 // A scene is addressed as a MOVIE carrying `itemType: "scene"` — this generation publishes no
 // `scene` area at all — so the route under test is the movie one.
 //
-// The 200 is not the answer. v3 answers an unmatched path with its single-page frontend and a 200,
-// so a JSON body whose `id` is the one that was asked for is the weakest assertion that means
-// anything here. The same call against an id nothing holds is recorded beside it, so the record
-// states what an absence looks like on this build rather than leaving a reader to assume a 404.
+// v3 answers an unmatched path with its single-page frontend rather than a miss, so a JSON body
+// whose `id` is the one that was asked for is the weakest assertion that means anything here. The
+// same call against an id nothing holds is recorded beside it, so the record states what an absence
+// looks like on this build instead of leaving it to be assumed.
 const MOVIE_PATH = "/api/v3/movie";
 
 // Above anything the history seed creates, so it addresses nothing on a freshly booted instance.
@@ -24,9 +24,8 @@ const observeResponse = (response) => ({
 /**
  * An id the instance itself reports holding, and where it came from.
  *
- * The history seed writes its parent library row first, so one exists; it is read back off the
- * instance rather than assumed, because an id this row invented would make every result below a
- * statement about a number instead of about the route.
+ * The history seed writes its parent library row first, so one exists. It is read back off the
+ * instance, so every result below is a statement about the route.
  */
 async function resolveSeededId(ctx, api) {
   const fromHistory = ctx.whisparr.v3.history?.readBack?.json?.records?.[0]?.movieId;

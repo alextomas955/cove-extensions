@@ -5,15 +5,19 @@
 // document could omit a route the build serves, or list one it does not; a hand probe covers only
 // the routes someone thought to try. A route absent from the v2 half is unknown, not absent.
 //
-// Three traps invert this row's answers if they are not defeated inside it:
-//   - v3 answers an unmatched path with its frontend and a 200, so a status is not a presence;
-//   - one route answers 404 to GET and 202 to POST, so a verb-blind probe records it absent;
-//   - one lookup answers 503 with no term and 200 with one, so an input-blind probe does the same.
+// Three traps invert this row's answers if they are not defeated inside it, and every one of them
+// makes a route that IS served look absent, or one that is not look present:
+//   - a generation answers an unmatched path with its frontend rather than a miss, so a status alone
+//     is not a presence;
+//   - a route refuses GET and accepts a POST carrying a body, so a verb-blind probe misses it;
+//   - a lookup faults with no term and answers with one, so an input-blind probe misses it too.
+// The statuses each of those actually produced belong in the record, not here.
 const OPENAPI_PATH = "/docs/v3/openapi.json";
-const LOOKUP_TERM = "brazzers";
 
 // A term the vendor's metadata service answers for, so the lookups below exercise the route rather
 // than its empty case.
+const LOOKUP_TERM = "brazzers";
+
 const V2_LOOKUP_PATH = "/api/v3/series/lookup";
 const V3_LOOKUP_PATH = "/api/v3/lookup/studio";
 
@@ -25,9 +29,9 @@ const URL_SEARCH_DEPTH = 5;
 // marks a route whose row count grows with the library: it is recorded as declared and never
 // fetched, because one call would put a page of it in this record.
 //
-// The works route is listed under two spellings on purpose. A path template is part of the route's
-// identity, so a candidate a document does not declare and a route a build does not serve are
-// indistinguishable unless both spellings are recorded side by side.
+// A path template is part of a route's identity, so the works route is listed under both spellings:
+// a candidate the document does not declare and a route the build does not serve are otherwise
+// indistinguishable.
 const V3_CANDIDATES = [
   { verb: "GET", path: "/api/v3/wanted/missing" },
   { verb: "GET", path: "/api/v3/wanted/cutoff" },
@@ -51,12 +55,11 @@ const V3_CANDIDATES = [
 ];
 
 // Hand-probed, because this generation publishes nothing to derive a table from. The verb is part of
-// the candidate, and the entries carrying a body or a query exist to defeat the two traps above
-// rather than to enumerate a surface. `as` names the record's key where a path alone would collide.
+// the candidate, and the entries carrying a body or a query exist to defeat the verb and input traps
+// above rather than to enumerate a surface. `as` names the record's key where a path would collide.
 //
-// The nonsense path is this half's own negative control: a reader can see from it that a miss on
-// this generation looks nothing like a miss on the other, which is what makes the rest of the table
-// readable at all.
+// The nonsense path is this half's own negative control: it fixes what a miss looks like on this
+// generation, which is what the rest of the table is read against.
 const V2_CANDIDATES = [
   { verb: "GET", path: "/api/v3/zz-no-such-route-here", control: true },
   { verb: "GET", path: "/api/v3/movie" },
@@ -127,7 +130,7 @@ async function call(api, { verb, path, body }) {
  * Every host named by a URL-bearing field in `value`, sorted and deduplicated.
  *
  * A lookup result is a third party's record of a real person or business, so the HOST is the whole
- * of what this row wants from one and the rest is discarded here rather than at the record.
+ * of what this row takes from one and the rest is discarded before it can travel further.
  */
 function remoteHosts(value, depth = 0, found = new Set()) {
   if (depth > URL_SEARCH_DEPTH || value === null || typeof value !== "object") return found;
