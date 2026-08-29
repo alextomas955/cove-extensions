@@ -10,7 +10,7 @@
 //
 // The credential is held for the length of one request header and described everywhere else, because
 // a record outlives the run and is read by someone who was not here.
-import { describeServers, liftMetadataServers } from "../../lib/cove-providers.mjs";
+import { CONFIG_FILE, describeServers, liftMetadataServers } from "../../lib/cove-providers.mjs";
 
 const PROVIDER_NAME = "ThePornDB";
 const REST_ORIGIN = "https://api.theporndb.net";
@@ -115,7 +115,8 @@ export function pacer({ requestsPerMinute, label }) {
  * reasons, and each is named. None of them is an error: a machine with nothing to ask with has
  * answered the question it was asked, and the install is never a thing to change in response.
  *
- * `described` is the only form the entry may be recorded in.
+ * `described` is the only form the entry may be recorded in, and a skip names the document that was
+ * consulted rather than where that document lives.
  *
  * @param {string} name
  * @returns {{entry: object|null, described: object|null, skip: string|null}}
@@ -128,14 +129,14 @@ export function liftProvider(name) {
       entry: null,
       described: null,
       // The provider leads the reason, because the reason is read where the record lists several.
-      skip: `${name}: ${lifted.skip ?? `${lifted.path} declares no metadata server named ${name}`}`,
+      skip: `${name}: ${lifted.skip ?? `${CONFIG_FILE} declares no metadata server named ${name}`}`,
     };
   }
   if (typeof entry.apiKey !== "string" || entry.apiKey.length === 0) {
     return {
       entry: null,
       described: describeServers([entry])[0],
-      skip: `${name}: ${lifted.path} declares it but carries no api key for it`,
+      skip: `${name}: ${CONFIG_FILE} declares it but carries no api key for it`,
     };
   }
   return { entry, described: describeServers([entry])[0], skip: null };
