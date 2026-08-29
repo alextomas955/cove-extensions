@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Provenance + license metadata. The extension ships as a folder rather than a NuGet package, so
+    these are informational, but they keep authorship and the AGPL-3.0 license honest in the assembly.
+    RepositoryUrl mirrors extension.json's `url` and moves with it. Do NOT declare a Url on the
+    extension class: the host reads a class property in preference to the manifest.
+  -->
+  <PropertyGroup>
+    <Authors>alextomas955</Authors>
+    <RepositoryUrl>https://github.com/alextomas955/cove-extensions</RepositoryUrl>
+    <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="extension.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
+  </ItemGroup>
+
+  <!--
+    Shared first-party code (the minimal-API permission gate). It ships bundled as
+    Cove.Extensions.Shared.dll — it is NOT Private=false (that is only for the host-provided Cove
+    refs) and is absent from the host-assembly strip denylist, so it survives the strip.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\shared\Cove.Extensions.Shared\Cove.Extensions.Shared.csproj" />
+  </ItemGroup>
+
+  <!--
+    Cove SDK resolution (local ProjectReference vs. NuGet PackageReference) is centralized in the root
+    Directory.Build.targets. Cove.Sdk transitively carries the plugin-hosting and core-domain
+    assemblies, so this project restates neither a direct reference to those nor a per-project
+    relative-path literal to the sibling ../cove checkout.
+  -->
+</Project>

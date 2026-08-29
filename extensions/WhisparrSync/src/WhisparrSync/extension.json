@@ -1,0 +1,18 @@
+{
+  "id": "com.alextomas955.whisparrsync",
+  "name": "Whisparr Sync",
+  "version": "1.0.0",
+  "description": "Connects Cove to the Whisparr instance you configure, calling outward to it over the network and authenticating with the API key you supply. Exposes inbound API endpoints under /api/extensions/com.alextomas955.whisparrsync; every one of them is gated on a Cove permission, and none is anonymous. Only actions you start can cause Whisparr to download anything. Your Whisparr API key is held server-side in Cove and is never sent to the browser. Runs no scraper and no downloader code of its own. None of those surfaces are built yet: this release registers the extension and its placeholder settings surface.",
+  "author": "alextomas955",
+  "url": "https://github.com/alextomas955/cove-extensions",
+  "iconUrl": "https://alextomas955.github.io/cove-extensions/img/whisparr-sync.svg",
+  "categories": ["automation", "tools"],
+  "minCoveVersion": "1.3.1",
+  "entryDll": "WhisparrSync.dll",
+  "permissions": {
+    "network": ["*"],
+    "scraperRuntime": [],
+    "downloaderRuntime": []
+  },
+  "dependencies": {}
+}
