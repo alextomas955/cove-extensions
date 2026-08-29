@@ -1,5 +1,6 @@
 using Cove.Core.Auth;
 using Cove.Extensions.Shared;
+using Cove.Plugins;
 using Cove.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -33,6 +34,33 @@ public sealed partial class WhisparrSync
             (ICurrentPrincipalAccessor principal) => HostConfiguration(principal))
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
     }
+
+    /// <summary>The settings tab this extension mounts, and the tab its one section targets.</summary>
+    private const string SettingsTabKey = "whisparr-sync";
+
+    /// <summary>
+    /// The settings surface the host mounts: one dedicated tab under the Extensions settings group.
+    /// </summary>
+    /// <remarks>
+    /// Page layout, so the host renders the panel full-width with no card chrome and this extension
+    /// draws its own. <c>componentName</c> must be byte-identical to the key in the bundle's
+    /// <c>defineExtension</c> component map: the host resolves one to the other by exact string and
+    /// renders nothing, with no error, when they differ.
+    /// </remarks>
+    public override UIManifest GetUIManifest()
+        => ManifestBuilder()
+            .AddSettingsTab(
+                key: SettingsTabKey,
+                label: "Whisparr Sync",
+                description: "Keep Cove in step with the Whisparr instance you configure.",
+                order: 100,
+                layout: SettingsTabLayout.Page)
+            .AddSettingsSection(
+                targetTab: SettingsTabKey,
+                label: "Whisparr Sync",
+                componentName: "WhisparrSyncPage")
+            .WithJsBundle("index.mjs")
+            .Build();
 
     /// <summary>
     /// What this extension can see of the host's own configuration from inside its container.
