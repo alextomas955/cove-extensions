@@ -13,6 +13,7 @@ import { resolveCoveImage, startHarness } from "../../lib/harness.mjs";
 import { attemptUntil } from "../../lib/poll.mjs";
 import { startWhisparr } from "../../lib/whisparr-fixture.mjs";
 import { whisparrImage } from "../../lib/whisparr-images.mjs";
+import { startWebhookListener } from "../support/webhook-listener.mjs";
 import {
   describeServers,
   liftMetadataServers,
@@ -24,6 +25,10 @@ import {
 const STATUS_PATH = "/api/v3/system/status";
 const CONFIG_PATH = "/api/system/config";
 const PROVIDER_ENV_PREFIX = "COVE__Scraping__MetadataServers__";
+
+// The support containers a row may ask for by name. Each takes the network off the started Cove
+// container, so a row asking for one asks for cove too.
+const SUPPORT_STARTERS = { "webhook-listener": startWebhookListener };
 
 const READ_BACK_TIMEOUT_MS = 30_000;
 const READ_BACK_INTERVAL_MS = 1_000;
@@ -235,18 +240,22 @@ async function deliverProviders(harness, providers) {
  * @param {{outDir?: string}} [destination]
  */
 export async function startProbeContext(requirements, { outDir } = {}) {
-  if (requirements.support.length > 0) {
+  const unknownSupport = requirements.support.filter(
+    (name) => SUPPORT_STARTERS[name] === undefined,
+  );
+  if (unknownSupport.length > 0) {
     throw new Error(
-      `startProbeContext: a selected row asks for the support container(s) ${requirements.support.join(", ")}, and this context has no starter for one. Add it here, beside the Whisparr start.`,
+      `startProbeContext: a selected row asks for the support container(s) ${unknownSupport.join(", ")}, and this context has no starter for them. Declared support containers are ${Object.keys(SUPPORT_STARTERS).join(", ")}; add one here, beside the Whisparr start.`,
     );
   }
-  if (requirements.whisparr.length > 0 && !requirements.cove) {
+  if ((requirements.whisparr.length > 0 || requirements.support.length > 0) && !requirements.cove) {
     throw new Error(
-      "startProbeContext: a row asking for Whisparr must also ask for cove, because the containers join the Cove instance's own network.",
+      "startProbeContext: a row asking for Whisparr or a support container must also ask for cove, because those containers join the Cove instance's own network.",
     );
   }
 
   const providers = resolveProviders();
+  const support = {};
   let harness = null;
   let whisparr = null;
   try {
@@ -255,31 +264,56 @@ export async function startProbeContext(requirements, { outDir } = {}) {
       await harness.bootstrapOwner();
       Object.assign(providers, await deliverProviders(harness, providers));
     }
+    const network = harness?.container.getNetworkNames()[0];
     if (requirements.whisparr.length > 0) {
       whisparr = await startWhisparr({
-        network: harness.container.getNetworkNames()[0],
+        network,
         generations: requirements.whisparr,
         seedHistory: requirements.seedHistory,
       });
     }
+    for (const name of requirements.support) {
+      support[name] = await SUPPORT_STARTERS[name]({ network });
+    }
   } catch (cause) {
-    await whisparr?.stop().catch(() => {});
-    await harness?.stop().catch(() => {});
+    await stopAll({ support, whisparr, harness }, { swallow: true });
     throw cause;
   }
 
   return {
     harness,
     whisparr,
+    support,
     providers,
     outDir,
     builds: await readBuilds({ whisparr }),
     async stop() {
-      await whisparr?.stop();
-      await harness?.stop();
+      await stopAll({ support, whisparr, harness });
     },
   };
 }
+
+/**
+ * Stops everything the bring-up started, in the one order that works: a Whisparr or a support
+ * container holds an endpoint on the compose network, and the daemon refuses to remove a network
+ * that still has one, so the harness goes last.
+ *
+ * `swallow` is for the failed bring-up, where the start failure is the error worth raising and a
+ * failure to clean up behind it must not displace one.
+ */
+async function stopAll({ support, whisparr, harness }, { swallow = false } = {}) {
+  const stops = [
+    ...Object.values(support).map((container) => () => container.stop()),
+    ...(whisparr ? [() => whisparr.stop()] : []),
+    ...(harness ? [() => harness.stop()] : []),
+  ];
+  for (const stop of stops) {
+    if (swallow) await Promise.resolve().then(stop).catch(NOOP);
+    else await stop();
+  }
+}
+
+const NOOP = () => {};
 
 /**
  * What the run is actually made of, read back off the running instances rather than off what was

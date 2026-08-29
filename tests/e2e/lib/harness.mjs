@@ -441,7 +441,7 @@ async function postUntilSettled(
  * the run it is trying to explain is worse than no diagnostic, so every failure mode degrades to a
  * short note.
  */
-async function tailContainerLog(container, { lines = 60, timeoutMs = 5000 } = {}) {
+export async function tailContainerLog(container, { lines = 60, timeoutMs = 5000 } = {}) {
   try {
     const stream = await container.logs();
     const chunks = [];
