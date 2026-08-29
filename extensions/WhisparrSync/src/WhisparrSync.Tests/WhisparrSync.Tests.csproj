@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <!-- An xUnit v3 test project is a self-hosting Microsoft Testing Platform executable; the
+         framework refuses to build one that is not. -->
+    <OutputType>Exe</OutputType>
+    <!-- A test project is never a Cove plugin: neutralize the inherited dynamic-loading flag. -->
+    <EnableDynamicLoading>false</EnableDynamicLoading>
+    <!--
+      A test project is not deployed, so it must keep its full runtime closure. On the cove-absent
+      path the extension's transitive Cove.Sdk PackageReference imports Cove.Sdk.targets, whose strip
+      target would remove Cove.Plugins.dll from THIS project's output and leave xUnit unable to
+      reflect over the assembly. The value must be NON-EMPTY: those targets re-apply their default
+      denylist when the property is empty, so a sentinel matching no real assembly name is what
+      disables the strip.
+    -->
+    <CoveHostProvidedAssemblies>;__whisparrsync_tests_no_strip__;</CoveHostProvidedAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <!--
+      TEST-ONLY runtime closure, not a compile dependency: the extension base class binds to EF Core
+      types, so merely constructing the extension loads the assembly. The host supplies it at runtime
+      and the extension therefore consumes it with the runtime assets excluded, which leaves it out of
+      the test output unless it is named here.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <!-- The wire-document base class and the host-free store fakes are both in this namespace. -->
+    <Using Include="Cove.Extensions.Shared.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The extension's own code, and the shipped extension.json the fixture reads out of the test
+         output directory. -->
+    <ProjectReference Include="..\WhisparrSync\WhisparrSync.csproj" />
+    <!-- Host-free shared test support. Unconditional: it builds against the Cove.Plugins package on
+         the cove-absent path too. -->
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\shared\Cove.Extensions.Shared.Testing\Cove.Extensions.Shared.Testing.csproj" />
+  </ItemGroup>
+
+  <!--
+    Cove-absent path only. The extension consumes Cove.Plugins as a host-provided assembly that is not
+    copied to consumers, so without this reference the test assembly fails at xUnit reflection time.
+    In source mode the cove ProjectReference already supplies it and a second copy would split the
+    closure.
+  -->
+  <ItemGroup Condition="'$(CoveSourceMode)' == 'none'">
+    <PackageReference Include="Cove.Plugins" />
+  </ItemGroup>
+</Project>
