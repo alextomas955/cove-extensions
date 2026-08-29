@@ -309,6 +309,28 @@ export async function startProbeContext(requirements, { outDir } = {}) {
 }
 
 /**
+ * Runs every one of `stops`, in order, and reports the ones that threw.
+ *
+ * A stop that throws does not cancel the ones after it. The order is the whole point — the harness
+ * goes last because the daemon refuses to remove a network an earlier container still holds an
+ * endpoint on — so short-circuiting on the first failure is what strands both.
+ *
+ * @param {Array<() => Promise<unknown>>} stops
+ * @returns {Promise<unknown[]>} what each failing stop threw, in the order they were run
+ */
+export async function runEveryStop(stops) {
+  const failures = [];
+  for (const stop of stops) {
+    try {
+      await stop();
+    } catch (cause) {
+      failures.push(cause);
+    }
+  }
+  return failures;
+}
+
+/**
  * Stops everything the bring-up started, in the one order that works: a Whisparr or a support
  * container holds an endpoint on the compose network, and the daemon refuses to remove a network
  * that still has one, so the harness goes last.
@@ -317,18 +339,15 @@ export async function startProbeContext(requirements, { outDir } = {}) {
  * failure to clean up behind it must not displace one.
  */
 async function stopAll({ support, whisparr, harness }, { swallow = false } = {}) {
-  const stops = [
+  const failures = await runEveryStop([
     ...Object.values(support).map((container) => () => container.stop()),
     ...(whisparr ? [() => whisparr.stop()] : []),
     ...(harness ? [() => harness.stop()] : []),
-  ];
-  for (const stop of stops) {
-    if (swallow) await Promise.resolve().then(stop).catch(NOOP);
-    else await stop();
+  ]);
+  if (!swallow && failures.length > 0) {
+    throw new AggregateError(failures, "startProbeContext: not everything the run started stopped");
   }
 }
-
-const NOOP = () => {};
 
 /**
  * What the run is actually made of, read back off the running instances rather than off what was
