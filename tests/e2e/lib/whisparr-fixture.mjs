@@ -138,7 +138,18 @@ export async function startWhisparr({
     },
 
     async stop() {
-      await Promise.all(Object.values(instances).map((instance) => instance.container.stop()));
+      // Every instance is stopped even when one refuses: each holds its own endpoint on the
+      // harness's network, and the teardown that follows cannot remove a network while one is
+      // attached.
+      const outcomes = await Promise.allSettled(
+        Object.values(instances).map((instance) => instance.container.stop()),
+      );
+      const failures = outcomes
+        .filter((outcome) => outcome.status === "rejected")
+        .map((outcome) => outcome.reason);
+      if (failures.length > 0) {
+        throw new AggregateError(failures, "startWhisparr: not every instance stopped");
+      }
     },
   };
 
