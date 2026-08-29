@@ -31,6 +31,7 @@
       "path": "extensions/WhisparrSync",
       "tagPrefix": "whisparr-sync/",
       "projectPath": "extensions/WhisparrSync/src/WhisparrSync/WhisparrSync.csproj",
+      "testProjectPath": "extensions/WhisparrSync/src/WhisparrSync.Tests/WhisparrSync.Tests.csproj",
       "manifestPath": "extensions/WhisparrSync/src/WhisparrSync/extension.json",
       "artifacts": [
         "extension.json",
