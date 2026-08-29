@@ -30,6 +30,32 @@ interrupted run is reaped rather than left behind.
 Which Cove image boots is decided by the harness, so `COVE_E2E_TAG` selects a leg here exactly as it
 does for the suites.
 
+## Providers on the fixture Cove
+
+The bring-up configures the fixture Cove with the metadata servers read out of this machine's own
+Cove install, or with the placeholder set when there is none, and reports the outcome on
+`ctx.providers`:
+
+| Field                | Meaning                                                                                                                    |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `source`             | `install` or `placeholder`.                                                                                                |
+| `skip`               | Why the lift found nothing, or `null`. A machine with no install is the ordinary case, never an error.                     |
+| `servers`            | The entries as configured, described: endpoint, name, rate limit, and the key's presence and character count. Never a key. |
+| `env`                | The `COVE__Scraping__MetadataServers__N__*` environment built for them.                                                    |
+| `envVarsInContainer` | How many of those variables the container actually received.                                                               |
+| `observedFromEnv`    | What the instance reported before anything was saved to it.                                                                |
+| `delivery.by`        | `environment`, `configuration-api`, or `none`.                                                                             |
+
+Both delivery routes are tried because only one of them works today: `startHarness({ env })` reaches
+the compose process, where it feeds `${VAR}` interpolation, and a variable the compose file does not
+name never reaches the container at all. So the bring-up saves the entries through Cove's own
+configuration API instead and re-reads them, which is why `envVarsInContainer` is worth recording
+next to any verdict about the environment form: it separates a binder that refused the entries from a
+delivery that never carried them.
+
+A row that needs providers should read `ctx.providers`, never re-read the install for itself, and
+never widen `servers` back into raw entries.
+
 ## Re-verifying after an image bump
 
 A fixture image bump is a deliberate edit to `lib/whisparr-images.mjs`, which is the one place the
