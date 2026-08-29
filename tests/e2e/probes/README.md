@@ -86,6 +86,31 @@ export const row = {
 };
 ```
 
+`requires.support` names the support containers the row needs by id, and the bring-up hands them back
+on `ctx.support` under the same ids. A support container joins the Cove instance's own network, so a
+row asking for one asks for `cove` too, and an id no starter is wired for is refused by name rather
+than ignored. Adding one is adding a starter to `lib/context.mjs`'s own table; the bring-up stops
+them before the harness, because the daemon refuses to remove a network that still has an attached
+endpoint.
+
+`webhook-listener` is the one that exists today. It gives an application under test somewhere to call
+and reads back what arrived:
+
+```js
+const listener = ctx.support["webhook-listener"];
+// Register a callback pointing at listener.url("/my-row/v3"), then:
+const [delivery] = await listener.waitForCaptures(1, {
+  match: (capture) => capture.path === "/my-row/v3",
+});
+// delivery: { ts, verb, path, headers, body }
+```
+
+It is reachable only by its network alias and publishes no host port, since the only callers are
+containers on that network. `waitForCaptures` polls rather than sleeping, and `match` exists because
+every row in a run shares one listener: take the deliveries your row caused and leave the rest. A row
+that asserts anything about what arrived must read it from the capture, never from the registration's
+echo — a field a build accepts and then does not send answers the echo exactly as a working one does.
+
 `requires.network` and `requires.live` are separate on purpose. `network` says the row depends on
 outbound internet, which the record then names as an external dependency; a row that cannot reach it
 must fail with a named error rather than record a silent empty result. `live` is the stronger case:
