@@ -7,6 +7,7 @@
 // never enters into it, so this behaves the same on any contributor's machine and any CI runner.
 import { join } from "node:path";
 import { attemptUntil } from "./poll.mjs";
+import { APP_USER } from "./whisparr-images.mjs";
 
 // The database each generation serves its own API from. The seeder takes this as an argument rather
 // than choosing for itself, so the one database it may open is always named by its caller.
@@ -83,9 +84,10 @@ export async function seedHistory({ container, api, generation, count = DEFAULT_
   }
 
   await container.copyFilesToContainer([{ source: SEEDER_SOURCE, target: SEEDER_TARGET }]);
-  // A copied file arrives root-owned. The chown is the only step run as root: the seeder itself runs
-  // as the container's default user, so the WAL and shm siblings it touches stay owned by the app.
-  await container.exec(["chown", "1000:1000", SEEDER_TARGET], { user: "root" });
+  // A copied file arrives root-owned, and the chown is the only step here that needs root. The
+  // seeder itself is run AS the app's own user so the write-ahead and shared-memory siblings it
+  // touches keep belonging to the process that has to go on using them.
+  await container.exec(["chown", APP_USER, SEEDER_TARGET], { user: "root" });
   const written = await runSeeder(container, generation, count, database);
 
   const {
@@ -113,16 +115,19 @@ export async function seedHistory({ container, api, generation, count = DEFAULT_
 }
 
 async function runSeeder(container, generation, count, database) {
-  const result = await container.exec([
-    "python3",
-    SEEDER_TARGET,
-    "--generation",
-    generation,
-    "--count",
-    String(count),
-    "--db",
-    database,
-  ]);
+  const result = await container.exec(
+    [
+      "python3",
+      SEEDER_TARGET,
+      "--generation",
+      generation,
+      "--count",
+      String(count),
+      "--db",
+      database,
+    ],
+    { user: APP_USER },
+  );
   if (result.exitCode !== 0) {
     throw new Error(
       `seedHistory: the seeder exited ${result.exitCode} against ${generation} (${database}): ${result.output}`,
