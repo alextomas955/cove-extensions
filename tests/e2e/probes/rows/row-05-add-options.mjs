@@ -47,6 +47,10 @@ const SETTLE_INTERVAL_MS = 1_000;
 const LOOKUP_TIMEOUT_MS = 90_000;
 const LOOKUP_INTERVAL_MS = 5_000;
 
+// A freshly started instance seeds its own default profiles after it starts answering.
+const PROFILE_TIMEOUT_MS = 60_000;
+const PROFILE_INTERVAL_MS = 2_000;
+
 // The lookups reach the vendor's metadata service. The terms name businesses rather than people, and
 // nothing a lookup returns about its subject is recorded: these results describe real people and
 // real companies, and the row needs a subject to add, not a subject to publish.
@@ -134,15 +138,32 @@ const commandRoster = async (api) =>
 
 const queueTotal = async (api) => (await api.get(QUEUE_PATH)).json?.totalRecords ?? null;
 
+/**
+ * A profile an add can name, polled rather than read once.
+ *
+ * A freshly started instance answers this route before it has finished seeding its own defaults, so
+ * a single read races the seed and reports an instance that has none.
+ */
 async function firstQualityProfileId(api, generation) {
-  const profiles = await api.get(QUALITY_PROFILE_PATH);
-  const id = profiles.json?.[0]?.id;
-  if (typeof id !== "number") {
+  const { settled, value, note } = await attemptUntil(
+    async (_signal, record) => {
+      const profiles = await api.get(QUALITY_PROFILE_PATH);
+      record(`${profiles.status} ${profiles.contentType} with ${profiles.json?.length ?? 0}`);
+      const id = profiles.json?.[0]?.id;
+      return typeof id === "number" ? { value: id } : null;
+    },
+    {
+      timeoutMs: PROFILE_TIMEOUT_MS,
+      intervalMs: PROFILE_INTERVAL_MS,
+      label: "row-05-add-options firstQualityProfileId",
+    },
+  );
+  if (!settled) {
     throw new Error(
-      `row-05-add-options: GET ${QUALITY_PROFILE_PATH} on ${generation} answered ${profiles.status} ${profiles.contentType} and carried no profile, so no add can name one.`,
+      `row-05-add-options: GET ${QUALITY_PROFILE_PATH} on ${generation} last answered ${note}, so no add can name a profile.`,
     );
   }
-  return id;
+  return value;
 }
 
 /**
