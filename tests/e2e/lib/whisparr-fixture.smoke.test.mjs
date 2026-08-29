@@ -9,17 +9,31 @@ import { startWhisparr } from "./whisparr-fixture.mjs";
 import { createApiClient } from "./apiClient.mjs";
 
 const STATUS_PATH = "/api/v3/system/status";
+const HISTORY_PATH = "/api/v3/history?page=1&pageSize=10";
 
 // Not the fixture's key, and not a shape any instance would mint for itself.
 const WRONG_API_KEY = "ffffffffffffffffffffffffffffffff";
 
 const EXPECTED_VERSION_PREFIX = { v3: "3.", v2: "2." };
 
+// Stated here rather than read off the fixture: an expectation taken from the module it checks
+// agrees with that module forever and reports nothing.
+const SEEDED_HISTORY_ROWS = 3;
+
+// The history API's own vocabulary, which is NOT the webhook's — the same event is camelCase on one
+// surface and PascalCase on the other, so a parser written against either matches nothing on the
+// other without failing anywhere.
+const CAMEL_CASE = /^[a-z][A-Za-z]*$/;
+
 test("both Whisparr generations answer their own API beside the harness Cove", async (t) => {
+  const beforeSeed = new Date(Date.now() - 3_600_000).toISOString();
   const harness = await startHarness();
   try {
     const [network] = harness.container.getNetworkNames();
-    const whisparr = await startWhisparr({ network });
+    const whisparr = await startWhisparr({
+      network,
+      seedHistory: { count: SEEDED_HISTORY_ROWS },
+    });
     // Nested inside the harness's own teardown: a compose down removes the project network, and the
     // daemon refuses to remove a network that still has an attached endpoint.
     try {
@@ -51,6 +65,8 @@ test("both Whisparr generations answer their own API beside the harness Cove", a
             headers: { "X-Api-Key": WRONG_API_KEY },
           }).get(STATUS_PATH);
           assert.equal(wrongKey.status, 401, "expected 401 with a wrong key");
+
+          await assertSeededHistory(whisparr.apiFor(generation), beforeSeed);
         });
       }
     } finally {
@@ -60,3 +76,35 @@ test("both Whisparr generations answer their own API beside the harness Cove", a
     await harness.stop();
   }
 });
+
+/**
+ * The instance has an import past, and it is readable through the two routes a first-pass claim
+ * would be built on. An empty history is not a confirmed zero here: it is what a failed seed looks
+ * like, which is why the count is asserted rather than the status alone.
+ */
+async function assertSeededHistory(api, since) {
+  const history = await api.get(HISTORY_PATH);
+  assert.equal(history.status, 200, `expected 200 from the history API, body: ${history.text}`);
+  assert.ok(
+    history.contentType.startsWith("application/json"),
+    `expected a JSON content type, got "${history.contentType}"`,
+  );
+  assert.equal(history.json?.totalRecords, SEEDED_HISTORY_ROWS);
+
+  for (const record of history.json.records) {
+    assert.ok(
+      record.sourceTitle,
+      `a seeded record carried no sourceTitle: ${JSON.stringify(record)}`,
+    );
+    assert.match(record.eventType, CAMEL_CASE);
+  }
+
+  const watermark = await api.get(`/api/v3/history/since?date=${encodeURIComponent(since)}`);
+  assert.equal(
+    watermark.status,
+    200,
+    `expected 200 from the watermark read, body: ${watermark.text}`,
+  );
+  assert.ok(Array.isArray(watermark.json), `expected an array, got "${watermark.contentType}"`);
+  assert.equal(watermark.json.length, SEEDED_HISTORY_ROWS);
+}

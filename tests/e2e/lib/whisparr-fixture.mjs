@@ -7,7 +7,7 @@
 import { GenericContainer, Wait } from "testcontainers";
 import { createApiClient } from "./apiClient.mjs";
 import { whisparrImage } from "./whisparr-images.mjs";
-import { buildConfigXml } from "./whisparr-seed.mjs";
+import { buildConfigXml, seedHistory } from "./whisparr-seed.mjs";
 
 const WHISPARR_PORT = 6969;
 
@@ -44,13 +44,19 @@ const aliasFor = (generation) => `whisparr-${generation}`;
  * endpoint, so a container left running here turns teardown into an error naming neither this module
  * nor the cause.
  *
- * @param {{network: string, generations?: ("v3"|"v2")[], apiKey?: string, startupTimeoutMs?: number}} options
+ * `seedHistory` asks for instances that already have an import past, which is what makes a claim
+ * about a FIRST synchronisation pass falsifiable — against an empty instance, "it imported nothing"
+ * and "it did nothing" are the same observation.
+ *
+ * @param {{network: string, generations?: ("v3"|"v2")[], apiKey?: string, startupTimeoutMs?: number,
+ *          seedHistory?: boolean|{count?: number}}} options
  */
 export async function startWhisparr({
   network,
   generations = ["v3", "v2"],
   apiKey = FIXTURE_API_KEY,
   startupTimeoutMs = DEFAULT_STARTUP_TIMEOUT_MS,
+  seedHistory: history = false,
 } = {}) {
   if (!network) {
     throw new Error(
@@ -104,10 +110,45 @@ export async function startWhisparr({
       });
     },
 
+    /**
+     * Gives one generation an import past, and records what the instance itself rendered for each
+     * event type it now holds — also reachable afterwards as `handle[generation].history`.
+     */
+    async seedHistory(generation, options = {}) {
+      const instance = instances[generation];
+      if (instance === undefined) {
+        throw new Error(
+          `startWhisparr: seedHistory("${generation}") — this call started ${handle.generations.join(", ") || "nothing"}.`,
+        );
+      }
+      instance.history = await seedHistory({
+        container: instance.container,
+        api: handle.apiFor(generation),
+        generation,
+        ...options,
+      });
+      return instance.history;
+    },
+
     async stop() {
       await Promise.all(Object.values(instances).map((instance) => instance.container.stop()));
     },
   };
+
+  if (history) {
+    // Anything that fails here leaves started containers holding endpoints on the harness's
+    // network, and the compose teardown that follows cannot remove a network while one is attached.
+    try {
+      await Promise.all(
+        generations.map((generation) =>
+          handle.seedHistory(generation, history === true ? {} : history),
+        ),
+      );
+    } catch (cause) {
+      await handle.stop().catch(() => {});
+      throw cause;
+    }
+  }
 
   return handle;
 }
@@ -123,6 +164,8 @@ function instanceHandle(container, generation, apiKey) {
     },
     alias: aliasFor(generation),
     apiKey,
+    /** What `seedHistory` last observed on this instance; undefined until something seeds it. */
+    history: undefined,
   };
 }
 
