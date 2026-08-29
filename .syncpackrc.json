@@ -22,8 +22,8 @@
       "isIgnored": true
     },
     {
-      "label": "@cove-extensions/renamer-ui is private and nothing declares a dependency on it (vite bundles it; it is never resolved from a registry), so it carries no version field for syncpack to compare dependents against. Scoped to the local type, so a dependent declaring a wrong range would still fail.",
-      "dependencies": ["@cove-extensions/renamer-ui"],
+      "label": "An extension's UI bundle package is private and nothing declares a dependency on it (vite bundles its source; it is never resolved from a registry), so its version has no dependent range for syncpack to compare against. Scoped to the local type, so a dependent declaring a wrong range would still fail.",
+      "dependencies": ["@cove-extensions/*-ui"],
       "dependencyTypes": ["local"],
       "isIgnored": true
     }

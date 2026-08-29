@@ -11,6 +11,12 @@
       "project": ["src/**/*.{ts,tsx}"],
       "ignoreDependencies": ["@vitejs/plugin-react", "@cove/runtime"]
     },
+    "extensions/WhisparrSync/src/WhisparrSync.Ui": {
+      "vite": false,
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignoreDependencies": ["@vitejs/plugin-react", "lucide-react"]
+    },
     "shared/ui-shared": {
       "entry": ["vite/createExtensionViteConfig.ts", "scripts/*.{mjs,cjs}"],
       "project": ["src/**/*.{ts,tsx}", "vite/**/*.ts", "scripts/**/*.{mjs,cjs}"],
