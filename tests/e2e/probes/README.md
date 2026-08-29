@@ -80,7 +80,7 @@ export const row = {
     live: false,
   },
   async run(ctx) {
-    // ctx.harness, ctx.whisparr, ctx.providers, ctx.builds
+    // ctx.harness, ctx.whisparr, ctx.providers, ctx.builds, ctx.outDir
     return { method: { verb: "GET", path: "/api/system/config" }, verdict: "bound", observed: {} };
   },
 };
@@ -95,6 +95,20 @@ limit, and it never runs without `--live`.
 **No credential value may reach a record.** `lib/record.mjs` is the single choke point: every value
 written passes through its redactor, which replaces any provider entry with a presence-and-length
 description. Take the fields a row needs and discard the rest; never persist a whole response.
+
+## Writing evidence too large for a record
+
+A record is read by a person, so an artefact like a published API document belongs beside it rather
+than inside it. `lib/record.mjs`'s `writeCompanion(ctx.outDir, name, contents)` writes one, and the
+row then summarises it into its own record and records the path.
+
+Key the name by the build that produced the artefact. Two runs against different images then leave
+two files a later phase can diff, where one fixed name would leave the newer overwriting the older.
+The name is held to a plain-lowercase rule because it is normally assembled from a version string a
+third party reported.
+
+`ctx.outDir` is the directory the caller named on `--out`. It is `undefined` when a row is exercised
+outside the runner, so a row that writes one must say what it did when there was nowhere to write.
 
 ## Checking a record's size
 
