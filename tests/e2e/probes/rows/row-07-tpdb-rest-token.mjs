@@ -55,8 +55,13 @@ export function bounded(values) {
  *
  * That rate is the closest available proxy for the provider's real limit: it is what the install
  * that supplied the credential already asks this service at. The enforced minimum interval is the
- * guarantee; the averages the report carries are there so the claim is arithmetic a reader can
- * check rather than an assurance.
+ * guarantee; the rates the report carries are there so the claim is arithmetic a reader can check
+ * rather than an assurance.
+ *
+ * Each call is charged one whole interval, the first included, so the window a rate is divided over
+ * covers every call's own slot. Dividing a handful of calls by the span between the first and the
+ * last instead reports a burst shorter than a minute as a rate per minute, which reads as a limit
+ * broken by a run that never broke one.
  *
  * @param {{requestsPerMinute: number|null|undefined, label: string}} options
  */
@@ -84,17 +89,20 @@ export function pacer({ requestsPerMinute, label }) {
     },
     report() {
       const elapsedMs = Date.now() - startedAt;
+      const chargedWindowMs = elapsedMs + minIntervalMs;
+      const peak = shortestGapMs === null ? null : Number((60_000 / shortestGapMs).toFixed(2));
       return {
         label,
         configuredRequestsPerMinute: configured,
         minIntervalMs,
         calls,
         elapsedMs,
+        chargedWindowMs,
         shortestGapMs,
-        averageRequestsPerMinute:
-          elapsedMs > 0 ? Number(((calls * 60_000) / elapsedMs).toFixed(2)) : null,
-        fastestRequestsPerMinute:
-          shortestGapMs === null ? null : Number((60_000 / shortestGapMs).toFixed(2)),
+        requestsPerMinute:
+          calls === 0 ? null : Number(((calls * 60_000) / chargedWindowMs).toFixed(2)),
+        peakRequestsPerMinute: peak,
+        withinConfiguredRate: configured === null || peak === null ? null : peak <= configured,
       };
     },
   };
