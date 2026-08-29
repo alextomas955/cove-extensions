@@ -59,8 +59,8 @@ export function buildRecord({ id, label, requires, builds, method, verdict, obse
 /**
  * Writes one record whole, into `outDir`, under its own id.
  *
- * One file per row and never a shared one, so an interrupted run leaves the records already written
- * intact, and a re-run replaces a record rather than appending to it.
+ * One file per row and never a shared one, so a record already written is never reopened by a later
+ * row, and a re-run replaces a record rather than appending to it.
  *
  * @returns {string} the path written
  */
