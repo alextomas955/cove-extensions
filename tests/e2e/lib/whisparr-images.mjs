@@ -16,6 +16,15 @@ const TAGS = Object.freeze({
   v2: "v2-2.2.0-release.231",
 });
 
+/**
+ * The user both images run the app as.
+ *
+ * `exec` runs as ROOT unless told otherwise, so anything a fixture creates inside one of these
+ * containers belongs to root by default — and the app then cannot write it, which it reports as a
+ * refusal naming a user rather than a permission.
+ */
+export const APP_USER = "1000:1000";
+
 /** Complete references, composed from the single repository above so the two cannot drift apart. */
 export const WHISPARR_IMAGES = Object.freeze(
   Object.fromEntries(

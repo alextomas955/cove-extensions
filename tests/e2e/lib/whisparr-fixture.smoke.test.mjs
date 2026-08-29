@@ -5,11 +5,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { startHarness } from "./harness.mjs";
-import { startWhisparr } from "./whisparr-fixture.mjs";
+import { libraryRootsContaining, startWhisparr } from "./whisparr-fixture.mjs";
 import { createApiClient } from "./apiClient.mjs";
 
 const STATUS_PATH = "/api/v3/system/status";
 const HISTORY_PATH = "/api/v3/history?page=1&pageSize=10";
+const COVE_CONFIG_PATH = "/api/system/config";
 
 // Not the fixture's key, and not a shape any instance would mint for itself.
 const WRONG_API_KEY = "ffffffffffffffffffffffffffffffff";
@@ -25,14 +26,25 @@ const SEEDED_HISTORY_ROWS = 3;
 // other without failing anywhere.
 const CAMEL_CASE = /^[a-z][A-Za-z]*$/;
 
+// The two first-run path variants, one per generation so a single bring-up carries both. Which
+// generation holds which is immaterial — containment is decided on the reported strings.
+const ROOT_FOLDERS = { v3: "/data", v2: "/media/whisparr" };
+
+// How many of the library roots COVE declares must contain each of those: the aligned one falls
+// under exactly one, the mismatched one under none. The second is the condition that leaves a host
+// unable to resolve a path an instance reported.
+const EXPECTED_CONTAINING_ROOTS = { v3: 1, v2: 0 };
+
 test("both Whisparr generations answer their own API beside the harness Cove", async (t) => {
   const beforeSeed = new Date(Date.now() - 3_600_000).toISOString();
   const harness = await startHarness();
   try {
+    const coveRoots = await coveLibraryRoots(harness);
     const [network] = harness.container.getNetworkNames();
     const whisparr = await startWhisparr({
       network,
       seedHistory: { count: SEEDED_HISTORY_ROWS },
+      rootFolder: ROOT_FOLDERS,
     });
     // Nested inside the harness's own teardown: a compose down removes the project network, and the
     // daemon refuses to remove a network that still has an attached endpoint.
@@ -67,6 +79,14 @@ test("both Whisparr generations answer their own API beside the harness Cove", a
           assert.equal(wrongKey.status, 401, "expected 401 with a wrong key");
 
           await assertSeededHistory(whisparr.apiFor(generation), beforeSeed);
+
+          // Judged against the roots COVE reports and the root WHISPARR reports, so neither side of
+          // the comparison is a value this test supplied.
+          assert.equal(
+            libraryRootsContaining(whisparr[generation].rootFolder, coveRoots).length,
+            EXPECTED_CONTAINING_ROOTS[generation],
+            `Cove declares ${coveRoots.join(", ")}, and ${generation} reports ${whisparr[generation].rootFolder}`,
+          );
         });
       }
     } finally {
@@ -107,4 +127,24 @@ async function assertSeededHistory(api, since) {
   );
   assert.ok(Array.isArray(watermark.json), `expected an array, got "${watermark.contentType}"`);
   assert.equal(watermark.json.length, SEEDED_HISTORY_ROWS);
+}
+
+/**
+ * The library roots Cove itself declares. Asking the host rather than restating the harness's own
+ * compose environment is the point: a check built from the value this suite supplied agrees with
+ * itself however wrong the running configuration is.
+ *
+ * Only the paths are taken from that response, and none of it is logged: for a principal that may
+ * write system settings it also carries provider API keys in the clear.
+ */
+async function coveLibraryRoots(harness) {
+  await harness.bootstrapOwner();
+  const config = await createApiClient(
+    () => harness.baseUrl,
+    () => harness.token,
+  ).get(COVE_CONFIG_PATH);
+  assert.equal(config.status, 200, `expected 200 from ${COVE_CONFIG_PATH}`);
+  const roots = config.json?.covePaths?.map((entry) => entry.path) ?? [];
+  assert.ok(roots.length > 0, `${COVE_CONFIG_PATH} declared no library root`);
+  return roots;
 }

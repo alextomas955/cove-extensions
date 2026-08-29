@@ -6,7 +6,7 @@
 // even when the test process is killed rather than exiting.
 import { GenericContainer, Wait } from "testcontainers";
 import { createApiClient } from "./apiClient.mjs";
-import { whisparrImage } from "./whisparr-images.mjs";
+import { APP_USER, whisparrImage } from "./whisparr-images.mjs";
 import { buildConfigXml, seedHistory } from "./whisparr-seed.mjs";
 
 const WHISPARR_PORT = 6969;
@@ -14,6 +14,7 @@ const WHISPARR_PORT = 6969;
 // Both generations serve this under `/api/v3` — v2's Sonarr-lineage API carries the same prefix — so
 // the path does not tell the two apart. The version in its body does.
 const STATUS_PATH = "/api/v3/system/status";
+const ROOT_FOLDER_PATH = "/api/v3/rootfolder";
 
 // A shared runner cold-starts containers more slowly than a dev machine's Docker Desktop, so the CI
 // budget is the wider one rather than local timing tuned tight.
@@ -48,8 +49,13 @@ const aliasFor = (generation) => `whisparr-${generation}`;
  * about a FIRST synchronisation pass falsifiable — against an empty instance, "it imported nothing"
  * and "it did nothing" are the same observation.
  *
+ * `rootFolder` — one path for every generation, or a per-generation map — declares the library root
+ * each instance reports. It is how the two path variants are expressed: whether Cove can resolve
+ * what an instance reports is a question about STRINGS, so neither variant needs a shared
+ * filesystem, and a volume no reaper owns would be a cleanup path bought for nothing.
+ *
  * @param {{network: string, generations?: ("v3"|"v2")[], apiKey?: string, startupTimeoutMs?: number,
- *          seedHistory?: boolean|{count?: number}}} options
+ *          seedHistory?: boolean|{count?: number}, rootFolder?: string|Record<string,string>}} options
  */
 export async function startWhisparr({
   network,
@@ -57,6 +63,7 @@ export async function startWhisparr({
   apiKey = FIXTURE_API_KEY,
   startupTimeoutMs = DEFAULT_STARTUP_TIMEOUT_MS,
   seedHistory: history = false,
+  rootFolder,
 } = {}) {
   if (!network) {
     throw new Error(
@@ -135,22 +142,91 @@ export async function startWhisparr({
     },
   };
 
-  if (history) {
-    // Anything that fails here leaves started containers holding endpoints on the harness's
-    // network, and the compose teardown that follows cannot remove a network while one is attached.
-    try {
+  // Anything that fails from here on leaves started containers holding endpoints on the harness's
+  // network, and the compose teardown that follows cannot remove a network while one is attached.
+  try {
+    await Promise.all(
+      generations
+        .filter((generation) => declaredRootFolder(rootFolder, generation))
+        .map(async (generation) => {
+          instances[generation].rootFolder = await registerRootFolder(
+            instances[generation].container,
+            handle.apiFor(generation),
+            generation,
+            declaredRootFolder(rootFolder, generation),
+          );
+        }),
+    );
+    if (history) {
       await Promise.all(
         generations.map((generation) =>
           handle.seedHistory(generation, history === true ? {} : history),
         ),
       );
-    } catch (cause) {
-      await handle.stop().catch(() => {});
-      throw cause;
     }
+  } catch (cause) {
+    await handle.stop().catch(() => {});
+    throw cause;
   }
 
   return handle;
+}
+
+const declaredRootFolder = (rootFolder, generation) =>
+  typeof rootFolder === "string" ? rootFolder : rootFolder?.[generation];
+
+/**
+ * Creates the directory, hands it to the app's user and registers it, returning the path the
+ * instance itself reports back.
+ *
+ * The chown is not tidiness: registration REFUSES a directory the app cannot write, and the refusal
+ * names the user rather than the permission, so a fixture that skipped it would fail here with an
+ * error about an account nobody chose.
+ *
+ * `accessible` is read from the LISTING and never from the creation response, because one
+ * generation leaves that field false in the response it answers a successful creation with. Only
+ * `path` and `accessible` are asserted at all: the two generations carry different extra fields,
+ * and pinning a whole body would fail over a difference nothing here depends on.
+ */
+async function registerRootFolder(container, api, generation, path) {
+  await container.exec(["mkdir", "-p", path], { user: "root" });
+  await container.exec(["chown", APP_USER, path], { user: "root" });
+
+  const created = await api.post(ROOT_FOLDER_PATH, { path });
+  if (!created.ok) {
+    throw new Error(
+      `startWhisparr: POST ${ROOT_FOLDER_PATH} {"path": "${path}"} on ${generation} answered ${created.status}: ${created.text}`,
+    );
+  }
+
+  const listed = await api.get(ROOT_FOLDER_PATH);
+  const registered = listed.json?.find?.((root) => root.path === path);
+  if (registered?.accessible !== true) {
+    throw new Error(
+      `startWhisparr: ${generation} registered the root folder "${path}" and then reported it as ${JSON.stringify(registered ?? null)} on ${ROOT_FOLDER_PATH}.`,
+    );
+  }
+  return registered.path;
+}
+
+/**
+ * The declared library roots that contain `path`, as the roots' own strings.
+ *
+ * Every match is returned rather than the first, because nested roots are a real configuration and
+ * which of them owns a path is a question this function must not silently decide for its caller.
+ *
+ * Containment is judged on whole segments, so a root is not taken to contain a sibling directory
+ * whose name merely starts with its own.
+ *
+ * @param {string} path
+ * @param {string[]} roots
+ * @returns {string[]}
+ */
+export function libraryRootsContaining(path, roots) {
+  return roots.filter((root) => {
+    const trimmed = root.replace(/\/+$/, "");
+    return path === trimmed || path.startsWith(`${trimmed}/`);
+  });
 }
 
 function instanceHandle(container, generation, apiKey) {
@@ -166,6 +242,8 @@ function instanceHandle(container, generation, apiKey) {
     apiKey,
     /** What `seedHistory` last observed on this instance; undefined until something seeds it. */
     history: undefined,
+    /** The library root this instance REPORTS, in its own words; undefined until one is declared. */
+    rootFolder: undefined,
   };
 }
 
