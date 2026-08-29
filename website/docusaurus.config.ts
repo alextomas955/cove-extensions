@@ -75,6 +75,15 @@ const config: Config = {
         sidebarPath: "./sidebars-renamer.ts",
       },
     ],
+    [
+      "@docusaurus/plugin-content-docs",
+      {
+        id: "whisparr-sync",
+        path: "../extensions/WhisparrSync/docs",
+        routeBasePath: "/extensions/whisparr-sync",
+        sidebarPath: "./sidebars-whisparrsync.ts",
+      },
+    ],
   ],
 
   // Offline local search (no Algolia, no network at query time). Registered as a theme;
@@ -88,10 +97,14 @@ const config: Config = {
         indexDocs: true,
         // The blog plugin is disabled above, so indexing it would only warn about a missing blog/ dir.
         indexBlog: false,
-        // One entry per docs instance. docsRouteBasePath (where pages ROUTE) and docsDir (where the
-        // markdown LIVES) must be PARALLEL arrays, or the indexer won't read the external instances.
-        docsRouteBasePath: ["/", "/extensions/renamer"],
-        docsDir: ["docs", "../extensions/Renamer/docs"],
+        // One entry per docs instance, in both arrays. The two are not paired by index: the search
+        // plugin reads docsRouteBasePath to decide which built routes count as docs, and walks
+        // docsDir only to hash the source markdown into the index's cache-busting query. An
+        // instance's pages reach the index because its content-docs plugin instance is registered
+        // above, so an omission here surfaces as a reader holding a stale index after a docs edit
+        // rather than as a build failure.
+        docsRouteBasePath: ["/", "/extensions/renamer", "/extensions/whisparr-sync"],
+        docsDir: ["docs", "../extensions/Renamer/docs", "../extensions/WhisparrSync/docs"],
       },
     ],
   ],
