@@ -254,7 +254,11 @@ the cleanup command.
   than by mounting a shared volume, because whether the host can resolve what an instance reports is
   decided on the strings and a volume no reaper owns would be a cleanup path bought for nothing; and
   this handle's `stop()` must run BEFORE `harness.stop()` — a compose down removes the project
-  network, and the daemon refuses to remove one that a container is still attached to.
+  network, and the daemon refuses to remove one that a container is still attached to. A caller
+  needing MORE roots than the start declares registers them with the module's own
+  `registerRootFolder()` rather than posting one itself: registration also has to create the
+  directory and hand it to the account the application runs as, and one generation reports a
+  freshly created root as inaccessible in the very response that created it.
 - [`lib/whisparr-images.mjs`](lib/whisparr-images.mjs) — the one site those images are declared, by
   exact release-channel tag. A floating tag is refused rather than allowed as a convenience:
   `latest` is a v2 image, so a floating reference can silently select the wrong generation.

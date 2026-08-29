@@ -187,8 +187,13 @@ const declaredRootFolder = (rootFolder, generation) =>
  * generation leaves that field false in the response it answers a successful creation with. Only
  * `path` and `accessible` are asserted at all: the two generations carry different extra fields,
  * and pinning a whole body would fail over a difference nothing here depends on.
+ *
+ * Exported for a caller that needs MORE than the one root a start declares. An inaccessible root
+ * invalidates whatever is measured against it, so this throws rather than returning one, and a
+ * caller registering its own roots gets that guarantee instead of restating the chown and the
+ * read-back for itself.
  */
-async function registerRootFolder(container, api, generation, path) {
+export async function registerRootFolder(container, api, generation, path) {
   await container.exec(["mkdir", "-p", path], { user: "root" });
   await container.exec(["chown", APP_USER, path], { user: "root" });
 
