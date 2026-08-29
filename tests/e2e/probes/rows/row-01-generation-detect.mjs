@@ -1,11 +1,11 @@
 // Settles how a consumer tells the two Whisparr generations apart before it talks to either, and
 // records the two refusals that establish the key is what authorised the read.
 //
-// `AuthenticationMethod: None` does not open the API — both generations refuse a keyless read — so a
-// row recording only the authorised 200 has not shown which of those two facts it observed.
+// `AuthenticationMethod: None` does not open the API: both generations refuse a keyless read and a
+// wrong-key read alike.
 //
-// Status is never the verdict here either: one generation answers an unmatched path with its
-// single-page frontend and a 200, so every observation carries the content type beside it.
+// One generation answers an unmatched path with its single-page frontend rather than a miss, so a
+// status alone establishes nothing about what answered.
 import { createApiClient } from "../../lib/apiClient.mjs";
 
 const STATUS_PATH = "/api/v3/system/status";
@@ -14,8 +14,8 @@ const STATUS_PATH = "/api/v3/system/status";
 // its shape.
 const WRONG_KEY = "ffffffffffffffffffffffffffffffff";
 
-// The fields read off the authorised body. `authentication` and the database pair are recorded even
-// though they agree across the generations: a reader has to see they were checked to know they do.
+// The fields read off the authorised body. The ones that agree across the generations are recorded
+// too, so a reader can see they were checked.
 const STATUS_FIELDS = [
   "version",
   "branch",
@@ -28,12 +28,11 @@ const STATUS_FIELDS = [
   "databaseVersion",
 ];
 
-// These count library contents, so only their PRESENCE is recorded — a value here would grow with
-// the library and says nothing about the generation anyway.
+// These count library contents, so only their PRESENCE is recorded: a value here grows with the
+// library.
 const COUNT_FIELDS = ["movieCount", "sceneCount", "performerCount", "studioCount"];
 
-// This row starts no listener, so the header a webhook consumer sees is out of its reach. It is
-// named as unobserved rather than transcribed from elsewhere.
+// This row starts no listener, so the header a webhook consumer sees is out of its reach.
 const INBOUND_USER_AGENT = {
   observedHere: false,
   reason: "This row makes outbound calls only; nothing here receives a request from an instance.",
@@ -48,8 +47,7 @@ const observeResponse = (response) => ({
 /**
  * The generation a status body claims to be, from the version's major alone.
  *
- * Returns a label rather than a boolean so a build that answers neither major is recorded as the
- * unknown it is instead of being folded into the generation it was not.
+ * @returns {string} a `v<major>` label, or `unknown` when the version carries no leading major.
  */
 function detectGeneration(version) {
   const major = /^(\d+)\./.exec(String(version ?? ""))?.[1];
