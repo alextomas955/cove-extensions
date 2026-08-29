@@ -228,9 +228,13 @@ async function deliverProviders(harness, providers) {
  * `stop()` tears down in the one order that works: a Whisparr container holds an endpoint on the
  * compose network, and the daemon refuses to remove a network that still has one.
  *
+ * `outDir` is where the caller's records are going, so a row whose evidence is too large for one can
+ * put it beside them. A row that writes nothing never reads it.
+ *
  * @param {ReturnType<typeof aggregateRequirements>} requirements
+ * @param {{outDir?: string}} [destination]
  */
-export async function startProbeContext(requirements) {
+export async function startProbeContext(requirements, { outDir } = {}) {
   if (requirements.support.length > 0) {
     throw new Error(
       `startProbeContext: a selected row asks for the support container(s) ${requirements.support.join(", ")}, and this context has no starter for one. Add it here, beside the Whisparr start.`,
@@ -268,6 +272,7 @@ export async function startProbeContext(requirements) {
     harness,
     whisparr,
     providers,
+    outDir,
     builds: await readBuilds({ whisparr }),
     async stop() {
       await whisparr?.stop();
