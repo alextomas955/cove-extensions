@@ -4,7 +4,13 @@
 // Everything started here is Testcontainers-managed so Ryuk reaps it when the run is killed rather
 // than exited. A raw `docker run` would escape that, and a probe is exactly the kind of thing a
 // person interrupts.
+//
+// Provider configuration is delivered here, and by two routes rather than one: the container
+// environment, and failing that Cove's own configuration API. Which route landed it is recorded on
+// the handle, because a row asserting anything about providers has to know.
+import { createApiClient } from "../../lib/apiClient.mjs";
 import { resolveCoveImage, startHarness } from "../../lib/harness.mjs";
+import { attemptUntil } from "../../lib/poll.mjs";
 import { startWhisparr } from "../../lib/whisparr-fixture.mjs";
 import { whisparrImage } from "../../lib/whisparr-images.mjs";
 import {
@@ -16,11 +22,18 @@ import {
 } from "../../lib/cove-providers.mjs";
 
 const STATUS_PATH = "/api/v3/system/status";
+const CONFIG_PATH = "/api/system/config";
+const PROVIDER_ENV_PREFIX = "COVE__Scraping__MetadataServers__";
+
+const READ_BACK_TIMEOUT_MS = 30_000;
+const READ_BACK_INTERVAL_MS = 1_000;
+
+// ---- Pure helpers: no container, so a selection and a verdict are both decidable without one. ----
 
 /**
  * The union of what every row in `rows` declares it needs.
  *
- * Pure, so a selection's cost is knowable without starting anything.
+ * Pure, so a selection's cost is knowable before anything starts.
  */
 export function aggregateRequirements(rows) {
   const whisparr = new Set();
@@ -36,13 +49,75 @@ export function aggregateRequirements(rows) {
     for (const generation of requires.whisparr ?? []) whisparr.add(generation);
     for (const name of requires.support ?? []) support.add(name);
   }
-  return {
-    cove,
-    seedHistory,
-    network,
-    whisparr: [...whisparr],
-    support: [...support],
-  };
+  return { cove, seedHistory, network, whisparr: [...whisparr], support: [...support] };
+}
+
+/**
+ * Rebuilds provider entries out of the environment built for them.
+ *
+ * The configuration API is offered exactly the entries the environment route was given, rather than
+ * a second reading of the install, so the two routes cannot be handed different inputs.
+ */
+function serversFromProviderEnv(env) {
+  const byIndex = new Map();
+  for (const [key, value] of Object.entries(env)) {
+    if (!key.startsWith(PROVIDER_ENV_PREFIX)) continue;
+    const [index, field] = key.slice(PROVIDER_ENV_PREFIX.length).split("__");
+    const server = byIndex.get(index) ?? {};
+    server[field.charAt(0).toLowerCase() + field.slice(1)] = value;
+    byIndex.set(index, server);
+  }
+  return [...byIndex.entries()]
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([, server]) => ({
+      ...server,
+      maxRequestsPerMinute: Number(server.maxRequestsPerMinute),
+    }));
+}
+
+/**
+ * How an instance's reported provider entries compare with the ones it was configured with.
+ *
+ * Three states, kept distinct: the interesting failure is a section that arrives carrying some of
+ * its fields and not others, and collapsing that into either neighbour loses the fact worth having.
+ *
+ * @param {object[]} configured - described entries, as configured
+ * @param {object[]|undefined} observed - described entries, as the instance reports them
+ */
+export function judgeBinding(configured, observed) {
+  if (!Array.isArray(observed) || observed.length === 0) {
+    return { verdict: "not-bound", mismatches: [] };
+  }
+  const mismatches = [];
+  if (observed.length !== configured.length) {
+    mismatches.push({
+      index: null,
+      field: "count",
+      configured: configured.length,
+      observed: observed.length,
+    });
+  }
+  configured.forEach((want, index) => {
+    const got = observed[index];
+    if (got === undefined) {
+      mismatches.push({ index, field: "entry", configured: want.name, observed: null });
+      return;
+    }
+    for (const field of ["endpoint", "name", "maxRequestsPerMinute"]) {
+      if (got[field] !== want[field]) {
+        mismatches.push({ index, field, configured: want[field], observed: got[field] });
+      }
+    }
+    if (got.apiKey.chars !== want.apiKey.chars) {
+      mismatches.push({
+        index,
+        field: "apiKey.chars",
+        configured: want.apiKey.chars,
+        observed: got.apiKey.chars,
+      });
+    }
+  });
+  return { verdict: mismatches.length === 0 ? "bound" : "partially-bound", mismatches };
 }
 
 /**
@@ -50,23 +125,100 @@ export function aggregateRequirements(rows) {
  *
  * A machine with no install of its own gets the placeholder set, so the configured SHAPE is present
  * either way and a provider read fails rather than finding nothing configured. `skip` carries the
- * reason the lift found nothing, for the record to name.
+ * reason the lift found nothing, for a record to name.
  */
 function resolveProviders() {
   const lifted = liftMetadataServers();
-  if (lifted.servers.length > 0) {
+  const servers = lifted.servers.length > 0 ? lifted.servers : PLACEHOLDER_SERVERS;
+  return {
+    source: lifted.servers.length > 0 ? "install" : "placeholder",
+    skip: lifted.skip,
+    servers: describeServers(servers),
+    env: lifted.servers.length > 0 ? providerEnv(lifted.servers) : placeholderProviderEnv(),
+  };
+}
+
+// ---- Everything below starts containers or talks to one. ----
+
+async function readMetadataServers(api) {
+  const response = await api.get(CONFIG_PATH);
+  if (!response.ok) {
+    throw new Error(
+      `probeContext: GET ${CONFIG_PATH} answered ${response.status}: ${response.text || "<empty body>"}`,
+    );
+  }
+  return response.json?.scraping?.metadataServers;
+}
+
+/** How many of the provider variables reached the container, which is what tells a dead binder from an undelivered one. */
+async function countProviderEnvInContainer(harness) {
+  const { output } = await harness.exec([
+    "sh",
+    "-c",
+    `env | grep -c '^${PROVIDER_ENV_PREFIX}' || true`,
+  ]);
+  return Number(output.trim()) || 0;
+}
+
+/**
+ * Puts the providers where a row can read them, and reports which route did it.
+ *
+ * `observedFromEnv` is what the instance reported before anything was saved to it, so it stays a
+ * clean observation of the environment route however the entries eventually arrive.
+ *
+ * A save writes the whole configuration out and Cove re-applies its saved file to live options, so
+ * what the providers ARE after a save is only knowable by asking again. That re-read polls: a
+ * one-shot read cannot tell a save that has not landed yet from one that never will.
+ */
+async function deliverProviders(harness, providers) {
+  const api = createApiClient(
+    () => harness.baseUrl,
+    () => harness.token,
+  );
+  const envVarsInContainer = await countProviderEnvInContainer(harness);
+  const observedFromEnv = describeServers((await readMetadataServers(api)) ?? []);
+
+  if (judgeBinding(providers.servers, observedFromEnv).verdict === "bound") {
     return {
-      source: "install",
-      skip: lifted.skip,
-      servers: describeServers(lifted.servers),
-      env: providerEnv(lifted.servers),
+      envVarsInContainer,
+      observedFromEnv,
+      delivery: { by: "environment", readBack: observedFromEnv },
     };
   }
+
+  const current = await api.get(CONFIG_PATH);
+  const saved = await api.put(CONFIG_PATH, {
+    ...current.json,
+    scraping: {
+      ...current.json.scraping,
+      metadataServers: serversFromProviderEnv(providers.env),
+    },
+  });
+  const { settled, value, note } = await attemptUntil(
+    async (_signal, note) => {
+      const observed = await readMetadataServers(api).catch((cause) => {
+        note(cause.message);
+        return undefined;
+      });
+      note(`${Array.isArray(observed) ? observed.length : 0} entries`);
+      return Array.isArray(observed) && observed.length > 0 ? { value: observed } : null;
+    },
+    {
+      timeoutMs: READ_BACK_TIMEOUT_MS,
+      intervalMs: READ_BACK_INTERVAL_MS,
+      label: "deliverProviders read-back",
+    },
+  );
+
   return {
-    source: "placeholder",
-    skip: lifted.skip,
-    servers: describeServers(PLACEHOLDER_SERVERS),
-    env: placeholderProviderEnv(),
+    envVarsInContainer,
+    observedFromEnv,
+    delivery: {
+      by: settled ? "configuration-api" : "none",
+      saveStatus: saved.status,
+      readBack: settled ? describeServers(value) : [],
+      lastPoll: note,
+    },
   };
 }
 
@@ -97,6 +249,7 @@ export async function startProbeContext(requirements) {
     if (requirements.cove) {
       harness = await startHarness({ env: providers.env });
       await harness.bootstrapOwner();
+      Object.assign(providers, await deliverProviders(harness, providers));
     }
     if (requirements.whisparr.length > 0) {
       whisparr = await startWhisparr({
