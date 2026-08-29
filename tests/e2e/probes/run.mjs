@@ -136,7 +136,7 @@ async function main(argv) {
 
   let failed = 0;
   if (runnable.length > 0) {
-    const context = await startProbeContext(aggregateRequirements(runnable));
+    const context = await startProbeContext(aggregateRequirements(runnable), { outDir: out });
     try {
       for (const row of runnable) {
         try {
