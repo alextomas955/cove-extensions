@@ -34,13 +34,16 @@
       "testProjectPath": "extensions/WhisparrSync/src/WhisparrSync.Tests/WhisparrSync.Tests.csproj",
       "manifestPath": "extensions/WhisparrSync/src/WhisparrSync/extension.json",
       "uiPath": "extensions/WhisparrSync/src/WhisparrSync.Ui",
+      "registryManifestPath": "extensions/WhisparrSync/registry/com.alextomas955.whisparrsync.json",
       "artifacts": [
         "extension.json",
         "index.mjs",
         "WhisparrSync.dll",
         "WhisparrSync.deps.json",
         "WhisparrSync.runtimeconfig.json",
-        "Cove.Extensions.Shared.dll"
+        "Cove.Extensions.Shared.dll",
+        "README.md",
+        "LICENSE"
       ],
       "e2ePath": "extensions/WhisparrSync/e2e",
       "e2eProject": "whisparr-sync"
