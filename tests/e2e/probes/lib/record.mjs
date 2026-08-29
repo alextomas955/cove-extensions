@@ -12,6 +12,11 @@ import { describeServers } from "../../lib/cove-providers.mjs";
 // directory the caller did not name.
 const SAFE_ID = /^[a-z0-9][a-z0-9-]*$/;
 
+// A companion's name is assembled from something a third party reported, so it is held to the same
+// rule plus the dots and underscores a version string carries. No separator matches, so the name
+// cannot leave the directory the caller named.
+const SAFE_COMPANION_NAME = /^[a-z0-9][a-z0-9._-]*$/;
+
 /**
  * Replaces every provider entry anywhere in `value` with its presence-and-length description.
  *
@@ -68,6 +73,26 @@ export function writeRecord(outDir, record) {
   mkdirSync(outDir, { recursive: true });
   const path = join(outDir, `${record.id}.json`);
   writeFileSync(path, `${JSON.stringify(redact(record), null, 2)}\n`);
+  return path;
+}
+
+/**
+ * Writes one file beside the records, for evidence too large to belong inside one.
+ *
+ * A companion is written verbatim: it is the artefact itself, kept so a later run can diff it, and
+ * a row summarises it into its own record rather than embedding it.
+ *
+ * @returns {string} the path written
+ */
+export function writeCompanion(outDir, name, contents) {
+  if (!SAFE_COMPANION_NAME.test(name) || name.includes("..")) {
+    throw new Error(
+      `writeCompanion: "${name}" is not a plain lowercase filename, and it is used as one.`,
+    );
+  }
+  mkdirSync(outDir, { recursive: true });
+  const path = join(outDir, name);
+  writeFileSync(path, contents);
   return path;
 }
 
