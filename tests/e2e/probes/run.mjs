@@ -121,8 +121,16 @@ async function main(argv) {
   const runnable = selected.filter((row) => skipReasonFor(row, { live }) === null);
 
   const records = [];
+  // Written the moment it exists, and never held for the end of the run: a row that reached a live
+  // third-party provider cannot be re-run for free, and an interruption or a failed teardown between
+  // here and then would take every observation already paid for with it.
+  const emit = (record) => {
+    records.push(record);
+    console.error(`${record.id}: ${record.verdict} -> ${writeRecord(out, record)}`);
+  };
+
   for (const row of skipped) {
-    records.push(
+    emit(
       buildRecord({
         id: row.id,
         label: row.label,
@@ -140,25 +148,19 @@ async function main(argv) {
     const context = await startProbeContext(aggregateRequirements(runnable), { outDir: out });
     try {
       for (const row of runnable) {
+        const provenance = {
+          id: row.id,
+          label: row.label,
+          requires: row.requires ?? {},
+          builds: context.builds,
+        };
         try {
-          const outcome = await row.run(context);
-          records.push(
-            buildRecord({
-              id: row.id,
-              label: row.label,
-              requires: row.requires ?? {},
-              builds: context.builds,
-              ...outcome,
-            }),
-          );
+          emit(buildRecord({ ...provenance, ...(await row.run(context)) }));
         } catch (cause) {
           failed += 1;
-          records.push(
+          emit(
             buildRecord({
-              id: row.id,
-              label: row.label,
-              requires: row.requires ?? {},
-              builds: context.builds,
+              ...provenance,
               method: null,
               verdict: "errored",
               observed: { error: cause.message },
@@ -171,9 +173,6 @@ async function main(argv) {
     }
   }
 
-  for (const record of records) {
-    console.error(`${record.id}: ${record.verdict} -> ${writeRecord(out, record)}`);
-  }
   if (json) console.log(JSON.stringify(records.map(redactRecord), null, 2));
 
   return failed === 0 ? 0 : 1;
