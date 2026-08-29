@@ -119,6 +119,12 @@ every row in a run shares one listener: take the deliveries your row caused and 
 that asserts anything about what arrived must read it from the capture, never from the registration's
 echo — a field a build accepts and then does not send answers the echo exactly as a working one does.
 
+A row that ADDS an entity must pick a subject no other row adds. Every selected row shares one
+instance, so the second add of the same subject is refused as a conflict, and a refused add measures
+nothing — the row that runs second silently loses an observation rather than failing. Choose lookup
+terms the other adding rows do not use, and prefer a candidate the lookup does not already report as
+existing, so the run's order cannot decide the result.
+
 `requires.rootFolder` asks for a library root registered on every Whisparr the run starts, and the
 instance reports the path it accepted back on `ctx.whisparr[generation].rootFolder`. A row that adds
 an entity needs one: both generations refuse an add whose destination is not a registered root, and

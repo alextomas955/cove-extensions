@@ -33,8 +33,12 @@ const CONTROL_PATHS = [
 
 // The terms name a business and a common surname. Nothing a lookup returns about a person is
 // recorded: this row needs a subject to add, not a subject to publish.
-const STUDIO_TERM = "brazzers";
-const PERFORMER_TERM = "smith";
+//
+// They are deliberately not the terms the other adding rows use. Every row in a run shares one
+// instance, so two rows adding the same subject leave whichever runs second holding a refusal it
+// can measure nothing from.
+const STUDIO_TERM = "vixen";
+const PERFORMER_TERM = "jones";
 const SERIES_TERM = "teen";
 
 const TERMINAL_COMMAND_STATUSES = new Set(["completed", "failed", "aborted", "cancelled"]);
