@@ -140,6 +140,23 @@ export function judgeBinding(configured, observed) {
 }
 
 /**
+ * What one read of an instance's reported provider entries says about the ones it was configured
+ * with, described so the answer is safe to record.
+ *
+ * `bound` is the settling condition for a read-back, and non-emptiness is not it: the state a save
+ * is trying to correct can already be non-empty and partially bound, which a poll for "some entries
+ * exist" settles on at its first attempt, against the entries that were already there.
+ *
+ * @param {object[]} configured - described entries, as configured
+ * @param {object[]|undefined} observed - raw entries, as the instance reports them
+ */
+export function judgeReadBack(configured, observed) {
+  const described = describeServers(Array.isArray(observed) ? observed : []);
+  const { verdict, mismatches } = judgeBinding(configured, described);
+  return { described, verdict, mismatches, bound: verdict === "bound" };
+}
+
+/**
  * The provider entries a fixture Cove is configured with, and where they came from.
  *
  * A machine with no install of its own gets the placeholder set, so the configured SHAPE is present
@@ -219,8 +236,11 @@ async function deliverProviders(harness, providers) {
         note(cause.message);
         return undefined;
       });
-      note(`${Array.isArray(observed) ? observed.length : 0} entries`);
-      return Array.isArray(observed) && observed.length > 0 ? { value: observed } : null;
+      const judged = judgeReadBack(providers.servers, observed);
+      note(
+        `${judged.described.length} entries, ${judged.verdict}${judged.mismatches.length === 0 ? "" : `, ${judged.mismatches.length} mismatch(es)`}`,
+      );
+      return judged.bound ? { value: judged.described } : null;
     },
     {
       timeoutMs: READ_BACK_TIMEOUT_MS,
@@ -233,9 +253,10 @@ async function deliverProviders(harness, providers) {
     envVarsInContainer,
     observedFromEnv,
     delivery: {
-      by: settled ? "configuration-api" : "none",
+      // A save the instance refused is not a route that delivered, whatever a later read shows.
+      by: settled && saved.ok ? "configuration-api" : "none",
       saveStatus: saved.status,
-      readBack: settled ? describeServers(value) : [],
+      readBack: settled ? value : [],
       lastPoll: note,
     },
   };
