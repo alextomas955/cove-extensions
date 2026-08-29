@@ -1,0 +1,81 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "cove extension wire contract",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/extensions/com.alextomas955.whisparrsync/host-configuration": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostConfigurationView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ErrorCode": {
+        "required": [
+          "code"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "max": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "HostConfigurationView": {
+        "required": [
+          "configurationResolved",
+          "libraryRootCount"
+        ],
+        "type": "object",
+        "properties": {
+          "configurationResolved": {
+            "type": "boolean"
+          },
+          "libraryRootCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "WhisparrSync"
+    }
+  ]
+}
