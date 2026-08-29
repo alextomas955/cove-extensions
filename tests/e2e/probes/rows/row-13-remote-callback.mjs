@@ -238,8 +238,39 @@ async function callFromHost(baseUrl, route) {
 const byRoute = (observations) =>
   Object.fromEntries(observations.map((one) => [`${one.verb} ${one.path}`, one]));
 
-const wasRefused = (observation) =>
-  REFUSAL_STATUSES.has(observation.status) || observation.status === 0;
+/**
+ * What one observation says about the boundary: `allowed`, `refused`, or `unreached`.
+ *
+ * A call that never arrived is its own state. No status at all is not a refusal, and counting it as
+ * one records a name that would not resolve, or a container that lost the network, as an instance
+ * refusing a callback it never received.
+ */
+export function classifyObservation(observation) {
+  if (observation.transportError || observation.status === 0) return "unreached";
+  return REFUSAL_STATUSES.has(observation.status) ? "refused" : "allowed";
+}
+
+/**
+ * The verdict the two in-network rounds support, which every route has to agree on.
+ *
+ * The routes differ in privilege, so one of them refusing is a fact about that route. A verdict
+ * about the boundary as a whole needs all of them, and a disagreement is `inconclusive` rather than
+ * whichever route was read first.
+ *
+ * @param {{first: string, repeat: string}[]} perRoute
+ */
+export function judgeBoundary(perRoute) {
+  if (perRoute.length === 0) return "inconclusive";
+  if (perRoute.some((route) => route.first === "unreached" || route.repeat === "unreached")) {
+    return "inconclusive";
+  }
+  const everyRoute = (first, repeat) =>
+    perRoute.every((route) => route.first === first && route.repeat === repeat);
+  if (everyRoute("refused", "refused")) return "refused-always";
+  if (everyRoute("refused", "allowed")) return "refused-first-then-allowed";
+  if (everyRoute("allowed", "allowed")) return "allowed-always";
+  return "inconclusive";
+}
 
 /**
  * Where the request came from, as the container itself reports it.
@@ -290,16 +321,16 @@ export const row = {
     for (const route of ROUTES)
       inNetworkRepeat.push(await callFromContainer(container, client, route));
 
-    const firstRefused = inNetworkFirst.some(wasRefused);
-    const repeatRefused = inNetworkRepeat.some(wasRefused);
-    const verdict =
-      firstRefused && repeatRefused
-        ? "refused-always"
-        : firstRefused && !repeatRefused
-          ? "refused-first-then-allowed"
-          : !firstRefused && !repeatRefused
-            ? "allowed-always"
-            : "inconclusive";
+    const perRoute = ROUTES.map((route, index) => ({
+      route: `${route.verb} ${route.path}`,
+      privileged: route.privileged,
+      first: classifyObservation(inNetworkFirst[index]),
+      repeat: classifyObservation(inNetworkRepeat[index]),
+    }));
+    const verdict = judgeBoundary(perRoute);
+    const unreached = perRoute.filter(
+      (route) => route.first === "unreached" || route.repeat === "unreached",
+    );
 
     const { output: authSetting } = await ctx.harness.exec([
       "sh",
@@ -336,9 +367,13 @@ export const row = {
         ...(verdict === "inconclusive"
           ? {
               whatCouldNotBeObserved:
-                "The two in-network rounds disagreed across routes, so neither a refusal nor an allowance holds for the boundary as a whole.",
+                unreached.length === 0
+                  ? "The two in-network rounds disagreed across routes, so neither a refusal nor an allowance holds for the boundary as a whole."
+                  : `${unreached.map((route) => route.route).join(", ")} never reached the instance, so nothing observed on them attributes to the boundary.`,
             }
           : {}),
+        // The verdict, route by route, so a reader can check it rather than take it.
+        perRoute,
         instance: {
           image: resolveCoveImage(),
           authEnabledVariable: AUTH_ENABLED_VARIABLE,
