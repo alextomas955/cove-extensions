@@ -10,6 +10,12 @@
       "entry": ["src/index.ts", "src/settings/options.ts", "vite.config.ts"],
       "project": ["src/**/*.{ts,tsx}"]
     },
+    "extensions/WhisparrSync/src/WhisparrSync.Ui": {
+      "vite": false,
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignoreDependencies": ["@vitejs/plugin-react", "lucide-react"]
+    },
     "shared/ui-shared": {
       "entry": [
         "vite/createExtensionViteConfig.ts",
