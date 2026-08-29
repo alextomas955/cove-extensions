@@ -461,9 +461,18 @@ async function probeRest(entry, pace, outDir) {
  * TRUNCATE, answering a too-large request with a smaller page, or it can REFUSE, answering with an
  * error and no page at all. A ladder whose top step came back whole has found neither, so what it
  * found is a floor under the ceiling and is recorded as one.
+ *
+ * A short page is only truncation when the surface still had rows to give. A query whose whole
+ * result set is smaller than the page asked for returns fewer rows for a reason that has nothing to
+ * do with a cap, and the surface's own reported total is what separates the two. Where it reported
+ * no total the two are indistinguishable, and the short page is read as truncation.
  */
-function summariseCeiling(observations) {
+export function summariseCeiling(observations) {
   const answered = observations.filter((observation) => typeof observation.returned === "number");
+  const shortOf = (observation) => (observation.requestedPerPage ?? 0) > observation.returned;
+  const held = (observation) =>
+    typeof observation.reportedTotal === "number" ? observation.reportedTotal : null;
+
   const largestReturned = answered.reduce(
     (highest, observation) => Math.max(highest, observation.returned),
     0,
@@ -473,7 +482,15 @@ function summariseCeiling(observations) {
     0,
   );
   const truncated = answered.some(
-    (observation) => (observation.requestedPerPage ?? 0) > observation.returned,
+    (observation) =>
+      shortOf(observation) &&
+      (held(observation) === null || held(observation) > observation.returned),
+  );
+  const exhaustedTheCatalogue = answered.some(
+    (observation) =>
+      shortOf(observation) &&
+      held(observation) !== null &&
+      held(observation) <= observation.returned,
   );
   const refused = observations.some(
     (observation) =>
@@ -484,6 +501,7 @@ function summariseCeiling(observations) {
     largestRequested,
     largestReturned,
     enforcement,
+    exhaustedTheCatalogue,
     enforcedCeiling: enforcement === "not reached" ? null : largestReturned,
     lowerBound: enforcement === "not reached" ? largestReturned : null,
   };
@@ -556,7 +574,9 @@ function judgeSurface(surface, name, gapNumber) {
       expected: `a page size ceiling of ${expected}`,
       observedBehaviour: ceilingBelowExpected
         ? `requesting ${surface.ceiling.largestRequested} returned ${enforced}; the surface ${surface.ceiling.enforcement} above that.`
-        : `requesting ${surface.ceiling.largestRequested} returned ${lowerBound} whole, so the ceiling was never reached and ${lowerBound} is a lower bound under it.`,
+        : surface.ceiling.exhaustedTheCatalogue
+          ? `requesting ${surface.ceiling.largestRequested} returned ${lowerBound}, which is everything the surface reported holding, so the ceiling was never reached and ${lowerBound} is a lower bound under it.`
+          : `requesting ${surface.ceiling.largestRequested} returned ${lowerBound} whole, so the ceiling was never reached and ${lowerBound} is a lower bound under it.`,
       blastRadius:
         "any later read that sizes its pages from the expected ceiling, and any count acceptance derived from a page it assumed it received whole.",
       acceptanceAdjustment: `Bound a page request to ${bound} and assert that what returns is no larger than what was asked for, rather than asserting the expected size arrives.`,
