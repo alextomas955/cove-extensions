@@ -152,6 +152,13 @@
           "versionNotManaged"
         ]
       },
+      "ConnectionSetting": {
+        "enum": [
+          "address",
+          "apiKey",
+          null
+        ]
+      },
       "ConnectionTestRequest": {
         "required": [
           "address",
@@ -181,7 +188,8 @@
           "branch",
           "corroborated",
           "otherApplication",
-          "address"
+          "address",
+          "missingSetting"
         ],
         "type": "object",
         "properties": {
@@ -226,6 +234,16 @@
             "type": [
               "null",
               "string"
+            ]
+          },
+          "missingSetting": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ConnectionSetting"
+              }
             ]
           }
         }

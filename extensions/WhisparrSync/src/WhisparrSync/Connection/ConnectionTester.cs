@@ -26,9 +26,9 @@ internal sealed class ConnectionTester(IWhisparrClient client, ILogger<Connectio
 {
     public async Task<ConnectionTestView> TestAsync(string? address, string? apiKey, CancellationToken ct)
     {
-        if (!TryReadAddress(address, out var baseAddress) || string.IsNullOrWhiteSpace(apiKey))
+        if (!TryReadConnection(address, apiKey, out var baseAddress, out var missing))
         {
-            return Describe(ConnectionObservation.NotConfigured(), baseAddress);
+            return ConnectionTestView.NotConfigured(missing, baseAddress?.ToString());
         }
 
         ConnectionObservation observation;
@@ -55,6 +55,35 @@ internal sealed class ConnectionTester(IWhisparrClient client, ILogger<Connectio
         }
 
         return Describe(observation, baseAddress);
+    }
+
+    /// <summary>
+    /// Reads <paramref name="address"/> and <paramref name="apiKey"/> as a connection a request may be
+    /// made with, and names the setting that is empty when it cannot.
+    /// </summary>
+    /// <remarks>
+    /// The address is examined first, so a call supplying neither setting names the address rather than
+    /// varying between runs. <paramref name="baseAddress"/> is still set on a refusal the key caused,
+    /// so that refusal can echo the address it would have been made against.
+    /// </remarks>
+    /// <param name="address">The base address, as it was typed or stored.</param>
+    /// <param name="apiKey">The key, as it was typed or stored.</param>
+    /// <param name="baseAddress">The address a request may be made to, or null when it is not one.</param>
+    /// <param name="missing">The empty setting, meaningful only when this returns false.</param>
+    internal static bool TryReadConnection(
+        string? address,
+        [NotNullWhen(true)] string? apiKey,
+        [NotNullWhen(true)] out Uri? baseAddress,
+        out ConnectionSetting missing)
+    {
+        if (!TryReadAddress(address, out baseAddress))
+        {
+            missing = ConnectionSetting.Address;
+            return false;
+        }
+
+        missing = ConnectionSetting.ApiKey;
+        return !string.IsNullOrWhiteSpace(apiKey);
     }
 
     /// <summary>
@@ -109,7 +138,7 @@ internal sealed class ConnectionTester(IWhisparrClient client, ILogger<Connectio
 
     // The classifier and the detector are both pure and both read the same document, so the kind and
     // the reading on one view cannot disagree.
-    private static ConnectionTestView Describe(ConnectionObservation observation, Uri? baseAddress)
+    private static ConnectionTestView Describe(ConnectionObservation observation, Uri baseAddress)
     {
         var kind = ConnectionFailureClassifier.Classify(observation);
         var reading = GenerationDetector.Detect(observation.Document);
@@ -127,6 +156,7 @@ internal sealed class ConnectionTester(IWhisparrClient client, ILogger<Connectio
             reading.Branch,
             reading.Corroborated,
             otherApplication,
-            baseAddress?.ToString());
+            baseAddress.ToString(),
+            null);
     }
 }
