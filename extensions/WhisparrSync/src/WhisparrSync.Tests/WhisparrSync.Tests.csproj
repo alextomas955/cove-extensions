@@ -15,6 +15,14 @@
       disables the strip.
     -->
     <CoveHostProvidedAssemblies>;__whisparrsync_tests_no_strip__;</CoveHostProvidedAssemblies>
+    <!--
+      CA1716: the linked shared fake (Testing.Cove/FakePrincipalAccessor.cs, LinkBase="TestSupport\Shared")
+      declares the Cove.Extensions.Shared.Testing namespace, whose "Shared" segment is a VB reserved
+      keyword. It is a C#-only test type never consumed from VB, so the rule does not apply — mirror the
+      suppression the Cove.Extensions.Shared(.Testing) projects already carry. It fires here because a
+      linked file compiles INTO this assembly.
+    -->
+    <NoWarn>$(NoWarn);CA1716</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -33,6 +41,23 @@
       unconditional on both the cove-present and cove-absent paths.
     -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <!--
+      TEST-ONLY: the route-table walk mounts the extension's own MapEndpoints in an in-process
+      WebApplication and starts it, because route registrations reach the EndpointDataSource only when
+      routing middleware is built at start. On nuget.org, so it stays unconditional on both source modes.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The shared principal fake, pulled in as an ordinary Compile item rather than a ProjectReference:
+      the file sits in a source-only sibling directory with no csproj, beside a second file that needs
+      Cove.Data. It is named on its own so this project keeps compiling on the cove-absent leg, where
+      Cove.Data does not resolve but Cove.Core (which is all this file needs) still does.
+    -->
+    <Compile Include="$(MSBuildThisFileDirectory)..\..\..\..\shared\Cove.Extensions.Shared.Testing.Cove\FakePrincipalAccessor.cs"
+             LinkBase="TestSupport\Shared" />
   </ItemGroup>
 
   <ItemGroup>
