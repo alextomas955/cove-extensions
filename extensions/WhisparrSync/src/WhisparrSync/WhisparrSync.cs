@@ -1,7 +1,10 @@
+using Cove.Plugins;
 using Cove.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using WhisparrSync.Connection;
+using WhisparrSync.Whisparr;
 
 using CoveConfiguration = Cove.Core.Interfaces.CoveConfiguration;
 
@@ -35,6 +38,26 @@ public sealed partial class WhisparrSync : FullExtensionBase
     /// </remarks>
     private int LibraryRootCount =>
         _coveConfig?.CovePaths.Count(path => !string.IsNullOrWhiteSpace(path.Path)) ?? 0;
+
+    /// <summary>
+    /// Registers this extension's own services into the container the host builds for it.
+    /// </summary>
+    /// <remarks>
+    /// The outbound client is a TYPED client rather than a constructed <c>HttpClient</c>, so its
+    /// handler is pooled and its lifetime is the factory's. The host stands the
+    /// <c>AddHttpClient</c> stack up before calling this, which is what lets an extension register one
+    /// at all.
+    /// </remarks>
+    public override void ConfigureServices(IServiceCollection services, ExtensionContext context)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        base.ConfigureServices(services, context);
+
+        services.AddHttpClient<IWhisparrClient, WhisparrClient>(WhisparrClient.Configure)
+            .ConfigurePrimaryHttpMessageHandler(WhisparrClient.CreateHandler);
+
+        services.AddScoped<IWhisparrConnectionTester, ConnectionTester>();
+    }
 
     public override Task InitializeAsync(IServiceProvider services, CancellationToken ct = default)
     {

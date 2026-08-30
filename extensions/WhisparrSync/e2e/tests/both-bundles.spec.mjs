@@ -25,8 +25,8 @@ const WHISPARR_SYNC_SETTINGS_PATH = "/settings/whisparr-sync";
 // The sentence lives only inside the component this extension ships. The host draws the tab button,
 // the heading and the manifest description from the manifest alone, so an assertion on the
 // extension's NAME passes just as happily against a bundle that never loaded.
-const WHISPARR_SYNC_STUB_SENTENCE =
-  "Connection setup for Whisparr Sync arrives in a later release.";
+const WHISPARR_SYNC_PANEL_SENTENCE =
+  "The address Cove itself reaches Whisparr on, including the scheme and port.";
 
 const ATTEMPT_BUDGET_MS = 60_000;
 const ATTEMPTS = 3;
@@ -92,22 +92,22 @@ bothBundles.describe("both extension bundles in one Cove", () => {
       ).toBeVisible();
 
       // Second: the new extension's own surface, so a pass cannot mean its bundle was simply absent.
-      const stub = page.getByText(WHISPARR_SYNC_STUB_SENTENCE, { exact: true });
+      const panel = page.getByText(WHISPARR_SYNC_PANEL_SENTENCE, { exact: true });
       const panelUrl = `${baseUrl}${WHISPARR_SYNC_SETTINGS_PATH}`;
       // The host carries an unknown settings key only until it finishes loading extensions, then
       // rewrites the address to its first built-in tab. Nothing after that rewrite can reach the
       // panel, and only a fresh navigation recovers it.
       for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
         await page.goto(panelUrl);
-        const rendered = await stub
+        const rendered = await panel
           .waitFor({ state: "visible", timeout: ATTEMPT_BUDGET_MS })
           .then(() => true)
           .catch(() => false);
         if (rendered) break;
       }
       await expect(
-        stub,
-        `Whisparr Sync's stub sentence never rendered at ${panelUrl} across ${ATTEMPTS} navigation(s); the page is now at ${page.url()}`,
+        panel,
+        `Whisparr Sync's panel sentence never rendered at ${panelUrl} across ${ATTEMPTS} navigation(s); the page is now at ${page.url()}`,
       ).toBeVisible();
     },
   );
