@@ -28,8 +28,20 @@ public sealed partial class WhisparrSync
             credential.Property(c => c.ApiKey).HasColumnName("api_key");
             credential.Property(c => c.UpdatedAtUtcTicks).HasColumnName("updated_at_utc_ticks");
         });
+
+        modelBuilder.Entity<WhisparrSecretEntity>(secret =>
+        {
+            secret.ToTable(WhisparrSecretSchema.TableName);
+            secret.HasKey(s => s.Name);
+            secret.Property(s => s.Name).HasColumnName("name");
+            secret.Property(s => s.Secret).HasColumnName("secret");
+            secret.Property(s => s.UpdatedAtUtcTicks).HasColumnName("updated_at_utc_ticks");
+        });
     }
 
-    protected override void DefineMigrations() =>
+    protected override void DefineMigrations()
+    {
         Migration(WhisparrCredentialSchema.Migration001Name, WhisparrCredentialSchema.Migration001UpSql);
+        Migration(WhisparrSecretSchema.Migration002Name, WhisparrSecretSchema.Migration002UpSql);
+    }
 }
