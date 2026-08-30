@@ -80,6 +80,25 @@ internal sealed class ConnectionTester(IWhisparrClient client, ILogger<Connectio
         return true;
     }
 
+    /// <summary>
+    /// <paramref name="address"/> with the parts that do not change where it points removed.
+    /// </summary>
+    /// <remarks>
+    /// Surrounding space and trailing separators only. Nothing is added: an address with no scheme is
+    /// left without one, so it is refused and named rather than turned into a guess at what was meant.
+    /// </remarks>
+    internal static string NormaliseAddress(string? address)
+        => (address ?? "").Trim().TrimEnd('/');
+
+    /// <summary>Whether the two addresses point at the same instance.</summary>
+    /// <remarks>
+    /// A trailing separator and letter case do not count as an edit, so neither discards a reading
+    /// taken against the address before it.
+    /// </remarks>
+    internal static bool IsSameAddress(string? left, string? right)
+        => string.Equals(
+            NormaliseAddress(left), NormaliseAddress(right), StringComparison.OrdinalIgnoreCase);
+
     private static ConnectionTransportFailure CategoryOf(Exception failure) => failure switch
     {
         HttpRequestException { HttpRequestError: HttpRequestError.SecureConnectionError }
