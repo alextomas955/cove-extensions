@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
+using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
 
 using CoveConfiguration = Cove.Core.Interfaces.CoveConfiguration;
@@ -47,6 +48,12 @@ public sealed partial class WhisparrSync : FullExtensionBase
     /// handler is pooled and its lifetime is the factory's. The host stands the
     /// <c>AddHttpClient</c> stack up before calling this, which is what lets an extension register one
     /// at all.
+    /// <para>
+    /// The options store is registered as a factory over this instance rather than by its type: the
+    /// host hands an extension its <c>IExtensionStore</c> through <c>IStatefulExtension.SetStore</c>
+    /// and registers it in no container, so a type registration would resolve to nothing. The factory
+    /// runs per scope, which is after the host has supplied one.
+    /// </para>
     /// </remarks>
     public override void ConfigureServices(IServiceCollection services, ExtensionContext context)
     {
@@ -57,6 +64,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
             .ConfigurePrimaryHttpMessageHandler(WhisparrClient.CreateHandler);
 
         services.AddScoped<IWhisparrConnectionTester, ConnectionTester>();
+        services.AddScoped(_ => new OptionsStore(Store, _log));
     }
 
     public override Task InitializeAsync(IServiceProvider services, CancellationToken ct = default)
