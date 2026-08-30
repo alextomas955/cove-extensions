@@ -1,5 +1,6 @@
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.TestSupport;
 
@@ -26,15 +27,23 @@ internal sealed class RecordingConnectionTester(ConnectionTestView answer) : IWh
     /// <summary>An instance this product manages answered on <paramref name="version"/>.</summary>
     public static RecordingConnectionTester Connected(string version)
         => new(new ConnectionTestView(
-            ConnectionFailureKind.Connected, WhisparrGeneration.V3, version, "master", true, null, null, null));
+            ConnectionFailureKind.Connected,
+            WhisparrGeneration.V3,
+            GenerationCapabilities.For(WhisparrGeneration.V3).Held,
+            version,
+            "master",
+            true,
+            null,
+            null,
+            null));
 
     /// <summary>Something answered and turned the key down.</summary>
     public static RecordingConnectionTester KeyRejected()
         => new(new ConnectionTestView(
-            ConnectionFailureKind.KeyRejected, null, null, null, null, null, null, null));
+            ConnectionFailureKind.KeyRejected, null, null, null, null, null, null, null, null));
 
     /// <summary>Nothing answered.</summary>
     public static RecordingConnectionTester Unreachable()
         => new(new ConnectionTestView(
-            ConnectionFailureKind.Unreachable, null, null, null, null, null, null, null));
+            ConnectionFailureKind.Unreachable, null, null, null, null, null, null, null, null));
 }

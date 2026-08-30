@@ -28,6 +28,19 @@ public enum WhisparrGeneration
     V2,
 }
 
+/// <summary>Something a Whisparr generation can do.</summary>
+/// <remarks>
+/// Names what the connected instance CAN do rather than what it was checked for: a generation that
+/// cannot honour one holds no role expressing it, so the capability is absent from the list rather
+/// than present with a false beside it. The wire spelling is declared on the type.
+/// </remarks>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
+public enum WhisparrCapability
+{
+    /// <summary>A callback secret can travel somewhere other than the address registered.</summary>
+    OutOfBandCallbackSecret,
+}
+
 /// <summary>
 /// What one connection attempt turned out to be. One value per step of the decision table.
 /// </summary>
@@ -85,6 +98,11 @@ public enum ConnectionSetting
 /// </remarks>
 /// <param name="Kind">Which step of the decision table this attempt reached.</param>
 /// <param name="Generation">The generation detected, or null unless the attempt connected.</param>
+/// <param name="Capabilities">
+/// What the connected generation can do, or null unless the attempt connected. A capability absent
+/// from this list is a GENERATION gap — that generation has no such thing, on any build of it.
+/// <paramref name="Corroborated"/> reports the other finding, a build disagreeing with itself.
+/// </param>
 /// <param name="Version">
 /// The instance's own version string, character for character as it sent it. Present on a success and
 /// on a refusal that names the version found.
@@ -109,6 +127,7 @@ public enum ConnectionSetting
 public sealed record ConnectionTestView(
     ConnectionFailureKind Kind,
     WhisparrGeneration? Generation,
+    IReadOnlyList<WhisparrCapability>? Capabilities,
     string? Version,
     string? Branch,
     bool? Corroborated,
@@ -118,5 +137,5 @@ public sealed record ConnectionTestView(
 {
     /// <summary>A refusal taken before any request was made, naming the setting that is empty.</summary>
     public static ConnectionTestView NotConfigured(ConnectionSetting missing, string? address)
-        => new(ConnectionFailureKind.NotConfigured, null, null, null, null, null, address, missing);
+        => new(ConnectionFailureKind.NotConfigured, null, null, null, null, null, null, address, missing);
 }
