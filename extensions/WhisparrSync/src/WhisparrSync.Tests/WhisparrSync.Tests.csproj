@@ -26,6 +26,13 @@
       the test output unless it is named here.
     -->
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <!--
+      TEST-ONLY: the credential table is exercised against a real relational provider on
+      SQLite-in-memory, created by the SHIPPED migration string rather than by the entity model, so
+      the fixture is wrong in the same way production would be wrong. On nuget.org, so it stays
+      unconditional on both the cove-present and cove-absent paths.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
   </ItemGroup>
 
   <ItemGroup>
