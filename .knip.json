@@ -17,7 +17,9 @@
         "src/index.ts",
         "src/**/*Logic.ts",
         "src/common/lib/extension.ts",
-        "src/common/ui/copy.ts"
+        "src/common/ui/copy.ts",
+        "src/common/ui/AsyncRegion.tsx",
+        "src/common/ui/StateChip.tsx"
       ],
       "project": ["src/**/*.{ts,tsx}"],
       "ignoreDependencies": ["@vitejs/plugin-react", "lucide-react"]
