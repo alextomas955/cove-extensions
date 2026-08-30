@@ -17,6 +17,31 @@
  */
 export const CAP_UNAVAILABLE_ON_THIS_GENERATION = "Currently available on Whisparr v3 (Eros)";
 
+/**
+ * A search asked for on an entity Whisparr does not hold. A true statement, not a failure, so it
+ * renders differently from a failed request.
+ */
+export const SEARCH_WITH_NO_ENTRY =
+  "Whisparr has no entry for this scene yet, so there is nothing to search for — mark it wanted first.";
+
+/**
+ * A missing-check whose provider did not answer.
+ *
+ * The second sentence is the point of the message. `{provider}` and `{entity}` are the specified
+ * text: the surface that renders this fills them with the names it holds.
+ */
+export const PROVIDER_UNREACHABLE =
+  "Couldn't reach {provider} to check what's missing for {entity}. This isn't the same as owning everything — try again shortly.";
+
+/** A missing-check that succeeded and found nothing missing. Only for a check that did succeed. */
+export const NOTHING_MISSING = "You own every scene {provider} lists for {entity}.";
+
+/** Imports Cove recorded but can no longer read. Self-clears on a success. */
+export const IMPORTS_UNREADABLE = "Sync problem — Cove can't find imported files";
+
+/** Whisparr's own renaming reaching files Cove already holds. */
+export const WHISPARR_MAY_RENAME = "Whisparr may change files in your library";
+
 /** No address or key was entered, so nothing was tried. Names the settings that would fix it. */
 export const CONNECT_NOT_CONFIGURED =
   "Enter the Whisparr address and API key above, then test the connection.";
