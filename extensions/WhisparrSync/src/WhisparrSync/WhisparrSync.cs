@@ -64,6 +64,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
             .ConfigurePrimaryHttpMessageHandler(WhisparrClient.CreateHandler);
 
         services.AddScoped<IWhisparrConnectionTester, ConnectionTester>();
+        services.AddScoped<ICredentialPort, CredentialPort>();
         services.AddScoped(_ => new OptionsStore(Store, _log));
     }
 
