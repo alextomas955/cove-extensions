@@ -45,3 +45,9 @@ tests/e2e/docker/shared-media/
 # Local scratch/audit directories — never part of a release.
 .bg-shell/
 .gsd/
+
+# Whisparr API tree/doc dumps from fixture probing — regenerable, never committed.
+/erostree.json
+/v2tree.json
+/wgtree.json
+/wgdocs.json
