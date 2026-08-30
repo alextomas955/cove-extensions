@@ -13,6 +13,8 @@ import { test, expect, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
+import { CAP_UNAVAILABLE_ON_THIS_GENERATION } from "./copy";
+
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
   return {
@@ -37,7 +39,7 @@ const sleep = (ms: number) =>
 /** Long enough for React to commit a render on the default lane without `act` to force it. */
 const COMMIT_MS = 50;
 
-const REASON = "Currently available on Whisparr v3 (Eros)";
+const REASON = CAP_UNAVAILABLE_ON_THIS_GENERATION;
 
 /** A screen holding `count` controls that all share one reason. */
 function screenWith(count: number) {
