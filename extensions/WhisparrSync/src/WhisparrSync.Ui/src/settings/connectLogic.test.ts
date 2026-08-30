@@ -115,6 +115,7 @@ describe("reading the values off a response", () => {
       valuesOf({
         kind: "versionNotManaged",
         generation: null,
+        capabilities: null,
         version: "5.14.0.9383",
         branch: "master",
         corroborated: null,
