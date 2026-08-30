@@ -41,8 +41,8 @@ public sealed partial class WhisparrSync
 
         endpoints.MapPost(ConnectionTestRoute,
             (ConnectionTestRequest request, ICurrentPrincipalAccessor principal,
-             IWhisparrConnectionTester tester, CancellationToken ct)
-                => ConnectionTestAsync(request, principal, tester, ct))
+             IConnectionTestRunner runner, CancellationToken ct)
+                => ConnectionTestAsync(request, principal, runner, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
@@ -111,18 +111,23 @@ public sealed partial class WhisparrSync
             : new ForbiddenCode();
 
     /// <summary>
-    /// Tests one Whisparr address and key, and reports which of the six outcomes it produced.
+    /// Tests one Whisparr connection, and reports which of the six outcomes it produced.
     /// </summary>
     /// <remarks>
+    /// A request naming neither an address nor a key tests the STORED connection, which is the one
+    /// call allowed to record what it read. A request naming either tests that pair and records
+    /// nothing about a version, because the instance it reaches may not be the stored one.
+    /// <para>
     /// The gate is checked BEFORE the body is read, so a principal without it causes no outbound
     /// request. Without that ordering the route would forward a request on behalf of a caller who is
     /// not allowed to configure this extension, and the classified answer would tell them what sits
     /// at an address they chose.
+    /// </para>
     /// </remarks>
     internal static async Task<Results<Ok<ConnectionTestView>, ForbiddenCode>> ConnectionTestAsync(
         ConnectionTestRequest request,
         ICurrentPrincipalAccessor principal,
-        IWhisparrConnectionTester tester,
+        IConnectionTestRunner runner,
         CancellationToken ct)
     {
         if (!HasConfigurePermission(principal))
@@ -131,8 +136,12 @@ public sealed partial class WhisparrSync
         }
 
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(tester);
-        return TypedResults.Ok(await tester.TestAsync(request.Address, request.ApiKey, ct).ConfigureAwait(false));
+        ArgumentNullException.ThrowIfNull(runner);
+
+        return TypedResults.Ok(
+            string.IsNullOrWhiteSpace(request.Address) && string.IsNullOrWhiteSpace(request.ApiKey)
+                ? await runner.TestStoredAsync(ct).ConfigureAwait(false)
+                : await runner.TestTransientAsync(request.Address, request.ApiKey, ct).ConfigureAwait(false));
     }
 
     /// <summary>Reads the stored settings.</summary>
