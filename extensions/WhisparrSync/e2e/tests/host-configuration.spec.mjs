@@ -18,6 +18,7 @@ import { WHISPARR_SYNC_EXTENSION } from "../lib/whisparr-sync-fixtures.mjs";
 const EXTENSION_ID = "com.alextomas955.whisparrsync";
 const PROBE_PATH = `/api/extensions/${EXTENSION_ID}/host-configuration`;
 const CONNECTION_TEST_PATH = `/api/extensions/${EXTENSION_ID}/connection/test`;
+const SETTINGS_PATH = `/api/extensions/${EXTENSION_ID}/settings`;
 
 // A port nothing inside the Cove container listens on. Well-formed, so it passes the address check
 // and a request really is attempted, and refused at once rather than left to time out.
@@ -188,4 +189,46 @@ test("the connection test refuses an authenticated caller holding only the read 
   ).toBe(403);
   expect(refused.json?.code).toBe("FORBIDDEN");
   expect(refused.text).not.toContain("kind");
+});
+
+// The settings routes carry the same gate, on the same instance and with the same control. They are
+// asserted here rather than beside the write-only spec because that one runs with authentication off,
+// where the host resolves every request to a bypass principal holding every permission — a refusal
+// asserted there would pass against an extension that gated nothing.
+test("the settings routes refuse an authenticated caller holding only the read tier", async ({
+  authHarness,
+}) => {
+  const readOnly = await authHarness.createRestrictedUser({
+    username: "e2e-settings-read-tier",
+    roleName: "e2e-settings-read-tier",
+    permissions: ["videos.read"],
+  });
+  const asReadOnly = createApiClient(() => authHarness.baseUrl, readOnly.token);
+
+  // The discriminating control: the same credential reaches the READ-tier route, so the refusals
+  // below are about the gate rather than about the token.
+  const probe = await asReadOnly.get(PROBE_PATH);
+  expect(probe.status, `GET ${PROBE_PATH} as a read-tier caller answered: ${probe.text}`).toBe(200);
+
+  const read = await asReadOnly.get(SETTINGS_PATH);
+  expect(read.status, `GET ${SETTINGS_PATH} as a read-tier caller answered: ${read.text}`).toBe(
+    403,
+  );
+  expect(read.json?.code).toBe("FORBIDDEN");
+  expect(read.text).not.toContain("keyIsSet");
+
+  const write = await asReadOnly.put(SETTINGS_PATH, {
+    selectedGeneration: "v3",
+    v3: { address: DEAD_ADDRESS, keyWrite: "replace", apiKey: SOME_KEY },
+    v2: null,
+  });
+  expect(write.status, `PUT ${SETTINGS_PATH} as a read-tier caller answered: ${write.text}`).toBe(
+    403,
+  );
+  expect(write.json?.code).toBe("FORBIDDEN");
+
+  // The refused write changed nothing: the owner, who may read, still sees no key stored.
+  const owner = await ownerClient(authHarness).get(SETTINGS_PATH);
+  expect(owner.status, `GET ${SETTINGS_PATH} as the owner answered: ${owner.text}`).toBe(200);
+  expect(owner.json?.v3?.keyIsSet, "the refused write stored a key anyway").toBe(false);
 });
