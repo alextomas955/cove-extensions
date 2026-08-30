@@ -45,6 +45,9 @@ tests/e2e/docker/shared-media/
 # Local scratch/audit directories — never part of a release.
 .bg-shell/
 .gsd/
+# Probe records: `tests/e2e/probes/run.mjs --out` writes one file per row here. A record is evidence
+# transcribed into the ledger, not an artefact the repository keeps.
+.probe-out/
 
 # Whisparr API tree/doc dumps from fixture probing — regenerable, never committed.
 /erostree.json
