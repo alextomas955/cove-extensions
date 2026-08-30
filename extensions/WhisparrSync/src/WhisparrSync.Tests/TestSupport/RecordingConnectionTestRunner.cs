@@ -32,5 +32,5 @@ internal sealed class RecordingConnectionTestRunner : IConnectionTestRunner
     }
 
     private static ConnectionTestView Answer { get; } = new(
-        ConnectionFailureKind.Unreachable, null, null, null, null, null, null, null);
+        ConnectionFailureKind.Unreachable, null, null, null, null, null, null, null, null);
 }
