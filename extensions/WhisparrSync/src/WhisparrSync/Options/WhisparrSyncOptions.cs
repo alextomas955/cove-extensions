@@ -131,6 +131,32 @@ public sealed record WhisparrSyncOptions
     /// </remarks>
     public string CallbackHost { get; init; } = "";
 
+    /// <summary>The connection stored for <paramref name="generation"/>, or null when none is.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="generation"/> is not one this record carries a slot for.
+    /// </exception>
+    public WhisparrSyncGenerationConnection? ConnectionFor(WhisparrGeneration generation)
+        => generation switch
+        {
+            WhisparrGeneration.V3 => V3,
+            WhisparrGeneration.V2 => V2,
+            _ => throw new ArgumentOutOfRangeException(nameof(generation), generation, null),
+        };
+
+    /// <summary>This record with <paramref name="generation"/>'s connection replaced.</summary>
+    /// <remarks>The other generation is carried through untouched.</remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="generation"/> is not one this record carries a slot for.
+    /// </exception>
+    public WhisparrSyncOptions WithConnectionFor(
+        WhisparrGeneration generation, WhisparrSyncGenerationConnection connection)
+        => generation switch
+        {
+            WhisparrGeneration.V3 => this with { V3 = connection },
+            WhisparrGeneration.V2 => this with { V2 = connection },
+            _ => throw new ArgumentOutOfRangeException(nameof(generation), generation, null),
+        };
+
     /// <summary>
     /// Shared serializer settings used by both save and load, so the round-trip is symmetric.
     /// </summary>

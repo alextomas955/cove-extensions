@@ -23,7 +23,7 @@ public sealed class WhisparrSyncOpenApiDocumentTests : ExtensionOpenApiDocumentT
     protected override void ConfigureBindingServices(IServiceCollection services)
     {
         services.AddSingleton<ICurrentPrincipalAccessor>(_ => null!);
-        services.AddSingleton<IWhisparrConnectionTester>(_ => null!);
+        services.AddSingleton<IConnectionTestRunner>(_ => null!);
         services.AddSingleton<ICredentialPort>(_ => null!);
         services.AddSingleton<OptionsStore>(_ => null!);
         services.AddSingleton<TimeProvider>(_ => null!);

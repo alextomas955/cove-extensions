@@ -122,6 +122,7 @@ test("the connection test answers a caller holding the configure permission", as
     "corroborated",
     "generation",
     "kind",
+    "missingSetting",
     "otherApplication",
     "version",
   ]);
