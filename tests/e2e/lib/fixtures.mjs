@@ -8,6 +8,7 @@
 import { test as base, expect } from "@playwright/test";
 import { startHarness } from "./harness.mjs";
 import { createApiClient } from "./apiClient.mjs";
+import { startWhisparr } from "./whisparr-fixture.mjs";
 
 // Re-exported so a spec has one import site for everything the fixtures module offers.
 export { createApiClient };
@@ -44,6 +45,14 @@ export function isolatedHarnessFixture(extension) {
 export const test = base.extend({
   extension: [undefined, { option: true }],
 
+  /**
+   * The Whisparr generations a spec needs, e.g. `test.use({ whisparrGenerations: ["v3"] })`.
+   *
+   * Undefined by default, and the `whisparr` fixture starts nothing when it is undefined, so a spec
+   * that never names one pays neither the image pull nor the boot.
+   */
+  whisparrGenerations: [undefined, { option: true }],
+
   harness: [
     async ({}, use) => {
       const harness = await startHarness();
@@ -55,6 +64,36 @@ export const test = base.extend({
       await harness.stop();
     },
     { scope: "worker" },
+  ],
+
+  /**
+   * Whisparr instances on the harness Cove's own network, or `undefined` when the spec named no
+   * generations.
+   *
+   * PER TEST, never per worker: two specs sharing one instance would share its notification list,
+   * and whether registering the same callback twice leaves one entry is asserted on that list.
+   *
+   * The stop is in a `finally` and the fixture is test-scoped, so it runs before the worker's
+   * harness goes away. The daemon refuses to remove a network a container still holds an endpoint
+   * on, which is the ordering whisparr-fixture.mjs documents.
+   */
+  whisparr: [
+    async ({ harness, whisparrGenerations }, use) => {
+      if (whisparrGenerations === undefined) {
+        await use(undefined);
+        return;
+      }
+      const instances = await startWhisparr({
+        network: harness.container.getNetworkNames()[0],
+        generations: whisparrGenerations,
+      });
+      try {
+        await use(instances);
+      } finally {
+        await instances.stop();
+      }
+    },
+    { scope: "test" },
   ],
 
   baseUrl: async ({ harness, extension }, use) => {
