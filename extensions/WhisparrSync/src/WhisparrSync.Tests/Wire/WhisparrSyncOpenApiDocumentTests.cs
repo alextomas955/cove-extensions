@@ -1,6 +1,7 @@
 using Cove.Core.Auth;
 using Cove.Plugins;
 using Microsoft.Extensions.DependencyInjection;
+using WhisparrSync.Connection;
 using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Wire;
@@ -14,9 +15,13 @@ public sealed class WhisparrSyncOpenApiDocumentTests : ExtensionOpenApiDocumentT
 {
     protected override IApiExtension CreateExtension() => WhisparrSyncFixture.Create();
 
-    // Registration-time binding only. The probe handler takes the principal accessor as a non-body
-    // parameter, and minimal-API binding treats an unregistered complex type as a second body
-    // parameter and throws while the route is being mapped. Nothing here is ever dereferenced.
+    // Registration-time binding only. Every non-body parameter a handler takes has to resolve, because
+    // minimal-API binding treats an unregistered complex type as a second body parameter and throws
+    // while the route is being mapped. Nothing here is ever dereferenced: the document is emitted from
+    // the registration and sends no request.
     protected override void ConfigureBindingServices(IServiceCollection services)
-        => services.AddSingleton<ICurrentPrincipalAccessor>(_ => null!);
+    {
+        services.AddSingleton<ICurrentPrincipalAccessor>(_ => null!);
+        services.AddSingleton<IWhisparrConnectionTester>(_ => null!);
+    }
 }

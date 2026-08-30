@@ -1,0 +1,113 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
+using Microsoft.Extensions.Logging;
+using WhisparrSync.Contracts;
+using WhisparrSync.Whisparr;
+
+namespace WhisparrSync.Connection;
+
+/// <summary>Tests one Whisparr address and key and reports what answered.</summary>
+public interface IWhisparrConnectionTester
+{
+    /// <summary>
+    /// Tests <paramref name="address"/> with <paramref name="apiKey"/> and classifies the answer.
+    /// </summary>
+    /// <remarks>
+    /// Takes both explicitly, because the transient test describes the address that was in the field
+    /// rather than the one that was last saved. Holds no state between calls, so two tests running at
+    /// once each describe their own address.
+    /// </remarks>
+    Task<ConnectionTestView> TestAsync(string? address, string? apiKey, CancellationToken ct);
+}
+
+/// <inheritdoc cref="IWhisparrConnectionTester"/>
+internal sealed class ConnectionTester(IWhisparrClient client, ILogger<ConnectionTester> logger)
+    : IWhisparrConnectionTester
+{
+    public async Task<ConnectionTestView> TestAsync(string? address, string? apiKey, CancellationToken ct)
+    {
+        if (!TryReadAddress(address, out var baseAddress) || string.IsNullOrWhiteSpace(apiKey))
+        {
+            return Describe(ConnectionObservation.NotConfigured(), baseAddress);
+        }
+
+        ConnectionObservation observation;
+        try
+        {
+            var response = await client.ReadStatusAsync(baseAddress, apiKey, ct).ConfigureAwait(false);
+            observation = ConnectionObservation.Answered(
+                response.StatusCode,
+                response.ContentType,
+                WhisparrStatusDocument.Parse(response.Body));
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // A shutdown is not a verdict about the address, so it must not be reported as one.
+            throw;
+        }
+        catch (Exception failure) when (failure is HttpRequestException or TaskCanceledException)
+        {
+            // Best-effort, and therefore exactly one line. The caller turns this into an answer for the
+            // user, so nothing here rethrows and nothing here is swallowed in silence.
+            var category = CategoryOf(failure);
+            WhisparrSyncLog.ConnectionTransportFailure(logger, category, baseAddress.Host);
+            observation = ConnectionObservation.TransportFailed(category);
+        }
+
+        return Describe(observation, baseAddress);
+    }
+
+    /// <summary>
+    /// Reads <paramref name="address"/> as an address a request may be made to.
+    /// </summary>
+    /// <remarks>
+    /// Rebuilt from its scheme, authority and path rather than used as typed: the authority carries no
+    /// user-info, so anything a user embedded as credentials is dropped here and cannot reach a log
+    /// line, a response body or the outbound request.
+    /// </remarks>
+    internal static bool TryReadAddress(string? address, [NotNullWhen(true)] out Uri? baseAddress)
+    {
+        baseAddress = null;
+        if (string.IsNullOrWhiteSpace(address)
+            || !Uri.TryCreate(address.Trim(), UriKind.Absolute, out var parsed)
+            || !WhisparrClient.IsAddressable(parsed))
+        {
+            return false;
+        }
+
+        baseAddress = new Uri(
+            string.Create(CultureInfo.InvariantCulture, $"{parsed.Scheme}://{parsed.Authority}{parsed.AbsolutePath}"));
+        return true;
+    }
+
+    private static ConnectionTransportFailure CategoryOf(Exception failure) => failure switch
+    {
+        HttpRequestException { HttpRequestError: HttpRequestError.SecureConnectionError }
+            => ConnectionTransportFailure.Tls,
+        TaskCanceledException => ConnectionTransportFailure.Timeout,
+        _ => ConnectionTransportFailure.NoResponse,
+    };
+
+    // The classifier and the detector are both pure and both read the same document, so the kind and
+    // the reading on one view cannot disagree.
+    private static ConnectionTestView Describe(ConnectionObservation observation, Uri? baseAddress)
+    {
+        var kind = ConnectionFailureClassifier.Classify(observation);
+        var reading = GenerationDetector.Detect(observation.Document);
+        var appName = observation.Document?.AppName;
+        var otherApplication =
+            appName is not null
+            && !appName.Equals(ConnectionFailureClassifier.WhisparrAppName, StringComparison.OrdinalIgnoreCase)
+                ? appName
+                : null;
+
+        return new ConnectionTestView(
+            kind,
+            kind == ConnectionFailureKind.Connected ? reading.Generation : null,
+            reading.Version,
+            reading.Branch,
+            reading.Corroborated,
+            otherApplication,
+            baseAddress?.ToString());
+    }
+}

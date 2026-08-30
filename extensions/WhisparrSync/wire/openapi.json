@@ -33,10 +33,137 @@
           }
         }
       }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/connection/test": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionTestView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "ConnectionFailureKind": {
+        "enum": [
+          "connected",
+          "notConfigured",
+          "unreachable",
+          "keyRejected",
+          "notTheWhisparrApi",
+          "versionNotManaged"
+        ]
+      },
+      "ConnectionTestRequest": {
+        "required": [
+          "address",
+          "apiKey"
+        ],
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "apiKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ConnectionTestView": {
+        "required": [
+          "kind",
+          "generation",
+          "version",
+          "branch",
+          "corroborated",
+          "otherApplication",
+          "address"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ConnectionFailureKind"
+          },
+          "generation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WhisparrGeneration"
+              }
+            ]
+          },
+          "version": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "branch": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "corroborated": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "otherApplication": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "ErrorCode": {
         "required": [
           "code"
@@ -70,6 +197,13 @@
             "format": "int32"
           }
         }
+      },
+      "WhisparrGeneration": {
+        "enum": [
+          "v3",
+          "v2",
+          null
+        ]
       }
     }
   },
