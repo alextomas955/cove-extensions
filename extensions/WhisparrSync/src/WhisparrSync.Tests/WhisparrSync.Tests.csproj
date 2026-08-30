@@ -29,6 +29,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The captured Whisparr response bodies ProbeFixtures reads. Flattened into the output root,
+         beside extension.json, because that is where ProbeFixtures looks. -->
+    <Content Include="TestSupport\Fixtures\*.json" CopyToOutputDirectory="PreserveNewest" Link="%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
     <!-- The wire-document base class and the host-free store fakes are both in this namespace. -->
     <Using Include="Cove.Extensions.Shared.Testing" />
