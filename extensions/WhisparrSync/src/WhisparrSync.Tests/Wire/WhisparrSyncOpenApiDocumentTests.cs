@@ -2,6 +2,7 @@ using Cove.Core.Auth;
 using Cove.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Connection;
+using WhisparrSync.Options;
 using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Wire;
@@ -23,5 +24,8 @@ public sealed class WhisparrSyncOpenApiDocumentTests : ExtensionOpenApiDocumentT
     {
         services.AddSingleton<ICurrentPrincipalAccessor>(_ => null!);
         services.AddSingleton<IWhisparrConnectionTester>(_ => null!);
+        services.AddSingleton<ICredentialPort>(_ => null!);
+        services.AddSingleton<OptionsStore>(_ => null!);
+        services.AddSingleton<TimeProvider>(_ => null!);
     }
 }

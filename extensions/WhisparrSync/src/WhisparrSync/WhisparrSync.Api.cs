@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
+using WhisparrSync.Options;
 
 namespace WhisparrSync;
 
@@ -19,6 +20,7 @@ public sealed partial class WhisparrSync
     private string RouteBase => "/api/extensions/" + Id;
     private string HostConfigurationRoute => RouteBase + "/host-configuration";
     private string ConnectionTestRoute => RouteBase + "/connection/test";
+    private string SettingsRoute => RouteBase + "/settings";
 
     /// <summary>
     /// Registers every endpoint, each DECLARING the gate its own handler re-checks.
@@ -41,6 +43,20 @@ public sealed partial class WhisparrSync
             (ConnectionTestRequest request, ICurrentPrincipalAccessor principal,
              IWhisparrConnectionTester tester, CancellationToken ct)
                 => ConnectionTestAsync(request, principal, tester, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapGet(SettingsRoute,
+            (ICurrentPrincipalAccessor principal, OptionsStore options, ICredentialPort credentials,
+             CancellationToken ct)
+                => ReadSettingsAsync(principal, options, credentials, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapPut(SettingsRoute,
+            (WhisparrSyncSettingsSaveRequest request, ICurrentPrincipalAccessor principal,
+             OptionsStore options, ICredentialPort credentials, TimeProvider clock, CancellationToken ct)
+                => SaveSettingsAsync(request, principal, options, credentials, clock, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
@@ -117,6 +133,74 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(tester);
         return TypedResults.Ok(await tester.TestAsync(request.Address, request.ApiKey, ct).ConfigureAwait(false));
+    }
+
+    /// <summary>Reads the stored settings.</summary>
+    /// <remarks>
+    /// The answer cannot carry an API key: <see cref="WhisparrSyncSettingsView"/> has no member that
+    /// could hold one, and the key is never read here — only its presence is.
+    /// </remarks>
+    internal static async Task<Results<Ok<WhisparrSyncSettingsView>, ForbiddenCode>> ReadSettingsAsync(
+        ICurrentPrincipalAccessor principal,
+        OptionsStore options,
+        ICredentialPort credentials,
+        CancellationToken ct)
+        => HasConfigurePermission(principal)
+            ? TypedResults.Ok(await ProjectSettingsAsync(options, credentials, ct).ConfigureAwait(false))
+            : new ForbiddenCode();
+
+    /// <summary>Applies one settings save and answers with the settings as they now stand.</summary>
+    /// <remarks>
+    /// The gate is checked before the body is read, so a principal without it writes nothing.
+    /// <para>
+    /// The key is written before the options blob. The two are separate stores with no transaction
+    /// between them, so a save interrupted between the two leaves a stored key beside the address it
+    /// was entered against rather than beside an address nothing was entered for.
+    /// </para>
+    /// </remarks>
+    internal static async Task<Results<Ok<WhisparrSyncSettingsView>, ForbiddenCode>> SaveSettingsAsync(
+        WhisparrSyncSettingsSaveRequest request,
+        ICurrentPrincipalAccessor principal,
+        OptionsStore options,
+        ICredentialPort credentials,
+        TimeProvider clock,
+        CancellationToken ct)
+    {
+        if (!HasConfigurePermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(credentials);
+        ArgumentNullException.ThrowIfNull(clock);
+
+        var now = clock.GetUtcNow();
+        await credentials.ApplyAsync(
+            WhisparrGeneration.V3, SettingsProjector.CredentialWriteFor(request.V3), now, ct)
+            .ConfigureAwait(false);
+        await credentials.ApplyAsync(
+            WhisparrGeneration.V2, SettingsProjector.CredentialWriteFor(request.V2), now, ct)
+            .ConfigureAwait(false);
+
+        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+        await options.SaveAsync(SettingsProjector.Apply(stored, request), ct).ConfigureAwait(false);
+
+        return TypedResults.Ok(await ProjectSettingsAsync(options, credentials, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<WhisparrSyncSettingsView> ProjectSettingsAsync(
+        OptionsStore options, ICredentialPort credentials, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(credentials);
+
+        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+        return SettingsProjector.ToView(
+            stored,
+            await credentials.HasKeyAsync(WhisparrGeneration.V3, ct).ConfigureAwait(false),
+            await credentials.HasKeyAsync(WhisparrGeneration.V2, ct).ConfigureAwait(false));
     }
 
     /// <summary>The gates this extension's routes declare, and the ones their handlers re-check.</summary>
