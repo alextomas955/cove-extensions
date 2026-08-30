@@ -62,6 +62,21 @@ public enum ConnectionFailureKind
     VersionNotManaged,
 }
 
+/// <summary>A setting a connection cannot be attempted without.</summary>
+/// <remarks>
+/// Named on a refusal so the sentence points at the field that is actually empty rather than at the
+/// pair. The wire spelling is declared on the type.
+/// </remarks>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
+public enum ConnectionSetting
+{
+    /// <summary>The instance's base address.</summary>
+    Address,
+
+    /// <summary>The instance's API key.</summary>
+    ApiKey,
+}
+
 /// <summary>The result of one connection test, as the settings page reads it.</summary>
 /// <remarks>
 /// Discloses no API key and no response body: only a classified kind and the named values a sentence
@@ -87,6 +102,10 @@ public enum ConnectionFailureKind
 /// The address the attempt was made against, with any credentials in it removed, so a result can be
 /// matched to the request that produced it.
 /// </param>
+/// <param name="MissingSetting">
+/// Which setting was empty when nothing was configured, or null on any other kind. When both are
+/// empty this names the address, so two runs of the same refusal read the same.
+/// </param>
 public sealed record ConnectionTestView(
     ConnectionFailureKind Kind,
     WhisparrGeneration? Generation,
@@ -94,4 +113,10 @@ public sealed record ConnectionTestView(
     string? Branch,
     bool? Corroborated,
     string? OtherApplication,
-    string? Address);
+    string? Address,
+    ConnectionSetting? MissingSetting)
+{
+    /// <summary>A refusal taken before any request was made, naming the setting that is empty.</summary>
+    public static ConnectionTestView NotConfigured(ConnectionSetting missing, string? address)
+        => new(ConnectionFailureKind.NotConfigured, null, null, null, null, null, address, missing);
+}
