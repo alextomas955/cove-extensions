@@ -184,6 +184,7 @@
         "required": [
           "kind",
           "generation",
+          "capabilities",
           "version",
           "branch",
           "corroborated",
@@ -205,6 +206,15 @@
                 "$ref": "#/components/schemas/WhisparrGeneration"
               }
             ]
+          },
+          "capabilities": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/WhisparrCapability"
+            }
           },
           "version": {
             "type": [
@@ -287,6 +297,11 @@
           "keep",
           "replace",
           "clear"
+        ]
+      },
+      "WhisparrCapability": {
+        "enum": [
+          "outOfBandCallbackSecret"
         ]
       },
       "WhisparrGeneration": {
