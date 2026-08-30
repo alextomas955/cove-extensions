@@ -6,9 +6,11 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Options;
+using WhisparrSync.Whisparr;
 
 namespace WhisparrSync;
 
@@ -21,6 +23,10 @@ public sealed partial class WhisparrSync
     private string HostConfigurationRoute => RouteBase + "/host-configuration";
     private string ConnectionTestRoute => RouteBase + "/connection/test";
     private string SettingsRoute => RouteBase + "/settings";
+
+    // Derived from the same builder the registered address is, so the route Whisparr is told to call
+    // and the route this extension mounts cannot drift apart.
+    private string CallbackRoute => CallbackAddress.RouteFor(Id);
 
     /// <summary>
     /// Registers every endpoint, each DECLARING the gate its own handler re-checks.
@@ -59,6 +65,16 @@ public sealed partial class WhisparrSync
                 => SaveSettingsAsync(request, principal, options, credentials, clock, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        // The ONE route of this extension that answers a caller holding no Cove permission, and it
+        // says so with the SDK's own convention rather than by declaring nothing. An endpoint
+        // declaring no convention also admits an anonymous caller, but silently and with a host
+        // warning, which is an access tier nothing states.
+        endpoints.MapPost(CallbackRoute,
+            (HttpContext http, IServiceScopeFactory scopes, CancellationToken ct)
+                => CallbackAsync(http, scopes, ct))
+            .WithTags(WireTag)
+            .AllowCoveAnonymous();
     }
 
     /// <summary>The tag every route of this extension carries in the emitted wire document.</summary>
@@ -197,6 +213,76 @@ public sealed partial class WhisparrSync
         await options.SaveAsync(SettingsProjector.Apply(stored, request), ct).ConfigureAwait(false);
 
         return TypedResults.Ok(await ProjectSettingsAsync(options, credentials, ct).ConfigureAwait(false));
+    }
+
+    /// <summary>Receives one callback from Whisparr and answers whether it was this product's.</summary>
+    /// <remarks>
+    /// Authenticated by a secret this product minted, not by a Cove permission, because the caller is
+    /// another application rather than a Cove user. The secret is accepted from either position: a
+    /// registration this product made carries it out of band, and an address a user pasted by hand has
+    /// nowhere else to put one.
+    /// <para>
+    /// Runs as System. The caller carries no principal, and Cove's per-principal query filters answer
+    /// an Anonymous reader with zero rows and no error, which would report the stored secret as absent
+    /// and refuse every delivery.
+    /// </para>
+    /// <para>
+    /// No request body is read here. What arrives in one is Phase 52's, and until then an oversized
+    /// body is never materialised.
+    /// </para>
+    /// </remarks>
+    internal static async Task<Results<Ok<CallbackAcknowledgement>, UnauthorizedHttpResult>> CallbackAsync(
+        HttpContext http,
+        IServiceScopeFactory scopes,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        ArgumentNullException.ThrowIfNull(scopes);
+
+        var presented = CallbackSecret.PresentedIn(
+            http.Request.Headers[V3HeaderSecretRegistration.HeaderName],
+            http.Request.Query[CallbackAddress.SecretQueryParameter]);
+
+        var accepted = await RunAsSystem.RunInSystemScopeAsync(scopes, async services =>
+        {
+            var stored = await services.GetRequiredService<ICallbackSecretPort>()
+                .ReadAsync(ct)
+                .ConfigureAwait(false);
+            if (presented is null || !CallbackSecret.Matches(stored, presented.Value))
+            {
+                return false;
+            }
+
+            await RecordSecretPositionAsync(
+                services.GetRequiredService<OptionsStore>(), presented.Position, ct)
+                .ConfigureAwait(false);
+            return true;
+        }).ConfigureAwait(false);
+
+        return accepted
+            ? TypedResults.Ok(new CallbackAcknowledgement(presented!.Position))
+            : TypedResults.Unauthorized();
+    }
+
+    // Written only when the position changes, so a delivery stream does not put every event into a
+    // read-modify-write over one stored value. The transition is the whole content of the reading: the
+    // note about the less private form is shown while it reads Address and clears when it reads
+    // OutOfBand.
+    private static async Task RecordSecretPositionAsync(
+        OptionsStore options, CallbackSecretPosition position, CancellationToken ct)
+    {
+        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+        var connection = stored.ConnectionFor(stored.SelectedGeneration);
+        if (connection is null || connection.LastCallbackSecretPosition == position)
+        {
+            return;
+        }
+
+        await options.SaveAsync(
+            stored.WithConnectionFor(
+                stored.SelectedGeneration,
+                connection with { LastCallbackSecretPosition = position }),
+            ct).ConfigureAwait(false);
     }
 
     private static async Task<WhisparrSyncSettingsView> ProjectSettingsAsync(
