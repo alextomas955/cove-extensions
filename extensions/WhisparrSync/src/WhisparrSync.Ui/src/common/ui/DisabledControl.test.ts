@@ -17,6 +17,8 @@ import { test, expect, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
+import { CAP_UNAVAILABLE_ON_THIS_GENERATION } from "./copy";
+
 vi.mock("@cove-extensions/ui-shared", async () => {
   const { createElement: h } = await import("react");
   return {
@@ -40,7 +42,7 @@ const sleep = (ms: number) =>
 const COMMIT_MS = 50;
 
 const NAME = "Monitor";
-const REASON = "Currently available on Whisparr v3 (Eros)";
+const REASON = CAP_UNAVAILABLE_ON_THIS_GENERATION;
 
 async function render(node: ReactNode) {
   const container = document.createElement("div");
