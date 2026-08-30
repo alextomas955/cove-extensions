@@ -61,6 +61,23 @@ public sealed record WhisparrSyncGenerationConnection
 
     /// <summary>When this instance last answered anything at all.</summary>
     public DateTimeOffset? LastReachableAtUtc { get; init; }
+
+    /// <summary>Whether this product's callback is registered here, as of the last check.</summary>
+    /// <remarks>
+    /// Starts at <see cref="RegistrationStatus.NotCheckedYet"/> and is only moved off it by a read of
+    /// this instance's own notification list. A generation the user has never checked therefore
+    /// answers "not checked yet" rather than borrowing the other generation's answer.
+    /// </remarks>
+    public RegistrationStatus CallbackRegistration { get; init; } = RegistrationStatus.NotCheckedYet;
+
+    /// <summary>Where the most recent inbound callback from this instance carried its secret.</summary>
+    /// <remarks>
+    /// Null until one arrives, which is what distinguishes "registered, no events received yet" from
+    /// "registered and delivering". The note about the less private form is shown while this reads
+    /// <see cref="CallbackSecretPosition.Address"/>, and clears itself when an event arrives out of
+    /// band.
+    /// </remarks>
+    public CallbackSecretPosition? LastCallbackSecretPosition { get; init; }
 }
 
 /// <summary>

@@ -41,12 +41,22 @@ public sealed class EndpointPermissionTests
     [
         "GET /api/extensions/com.alextomas955.whisparrsync/host-configuration",
         "GET /api/extensions/com.alextomas955.whisparrsync/settings",
+        "POST /api/extensions/com.alextomas955.whisparrsync/callback",
         "POST /api/extensions/com.alextomas955.whisparrsync/connection/test",
         "PUT /api/extensions/com.alextomas955.whisparrsync/settings",
     ];
 
+    /// <summary>
+    /// The one route this extension mounts that answers a caller holding no Cove permission.
+    /// </summary>
+    /// <remarks>
+    /// Written out as a single value rather than a list, so a SECOND anonymous route is a failure
+    /// here rather than an entry someone adds beside this one.
+    /// </remarks>
+    private const string AnonymousRoute = "POST /api/extensions/com.alextomas955.whisparrsync/callback";
+
     [Fact]
-    public async Task EveryMountedRouteDeclaresAPermissionGate()
+    public async Task EveryMountedRouteDeclaresItsAccessTier()
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
@@ -69,15 +79,65 @@ public sealed class EndpointPermissionTests
         Assert.NotEmpty(routes);
         Assert.Equal(MountedRoutes.Order(), routes.Select(Describe).Order());
 
-        var ungated = routes
-            .Where(route => route.Metadata.GetMetadata<CovePermissionRequirementMetadata>() is null)
+        // A route declaring NEITHER convention is the failure. An endpoint that simply declares
+        // nothing is admitted anonymously too, so "no permission metadata" alone cannot be the rule
+        // once one route is deliberately anonymous — the anonymous one has to SAY so.
+        var undeclared = routes
+            .Where(route =>
+                route.Metadata.GetMetadata<CovePermissionRequirementMetadata>() is null
+                && route.Metadata.GetMetadata<CoveAllowAnonymousMetadata>() is null)
             .Select(Describe)
             .ToList();
 
         Assert.True(
-            ungated.Count == 0,
-            "these mounted routes declare no Cove permission requirement, so the host admits them "
-                + "anonymously and logs a warning rather than refusing: " + string.Join(", ", ungated));
+            undeclared.Count == 0,
+            "these mounted routes declare neither a Cove permission requirement nor the explicit "
+                + "anonymous convention, so the host admits them anonymously and logs a warning rather "
+                + "than refusing: " + string.Join(", ", undeclared));
+
+        await app.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
+    /// Exactly one mounted route is anonymous, and it is the callback.
+    /// </summary>
+    /// <remarks>
+    /// The previous assertion accepts the anonymous declaration as a tier, which on its own would let
+    /// a second anonymous route in unremarked. This is what stops that: the anonymous set is compared
+    /// against one transcribed route, so an addition fails here and has to be argued for.
+    /// </remarks>
+    [Fact]
+    public async Task ExactlyOneMountedRouteIsAnonymousAndItIsTheCallback()
+    {
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.WebHost.UseTestServer();
+        builder.Services.AddWhisparrSyncBindingServices();
+        builder.Services.AddRouting();
+
+        await using var app = builder.Build();
+        WhisparrSyncFixture.Create().MapEndpoints(app);
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        var routes = app.Services
+            .GetRequiredService<EndpointDataSource>()
+            .Endpoints.OfType<RouteEndpoint>()
+            .ToList();
+
+        Assert.NotEmpty(routes);
+
+        var anonymous = routes
+            .Where(route => route.Metadata.GetMetadata<CoveAllowAnonymousMetadata>() is not null)
+            .Select(Describe)
+            .Order()
+            .ToList();
+
+        Assert.Equal([AnonymousRoute], anonymous);
+
+        // The conventions are mutually exclusive and the host rejects conflicting metadata, so the
+        // anonymous route carrying a permission requirement too would not be a stricter route — it
+        // would be a registration the host refuses.
+        var callback = routes.Single(route => Describe(route) == AnonymousRoute);
+        Assert.Null(callback.Metadata.GetMetadata<CovePermissionRequirementMetadata>());
 
         await app.StopAsync(TestContext.Current.CancellationToken);
     }

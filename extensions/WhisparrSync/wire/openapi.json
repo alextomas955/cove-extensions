@@ -138,10 +138,46 @@
           }
         }
       }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/callback": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallbackAcknowledgement"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "CallbackAcknowledgement": {
+        "required": [
+          "secretPosition"
+        ],
+        "type": "object",
+        "properties": {
+          "secretPosition": {
+            "$ref": "#/components/schemas/CallbackSecretPosition"
+          }
+        }
+      },
+      "CallbackSecretPosition": {
+        "enum": [
+          "address",
+          "outOfBand"
+        ]
+      },
       "ConnectionFailureKind": {
         "enum": [
           "connected",
