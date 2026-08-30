@@ -67,6 +67,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
         services.AddScoped<IWhisparrConnectionTester, ConnectionTester>();
         services.AddScoped<IConnectionTestRunner, ConnectionTestRunner>();
         services.AddScoped<ICredentialPort, CredentialPort>();
+        services.AddScoped<ICallbackSecretPort, CallbackSecretPort>();
         services.AddScoped(_ => new OptionsStore(Store, _log));
     }
 
