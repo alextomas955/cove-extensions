@@ -1,6 +1,8 @@
-// Whisparr Sync's first end-to-end path: the extension installs into a live Cove, the host reports
-// it enabled, and its one read-gated probe answers a permitted caller while refusing callers that
-// are not.
+// Whisparr Sync's endpoints under real authentication: the extension installs into a live Cove, the
+// host reports it enabled, and each route answers a permitted caller while refusing callers that are
+// not. The read tier (the host-configuration probe) and the configure tier (the connection test) are
+// both here because an auth-enabled instance is instance-global and costs a boot; splitting them
+// across files would pay for it twice.
 //
 // Runs against an AUTH-ENABLED instance. Under this suite's auth-off default the host resolves every
 // request to a bypass principal holding every permission, so each refusal asserted below would pass
@@ -15,6 +17,14 @@ import { WHISPARR_SYNC_EXTENSION } from "../lib/whisparr-sync-fixtures.mjs";
 
 const EXTENSION_ID = "com.alextomas955.whisparrsync";
 const PROBE_PATH = `/api/extensions/${EXTENSION_ID}/host-configuration`;
+const CONNECTION_TEST_PATH = `/api/extensions/${EXTENSION_ID}/connection/test`;
+
+// A port nothing inside the Cove container listens on. Well-formed, so it passes the address check
+// and a request really is attempted, and refused at once rather than left to time out.
+const DEAD_ADDRESS = "http://127.0.0.1:1";
+
+// Synthetic, and authorises nothing: no instance is reached at the address above.
+const SOME_KEY = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
 
 const test = base.extend({
   authHarness: [
@@ -90,16 +100,47 @@ test("the probe refuses an unauthenticated caller and discloses neither field", 
   expect(probe.text).not.toContain("libraryRootCount");
 });
 
+test("the connection test answers a caller holding the configure permission", async ({
+  authHarness,
+}) => {
+  const answered = await ownerClient(authHarness).post(CONNECTION_TEST_PATH, {
+    address: DEAD_ADDRESS,
+    apiKey: SOME_KEY,
+  });
+
+  // The positive control for the refusals below: without it a 403 could equally mean the route was
+  // never mounted. Nothing listens at the address, so the honest answer is that nothing answered.
+  expect(
+    answered.status,
+    `POST ${CONNECTION_TEST_PATH} as the owner answered: ${answered.text}`,
+  ).toBe(200);
+  expect(answered.json?.kind).toBe("unreachable");
+  // The response is a classified KIND and named values, never what answered.
+  expect(Object.keys(answered.json).sort()).toEqual([
+    "address",
+    "branch",
+    "corroborated",
+    "generation",
+    "kind",
+    "otherApplication",
+    "version",
+  ]);
+});
+
 // Refusing an anonymous caller is the host's authentication layer, which answers before this
 // extension's gate is consulted at all — so on its own it is no evidence that the gate exists. A
 // caller who IS authenticated and holds nothing is the one that reaches the gate.
 //
-// Last in the file, and the file is serial: this is the only test here that writes to the shared
-// instance (a role and a user), so nothing after it has to know they appeared.
+// The file is serial, and this test and the one after it each write to the shared instance (a role
+// and a user). They take DIFFERENT names for both, so neither collides with the other's.
 test("the probe refuses an authenticated caller holding no read permission", async ({
   authHarness,
 }) => {
-  const restricted = await authHarness.createRestrictedUser({ permissions: [] });
+  const restricted = await authHarness.createRestrictedUser({
+    username: "e2e-holds-nothing",
+    roleName: "e2e-holds-nothing",
+    permissions: [],
+  });
   const asRestricted = createApiClient(() => authHarness.baseUrl, restricted.token);
 
   // The discriminating control: the same credential must be accepted somewhere, or a refusal below
@@ -116,4 +157,34 @@ test("the probe refuses an authenticated caller holding no read permission", asy
   ).toBe(403);
   expect(probe.text).not.toContain("configurationResolved");
   expect(probe.text).not.toContain("libraryRootCount");
+});
+
+// The configure tier, checked on the same instance. A caller who is authenticated and holds the READ
+// tier still must not reach this route: the two arrays are separate on purpose, and a handler reading
+// the wrong one would pass every test that only ever presents a caller holding nothing.
+test("the connection test refuses an authenticated caller holding only the read tier", async ({
+  authHarness,
+}) => {
+  const readOnly = await authHarness.createRestrictedUser({
+    username: "e2e-read-tier",
+    roleName: "e2e-read-tier",
+    permissions: ["videos.read"],
+  });
+  const asReadOnly = createApiClient(() => authHarness.baseUrl, readOnly.token);
+
+  // The discriminating control: the same credential reaches the READ-tier route, so a refusal below
+  // is about the gate rather than about the token.
+  const probe = await asReadOnly.get(PROBE_PATH);
+  expect(probe.status, `GET ${PROBE_PATH} as a read-tier caller answered: ${probe.text}`).toBe(200);
+
+  const refused = await asReadOnly.post(CONNECTION_TEST_PATH, {
+    address: DEAD_ADDRESS,
+    apiKey: SOME_KEY,
+  });
+  expect(
+    refused.status,
+    `POST ${CONNECTION_TEST_PATH} as a read-tier caller answered: ${refused.text}`,
+  ).toBe(403);
+  expect(refused.json?.code).toBe("FORBIDDEN");
+  expect(refused.text).not.toContain("kind");
 });

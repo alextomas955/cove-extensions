@@ -250,6 +250,14 @@ function instanceHandle(container, generation, apiKey) {
     get baseUrl() {
       return `http://${container.getHost()}:${container.getMappedPort(WHISPARR_PORT)}`;
     },
+    /**
+     * The address this instance answers on from INSIDE the shared network, which is the only one Cove
+     * itself can reach: `baseUrl` above is a host-published ephemeral port, and a Cove container has
+     * no route to it. Anything a test asks Cove to call has to use this one.
+     */
+    get internalBaseUrl() {
+      return `http://${aliasFor(generation)}:${WHISPARR_PORT}`;
+    },
     /** The raw Testcontainers StartedGenericContainer, for helpers needing exec/copy directly. */
     get container() {
       return container;
