@@ -74,6 +74,13 @@ public interface ICredentialPort
     /// </remarks>
     Task<string?> ReadAsync(WhisparrGeneration generation, CancellationToken ct);
 
+    /// <summary>Whether a key is stored for <paramref name="generation"/>.</summary>
+    /// <remarks>
+    /// Separate from <see cref="ReadAsync"/> so a caller that only has to say whether a key exists
+    /// never holds one. The settings response is built from this.
+    /// </remarks>
+    Task<bool> HasKeyAsync(WhisparrGeneration generation, CancellationToken ct);
+
     /// <summary>Applies <paramref name="write"/> to <paramref name="generation"/>'s stored key.</summary>
     /// <param name="generation">The generation whose key this save addresses.</param>
     /// <param name="write">Which of the three writes the save is.</param>

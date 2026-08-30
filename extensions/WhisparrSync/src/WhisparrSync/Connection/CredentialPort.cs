@@ -25,6 +25,14 @@ internal sealed class CredentialPort(DbContext db) : ICredentialPort
         return row?.ApiKey;
     }
 
+    public Task<bool> HasKeyAsync(WhisparrGeneration generation, CancellationToken ct)
+    {
+        var key = StoredNameOf(generation);
+        return db.Set<WhisparrCredentialEntity>()
+            .AsNoTracking()
+            .AnyAsync(credential => credential.Generation == key, ct);
+    }
+
     public async Task ApplyAsync(
         WhisparrGeneration generation, CredentialWrite write, DateTimeOffset nowUtc, CancellationToken ct)
     {

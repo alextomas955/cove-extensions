@@ -72,6 +72,72 @@
           }
         }
       }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/settings": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhisparrSyncSettingsView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhisparrSyncSettingsSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhisparrSyncSettingsView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -198,12 +264,134 @@
           }
         }
       },
+      "KeyWriteSignal": {
+        "enum": [
+          "keep",
+          "replace",
+          "clear"
+        ]
+      },
       "WhisparrGeneration": {
         "enum": [
           "v3",
           "v2",
           null
         ]
+      },
+      "WhisparrSyncGenerationSaveRequest": {
+        "required": [
+          "address",
+          "keyWrite",
+          "apiKey"
+        ],
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "keyWrite": {
+            "$ref": "#/components/schemas/KeyWriteSignal"
+          },
+          "apiKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "WhisparrSyncGenerationSettingsView": {
+        "required": [
+          "address",
+          "keyIsSet",
+          "recordedVersion",
+          "versionVerifiedAtUtc",
+          "lastReachableAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "keyIsSet": {
+            "type": "boolean"
+          },
+          "recordedVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "versionVerifiedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "lastReachableAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "WhisparrSyncSettingsSaveRequest": {
+        "required": [
+          "selectedGeneration",
+          "v3",
+          "v2"
+        ],
+        "type": "object",
+        "properties": {
+          "selectedGeneration": {
+            "$ref": "#/components/schemas/WhisparrGeneration"
+          },
+          "v3": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WhisparrSyncGenerationSaveRequest"
+              }
+            ]
+          },
+          "v2": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WhisparrSyncGenerationSaveRequest"
+              }
+            ]
+          }
+        }
+      },
+      "WhisparrSyncSettingsView": {
+        "required": [
+          "selectedGeneration",
+          "v3",
+          "v2"
+        ],
+        "type": "object",
+        "properties": {
+          "selectedGeneration": {
+            "$ref": "#/components/schemas/WhisparrGeneration"
+          },
+          "v3": {
+            "$ref": "#/components/schemas/WhisparrSyncGenerationSettingsView"
+          },
+          "v2": {
+            "$ref": "#/components/schemas/WhisparrSyncGenerationSettingsView"
+          }
+        }
       }
     }
   },
