@@ -120,6 +120,7 @@ test("the connection test answers a caller holding the configure permission", as
   expect(Object.keys(answered.json).sort()).toEqual([
     "address",
     "branch",
+    "capabilities",
     "corroborated",
     "generation",
     "kind",

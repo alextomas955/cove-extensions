@@ -149,9 +149,14 @@ internal sealed class ConnectionTester(IWhisparrClient client, ILogger<Connectio
                 ? appName
                 : null;
 
+        // The capability set is built here because this is where a connection is established: it
+        // describes the generation that answered, not the one the settings currently select.
+        var connected = kind == ConnectionFailureKind.Connected ? reading.Generation : null;
+
         return new ConnectionTestView(
             kind,
-            kind == ConnectionFailureKind.Connected ? reading.Generation : null,
+            connected,
+            connected is { } generation ? GenerationCapabilities.For(generation).Held : null,
             reading.Version,
             reading.Branch,
             reading.Corroborated,
