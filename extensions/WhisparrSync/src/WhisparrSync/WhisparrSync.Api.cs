@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
+using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 
 namespace WhisparrSync;
@@ -17,6 +18,7 @@ public sealed partial class WhisparrSync
     // applied the manifest throws instead of mounting the endpoints under the wrong id.
     private string RouteBase => "/api/extensions/" + Id;
     private string HostConfigurationRoute => RouteBase + "/host-configuration";
+    private string ConnectionTestRoute => RouteBase + "/connection/test";
 
     /// <summary>
     /// Registers every endpoint, each DECLARING the gate its own handler re-checks.
@@ -32,8 +34,25 @@ public sealed partial class WhisparrSync
 
         endpoints.MapGet(HostConfigurationRoute,
             (ICurrentPrincipalAccessor principal) => HostConfiguration(principal))
+            .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ReadPermissions);
+
+        endpoints.MapPost(ConnectionTestRoute,
+            (ConnectionTestRequest request, ICurrentPrincipalAccessor principal,
+             IWhisparrConnectionTester tester, CancellationToken ct)
+                => ConnectionTestAsync(request, principal, tester, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
+
+    /// <summary>The tag every route of this extension carries in the emitted wire document.</summary>
+    /// <remarks>
+    /// Stated rather than inferred. The inferred tag comes from the handler's declaring type, and
+    /// falls back to the ENTRY assembly for a handler that captures nothing — which is whichever
+    /// process emitted the document, so an inferred tag moves the committed document the day the test
+    /// runner changes.
+    /// </remarks>
+    private const string WireTag = "WhisparrSync";
 
     /// <summary>The settings tab this extension mounts, and the tab its one section targets.</summary>
     private const string SettingsTabKey = "whisparr-sync";
@@ -75,14 +94,49 @@ public sealed partial class WhisparrSync
             ? TypedResults.Ok(new HostConfigurationView(ConfigurationResolved, LibraryRootCount))
             : new ForbiddenCode();
 
-    /// <summary>The gate this extension's route declares, and the one its handler re-checks.</summary>
+    /// <summary>
+    /// Tests one Whisparr address and key, and reports which of the six outcomes it produced.
+    /// </summary>
     /// <remarks>
-    /// ONE array, read by both, because the divergence is what would go unnoticed: an endpoint
-    /// advertising one gate to the host while enforcing another still passes every test that drives
-    /// the handler directly.
+    /// The gate is checked BEFORE the body is read, so a principal without it causes no outbound
+    /// request. Without that ordering the route would forward a request on behalf of a caller who is
+    /// not allowed to configure this extension, and the classified answer would tell them what sits
+    /// at an address they chose.
+    /// </remarks>
+    internal static async Task<Results<Ok<ConnectionTestView>, ForbiddenCode>> ConnectionTestAsync(
+        ConnectionTestRequest request,
+        ICurrentPrincipalAccessor principal,
+        IWhisparrConnectionTester tester,
+        CancellationToken ct)
+    {
+        if (!HasConfigurePermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(tester);
+        return TypedResults.Ok(await tester.TestAsync(request.Address, request.ApiKey, ct).ConfigureAwait(false));
+    }
+
+    /// <summary>The gates this extension's routes declare, and the ones their handlers re-check.</summary>
+    /// <remarks>
+    /// ONE array per tier, read by both, because the divergence is what would go unnoticed: an
+    /// endpoint advertising one gate to the host while enforcing another still passes every test that
+    /// drives the handler directly.
     /// </remarks>
     private static readonly string[] ReadPermissions = [Permissions.VideosRead];
 
+    /// <inheritdoc cref="ReadPermissions"/>
+    /// <remarks>
+    /// The configure tier. No default Viewer or Member role holds it, which is what keeps the
+    /// connection test out of reach of a caller who could otherwise aim it at an internal address.
+    /// </remarks>
+    private static readonly string[] ConfigurePermissions = [Permissions.ExtensionsConfigure];
+
     private static bool HasReadPermission(ICurrentPrincipalAccessor principal)
         => principal.Current is { } current && Array.Exists(ReadPermissions, current.Has);
+
+    private static bool HasConfigurePermission(ICurrentPrincipalAccessor principal)
+        => principal.Current is { } current && Array.Exists(ConfigurePermissions, current.Has);
 }
