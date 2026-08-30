@@ -120,6 +120,7 @@ describe("reading the values off a response", () => {
         corroborated: null,
         otherApplication: "Radarr",
         address: "http://radarr:7878",
+        missingSetting: null,
       }),
     ).toEqual({
       address: "http://radarr:7878",
