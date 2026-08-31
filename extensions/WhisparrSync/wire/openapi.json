@@ -150,10 +150,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CallbackAcknowledgement"
+                  "$ref": "#/components/schemas/ImportAcknowledgement"
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad Request"
           }
         }
       }
@@ -229,17 +232,6 @@
   },
   "components": {
     "schemas": {
-      "CallbackAcknowledgement": {
-        "required": [
-          "secretPosition"
-        ],
-        "type": "object",
-        "properties": {
-          "secretPosition": {
-            "$ref": "#/components/schemas/CallbackSecretPosition"
-          }
-        }
-      },
       "CallbackSecretPosition": {
         "enum": [
           "address",
@@ -475,6 +467,27 @@
             "type": "boolean"
           }
         }
+      },
+      "ImportAcknowledgement": {
+        "required": [
+          "secretPosition",
+          "outcome"
+        ],
+        "type": "object",
+        "properties": {
+          "secretPosition": {
+            "$ref": "#/components/schemas/CallbackSecretPosition"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/ImportEventOutcome"
+          }
+        }
+      },
+      "ImportEventOutcome": {
+        "enum": [
+          "accepted",
+          "ignored"
+        ]
       },
       "KeyWriteSignal": {
         "enum": [
