@@ -24,6 +24,12 @@ EVENT_TYPES = (1, 3)
 # 500s. The name stored beside the id is ignored by the reader, so none is written.
 QUALITY = json.dumps({"quality": 7, "revision": {"version": 1, "real": 0, "isRepack": False}})
 
+# The library rows every seeded history row hangs off. Named here because a second seed against
+# an instance that already has a past must attach to the rows the first one created, and both
+# tables refuse a duplicate.
+SEEDED_SCENE_ID = "cove-e2e-seeded-scene"
+SEEDED_SITE_SLUG = "cove-e2e-seeded-site"
+
 LANGUAGES = json.dumps([1])
 EMPTY_JSON_OBJECT = "{}"
 EMPTY_JSON_ARRAY = "[]"
@@ -36,7 +42,14 @@ def main():
     # Taken as an argument rather than derived from the generation: the one database this process may
     # open is named by its caller, so no default can ever point it at something it does not own.
     parser.add_argument("--db", required=True)
+    # A JSON array, one entry per row from the newest down. An entry is the object written into
+    # that row's Data column; a null entry, or a row past the end of the array, gets an empty
+    # object. Every value inside an entry must be a string: the reader binds the column to a
+    # string map, and a number there fails the whole request rather than that row.
+    parser.add_argument("--data", default=None)
     args = parser.parse_args()
+
+    per_row = json.loads(args.data) if args.data else None
 
     if args.count < len(EVENT_TYPES):
         parser.error(
@@ -49,7 +62,7 @@ def main():
         # that resolves on its own.
         connection.execute("PRAGMA busy_timeout = 30000")
         seed = SEEDERS[args.generation]
-        rows = seed(connection, args.count)
+        rows = seed(connection, args.count, per_row)
         connection.commit()
     finally:
         connection.close()
@@ -57,14 +70,15 @@ def main():
     print(json.dumps({"generation": args.generation, "database": args.db, "rows": rows}))
 
 
-def seed_v3(connection, count):
-    metadata_id = insert(
+def seed_v3(connection, count, per_row=None):
+    metadata_id = insert_once(
         connection,
         "MovieMetadata",
+        ("ForeignId", SEEDED_SCENE_ID),
         {
-            "ForeignId": "cove-e2e-seeded-scene",
+            "ForeignId": SEEDED_SCENE_ID,
             "MetadataSource": 0,
-            "StashId": "cove-e2e-seeded-scene",
+            "StashId": SEEDED_SCENE_ID,
             "Title": "Cove E2E Seeded Scene",
             "SortTitle": "cove e2e seeded scene",
             "CleanTitle": "coveeeseededscene",
@@ -76,9 +90,10 @@ def seed_v3(connection, count):
             "ItemType": 1,
         },
     )
-    movie_id = insert(
+    movie_id = insert_once(
         connection,
         "Movies",
+        ("MovieMetadataId", metadata_id),
         {
             "Path": "/media/cove-e2e-seeded-scene",
             "Monitored": 1,
@@ -88,17 +103,18 @@ def seed_v3(connection, count):
             "Added": timestamp(0),
         },
     )
-    return insert_history(connection, count, lambda index: {"MovieId": movie_id})
+    return insert_history(connection, count, lambda index: {"MovieId": movie_id}, per_row)
 
 
-def seed_v2(connection, count):
-    series_id = insert(
+def seed_v2(connection, count, per_row=None):
+    series_id = insert_once(
         connection,
         "Series",
+        ("TitleSlug", SEEDED_SITE_SLUG),
         {
             "TvdbId": 0,
             "Title": "Cove E2E Seeded Site",
-            "TitleSlug": "cove-e2e-seeded-site",
+            "TitleSlug": SEEDED_SITE_SLUG,
             "CleanTitle": "coveeeseededsite",
             "Status": 0,
             "Images": EMPTY_JSON_ARRAY,
@@ -111,9 +127,10 @@ def seed_v2(connection, count):
             "Added": timestamp(0),
         },
     )
-    episode_id = insert(
+    episode_id = insert_once(
         connection,
         "Episodes",
+        ("SeriesId", series_id),
         {
             "SeriesId": series_id,
             "SeasonNumber": 1,
@@ -124,15 +141,21 @@ def seed_v2(connection, count):
         },
     )
     return insert_history(
-        connection, count, lambda index: {"EpisodeId": episode_id, "SeriesId": series_id}
+        connection,
+        count,
+        lambda index: {"EpisodeId": episode_id, "SeriesId": series_id},
+        per_row,
     )
 
 
-def insert_history(connection, count, parent_columns):
+def insert_history(connection, count, parent_columns, per_row=None):
+    # Rows already there are counted so a second seed names its own rows rather than repeating the
+    # first seed's: the caller correlates written rows to read records by source title.
+    already = connection.execute("SELECT COUNT(*) FROM History").fetchone()[0]
     rows = []
     for index in range(count):
         event_type = EVENT_TYPES[index % len(EVENT_TYPES)]
-        source_title = f"Cove.E2E.Seeded.{index}.1080p.WEB-DL"
+        source_title = f"Cove.E2E.Seeded.{already + index}.1080p.WEB-DL"
         insert(
             connection,
             "History",
@@ -143,14 +166,45 @@ def insert_history(connection, count, parent_columns):
                 # order rather than one the database is free to choose.
                 "Date": timestamp(index),
                 "Quality": QUALITY,
-                "Data": EMPTY_JSON_OBJECT,
+                "Data": row_data(per_row, index),
                 "EventType": event_type,
-                "DownloadId": f"COVEE2ESEEDED{index}",
+                "DownloadId": f"COVEE2ESEEDED{already + index}",
                 "Languages": LANGUAGES,
             },
         )
         rows.append({"sourceTitle": source_title, "eventType": event_type})
     return rows
+
+
+def row_data(per_row, index):
+    """The Data column for one row: what the caller asked for, or an empty object."""
+    if per_row is None or index >= len(per_row) or per_row[index] is None:
+        return EMPTY_JSON_OBJECT
+
+    entry = per_row[index]
+    wrong = sorted(name for name, value in entry.items() if not isinstance(value, str))
+    if wrong:
+        raise SystemExit(
+            f"whisparr-seed-history: row {index} carries a non-string value for "
+            f"{', '.join(wrong)}; the reader binds Data to a string map and answers 500 for the "
+            "whole page rather than for that row."
+        )
+
+    return json.dumps(entry)
+
+
+def insert_once(connection, table, identity, values):
+    """The id of the row `identity` names, inserting it first when it is not there yet.
+
+    A second seed against the same instance shares the library row the first one created: both
+    parent tables refuse a duplicate, and a history row whose parent is missing is dropped by the
+    reader with nothing reporting it.
+    """
+    column, value = identity
+    found = connection.execute(
+        f"SELECT Id FROM {table} WHERE {column} = ?", (value,)
+    ).fetchone()
+    return found[0] if found else insert(connection, table, values)
 
 
 def insert(connection, table, values):
