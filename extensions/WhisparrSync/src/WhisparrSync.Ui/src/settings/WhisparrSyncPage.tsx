@@ -1,6 +1,7 @@
 import { useNow } from "../common/lib/useNow";
 import { RefusalNotice } from "../common/ui/RefusalNotice";
 import { ConnectionSection } from "./ConnectionSection";
+import { GenerationCards } from "./GenerationCards";
 import { ImportWebhookSection } from "./ImportWebhookSection";
 import { isNoOpSave, valuesForCard } from "./connectLogic";
 import { useConnection } from "./useConnection";
@@ -20,12 +21,13 @@ import { useRegistration } from "./useRegistration";
  * exercised with no host and no network.
  */
 export function WhisparrSyncPage() {
-  const { state, editAddress, editKey, clearStoredKey, test, save } = useConnection(reloadPage);
+  const { state, editAddress, editKey, clearStoredKey, showCard, test, save } =
+    useConnection(reloadPage);
   const registration = useRegistration();
   const stored = valuesForCard(state.settings, state.card);
   const now = useNow();
 
-  // One reason, stated once, for the controls that share it — rather than the same sentence repeated
+  // One reason, stated once, for the controls that share it - rather than the same sentence repeated
   // beside each of them.
   const sharedReason = state.settings === null ? reasonNothingIsReadable(state.readError) : null;
 
@@ -35,7 +37,15 @@ export function WhisparrSyncPage() {
         <RefusalNotice reason={sharedReason} affectedControls={SHARED_REASON_CONTROLS} />
       )}
 
+      <GenerationCards
+        settings={state.settings}
+        card={state.card}
+        now={now}
+        onShowCard={showCard}
+      />
+
       <ConnectionSection
+        card={state.card}
         stored={stored}
         readFailed={state.read.failed}
         draft={state.draft}

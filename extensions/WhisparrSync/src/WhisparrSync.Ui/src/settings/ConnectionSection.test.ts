@@ -90,6 +90,7 @@ function section(overrides: {
   save?: SaveState;
 }) {
   return createElement(ConnectionSection, {
+    card: "v3",
     stored: overrides.stored === undefined ? NEVER_VERIFIED : overrides.stored,
     readFailed: false,
     draft: overrides.draft ?? NO_DRAFT,
