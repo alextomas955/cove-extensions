@@ -29,6 +29,7 @@ public sealed partial class WhisparrSync
     private string HostConfigurationRoute => RouteBase + "/host-configuration";
     private string ConnectionTestRoute => RouteBase + "/connection/test";
     private string SettingsRoute => RouteBase + "/settings";
+    private string ImportBannerRoute => RouteBase + "/import/banner";
 
     // Derived from the same builder the registered address is, so the route Whisparr is told to call
     // and the route this extension mounts cannot drift apart.
@@ -71,6 +72,12 @@ public sealed partial class WhisparrSync
             (WhisparrSyncSettingsSaveRequest request, ICurrentPrincipalAccessor principal,
              OptionsStore options, ICredentialPort credentials, TimeProvider clock, CancellationToken ct)
                 => SaveSettingsAsync(request, principal, options, credentials, clock, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapGet(ImportBannerRoute,
+            (ICurrentPrincipalAccessor principal, OptionsStore options, CancellationToken ct)
+                => ReadImportBannerAsync(principal, options, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
@@ -244,6 +251,32 @@ public sealed partial class WhisparrSync
         await options.SaveAsync(SettingsProjector.Apply(stored, request), ct).ConfigureAwait(false);
 
         return TypedResults.Ok(await ProjectSettingsAsync(options, credentials, ct).ConfigureAwait(false));
+    }
+
+    /// <summary>Reads the refusals outstanding, one line per Whisparr root that has any.</summary>
+    /// <remarks>
+    /// The configure tier, which is the tier Cove's own bulk extension-data route already requires to
+    /// read these same values, so this route exposes nothing a caller could not already read. The gate
+    /// is checked before the store, so a principal without it causes no read.
+    /// <para>
+    /// The answer holds recorded filesystem paths. Its size is the stored aggregate's, which the
+    /// library's size does not enter into.
+    /// </para>
+    /// </remarks>
+    internal static async Task<Results<Ok<ImportBannerView>, ForbiddenCode>> ReadImportBannerAsync(
+        ICurrentPrincipalAccessor principal,
+        OptionsStore options,
+        CancellationToken ct)
+    {
+        if (!HasConfigurePermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        ArgumentNullException.ThrowIfNull(options);
+
+        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+        return TypedResults.Ok(ImportBannerView.From(stored.ImportRefusals));
     }
 
     /// <summary>Receives one callback from Whisparr and answers whether it was this product's.</summary>
