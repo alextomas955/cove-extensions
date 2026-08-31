@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Cove.Extensions.Shared;
+using WhisparrSync.Options;
 
 namespace WhisparrSync.Contracts;
 
@@ -41,10 +42,12 @@ public sealed record WhisparrSyncGenerationSettingsView(
 /// <param name="SelectedGeneration">The generation the page is acting on.</param>
 /// <param name="V3">The v3 connection.</param>
 /// <param name="V2">The v2 connection.</param>
+/// <param name="UpgradeBehavior">What a redelivery naming a different file does to the item.</param>
 public sealed record WhisparrSyncSettingsView(
     WhisparrGeneration SelectedGeneration,
     WhisparrSyncGenerationSettingsView V3,
-    WhisparrSyncGenerationSettingsView V2);
+    WhisparrSyncGenerationSettingsView V2,
+    UpgradeBehavior UpgradeBehavior);
 
 /// <summary>What one save says about a generation's API key.</summary>
 /// <remarks>
@@ -90,7 +93,9 @@ public sealed record WhisparrSyncGenerationSaveRequest(
 /// <param name="SelectedGeneration">The generation the page is acting on.</param>
 /// <param name="V3">The v3 half, or null to leave v3 alone.</param>
 /// <param name="V2">The v2 half, or null to leave v2 alone.</param>
+/// <param name="UpgradeBehavior">The upgrade behaviour to store, or null to leave it alone.</param>
 public sealed record WhisparrSyncSettingsSaveRequest(
     WhisparrGeneration SelectedGeneration,
     WhisparrSyncGenerationSaveRequest? V3,
-    WhisparrSyncGenerationSaveRequest? V2);
+    WhisparrSyncGenerationSaveRequest? V2,
+    UpgradeBehavior? UpgradeBehavior = null);
