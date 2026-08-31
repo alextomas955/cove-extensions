@@ -172,7 +172,7 @@ public sealed partial class SettingsProjectionTests
     /// credential presented to that route travels in a header or the address, never in the event
     /// type, and a body long enough to hide one in is refused before it is parsed.
     /// <para>
-    /// Both <c>host</c> entries are host names, which is the most an outbound failure is given.
+    /// Each <c>host</c> entry is a host name, which is the most an outbound failure is given.
     /// </para>
     /// </remarks>
     [Fact]
@@ -180,6 +180,7 @@ public sealed partial class SettingsProjectionTests
         => Assert.Equal(
             new[]
             {
+                "BackstopPassRefused.host",
                 "ConnectionTransportFailure.host",
                 // The registrable domain of a metadata source the host is configured with, reduced
                 // before it is passed. A domain carries no user-info, no path and no query, so the
