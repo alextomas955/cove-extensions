@@ -44,32 +44,44 @@ internal sealed class ImportCore(
                 .ConfigureAwait(false);
         }
 
-        // The live dedupe: a file the library already holds at this path is this delivery's item, and
-        // asking the host to register it again would reprobe and rehash it for the same row back.
-        var videoId = await library.VideoHoldingFileAtAsync(path, ct).ConfigureAwait(false);
-        if (videoId is null)
+        // The live dedupe, and the whole of what makes the two channels ingest one file once between
+        // them. It is DERIVED on every delivery: nothing per-file, per-scene or per-delivery is kept,
+        // so no state of this extension's can disagree with the library.
+        //
+        // The host's own lookup by parent folder and basename returns the existing row rather than
+        // creating a video, and it gates neither the enrichment nor the follow-up. Those are this
+        // check's to decide.
+        if (await library.VideoHoldingFileAtAsync(path, ct).ConfigureAwait(false) is { } held)
         {
-            var imported = await library
-                .ImportVideoAsync(path, identity?.Resolution.VideoId, ct)
-                .ConfigureAwait(false);
-            if (!imported.Reached)
+            // The identity is still written where the item carries none: the channel that arrives
+            // first may be the one that reads no identifier at all.
+            if (identity is { } carried)
             {
-                return await RefusedAsync(
-                    candidate,
-                    reading,
-                    ImportOutcome.RefusedHostImportUnavailable,
-                    ImportRefusalCause.Unreadable,
-                    ct).ConfigureAwait(false);
+                await StampAndEnrichAsync(carried, held, ct).ConfigureAwait(false);
             }
 
-            videoId = imported.VideoId;
+            return ImportOutcome.AlreadyHeld;
         }
 
-        if (identity is { } named && videoId is { } item)
+        var imported = await library
+            .ImportVideoAsync(path, identity?.Resolution.VideoId, ct)
+            .ConfigureAwait(false);
+        if (!imported.Reached)
+        {
+            return await RefusedAsync(
+                candidate,
+                reading,
+                ImportOutcome.RefusedHostImportUnavailable,
+                ImportRefusalCause.Unreadable,
+                ct).ConfigureAwait(false);
+        }
+
+        if (identity is { } named && imported.VideoId is { } item)
         {
             await StampAndEnrichAsync(named, item, ct).ConfigureAwait(false);
         }
 
+        // Only a delivery that registered a file clears the root's outstanding refusals.
         await ClearAsync(reading.RefusalRoot, ct).ConfigureAwait(false);
         return ImportOutcome.Imported;
     }
