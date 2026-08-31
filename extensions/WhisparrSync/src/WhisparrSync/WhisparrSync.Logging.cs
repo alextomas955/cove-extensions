@@ -132,6 +132,22 @@ internal static partial class WhisparrSyncLog
         Message = "[WhisparrSync] a backstop pass ended in an unexpected failure; the next wake tries again")]
     internal static partial void BackstopPassFaulted(ILogger logger, Exception failure);
 
+    // A pending follow-up batch let go at shutdown. The files are on disk and Cove's own library scan
+    // finds them, so the drop is the correct outcome - but imports left uncovered with no trace are
+    // not something a user could ever explain. The count and nothing else: the paths are per file.
+    [LoggerMessage(
+        EventId = 2109, Level = LogLevel.Information,
+        Message = "[WhisparrSync] a follow-up scan over {Count} imported files was dropped at shutdown")]
+    internal static partial void FollowUpBatchDropped(ILogger logger, int count);
+
+    // A batch with nowhere to go, because the host's scan service could not be obtained from this
+    // extension's container. Nothing could have been imported in that state either, so this reports a
+    // reading that is not expected to occur rather than a failure to recover from.
+    [LoggerMessage(
+        EventId = 2110, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] no follow-up scan could be started over {Count} imported files")]
+    internal static partial void FollowUpScanUnavailable(ILogger logger, int count);
+
     // The one best-effort catch on the enrichment call. The import succeeded and the item carries its
     // identity either way, so the failure is contained - but a scene left bare with no trace is not
     // something a user could ever explain. The registrable domain of the source and nothing else: it

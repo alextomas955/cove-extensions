@@ -35,6 +35,12 @@ internal sealed class RecordingLibrary(bool reached, IReadOnlyList<string> roots
     /// <summary>The metadata sources the host is configured with.</summary>
     public List<string> ConfiguredEndpoints { get; } = [];
 
+    /// <summary>Every follow-up scan started, with the paths each was asked to cover.</summary>
+    public List<IReadOnlyList<string>> Scans { get; } = [];
+
+    /// <summary>Whether the host's scan service can be reached for a follow-up.</summary>
+    public bool FollowUpScanIsReachable { get; set; } = true;
+
     /// <summary>Raised by <see cref="EnrichAsync"/> instead of returning, when set.</summary>
     public Exception? EnrichmentFailure { get; set; }
 
@@ -52,6 +58,17 @@ internal sealed class RecordingLibrary(bool reached, IReadOnlyList<string> roots
     {
         Imported.Add((path, videoId));
         return Task.FromResult(new LibraryImport(reached, reached ? videoId ?? ImportedVideoId : null));
+    }
+
+    public bool StartFollowUpScan(IReadOnlyList<string> paths)
+    {
+        if (!FollowUpScanIsReachable)
+        {
+            return false;
+        }
+
+        Scans.Add(paths);
+        return true;
     }
 
     public Task<int?> VideoHoldingFileAtAsync(string path, CancellationToken ct)

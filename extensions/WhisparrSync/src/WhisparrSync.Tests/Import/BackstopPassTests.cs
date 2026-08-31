@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Globalization;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -120,6 +121,43 @@ public sealed class BackstopPassTests
 
         Assert.Empty(pass.Core.Ingested);
         Assert.Equal(mark, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
+    }
+
+    /// <summary>
+    /// A pass that imported three files starts ONE scan at the end of it, covering all three.
+    /// </summary>
+    /// <remarks>
+    /// The host's enqueue deduplicates nothing and defaults to exclusive, so one scan per record
+    /// would serialise three library scans behind each other for one pass.
+    /// </remarks>
+    [Fact]
+    public async Task APassThatImportedThreeFilesStartsOneScanCoveringAllThree()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-5));
+        pass.Answering(PageOfDistinctPaths(3));
+
+        await pass.RunAsync();
+
+        Assert.Equal(3, pass.Core.Ingested.Count);
+        Assert.Equal(
+            pass.Core.Ingested.Select(candidate => candidate.ReportedPath).Order(),
+            Assert.Single(pass.Library.Scans).Order());
+    }
+
+    /// <summary>A pass that imported nothing starts no scan.</summary>
+    /// <remarks>
+    /// The discriminating control for the test above: without it, a pass that started a scan on every
+    /// run would satisfy the same "exactly one scan" assertion.
+    /// </remarks>
+    [Fact]
+    public async Task APassThatImportedNothingStartsNoScan()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-30));
+        pass.Answering(Page([]));
+
+        await pass.RunAsync();
+
+        Assert.Empty(pass.Library.Scans);
     }
 
     /// <summary>Two records sharing one instant are both handed to the ingest core.</summary>
@@ -318,6 +356,29 @@ public sealed class BackstopPassTests
                 .Range(page * BackstopPass.PageSize, BackstopPass.PageSize)
                 .Select(index => Noon.AddMinutes(-index)));
 
+    /// <summary>One page of import records, each naming a different file.</summary>
+    private static WhisparrResponse PageOfDistinctPaths(int count)
+    {
+        var records = new JsonArray();
+        for (var index = 0; index < count; index++)
+        {
+            records.Add(
+                new JsonObject
+                {
+                    ["eventType"] = HistoryProjector.ImportedEventType,
+                    ["date"] = Noon.AddMinutes(-index).ToString("O"),
+                    ["data"] = new JsonObject
+                    {
+                        ["importedPath"] = string.Create(
+                            CultureInfo.InvariantCulture, $"/whisparr-media/scene{index}.mp4"),
+                    },
+                });
+        }
+
+        return RecordingWhisparrClient.Json(
+            200, new JsonObject { ["records"] = records }.ToJsonString());
+    }
+
     private static WhisparrResponse Page(
         IEnumerable<DateTimeOffset> instants, string? path = ImportedPath)
     {
@@ -371,7 +432,14 @@ public sealed class BackstopPassTests
 
         public RecordingWhisparrClient Client { get; }
 
-        public RecordingImportCore Core { get; } = new();
+        /// <summary>The one pending batch this pass's imports collect into.</summary>
+        public FollowUpScanCoalescer FollowUp { get; } = new(new FixedClock(Now), NullLogger.Instance);
+
+        public RecordingLibrary Library { get; } = new(reached: true, ["/data"]);
+
+        public RecordingImportCore Core => _core ??= new(FollowUp, Library);
+
+        private RecordingImportCore? _core;
 
         /// <summary>Queues what each history read answers with, the last entry repeating.</summary>
         public void Answering(params WhisparrResponse[] pages)
@@ -384,6 +452,8 @@ public sealed class BackstopPassTests
                     new RecordingCredentialPort().Holding(WhisparrGeneration.V3, ApiKey),
                     Core,
                     new FixedClock(Now),
+                    FollowUp,
+                    Library,
                     NullLogger.Instance)
                 .RunAsync(TestContext.Current.CancellationToken);
 
@@ -392,13 +462,19 @@ public sealed class BackstopPassTests
     }
 
     /// <summary>An ingest core recording every candidate handed to it.</summary>
-    private sealed class RecordingImportCore : IImportCore
+    /// <remarks>
+    /// It notes each import into the coalescer, standing in for the real core, whose own note is
+    /// asserted where that core is driven.
+    /// </remarks>
+    private sealed class RecordingImportCore(FollowUpScanCoalescer followUp, ICoveLibraryPort library)
+        : IImportCore
     {
         public List<ImportCandidate> Ingested { get; } = [];
 
         public Task<ImportOutcome> IngestAsync(ImportCandidate candidate, CancellationToken ct)
         {
             Ingested.Add(candidate);
+            followUp.NoteImported(candidate.ReportedPath, library);
             return Task.FromResult(ImportOutcome.Imported);
         }
     }
