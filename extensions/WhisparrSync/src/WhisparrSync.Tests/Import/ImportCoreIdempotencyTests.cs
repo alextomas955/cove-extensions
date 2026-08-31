@@ -42,11 +42,14 @@ public sealed class ImportCoreIdempotencyTests
         await ingest.DeliverAsync();
         ingest.Holds(VerifiedPath);
 
-        Assert.Equal(ImportOutcome.AlreadyHeld, await ingest.DeliverAsync());
+        var outcome = await ingest.DeliverAsync();
 
+        // The seams first, then the outcome: a core that reported a done-already outcome while still
+        // calling the host import would pass an outcome-first assertion for the wrong reason.
         Assert.Single(ingest.Library.Imported);
         Assert.Single(ingest.Library.Stamped);
         Assert.Single(ingest.Library.Enriched);
+        Assert.Equal(ImportOutcome.AlreadyHeld, outcome);
     }
 
     /// <summary>
