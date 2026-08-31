@@ -300,6 +300,13 @@ public sealed partial class WhisparrSync
     /// The answer names no path and does not say whether a file was found. The caller is anonymous,
     /// and an answer that varied with what is on disk would make this route a filesystem probe.
     /// </para>
+    /// <para>
+    /// Neither generation signs a delivery, so the secret is the whole of the authentication here. On
+    /// a Cove whose own authentication is disabled, nothing else stands in front of this route: the
+    /// host answers an unauthenticated in-network caller on privileged reads, issues no authentication
+    /// challenge, and consults no proxy or trusted-host allow-list. Nothing here may imply a host-side
+    /// failsafe.
+    /// </para>
     /// </remarks>
     internal static async Task<Results<Ok<ImportAcknowledgement>, BadRequest, UnauthorizedHttpResult>> CallbackAsync(
         HttpContext http,
