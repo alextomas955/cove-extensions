@@ -12,6 +12,16 @@ public enum ImportOutcome
     /// <summary>Exactly one candidate verified and the host registered it.</summary>
     Imported,
 
+    /// <summary>
+    /// The library already held a file at the resolved path, so this delivery registered nothing.
+    /// </summary>
+    /// <remarks>
+    /// Not a refusal: the file is in the library and the delivery's purpose is served. It is what the
+    /// second of the two channels to reach one file reports, and it is counted as an import by
+    /// nothing.
+    /// </remarks>
+    AlreadyHeld,
+
     /// <summary>The delivery named an event this product does not act on.</summary>
     IgnoredEventType,
 
