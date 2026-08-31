@@ -6,7 +6,7 @@
  *
  * The address the field shows is the form that carries the secret, because an address pasted into
  * Whisparr by hand has nowhere else to put one. Register sends the whole edited address and the
- * server honours only its scheme, host, port and path prefix — the route and the secret are always
+ * server honours only its scheme, host, port and path prefix - the route and the secret are always
  * this product's own.
  */
 import { Field, SectionCard, Spinner, StatusText, TextInput } from "@cove-extensions/ui-shared";
@@ -148,7 +148,7 @@ function CopyOutcome({ result }: { result: CopyResult }) {
   if (result.status === "failed") {
     return (
       <StatusText kind="error">
-        Cove could not reach the clipboard — select the address above and copy it.
+        Cove could not reach the clipboard - select the address above and copy it.
       </StatusText>
     );
   }

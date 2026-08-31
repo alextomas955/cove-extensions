@@ -38,6 +38,32 @@ describe("the state before a read and the state after an empty one", () => {
   });
 });
 
+describe("a read that answers after the operator has started typing", () => {
+  // A first read is slow enough that someone can be mid-address when it lands. Typing over them
+  // would look like the field clearing itself.
+  it("leaves what they entered alone", () => {
+    const store = createConnectionStore();
+    store.editAddress("http://half-typed");
+    store.loaded({
+      ...NOTHING_STORED,
+      v3: { ...NOTHING_STORED.v3, address: "http://stored:6969" },
+    });
+
+    expect(store.getSnapshot().draft.address).toBe("http://half-typed");
+    expect(store.getSnapshot().settings?.v3.address).toBe("http://stored:6969");
+  });
+
+  it("seeds the form from the answer when nothing has been entered", () => {
+    const store = createConnectionStore();
+    store.loaded({
+      ...NOTHING_STORED,
+      v3: { ...NOTHING_STORED.v3, address: "http://stored:6969" },
+    });
+
+    expect(store.getSnapshot().draft.address).toBe("http://stored:6969");
+  });
+});
+
 describe("a read that failed over an answer already on screen", () => {
   it("keeps the answer and raises the failure beside it", () => {
     const store = createConnectionStore();
@@ -140,6 +166,76 @@ describe("the two contradictory things a user can ask of a stored key", () => {
     store.clearStoredKey(true);
 
     expect(store.getSnapshot().draft).toMatchObject({ apiKey: "", keyCleared: true });
+  });
+});
+
+describe("switching to the other card", () => {
+  function bothStored() {
+    const store = createConnectionStore();
+    store.loaded({
+      selectedGeneration: "v3",
+      v3: { ...NOTHING_STORED.v3, address: "http://three:6969", keyIsSet: true },
+      v2: { ...NOTHING_STORED.v2, address: "http://two:6969" },
+    });
+    return store;
+  }
+
+  it("shows the other generation's stored values and never the first's", () => {
+    const store = bothStored();
+    store.showCard("v2");
+
+    expect(store.getSnapshot().card).toBe("v2");
+    expect(store.getSnapshot().draft.address).toBe("http://two:6969");
+  });
+
+  // No dialog and no save. The form is re-seeded from the card being shown, so an unsaved edit is
+  // gone rather than carried onto the other generation.
+  it("discards an unsaved edit silently", () => {
+    const store = bothStored();
+    store.editAddress("http://edited-but-never-saved:6969");
+    store.editKey("a-key-never-saved");
+    store.showCard("v2");
+
+    expect(store.getSnapshot().draft).toEqual({
+      address: "http://two:6969",
+      apiKey: "",
+      keyCleared: false,
+    });
+  });
+
+  it("retires a result taken against the generation being left", () => {
+    const store = bothStored();
+    store.beginTest("http://three:6969");
+    store.answered("http://three:6969", {
+      kind: "connected",
+      generation: "v3",
+      capabilities: null,
+      version: "3.3.8.1097",
+      branch: "master",
+      corroborated: true,
+      otherApplication: null,
+      address: "http://three:6969",
+      missingSetting: null,
+    });
+    store.showCard("v2");
+
+    expect(store.getSnapshot().test.phase).toBe("none");
+  });
+
+  it("changes nothing when the card is already the one shown", () => {
+    const store = bothStored();
+    store.editAddress("http://edited:6969");
+    store.showCard("v3");
+
+    expect(store.getSnapshot().draft.address).toBe("http://edited:6969");
+  });
+
+  // Which generation is IN USE is only changed by a save. Switching moves what is being edited.
+  it("leaves the stored selection alone", () => {
+    const store = bothStored();
+    store.showCard("v2");
+
+    expect(store.getSnapshot().settings?.selectedGeneration).toBe("v3");
   });
 });
 

@@ -1,6 +1,6 @@
 /**
  * The settings page's state: what the settings read said, which card is shown, what its form holds,
- * and what the last test and the last save did. State only — every request lives in
+ * and what the last test and the last save did. State only - every request lives in
  * `useConnection.ts`.
  *
  * An instance is created per page lifetime rather than at module scope, so a second visit starts
@@ -84,6 +84,10 @@ function draftFor(view: WhisparrSyncSettingsView, card: CardGeneration): Generat
 
 export function createConnectionStore(): ConnectionStore {
   let state = INITIAL_CONNECTION_STATE;
+  // Once the form has been touched it is the operator's. A read that answers afterwards must not
+  // type over what they are in the middle of entering, which is what a slow first read would
+  // otherwise do to anyone who started typing straight away.
+  let touched = false;
   const listeners = new Set<() => void>();
 
   const emit = (next: ConnectionPageState) => {
@@ -117,7 +121,7 @@ export function createConnectionStore(): ConnectionStore {
         settings: view,
         readError: null,
         card,
-        draft: draftFor(view, card),
+        draft: touched ? state.draft : draftFor(view, card),
       });
     },
 
@@ -132,6 +136,7 @@ export function createConnectionStore(): ConnectionStore {
     },
 
     editAddress(next) {
+      touched = true;
       emit({
         ...state,
         draft: { ...state.draft, address: next },
@@ -142,10 +147,12 @@ export function createConnectionStore(): ConnectionStore {
     editKey(next) {
       // Typing a key takes back a pending removal: the two are contradictory requests and the one
       // just made is the one meant.
+      touched = true;
       emit({ ...state, draft: { ...state.draft, apiKey: next, keyCleared: false } });
     },
 
     clearStoredKey(cleared) {
+      touched = true;
       emit({ ...state, draft: { ...state.draft, keyCleared: cleared, apiKey: "" } });
     },
 
@@ -153,6 +160,7 @@ export function createConnectionStore(): ConnectionStore {
       if (card === state.card) return;
       // Unsaved edits go with no dialog and no save. The form is re-seeded from the card being
       // shown, so it never carries the other card's values across.
+      touched = false;
       emit({
         ...state,
         card,
@@ -179,6 +187,8 @@ export function createConnectionStore(): ConnectionStore {
     },
 
     saved(view) {
+      // What was entered is now what is stored, so the answer is the authority again.
+      touched = false;
       emit({
         ...state,
         settings: view,

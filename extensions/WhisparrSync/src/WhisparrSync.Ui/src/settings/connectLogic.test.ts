@@ -1,14 +1,22 @@
 import { describe, expect, it } from "vitest";
 
+import type { ConnectionTestView, WhisparrSyncGenerationSettingsView } from "../wire/api";
 import { CAP_UNAVAILABLE_ON_THIS_GENERATION } from "../common/ui/copy";
 import {
   affordancesForKind,
+  clearsTransientResult,
+  detectionOutcome,
   isAddressEdit,
+  isGenerationChange,
+  isNoOpSave,
   normaliseAddress,
   NO_REFUSAL_VALUES,
+  recordedRead,
   REFUSAL_KINDS,
   sentenceForKind,
+  valuesForCard,
   valuesOf,
+  type GenerationDraft,
   type RefusalValues,
 } from "./connectLogic";
 
@@ -163,5 +171,142 @@ describe("deciding whether a result still describes the field", () => {
     expect(isAddressEdit("http://whisparr:6969", "http://whisparr:6970")).toBe(true);
     expect(isAddressEdit("http://whisparr:6969", "https://whisparr:6969")).toBe(true);
     expect(isAddressEdit("http://whisparr:6969", "")).toBe(true);
+  });
+});
+
+describe("what retires the transient result", () => {
+  it("is any change that moves the address, and no change that does not", () => {
+    expect(clearsTransientResult("http://whisparr:6969", "http://whisparr:6969/")).toBe(false);
+    expect(clearsTransientResult("http://whisparr:6969", "HTTP://WHISPARR:6969")).toBe(false);
+    expect(clearsTransientResult("http://whisparr:6969", "http://whisparr:6970")).toBe(true);
+  });
+
+  // There is no address left for a result to be about, whatever the previous value was.
+  it("is an emptied field, always", () => {
+    expect(clearsTransientResult("http://whisparr:6969", "")).toBe(true);
+    expect(clearsTransientResult("http://whisparr:6969", "   ")).toBe(true);
+    expect(clearsTransientResult("", "")).toBe(true);
+  });
+});
+
+/** A connected answer from `generation`, in the shape the response carries it. */
+function connected(generation: "v3" | "v2", version: string): ConnectionTestView {
+  return {
+    kind: "connected",
+    generation,
+    capabilities: ["outOfBandCallbackSecret"],
+    version,
+    branch: "master",
+    corroborated: true,
+    otherApplication: null,
+    address: "http://whisparr:6969",
+    missingSetting: null,
+  };
+}
+
+describe("a successful test whose generation is not the card's", () => {
+  it("names the version found and carries no instruction to write anything", () => {
+    const outcome = detectionOutcome(connected("v2", "2.0.0.1082"), "v3");
+
+    expect(outcome).toEqual({ kind: "otherGeneration", detected: "v2", version: "2.0.0.1082" });
+    // The shape itself holds nothing a caller could act on as a write. Transcribed by hand, so a
+    // member added later has to be accounted for here before it can be acted on.
+    expect(Object.keys(outcome ?? {}).sort()).toEqual(["detected", "kind", "version"]);
+  });
+
+  it("is distinguished from a success on the card's own generation", () => {
+    expect(detectionOutcome(connected("v3", "3.3.8.1097"), "v3")).toEqual({ kind: "matchesCard" });
+  });
+
+  it("is not reported at all for an answer that did not connect", () => {
+    const refused: ConnectionTestView = { ...connected("v3", "3.3.8.1097"), kind: "keyRejected" };
+
+    expect(detectionOutcome(refused, "v3")).toBeNull();
+  });
+});
+
+const NOTHING_STORED: WhisparrSyncGenerationSettingsView = {
+  address: "",
+  keyIsSet: false,
+  recordedVersion: null,
+  versionVerifiedAtUtc: null,
+  lastReachableAtUtc: null,
+};
+
+const UNCHANGED_DRAFT: GenerationDraft = { address: "", apiKey: "", keyCleared: false };
+
+describe("whether a save changes which generation is selected", () => {
+  it("reports no change for a save selecting the generation already selected", () => {
+    expect(isGenerationChange("v3", "v3")).toBe(false);
+    expect(isGenerationChange("v2", "v2")).toBe(false);
+  });
+
+  it("reports a change for a save selecting the other one", () => {
+    expect(isGenerationChange("v3", "v2")).toBe(true);
+    expect(isGenerationChange("v2", "v3")).toBe(true);
+  });
+
+  // Nothing is known about what is selected until the read answers, so nothing is claimed about it.
+  it("reports no change before the settings read has said which is selected", () => {
+    expect(isGenerationChange(null, "v3")).toBe(false);
+  });
+});
+
+describe("whether a save would write nothing", () => {
+  it("is true for the same generation with an untouched form", () => {
+    expect(isNoOpSave(NOTHING_STORED, "v3", "v3", UNCHANGED_DRAFT)).toBe(true);
+  });
+
+  it("is false once anything about it differs", () => {
+    expect(isNoOpSave(NOTHING_STORED, "v3", "v2", UNCHANGED_DRAFT)).toBe(false);
+    expect(
+      isNoOpSave(NOTHING_STORED, "v3", "v3", { ...UNCHANGED_DRAFT, address: "http://a:1" }),
+    ).toBe(false);
+    expect(isNoOpSave(NOTHING_STORED, "v3", "v3", { ...UNCHANGED_DRAFT, apiKey: "k" })).toBe(false);
+    expect(isNoOpSave(NOTHING_STORED, "v3", "v3", { ...UNCHANGED_DRAFT, keyCleared: true })).toBe(
+      false,
+    );
+  });
+
+  // Only letter case and a trailing separator differ, and neither moves the address.
+  it("is true for an address that differs only in ways that do not move it", () => {
+    const stored = { ...NOTHING_STORED, address: "http://whisparr:6969" };
+
+    expect(
+      isNoOpSave(stored, "v3", "v3", { ...UNCHANGED_DRAFT, address: "HTTP://WHISPARR:6969/" }),
+    ).toBe(true);
+  });
+});
+
+describe("which generation's values a card shows", () => {
+  it("takes them from the generation the card names, never the other", () => {
+    const settings = {
+      v3: { ...NOTHING_STORED, address: "http://three:6969" },
+      v2: { ...NOTHING_STORED, address: "http://two:6969" },
+    };
+
+    expect(valuesForCard(settings, "v3")?.address).toBe("http://three:6969");
+    expect(valuesForCard(settings, "v2")?.address).toBe("http://two:6969");
+    expect(valuesForCard(null, "v3")).toBeNull();
+  });
+});
+
+describe("the four-way read the recorded lines render through", () => {
+  it("is reading before an answer and failed when the read failed", () => {
+    expect(recordedRead(null, false)).toEqual({ reading: true, failed: false, hasContent: false });
+    expect(recordedRead(null, true)).toEqual({ reading: false, failed: true, hasContent: false });
+  });
+
+  // A card whose instance has never been reached and whose version has never been read is a true
+  // zero, not an absence of an answer.
+  it("is the genuine zero for a generation nothing has ever reached", () => {
+    expect(recordedRead(NOTHING_STORED, false).hasContent).toBe(false);
+    expect(
+      recordedRead({ ...NOTHING_STORED, lastReachableAtUtc: "2026-06-24T11:00:00Z" }, false)
+        .hasContent,
+    ).toBe(true);
+    expect(
+      recordedRead({ ...NOTHING_STORED, recordedVersion: "3.3.8.1097" }, false).hasContent,
+    ).toBe(true);
   });
 });
