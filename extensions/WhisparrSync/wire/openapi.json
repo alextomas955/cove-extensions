@@ -439,7 +439,9 @@
       "HostConfigurationView": {
         "required": [
           "configurationResolved",
-          "libraryRootCount"
+          "libraryRootCount",
+          "workerStartedAtUtc",
+          "workerCancelledAtUtc"
         ],
         "type": "object",
         "properties": {
@@ -449,6 +451,20 @@
           "libraryRootCount": {
             "type": "integer",
             "format": "int32"
+          },
+          "workerStartedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "workerCancelledAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },

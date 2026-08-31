@@ -133,7 +133,8 @@ public sealed partial class WhisparrSync
             .Build();
 
     /// <summary>
-    /// What this extension can see of the host's own configuration from inside its container.
+    /// What this extension can see of the host's own configuration, and of its worker's lifecycle,
+    /// from inside its container.
     /// </summary>
     /// <remarks>
     /// Opens no scope and touches no database: the answer is in-memory host state rather than library
@@ -142,7 +143,8 @@ public sealed partial class WhisparrSync
     internal Results<Ok<HostConfigurationView>, ForbiddenCode> HostConfiguration(
         ICurrentPrincipalAccessor principal)
         => HasReadPermission(principal)
-            ? TypedResults.Ok(new HostConfigurationView(ConfigurationResolved, LibraryRootCount))
+            ? TypedResults.Ok(new HostConfigurationView(
+                ConfigurationResolved, LibraryRootCount, WorkerStartedAtUtc, WorkerCancelledAtUtc))
             : new ForbiddenCode();
 
     /// <summary>
