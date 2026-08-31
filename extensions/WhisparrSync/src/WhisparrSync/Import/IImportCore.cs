@@ -38,6 +38,12 @@ public enum ImportOutcome
 
     /// <summary>The host's own import could not be reached from this extension's container.</summary>
     RefusedHostImportUnavailable,
+
+    /// <summary>
+    /// More than one item in the library carries the identifier the delivery named, so the product
+    /// cannot say which scene the delivery meant, and refuses rather than choosing.
+    /// </summary>
+    RefusedAmbiguousIdentity,
 }
 
 /// <summary>
