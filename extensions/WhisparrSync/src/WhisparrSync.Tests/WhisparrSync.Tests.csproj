@@ -81,6 +81,31 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\..\..\shared\Cove.Extensions.Shared.Testing\Cove.Extensions.Shared.Testing.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      TEST-ONLY: the host's own context lives in Cove.Data and its entities in Cove.Core. A test whose
+      subject is Cove's per-principal query filters needs the real context, because the host declares
+      those filters per host entity type and an extension-owned table carries none.
+
+      Cove.Data is on no feed and the root targets deliberately do not wire it, so a project wanting the
+      context has to say where Cove is for itself. Cove.Core is named beside it so the copy matching the
+      checkout compiles rather than whatever the feed last published; a skew there splits the closure and
+      is reported as a warning at most, which the compiler-only warnings-as-errors switch does not cover.
+    -->
+    <ProjectReference Include="$(CoveDataProjectPath)" Condition="'$(CoveSourceMode)' == 'source'" />
+    <ProjectReference Include="$(CoveCoreProjectPath)" Condition="'$(CoveSourceMode)' == 'source'" />
+  </ItemGroup>
+
+  <!--
+    The shared context factory, pulled in the same way as the principal fake above and keyed on the mode
+    rather than on a path probe: what it needs is the Cove.Data types, which only `source` mode supplies.
+    On the `none` leg it drops out and its consumers are Compile-Removed below.
+  -->
+  <ItemGroup Condition="'$(CoveSourceMode)' != 'none'">
+    <Compile Include="$(MSBuildThisFileDirectory)..\..\..\..\shared\Cove.Extensions.Shared.Testing.Cove\CoveContextFactory.cs"
+             LinkBase="TestSupport\Shared" />
+  </ItemGroup>
+
   <!--
     Cove-absent path only. The extension consumes Cove.Plugins as a host-provided assembly that is not
     copied to consumers, so without this reference the test assembly fails at xUnit reflection time.
@@ -89,5 +114,11 @@
   -->
   <ItemGroup Condition="'$(CoveSourceMode)' == 'none'">
     <PackageReference Include="Cove.Plugins" />
+  </ItemGroup>
+
+  <!-- COVE-ABSENT COMPILE SET: these reach the host's own context and entity types directly. -->
+  <ItemGroup Condition="'$(CoveSourceMode)' == 'none'">
+    <Compile Remove="Import\CoveLibraryPortTests.cs" />
+    <Compile Remove="Import\SystemPrincipalTests.cs" />
   </ItemGroup>
 </Project>
