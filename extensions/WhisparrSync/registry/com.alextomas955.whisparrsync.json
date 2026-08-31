@@ -1,7 +1,7 @@
 {
   "id": "com.alextomas955.whisparrsync",
   "name": "Whisparr Sync",
-  "summary": "Keeps Cove in step with the Whisparr instance you configure, calling out to it with an API key you supply and Cove holds server-side. One endpoint answers anonymously — the import callback Whisparr posts to — and it is authenticated by a secret this extension mints rather than by a Cove permission; every other endpoint requires one. The connection and sync surfaces are still being built.",
+  "summary": "Keeps Cove in step with the Whisparr instance you configure, calling out to it with an API key you supply and Cove holds server-side. Connect to either Whisparr generation, test the connection, and register Cove's import callback in the instance. One endpoint answers anonymously - the import callback Whisparr posts to - and it is authenticated by a secret this extension mints rather than by a Cove permission; every other endpoint requires one. The import path itself is still being built, so a delivery is checked and acknowledged rather than acted on.",
   "repositoryUrl": "https://github.com/alextomas955/cove-extensions",
   "sourceManifestUrl": "https://raw.githubusercontent.com/alextomas955/cove-extensions/main/extensions/WhisparrSync/src/WhisparrSync/extension.json",
   "categories": ["automation", "tools"],
