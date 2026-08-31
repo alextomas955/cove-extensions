@@ -2,9 +2,11 @@ import { useNow } from "../common/lib/useNow";
 import { RefusalNotice } from "../common/ui/RefusalNotice";
 import { ConnectionSection } from "./ConnectionSection";
 import { GenerationCards } from "./GenerationCards";
+import { ImportBanner } from "./ImportBanner";
 import { ImportWebhookSection } from "./ImportWebhookSection";
 import { isNoOpSave, testsStoredConnection, valuesForCard } from "./connectLogic";
 import { useConnection } from "./useConnection";
+import { useImportBanner } from "./useImportBanner";
 import { useRegistration } from "./useRegistration";
 
 /**
@@ -24,6 +26,7 @@ export function WhisparrSyncPage() {
   const { state, editAddress, editKey, clearStoredKey, showCard, test, save } =
     useConnection(reloadPage);
   const registration = useRegistration();
+  const banner = useImportBanner();
   const stored = valuesForCard(state.settings, state.card);
   const now = useNow();
 
@@ -33,6 +36,8 @@ export function WhisparrSyncPage() {
 
   return (
     <div className="space-y-4">
+      <ImportBanner read={banner.read} view={banner.view} />
+
       {sharedReason === null ? null : (
         <RefusalNotice reason={sharedReason} affectedControls={SHARED_REASON_CONTROLS} />
       )}
