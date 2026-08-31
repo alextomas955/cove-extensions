@@ -68,7 +68,7 @@ test("the extension installs into a live Cove and the host reports it enabled", 
   ).toBe(true);
 });
 
-test("the probe answers a permitted caller with exactly its four camelCase scalars", async ({
+test("the probe answers a permitted caller with exactly its camelCase scalars", async ({
   authHarness,
 }) => {
   const probe = await ownerClient(authHarness).get(PROBE_PATH);
@@ -77,6 +77,8 @@ test("the probe answers a permitted caller with exactly its four camelCase scala
   expect(Object.keys(probe.json ?? {}).sort()).toEqual([
     "configurationResolved",
     "libraryRootCount",
+    "metadataServerServiceResolved",
+    "scanServiceResolved",
     "workerCancelledAtUtc",
     "workerStartedAtUtc",
   ]);
@@ -84,6 +86,27 @@ test("the probe answers a permitted caller with exactly its four camelCase scala
   expect(Number.isInteger(probe.json.libraryRootCount)).toBe(true);
   // The two instants are asserted present as keys only. What the worker's lifecycle does with them
   // is the background-lifecycle spec's subject; this file's is the access tier.
+});
+
+// Whether the host's own scan and metadata-server registrations survive the copy into an extension's
+// container is a property of the host build, not of this extension, so the assertion is that each
+// reading is a boolean and the observed pair is reported. A test asserting `true` would fail on a
+// host that answers differently rather than recording what it answered.
+//
+// The scan reading is separately load-bearing: it is the seam a Whisparr delivery reaches Cove
+// through, so a `false` here means the import path cannot work on this host at all.
+test("the probe reports whether each host service can be obtained inside the container", async ({
+  authHarness,
+}) => {
+  const probe = await ownerClient(authHarness).get(PROBE_PATH);
+
+  expect(probe.status, `GET ${PROBE_PATH} as the owner answered: ${probe.text}`).toBe(200);
+  expect(typeof probe.json.scanServiceResolved).toBe("boolean");
+  expect(typeof probe.json.metadataServerServiceResolved).toBe("boolean");
+
+  console.log(
+    `[host-configuration] observed on this host: scanServiceResolved=${probe.json.scanServiceResolved} metadataServerServiceResolved=${probe.json.metadataServerServiceResolved}`,
+  );
 });
 
 test("the probe refuses an unauthenticated caller and discloses neither field", async ({

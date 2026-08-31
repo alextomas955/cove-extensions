@@ -1,3 +1,4 @@
+using Cove.Core.Interfaces;
 using Cove.Plugins;
 using Cove.Sdk;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +33,17 @@ public sealed partial class WhisparrSync : FullExtensionBase
     /// Whether the host's own configuration object resolved out of this extension's service provider.
     /// </summary>
     private bool ConfigurationResolved => _coveConfig is not null;
+
+    /// <summary>
+    /// Whether the host's scan service could be obtained from this extension's container at load.
+    /// </summary>
+    private bool ScanServiceResolved { get; set; }
+
+    /// <summary>
+    /// Whether the host's metadata-server service could be obtained from this extension's container
+    /// at load.
+    /// </summary>
+    private bool MetadataServerServiceResolved { get; set; }
 
     /// <summary>Cove's configured library paths, blank entries dropped.</summary>
     /// <remarks>
@@ -90,6 +102,50 @@ public sealed partial class WhisparrSync : FullExtensionBase
             LogNoCoveConfiguration();
         }
 
+        ScanServiceResolved = CanObtain<IScanService>(services);
+        if (!ScanServiceResolved)
+        {
+            LogNoScanService();
+        }
+
+        MetadataServerServiceResolved = CanObtain<IMetadataServerService>(services);
+        if (!MetadataServerServiceResolved)
+        {
+            LogNoMetadataServerService();
+        }
+
         return base.InitializeAsync(services, ct);
+    }
+
+    /// <summary>
+    /// Whether <typeparamref name="T"/> can be obtained from this extension's own container.
+    /// </summary>
+    /// <remarks>
+    /// Resolved inside a scope rather than off <paramref name="services"/> directly. The host copies
+    /// its own scoped registrations into the extension container and builds that container with scope
+    /// validation on, so resolving one of them from the provider handed to
+    /// <see cref="InitializeAsync"/> throws instead of answering, and a throw here disables the
+    /// extension.
+    /// <para>
+    /// The instance is discarded rather than held: a scoped one kept in a field outlives the scope
+    /// that created it. A registration that is present but cannot be constructed in this container is
+    /// a service this extension cannot obtain, which is the reading the caller asked for, so the
+    /// construction failure is an answer rather than a fault.
+    /// </para>
+    /// </remarks>
+    private static bool CanObtain<T>(IServiceProvider services)
+        where T : class
+    {
+        try
+        {
+            using var scope = services.GetRequiredService<IServiceScopeFactory>().CreateScope();
+            return scope.ServiceProvider.GetService<T>() is not null;
+        }
+#pragma warning disable CA1031 // Load-time probe: an unobtainable service is the answer, not a fault.
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            return false;
+        }
     }
 }
