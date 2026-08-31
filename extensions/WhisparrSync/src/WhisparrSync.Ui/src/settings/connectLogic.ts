@@ -249,6 +249,25 @@ export function isNoOpSave(
 }
 
 /**
+ * Whether pressing Test asks about the STORED connection rather than about a typed pair.
+ *
+ * The key is write-only, so a page that has just saved one holds no copy of it and could not send it
+ * back. Asking about the stored connection is what lets a test run at all in that state, and it is
+ * the only test whose answer is allowed to update the recorded version.
+ *
+ * It has to be the generation in use: the stored test asks about whichever connection is selected,
+ * so running one from the other card would answer about an instance the card does not name.
+ */
+export function testsStoredConnection(
+  stored: WhisparrSyncGenerationSettingsView | null,
+  selected: string | null,
+  card: CardGeneration,
+  draft: GenerationDraft,
+): boolean {
+  return stored !== null && stored.keyIsSet && isNoOpSave(stored, selected, card, draft);
+}
+
+/**
  * The four-way read the recorded lines render through, for one card.
  *
  * The empty state is a card whose instance has never been reached and whose version has never been
