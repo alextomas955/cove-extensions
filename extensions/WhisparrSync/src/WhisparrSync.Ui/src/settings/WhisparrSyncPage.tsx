@@ -1,8 +1,10 @@
 import { useNow } from "../common/lib/useNow";
 import { RefusalNotice } from "../common/ui/RefusalNotice";
 import { ConnectionSection } from "./ConnectionSection";
+import { ImportWebhookSection } from "./ImportWebhookSection";
 import { isNoOpSave, valuesForCard } from "./connectLogic";
 import { useConnection } from "./useConnection";
+import { useRegistration } from "./useRegistration";
 
 /**
  * The component the host mounts inside the "Whisparr Sync" settings tab.
@@ -19,6 +21,7 @@ import { useConnection } from "./useConnection";
  */
 export function WhisparrSyncPage() {
   const { state, editAddress, editKey, clearStoredKey, test, save } = useConnection(reloadPage);
+  const registration = useRegistration();
   const stored = valuesForCard(state.settings, state.card);
   const now = useNow();
 
@@ -52,12 +55,29 @@ export function WhisparrSyncPage() {
         onTest={test}
         onSave={save}
       />
+
+      <ImportWebhookSection
+        view={registration.view}
+        readFailed={registration.readFailed}
+        address={registration.address}
+        registering={registration.registering}
+        registerError={registration.registerError}
+        copyResult={registration.copyResult}
+        sharedReason={sharedReason}
+        onAddressChange={registration.editAddress}
+        onCopy={registration.copy}
+        onRegister={registration.register}
+      />
     </div>
   );
 }
 
-/** How many controls the shared reason takes out while the settings are unreadable. */
-const SHARED_REASON_CONTROLS = 2;
+/**
+ * How many controls the shared reason takes out while the settings are unreadable: the connection
+ * test, the connection save, and the registration, which acts on the stored connection rather than on
+ * the form.
+ */
+const SHARED_REASON_CONTROLS = 3;
 
 function reasonNothingIsReadable(readError: string | null): string {
   return readError === null
