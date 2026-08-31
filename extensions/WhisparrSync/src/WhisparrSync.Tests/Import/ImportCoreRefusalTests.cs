@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 using WhisparrSync.Options;
+using WhisparrSync.Tests.TestSupport;
 
 namespace WhisparrSync.Tests.Import;
 
@@ -60,7 +61,7 @@ public sealed class ImportCoreRefusalTests
         ingest.Paths.Present["/data/scene.mp4"] = ReportedSize;
         Assert.Equal(ImportOutcome.Imported, await ingest.DeliverAsync());
 
-        Assert.Equal("/data/scene.mp4", Assert.Single(ingest.Library.Imported));
+        Assert.Equal(("/data/scene.mp4", (int?)null), Assert.Single(ingest.Library.Imported));
         Assert.Equal(
             "/whisparr-other",
             Assert.Single((await ingest.StoredAsync()).ImportRefusals).Root);
@@ -173,19 +174,6 @@ public sealed class ImportCoreRefusalTests
         public Task<IReadOnlyList<string>> ReadAsync(
             WhisparrGeneration generation, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<string>>(roots);
-    }
-
-    private sealed class RecordingLibrary(bool reached, IReadOnlyList<string> roots) : ICoveLibraryPort
-    {
-        public List<string> Imported { get; } = [];
-
-        public IReadOnlyList<string> LibraryRoots => roots;
-
-        public Task<LibraryImport> ImportVideoAsync(string path, CancellationToken ct)
-        {
-            Imported.Add(path);
-            return Task.FromResult(new LibraryImport(reached, reached ? 1 : null));
-        }
     }
 
     private sealed class StubPaths : IImportPathPort

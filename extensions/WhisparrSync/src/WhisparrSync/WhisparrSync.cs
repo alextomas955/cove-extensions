@@ -101,8 +101,11 @@ public sealed partial class WhisparrSync : FullExtensionBase
         // Both host-supplied dependencies are optional, matching how the configuration is already
         // taken: a container that cannot produce one still builds the port, and the ingest reports
         // the refusal instead of failing to resolve.
-        services.AddScoped<ICoveLibraryPort>(
-            services => new CoveLibraryPort(services.GetService<IScanService>(), _coveConfig));
+        services.AddScoped<ICoveLibraryPort>(services => new CoveLibraryPort(
+            services.GetRequiredService<DbContext>(),
+            services.GetService<IScanService>(),
+            services.GetService<IMetadataServerService>(),
+            _coveConfig));
         services.AddScoped<IImportCore>(services => new ImportCore(
             services.GetRequiredService<IReportedRootPort>(),
             services.GetRequiredService<ICoveLibraryPort>(),
