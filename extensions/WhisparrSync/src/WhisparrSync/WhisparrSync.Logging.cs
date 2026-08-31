@@ -78,15 +78,18 @@ internal static partial class WhisparrSyncLog
         WhisparrGeneration generation,
         int writeStatus);
 
-    // An ingest that registered nothing, named by cause. No path here: a refused delivery's path is a
-    // caller-supplied string and a log sink is durable and readable.
+    // An ingest that registered nothing, named by cause and by the root the refusal is counted
+    // against. The root and not the offending path: a refused delivery's path is a caller-supplied
+    // string and a log sink is durable and readable, while a root comes from the configured
+    // instance's own answer and is what a user has to go and look at.
     [LoggerMessage(
         EventId = 2103, Level = LogLevel.Information,
-        Message = "[WhisparrSync] an import from {Generation} registered nothing ({Outcome})")]
+        Message = "[WhisparrSync] an import from {Generation} under {Root} registered nothing ({Outcome})")]
     internal static partial void ImportRefused(
         ILogger logger,
         WhisparrGeneration generation,
-        ImportOutcome outcome);
+        ImportOutcome outcome,
+        string root);
 
     // An event type this product does not act on. Named so an instance sending one nobody expected is
     // visible, and emitted once per distinct type rather than once per delivery: a subscribed trigger
