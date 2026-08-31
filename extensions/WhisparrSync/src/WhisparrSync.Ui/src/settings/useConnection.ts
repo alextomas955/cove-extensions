@@ -1,68 +1,136 @@
 /**
- * The connect surface's data layer: the only place that requests the connection-test route.
+ * The settings page's data layer: the only place that reads the settings, writes them, or asks for a
+ * connection test.
  *
- * Loading, answered and failed are distinct states, because a surface that is still reading must
- * never render the answer it does not have yet.
+ * Loading, answered and failed stay distinct all the way through, because a surface that is still
+ * reading must never render the answer it does not have yet.
  */
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 
-import type { ConnectionTestView } from "../wire/api";
+import type { ConnectionTestView, WhisparrSyncSettingsView } from "../wire/api";
 import { api } from "../common/lib/extension";
+import { isGenerationChange, type CardGeneration } from "./connectLogic";
+import {
+  createConnectionStore,
+  type ConnectionPageState,
+  type ConnectionStore,
+} from "./connectionStore";
 
 const CONNECTION_TEST_PATH = api("connection/test");
+const SETTINGS_PATH = api("settings");
 
-/** What the surface knows about the connection right now. */
-export type ConnectionState =
-  | { readonly status: "idle" }
-  | { readonly status: "testing"; readonly address: string }
-  | { readonly status: "answered"; readonly result: ConnectionTestView }
-  | { readonly status: "failed"; readonly message: string };
-
-export interface UseConnection {
-  readonly state: ConnectionState;
-  /** Tests one address and key. A test started while another is in flight supersedes it. */
-  readonly test: (address: string, apiKey: string) => void;
-  /** Drops the current answer, and any answer still in flight. */
-  readonly clear: () => void;
+function messageFor(err: unknown): string {
+  return err instanceof ApiError ? `${String(err.status)} ${err.body}` : String(err);
 }
 
-export function useConnection(): UseConnection {
-  // The answer itself is state, so rendering follows it. The token that decides WHICH answer may
-  // commit is a ref: it changes without a render, and a useMemo would be wrong for it twice over,
-  // because a memo is a cache React may legitimately discard and a fresh token would let a superseded
-  // response land over a later one.
-  const issued = useRef(0);
-  const [state, setState] = useState<ConnectionState>({ status: "idle" });
+export interface UseConnection {
+  readonly state: ConnectionPageState;
+  readonly editAddress: (next: string) => void;
+  readonly editKey: (next: string) => void;
+  readonly clearStoredKey: (cleared: boolean) => void;
+  readonly showCard: (card: CardGeneration) => void;
+  /** Tests the address and key the form holds. A test started while another is in flight supersedes it. */
+  readonly test: () => void;
+  /** Saves the card being shown, and reloads only when that changes which generation is selected. */
+  readonly save: () => void;
+}
 
-  const test = useCallback((address: string, apiKey: string) => {
+/**
+ * @param reload What a generation change does once the save has been persisted. Supplied by the
+ * caller so this hook stays testable and so the reload cannot happen before the write lands.
+ */
+export function useConnection(reload: () => void): UseConnection {
+  // One store per page lifetime. A lazy useState initializer rather than a useMemo, because a memo
+  // is a cache React may legitimately discard, and a test result that vanished on a re-render would
+  // read as the click never registering.
+  const [store] = useState<ConnectionStore>(() => createConnectionStore());
+  const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
+
+  // Changes without a render, and deciding which answer may land is not a rendering question. A
+  // fresh token would let a superseded response commit over a later one.
+  const issued = useRef(0);
+
+  const read = useCallback(() => {
+    store.beginRead();
+    requestJson<WhisparrSyncSettingsView>(SETTINGS_PATH)
+      .then((view) => {
+        store.loaded(view);
+      })
+      .catch((err: unknown) => {
+        store.readFailed(messageFor(err));
+      });
+  }, [store]);
+
+  const primed = useRef(false);
+  useEffect(() => {
+    if (primed.current) return;
+    primed.current = true;
+    read();
+  }, [read]);
+
+  const test = useCallback(() => {
+    const { draft } = store.getSnapshot();
     issued.current += 1;
     const token = issued.current;
-    setState({ status: "testing", address });
+    // Captured here rather than read back when the answer lands, so the result describes the address
+    // that was in the field when it ran.
+    const address = draft.address;
+    store.beginTest(address);
 
     requestJson<ConnectionTestView>(CONNECTION_TEST_PATH, {
       method: "POST",
-      body: JSON.stringify({ address, apiKey }),
+      body: JSON.stringify({ address, apiKey: draft.apiKey }),
     })
       .then((result) => {
         if (token !== issued.current) return;
-        setState({ status: "answered", result });
+        store.answered(address, result);
       })
       .catch((err: unknown) => {
         if (token !== issued.current) return;
-        setState({
-          status: "failed",
-          message: err instanceof ApiError ? `${err.status} ${err.body}` : String(err),
-        });
+        store.testFailed(address, messageFor(err));
       });
-  }, []);
+  }, [store]);
 
-  const clear = useCallback(() => {
-    // Retiring the token is what stops an answer already in flight from landing under a field it no
-    // longer describes.
-    issued.current += 1;
-    setState({ status: "idle" });
-  }, []);
+  const save = useCallback(() => {
+    const { card, draft, settings } = store.getSnapshot();
+    const reloads = isGenerationChange(settings?.selectedGeneration ?? null, card);
+    store.beginSave();
 
-  return { state, test, clear };
+    // Only the card being shown is named. A generation this save omits is left as it stands, which is
+    // what lets the page write one connection without restating the other.
+    const half = {
+      address: draft.address,
+      keyWrite: draft.keyCleared ? "clear" : draft.apiKey === "" ? "keep" : "replace",
+      apiKey: draft.apiKey === "" ? null : draft.apiKey,
+    };
+
+    requestJson<WhisparrSyncSettingsView>(SETTINGS_PATH, {
+      method: "PUT",
+      body: JSON.stringify({
+        selectedGeneration: card,
+        v3: card === "v3" ? half : null,
+        v2: card === "v2" ? half : null,
+      }),
+    })
+      .then((view) => {
+        store.saved(view);
+        // After the write has landed, never before: a reload issued alongside it would race the
+        // request it is meant to follow and could discard it.
+        if (reloads) reload();
+      })
+      .catch((err: unknown) => {
+        store.saveFailed(messageFor(err));
+      });
+  }, [store, reload]);
+
+  return {
+    state,
+    editAddress: store.editAddress,
+    editKey: store.editKey,
+    clearStoredKey: store.clearStoredKey,
+    showCard: store.showCard,
+    test,
+    save,
+  };
 }
