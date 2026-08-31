@@ -160,6 +160,7 @@ public sealed class ImportCoreRefusalTests
                     Library,
                     Paths,
                     new OptionsStore(Store),
+                    new FollowUpScanCoalescer(TimeProvider.System, NullLogger.Instance),
                     NullLogger.Instance)
                 .IngestAsync(
                     new ImportCandidate(WhisparrGeneration.V3, "Download", path, ReportedSize, null),
