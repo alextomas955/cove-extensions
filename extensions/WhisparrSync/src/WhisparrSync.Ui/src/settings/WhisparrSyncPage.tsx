@@ -1,112 +1,77 @@
-import { useState } from "react";
-import {
-  Button,
-  Field,
-  INPUT_CLASS,
-  SectionCard,
-  Spinner,
-  StatusText,
-  TextInput,
-} from "@cove-extensions/ui-shared";
-
-import { isAddressEdit, sentenceForKind, valuesOf } from "./connectLogic";
-import { useConnection, type ConnectionState } from "./useConnection";
+import { useNow } from "../common/lib/useNow";
+import { RefusalNotice } from "../common/ui/RefusalNotice";
+import { ConnectionSection } from "./ConnectionSection";
+import { isNoOpSave, valuesForCard } from "./connectLogic";
+import { useConnection } from "./useConnection";
 
 /**
  * The component the host mounts inside the "Whisparr Sync" settings tab.
  *
  * The tab uses the host's page layout, so the host draws the tab header from the manifest and no
- * card chrome around this component: the card below is the extension's own. No outer page heading
+ * card chrome around this component: the cards below are the extension's own. No outer page heading
  * and no page gutter, or the tab name would be drawn twice.
  *
  * The host passes `{ onNavigate }`; this surface does not navigate and ignores it. Styling is host
  * Tailwind token classes only, because the host's Tailwind JIT never scans this bundle.
  *
- * Nothing here is stored. The address and key are held for the length of a test and travel with it,
- * which is what makes the answer describe the address that was in the field.
+ * This component holds the data layer and hands each section what it renders, so a section can be
+ * exercised with no host and no network.
  */
 export function WhisparrSyncPage() {
-  const [address, setAddress] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const { state, test, clear } = useConnection();
+  const { state, editAddress, editKey, clearStoredKey, test, save } = useConnection(reloadPage);
+  const stored = valuesForCard(state.settings, state.card);
+  const now = useNow();
 
-  const onAddressChange = (next: string) => {
-    if (state.status !== "idle" && isAddressEdit(address, next)) {
-      clear();
-    }
-    setAddress(next);
-  };
-
-  const testing = state.status === "testing";
-  const canTest = address.trim() !== "" && apiKey !== "" && !testing;
+  // One reason, stated once, for the controls that share it — rather than the same sentence repeated
+  // beside each of them.
+  const sharedReason = state.settings === null ? reasonNothingIsReadable(state.readError) : null;
 
   return (
-    <SectionCard title="Connection" description="The Whisparr instance Cove keeps in step with.">
-      <div className="space-y-4">
-        <Field
-          label="Whisparr address"
-          helper="The address Cove itself reaches Whisparr on, including the scheme and port."
-        >
-          <TextInput
-            value={address}
-            onChange={onAddressChange}
-            placeholder="http://whisparr:6969"
-          />
-        </Field>
+    <div className="space-y-4">
+      {sharedReason === null ? null : (
+        <RefusalNotice reason={sharedReason} affectedControls={SHARED_REASON_CONTROLS} />
+      )}
 
-        <Field label="API key" helper="Taken for this test only; nothing is stored yet.">
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => {
-              setApiKey(e.target.value);
-            }}
-            className={INPUT_CLASS}
-            autoComplete="off"
-          />
-        </Field>
-
-        <div className="flex items-center gap-3">
-          <Button
-            onClick={() => {
-              test(address, apiKey);
-            }}
-            disabled={!canTest}
-          >
-            {testing ? <Spinner /> : null}
-            Test connection
-          </Button>
-          <ConnectionResult state={state} />
-        </div>
-      </div>
-    </SectionCard>
+      <ConnectionSection
+        stored={stored}
+        readFailed={state.read.failed}
+        draft={state.draft}
+        test={state.test}
+        save={state.save}
+        noOpSave={isNoOpSave(
+          stored,
+          state.settings?.selectedGeneration ?? null,
+          state.card,
+          state.draft,
+        )}
+        sharedReason={sharedReason}
+        now={now}
+        onAddressChange={editAddress}
+        onKeyChange={editKey}
+        onClearStoredKey={clearStoredKey}
+        onTest={test}
+        onSave={save}
+      />
+    </div>
   );
 }
 
-/** The one result line. Reads nothing until there is something to read. */
-function ConnectionResult({ state }: { state: ConnectionState }) {
-  if (state.status === "idle") {
-    return null;
-  }
+/** How many controls the shared reason takes out while the settings are unreadable. */
+const SHARED_REASON_CONTROLS = 2;
 
-  if (state.status === "testing") {
-    return <StatusText kind="muted">Testing {state.address}</StatusText>;
-  }
+function reasonNothingIsReadable(readError: string | null): string {
+  return readError === null
+    ? "Cove is still reading the stored connection."
+    : "Cove could not read the stored connection, so nothing here can act on it yet.";
+}
 
-  if (state.status === "failed") {
-    return <StatusText kind="error">Cove could not run the test: {state.message}</StatusText>;
-  }
-
-  const { result } = state;
-  if (result.kind === "connected") {
-    // The instance's own version string, character for character. A rendering that reformatted it
-    // would report a version no instance runs.
-    return (
-      <StatusText kind="success">
-        Connected to Whisparr {result.version} ({result.generation})
-      </StatusText>
-    );
-  }
-
-  return <StatusText kind="error">{sentenceForKind(result.kind, valuesOf(result))}</StatusText>;
+/**
+ * A generation change is applied by re-entering the page rather than by re-reading each surface,
+ * because every surface reads the connected generation's capabilities and there is no single place
+ * that would know to tell them all.
+ *
+ * Declared once at module scope so the hook that calls it does not see a new function on each render.
+ */
+function reloadPage() {
+  window.location.reload();
 }

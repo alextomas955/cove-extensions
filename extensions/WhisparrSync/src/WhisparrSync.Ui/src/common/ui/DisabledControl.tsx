@@ -41,6 +41,32 @@ type DisabledControlProps = {
   | { disabled?: false; reason?: undefined }
 );
 
+/**
+ * {@link DisabledControl} for a caller that holds the reason and the availability as one value.
+ *
+ * A reason disables and an absent reason enables, so the pair cannot be set to a disabled control
+ * with nothing to hear — the same invariant the prop union above carries, expressed for a caller
+ * computing "why not" rather than "whether".
+ */
+export function OptionallyDisabled({
+  name,
+  onClick,
+  variant,
+  reason,
+}: {
+  name: string;
+  onClick: () => void;
+  variant?: "primary" | "ghost";
+  /** Why the control is unavailable, or null when it is available. */
+  reason: string | null;
+}) {
+  return reason === null ? (
+    <DisabledControl name={name} onClick={onClick} variant={variant} />
+  ) : (
+    <DisabledControl name={name} onClick={onClick} variant={variant} disabled reason={reason} />
+  );
+}
+
 export function DisabledControl(props: DisabledControlProps) {
   const { name, onClick, variant, disabled } = props;
   const reason = props.disabled === true ? props.reason : undefined;
