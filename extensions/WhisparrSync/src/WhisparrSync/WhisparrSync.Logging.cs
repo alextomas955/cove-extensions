@@ -112,6 +112,18 @@ internal static partial class WhisparrSyncLog
         WhisparrGeneration generation,
         string host);
 
+    // A backstop pass that imported from nothing it read, named by cause. The pass runs with nobody
+    // watching and leaves the stored mark where it was, so without this line a channel that has
+    // refused every pass since an instance changed looks the same as one with nothing to do.
+    [LoggerMessage(
+        EventId = 2107, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] a backstop pass over {Generation} at {Host} imported nothing and kept its place ({Outcome})")]
+    internal static partial void BackstopPassRefused(
+        ILogger logger,
+        WhisparrGeneration generation,
+        BackstopPassOutcome outcome,
+        string host);
+
     // The one best-effort catch on the enrichment call. The import succeeded and the item carries its
     // identity either way, so the failure is contained - but a scene left bare with no trace is not
     // something a user could ever explain. The registrable domain of the source and nothing else: it
