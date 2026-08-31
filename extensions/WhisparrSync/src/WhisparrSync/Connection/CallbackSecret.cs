@@ -1,9 +1,8 @@
 using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text;
-using Cove.Extensions.Shared;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using WhisparrSync.Contracts;
 
 namespace WhisparrSync.Connection;
@@ -25,6 +24,24 @@ public static class CallbackSecret
 {
     /// <summary>How many random bytes a minted secret is drawn from.</summary>
     internal const int EntropyBytes = 32;
+
+    /// <summary>The custom header this product's own callbacks are recognised by.</summary>
+    /// <remarks>
+    /// Declared here, on the inbound side that reads it, so the registration that sets it and the
+    /// route that accepts it cannot name two different headers.
+    /// </remarks>
+    public const string CustomHeaderName = "X-Cove-Whisparr-Sync-Secret";
+
+    /// <summary>The user name a Basic-auth registration carries beside the secret.</summary>
+    /// <remarks>
+    /// Fixed rather than configurable: it identifies the registration and carries no authority. The
+    /// secret is the password half, which is the half a Whisparr connection stores under a
+    /// <c>password</c> privacy.
+    /// </remarks>
+    public const string BasicAuthUser = "cove-whisparr-sync";
+
+    /// <summary>The scheme a Basic-auth presentation uses.</summary>
+    private const string BasicScheme = "Basic ";
 
     /// <summary>A fresh secret, drawn from the cryptographic random source.</summary>
     /// <remarks>
@@ -61,24 +78,70 @@ public static class CallbackSecret
     /// The secret an inbound request presented, or null when it presented none.
     /// </summary>
     /// <remarks>
-    /// Either position is accepted. A one-click registration strips the secret from the address and
-    /// carries it out of band; an address a user pasted by hand has nowhere else to put one, so the
-    /// endpoint that receives both has to read both.
+    /// Every position a registration this product makes can use is accepted, and so is the address:
+    /// a one-click registration strips the secret from the address and carries it out of band, while
+    /// an address a user pasted by hand has nowhere else to put one.
     /// <para>
-    /// The out-of-band position wins when a request carries both, so a delivery from a registration
-    /// this product made is never classified by a query string an intermediary could have appended.
+    /// An out-of-band position wins over the address when a request carries both, so a delivery from
+    /// a registration this product made is never classified by a query string an intermediary could
+    /// have appended.
     /// </para>
     /// </remarks>
-    public static PresentedCallbackSecret? PresentedIn(string? outOfBand, string? inAddress)
+    /// <param name="customHeader">The value of <see cref="CustomHeaderName"/>, if any.</param>
+    /// <param name="authorization">The <c>Authorization</c> header, if any.</param>
+    /// <param name="inAddress">The secret query parameter, if any.</param>
+    public static PresentedCallbackSecret? PresentedIn(
+        string? customHeader, string? authorization, string? inAddress)
     {
-        if (!string.IsNullOrWhiteSpace(outOfBand))
+        if (!string.IsNullOrWhiteSpace(customHeader))
         {
-            return new PresentedCallbackSecret(outOfBand, CallbackSecretPosition.OutOfBand);
+            return new PresentedCallbackSecret(customHeader, CallbackSecretPosition.OutOfBand);
+        }
+
+        if (BasicAuthPasswordIn(authorization) is { } password)
+        {
+            return new PresentedCallbackSecret(password, CallbackSecretPosition.OutOfBand);
         }
 
         return string.IsNullOrWhiteSpace(inAddress)
             ? null
             : new PresentedCallbackSecret(inAddress, CallbackSecretPosition.Address);
+    }
+
+    /// <summary>
+    /// The password half of a Basic-auth header, or null when there is none to read.
+    /// </summary>
+    /// <remarks>
+    /// The password rather than the whole credential, because the user name identifies the
+    /// registration and the secret is what is checked. Split on the FIRST colon: a password may
+    /// contain one and a user name may not.
+    /// </remarks>
+    private static string? BasicAuthPasswordIn(string? authorization)
+    {
+        if (authorization is null
+            || !authorization.StartsWith(BasicScheme, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        byte[] raw;
+        try
+        {
+            raw = Convert.FromBase64String(authorization[BasicScheme.Length..].Trim());
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+
+        var decoded = Encoding.UTF8.GetString(raw);
+        var separator = decoded.IndexOf(':', StringComparison.Ordinal);
+        if (separator < 0 || separator == decoded.Length - 1)
+        {
+            return null;
+        }
+
+        return decoded[(separator + 1)..];
     }
 }
 
@@ -102,7 +165,7 @@ public interface ICallbackSecretPort
 }
 
 /// <inheritdoc cref="ICallbackSecretPort"/>
-internal sealed class CallbackSecretPort(DbContext db) : ICallbackSecretPort
+internal sealed class CallbackSecretPort(DbContext db, ILogger log) : ICallbackSecretPort
 {
     public async Task<string?> ReadAsync(CancellationToken ct)
     {
@@ -137,6 +200,7 @@ internal sealed class CallbackSecretPort(DbContext db) : ICallbackSecretPort
             // The name is the primary key, so a concurrent mint loses this insert rather than
             // producing a second secret. Whichever row is there is the one every later request is
             // authenticated against, so it is the answer.
+            WhisparrSyncLog.ConcurrentMintLostToAnExistingRow(log);
             db.ChangeTracker.Clear();
             return await ReadAsync(ct).ConfigureAwait(false)
                 ?? throw new InvalidOperationException(
@@ -146,17 +210,4 @@ internal sealed class CallbackSecretPort(DbContext db) : ICallbackSecretPort
         return await ReadAsync(ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException("The callback secret was written and did not read back.");
     }
-
-    /// <summary>Reads the stored secret over a scope of its own, elevated to System.</summary>
-    /// <remarks>
-    /// The entry point for the inbound callback route, which runs under no principal at all. Cove's
-    /// per-principal query filters return zero rows with no error for an Anonymous caller, which would
-    /// report a stored secret as absent and turn every delivery into a refusal.
-    /// </remarks>
-    /// <param name="scopes">The scope factory the request was resolved from.</param>
-    /// <param name="ct">Cancels the operation.</param>
-    public static Task<string?> ReadInSystemScopeAsync(IServiceScopeFactory scopes, CancellationToken ct)
-        => RunAsSystem.RunInSystemScopeAsync(
-            scopes,
-            services => new CallbackSecretPort(services.GetRequiredService<DbContext>()).ReadAsync(ct));
 }

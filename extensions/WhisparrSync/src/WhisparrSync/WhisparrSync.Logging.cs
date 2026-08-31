@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
+using WhisparrSync.Contracts;
 
 namespace WhisparrSync;
 
@@ -42,4 +43,23 @@ internal static partial class WhisparrSyncLog
         ILogger logger,
         ConnectionTransportFailure failure,
         string host);
+
+    // The one best-effort catch in the secret port. Losing the insert is the correct outcome — the row
+    // that is there is the one every later request is authenticated against — but a mint that silently
+    // did nothing is not something to leave invisible.
+    [LoggerMessage(
+        EventId = 2101, Level = LogLevel.Information,
+        Message = "[WhisparrSync] a concurrent mint had already stored the callback secret; the stored one is in use")]
+    internal static partial void ConcurrentMintLostToAnExistingRow(ILogger logger);
+
+    // A registration the instance accepted whose effect a re-read did not find. No address here: an
+    // address may carry credentials in its user-info, and the status plus the generation is what makes
+    // this diagnosable.
+    [LoggerMessage(
+        EventId = 2102, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] a callback registration on {Generation} answered {WriteStatus} and the notification read back differently")]
+    internal static partial void CallbackRegistrationDidNotTake(
+        ILogger logger,
+        WhisparrGeneration generation,
+        int writeStatus);
 }

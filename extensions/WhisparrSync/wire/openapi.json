@@ -157,6 +157,74 @@
           }
         }
       }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/callback/register": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterCallbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallbackView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/callback/status": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallbackView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -177,6 +245,62 @@
           "address",
           "outOfBand"
         ]
+      },
+      "CallbackView": {
+        "required": [
+          "generation",
+          "status",
+          "copyableAddress",
+          "registeredAddress",
+          "secretTravelsOutOfBand",
+          "lastEventSecretPosition",
+          "missingSetting",
+          "refusal"
+        ],
+        "type": "object",
+        "properties": {
+          "generation": {
+            "$ref": "#/components/schemas/WhisparrGeneration"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RegistrationStatus"
+          },
+          "copyableAddress": {
+            "type": "string"
+          },
+          "registeredAddress": {
+            "type": "string"
+          },
+          "secretTravelsOutOfBand": {
+            "type": "boolean"
+          },
+          "lastEventSecretPosition": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CallbackSecretPosition"
+              }
+            ]
+          },
+          "missingSetting": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ConnectionSetting"
+              }
+            ]
+          },
+          "refusal": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
       },
       "ConnectionFailureKind": {
         "enum": [
@@ -333,6 +457,27 @@
           "keep",
           "replace",
           "clear"
+        ]
+      },
+      "RegisterCallbackRequest": {
+        "required": [
+          "callbackAddress"
+        ],
+        "type": "object",
+        "properties": {
+          "callbackAddress": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "RegistrationStatus": {
+        "enum": [
+          "notCheckedYet",
+          "registered",
+          "notRegistered"
         ]
       },
       "WhisparrCapability": {
