@@ -23,15 +23,12 @@ internal sealed class ImportCore(
             return Refused(candidate, refusal);
         }
 
-        var verified = reading.Candidates.Where(path => Verifies(path, candidate.ReportedSize)).ToList();
-        if (PathCandidateGuard.SingleVerified(verified) is not { } path)
+        var resolution = PathCandidateGuard.Resolve(
+            [.. reading.Candidates.Select(path => new ProbedCandidate(path, paths.Probe(path)))],
+            candidate.ReportedSize);
+        if (resolution.Path is not { } path)
         {
-            return Refused(
-                candidate,
-                verified.Count == 0
-                    ? ImportOutcome.RefusedNotFound
-                    : ImportOutcome.RefusedAmbiguous,
-                verified.Count);
+            return Refused(candidate, OutcomeOf(resolution.Cause));
         }
 
         var imported = await library.ImportVideoAsync(path, ct).ConfigureAwait(false);
@@ -43,19 +40,14 @@ internal sealed class ImportCore(
         return ImportOutcome.Imported;
     }
 
-    /// <summary>
-    /// Whether the file at <paramref name="path"/> is the one the delivery described.
-    /// </summary>
-    /// <remarks>
-    /// The size is compared when the delivery reported one. A file of the right name and a different
-    /// length is a different file, and both generations report a size, so accepting on the name
-    /// alone would give up a check that is always available.
-    /// </remarks>
-    private bool Verifies(string path, long? reportedSize)
-    {
-        var probed = paths.Probe(path);
-        return probed.Exists && (reportedSize is null || probed.Size == reportedSize);
-    }
+    private static ImportOutcome OutcomeOf(ImportRefusalCause? cause)
+        => cause switch
+        {
+            ImportRefusalCause.NotFoundUnderAnyRoot => ImportOutcome.RefusedNotFound,
+            ImportRefusalCause.AmbiguousCandidates => ImportOutcome.RefusedAmbiguous,
+            ImportRefusalCause.Unreadable => ImportOutcome.RefusedHostImportUnavailable,
+            _ => ImportOutcome.RefusedUnreadablePayload,
+        };
 
     private ImportOutcome Refused(ImportCandidate candidate, PathCandidateRefusal refusal)
         => Refused(
@@ -74,9 +66,9 @@ internal sealed class ImportCore(
     // Logged where the outcome is decided rather than at each return, so every refusal is reported
     // once and none can be added without one. No path is named: the log is durable and readable, and
     // a refused delivery's path is a caller-supplied string.
-    private ImportOutcome Refused(ImportCandidate candidate, ImportOutcome outcome, int verified = 0)
+    private ImportOutcome Refused(ImportCandidate candidate, ImportOutcome outcome)
     {
-        WhisparrSyncLog.ImportRefused(log, candidate.Generation, outcome, verified);
+        WhisparrSyncLog.ImportRefused(log, candidate.Generation, outcome);
         return outcome;
     }
 }
