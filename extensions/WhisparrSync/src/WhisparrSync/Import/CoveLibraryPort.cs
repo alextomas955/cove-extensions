@@ -48,6 +48,23 @@ internal sealed class CoveLibraryPort(
         return new LibraryImport(true, await scan.ImportDownloadedVideoAsync(path, videoId, ct).ConfigureAwait(false));
     }
 
+    public bool StartFollowUpScan(IReadOnlyList<string> paths)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+
+        if (scan is null || paths.Count == 0)
+        {
+            return scan is not null;
+        }
+
+        scan.StartScan(new ScanOperationOptions
+        {
+            Paths = [.. paths],
+            IncludeUnchangedFilesInAssetGeneration = true,
+        });
+        return true;
+    }
+
     public async Task<int?> VideoHoldingFileAtAsync(string path, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
