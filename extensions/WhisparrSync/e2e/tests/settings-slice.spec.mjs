@@ -157,8 +157,32 @@ test("both generations are configured independently, and only a generation chang
     expect(stored.v2.keyIsSet, "saving one card also wrote the other card's key").toBe(false);
   });
 
+  await test.step("testing the connection as stored records the version the two lines report", async () => {
+    // The key field is blank now, and correctly so: a saved key is never handed back to the browser.
+    // Pressing Test in that state asks about the STORED connection, which is the only test whose
+    // answer updates the recorded version.
+    await expect(panel.keyField).toHaveValue("");
+    await panel.testButton.click();
+
+    await expect(
+      page.getByText(`Whisparr reported ${v3Version} · verified`, { exact: false }),
+      "a test against the stored address did not record the version the recorded line reports",
+    ).toHaveCount(1, { timeout: ATTEMPT_BUDGET_MS });
+    // The second line, which measures something else and is never merged into the first.
+    await expect(page.getByText("Whisparr last reachable", { exact: false })).toBeVisible();
+    // The other generation was not verified by that test, and its own card still says so rather than
+    // borrowing the reading.
+    await expect(
+      page.getByText("Whisparr version not verified yet", { exact: true }),
+      "verifying one generation reported the other as verified too",
+    ).toBeVisible();
+  });
+
   await test.step("a test that reaches the other generation names the version and writes nothing", async () => {
     await panel.addressField.fill(v2Address);
+    // A key typed with it: an address the form has changed is tested as a pair, because the stored
+    // key belongs to a different address and the browser has no copy of it to send anyway.
+    await panel.keyField.fill(whisparrPair.apiKey);
     await panel.testButton.click();
 
     await expect(
@@ -185,6 +209,10 @@ test("both generations are configured independently, and only a generation chang
     await expect(
       panel.addressField,
       "switching carried the unsaved edit onto the other card",
+    ).toHaveValue("");
+    await expect(
+      panel.keyField,
+      "switching carried the unsaved key onto the other card",
     ).toHaveValue("");
 
     await panel.switchButton.click();

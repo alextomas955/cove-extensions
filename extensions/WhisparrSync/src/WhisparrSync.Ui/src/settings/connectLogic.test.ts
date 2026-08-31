@@ -14,6 +14,7 @@ import {
   recordedRead,
   REFUSAL_KINDS,
   sentenceForKind,
+  testsStoredConnection,
   valuesForCard,
   valuesOf,
   type GenerationDraft,
@@ -275,6 +276,39 @@ describe("whether a save would write nothing", () => {
     expect(
       isNoOpSave(stored, "v3", "v3", { ...UNCHANGED_DRAFT, address: "HTTP://WHISPARR:6969/" }),
     ).toBe(true);
+  });
+});
+
+describe("whether Test asks about the stored connection", () => {
+  const stored = { ...NOTHING_STORED, address: "http://whisparr:6969", keyIsSet: true };
+  const asStored: GenerationDraft = {
+    address: "http://whisparr:6969",
+    apiKey: "",
+    keyCleared: false,
+  };
+
+  // The browser never has the stored key to send back, so this is what lets a test run at all after
+  // a save, and it is the only test whose answer may update the recorded version.
+  it("asks about it when the form still describes what is stored", () => {
+    expect(testsStoredConnection(stored, "v3", "v3", asStored)).toBe(true);
+  });
+
+  it("asks about the typed pair once the form differs", () => {
+    expect(
+      testsStoredConnection(stored, "v3", "v3", { ...asStored, address: "http://other:1" }),
+    ).toBe(false);
+    expect(testsStoredConnection(stored, "v3", "v3", { ...asStored, apiKey: "typed" })).toBe(false);
+  });
+
+  // The stored test asks about whichever generation is selected, so running one from the other card
+  // would answer about an instance that card does not name.
+  it("never asks about it from a card that is not the one in use", () => {
+    expect(testsStoredConnection(stored, "v2", "v3", asStored)).toBe(false);
+  });
+
+  it("never asks about it when no key is stored to ask with", () => {
+    expect(testsStoredConnection({ ...stored, keyIsSet: false }, "v3", "v3", asStored)).toBe(false);
+    expect(testsStoredConnection(null, "v3", "v3", asStored)).toBe(false);
   });
 });
 
