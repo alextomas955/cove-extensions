@@ -25,6 +25,13 @@ internal sealed class RecordingLibrary(bool reached, IReadOnlyList<string> roots
     /// <summary>The video the library already holds a file for, keyed by path.</summary>
     public Dictionary<string, int?> Held { get; } = [];
 
+    /// <summary>Every path the live dedupe read asked about, in order.</summary>
+    /// <remarks>
+    /// The count is the claim here: the answer is derived per delivery, so a delivery that skipped
+    /// the read would be working from something remembered.
+    /// </remarks>
+    public List<string> Probed { get; } = [];
+
     /// <summary>The metadata sources the host is configured with.</summary>
     public List<string> ConfiguredEndpoints { get; } = [];
 
@@ -48,7 +55,10 @@ internal sealed class RecordingLibrary(bool reached, IReadOnlyList<string> roots
     }
 
     public Task<int?> VideoHoldingFileAtAsync(string path, CancellationToken ct)
-        => Task.FromResult(Held.TryGetValue(path, out var videoId) ? videoId : null);
+    {
+        Probed.Add(path);
+        return Task.FromResult(Held.TryGetValue(path, out var videoId) ? videoId : null);
+    }
 
     public Task<IdentityResolution> ResolveByRemoteIdAsync(
         string endpoint, string remoteId, CancellationToken ct)
