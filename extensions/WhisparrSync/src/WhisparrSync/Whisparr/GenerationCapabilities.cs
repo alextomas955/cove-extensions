@@ -103,6 +103,10 @@ public static class GenerationCapabilities
     public static WhisparrCapabilitySet For(WhisparrGeneration generation)
         => new(generation, RolesFor(generation));
 
+    // Both generations can carry a secret off the address, by fields neither shares with the other:
+    // a list-of-headers field on one, a user-and-password pair on the other. The implementation is
+    // therefore per generation, and a generation whose schema declared neither would hold no role at
+    // all rather than one that refused once it was called.
     private static Dictionary<WhisparrCapability, object> RolesFor(WhisparrGeneration generation)
         => generation switch
         {
@@ -110,8 +114,10 @@ public static class GenerationCapabilities
             {
                 [WhisparrCapability.OutOfBandCallbackSecret] = new V3HeaderSecretRegistration(),
             },
-            // v2's Webhook connection declares no field for a custom header, so there is nothing to
-            // register rather than an implementation that would refuse once it was called.
+            WhisparrGeneration.V2 => new Dictionary<WhisparrCapability, object>
+            {
+                [WhisparrCapability.OutOfBandCallbackSecret] = new V2BasicAuthSecretRegistration(),
+            },
             _ => [],
         };
 }
