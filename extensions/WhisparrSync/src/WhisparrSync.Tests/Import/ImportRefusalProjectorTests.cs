@@ -1,3 +1,4 @@
+using System.Text.Json;
 using WhisparrSync.Import;
 using WhisparrSync.Options;
 
@@ -208,6 +209,31 @@ public sealed class ImportRefusalProjectorTests
             "/whisparr-media/one.mp4",
             ImportRefusalCause.NotFoundUnderAnyRoot);
         Assert.Equal(int.MaxValue, Assert.Single(belowBound).CountSinceLastSuccess);
+    }
+
+    /// <summary>The spelling the stored blob carries, which the containerized spec reads by hand.</summary>
+    /// <remarks>
+    /// The expectation is transcribed rather than computed from the model, so it can disagree with it.
+    /// A spec that reads the blob out of Cove's own bulk data route has nothing else to check its
+    /// field names and its enum spelling against.
+    /// </remarks>
+    [Fact]
+    public void TheStoredAggregateCarriesTheSpellingTheBannerIsReadBy()
+    {
+        var stored = JsonSerializer.Serialize(
+            new WhisparrSyncOptions
+            {
+                ImportRefusals = ImportRefusalProjector.Refuse(
+                    [], Root, "/whisparr-media/one.mp4", ImportRefusalCause.NotFoundUnderAnyRoot),
+            },
+            WhisparrSyncOptions.JsonOptions);
+
+        Assert.Contains(
+            """
+            "ImportRefusals":[{"Root":"/whisparr-media","CountSinceLastSuccess":1,"NewestPaths":[{"Path":"/whisparr-media/one.mp4","Cause":"notFoundUnderAnyRoot"}]}]
+            """,
+            stored,
+            StringComparison.Ordinal);
     }
 
     private static List<ImportRootRefusals> Refusals(int count)
