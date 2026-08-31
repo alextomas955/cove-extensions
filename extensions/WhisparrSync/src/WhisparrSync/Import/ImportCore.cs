@@ -36,19 +36,115 @@ internal sealed class ImportCore(
                 .ConfigureAwait(false);
         }
 
-        var imported = await library.ImportVideoAsync(path, null, ct).ConfigureAwait(false);
-        if (!imported.Reached)
+        var identity = await IdentifyAsync(candidate, ct).ConfigureAwait(false);
+        if (identity is { Resolution.Ambiguous: true })
         {
             return await RefusedAsync(
-                candidate,
-                reading,
-                ImportOutcome.RefusedHostImportUnavailable,
-                ImportRefusalCause.Unreadable,
-                ct).ConfigureAwait(false);
+                candidate, reading, ImportOutcome.RefusedAmbiguousIdentity, null, ct)
+                .ConfigureAwait(false);
+        }
+
+        // The live dedupe: a file the library already holds at this path is this delivery's item, and
+        // asking the host to register it again would reprobe and rehash it for the same row back.
+        var videoId = await library.VideoHoldingFileAtAsync(path, ct).ConfigureAwait(false);
+        if (videoId is null)
+        {
+            var imported = await library
+                .ImportVideoAsync(path, identity?.Resolution.VideoId, ct)
+                .ConfigureAwait(false);
+            if (!imported.Reached)
+            {
+                return await RefusedAsync(
+                    candidate,
+                    reading,
+                    ImportOutcome.RefusedHostImportUnavailable,
+                    ImportRefusalCause.Unreadable,
+                    ct).ConfigureAwait(false);
+            }
+
+            videoId = imported.VideoId;
+        }
+
+        if (identity is { } named && videoId is { } item)
+        {
+            await StampAndEnrichAsync(named, item, ct).ConfigureAwait(false);
         }
 
         await ClearAsync(reading.RefusalRoot, ct).ConfigureAwait(false);
         return ImportOutcome.Imported;
+    }
+
+    /// <summary>What this delivery's identifier resolves to, or null when it carried none.</summary>
+    /// <remarks>
+    /// A delivery with no identifier stamps nothing and enriches nothing, and the item is still
+    /// created: an identity is what a scene may later be matched on, not what makes it importable.
+    /// </remarks>
+    private async Task<DeliveredIdentity?> IdentifyAsync(
+        ImportCandidate candidate, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(candidate.RemoteId))
+        {
+            return null;
+        }
+
+        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+        var endpoint = IdentityEndpoint.Resolve(
+            candidate.Generation,
+            stored.MetadataProviderEndpoints,
+            library.ConfiguredMetadataEndpoints);
+
+        return new DeliveredIdentity(
+            endpoint,
+            candidate.RemoteId,
+            await library.ResolveByRemoteIdAsync(endpoint, candidate.RemoteId, ct).ConfigureAwait(false));
+    }
+
+    /// <summary>Stamps the identity row, and enriches only where there was none to begin with.</summary>
+    /// <remarks>
+    /// Enrichment happens at most once per scene, and the gate is that the item carried no row for the
+    /// source before this delivery. The host's merge with no import configuration overwrites its
+    /// scalar fields, and that call takes no configuration which would make a second application safe.
+    /// <para>
+    /// There is no backfill. A scene stamped while no source was configured stays bare until the user
+    /// asks for it: configuring a source later triggers nothing, and a redelivery over that scene
+    /// enriches nothing.
+    /// </para>
+    /// </remarks>
+    private async Task StampAndEnrichAsync(
+        DeliveredIdentity identity, int videoId, CancellationToken ct)
+    {
+        if (await library.CarriesIdentityAsync(videoId, identity.Endpoint, ct).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        await library.StampIdentityAsync(videoId, identity.Endpoint, identity.RemoteId, ct)
+            .ConfigureAwait(false);
+
+        try
+        {
+            await library.EnrichAsync(videoId, identity.Endpoint, identity.RemoteId, ct)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Above the broad catch, so a shutdown classifies as cancelled rather than as a failure.
+            throw;
+        }
+#pragma warning disable CA1031 // Best-effort by the host's own documented contract.
+        catch (Exception failure)
+        {
+            WhisparrSyncLog.EnrichmentContained(log, identity.Source, failure);
+        }
+#pragma warning restore CA1031
+    }
+
+    /// <summary>The identity one delivery names, and what the library says it points at.</summary>
+    private sealed record DeliveredIdentity(
+        string Endpoint, string RemoteId, IdentityResolution Resolution)
+    {
+        /// <summary>The source's registrable domain, which is all a log line is given of it.</summary>
+        public string Source { get; } = EndpointMatchGuard.RegistrableDomain(Endpoint);
     }
 
     private static ImportOutcome OutcomeOf(ImportRefusalCause? cause)
