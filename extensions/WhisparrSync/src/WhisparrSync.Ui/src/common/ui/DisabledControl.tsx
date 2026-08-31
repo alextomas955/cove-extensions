@@ -45,7 +45,7 @@ type DisabledControlProps = {
  * {@link DisabledControl} for a caller that holds the reason and the availability as one value.
  *
  * A reason disables and an absent reason enables, so the pair cannot be set to a disabled control
- * with nothing to hear — the same invariant the prop union above carries, expressed for a caller
+ * with nothing to hear - the same invariant the prop union above carries, expressed for a caller
  * computing "why not" rather than "whether".
  */
 export function OptionallyDisabled({

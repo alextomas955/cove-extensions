@@ -24,9 +24,12 @@ import { OptionallyDisabled } from "../common/ui/DisabledControl";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import {
   describeRecorded,
+  detectionOutcome,
+  generationLabel,
   recordedRead,
   sentenceForKind,
   valuesOf,
+  type CardGeneration,
   type GenerationDraft,
   type TransientTest,
 } from "./connectLogic";
@@ -36,6 +39,8 @@ import type { SaveState } from "./connectionStore";
 const ADDRESS_PLACEHOLDER = "http://whisparr:6969";
 
 export interface ConnectionSectionProps {
+  /** The generation this form is editing. */
+  card: CardGeneration;
   /** The generation's stored values, or null before the settings read answers. */
   stored: WhisparrSyncGenerationSettingsView | null;
   /** Whether the settings read failed. */
@@ -60,6 +65,7 @@ export interface ConnectionSectionProps {
 }
 
 export function ConnectionSection({
+  card,
   stored,
   readFailed,
   draft,
@@ -161,7 +167,7 @@ export function ConnectionSection({
             onClick={onTest}
           />
           {testing ? <Spinner /> : null}
-          <TestResult test={test} />
+          <TestResult test={test} card={card} />
         </div>
 
         <div className="flex items-center gap-3" aria-busy={saving}>
@@ -238,8 +244,13 @@ function KeyState({
   );
 }
 
-/** The one transient result line, always about the address that was in the field when it ran. */
-function TestResult({ test }: { test: TransientTest }) {
+/**
+ * The one transient result line, always about the address that was in the field when it ran.
+ *
+ * A success that reached the OTHER generation names the version found and stops. Each generation's
+ * connection is remembered separately, so nothing is written and the card is switched deliberately.
+ */
+function TestResult({ test, card }: { test: TransientTest; card: CardGeneration }) {
   if (test.phase === "none") {
     return null;
   }
@@ -251,6 +262,16 @@ function TestResult({ test }: { test: TransientTest }) {
   }
 
   const { result } = test;
+  const detected = detectionOutcome(result, card);
+  if (detected?.kind === "otherGeneration") {
+    return (
+      <StatusText kind="warning">
+        That address answered as {generationLabel(detected.detected)} {detected.version}, not{" "}
+        {generationLabel(card)}. Nothing was saved - switch to the{" "}
+        {generationLabel(detected.detected)} card to configure it there.
+      </StatusText>
+    );
+  }
   if (result.kind === "connected") {
     // The instance's own version string, character for character. A rendering that reformatted it
     // would report a version no instance runs.
