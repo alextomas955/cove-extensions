@@ -1,3 +1,4 @@
+using System.Globalization;
 using Cove.Core.Auth;
 using Cove.Extensions.Shared;
 using Cove.Plugins;
@@ -27,6 +28,8 @@ public sealed partial class WhisparrSync
     // Derived from the same builder the registered address is, so the route Whisparr is told to call
     // and the route this extension mounts cannot drift apart.
     private string CallbackRoute => CallbackAddress.RouteFor(Id);
+    private string CallbackRegisterRoute => CallbackRoute + "/register";
+    private string CallbackStatusRoute => CallbackRoute + "/status";
 
     /// <summary>
     /// Registers every endpoint, each DECLARING the gate its own handler re-checks.
@@ -75,6 +78,22 @@ public sealed partial class WhisparrSync
                 => CallbackAsync(http, scopes, ct))
             .WithTags(WireTag)
             .AllowCoveAnonymous();
+
+        endpoints.MapPost(CallbackRegisterRoute,
+            (RegisterCallbackRequest request, HttpContext http, ICurrentPrincipalAccessor principal,
+             OptionsStore options, ICredentialPort credentials, ICallbackSecretPort secrets,
+             IWhisparrNotificationPort notifications, TimeProvider clock, CancellationToken ct)
+                => RegisterCallbackAsync(
+                    request, http, principal, Id, options, credentials, secrets, notifications, clock, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
+        endpoints.MapGet(CallbackStatusRoute,
+            (HttpContext http, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICallbackSecretPort secrets, TimeProvider clock, CancellationToken ct)
+                => ReadCallbackStatusAsync(http, principal, Id, options, secrets, clock, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
     }
 
     /// <summary>The tag every route of this extension carries in the emitted wire document.</summary>
@@ -240,29 +259,185 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(scopes);
 
         var presented = CallbackSecret.PresentedIn(
-            http.Request.Headers[V3HeaderSecretRegistration.HeaderName],
+            http.Request.Headers[CallbackSecret.CustomHeaderName],
+            http.Request.Headers.Authorization,
             http.Request.Query[CallbackAddress.SecretQueryParameter]);
 
-        var accepted = await RunAsSystem.RunInSystemScopeAsync(scopes, async services =>
+        var acknowledged = await RunAsSystem.RunInSystemScopeAsync(scopes, async services =>
         {
             var stored = await services.GetRequiredService<ICallbackSecretPort>()
                 .ReadAsync(ct)
                 .ConfigureAwait(false);
             if (presented is null || !CallbackSecret.Matches(stored, presented.Value))
             {
-                return false;
+                return null;
             }
 
             await RecordSecretPositionAsync(
                 services.GetRequiredService<OptionsStore>(), presented.Position, ct)
                 .ConfigureAwait(false);
-            return true;
+            return new CallbackAcknowledgement(presented.Position);
         }).ConfigureAwait(false);
 
-        return accepted
-            ? TypedResults.Ok(new CallbackAcknowledgement(presented!.Position))
-            : TypedResults.Unauthorized();
+        return acknowledged is null
+            ? TypedResults.Unauthorized()
+            : TypedResults.Ok(acknowledged);
     }
+
+    /// <summary>Registers this product's callback in the connected instance, in place.</summary>
+    /// <remarks>
+    /// The answer reports what a re-read of the instance's notification list FOUND, not what the write
+    /// answered. A write being accepted says the request was well formed; it does not say the
+    /// notification now points anywhere.
+    /// <para>
+    /// An edited address contributes only its scheme, host, port and path prefix, and it is stored so
+    /// the edit survives a refresh. The route and the secret are always this product's own.
+    /// </para>
+    /// </remarks>
+    internal static async Task<Results<Ok<CallbackView>, ForbiddenCode>> RegisterCallbackAsync(
+        RegisterCallbackRequest request,
+        HttpContext http,
+        ICurrentPrincipalAccessor principal,
+        string extensionId,
+        OptionsStore options,
+        ICredentialPort credentials,
+        ICallbackSecretPort secrets,
+        IWhisparrNotificationPort notifications,
+        TimeProvider clock,
+        CancellationToken ct)
+    {
+        if (!HasConfigurePermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(http);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(notifications);
+
+        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+
+        // Stored even when it equals the host this request arrived on. What storing it buys is that a
+        // later request from a different host does not move the address.
+        var edited = CallbackAddress.HostPartOf(request.CallbackAddress, extensionId);
+        if (edited.Length > 0 && !string.Equals(edited, stored.CallbackHost, StringComparison.Ordinal))
+        {
+            stored = stored with { CallbackHost = edited };
+            await options.SaveAsync(stored, ct).ConfigureAwait(false);
+        }
+
+        var generation = stored.SelectedGeneration;
+        var connection = stored.ConnectionFor(generation) ?? new WhisparrSyncGenerationConnection();
+        var apiKey = await credentials.ReadAsync(generation, ct).ConfigureAwait(false);
+        var secret = await secrets.EnsureAsync(clock.GetUtcNow(), ct).ConfigureAwait(false);
+        var host = CallbackAddress.ResolveHost(stored.CallbackHost, RequestHostOf(http));
+
+        // Refused here rather than by handing an empty pair to the port, so an unconfigured
+        // connection reaches nothing that could make a request.
+        if (!ConnectionTester.TryReadConnection(connection.Address, apiKey, out var baseAddress, out var missing))
+        {
+            return TypedResults.Ok(ProjectCallback(stored, extensionId, secret, host, missing, null));
+        }
+
+        var outcome = await notifications.RegisterAsync(
+            generation,
+            baseAddress,
+            apiKey,
+            TravelsOutOfBand(generation)
+                ? CallbackAddress.WithoutSecret(host, extensionId)
+                : CallbackAddress.WithSecret(host, extensionId, secret),
+            secret,
+            ct).ConfigureAwait(false);
+
+        stored = stored.WithConnectionFor(
+            generation, connection with { CallbackRegistration = outcome.Status });
+        await options.SaveAsync(stored, ct).ConfigureAwait(false);
+
+        return TypedResults.Ok(
+            ProjectCallback(stored, extensionId, secret, host, null, outcome.Refusal));
+    }
+
+    /// <summary>Reads the callback as it stands, without asking the instance anything.</summary>
+    /// <remarks>
+    /// The status is the one a registration attempt recorded, so a generation nothing has checked
+    /// answers that it has not been checked rather than borrowing the other generation's answer. It is
+    /// deliberately not re-derived by contacting Whisparr: opening the page would then make an
+    /// outbound request whose failure is indistinguishable from an absent registration.
+    /// <para>
+    /// The secret is minted on the first read that needs one, which is what lets an address be shown
+    /// before any registration exists.
+    /// </para>
+    /// </remarks>
+    internal static async Task<Results<Ok<CallbackView>, ForbiddenCode>> ReadCallbackStatusAsync(
+        HttpContext http,
+        ICurrentPrincipalAccessor principal,
+        string extensionId,
+        OptionsStore options,
+        ICallbackSecretPort secrets,
+        TimeProvider clock,
+        CancellationToken ct)
+    {
+        if (!HasConfigurePermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        ArgumentNullException.ThrowIfNull(http);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(secrets);
+        ArgumentNullException.ThrowIfNull(clock);
+
+        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+        var secret = await secrets.EnsureAsync(clock.GetUtcNow(), ct).ConfigureAwait(false);
+
+        return TypedResults.Ok(
+            ProjectCallback(
+                stored,
+                extensionId,
+                secret,
+                CallbackAddress.ResolveHost(stored.CallbackHost, RequestHostOf(http)),
+                null,
+                null));
+    }
+
+    private static CallbackView ProjectCallback(
+        WhisparrSyncOptions stored,
+        string extensionId,
+        string secret,
+        string host,
+        ConnectionSetting? missing,
+        string? refusal)
+    {
+        var generation = stored.SelectedGeneration;
+        var connection = stored.ConnectionFor(generation);
+        return new CallbackView(
+            generation,
+            connection?.CallbackRegistration ?? RegistrationStatus.NotCheckedYet,
+            CallbackAddress.WithSecret(host, extensionId, secret),
+            CallbackAddress.WithoutSecret(host, extensionId),
+            TravelsOutOfBand(generation),
+            connection?.LastCallbackSecretPosition,
+            missing,
+            refusal);
+    }
+
+    /// <summary>Whether <paramref name="generation"/> can carry a secret off the address it registers.</summary>
+    private static bool TravelsOutOfBand(WhisparrGeneration generation)
+        => GenerationCapabilities.For(generation)
+            .Obtain<IOutOfBandSecretRegistration>()
+            .Match(_ => true, _ => false);
+
+    /// <summary>The scheme, host, port and path prefix this request arrived on.</summary>
+    /// <remarks>
+    /// The default the address is built on before a user has corrected one. It is the host the BROWSER
+    /// reached Cove at, which is not necessarily one Whisparr can reach — which is exactly why the
+    /// address is editable.
+    /// </remarks>
+    private static string RequestHostOf(HttpContext http)
+        => string.Create(
+            CultureInfo.InvariantCulture,
+            $"{http.Request.Scheme}://{http.Request.Host}{http.Request.PathBase}").TrimEnd('/');
 
     // Written only when the position changes, so a delivery stream does not put every event into a
     // read-modify-write over one stored value. The transition is the whole content of the reading: the
