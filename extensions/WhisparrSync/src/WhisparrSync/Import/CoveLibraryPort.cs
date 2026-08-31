@@ -48,6 +48,29 @@ internal sealed class CoveLibraryPort(
         return new LibraryImport(true, await scan.ImportDownloadedVideoAsync(path, videoId, ct).ConfigureAwait(false));
     }
 
+    public async Task<int> DetachSupersededFilesAsync(int videoId, string keptPath, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(keptPath);
+
+        // Tracked, because these rows are about to be written. The set is one item's files.
+        var superseded = await db.Set<VideoFile>()
+            .Where(file => file.VideoId == videoId && file.Path != keptPath)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+        if (superseded.Count == 0)
+        {
+            return 0;
+        }
+
+        foreach (var file in superseded)
+        {
+            file.VideoId = null;
+        }
+
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        return superseded.Count;
+    }
+
     public bool StartFollowUpScan(IReadOnlyList<string> paths)
     {
         ArgumentNullException.ThrowIfNull(paths);

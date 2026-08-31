@@ -64,9 +64,11 @@ internal sealed class ImportCore(
             return ImportOutcome.AlreadyHeld;
         }
 
-        var imported = await library
-            .ImportVideoAsync(path, identity?.Resolution.VideoId, ct)
-            .ConfigureAwait(false);
+        // The one argument that separates a second item from the same item now holding two files.
+        // Move detection is off on the host's import path, so a byte-identical file at a new path
+        // creates a new item unless the item the identifier named is passed deliberately.
+        var repointedTo = identity?.Resolution.VideoId;
+        var imported = await library.ImportVideoAsync(path, repointedTo, ct).ConfigureAwait(false);
         if (!imported.Reached)
         {
             return await RefusedAsync(
@@ -75,6 +77,11 @@ internal sealed class ImportCore(
                 ImportOutcome.RefusedHostImportUnavailable,
                 ImportRefusalCause.Unreadable,
                 ct).ConfigureAwait(false);
+        }
+
+        if (repointedTo is { } upgraded)
+        {
+            await DetachSupersededAsync(upgraded, path, ct).ConfigureAwait(false);
         }
 
         if (identity is { } named && imported.VideoId is { } item)
@@ -87,6 +94,22 @@ internal sealed class ImportCore(
         followUp.NoteImported(path, library);
         await ClearAsync(reading.RefusalRoot, ct).ConfigureAwait(false);
         return ImportOutcome.Imported;
+    }
+
+    /// <summary>Detaches the rows this upgrade superseded, under the behaviour that asks for it.</summary>
+    /// <remarks>
+    /// Only the row's video key is cleared. The superseded file on disk is not touched, in either
+    /// system's storage, and remains Whisparr's to remove.
+    /// </remarks>
+    private async Task DetachSupersededAsync(int videoId, string keptPath, CancellationToken ct)
+    {
+        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+        if (stored.UpgradeBehavior != UpgradeBehavior.Replace)
+        {
+            return;
+        }
+
+        await library.DetachSupersededFilesAsync(videoId, keptPath, ct).ConfigureAwait(false);
     }
 
     /// <summary>What this delivery's identifier resolves to, or null when it carried none.</summary>

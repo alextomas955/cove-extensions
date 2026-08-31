@@ -60,6 +60,18 @@ internal sealed class RecordingLibrary(bool reached, IReadOnlyList<string> roots
         return Task.FromResult(new LibraryImport(reached, reached ? videoId ?? ImportedVideoId : null));
     }
 
+    /// <summary>Every detach asked for, with the path each one kept.</summary>
+    public List<(int VideoId, string KeptPath)> Detached { get; } = [];
+
+    /// <summary>How many rows a detach reports having cleared.</summary>
+    public int DetachedRowCount { get; set; } = 1;
+
+    public Task<int> DetachSupersededFilesAsync(int videoId, string keptPath, CancellationToken ct)
+    {
+        Detached.Add((videoId, keptPath));
+        return Task.FromResult(DetachedRowCount);
+    }
+
     public bool StartFollowUpScan(IReadOnlyList<string> paths)
     {
         if (!FollowUpScanIsReachable)

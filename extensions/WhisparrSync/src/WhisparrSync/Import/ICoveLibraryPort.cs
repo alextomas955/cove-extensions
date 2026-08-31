@@ -82,6 +82,26 @@ public interface ICoveLibraryPort
     /// <returns>The video's key, or null when the library holds no file there.</returns>
     Task<int?> VideoHoldingFileAtAsync(string path, CancellationToken ct);
 
+    /// <summary>
+    /// Clears the video key on every file row of <paramref name="videoId"/> except the row at
+    /// <paramref name="keptPath"/>.
+    /// </summary>
+    /// <remarks>
+    /// The row's video key and nothing else. No file is moved, renamed or deleted in either system's
+    /// storage, and this port declares no member that could: an upgrade behaviour the user chose is
+    /// not a licence to acquire the capability.
+    /// <para>
+    /// The rows are those of one item, so this is bounded by how many files that item holds and never
+    /// by the library.
+    /// </para>
+    /// <para>
+    /// The item's own file count, duration, resolution and path figures are recomputed by the host's
+    /// save, which gathers both the current and the original value of a changed video key.
+    /// </para>
+    /// </remarks>
+    /// <returns>How many rows were detached.</returns>
+    Task<int> DetachSupersededFilesAsync(int videoId, string keptPath, CancellationToken ct);
+
     /// <summary>Starts one host scan over <paramref name="paths"/> and returns without waiting.</summary>
     /// <remarks>
     /// The host's enqueue deduplicates nothing and defaults to exclusive, so one call per imported

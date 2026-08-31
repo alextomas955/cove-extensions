@@ -58,6 +58,12 @@ const DECLARED_FOR_LATER = ["SEARCH_WITH_NO_ENTRY", "WHISPARR_MAY_RENAME"];
 /** Sentences the connect surface reads through its own kind table. */
 const RENDERED_BY_THE_CONNECT_SURFACE = ["CONNECT_NOT_CONFIGURED", "CONNECT_KEY_REJECTED"];
 
+/** Sentences the import-behaviour section reads: one per upgrade behaviour. */
+const RENDERED_BY_THE_IMPORT_BEHAVIOR_SECTION = [
+  "UPGRADE_KEEPS_BOTH_FILES",
+  "UPGRADE_DROPS_THE_SUPERSEDED_FILE",
+];
+
 /** Sentences the import banner reads: its heading, and one per refusal cause. */
 const RENDERED_BY_THE_IMPORT_BANNER = [
   "IMPORTS_UNREADABLE",
@@ -165,6 +171,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...DECLARED_FOR_LATER,
       ...RENDERED_BY_THE_CONNECT_SURFACE,
       ...RENDERED_BY_THE_IMPORT_BANNER,
+      ...RENDERED_BY_THE_IMPORT_BEHAVIOR_SECTION,
     ];
 
     const orphans = CONSTANTS.filter(
@@ -180,6 +187,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...DECLARED_FOR_LATER,
       ...RENDERED_BY_THE_CONNECT_SURFACE,
       ...RENDERED_BY_THE_IMPORT_BANNER,
+      ...RENDERED_BY_THE_IMPORT_BEHAVIOR_SECTION,
     ]) {
       expect(declared, name).toContain(name);
     }
