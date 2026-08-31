@@ -72,10 +72,27 @@ export function buildConfigXml({ apiKey, port }) {
  *
  * `api` must already present the instance's API key; both generations answer 401 without one.
  *
+ * `data` gives the rows a payload: one entry per row from the newest down, each an object of
+ * STRING values written into that row's `Data` column. Without it every row carries an empty
+ * object, which is enough to prove a reader imported nothing and cannot prove it imported
+ * anything — a reported path lives in `Data`.
+ *
+ * `expectedTotal` is what the read-back waits for the instance to report, and defaults to `count`.
+ * A second seed against an instance that already has a past must pass the running total, or the
+ * read-back waits for a number the instance passed before this call was made.
+ *
  * @param {{container: import("testcontainers").StartedTestContainer, api: {get: Function},
- *          generation: "v3"|"v2", count?: number}} options
+ *          generation: "v3"|"v2", count?: number, data?: (Record<string,string>|null)[],
+ *          expectedTotal?: number}} options
  */
-export async function seedHistory({ container, api, generation, count = DEFAULT_HISTORY_ROWS }) {
+export async function seedHistory({
+  container,
+  api,
+  generation,
+  count = DEFAULT_HISTORY_ROWS,
+  data,
+  expectedTotal = count,
+}) {
   const database = DATABASES[generation];
   if (database === undefined) {
     throw new Error(
@@ -88,7 +105,7 @@ export async function seedHistory({ container, api, generation, count = DEFAULT_
   // seeder itself is run AS the app's own user so the write-ahead and shared-memory siblings it
   // touches keep belonging to the process that has to go on using them.
   await container.exec(["chown", APP_USER, SEEDER_TARGET], { user: "root" });
-  const written = await runSeeder(container, generation, count, database);
+  const written = await runSeeder(container, generation, count, database, data);
 
   const {
     settled,
@@ -96,9 +113,9 @@ export async function seedHistory({ container, api, generation, count = DEFAULT_
     note,
   } = await attemptUntil(
     async (_signal, record) => {
-      const response = await api.get(`/api/v3/history?page=1&pageSize=${count + 2}`);
+      const response = await api.get(`/api/v3/history?page=1&pageSize=${expectedTotal + 2}`);
       record(`${response.status} with totalRecords ${response.json?.totalRecords ?? "absent"}`);
-      return response.status === 200 && response.json?.totalRecords === count
+      return response.status === 200 && response.json?.totalRecords === expectedTotal
         ? { value: response }
         : null;
     },
@@ -106,15 +123,20 @@ export async function seedHistory({ container, api, generation, count = DEFAULT_
   );
   if (!settled) {
     throw new Error(
-      `seedHistory: ${generation} wrote ${count} row(s) into ${database}, and GET /api/v3/history still answered ${note} after ${READ_BACK_TIMEOUT_MS}ms. ` +
+      `seedHistory: ${generation} wrote ${count} row(s) into ${database}, and GET /api/v3/history still answered ${note} after ${READ_BACK_TIMEOUT_MS}ms while waiting for totalRecords ${expectedTotal}. ` +
         "The likeliest cause is an orphaned seed: the reader inner-joins each history row to its parent library row and silently drops any whose parent is missing, so the table keeps the rows while the API reports none of them.",
     );
   }
 
-  return { count, eventTypeNames: renderedEventTypes(written, readBack.json.records), readBack };
+  return {
+    count,
+    totalRecords: expectedTotal,
+    eventTypeNames: renderedEventTypes(written, readBack.json.records),
+    readBack,
+  };
 }
 
-async function runSeeder(container, generation, count, database) {
+async function runSeeder(container, generation, count, database, data) {
   const result = await container.exec(
     [
       "python3",
@@ -125,6 +147,7 @@ async function runSeeder(container, generation, count, database) {
       String(count),
       "--db",
       database,
+      ...(data ? ["--data", JSON.stringify(data)] : []),
     ],
     { user: APP_USER },
   );

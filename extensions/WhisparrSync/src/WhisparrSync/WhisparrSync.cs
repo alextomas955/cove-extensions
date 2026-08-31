@@ -106,6 +106,13 @@ public sealed partial class WhisparrSync : FullExtensionBase
             services.GetService<IScanService>(),
             services.GetService<IMetadataServerService>(),
             _coveConfig));
+        services.AddScoped<IBackstopPass>(services => new BackstopPass(
+            services.GetRequiredService<IWhisparrClient>(),
+            services.GetRequiredService<OptionsStore>(),
+            services.GetRequiredService<ICredentialPort>(),
+            services.GetRequiredService<IImportCore>(),
+            services.GetRequiredService<TimeProvider>(),
+            _log));
         services.AddScoped<IImportCore>(services => new ImportCore(
             services.GetRequiredService<IReportedRootPort>(),
             services.GetRequiredService<ICoveLibraryPort>(),
