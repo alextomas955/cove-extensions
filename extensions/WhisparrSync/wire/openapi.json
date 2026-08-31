@@ -139,6 +139,35 @@
         }
       }
     },
+    "/api/extensions/com.alextomas955.whisparrsync/import/banner": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportBannerView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/extensions/com.alextomas955.whisparrsync/callback": {
       "post": {
         "tags": [
@@ -483,10 +512,69 @@
           }
         }
       },
+      "ImportBannerPathLine": {
+        "required": [
+          "path",
+          "cause"
+        ],
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "cause": {
+            "$ref": "#/components/schemas/ImportRefusalCause"
+          }
+        }
+      },
+      "ImportBannerRootLine": {
+        "required": [
+          "root",
+          "countSinceLastSuccess",
+          "newestPaths"
+        ],
+        "type": "object",
+        "properties": {
+          "root": {
+            "type": "string"
+          },
+          "countSinceLastSuccess": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "newestPaths": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportBannerPathLine"
+            }
+          }
+        }
+      },
+      "ImportBannerView": {
+        "required": [
+          "roots"
+        ],
+        "type": "object",
+        "properties": {
+          "roots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportBannerRootLine"
+            }
+          }
+        }
+      },
       "ImportEventOutcome": {
         "enum": [
           "accepted",
           "ignored"
+        ]
+      },
+      "ImportRefusalCause": {
+        "enum": [
+          "notFoundUnderAnyRoot",
+          "ambiguousCandidates",
+          "unreadable"
         ]
       },
       "KeyWriteSignal": {
