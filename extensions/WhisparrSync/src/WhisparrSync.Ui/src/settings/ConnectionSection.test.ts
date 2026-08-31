@@ -97,6 +97,7 @@ function section(overrides: {
     test: overrides.test ?? { phase: "none" },
     save: overrides.save ?? { status: "idle" },
     noOpSave: false,
+    testsStored: false,
     sharedReason: null,
     now: NOW,
     onAddressChange: () => undefined,
