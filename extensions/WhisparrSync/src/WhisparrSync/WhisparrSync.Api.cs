@@ -334,7 +334,10 @@ public sealed partial class WhisparrSync
             if (reading.Candidate is not { } candidate)
             {
                 WhisparrSyncLog.ImportRefused(
-                    log, generation.Value, ImportOutcome.RefusedUnreadablePayload);
+                    log,
+                    generation.Value,
+                    ImportOutcome.RefusedUnreadablePayload,
+                    ImportRefusalProjector.NoReportedRoot);
                 return ImportEventOutcome.Accepted;
             }
 
