@@ -39,6 +39,35 @@ export const NOTHING_MISSING = "You own every scene {provider} lists for {entity
 /** Imports Cove recorded but can no longer read. Self-clears on a success. */
 export const IMPORTS_UNREADABLE = "Sync problem — Cove can't find imported files";
 
+/** No Cove library folder holds the reported file at all. */
+export const IMPORT_CAUSE_NOT_FOUND = "No Cove library folder holds this file.";
+
+/** The reported name is under more than one library folder, so none was chosen. */
+export const IMPORT_CAUSE_AMBIGUOUS =
+  "This name is under more than one of your library folders, so Cove did not choose between them.";
+
+/** The file was found where it was reported and the read of it did not succeed. */
+export const IMPORT_CAUSE_UNREADABLE = "Cove found this file and could not read it.";
+
+/**
+ * One Whisparr root folder's outstanding refusals.
+ *
+ * Names the root, so the reader has the folder to go and look at rather than a total.
+ */
+export function importRefusalsUnderRootSentence(root: string, count: number): string {
+  return `${String(count)} ${count === 1 ? "file" : "files"} under ${root} ${count === 1 ? "has" : "have"} not reached your library since an import from it last worked.`;
+}
+
+/**
+ * Refusals Whisparr reported under none of its own root folders.
+ *
+ * The stored aggregate keys these under a blank root, which is not a sentence, so this is what the
+ * reader is shown in its place.
+ */
+export function importRefusalsWithNoReportedRootSentence(count: number): string {
+  return `${String(count)} ${count === 1 ? "file" : "files"} ${count === 1 ? "has" : "have"} not reached your library, and Whisparr reported ${count === 1 ? "it" : "them"} under none of its own root folders.`;
+}
+
 /** Whisparr's own renaming reaching files Cove already holds. */
 export const WHISPARR_MAY_RENAME = "Whisparr may change files in your library";
 

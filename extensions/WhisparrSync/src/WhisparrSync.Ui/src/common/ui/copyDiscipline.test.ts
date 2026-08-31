@@ -53,10 +53,18 @@ const FORBIDDEN_IN_A_CAPABILITY_GAP = [
 ];
 
 /** Sentences declared here for a surface that arrives in a later plan, and rendered by nothing yet. */
-const DECLARED_FOR_LATER = ["SEARCH_WITH_NO_ENTRY", "IMPORTS_UNREADABLE", "WHISPARR_MAY_RENAME"];
+const DECLARED_FOR_LATER = ["SEARCH_WITH_NO_ENTRY", "WHISPARR_MAY_RENAME"];
 
 /** Sentences the connect surface reads through its own kind table. */
 const RENDERED_BY_THE_CONNECT_SURFACE = ["CONNECT_NOT_CONFIGURED", "CONNECT_KEY_REJECTED"];
+
+/** Sentences the import banner reads: its heading, and one per refusal cause. */
+const RENDERED_BY_THE_IMPORT_BANNER = [
+  "IMPORTS_UNREADABLE",
+  "IMPORT_CAUSE_NOT_FOUND",
+  "IMPORT_CAUSE_AMBIGUOUS",
+  "IMPORT_CAUSE_UNREADABLE",
+];
 
 /**
  * The kind whose sentence is the surface's to write, because the spec's affordance for it is to name
@@ -153,7 +161,11 @@ describe("no sentence is orphaned and no kind is silent", () => {
         (sentence) => sentence !== null,
       ),
     );
-    const accountedByName = [...DECLARED_FOR_LATER, ...RENDERED_BY_THE_CONNECT_SURFACE];
+    const accountedByName = [
+      ...DECLARED_FOR_LATER,
+      ...RENDERED_BY_THE_CONNECT_SURFACE,
+      ...RENDERED_BY_THE_IMPORT_BANNER,
+    ];
 
     const orphans = CONSTANTS.filter(
       ([name, sentence]) => !fromAKind.has(sentence) && !accountedByName.includes(name),
@@ -164,7 +176,11 @@ describe("no sentence is orphaned and no kind is silent", () => {
 
   it("names no sentence that no longer exists", () => {
     const declared = CONSTANTS.map(([name]) => name);
-    for (const name of [...DECLARED_FOR_LATER, ...RENDERED_BY_THE_CONNECT_SURFACE]) {
+    for (const name of [
+      ...DECLARED_FOR_LATER,
+      ...RENDERED_BY_THE_CONNECT_SURFACE,
+      ...RENDERED_BY_THE_IMPORT_BANNER,
+    ]) {
       expect(declared, name).toContain(name);
     }
   });
