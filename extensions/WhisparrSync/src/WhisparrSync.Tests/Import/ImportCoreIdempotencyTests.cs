@@ -155,6 +155,7 @@ public sealed class ImportCoreIdempotencyTests
                     Library,
                     Paths,
                     new OptionsStore(Store),
+                    new FollowUpScanCoalescer(TimeProvider.System, NullLogger.Instance),
                     NullLogger.Instance)
                 .IngestAsync(
                     new ImportCandidate(

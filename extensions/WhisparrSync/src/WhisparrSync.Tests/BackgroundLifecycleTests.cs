@@ -1,6 +1,7 @@
 using Cove.Core.Auth;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 using WhisparrSync.Options;
@@ -273,13 +274,96 @@ public sealed class BackgroundLifecycleTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
     }
 
-    /// <summary>The one service the worker resolves, registered as the extension registers it.</summary>
+    /// <summary>A quiet batch is covered by a wake, whether or not that wake runs a pass.</summary>
+    /// <remarks>
+    /// The follow-up sits before the interval gate, so a live delivery is not left uncovered until
+    /// the next backstop interval comes round.
+    /// </remarks>
+    [Fact]
+    public async Task AQuietBatchIsScannedOnAWakeTheBackstopIntervalSkips()
+    {
+        var clock = new ManualTimeProvider(Start);
+        var library = new RecordingLibrary(reached: true, ["/data"]);
+        var followUp = new FollowUpScanCoalescer(clock, NullLogger.Instance);
+        var extension = WhisparrSyncFixture.Create();
+        await using var services = WorkerServices(
+            clock, new BlockingPass(blocking: false), EveryThirdWake, followUp, library);
+        using var stop = new CancellationTokenSource();
+
+        var worker = extension.RunAsync(services, stop.Token);
+        await Settle();
+
+        followUp.NoteImported("/data/scene.mp4", library);
+        clock.Advance(FollowUpScanCoalescer.QuietPeriod);
+        clock.Advance(WorkerPeriod);
+        await Settle();
+
+        Assert.Equal(["/data/scene.mp4"], Assert.Single(library.Scans));
+
+        await stop.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
+    }
+
+    /// <summary>
+    /// A batch still pending when the worker is stopped is dropped, and the stop still classifies as
+    /// cancelled.
+    /// </summary>
+    /// <remarks>
+    /// A scan started after shutdown has begun reaches a host that is stopping. The files are on disk
+    /// and Cove's own library scan finds them, so dropping is recoverable where starting is not.
+    /// </remarks>
+    [Fact]
+    public async Task APendingBatchIsDroppedOnTheStopRatherThanScanned()
+    {
+        var clock = new ManualTimeProvider(Start);
+        var library = new RecordingLibrary(reached: true, ["/data"]);
+        var followUp = new FollowUpScanCoalescer(clock, NullLogger.Instance);
+        var extension = WhisparrSyncFixture.Create();
+        await using var services = WorkerServices(
+            clock, new BlockingPass(blocking: false), EveryWake, followUp, library);
+        using var stop = new CancellationTokenSource();
+
+        var worker = extension.RunAsync(services, stop.Token);
+        await Settle();
+
+        // Noted with no wake between it and the stop, so the batch is still pending when the token
+        // is cancelled.
+        followUp.NoteImported("/data/scene.mp4", library);
+        await stop.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
+
+        Assert.Empty(library.Scans);
+        Assert.True(worker.IsCanceled, "the worker did not end as cancelled");
+
+        // Dropped rather than left pending: a flush afterwards finds nothing.
+        followUp.Flush(library);
+        Assert.Empty(library.Scans);
+    }
+
+    /// <summary>The services the worker resolves, registered as the extension registers them.</summary>
     private static ServiceProvider WorkerServices()
-        => new ServiceCollection().AddSingleton(TimeProvider.System).BuildServiceProvider();
+        => new ServiceCollection()
+            .AddSingleton(TimeProvider.System)
+            .AddSingleton(new FollowUpScanCoalescer(TimeProvider.System, NullLogger.Instance))
+            .BuildServiceProvider();
 
     /// <summary>The worker's services, with a driveable clock and a pass a test can watch.</summary>
     private static ServiceProvider WorkerServices(
         TimeProvider clock, IBackstopPass pass, int intervalSeconds)
+        => WorkerServices(
+            clock,
+            pass,
+            intervalSeconds,
+            new FollowUpScanCoalescer(clock, NullLogger.Instance),
+            new RecordingLibrary(reached: true, ["/data"]));
+
+    /// <inheritdoc cref="WorkerServices(TimeProvider, IBackstopPass, int)"/>
+    private static ServiceProvider WorkerServices(
+        TimeProvider clock,
+        IBackstopPass pass,
+        int intervalSeconds,
+        FollowUpScanCoalescer followUp,
+        ICoveLibraryPort library)
     {
         var store = new FakeStore();
         var options = new OptionsStore(store);
@@ -292,8 +376,10 @@ public sealed class BackgroundLifecycleTests
 
         return new ServiceCollection()
             .AddSingleton(clock)
+            .AddSingleton(followUp)
             .AddScoped(_ => options)
             .AddScoped(_ => pass)
+            .AddScoped(_ => library)
             .BuildServiceProvider();
     }
 

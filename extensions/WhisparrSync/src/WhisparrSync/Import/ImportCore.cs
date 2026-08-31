@@ -9,6 +9,7 @@ internal sealed class ImportCore(
     ICoveLibraryPort library,
     IImportPathPort paths,
     OptionsStore options,
+    FollowUpScanCoalescer followUp,
     ILogger log) : IImportCore
 {
     public async Task<ImportOutcome> IngestAsync(ImportCandidate candidate, CancellationToken ct)
@@ -81,7 +82,9 @@ internal sealed class ImportCore(
             await StampAndEnrichAsync(named, item, ct).ConfigureAwait(false);
         }
 
-        // Only a delivery that registered a file clears the root's outstanding refusals.
+        // Only a delivery that registered a file clears the root's outstanding refusals, and only one
+        // is covered by a follow-up. A refusal is not an import.
+        followUp.NoteImported(path, library);
         await ClearAsync(reading.RefusalRoot, ct).ConfigureAwait(false);
         return ImportOutcome.Imported;
     }
