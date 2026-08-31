@@ -20,6 +20,10 @@ public enum PathCandidateRefusal
 }
 
 /// <summary>What a reported path and the two systems' library roots make of each other.</summary>
+/// <param name="ReportingRoots">
+/// The reporting instance's own roots that contain the reported path, in the order the instance gave
+/// them. Empty when none does.
+/// </param>
 /// <param name="Tails">
 /// The parts of the reported path below each reporting root that contains it, in the order those
 /// roots were given. Empty beside a non-null <paramref name="Refusal"/>.
@@ -30,9 +34,48 @@ public enum PathCandidateRefusal
 /// </param>
 /// <param name="Refusal">Why there is nothing to probe, or null when there is.</param>
 public sealed record PathCandidateReading(
+    IReadOnlyList<string> ReportingRoots,
     IReadOnlyList<string> Tails,
     IReadOnlyList<string> Candidates,
-    PathCandidateRefusal? Refusal);
+    PathCandidateRefusal? Refusal)
+{
+    /// <summary>The reporting root a refusal from this reading is counted under.</summary>
+    /// <remarks>
+    /// Blank when no reporting root contains the reported path, which is a delivery the banner has to
+    /// show rather than drop. Where several reporting roots nest, the first the instance listed
+    /// carries the line: this groups a count, and never decides which file to import.
+    /// </remarks>
+    public string RefusalRoot => ReportingRoots.Count > 0 ? ReportingRoots[0] : "";
+}
+
+/// <summary>One candidate path and what a probe found there.</summary>
+/// <param name="Path">The candidate, as <see cref="PathCandidateGuard"/> constructed it.</param>
+/// <param name="Probed">What <see cref="IImportPathPort"/> answered for it.</param>
+public sealed record ProbedCandidate(string Path, ProbedPath Probed);
+
+/// <summary>The one path to import, or why there is none.</summary>
+/// <remarks>
+/// Exactly one of the two members is set, and nothing outside <see cref="PathCandidateGuard"/> can
+/// construct a reading in which that is false.
+/// </remarks>
+public sealed record PathResolution
+{
+    private PathResolution(string? path, ImportRefusalCause? cause)
+    {
+        Path = path;
+        Cause = cause;
+    }
+
+    /// <summary>The path to import, or null when <see cref="Cause"/> says why there is none.</summary>
+    public string? Path { get; }
+
+    /// <summary>Why nothing is to be imported, or null when <see cref="Path"/> names what is.</summary>
+    public ImportRefusalCause? Cause { get; }
+
+    internal static PathResolution Import(string path) => new(path, null);
+
+    internal static PathResolution Refuse(ImportRefusalCause cause) => new(null, cause);
+}
 
 /// <summary>
 /// Builds the absolute paths a reported file might really be at, under the host's own library roots.
@@ -56,6 +99,10 @@ public sealed record PathCandidateReading(
 /// Where several reporting roots nest, every one that contains the reported path yields its own tail
 /// and its own candidates. None is chosen here: which file is really meant is settled by what is on
 /// disk, and a winner picked in arithmetic would be a guess the caller could not see.
+/// </para>
+/// <para>
+/// Containment under a host library root is a yes-or-no gate and never selects one. The host's import
+/// takes an absolute path and no root, so nothing needs an answer to which root owns a path.
 /// </para>
 /// </remarks>
 public static class PathCandidateGuard
@@ -92,7 +139,10 @@ public static class PathCandidateGuard
             return Refused(PathCandidateRefusal.NoReportedRoots);
         }
 
-        var tails = reporting
+        var containing = reporting
+            .Where(root => TailBelow(reportedPath, root) is not null)
+            .ToList();
+        var tails = containing
             .Select(root => TailBelow(reportedPath, root))
             .OfType<string>()
             .Distinct(StringComparer.Ordinal)
@@ -105,7 +155,7 @@ public static class PathCandidateGuard
         var hosting = Usable(libraryRoots);
         if (hosting.Count == 0)
         {
-            return new PathCandidateReading(tails, [], PathCandidateRefusal.NoLibraryRoots);
+            return new PathCandidateReading(containing, tails, [], PathCandidateRefusal.NoLibraryRoots);
         }
 
         var candidates = hosting
@@ -115,21 +165,50 @@ public static class PathCandidateGuard
             .ToList();
 
         return candidates.Count == 0
-            ? new PathCandidateReading(tails, [], PathCandidateRefusal.EveryCandidateEscapedItsRoot)
-            : new PathCandidateReading(tails, candidates, null);
+            ? new PathCandidateReading(
+                containing, tails, [], PathCandidateRefusal.EveryCandidateEscapedItsRoot)
+            : new PathCandidateReading(containing, tails, candidates, null);
     }
 
-    /// <summary>The one candidate that verified, or null when the number that did is not one.</summary>
+    /// <summary>What the probe results make of the candidates.</summary>
     /// <remarks>
-    /// Not-found and ambiguous are one answer here, and the caller acts on neither: both mean the
-    /// product cannot say which file the delivery named, and it refuses rather than choosing.
+    /// Three branches and nothing between them: one verified candidate is the file the delivery named,
+    /// none means the product does not know where that file is, and more than one means it cannot say
+    /// which of them the delivery meant. The two refusals are distinct causes because a misconfigured
+    /// root and one absent file are different things to act on.
     /// </remarks>
-    /// <exception cref="ArgumentNullException"><paramref name="verified"/> is null.</exception>
-    public static string? SingleVerified(IReadOnlyList<string> verified)
+    /// <param name="probed">Every candidate and what the probe answered for it.</param>
+    /// <param name="reportedSize">
+    /// The size the delivery reported, or null when it carried none. A delivery that reported no size
+    /// is verified on presence alone; absence of a size is not a mismatch.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="probed"/> is null.</exception>
+    public static PathResolution Resolve(IReadOnlyList<ProbedCandidate> probed, long? reportedSize)
     {
-        ArgumentNullException.ThrowIfNull(verified);
-        return verified.Count == 1 ? verified[0] : null;
+        ArgumentNullException.ThrowIfNull(probed);
+
+        var verified = probed
+            .Where(candidate => Verifies(candidate, reportedSize))
+            .Select(candidate => candidate.Path)
+            .ToList();
+
+        return verified.Count switch
+        {
+            1 => PathResolution.Import(verified[0]),
+            0 => PathResolution.Refuse(ImportRefusalCause.NotFoundUnderAnyRoot),
+            _ => PathResolution.Refuse(ImportRefusalCause.AmbiguousCandidates),
+        };
     }
+
+    /// <summary>Whether the file the probe found is the one the delivery described.</summary>
+    /// <remarks>
+    /// A file of the right name and a different length is a different file. Both generations report a
+    /// size, so accepting on presence alone where one was reported would give up a check that is
+    /// always available.
+    /// </remarks>
+    internal static bool Verifies(ProbedCandidate candidate, long? reportedSize)
+        => candidate.Probed.Exists
+            && (reportedSize is null || candidate.Probed.Size == reportedSize);
 
     /// <summary>
     /// The part of <paramref name="path"/> below <paramref name="root"/>, or null when it is not
@@ -231,5 +310,5 @@ public static class PathCandidateGuard
         => [.. roots.Where(root => !string.IsNullOrWhiteSpace(root))];
 
     private static PathCandidateReading Refused(PathCandidateRefusal refusal)
-        => new([], [], refusal);
+        => new([], [], [], refusal);
 }
