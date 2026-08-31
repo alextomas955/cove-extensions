@@ -20,6 +20,7 @@ const NOTHING_STORED: WhisparrSyncSettingsView = {
     versionVerifiedAtUtc: null,
     lastReachableAtUtc: null,
   },
+  upgradeBehavior: "add",
 };
 
 describe("the state before a read and the state after an empty one", () => {
@@ -176,6 +177,7 @@ describe("switching to the other card", () => {
       selectedGeneration: "v3",
       v3: { ...NOTHING_STORED.v3, address: "http://three:6969", keyIsSet: true },
       v2: { ...NOTHING_STORED.v2, address: "http://two:6969" },
+      upgradeBehavior: "add",
     });
     return store;
   }

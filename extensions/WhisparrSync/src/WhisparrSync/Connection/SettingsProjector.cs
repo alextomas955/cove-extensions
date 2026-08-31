@@ -25,7 +25,8 @@ public static class SettingsProjector
         return new WhisparrSyncSettingsView(
             options.SelectedGeneration,
             ViewOf(options.V3, v3KeyIsSet),
-            ViewOf(options.V2, v2KeyIsSet));
+            ViewOf(options.V2, v2KeyIsSet),
+            options.UpgradeBehavior);
     }
 
     /// <summary>
@@ -35,6 +36,10 @@ public static class SettingsProjector
     /// A generation whose address moves loses its recorded version, the instant that version was
     /// verified, and the instant it last answered, because all three described a different instance.
     /// A save that leaves the address where it points keeps them.
+    /// <para>
+    /// An omitted upgrade behaviour leaves the stored one, which is what lets the connection form
+    /// write a connection without restating a setting it does not show.
+    /// </para>
     /// </remarks>
     /// <param name="stored">The settings as they are now.</param>
     /// <param name="request">The save to apply.</param>
@@ -49,6 +54,7 @@ public static class SettingsProjector
             SelectedGeneration = request.SelectedGeneration,
             V3 = ApplyToGeneration(stored.V3, request.V3),
             V2 = ApplyToGeneration(stored.V2, request.V2),
+            UpgradeBehavior = request.UpgradeBehavior ?? stored.UpgradeBehavior,
         };
     }
 
