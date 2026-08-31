@@ -92,12 +92,3 @@ public sealed record CallbackView(
 /// The edited callback address, or null to keep whatever host is stored.
 /// </param>
 public sealed record RegisterCallbackRequest(string? CallbackAddress);
-
-/// <summary>What the inbound callback route answers a delivery it accepted with.</summary>
-/// <remarks>
-/// Reports where the delivery carried its secret, which is the one thing about the request this phase
-/// establishes and the reading the note about the less private form is shown for. What arrives in the
-/// body of a delivery is Phase 52's and nothing here reads it.
-/// </remarks>
-/// <param name="SecretPosition">Where this delivery carried its secret.</param>
-public sealed record CallbackAcknowledgement(CallbackSecretPosition SecretPosition);

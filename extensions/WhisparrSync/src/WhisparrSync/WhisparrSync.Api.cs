@@ -1,4 +1,7 @@
+using System.Collections.Concurrent;
 using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Cove.Core.Auth;
 using Cove.Extensions.Shared;
 using Cove.Plugins;
@@ -8,8 +11,10 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
+using WhisparrSync.Import;
 using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
 
@@ -75,7 +80,7 @@ public sealed partial class WhisparrSync
         // warning, which is an access tier nothing states.
         endpoints.MapPost(CallbackRoute,
             (HttpContext http, IServiceScopeFactory scopes, CancellationToken ct)
-                => CallbackAsync(http, scopes, ct))
+                => CallbackAsync(http, scopes, _log, ct))
             .WithTags(WireTag)
             .AllowCoveAnonymous();
 
@@ -253,13 +258,20 @@ public sealed partial class WhisparrSync
     /// and refuse every delivery.
     /// </para>
     /// <para>
-    /// No request body is read here. What arrives in one is Phase 52's, and until then an oversized
-    /// body is never materialised.
+    /// The body is read ONCE and only after the secret matches, so an unauthenticated delivery
+    /// reaches no allocation, no filesystem probe and no host call. It is bounded by this
+    /// extension's own cap rather than the framework's, which Cove configures nowhere and which
+    /// defaults far above anything an instance sends.
+    /// </para>
+    /// <para>
+    /// The answer names no path and does not say whether a file was found. The caller is anonymous,
+    /// and an answer that varied with what is on disk would make this route a filesystem probe.
     /// </para>
     /// </remarks>
-    internal static async Task<Results<Ok<CallbackAcknowledgement>, UnauthorizedHttpResult>> CallbackAsync(
+    internal static async Task<Results<Ok<ImportAcknowledgement>, BadRequest, UnauthorizedHttpResult>> CallbackAsync(
         HttpContext http,
         IServiceScopeFactory scopes,
+        ILogger log,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(http);
@@ -270,26 +282,168 @@ public sealed partial class WhisparrSync
             http.Request.Headers.Authorization,
             http.Request.Query[CallbackAddress.SecretQueryParameter]);
 
-        var acknowledged = await RunAsSystem.RunInSystemScopeAsync(scopes, async services =>
-        {
-            var stored = await services.GetRequiredService<ICallbackSecretPort>()
-                .ReadAsync(ct)
-                .ConfigureAwait(false);
-            if (presented is null || !CallbackSecret.Matches(stored, presented.Value))
+        var authenticated = presented is not null
+            && await RunAsSystem.RunInSystemScopeAsync(scopes, async services =>
             {
-                return null;
+                var stored = await services.GetRequiredService<ICallbackSecretPort>()
+                    .ReadAsync(ct)
+                    .ConfigureAwait(false);
+                return CallbackSecret.Matches(stored, presented.Value);
+            }).ConfigureAwait(false);
+
+        if (!authenticated)
+        {
+            return TypedResults.Unauthorized();
+        }
+
+        if (await ReadBoundedBodyAsync(http.Request, ct).ConfigureAwait(false) is not { } body)
+        {
+            return TypedResults.BadRequest();
+        }
+
+        var generation = WebhookProjector.GenerationOf(http.Request.Headers.UserAgent);
+        if (generation is null)
+        {
+            return TypedResults.BadRequest();
+        }
+
+        // Read outside the scope: the projection is pure, and a body that produces no candidate must
+        // not open one.
+        var reading = WebhookProjector.Read(generation.Value, body);
+        if (reading.Outcome == WebhookProjectionOutcome.Unreadable)
+        {
+            return TypedResults.BadRequest();
+        }
+
+        var position = presented!.Position;
+        var outcome = await RunAsSystem.RunInSystemScopeAsync(scopes, async services =>
+        {
+            await RecordSecretPositionAsync(
+                services.GetRequiredService<OptionsStore>(), position, ct)
+                .ConfigureAwait(false);
+
+            if (reading.Outcome == WebhookProjectionOutcome.Ignored)
+            {
+                NoteIgnoredEventType(log, generation.Value, reading.EventType);
+                return ImportEventOutcome.Ignored;
             }
 
-            await RecordSecretPositionAsync(
-                services.GetRequiredService<OptionsStore>(), presented.Position, ct)
+            // An act-list event carrying no readable path never reaches the core, and is recorded as
+            // its own refusal rather than as an ignore: this product handles the event and did not
+            // understand the body, which is a different fact from not handling the event.
+            if (reading.Candidate is not { } candidate)
+            {
+                WhisparrSyncLog.ImportRefused(
+                    log, generation.Value, ImportOutcome.RefusedUnreadablePayload, 0);
+                return ImportEventOutcome.Accepted;
+            }
+
+            await services.GetRequiredService<IImportCore>()
+                .IngestAsync(candidate, ct)
                 .ConfigureAwait(false);
-            return new CallbackAcknowledgement(presented.Position);
+            return ImportEventOutcome.Accepted;
         }).ConfigureAwait(false);
 
-        return acknowledged is null
-            ? TypedResults.Unauthorized()
-            : TypedResults.Ok(acknowledged);
+        return TypedResults.Ok(new ImportAcknowledgement(position, outcome));
     }
+
+    /// <summary>
+    /// The request body as a JSON object, or null when it is too long, unparseable, or not an object.
+    /// </summary>
+    /// <remarks>
+    /// Read once, into a buffer one byte longer than the cap, so a body past the cap is detected
+    /// without being materialised. A declared length over the cap is refused before the stream is
+    /// touched at all, and an undeclared one is caught by the buffer.
+    /// <para>
+    /// Parsed as a node rather than bound to a record. One generation publishes no contract, so what
+    /// a body IS gets established by parsing it, and a record would assume a shape the other
+    /// generation does not send.
+    /// </para>
+    /// </remarks>
+    private static async Task<JsonObject?> ReadBoundedBodyAsync(HttpRequest request, CancellationToken ct)
+    {
+        if (request.ContentLength is > MaxCallbackBodyBytes)
+        {
+            return null;
+        }
+
+        var buffer = new byte[MaxCallbackBodyBytes + 1];
+        var read = await request.Body
+            .ReadAtLeastAsync(buffer, buffer.Length, throwOnEndOfStream: false, ct)
+            .ConfigureAwait(false);
+        if (read > MaxCallbackBodyBytes)
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonNode.Parse(buffer.AsSpan(0, read)) as JsonObject;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// How long a delivery this product sent for may be.
+    /// </summary>
+    /// <remarks>
+    /// This extension's own bound, not the framework's: Cove configures no maximum request body
+    /// size, so the framework default applies and is orders of magnitude above anything an instance
+    /// sends. The committed payload captures are the evidence for the scale.
+    /// </remarks>
+    internal const int MaxCallbackBodyBytes = 64 * 1024;
+
+    /// <summary>
+    /// Records an event type this product does not act on, once per distinct type.
+    /// </summary>
+    /// <remarks>
+    /// Once per type rather than once per delivery: several of the triggers a registration subscribes
+    /// to fire per file, and a line each would bury the one that named a type nobody expected.
+    /// </remarks>
+    private static void NoteIgnoredEventType(ILogger log, WhisparrGeneration generation, string? eventType)
+    {
+        if (eventType is null)
+        {
+            return;
+        }
+
+        // Shortened before it reaches either the set or the log. The value is a string an
+        // authenticated caller chose, and both a log sink and this set are durable.
+        var named = eventType.Length <= EventTypeChars ? eventType : eventType[..EventTypeChars];
+
+        if (IgnoredEventTypes.Count >= IgnoredEventTypeCeiling
+            || !IgnoredEventTypes.TryAdd(generation + ":" + named, true))
+        {
+            return;
+        }
+
+        WhisparrSyncLog.ImportEventTypeIgnored(log, generation, named);
+    }
+
+    /// <summary>How much of a caller-supplied event type is recorded.</summary>
+    /// <remarks>
+    /// Long enough for every event type either generation declares, short enough that no single
+    /// delivery can write a page of caller-chosen text into the host's log.
+    /// </remarks>
+    private const int EventTypeChars = 64;
+
+    /// <summary>How many distinct ignored event types are remembered.</summary>
+    /// <remarks>
+    /// The set exists so each type is reported once, and its size is what a caller would otherwise
+    /// control: the event types the two generations declare are a fixed handful, but the string
+    /// arrives in a request body. Past the ceiling the repeats simply stop being reported.
+    /// </remarks>
+    private const int IgnoredEventTypeCeiling = 64;
+
+    /// <summary>The ignored event types already reported, so each is reported once.</summary>
+    /// <remarks>
+    /// Concurrent because deliveries arrive in parallel and the whole value of the set is that
+    /// exactly one of them logs.
+    /// </remarks>
+    private static readonly ConcurrentDictionary<string, bool> IgnoredEventTypes = new(StringComparer.Ordinal);
 
     /// <summary>Registers this product's callback in the connected instance, in place.</summary>
     /// <remarks>

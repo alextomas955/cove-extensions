@@ -49,3 +49,49 @@ export async function seedVideo({
 
   return res.json();
 }
+
+/**
+ * Copies fixtures-media/<fixtureName> into the container at <destDir>/<destName> and does NOT
+ * register it. The file is present under a Cove library root and unknown to the host.
+ *
+ * `seedVideo` above registers what it copies, through the same host call an extension's own import
+ * makes — so a spec proving that an extension causes an import cannot use it: the item would exist
+ * before the extension did anything. This places the file and leaves the registering to whatever is
+ * under test.
+ *
+ * The destination directory is created and both it and the file are handed to the app's own user.
+ * Cove reads as `cove`, and a copied file arrives root-owned.
+ *
+ * @param {{container: import("testcontainers").StartedTestContainer, fixtureName?: string,
+ *          destPath: string}} options
+ * @returns {Promise<string>} the container path the file now occupies
+ */
+export async function placeVideoUnregistered({
+  container,
+  fixtureName = "test-video.mp4",
+  destPath,
+}) {
+  if (!destPath?.startsWith("/")) {
+    throw new Error(
+      `placeVideoUnregistered: destPath must be an absolute container path under a Cove library root; got ${JSON.stringify(destPath)}.`,
+    );
+  }
+
+  const directory = destPath.slice(0, destPath.lastIndexOf("/")) || "/";
+  await container.exec(["mkdir", "-p", directory], { user: "root" });
+  await container.copyFilesToContainer([
+    { source: join(FIXTURES_DIR, fixtureName), target: destPath },
+  ]);
+  await container.exec(["chown", "-R", "cove:cove", directory], { user: "root" });
+
+  // Read back rather than assumed: a copy that landed nowhere and a chown that failed both leave a
+  // spec asserting an absence that was never a presence.
+  const listed = await container.exec(["ls", "-l", destPath]);
+  if (listed.exitCode !== 0) {
+    throw new Error(
+      `placeVideoUnregistered: ${destPath} is not there after the copy (${listed.output.trim()}).`,
+    );
+  }
+
+  return destPath;
+}

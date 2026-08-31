@@ -59,6 +59,11 @@ public sealed record WhisparrResponse(int StatusCode, string? ContentType, strin
 /// Deliberately narrow: there is no method taking a caller-supplied path and none taking an HTTP
 /// verb, so no call site can express a request that makes Whisparr search for or download anything.
 /// Widening it is the decision that would have to be taken openly.
+/// <para>
+/// <see cref="ReadRootFoldersAsync"/> was added under that rule. It takes no caller-supplied path,
+/// no caller-supplied identifier and no verb, so the constraint above still holds over the whole
+/// interface.
+/// </para>
 /// </remarks>
 public interface IWhisparrClient
 {
@@ -79,6 +84,13 @@ public interface IWhisparrClient
 
     /// <summary>Reads every notification the instance holds.</summary>
     Task<WhisparrResponse> ListNotificationsAsync(Uri baseAddress, string apiKey, CancellationToken ct);
+
+    /// <summary>Reads the library roots the instance reports for itself.</summary>
+    /// <remarks>
+    /// The instance's own root folders are not carried on the import event it sends, so a consumer
+    /// resolving a reported file path against its root has no other source for them.
+    /// </remarks>
+    Task<WhisparrResponse> ReadRootFoldersAsync(Uri baseAddress, string apiKey, CancellationToken ct);
 
     /// <summary>Creates one notification.</summary>
     /// <remarks>
@@ -107,6 +119,7 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
     private const string StatusPath = "api/v3/system/status";
     private const string NotificationPath = "api/v3/notification";
     private const string NotificationSchemaPath = "api/v3/notification/schema";
+    private const string RootFolderPath = "api/v3/rootfolder";
 
     /// <summary>How long one attempt may take before it is reported as unreachable.</summary>
     internal static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
@@ -143,6 +156,10 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
     public Task<WhisparrResponse> ListNotificationsAsync(
         Uri baseAddress, string apiKey, CancellationToken ct)
         => ReadAsync(baseAddress, apiKey, NotificationPath, ct);
+
+    public Task<WhisparrResponse> ReadRootFoldersAsync(
+        Uri baseAddress, string apiKey, CancellationToken ct)
+        => ReadAsync(baseAddress, apiKey, RootFolderPath, ct);
 
     public Task<WhisparrResponse> CreateNotificationAsync(
         Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct)
