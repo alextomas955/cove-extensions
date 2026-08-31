@@ -68,7 +68,7 @@ test("the extension installs into a live Cove and the host reports it enabled", 
   ).toBe(true);
 });
 
-test("the probe answers a permitted caller with exactly its two camelCase scalars", async ({
+test("the probe answers a permitted caller with exactly its four camelCase scalars", async ({
   authHarness,
 }) => {
   const probe = await ownerClient(authHarness).get(PROBE_PATH);
@@ -77,9 +77,13 @@ test("the probe answers a permitted caller with exactly its two camelCase scalar
   expect(Object.keys(probe.json ?? {}).sort()).toEqual([
     "configurationResolved",
     "libraryRootCount",
+    "workerCancelledAtUtc",
+    "workerStartedAtUtc",
   ]);
   expect(typeof probe.json.configurationResolved).toBe("boolean");
   expect(Number.isInteger(probe.json.libraryRootCount)).toBe(true);
+  // The two instants are asserted present as keys only. What the worker's lifecycle does with them
+  // is the background-lifecycle spec's subject; this file's is the access tier.
 });
 
 test("the probe refuses an unauthenticated caller and discloses neither field", async ({
