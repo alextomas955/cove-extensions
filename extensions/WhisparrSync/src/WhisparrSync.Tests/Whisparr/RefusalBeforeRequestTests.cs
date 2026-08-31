@@ -45,13 +45,19 @@ public sealed class RefusalBeforeRequestTests
     /// A capability the connected generation does not hold is refused with nothing sent, and the same
     /// client is then shown to record a request, so the empty log above is a fact about the refusal.
     /// </summary>
+    /// <remarks>
+    /// The refusal is taken against a set built holding nothing rather than against a generation,
+    /// because no generation this product manages refuses the one capability it declares today. What
+    /// is asserted is still the property CAP-2 asks for: obtaining a role that is absent produces a
+    /// refusal and nothing leaves.
+    /// </remarks>
     [Fact]
-    public async Task ACapabilityTheGenerationDoesNotHoldIsRefusedWithNothingSent()
+    public async Task ACapabilityTheSetDoesNotHoldIsRefusedWithNothingSent()
     {
         var client = RecordingWhisparrClient.Reporting(V2StatusFixture);
         var runner = await RunnerOverAsync(client, V2Address, StoredKey, WhisparrGeneration.V2);
 
-        var refusal = GenerationCapabilities.For(WhisparrGeneration.V2)
+        var refusal = new WhisparrCapabilitySet(WhisparrGeneration.V2, [])
             .Obtain<IOutOfBandSecretRegistration>()
             .Match<CapabilityRefusal?>(_ => null, refused => refused);
 
@@ -65,14 +71,23 @@ public sealed class RefusalBeforeRequestTests
     }
 
     /// <summary>
-    /// Every capability v2 does not hold, which today is every capability there is. The vocabulary is
-    /// asserted so a capability added later fails here rather than passing over a case nothing drives.
+    /// The capability vocabulary, and which generations hold each member.
     /// </summary>
+    /// <remarks>
+    /// Both generations hold the one member today, by carriers neither shares with the other. The
+    /// vocabulary is written out so a capability added later fails here rather than passing over a
+    /// case nothing drives.
+    /// </remarks>
     [Fact]
-    public void EveryCapabilityThisProductDeclaresIsRefusedOnV2()
+    public void EveryCapabilityThisProductDeclaresIsHeldBySomeGeneration()
     {
         Assert.Equal([WhisparrCapability.OutOfBandCallbackSecret], Enum.GetValues<WhisparrCapability>());
-        Assert.Empty(GenerationCapabilities.For(WhisparrGeneration.V2).Held);
+        Assert.Equal(
+            [WhisparrCapability.OutOfBandCallbackSecret],
+            GenerationCapabilities.For(WhisparrGeneration.V3).Held);
+        Assert.Equal(
+            [WhisparrCapability.OutOfBandCallbackSecret],
+            GenerationCapabilities.For(WhisparrGeneration.V2).Held);
     }
 
     [Theory]
