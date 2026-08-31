@@ -82,12 +82,11 @@ internal static partial class WhisparrSyncLog
     // caller-supplied string and a log sink is durable and readable.
     [LoggerMessage(
         EventId = 2103, Level = LogLevel.Information,
-        Message = "[WhisparrSync] an import from {Generation} registered nothing ({Outcome}, {VerifiedCount} candidate(s) verified)")]
+        Message = "[WhisparrSync] an import from {Generation} registered nothing ({Outcome})")]
     internal static partial void ImportRefused(
         ILogger logger,
         WhisparrGeneration generation,
-        ImportOutcome outcome,
-        int verifiedCount);
+        ImportOutcome outcome);
 
     // An event type this product does not act on. Named so an instance sending one nobody expected is
     // visible, and emitted once per distinct type rather than once per delivery: a subscribed trigger
