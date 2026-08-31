@@ -1,3 +1,4 @@
+using Cove.Core.Auth;
 using Cove.Data;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -21,15 +22,20 @@ internal static class CoveContextFactory
     /// Opens an in-memory SQLite connection and builds a <see cref="CoveContext"/> over it, then calls
     /// <c>EnsureCreatedAsync()</c> so the relational schema — including the <c>(ParentFolderId, Basename)</c>
     /// UNIQUE index and real transaction support — is materialized. A null principal accessor is fine in
-    /// the save path.
+    /// the save path, and is the default.
     ///
     /// The open connection is what keeps the in-memory database alive for the context's lifetime, so the
     /// caller OWNS both returned disposables and MUST dispose them:
     /// <code>await db.DisposeAsync(); await conn.DisposeAsync();</code>
+    ///
+    /// Pass <paramref name="principalAccessor"/> to build a context that really ENFORCES Cove's
+    /// per-principal authorization query filters. A null accessor bypasses them, so a test whose
+    /// subject is the elevation must supply a real one and set an under-privileged principal on it.
     /// </summary>
-    public static async Task<(CoveContext db, SqliteConnection conn)> CreateSqliteContextAsync()
+    public static async Task<(CoveContext db, SqliteConnection conn)> CreateSqliteContextAsync(
+        ICurrentPrincipalAccessor? principalAccessor = null)
     {
-        var (db, connection) = CreateSqliteContextWithoutSchema();
+        var (db, connection) = CreateSqliteContextWithoutSchema(principalAccessor);
         await db.Database.EnsureCreatedAsync();
         return (db, connection);
     }
@@ -42,7 +48,8 @@ internal static class CoveContextFactory
     ///
     /// The caller OWNS both returned disposables, exactly as with <see cref="CreateSqliteContextAsync"/>.
     /// </summary>
-    public static (CoveContext db, SqliteConnection conn) CreateSqliteContextWithoutSchema()
+    public static (CoveContext db, SqliteConnection conn) CreateSqliteContextWithoutSchema(
+        ICurrentPrincipalAccessor? principalAccessor = null)
     {
         var connection = new SqliteConnection("Data Source=:memory:");
         connection.Open();
@@ -58,6 +65,6 @@ internal static class CoveContextFactory
             .ReplaceService<IModelCacheKeyFactory, CoveModelCacheKeyFactory>()
             .Options;
 
-        return (new CoveContext(options, principalAccessor: null), connection);
+        return (new CoveContext(options, principalAccessor), connection);
     }
 }
