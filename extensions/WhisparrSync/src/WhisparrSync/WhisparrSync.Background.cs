@@ -1,5 +1,7 @@
+using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Microsoft.Extensions.DependencyInjection;
+using WhisparrSync.Import;
 using WhisparrSync.Options;
 
 namespace WhisparrSync;
@@ -46,9 +48,15 @@ public sealed partial class WhisparrSync : IBackgroundExtension
     /// cancelled, so a rethrow classifies the stop as cancelled and anything else as faulted.
     /// </para>
     /// <para>
-    /// The loop body is empty, and nothing in it reaches Whisparr. A database read added to it has to
-    /// run through <see cref="Cove.Extensions.Shared.RunAsSystem"/>: the worker carries no principal,
-    /// and Cove's per-principal query filters answer an Anonymous reader with zero rows and no error.
+    /// Every read in the body runs through <see cref="Cove.Extensions.Shared.RunAsSystem"/>: the
+    /// worker carries no principal, and Cove's per-principal query filters answer an Anonymous reader
+    /// with zero rows and no error.
+    /// </para>
+    /// <para>
+    /// Passes cannot overlap, and that is a property of this shape rather than of a guard. There is one
+    /// registration, the timer skips a wake rather than queueing it, and the pass is awaited inline. A
+    /// detached call here would break it with nothing reporting, and a lock added beside it would read
+    /// as load-bearing while guarding nothing.
     /// </para>
     /// </remarks>
     /// <param name="services">The extension's own provider, leased for the life of this worker.</param>
@@ -59,14 +67,35 @@ public sealed partial class WhisparrSync : IBackgroundExtension
         ArgumentNullException.ThrowIfNull(services);
 
         var clock = services.GetRequiredService<TimeProvider>();
+        var scopes = services.GetRequiredService<IServiceScopeFactory>();
         Interlocked.Exchange(ref _workerStartedAtUtcTicks, clock.GetUtcNow().UtcTicks);
 
         try
         {
             using var period = new PeriodicTimer(WorkerPeriod, clock);
+
+            // Before every instant the clock can report, so the first wake after a start runs a pass.
+            var lastPassStartedAt = DateTimeOffset.MinValue;
+
             while (await period.WaitForNextTickAsync(ct).ConfigureAwait(false))
             {
-                // Empty on purpose: this worker waits, and reaches Whisparr from nowhere.
+                // Read each wake rather than once at the start, so a change to the interval takes
+                // effect within one wake instead of after up to a whole interval of the old value.
+                var interval = await RunAsSystem.RunInSystemScopeAsync(
+                    scopes,
+                    async scope => (await scope
+                            .GetRequiredService<OptionsStore>()
+                            .LoadAsync(ct)
+                            .ConfigureAwait(false))
+                        .BackstopInterval).ConfigureAwait(false);
+
+                if (clock.GetUtcNow() - lastPassStartedAt < interval)
+                {
+                    continue;
+                }
+
+                lastPassStartedAt = clock.GetUtcNow();
+                await PassAsync(scopes, ct).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -74,6 +103,32 @@ public sealed partial class WhisparrSync : IBackgroundExtension
             Interlocked.Exchange(ref _workerCancelledAtUtcTicks, clock.GetUtcNow().UtcTicks);
             throw;
         }
+    }
+
+    /// <summary>Runs one pass, and keeps the worker alive through a failure it did not expect.</summary>
+    /// <remarks>
+    /// The host treats anything but a cancellation as a fault and does not restart the worker, so an
+    /// exception let out here would stop the backstop until the extension is reloaded.
+    /// </remarks>
+    private async Task PassAsync(IServiceScopeFactory scopes, CancellationToken ct)
+    {
+        try
+        {
+            await RunAsSystem.RunInSystemScopeAsync(
+                scopes,
+                scope => scope.GetRequiredService<IBackstopPass>().RunAsync(ct)).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Above the broad catch, so a shutdown classifies as cancelled rather than as a failure.
+            throw;
+        }
+#pragma warning disable CA1031 // A pass that failed unexpectedly must not take the worker with it.
+        catch (Exception failure)
+        {
+            WhisparrSyncLog.BackstopPassFaulted(_log, failure);
+        }
+#pragma warning restore CA1031
     }
 
     private static DateTimeOffset? InstantOf(long utcTicks)

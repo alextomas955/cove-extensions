@@ -124,6 +124,14 @@ internal static partial class WhisparrSyncLog
         BackstopPassOutcome outcome,
         string host);
 
+    // A pass that ended in a failure the pass itself does not classify. Contained so the worker
+    // survives it, and reported because a backstop that has silently stopped passing looks from
+    // outside exactly like one with nothing to do.
+    [LoggerMessage(
+        EventId = 2108, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] a backstop pass ended in an unexpected failure; the next wake tries again")]
+    internal static partial void BackstopPassFaulted(ILogger logger, Exception failure);
+
     // The one best-effort catch on the enrichment call. The import succeeded and the item carries its
     // identity either way, so the failure is contained - but a scene left bare with no trace is not
     // something a user could ever explain. The registrable domain of the source and nothing else: it
