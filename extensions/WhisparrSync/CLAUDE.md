@@ -14,10 +14,13 @@ hand, and nothing downloads that the user did not ask for.
 
 ## Current shape
 
-The connection, matching and sync surfaces are not built. What exists is the registration, a
-read-gated probe endpoint, and a settings tab whose body says setup arrives later. Every
-user-facing document this extension owns says so plainly, and they have to keep agreeing with the
-code: a capability described before it exists is a defect, not a doc.
+The connection surface is built: a settings tab that tests a connection, detects and separately
+remembers each Whisparr generation, and registers the import callback in the connected instance. The
+import path is not - the inbound callback authenticates a delivery and acknowledges it, and reads
+nothing from its body. Matching and sync are not built either.
+
+Every user-facing document this extension owns has to keep agreeing with that: a capability described
+before it exists is a defect, not a doc, and the manifest description is one of those documents.
 
 ## Contract
 
@@ -38,6 +41,23 @@ code: a capability described before it exists is a defect, not a doc.
   mismatch is silent: the host still draws the tab button, the heading and the manifest description,
   and renders the component as nothing with no error anywhere. Pin it by reading both files and
   comparing them to each other, never against a literal typed into the test.
+- **A capability a generation cannot honour is a role the backend does not hold, never a probe.** The
+  generation's capability set either carries the role interface or it does not, so a caller obtains it
+  or is refused before any request leaves. There is no `Supports*` call to forget and no version
+  mismatch to throw, and a capability the older generation gains later is one registration away.
+  Bind the role to what was MEASURED, not to the field the measurement went looking for: the v2
+  out-of-band role was first tied to a `headers` field v2 does not have, and v2 turned out to be able
+  to carry the secret anyway.
+- **The Whisparr API key lives in a table this extension owns, not in the extension store.** Cove's
+  bulk extension-data route returns everything an extension stored, whole, so a key left in the store
+  is a key a different route hands out. The callback secret is in the same table for the same reason.
+  Everything else stays in the one O(1) options blob.
+- **Exactly one route answers a caller holding no Cove permission**, the inbound import callback, and
+  it says so with the SDK's own anonymous convention. A route that declares nothing is admitted
+  anonymously too, silently and with only a host warning, which is an access tier no document states.
+  That route is authenticated by a secret this extension mints and stores server-side, presented in a
+  header, as Basic auth, or in the address; the permitted count is pinned by a test, so a second
+  anonymous route is a failure rather than a line someone adds beside the first.
 
 ## Working on this extension
 
