@@ -1,0 +1,410 @@
+using System.Collections;
+using System.Reflection;
+using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging.Abstractions;
+using WhisparrSync.Contracts;
+using WhisparrSync.Import;
+using WhisparrSync.Options;
+using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
+
+namespace WhisparrSync.Tests.Import;
+
+/// <summary>
+/// One walk back through an instance's history: how far it reads, what it hands to the ingest core,
+/// where it leaves the mark, and what it never does.
+/// </summary>
+/// <remarks>
+/// The instance under test always HAS a past. Against an empty one, "the pass imported nothing" and
+/// "the pass did nothing" are the same observation, and every assertion below would hold with the
+/// walk deleted.
+/// </remarks>
+public sealed class BackstopPassTests
+{
+    private const string Address = "http://whisparr:6969";
+    private const string ApiKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
+    private const string ImportedPath = "/whisparr-media/scene.mp4";
+
+    private static readonly DateTimeOffset Noon = new(2026, 8, 30, 12, 0, 0, TimeSpan.Zero);
+
+    /// <summary>
+    /// With no mark stored, the pass records where history ends and imports nothing.
+    /// </summary>
+    /// <remarks>
+    /// Both halves are asserted. The instance holds records the pass could have imported, so the mark
+    /// advancing is what tells "imported nothing" from "read nothing".
+    /// </remarks>
+    [Fact]
+    public async Task TheFirstPassRecordsWhereHistoryEndsAndImportsNothing()
+    {
+        var pass = new Pass(mark: null);
+        pass.Answering(Page(Descending(3)));
+
+        var result = await pass.RunAsync();
+
+        Assert.Equal(BackstopPassOutcome.FirstConnect, result.Outcome);
+        Assert.Empty(pass.Core.Ingested);
+        Assert.Equal(Noon, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
+        Assert.Equal(1, result.PagesRead);
+        Assert.Equal(0, result.RecordsTaken);
+    }
+
+    /// <summary>The first pass records that the position was lost, so a gap may exist.</summary>
+    [Fact]
+    public async Task TheFirstPassRecordsThePositionAsLost()
+    {
+        var pass = new Pass(mark: null);
+        pass.Answering(Page(Descending(3)));
+
+        await pass.RunAsync();
+
+        Assert.True((await pass.StoredAsync()).ImportHealth.BackstopPositionLost);
+    }
+
+    /// <summary>An instance with no history at all still leaves the unset state.</summary>
+    /// <remarks>
+    /// Without a mark written here, every later pass would be another first connect and the backstop
+    /// would never import anything.
+    /// </remarks>
+    [Fact]
+    public async Task AFirstPassOverAnEmptyHistoryStillWritesAMark()
+    {
+        var pass = new Pass(mark: null);
+        pass.Answering(Page([]));
+
+        await pass.RunAsync();
+
+        Assert.Equal(Pass.Now, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
+    }
+
+    /// <summary>The walk asks only for the pages it has to read.</summary>
+    /// <remarks>
+    /// Five pages exist and the mark sits inside the third. A walk that read to the end of the
+    /// history would ask for all five, and the records past the mark are ones it has already imported.
+    /// </remarks>
+    [Fact]
+    public async Task TheWalkStopsAtThePageHoldingTheMark()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-125));
+        pass.Answering(FullPage(0), FullPage(1), FullPage(2), FullPage(3), FullPage(4));
+
+        var result = await pass.RunAsync();
+
+        Assert.Equal([1, 2, 3], pass.Client.Histories.Select(call => call.Page));
+        Assert.Equal(3, result.PagesRead);
+        Assert.Equal((2 * BackstopPass.PageSize) + 26, result.RecordsTaken);
+    }
+
+    /// <summary>The mark moves to the newest record the walk saw, not to the oldest.</summary>
+    [Fact]
+    public async Task TheMarkMovesToTheNewestRecordTheWalkSaw()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-2));
+        pass.Answering(Page(Descending(3)));
+
+        var result = await pass.RunAsync();
+
+        Assert.Equal(Noon, result.Watermark);
+        Assert.Equal(Noon, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
+    }
+
+    /// <summary>A pass with nothing new leaves the mark where it was.</summary>
+    [Fact]
+    public async Task APassOverAnEmptyHistoryLeavesTheMarkWhereItWas()
+    {
+        var mark = Noon.AddMinutes(-30);
+        var pass = new Pass(mark);
+        pass.Answering(Page([]));
+
+        await pass.RunAsync();
+
+        Assert.Empty(pass.Core.Ingested);
+        Assert.Equal(mark, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
+    }
+
+    /// <summary>Two records sharing one instant are both handed to the ingest core.</summary>
+    [Fact]
+    public async Task TwoRecordsSharingOneInstantAreBothProjected()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-1));
+        pass.Answering(Page([Noon, Noon]));
+
+        await pass.RunAsync();
+
+        Assert.Equal(2, pass.Core.Ingested.Count);
+    }
+
+    /// <summary>
+    /// A page whose records ascend refuses the pass, and nothing reaches the ingest core.
+    /// </summary>
+    /// <remarks>
+    /// Importing from an order the walk does not understand is how a bulk replay starts, so the pass
+    /// refuses and keeps its place rather than reading on.
+    /// </remarks>
+    [Fact]
+    public async Task AnAscendingPageRefusesThePassAndImportsNothing()
+    {
+        var mark = Noon.AddMinutes(-30);
+        var pass = new Pass(mark);
+        pass.Answering(Page([Noon.AddMinutes(-5), Noon]));
+
+        var result = await pass.RunAsync();
+
+        Assert.Equal(BackstopPassOutcome.RefusedPageOrder, result.Outcome);
+        Assert.Empty(pass.Core.Ingested);
+        Assert.Null(result.Watermark);
+        Assert.Equal(mark, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
+    }
+
+    /// <summary>A refused pass is recorded, not swallowed.</summary>
+    [Fact]
+    public async Task ARefusedPassIsRecordedInTheHealthAggregate()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-30));
+        pass.Answering(Page([Noon.AddMinutes(-5), Noon]));
+
+        await pass.RunAsync();
+
+        var health = (await pass.StoredAsync()).ImportHealth;
+        Assert.Equal(1, health.ConsecutiveFailures);
+        Assert.NotNull(health.LastFailedAtUtc);
+        Assert.NotEmpty(health.LastError);
+    }
+
+    /// <summary>
+    /// A route answering every page with the same one refuses rather than walking forever.
+    /// </summary>
+    /// <remarks>
+    /// The order is read across the page boundary as well as within a page, so a second page starting
+    /// newer than the first one ended is the same refusal as a page that ascends.
+    /// </remarks>
+    [Fact]
+    public async Task ARouteThatDoesNotPageRefusesRatherThanWalkingForever()
+    {
+        var pass = new Pass(mark: Noon.AddYears(-1));
+        pass.Answering(FullPage(0));
+
+        var result = await pass.RunAsync();
+
+        Assert.Equal(BackstopPassOutcome.RefusedPageOrder, result.Outcome);
+        Assert.Equal(2, result.PagesRead);
+    }
+
+    /// <summary>An answer this product cannot read as a page refuses the pass.</summary>
+    [Theory]
+    [InlineData("not json at all")]
+    [InlineData("[]")]
+    public async Task AnAnswerThatIsNotAPageRefusesThePass(string body)
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-30));
+        pass.Answering(RecordingWhisparrClient.Json(200, body));
+
+        var result = await pass.RunAsync();
+
+        Assert.Equal(BackstopPassOutcome.RefusedUnreadableAnswer, result.Outcome);
+        Assert.Empty(pass.Core.Ingested);
+    }
+
+    /// <summary>A record naming an import with no path is counted rather than dropped.</summary>
+    [Fact]
+    public async Task ARecordWithNoReadablePathIsCounted()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-1));
+        pass.Answering(Page([Noon], path: null));
+
+        var result = await pass.RunAsync();
+
+        Assert.Equal(1, result.WithoutCandidate);
+        Assert.Empty(pass.Core.Ingested);
+    }
+
+    /// <summary>A generation with no address and key reaches nothing that could make a request.</summary>
+    [Fact]
+    public async Task AnUnconfiguredGenerationMakesNoRequest()
+    {
+        var pass = new Pass(mark: null, address: "");
+
+        var result = await pass.RunAsync();
+
+        Assert.Equal(BackstopPassOutcome.NotConfigured, result.Outcome);
+        Assert.Empty(pass.Client.Verbs);
+    }
+
+    /// <summary>
+    /// The whole pass makes read calls and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// Asserted as the set of verbs the pass DID use rather than as a list of the ones it avoided: a
+    /// verb added to the seam and then called here is a failure rather than an omission from a list.
+    /// </remarks>
+    [Fact]
+    public async Task TheWholePassMakesOnlyHistoryReads()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-125));
+        pass.Answering(FullPage(0), FullPage(1), FullPage(2));
+
+        await pass.RunAsync();
+
+        Assert.NotEmpty(pass.Client.Verbs);
+        Assert.All(
+            pass.Client.Verbs,
+            verb => Assert.Equal(nameof(IWhisparrClient.ReadHistoryAsync), verb));
+        Assert.Empty(pass.Client.Notifications);
+    }
+
+    /// <summary>
+    /// A thousand records leave an answer the same size as three do.
+    /// </summary>
+    /// <remarks>
+    /// The walk may be linear in time. What it hands back must not be, and neither may what it holds
+    /// while walking.
+    /// </remarks>
+    [Fact]
+    public async Task AThousandRecordsLeaveAnAnswerOfTheSameSizeAsThree()
+    {
+        var pages = new WhisparrResponse[21];
+        for (var page = 0; page < 20; page++)
+        {
+            pages[page] = FullPage(page);
+        }
+
+        pages[20] = Page([]);
+
+        var many = new Pass(mark: Noon.AddYears(-1));
+        many.Answering(pages);
+        var overAThousand = await many.RunAsync();
+
+        var few = new Pass(mark: Noon.AddYears(-1));
+        few.Answering(Page(Descending(3)));
+        var overThree = await few.RunAsync();
+
+        Assert.Equal(20 * BackstopPass.PageSize, overAThousand.RecordsTaken);
+        Assert.Equal(3, overThree.RecordsTaken);
+        Assert.Equal(
+            RenderedSizeOf(overThree with { RecordsTaken = 0, Imported = 0, PagesRead = 0 }),
+            RenderedSizeOf(overAThousand with { RecordsTaken = 0, Imported = 0, PagesRead = 0 }));
+    }
+
+    /// <summary>Neither the pass nor its answer declares a collection member.</summary>
+    /// <remarks>
+    /// The structural half of the assertion above: a pass that accumulated records would answer with
+    /// the same counters and still hold the library in memory.
+    /// </remarks>
+    [Fact]
+    public void NeitherThePassNorItsAnswerDeclaresACollection()
+    {
+        Assert.DoesNotContain(
+            typeof(BackstopPassResult).GetProperties(),
+            property => IsCollection(property.PropertyType));
+
+        Assert.DoesNotContain(
+            typeof(BackstopPass).GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public),
+            field => IsCollection(field.FieldType));
+    }
+
+    private static bool IsCollection(Type type)
+        => type != typeof(string) && typeof(IEnumerable).IsAssignableFrom(type);
+
+    /// <summary>How long a result renders as, which grows with anything it accumulated.</summary>
+    private static int RenderedSizeOf(BackstopPassResult result) => result.ToString().Length;
+
+    private static DateTimeOffset[] Descending(int count)
+        => [.. Enumerable.Range(0, count).Select(index => Noon.AddMinutes(-index))];
+
+    /// <summary>One page's worth of records, one minute apart, descending from <paramref name="page"/>.</summary>
+    private static WhisparrResponse FullPage(int page)
+        => Page(
+            Enumerable
+                .Range(page * BackstopPass.PageSize, BackstopPass.PageSize)
+                .Select(index => Noon.AddMinutes(-index)));
+
+    private static WhisparrResponse Page(
+        IEnumerable<DateTimeOffset> instants, string? path = ImportedPath)
+    {
+        var records = new JsonArray();
+        foreach (var instant in instants)
+        {
+            records.Add(
+                new JsonObject
+                {
+                    ["eventType"] = HistoryProjector.ImportedEventType,
+                    ["date"] = instant.ToString("O"),
+                    ["data"] = path is null
+                        ? new JsonObject()
+                        : new JsonObject { ["importedPath"] = path },
+                });
+        }
+
+        return RecordingWhisparrClient.Json(
+            200, new JsonObject { ["records"] = records }.ToJsonString());
+    }
+
+    /// <summary>One pass, its store, and the doubles standing in for everything outside it.</summary>
+    private sealed class Pass
+    {
+        /// <summary>The instant this pass's clock reads.</summary>
+        public static readonly DateTimeOffset Now = new(2026, 8, 31, 9, 0, 0, TimeSpan.Zero);
+
+        private readonly OptionsStore _options;
+
+        public Pass(DateTimeOffset? mark, string address = Address)
+        {
+            Client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, """{"records":[]}"""));
+            _options = new OptionsStore(Store);
+            _options
+                .SaveAsync(
+                    new WhisparrSyncOptions
+                    {
+                        SelectedGeneration = WhisparrGeneration.V3,
+                        V3 = new WhisparrSyncGenerationConnection
+                        {
+                            Address = address,
+                            BackstopWatermarkUtc = mark,
+                        },
+                    },
+                    TestContext.Current.CancellationToken)
+                .GetAwaiter()
+                .GetResult();
+        }
+
+        public FakeStore Store { get; } = new();
+
+        public RecordingWhisparrClient Client { get; }
+
+        public RecordingImportCore Core { get; } = new();
+
+        /// <summary>Queues what each history read answers with, the last entry repeating.</summary>
+        public void Answering(params WhisparrResponse[] pages)
+            => Client.Answering(nameof(IWhisparrClient.ReadHistoryAsync), pages);
+
+        public Task<BackstopPassResult> RunAsync()
+            => new BackstopPass(
+                    Client,
+                    _options,
+                    new RecordingCredentialPort().Holding(WhisparrGeneration.V3, ApiKey),
+                    Core,
+                    new FixedClock(Now),
+                    NullLogger.Instance)
+                .RunAsync(TestContext.Current.CancellationToken);
+
+        public Task<WhisparrSyncOptions> StoredAsync()
+            => _options.LoadAsync(TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>An ingest core recording every candidate handed to it.</summary>
+    private sealed class RecordingImportCore : IImportCore
+    {
+        public List<ImportCandidate> Ingested { get; } = [];
+
+        public Task<ImportOutcome> IngestAsync(ImportCandidate candidate, CancellationToken ct)
+        {
+            Ingested.Add(candidate);
+            return Task.FromResult(ImportOutcome.Imported);
+        }
+    }
+
+    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+}
