@@ -111,4 +111,13 @@ internal static partial class WhisparrSyncLog
         ILogger logger,
         WhisparrGeneration generation,
         string host);
+
+    // The one best-effort catch on the enrichment call. The import succeeded and the item carries its
+    // identity either way, so the failure is contained - but a scene left bare with no trace is not
+    // something a user could ever explain. The registrable domain of the source and nothing else: it
+    // names which source did not answer and can carry neither a key nor a path.
+    [LoggerMessage(
+        EventId = 2106, Level = LogLevel.Information,
+        Message = "[WhisparrSync] the metadata source at {Source} applied nothing to a newly imported scene")]
+    internal static partial void EnrichmentContained(ILogger logger, string source, Exception failure);
 }
