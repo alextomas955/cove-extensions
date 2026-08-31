@@ -50,6 +50,8 @@ export interface ConnectionSectionProps {
   save: SaveState;
   /** Whether saving would write nothing that is not already stored. */
   noOpSave: boolean;
+  /** Whether Test asks about the stored connection rather than about the pair in the form. */
+  testsStored: boolean;
   /**
    * The one reason several controls on this page share, stated once by the page's own notice. It
    * still reaches each control's accessible name, which is per-control by nature.
@@ -72,6 +74,7 @@ export function ConnectionSection({
   test,
   save,
   noOpSave,
+  testsStored,
   sharedReason,
   now,
   onAddressChange,
@@ -83,13 +86,17 @@ export function ConnectionSection({
   const testing = test.phase === "running";
   const saving = save.status === "saving";
 
+  // A key already stored cannot be sent back, so testing an address the form has changed needs one
+  // typed. Testing the address as stored does not: that test asks about the stored connection.
   const testReason =
     sharedReason ??
     (testing
       ? "This test is still running."
       : draft.address.trim() === ""
         ? "Enter the Whisparr address first."
-        : null);
+        : !testsStored && draft.apiKey === ""
+          ? "Enter the Whisparr API key to test this address."
+          : null);
 
   const saveReason =
     sharedReason ??
