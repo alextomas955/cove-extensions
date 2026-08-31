@@ -82,6 +82,21 @@ public interface ICoveLibraryPort
     /// <returns>The video's key, or null when the library holds no file there.</returns>
     Task<int?> VideoHoldingFileAtAsync(string path, CancellationToken ct);
 
+    /// <summary>Starts one host scan over <paramref name="paths"/> and returns without waiting.</summary>
+    /// <remarks>
+    /// The host's enqueue deduplicates nothing and defaults to exclusive, so one call per imported
+    /// file would serialise a burst of grabs into a burst of library scans. A caller passes the paths
+    /// of a batch.
+    /// <para>
+    /// Otherwise-unchanged discovered files are included in the asset-generation pass, which is what
+    /// the host's own documentation describes this workflow as: the files were registered before the
+    /// scan job starts, so a pass that skipped them would find nothing to do.
+    /// </para>
+    /// </remarks>
+    /// <param name="paths">The verified absolute paths the scan covers.</param>
+    /// <returns>Whether the host's scan service could be reached at all.</returns>
+    bool StartFollowUpScan(IReadOnlyList<string> paths);
+
     /// <summary>Which video carries <paramref name="remoteId"/> for the source at <paramref name="endpoint"/>.</summary>
     /// <remarks>
     /// Endpoints are compared through <see cref="EndpointMatchGuard"/> rather than as strings, so a

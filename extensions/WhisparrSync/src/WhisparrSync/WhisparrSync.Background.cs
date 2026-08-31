@@ -68,6 +68,7 @@ public sealed partial class WhisparrSync : IBackgroundExtension
 
         var clock = services.GetRequiredService<TimeProvider>();
         var scopes = services.GetRequiredService<IServiceScopeFactory>();
+        var followUp = services.GetRequiredService<FollowUpScanCoalescer>();
         Interlocked.Exchange(ref _workerStartedAtUtcTicks, clock.GetUtcNow().UtcTicks);
 
         try
@@ -79,6 +80,10 @@ public sealed partial class WhisparrSync : IBackgroundExtension
 
             while (await period.WaitForNextTickAsync(ct).ConfigureAwait(false))
             {
+                // Before the interval gate: the live channel's batch is covered whether or not this
+                // wake is a backstop wake, so the follow-up does not wait on the backstop interval.
+                await FollowUpAsync(scopes, followUp).ConfigureAwait(false);
+
                 // Read each wake rather than once at the start, so a change to the interval takes
                 // effect within one wake instead of after up to a whole interval of the old value.
                 var interval = await RunAsSystem.RunInSystemScopeAsync(
@@ -100,9 +105,34 @@ public sealed partial class WhisparrSync : IBackgroundExtension
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
+            // Dropped rather than flushed: a scan started after shutdown has begun reaches a host
+            // that is stopping. The files are on disk and Cove's own library scan finds them.
+            followUp.Drop();
             Interlocked.Exchange(ref _workerCancelledAtUtcTicks, clock.GetUtcNow().UtcTicks);
             throw;
         }
+    }
+
+    /// <summary>Starts one scan over the live channel's batch, once it has been quiet.</summary>
+    /// <remarks>
+    /// The scope is opened only for a batch that is due, so a worker with nothing to cover resolves
+    /// no host service and touches no database.
+    /// </remarks>
+    private static async Task FollowUpAsync(
+        IServiceScopeFactory scopes, FollowUpScanCoalescer followUp)
+    {
+        if (!followUp.ScanIsDue)
+        {
+            return;
+        }
+
+        await RunAsSystem.RunInSystemScopeAsync(
+            scopes,
+            scope =>
+            {
+                followUp.FlushIfQuiet(scope.GetRequiredService<ICoveLibraryPort>());
+                return Task.CompletedTask;
+            }).ConfigureAwait(false);
     }
 
     /// <summary>Runs one pass, and keeps the worker alive through a failure it did not expect.</summary>
