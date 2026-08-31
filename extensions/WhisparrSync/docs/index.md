@@ -7,32 +7,47 @@ slug: /
 Whisparr Sync connects Cove to the Whisparr instance you run, so the two agree about what your
 library holds.
 
-## Current state
+## What you can do today
 
-**Its capability surfaces are not built yet.** Installing this release adds a **Whisparr Sync** tab
-under Settings → Extensions, and that tab says setup arrives in a later release. There is no
-connection form, no matching and no syncing behind it, and nothing in it reads or changes your
-library.
+Installing this release adds a **Whisparr Sync** tab under Settings → Extensions. From it you can:
 
-There is nothing for you to configure and nothing to try. This page exists so you can read what the
-extension binds itself to before any of it arrives.
+- **Connect to your Whisparr instance.** Enter its address and API key, then test the connection.
+  The result names the version the instance reported and which generation answered.
+- **Keep both generations.** Whisparr v3 (Eros) and Whisparr v2 each keep their own address, key and
+  recorded version, so switching to the other generation and back returns the first one unchanged.
+  One of the two is the generation Cove uses; saving the card you are editing makes it that one.
+- **Register the import webhook.** One click writes Cove's callback into the connected instance, or
+  you can copy the address and paste it into Whisparr yourself. The status line below it says whether
+  the callback is registered, and whether anything has arrived through it.
+
+**Nothing is imported yet.** When Whisparr calls the webhook, Cove checks the delivery is genuinely
+Whisparr's and acknowledges it. It does not read what the delivery says, match it to your library, or
+change anything. The import path arrives in a later release, and the registration you make now is what
+it will use.
+
+For every setting on the tab, see the [Settings reference](./settings.md).
 
 ## Network access and credentials
 
-These are the terms Whisparr Sync holds itself to. None of the surfaces they describe is built yet,
-so read them as the contract the finished extension owes you rather than as behaviour you can
-exercise today.
-
 - **It calls outward to Whisparr, with the key you supply.** The instance it talks to is the one you
   configure, and it authenticates with your Whisparr API key. It reaches no other host.
-- **Everything it exposes inbound is gated on a Cove permission.** Its API endpoints sit under
-  `/api/extensions/com.alextomas955.whisparrsync`. Each one requires a permission Cove already knows
-  about, and none of them answers an anonymous caller.
+- **Your Whisparr API key stays on the server.** Cove holds it in a table this extension owns and
+  never sends it to your browser. Once stored, the settings page tells you a key is set and nothing
+  more; to change it, type a new one, and to remove it, use **Clear stored key**.
+- **One endpoint answers an anonymous caller, and only one.** The import callback at
+  `/api/extensions/com.alextomas955.whisparrsync/callback` has to answer Whisparr, which is another
+  application rather than a Cove user, so it is not behind a Cove permission. It is authenticated
+  instead by a secret Cove mints and keeps server-side, and a delivery that does not present that
+  secret is refused. Every other endpoint this extension exposes requires a Cove permission.
+- **The secret travels outside the address wherever it can.** A registration made from the settings
+  page carries it in a request header on Whisparr v3 and as Basic authentication on Whisparr v2, so
+  proxies and load balancers on the delivery path do not record it. An address you copy and paste by
+  hand carries it in the address itself, because a pasted address has nowhere else to put it. While
+  deliveries are still arriving that way the page says so, and the note clears itself once one
+  arrives out of the address.
 - **Only an action you start can cause a download.** Whisparr downloads because you asked Cove for
   something that needs it, never on a timer and never as a side effect of Cove looking at your
   library.
-- **Your Whisparr API key stays on the server.** Cove holds it server-side and never sends it to
-  your browser.
 
 It also runs no scraper and no downloader code of its own; Whisparr does that work on its own
 machine.
@@ -45,6 +60,7 @@ below, so on an older Cove this extension is not offered to you in the first pla
 
 ## In this section
 
+- [Settings reference](./settings.md) - every setting on the tab, its default and its valid values.
 - [Changelog](./changelog.mdx) - user-facing changes, newest first.
 
 ## Install and build

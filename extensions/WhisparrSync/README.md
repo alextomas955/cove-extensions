@@ -3,16 +3,17 @@
 A Cove extension (`com.alextomas955.whisparrsync`) that connects Cove to the Whisparr instance you
 configure, calling out to it over the network with an API key you supply and Cove holds server-side.
 
-**Its capability surfaces are not built yet.** What exists today is the registration: the load
-manifest, one permission-gated probe endpoint, and a placeholder settings tab that says setup arrives
-in a later release. There is no connection setup, no matching and no sync behaviour behind them, and
-nothing here reads or changes your library.
+What exists today is the connection surface: a settings tab that tests a connection, reports which
+Whisparr generation answered, keeps each generation's connection separately, and registers Cove's
+import callback in the instance. The import path is not built - a delivery is checked and
+acknowledged, not read or applied - and nothing here changes your library.
 
 ## Documentation
 
 **User docs live on the docs site — start there:**
 
 - **[Whisparr Sync docs](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync)** — overview and index
+- **[Settings reference](https://alextomas955.github.io/cove-extensions/extensions/whisparr-sync/settings)** — every setting on the tab
 
 The rest of this file is for contributors working on the extension itself.
 
