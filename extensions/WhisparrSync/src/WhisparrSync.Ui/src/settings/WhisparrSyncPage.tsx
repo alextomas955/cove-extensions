@@ -3,7 +3,7 @@ import { RefusalNotice } from "../common/ui/RefusalNotice";
 import { ConnectionSection } from "./ConnectionSection";
 import { GenerationCards } from "./GenerationCards";
 import { ImportWebhookSection } from "./ImportWebhookSection";
-import { isNoOpSave, valuesForCard } from "./connectLogic";
+import { isNoOpSave, testsStoredConnection, valuesForCard } from "./connectLogic";
 import { useConnection } from "./useConnection";
 import { useRegistration } from "./useRegistration";
 
@@ -52,6 +52,12 @@ export function WhisparrSyncPage() {
         test={state.test}
         save={state.save}
         noOpSave={isNoOpSave(
+          stored,
+          state.settings?.selectedGeneration ?? null,
+          state.card,
+          state.draft,
+        )}
+        testsStored={testsStoredConnection(
           stored,
           state.settings?.selectedGeneration ?? null,
           state.card,

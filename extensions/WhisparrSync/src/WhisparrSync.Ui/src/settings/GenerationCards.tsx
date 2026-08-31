@@ -102,7 +102,10 @@ function GenerationCard({
             {stored === null ? "" : stored.keyIsSet ? "Key is set" : "Key not stored"}
           </StatusText>
         </div>
-        {lines === null ? null : (
+        {/* Only for a card the form is not showing. The section below states the same reading in
+            full for the card it is editing, and saying it twice on one screen teaches the reader to
+            skip both. */}
+        {lines === null || showing ? null : (
           <div>
             <StatusText kind="muted">{lines.version}</StatusText>
           </div>
