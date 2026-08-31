@@ -151,6 +151,14 @@ describe("deciding whether a result still describes the field", () => {
     expect(isAddressEdit("http://whisparr:6969", "  http://whisparr:6969 ")).toBe(false);
   });
 
+  // Letter case does not move an address, and the server's own same-address rule folds it. A browser
+  // that disagreed would discard a result the server would have kept, which reports a reading that
+  // still holds as absent.
+  it("reports no edit for a change of letter case", () => {
+    expect(isAddressEdit("http://whisparr:6969", "HTTP://WHISPARR:6969")).toBe(false);
+    expect(isAddressEdit("HTTP://HOST:6969", "http://host:6969/")).toBe(false);
+  });
+
   it("reports an edit for a change that does", () => {
     expect(isAddressEdit("http://whisparr:6969", "http://whisparr:6970")).toBe(true);
     expect(isAddressEdit("http://whisparr:6969", "https://whisparr:6969")).toBe(true);
