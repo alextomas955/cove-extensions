@@ -68,6 +68,19 @@ export function importRefusalsWithNoReportedRootSentence(count: number): string 
   return `${String(count)} ${count === 1 ? "file" : "files"} ${count === 1 ? "has" : "have"} not reached your library, and Whisparr reported ${count === 1 ? "it" : "them"} under none of its own root folders.`;
 }
 
+/**
+ * What the default upgrade behaviour does, in the terms the reader sees the result in.
+ *
+ * Neither behaviour removes anything from disk, so both sentences say so rather than leaving the
+ * reader to infer it from the one that mentions it.
+ */
+export const UPGRADE_KEEPS_BOTH_FILES =
+  "The new file joins the scene you already have, and Cove lists both until its own scan notices the old one is gone. Nothing is removed from disk.";
+
+/** What the other upgrade behaviour does. */
+export const UPGRADE_DROPS_THE_SUPERSEDED_FILE =
+  "The new file joins the scene you already have and the file it replaces is dropped from it. That file stays on disk, for Whisparr to remove.";
+
 /** Whisparr's own renaming reaching files Cove already holds. */
 export const WHISPARR_MAY_RENAME = "Whisparr may change files in your library";
 

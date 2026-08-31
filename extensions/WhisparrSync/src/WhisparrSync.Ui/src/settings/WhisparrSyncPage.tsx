@@ -3,10 +3,12 @@ import { RefusalNotice } from "../common/ui/RefusalNotice";
 import { ConnectionSection } from "./ConnectionSection";
 import { GenerationCards } from "./GenerationCards";
 import { ImportBanner } from "./ImportBanner";
+import { ImportBehaviorSection } from "./ImportBehaviorSection";
 import { ImportWebhookSection } from "./ImportWebhookSection";
 import { isNoOpSave, testsStoredConnection, valuesForCard } from "./connectLogic";
 import { useConnection } from "./useConnection";
 import { useImportBanner } from "./useImportBanner";
+import { useImportBehavior } from "./useImportBehavior";
 import { useRegistration } from "./useRegistration";
 
 /**
@@ -27,6 +29,7 @@ export function WhisparrSyncPage() {
     useConnection(reloadPage);
   const registration = useRegistration();
   const banner = useImportBanner();
+  const upgrade = useImportBehavior();
   const stored = valuesForCard(state.settings, state.card);
   const now = useNow();
 
@@ -89,16 +92,24 @@ export function WhisparrSyncPage() {
         onCopy={registration.copy}
         onRegister={registration.register}
       />
+
+      <ImportBehaviorSection
+        behavior={upgrade.behavior}
+        saving={upgrade.saving}
+        saveError={upgrade.saveError}
+        sharedReason={sharedReason}
+        onChange={upgrade.choose}
+      />
     </div>
   );
 }
 
 /**
  * How many controls the shared reason takes out while the settings are unreadable: the connection
- * test, the connection save, and the registration, which acts on the stored connection rather than on
- * the form.
+ * test, the connection save, the registration, which acts on the stored connection rather than on the
+ * form, and the upgrade behaviour, whose save would write over the settings that could not be read.
  */
-const SHARED_REASON_CONTROLS = 3;
+const SHARED_REASON_CONTROLS = 4;
 
 function reasonNothingIsReadable(readError: string | null): string {
   return readError === null

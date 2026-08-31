@@ -605,6 +605,12 @@
           "notRegistered"
         ]
       },
+      "UpgradeBehavior": {
+        "enum": [
+          "add",
+          "replace"
+        ]
+      },
       "WhisparrCapability": {
         "enum": [
           "outOfBandCallbackSecret"
@@ -710,6 +716,16 @@
                 "$ref": "#/components/schemas/WhisparrSyncGenerationSaveRequest"
               }
             ]
+          },
+          "upgradeBehavior": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/UpgradeBehavior"
+              }
+            ]
           }
         }
       },
@@ -717,7 +733,8 @@
         "required": [
           "selectedGeneration",
           "v3",
-          "v2"
+          "v2",
+          "upgradeBehavior"
         ],
         "type": "object",
         "properties": {
@@ -729,6 +746,9 @@
           },
           "v2": {
             "$ref": "#/components/schemas/WhisparrSyncGenerationSettingsView"
+          },
+          "upgradeBehavior": {
+            "$ref": "#/components/schemas/UpgradeBehavior"
           }
         }
       }
