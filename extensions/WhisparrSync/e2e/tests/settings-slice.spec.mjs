@@ -108,7 +108,24 @@ async function reportedVersion(whisparr, generation) {
  */
 const MARKER = "__coveSettingsSliceMarker";
 const plantMarker = (page) => page.evaluate((name) => (window[name] = 1), MARKER);
-const readMarker = (page) => page.evaluate((name) => window[name], MARKER);
+
+/**
+ * The planted value, or undefined once the page has navigated away from the context holding it.
+ *
+ * A read that lands while the reload is in flight is torn down with the context it was running in,
+ * and that teardown is the very event this reads for — so it answers undefined rather than throwing.
+ * Any other failure still throws: a page that broke some other way must not read as a page that
+ * reloaded.
+ */
+const readMarker = (page) =>
+  page
+    .evaluate((name) => window[name], MARKER)
+    .catch((cause) => {
+      if (/Execution context was destroyed/i.test(cause?.message ?? "")) {
+        return undefined;
+      }
+      throw cause;
+    });
 
 test("both generations are configured independently, and only a generation change reloads", async ({
   page,
