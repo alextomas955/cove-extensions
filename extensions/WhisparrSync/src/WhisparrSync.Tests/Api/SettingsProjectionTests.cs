@@ -182,6 +182,10 @@ public sealed partial class SettingsProjectionTests
             {
                 "ConnectionTransportFailure.host",
                 "ImportEventTypeIgnored.eventType",
+                // A Whisparr root folder, from the configured instance's own answer to an
+                // authenticated read rather than from an anonymous delivery's body. It names a
+                // directory the user configured and can hold no credential.
+                "ImportRefused.root",
                 "ReportedRootReadFailed.host",
             }.Order(),
             LogTemplates()
