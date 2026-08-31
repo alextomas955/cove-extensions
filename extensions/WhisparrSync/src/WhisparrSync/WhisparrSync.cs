@@ -1,5 +1,6 @@
 using Cove.Plugins;
 using Cove.Sdk;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -67,7 +68,10 @@ public sealed partial class WhisparrSync : FullExtensionBase
         services.AddScoped<IWhisparrConnectionTester, ConnectionTester>();
         services.AddScoped<IConnectionTestRunner, ConnectionTestRunner>();
         services.AddScoped<ICredentialPort, CredentialPort>();
-        services.AddScoped<ICallbackSecretPort, CallbackSecretPort>();
+        services.AddScoped<ICallbackSecretPort>(
+            services => new CallbackSecretPort(services.GetRequiredService<DbContext>(), _log));
+        services.AddScoped<IWhisparrNotificationPort>(
+            services => new NotificationPort(services.GetRequiredService<IWhisparrClient>(), _log));
         services.AddScoped(_ => new OptionsStore(Store, _log));
     }
 

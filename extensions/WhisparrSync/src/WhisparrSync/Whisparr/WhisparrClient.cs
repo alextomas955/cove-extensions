@@ -1,16 +1,25 @@
 using System.Globalization;
+using System.Net.Mime;
+using System.Text;
+using System.Text.Json.Nodes;
 
 namespace WhisparrSync.Whisparr;
 
 /// <summary>The class of work a request does, which is what its retry behaviour is keyed on.</summary>
 /// <remarks>
-/// Only reads exist so far. A class that must never be re-issued is added as a member with no entry
-/// in <see cref="WhisparrRetryPolicy"/>'s table, which is a data change rather than a structural one.
+/// A class that must never be re-issued is a member with no entry in
+/// <see cref="WhisparrRetryPolicy"/>'s table, which is a data change rather than a structural one.
 /// </remarks>
 public enum WhisparrVerbClass
 {
     /// <summary>A request that only reads. Re-issuing one creates nothing and grabs nothing.</summary>
     Read,
+
+    /// <summary>
+    /// A request that changes the instance's own configuration. Never re-issued: a second attempt
+    /// after an answer that did not arrive would act twice.
+    /// </summary>
+    Configure,
 }
 
 /// <summary>How many attempts a verb class is allowed.</summary>
@@ -64,6 +73,27 @@ public interface IWhisparrClient
     /// <exception cref="HttpRequestException">The request produced no response.</exception>
     /// <exception cref="TaskCanceledException">The request outlived the client's timeout.</exception>
     Task<WhisparrResponse> ReadStatusAsync(Uri baseAddress, string apiKey, CancellationToken ct);
+
+    /// <summary>Reads the notification schema, which declares what a connection can be told.</summary>
+    Task<WhisparrResponse> ReadNotificationSchemaAsync(Uri baseAddress, string apiKey, CancellationToken ct);
+
+    /// <summary>Reads every notification the instance holds.</summary>
+    Task<WhisparrResponse> ListNotificationsAsync(Uri baseAddress, string apiKey, CancellationToken ct);
+
+    /// <summary>Creates one notification.</summary>
+    /// <remarks>
+    /// Never re-issued on a failure, whatever the failure is. The instance enforces name uniqueness,
+    /// so a second attempt after an answer that did not arrive is refused rather than duplicated —
+    /// but the answer to that refusal is indistinguishable from a real one, so the re-issue is not
+    /// made at all.
+    /// </remarks>
+    Task<WhisparrResponse> CreateNotificationAsync(
+        Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct);
+
+    /// <summary>Replaces the notification with <paramref name="id"/>.</summary>
+    /// <inheritdoc cref="CreateNotificationAsync" path="/remarks"/>
+    Task<WhisparrResponse> UpdateNotificationAsync(
+        Uri baseAddress, string apiKey, int id, JsonNode body, CancellationToken ct);
 }
 
 /// <inheritdoc cref="IWhisparrClient"/>
@@ -72,8 +102,11 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
     /// <summary>The header both generations authenticate an API request with.</summary>
     internal const string ApiKeyHeader = "X-Api-Key";
 
-    // Relative, so it composes onto a base address carrying a URL base (a reverse-proxy subpath).
+    // Relative, so they compose onto a base address carrying a URL base (a reverse-proxy subpath).
+    // Both generations serve the v3 route family; the version in the path is not the generation.
     private const string StatusPath = "api/v3/system/status";
+    private const string NotificationPath = "api/v3/notification";
+    private const string NotificationSchemaPath = "api/v3/notification/schema";
 
     /// <summary>How long one attempt may take before it is reported as unreachable.</summary>
     internal static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
@@ -100,19 +133,30 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
                 nameof(baseAddress));
         }
 
-        // Only the read class reaches here, so re-issuing re-reads and can create nothing. The last
-        // attempt is the plain send, so its failure propagates rather than being counted again.
-        var attempts = WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Read);
-        for (var attempt = 1; attempt < attempts; attempt++)
-        {
-            if (await TrySendAsync(baseAddress, apiKey, ct).ConfigureAwait(false) is { } answered)
-            {
-                return answered;
-            }
-        }
-
-        return await SendAsync(baseAddress, apiKey, ct).ConfigureAwait(false);
+        return await ReadAsync(baseAddress, apiKey, StatusPath, ct).ConfigureAwait(false);
     }
+
+    public Task<WhisparrResponse> ReadNotificationSchemaAsync(
+        Uri baseAddress, string apiKey, CancellationToken ct)
+        => ReadAsync(baseAddress, apiKey, NotificationSchemaPath, ct);
+
+    public Task<WhisparrResponse> ListNotificationsAsync(
+        Uri baseAddress, string apiKey, CancellationToken ct)
+        => ReadAsync(baseAddress, apiKey, NotificationPath, ct);
+
+    public Task<WhisparrResponse> CreateNotificationAsync(
+        Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct)
+        => ConfigureAsync(baseAddress, apiKey, HttpMethod.Post, NotificationPath, body, ct);
+
+    public Task<WhisparrResponse> UpdateNotificationAsync(
+        Uri baseAddress, string apiKey, int id, JsonNode body, CancellationToken ct)
+        => ConfigureAsync(
+            baseAddress,
+            apiKey,
+            HttpMethod.Put,
+            string.Create(CultureInfo.InvariantCulture, $"{NotificationPath}/{id}"),
+            body,
+            ct);
 
     /// <summary>Whether <paramref name="address"/> is one a socket may be opened to.</summary>
     /// <remarks>
@@ -146,13 +190,42 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
             MaxAutomaticRedirections = MaxRedirects,
         };
 
+    // Re-issuing a read re-reads and can create nothing, so the read class is the only one that gets
+    // more than one attempt. The last attempt is the plain send, so its failure propagates rather
+    // than being counted again.
+    private async Task<WhisparrResponse> ReadAsync(
+        Uri baseAddress, string apiKey, string path, CancellationToken ct)
+    {
+        var attempts = WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Read);
+        for (var attempt = 1; attempt < attempts; attempt++)
+        {
+            if (await TrySendAsync(baseAddress, apiKey, HttpMethod.Get, path, null, ct)
+                .ConfigureAwait(false) is { } answered)
+            {
+                return answered;
+            }
+        }
+
+        return await SendAsync(baseAddress, apiKey, HttpMethod.Get, path, null, ct).ConfigureAwait(false);
+    }
+
+    // Sent once. This class acts on the instance, and a request whose answer did not arrive is not
+    // the same as one that says nothing happened.
+    private Task<WhisparrResponse> ConfigureAsync(
+        Uri baseAddress, string apiKey, HttpMethod method, string path, JsonNode body, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        return SendAsync(baseAddress, apiKey, method, path, body, ct);
+    }
+
     // Null when the connection never established, which is the one failure a read may be re-issued
     // after. A status, however unwelcome, is an answer and is returned.
-    private async Task<WhisparrResponse?> TrySendAsync(Uri baseAddress, string apiKey, CancellationToken ct)
+    private async Task<WhisparrResponse?> TrySendAsync(
+        Uri baseAddress, string apiKey, HttpMethod method, string path, JsonNode? body, CancellationToken ct)
     {
         try
         {
-            return await SendAsync(baseAddress, apiKey, ct).ConfigureAwait(false);
+            return await SendAsync(baseAddress, apiKey, method, path, body, ct).ConfigureAwait(false);
         }
         catch (HttpRequestException)
         {
@@ -160,22 +233,28 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
         }
     }
 
-    private async Task<WhisparrResponse> SendAsync(Uri baseAddress, string apiKey, CancellationToken ct)
+    private async Task<WhisparrResponse> SendAsync(
+        Uri baseAddress, string apiKey, HttpMethod method, string path, JsonNode? body, CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, StatusUri(baseAddress));
+        using var request = new HttpRequestMessage(method, RequestUri(baseAddress, path));
         request.Headers.Add(ApiKeyHeader, apiKey);
+        if (body is not null)
+        {
+            request.Content = new StringContent(
+                body.ToJsonString(), Encoding.UTF8, MediaTypeNames.Application.Json);
+        }
 
         using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
-        var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        var answered = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         return new WhisparrResponse(
             (int)response.StatusCode,
             response.Content.Headers.ContentType?.ToString(),
-            body);
+            answered);
     }
 
     // Relative-Uri composition drops the last segment of a base that does not end in a separator,
     // which would turn a URL base of /whisparr into a request at the site root instead.
-    private static Uri StatusUri(Uri baseAddress)
+    private static Uri RequestUri(Uri baseAddress, string path)
     {
         var builder = new UriBuilder(baseAddress);
         if (!builder.Path.EndsWith('/'))
@@ -183,6 +262,6 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
             builder.Path += '/';
         }
 
-        return new Uri(builder.Uri, StatusPath);
+        return new Uri(builder.Uri, path);
     }
 }

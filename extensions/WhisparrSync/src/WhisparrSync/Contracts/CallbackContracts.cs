@@ -54,8 +54,8 @@ public enum CallbackSecretPosition
 /// <param name="CopyableAddress">The address to hand a user, with the secret in it.</param>
 /// <param name="RegisteredAddress">The address this product registers, with no secret in it.</param>
 /// <param name="SecretTravelsOutOfBand">
-/// Whether this generation can carry the secret off the address at all. False is a generation gap:
-/// v2's Webhook connection declares no field for a custom header.
+/// Whether this generation can carry the secret off the address at all. False is a generation gap,
+/// and means the registered address has to carry the secret itself.
 /// </param>
 /// <param name="LastEventSecretPosition">
 /// Where the most recent inbound callback carried its secret, or null when none has arrived. Null is
@@ -63,13 +63,25 @@ public enum CallbackSecretPosition
 /// the standing note about the less private form is shown for, and it clears itself when an event
 /// arrives carrying the secret out of band.
 /// </param>
+/// <param name="MissingSetting">
+/// Which connection setting was empty when a registration could not be attempted, or null on any
+/// other answer. Named so the sentence points at the field that is actually empty rather than at the
+/// pair.
+/// </param>
+/// <param name="Refusal">
+/// What the instance refused, in its own words, or null when nothing was refused. Present only after
+/// a registration whose READ-BACK did not find the address that was sent, so it reports what the
+/// notification now says rather than what the write answered.
+/// </param>
 public sealed record CallbackView(
     WhisparrGeneration Generation,
     RegistrationStatus Status,
     string CopyableAddress,
     string RegisteredAddress,
     bool SecretTravelsOutOfBand,
-    CallbackSecretPosition? LastEventSecretPosition);
+    CallbackSecretPosition? LastEventSecretPosition,
+    ConnectionSetting? MissingSetting,
+    string? Refusal);
 
 /// <summary>One request to register the callback in the connected instance.</summary>
 /// <remarks>

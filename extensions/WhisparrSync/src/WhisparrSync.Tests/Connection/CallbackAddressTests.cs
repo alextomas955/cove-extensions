@@ -197,23 +197,84 @@ public sealed class CallbackAddressTests
         Assert.DoesNotContain("String.Equals", callees);
     }
 
+    /// <summary>
+    /// Every position a registration this product makes can use is read, and so is the address.
+    /// </summary>
+    /// <remarks>
+    /// The two generations carry the secret differently — a custom header on one, Basic auth on the
+    /// other — and the route that receives both deliveries has to read both without knowing which
+    /// instance sent one.
+    /// </remarks>
     [Fact]
-    public void TheSecretIsReadFromEitherPositionAndOutOfBandWins()
+    public void TheSecretIsReadFromEveryPositionAndAnOutOfBandOneWins()
     {
-        Assert.Null(CallbackSecret.PresentedIn(null, null));
-        Assert.Null(CallbackSecret.PresentedIn("  ", ""));
+        Assert.Null(CallbackSecret.PresentedIn(null, null, null));
+        Assert.Null(CallbackSecret.PresentedIn("  ", "", ""));
 
-        var fromAddress = CallbackSecret.PresentedIn(null, "in-the-address");
-        Assert.Equal(new PresentedCallbackSecret("in-the-address", CallbackSecretPosition.Address), fromAddress);
+        Assert.Equal(
+            new PresentedCallbackSecret("in-the-address", CallbackSecretPosition.Address),
+            CallbackSecret.PresentedIn(null, null, "in-the-address"));
 
-        var fromHeader = CallbackSecret.PresentedIn("in-a-header", null);
-        Assert.Equal(new PresentedCallbackSecret("in-a-header", CallbackSecretPosition.OutOfBand), fromHeader);
+        Assert.Equal(
+            new PresentedCallbackSecret("in-a-header", CallbackSecretPosition.OutOfBand),
+            CallbackSecret.PresentedIn("in-a-header", null, null));
+
+        Assert.Equal(
+            new PresentedCallbackSecret("in-basic-auth", CallbackSecretPosition.OutOfBand),
+            CallbackSecret.PresentedIn(null, BasicAuth(CallbackSecret.BasicAuthUser, "in-basic-auth"), null));
 
         // A delivery from a registration this product made is never classified by a query string an
         // intermediary could have appended.
-        var both = CallbackSecret.PresentedIn("in-a-header", "in-the-address");
-        Assert.Equal(new PresentedCallbackSecret("in-a-header", CallbackSecretPosition.OutOfBand), both);
+        Assert.Equal(
+            new PresentedCallbackSecret("in-a-header", CallbackSecretPosition.OutOfBand),
+            CallbackSecret.PresentedIn("in-a-header", null, "in-the-address"));
+        Assert.Equal(
+            new PresentedCallbackSecret("in-basic-auth", CallbackSecretPosition.OutOfBand),
+            CallbackSecret.PresentedIn(
+                null, BasicAuth(CallbackSecret.BasicAuthUser, "in-basic-auth"), "in-the-address"));
     }
+
+    /// <summary>
+    /// The secret is the PASSWORD half, and an authorization header that carries none is not one.
+    /// </summary>
+    /// <remarks>
+    /// Split on the FIRST colon, because a secret may contain one and a user name may not.
+    /// </remarks>
+    [Theory]
+    [InlineData("Bearer something", null)]
+    [InlineData("Basic not-base64!!", null)]
+    [InlineData("Basic ", null)]
+    [InlineData("Digest dXNlcjpzZWNyZXQ=", null)]
+    public void AnAuthorizationHeaderThatCarriesNoBasicPasswordPresentsNothing(
+        string authorization, string? expected)
+    {
+        var presented = CallbackSecret.PresentedIn(null, authorization, null);
+        Assert.Equal(expected, presented?.Value);
+    }
+
+    [Theory]
+    [InlineData("user", "secret", "secret")]
+    [InlineData("user", "sec:ret", "sec:ret")]
+    [InlineData("", "secret", "secret")]
+    public void TheBasicAuthSecretIsThePasswordHalf(string user, string password, string expected)
+        => Assert.Equal(
+            expected,
+            CallbackSecret.PresentedIn(null, BasicAuth(user, password), null)?.Value);
+
+    [Theory]
+    [InlineData("user", "")]
+    [InlineData("no-colon-at-all", null)]
+    public void ABasicCredentialWithNoPasswordPresentsNothing(string user, string? password)
+    {
+        var credential = password is null ? user : $"{user}:{password}";
+        var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(credential));
+
+        Assert.Null(CallbackSecret.PresentedIn(null, $"Basic {encoded}", null));
+    }
+
+    private static string BasicAuth(string user, string password)
+        => "Basic " + Convert.ToBase64String(
+            System.Text.Encoding.UTF8.GetBytes($"{user}:{password}"));
 
     /// <summary>Every method token in <paramref name="method"/>'s IL, as <c>Type.Member</c>.</summary>
     private static HashSet<string> CalleeNames(MethodInfo method)
