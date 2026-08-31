@@ -50,9 +50,15 @@ const aliasFor = (generation) => `whisparr-${generation}`;
  * and "it did nothing" are the same observation.
  *
  * `rootFolder` — one path for every generation, or a per-generation map — declares the library root
- * each instance reports. It is how the two path variants are expressed: whether Cove can resolve
- * what an instance reports is a question about STRINGS, so neither variant needs a shared
- * filesystem, and a volume no reaper owns would be a cleanup path bought for nothing.
+ * each instance reports, and a consumer reads that list back off the instance rather than off a
+ * delivery: neither generation's import event names a root folder at all.
+ *
+ * Resolving what an instance reports to what Cove holds is NOT a question about strings alone. A
+ * candidate path is accepted only when the file is really present there, so a spec proving the
+ * positive needs a real file inside a Cove library root — placed with
+ * `seed-media.mjs`'s `placeVideoUnregistered`, which needs no shared filesystem because it copies
+ * into Cove's own container. The two path variants this option expresses still need no shared
+ * mount; what they no longer do is settle a resolution on their own.
  *
  * @param {{network: string, generations?: ("v3"|"v2")[], apiKey?: string, startupTimeoutMs?: number,
  *          seedHistory?: boolean|{count?: number}, rootFolder?: string|Record<string,string>}} options
