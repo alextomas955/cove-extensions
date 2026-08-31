@@ -441,7 +441,9 @@
           "configurationResolved",
           "libraryRootCount",
           "workerStartedAtUtc",
-          "workerCancelledAtUtc"
+          "workerCancelledAtUtc",
+          "scanServiceResolved",
+          "metadataServerServiceResolved"
         ],
         "type": "object",
         "properties": {
@@ -465,6 +467,12 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "scanServiceResolved": {
+            "type": "boolean"
+          },
+          "metadataServerServiceResolved": {
+            "type": "boolean"
           }
         }
       },

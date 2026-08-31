@@ -20,6 +20,20 @@ public sealed partial class WhisparrSync
         EventId = 2000, Level = LogLevel.Warning,
         Message = "[WhisparrSync] the host supplied no Cove configuration; nothing measured from it can be resolved")]
     private partial void LogNoCoveConfiguration();
+
+    // A host service this extension's container could not produce. Information rather than Warning:
+    // the extension loads either way and reports the reading through its own probe response, so the
+    // line is the record of a load-time observation rather than a failure.
+    [LoggerMessage(
+        EventId = 2001, Level = LogLevel.Information,
+        Message = "[WhisparrSync] IScanService could not be obtained from this extension's container")]
+    private partial void LogNoScanService();
+
+    /// <inheritdoc cref="LogNoScanService"/>
+    [LoggerMessage(
+        EventId = 2002, Level = LogLevel.Information,
+        Message = "[WhisparrSync] IMetadataServerService could not be obtained from this extension's container")]
+    private partial void LogNoMetadataServerService();
 }
 
 /// <summary>
