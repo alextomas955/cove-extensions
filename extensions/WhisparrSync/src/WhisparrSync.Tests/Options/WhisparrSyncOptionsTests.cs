@@ -7,24 +7,12 @@ namespace WhisparrSync.Tests.Options;
 /// The options blob: what a default carries, that a round-trip through the store returns an equal
 /// record, and that the two generations' connections are independent of one another.
 /// </summary>
+/// <remarks>
+/// The four options with no control in the settings page have their own file, which pins their
+/// defaults beside what the shipped code does while they stay at them.
+/// </remarks>
 public sealed class WhisparrSyncOptionsTests
 {
-    /// <summary>
-    /// The four advanced options have no control in the settings page, so their defaults are the
-    /// values every install runs on. A change to one of these is a behaviour change for everybody.
-    /// </summary>
-    [Fact]
-    public void TheAdvancedOptionsCarryTheirStatedDefaults()
-    {
-        var options = new WhisparrSyncOptions();
-
-        Assert.Empty(options.PathTranslation);
-        Assert.Equal(MonitorScope.NewReleasesOnly, options.DefaultMonitorScope);
-        Assert.Equal("", options.MetadataProviderEndpoints.V3);
-        Assert.Equal("", options.MetadataProviderEndpoints.V2);
-        Assert.Equal("", options.CallbackHost);
-    }
-
     /// <summary>Neither generation is configured until something configures it.</summary>
     [Fact]
     public void ADefaultRecordHasNoConnectionForEitherGeneration()
