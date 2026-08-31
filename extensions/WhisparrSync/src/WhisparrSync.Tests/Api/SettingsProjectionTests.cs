@@ -124,10 +124,25 @@ public sealed partial class SettingsProjectionTests
     /// Transcribed by hand. A template that grows a string parameter fails this until the parameter is
     /// named here, which is the point at which someone decides whether it can carry a key.
     /// </remarks>
+    /// <remarks>
+    /// <c>ImportEventTypeIgnored.eventType</c> is the one entry here whose value an outside caller
+    /// chooses. It is admitted because the alternative is a line that says an unrecognised event
+    /// arrived without saying which, and because the handler shortens it before it is passed: a
+    /// credential presented to that route travels in a header or the address, never in the event
+    /// type, and a body long enough to hide one in is refused before it is parsed.
+    /// <para>
+    /// Both <c>host</c> entries are host names, which is the most an outbound failure is given.
+    /// </para>
+    /// </remarks>
     [Fact]
     public void TheLogTemplatesTakeOnlyTheStringsTheyAreMeantTo()
         => Assert.Equal(
-            new[] { "ConnectionTransportFailure.host" }.Order(),
+            new[]
+            {
+                "ConnectionTransportFailure.host",
+                "ImportEventTypeIgnored.eventType",
+                "ReportedRootReadFailed.host",
+            }.Order(),
             LogTemplates()
                 .SelectMany(template => template.GetParameters(), (template, parameter) => (template, parameter))
                 .Where(pair => pair.parameter.ParameterType == typeof(string))

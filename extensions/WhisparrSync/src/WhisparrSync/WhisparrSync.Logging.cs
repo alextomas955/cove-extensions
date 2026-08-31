@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
+using WhisparrSync.Import;
 
 namespace WhisparrSync;
 
@@ -76,4 +77,36 @@ internal static partial class WhisparrSyncLog
         ILogger logger,
         WhisparrGeneration generation,
         int writeStatus);
+
+    // An ingest that registered nothing, named by cause. No path here: a refused delivery's path is a
+    // caller-supplied string and a log sink is durable and readable.
+    [LoggerMessage(
+        EventId = 2103, Level = LogLevel.Information,
+        Message = "[WhisparrSync] an import from {Generation} registered nothing ({Outcome}, {VerifiedCount} candidate(s) verified)")]
+    internal static partial void ImportRefused(
+        ILogger logger,
+        WhisparrGeneration generation,
+        ImportOutcome outcome,
+        int verifiedCount);
+
+    // An event type this product does not act on. Named so an instance sending one nobody expected is
+    // visible, and emitted once per distinct type rather than once per delivery: a subscribed trigger
+    // that fires often would otherwise fill the log with one line per file.
+    [LoggerMessage(
+        EventId = 2104, Level = LogLevel.Information,
+        Message = "[WhisparrSync] {Generation} sent the event type {EventType}, which this product does not act on")]
+    internal static partial void ImportEventTypeIgnored(
+        ILogger logger,
+        WhisparrGeneration generation,
+        string eventType);
+
+    // A root-folder read that reached nothing. Best-effort by design - the ingest refuses on the
+    // empty reading - so this is the one line that says the request was made and died.
+    [LoggerMessage(
+        EventId = 2105, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] reading {Generation}'s declared root folders from {Host} produced no response")]
+    internal static partial void ReportedRootReadFailed(
+        ILogger logger,
+        WhisparrGeneration generation,
+        string host);
 }

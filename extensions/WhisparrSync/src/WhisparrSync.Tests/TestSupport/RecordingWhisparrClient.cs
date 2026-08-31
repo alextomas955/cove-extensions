@@ -57,6 +57,10 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer) : IWhispa
         Uri baseAddress, string apiKey, CancellationToken ct)
         => Record(nameof(ListNotificationsAsync), baseAddress, null, null);
 
+    public Task<WhisparrResponse> ReadRootFoldersAsync(
+        Uri baseAddress, string apiKey, CancellationToken ct)
+        => Record(nameof(ReadRootFoldersAsync), baseAddress, null, null);
+
     public Task<WhisparrResponse> CreateNotificationAsync(
         Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct)
         => Record(nameof(CreateNotificationAsync), baseAddress, null, body);

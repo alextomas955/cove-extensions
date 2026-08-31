@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
+using WhisparrSync.Import;
 using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
 
@@ -85,6 +86,28 @@ public sealed partial class WhisparrSync : FullExtensionBase
         services.AddScoped<IWhisparrNotificationPort>(
             services => new NotificationPort(services.GetRequiredService<IWhisparrClient>(), _log));
         services.AddScoped(_ => new OptionsStore(Store, _log));
+
+        // The root cache is the one singleton here. A delivery arrives per file, so a reading held
+        // per scope would be a reading taken per file.
+        services.AddSingleton(services => new ReportedRootCache(services.GetRequiredService<TimeProvider>()));
+        services.AddScoped<IImportPathPort, ImportPathPort>();
+        services.AddScoped<IReportedRootPort>(services => new ReportedRootPort(
+            services.GetRequiredService<IWhisparrClient>(),
+            services.GetRequiredService<OptionsStore>(),
+            services.GetRequiredService<ICredentialPort>(),
+            services.GetRequiredService<ReportedRootCache>(),
+            _log));
+
+        // Both host-supplied dependencies are optional, matching how the configuration is already
+        // taken: a container that cannot produce one still builds the port, and the ingest reports
+        // the refusal instead of failing to resolve.
+        services.AddScoped<ICoveLibraryPort>(
+            services => new CoveLibraryPort(services.GetService<IScanService>(), _coveConfig));
+        services.AddScoped<IImportCore>(services => new ImportCore(
+            services.GetRequiredService<IReportedRootPort>(),
+            services.GetRequiredService<ICoveLibraryPort>(),
+            services.GetRequiredService<IImportPathPort>(),
+            _log));
     }
 
     public override Task InitializeAsync(IServiceProvider services, CancellationToken ct = default)
