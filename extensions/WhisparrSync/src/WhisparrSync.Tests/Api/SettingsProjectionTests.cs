@@ -38,6 +38,24 @@ public sealed partial class SettingsProjectionTests
         "WhisparrSyncGenerationSettingsView.RecordedVersion",
     ];
 
+    /// <summary>
+    /// Every member of the stored options record whose NAME reads like a credential, none of which
+    /// carries one.
+    /// </summary>
+    /// <remarks>
+    /// Transcribed by hand. A member added to the record whose name matches the vocabulary above
+    /// fails this until it is named here, which is the point at which someone decides whether the
+    /// blob the bulk data route serves whole has grown a secret.
+    /// <para>
+    /// <c>LastCallbackSecretPosition</c> is an enum naming WHERE an inbound delivery carried its
+    /// secret. The secret itself, and the API key, live in a table this record has no member for.
+    /// </para>
+    /// </remarks>
+    private static readonly string[] OptionsMembersNamedLikeACredential =
+    [
+        "WhisparrSyncGenerationConnection.LastCallbackSecretPosition",
+    ];
+
     /// <summary>The settings the host serializes an extension's responses with.</summary>
     private static readonly JsonSerializerOptions HostJsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -51,6 +69,29 @@ public sealed partial class SettingsProjectionTests
             strings,
             member => CredentialVocabulary.Any(
                 word => member.Contains(word, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>
+    /// The stored options record grows no member named as though it carried a credential.
+    /// </summary>
+    /// <remarks>
+    /// The blob the bulk extension-data route serves is this record, whole, and that route answered
+    /// an unauthenticated in-network caller on a Cove booted with authentication off. A search of a
+    /// serialized sample can only fail on a credential that happens to be in the sample, so the
+    /// members are read off the types instead.
+    /// </remarks>
+    [Fact]
+    public void TheStoredOptionsRecordGrowsNoMemberNamedLikeACredential()
+    {
+        var names = MemberNamesOf(typeof(WhisparrSyncOptions), []).Distinct().ToList();
+
+        Assert.NotEmpty(names);
+        Assert.Equal(
+            OptionsMembersNamedLikeACredential.Order(),
+            names
+                .Where(name => CredentialVocabulary.Any(
+                    word => name.Contains(word, StringComparison.OrdinalIgnoreCase)))
+                .Order());
     }
 
     [Fact]
@@ -210,6 +251,51 @@ public sealed partial class SettingsProjectionTests
                         + "A member it cannot read is a member it cannot say is free of a key.");
             }
         }
+    }
+
+    /// <summary>
+    /// Every member name a type can reach, by declaring type and member name, walking the whole
+    /// graph including the element type of any collection.
+    /// </summary>
+    /// <remarks>
+    /// Unlike the string walk above this reads names rather than types, so a credential parked in a
+    /// number, a collection or a nested record is still named here.
+    /// </remarks>
+    private static IEnumerable<string> MemberNamesOf(Type type, HashSet<Type> seen)
+    {
+        if (!seen.Add(type))
+        {
+            yield break;
+        }
+
+        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            yield return $"{type.Name}.{property.Name}";
+
+            foreach (var nested in OwnTypesWithin(property.PropertyType)
+                .SelectMany(owned => MemberNamesOf(owned, seen)))
+            {
+                yield return nested;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The types declared by this extension that <paramref name="type"/> leads to, unwrapping a
+    /// nullable and the element type of a collection.
+    /// </summary>
+    private static IEnumerable<Type> OwnTypesWithin(Type type)
+    {
+        var bare = Nullable.GetUnderlyingType(type) ?? type;
+
+        if (bare.IsGenericType)
+        {
+            return bare.GetGenericArguments().SelectMany(OwnTypesWithin);
+        }
+
+        return bare.Assembly == typeof(global::WhisparrSync.WhisparrSync).Assembly && !bare.IsEnum
+            ? [bare]
+            : [];
     }
 
     [GeneratedRegex(@"\{(\w+)")]
