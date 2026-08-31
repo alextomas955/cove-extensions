@@ -74,6 +74,26 @@ public sealed class CoveLibraryPortTests
         Assert.Equal(0, await library.IdentityRowCountAsync());
     }
 
+    /// <summary>
+    /// Two reads of one match, each derived live, with nothing written between them. What makes this
+    /// checkable is the row count either side: a read that cached its answer would have to store it.
+    /// </summary>
+    [Fact]
+    public async Task TwoReadsOfOneMatchAgreeAndNeitherWritesAnything()
+    {
+        await using var library = await LibraryFixture.CreateAsync();
+        var videoId = await library.SeedVideoWithFileAsync("/data/scene.mp4");
+        await library.SeedIdentityAsync(videoId, ConfiguredEndpoint, RemoteId);
+        var seeded = await library.IdentityRowCountAsync();
+
+        var first = await library.Port.ResolveByRemoteIdAsync(ConfiguredEndpoint, RemoteId, Ct);
+        var second = await library.Port.ResolveByRemoteIdAsync(OtherSpelling, RemoteId, Ct);
+
+        Assert.Equal(videoId, first.VideoId);
+        Assert.Equal(first.VideoId, second.VideoId);
+        Assert.Equal(seeded, await library.IdentityRowCountAsync());
+    }
+
     [Fact]
     public async Task AnIdentifierCarriedByTwoVideosIsRefusedRatherThanAnswered()
     {
