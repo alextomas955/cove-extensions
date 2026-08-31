@@ -36,7 +36,7 @@ internal sealed class ImportCore(
                 .ConfigureAwait(false);
         }
 
-        var imported = await library.ImportVideoAsync(path, ct).ConfigureAwait(false);
+        var imported = await library.ImportVideoAsync(path, null, ct).ConfigureAwait(false);
         if (!imported.Reached)
         {
             return await RefusedAsync(
