@@ -47,13 +47,20 @@ def main():
     # object. Every value inside an entry must be a string: the reader binds the column to a
     # string map, and a number there fails the whole request rather than that row.
     parser.add_argument("--data", default=None)
+    # The stored EventType integers to write, cycled over the rows. A caller wanting a row of one
+    # kind names that kind: the rows descend a minute apart, so which kind lands on the newest row
+    # decides whether a reader stopping at a stored instant ever reaches it.
+    parser.add_argument("--event-types", default=None)
     args = parser.parse_args()
 
     per_row = json.loads(args.data) if args.data else None
+    event_types = tuple(json.loads(args.event_types)) if args.event_types else EVENT_TYPES
+    if not event_types:
+        parser.error("--event-types must name at least one event type")
 
-    if args.count < len(EVENT_TYPES):
+    if args.count < len(event_types):
         parser.error(
-            f"--count must be at least {len(EVENT_TYPES)} so the written rows span every event type"
+            f"--count must be at least {len(event_types)} so the written rows span every event type"
         )
 
     connection = sqlite3.connect(args.db, timeout=30)
@@ -62,7 +69,7 @@ def main():
         # that resolves on its own.
         connection.execute("PRAGMA busy_timeout = 30000")
         seed = SEEDERS[args.generation]
-        rows = seed(connection, args.count, per_row)
+        rows = seed(connection, args.count, per_row, event_types)
         connection.commit()
     finally:
         connection.close()
@@ -70,7 +77,7 @@ def main():
     print(json.dumps({"generation": args.generation, "database": args.db, "rows": rows}))
 
 
-def seed_v3(connection, count, per_row=None):
+def seed_v3(connection, count, per_row=None, event_types=EVENT_TYPES):
     metadata_id = insert_once(
         connection,
         "MovieMetadata",
@@ -103,10 +110,12 @@ def seed_v3(connection, count, per_row=None):
             "Added": timestamp(0),
         },
     )
-    return insert_history(connection, count, lambda index: {"MovieId": movie_id}, per_row)
+    return insert_history(
+        connection, count, lambda index: {"MovieId": movie_id}, per_row, event_types
+    )
 
 
-def seed_v2(connection, count, per_row=None):
+def seed_v2(connection, count, per_row=None, event_types=EVENT_TYPES):
     series_id = insert_once(
         connection,
         "Series",
@@ -145,16 +154,17 @@ def seed_v2(connection, count, per_row=None):
         count,
         lambda index: {"EpisodeId": episode_id, "SeriesId": series_id},
         per_row,
+        event_types,
     )
 
 
-def insert_history(connection, count, parent_columns, per_row=None):
+def insert_history(connection, count, parent_columns, per_row=None, event_types=EVENT_TYPES):
     # Rows already there are counted so a second seed names its own rows rather than repeating the
     # first seed's: the caller correlates written rows to read records by source title.
     already = connection.execute("SELECT COUNT(*) FROM History").fetchone()[0]
     rows = []
     for index in range(count):
-        event_type = EVENT_TYPES[index % len(EVENT_TYPES)]
+        event_type = event_types[index % len(event_types)]
         source_title = f"Cove.E2E.Seeded.{already + index}.1080p.WEB-DL"
         insert(
             connection,
