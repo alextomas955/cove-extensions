@@ -125,6 +125,14 @@ export function isAddressEdit(previous: string, next: string): boolean {
 /** The two generations a card can show. Never null: a card always names one. */
 export type CardGeneration = "v3" | "v2";
 
+/** Both cards, in the order the page draws them. */
+export const CARD_GENERATIONS: readonly CardGeneration[] = ["v3", "v2"];
+
+/** What a generation is called on screen. Declared once, so two surfaces cannot name it differently. */
+export function generationLabel(card: CardGeneration): string {
+  return card === "v3" ? "Whisparr v3 (Eros)" : "Whisparr v2";
+}
+
 /** What one card's form holds that is not yet saved. */
 export interface GenerationDraft {
   /** The address as typed. */
@@ -167,6 +175,35 @@ export function afterAddressEdit(
   next: string,
 ): TransientTest {
   return clearsTransientResult(previous, next) ? NO_TRANSIENT_TEST : test;
+}
+
+/** What a successful test's detected generation means for the card it was run from. */
+export type DetectionOutcome =
+  | { readonly kind: "matchesCard" }
+  | {
+      readonly kind: "otherGeneration";
+      readonly detected: CardGeneration;
+      readonly version: string | null;
+    };
+
+/**
+ * Which of the two <code>result</code> is for <code>card</code>, or null when the test did not
+ * connect at all.
+ *
+ * Each generation's connection is remembered separately. The other-generation outcome therefore
+ * names the version found and carries nothing else: it holds no value a caller could act on as an
+ * instruction to store a connection under the generation that answered.
+ */
+export function detectionOutcome(
+  result: ConnectionTestView,
+  card: CardGeneration,
+): DetectionOutcome | null {
+  if (result.kind !== "connected" || result.generation === null) {
+    return null;
+  }
+  return result.generation === card
+    ? { kind: "matchesCard" }
+    : { kind: "otherGeneration", detected: result.generation, version: result.version };
 }
 
 /** The stored connection <code>card</code> shows, or null before the settings read answers. */

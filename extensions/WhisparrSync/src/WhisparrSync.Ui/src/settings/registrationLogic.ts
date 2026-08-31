@@ -121,7 +121,7 @@ export function missingSettingSentence(setting: ConnectionSetting): string | nul
 /**
  * The four-way read the status renders through.
  *
- * A status nothing has checked is the genuine zero here — there is no answer about this instance yet,
+ * A status nothing has checked is the genuine zero here - there is no answer about this instance yet,
  * which is not the same as an answer that says the callback is absent.
  */
 export function registrationRead(view: CallbackView | null, failed: boolean): AsyncRead {
