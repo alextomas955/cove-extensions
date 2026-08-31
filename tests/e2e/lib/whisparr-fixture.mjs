@@ -16,6 +16,9 @@ const WHISPARR_PORT = 6969;
 const STATUS_PATH = "/api/v3/system/status";
 const ROOT_FOLDER_PATH = "/api/v3/rootfolder";
 
+// Cove's own, not an instance's: the one route that declares which paths Cove treats as a library.
+const COVE_CONFIG_PATH = "/api/system/config";
+
 // A shared runner cold-starts containers more slowly than a dev machine's Docker Desktop, so the CI
 // budget is the wider one rather than local timing tuned tight.
 const DEFAULT_STARTUP_TIMEOUT_MS = process.env.CI ? 240_000 : 180_000;
@@ -54,11 +57,18 @@ const aliasFor = (generation) => `whisparr-${generation}`;
  * delivery: neither generation's import event names a root folder at all.
  *
  * Resolving what an instance reports to what Cove holds is NOT a question about strings alone. A
- * candidate path is accepted only when the file is really present there, so a spec proving the
- * positive needs a real file inside a Cove library root — placed with
- * `seed-media.mjs`'s `placeVideoUnregistered`, which needs no shared filesystem because it copies
- * into Cove's own container. The two path variants this option expresses still need no shared
- * mount; what they no longer do is settle a resolution on their own.
+ * candidate path is accepted only when the file is really present there, so every variant this
+ * option expresses needs a real file inside a Cove library root — placed with `seed-media.mjs`'s
+ * `placeVideoUnregistered`, which needs no shared filesystem because it copies into Cove's own
+ * container. What the root spellings decide is which candidates get formed; what is on disk decides
+ * which of them is imported:
+ *
+ * - the same file under two names — the instance reports a root Cove does not have, and the file
+ *   sits at the matching tail under a root Cove does. One candidate is present, and it imports.
+ * - a file at no Cove root — nothing is present at any candidate, and the delivery is refused as
+ *   not found.
+ * - a file under two Cove roots — the same tail is present under each, and the delivery is refused
+ *   as ambiguous. `addCoveLibraryRoot` below declares the second root a nested arrangement needs.
  *
  * @param {{network: string, generations?: ("v3"|"v2")[], apiKey?: string, startupTimeoutMs?: number,
  *          seedHistory?: boolean|{count?: number}, rootFolder?: string|Record<string,string>}} options
@@ -229,6 +239,67 @@ export async function registerRootFolder(container, api, generation, path) {
     );
   }
   return registered.path;
+}
+
+/**
+ * Declares `path` as one more Cove library root on the running instance, and answers with the roots
+ * Cove reports afterwards.
+ *
+ * Cove takes its library roots from its configuration, so an arrangement where one root sits inside
+ * another — which is what makes a single reported file resolvable under two of them — cannot be
+ * expressed by placing files. This reads the whole configuration, appends one path and writes it
+ * back, deriving the new entry's shape from an entry Cove itself returned rather than naming its
+ * fields here.
+ *
+ * `expectedRoots` are the roots the caller knows the instance declares. A principal that may not read
+ * the configuration is served the library paths REDACTED, and writing those back would replace the
+ * instance's real roots with the redaction marker — so this refuses before the write unless it can
+ * see every root it was told to expect.
+ *
+ * @param {{get: Function, put: Function}} api - a client for the Cove instance, carrying its token
+ * @param {string} path - the container path to declare
+ * @param {string[]} expectedRoots - roots that must appear in the read, or the write is refused
+ * @returns {Promise<string[]>} every library root Cove declares afterwards
+ */
+export async function addCoveLibraryRoot(api, path, expectedRoots) {
+  const read = await api.get(COVE_CONFIG_PATH);
+  if (!read.ok) {
+    throw new Error(
+      `addCoveLibraryRoot: GET ${COVE_CONFIG_PATH} answered ${read.status}: ${read.text?.slice(0, 300)}`,
+    );
+  }
+
+  const entries = read.json?.covePaths ?? [];
+  const declared = entries.map((entry) => entry.path);
+  const missing = expectedRoots.filter((root) => !declared.includes(root));
+  if (missing.length > 0) {
+    throw new Error(
+      `addCoveLibraryRoot: refusing to write. ${COVE_CONFIG_PATH} reported [${declared.join(", ")}], which is missing ${missing.join(", ")} — writing that back would replace the instance's library roots.`,
+    );
+  }
+
+  if (declared.includes(path)) return declared;
+
+  const saved = await api.put(COVE_CONFIG_PATH, {
+    ...read.json,
+    covePaths: [...entries, { ...entries[0], path }],
+  });
+  if (!saved.ok) {
+    throw new Error(
+      `addCoveLibraryRoot: PUT ${COVE_CONFIG_PATH} answered ${saved.status}: ${saved.text?.slice(0, 300)}`,
+    );
+  }
+
+  // Read back off the instance rather than trusting the write: a configuration that did not take is
+  // a spec asserting a branch the extension never entered.
+  const after = await api.get(COVE_CONFIG_PATH);
+  const roots = (after.json?.covePaths ?? []).map((entry) => entry.path);
+  if (!roots.includes(path)) {
+    throw new Error(
+      `addCoveLibraryRoot: after the write ${COVE_CONFIG_PATH} reports [${roots.join(", ")}], without ${path}.`,
+    );
+  }
+  return roots;
 }
 
 /**

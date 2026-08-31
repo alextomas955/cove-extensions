@@ -31,3 +31,29 @@ test("a path under nested roots is contained by every one of them", () => {
 test("a root does not contain a sibling whose name merely extends its own", () => {
   assert.deepEqual(libraryRootsContaining("/data22/scene.mp4", HOST_ROOTS), []);
 });
+
+// Transcribed the same way: the root the Whisparr fixture declares for itself, and the nested root
+// the ambiguous branch needs declared on the Cove side.
+const WHISPARR_ROOT = "/whisparr-media";
+const NESTED_COVE_ROOT = "/data/nested";
+
+test("the root an instance reports for itself is contained by no Cove root", () => {
+  assert.deepEqual(libraryRootsContaining(`${WHISPARR_ROOT}/scene.mp4`, HOST_ROOTS), []);
+});
+
+test("a nested Cove root is itself contained by the root it sits inside", () => {
+  assert.deepEqual(libraryRootsContaining(NESTED_COVE_ROOT, [...HOST_ROOTS, NESTED_COVE_ROOT]), [
+    "/data",
+    NESTED_COVE_ROOT,
+  ]);
+});
+
+test("one tail placed under both a root and its nested root is contained by each", () => {
+  const roots = [...HOST_ROOTS, NESTED_COVE_ROOT];
+
+  assert.deepEqual(libraryRootsContaining("/data/scene.mp4", roots), ["/data"]);
+  assert.deepEqual(libraryRootsContaining(`${NESTED_COVE_ROOT}/scene.mp4`, roots), [
+    "/data",
+    NESTED_COVE_ROOT,
+  ]);
+});
