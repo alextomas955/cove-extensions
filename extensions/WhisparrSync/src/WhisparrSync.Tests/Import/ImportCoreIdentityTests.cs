@@ -70,7 +70,7 @@ public sealed class ImportCoreIdentityTests
         await ingest.DeliverAsync();
         ingest.Library.Held[VerifiedPath] = 1;
 
-        Assert.Equal(ImportOutcome.Imported, await ingest.DeliverAsync());
+        Assert.Equal(ImportOutcome.AlreadyHeld, await ingest.DeliverAsync());
 
         Assert.Single(ingest.Library.Stamped);
         Assert.Single(ingest.Library.Enriched);
