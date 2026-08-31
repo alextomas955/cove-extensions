@@ -1,15 +1,18 @@
+using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
+using WhisparrSync.Import;
 using WhisparrSync.Options;
 
 namespace WhisparrSync.Tests.Options;
 
 /// <summary>
 /// The options blob: what a default carries, that a round-trip through the store returns an equal
-/// record, and that the two generations' connections are independent of one another.
+/// record, that a blob written before the record's current shape still loads, and that the two
+/// generations' connections are independent of one another.
 /// </summary>
 /// <remarks>
-/// The four options with no control in the settings page have their own file, which pins their
-/// defaults beside what the shipped code does while they stay at them.
+/// Everything the settings page has no control for has its own file, which pins the defaults beside
+/// what the shipped code does while they stay at them.
 /// </remarks>
 public sealed class WhisparrSyncOptionsTests
 {
@@ -24,7 +27,7 @@ public sealed class WhisparrSyncOptionsTests
     }
 
     /// <summary>
-    /// A save followed by a load returns an equal record, including the one collection member. Record
+    /// A save followed by a load returns an equal record, including the collection member. Record
     /// equality compares a list by reference, so a round-trip's fresh list is exactly the case a
     /// default implementation would report as changed.
     /// </summary>
@@ -39,24 +42,64 @@ public sealed class WhisparrSyncOptionsTests
 
         Assert.Equal(saved, loaded);
         Assert.Equal(saved.GetHashCode(), loaded.GetHashCode());
-        Assert.Equal(2, loaded.PathTranslation.Count);
+        Assert.Equal(2, loaded.ImportRefusals.Count);
+        Assert.Equal(2, loaded.ImportRefusals[0].NewestPaths.Count);
+    }
+
+    /// <summary>
+    /// Two records that differ only in how many entries a collection holds are not equal, at either
+    /// level of the refusal aggregate.
+    /// </summary>
+    /// <remarks>
+    /// The discriminating case for the count that precedes the elements in each component stream: a
+    /// stream that yielded only the elements would let a shorter list line up against a longer one
+    /// whose extra member happens to match the next component.
+    /// </remarks>
+    [Fact]
+    public void RecordsDifferingOnlyInHowManyRefusalsTheyHoldAreNotEqual()
+    {
+        var saved = Populated();
+
+        var oneRootFewer = saved with { ImportRefusals = [saved.ImportRefusals[0]] };
+        var onePathFewer = saved with
+        {
+            ImportRefusals =
+            [
+                saved.ImportRefusals[0] with
+                {
+                    NewestPaths = [saved.ImportRefusals[0].NewestPaths[0]],
+                },
+                saved.ImportRefusals[1],
+            ],
+        };
+
+        Assert.NotEqual(saved, oneRootFewer);
+        Assert.NotEqual(saved, onePathFewer);
+        Assert.NotEqual(saved.ImportRefusals[0], onePathFewer.ImportRefusals[0]);
     }
 
     /// <summary>
     /// The enums survive the round trip as their own spelling rather than as an ordinal, which is
-    /// what keeps a stored blob readable after a member is inserted into either enum.
+    /// what keeps a stored blob readable after a member is inserted into any of them.
     /// </summary>
     [Fact]
     public async Task TheEnumsRoundTripAsStrings()
     {
         var store = new FakeStore();
 
-        await new OptionsStore(store).SaveAsync(
-            Populated() with { SelectedGeneration = WhisparrGeneration.V2, DefaultMonitorScope = MonitorScope.AllScenes });
+        await new OptionsStore(store).SaveAsync(Populated() with
+        {
+            SelectedGeneration = WhisparrGeneration.V2,
+            DefaultMonitorScope = MonitorScope.AllScenes,
+            UpgradeBehavior = UpgradeBehavior.Replace,
+        });
 
         var blob = await store.GetAsync(OptionsStore.Key);
         Assert.Contains("\"v2\"", blob, StringComparison.Ordinal);
         Assert.Contains("\"allScenes\"", blob, StringComparison.Ordinal);
+        Assert.Contains("\"replace\"", blob, StringComparison.Ordinal);
+        Assert.Contains("\"notFoundUnderAnyRoot\"", blob, StringComparison.Ordinal);
+        Assert.Contains("\"ambiguousCandidates\"", blob, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -119,10 +162,185 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Equal(ReachableAt, loaded.V3?.LastReachableAtUtc);
     }
 
+    /// <summary>
+    /// The watermark belongs to the generation it was read from, and each generation has its own.
+    /// </summary>
+    [Fact]
+    public async Task EachGenerationCarriesItsOwnWatermark()
+    {
+        var store = new FakeStore();
+        await new OptionsStore(store).SaveAsync(Populated());
+
+        var loaded = await new OptionsStore(store).LoadAsync();
+
+        Assert.Equal(V3Watermark, loaded.V3?.BackstopWatermarkUtc);
+        Assert.Equal(V2Watermark, loaded.V2?.BackstopWatermarkUtc);
+    }
+
+    /// <summary>
+    /// Replacing the stored API key keeps the watermark; moving the address starts it again.
+    /// </summary>
+    /// <remarks>
+    /// A key belongs to a table this record knows nothing about, so a save that rotates one leaves
+    /// the connection where it was. An address that moves is a different instance with its own
+    /// history, and a mark that survived it would name a position in someone else's past.
+    /// </remarks>
+    [Fact]
+    public void AKeyRotationKeepsTheWatermarkAndAnAddressChangeDoesNot()
+    {
+        var stored = Populated();
+
+        var rotated = SettingsProjector.Apply(
+            stored,
+            new WhisparrSyncSettingsSaveRequest(
+                WhisparrGeneration.V3,
+                new WhisparrSyncGenerationSaveRequest(
+                    "http://v3-host:6969", KeyWriteSignal.Replace, "a-new-value"),
+                null));
+
+        var moved = SettingsProjector.Apply(
+            stored,
+            new WhisparrSyncSettingsSaveRequest(
+                WhisparrGeneration.V3,
+                new WhisparrSyncGenerationSaveRequest(
+                    "http://somewhere-else:6969", KeyWriteSignal.Keep, null),
+                null));
+
+        Assert.Equal(V3Watermark, rotated.V3?.BackstopWatermarkUtc);
+        Assert.Null(moved.V3?.BackstopWatermarkUtc);
+        Assert.Equal(V2Watermark, moved.V2?.BackstopWatermarkUtc);
+    }
+
     /// <summary>A blob nothing ever wrote loads as the defaults rather than throwing.</summary>
     [Fact]
     public async Task AnEmptyStoreLoadsTheDefaults()
         => Assert.Equal(new WhisparrSyncOptions(), await new OptionsStore(new FakeStore()).LoadAsync());
+
+    /// <summary>
+    /// A blob written before this record's current shape still loads: the member it carries that no
+    /// longer exists is ignored, and the members it does not carry read as their defaults.
+    /// </summary>
+    /// <remarks>
+    /// Written as a literal rather than produced by serializing anything, so it stays the blob an
+    /// install actually holds rather than one this assembly can still describe.
+    /// </remarks>
+    [Fact]
+    public async Task ABlobFromBeforeThisShapeLoadsWithTheNewMembersAtTheirDefaults()
+    {
+        var store = new FakeStore();
+        await store.SetAsync(
+            OptionsStore.Key,
+            """
+            {
+              "SelectedGeneration": "v3",
+              "V3": {
+                "Address": "http://v3-host:6969/",
+                "RecordedVersion": "3.3.8.1097"
+              },
+              "PathTranslation": [
+                { "CovePrefix": "/media", "WhisparrPrefix": "/data" }
+              ],
+              "DefaultMonitorScope": "allScenes",
+              "CallbackHost": "https://media.example.com/cove"
+            }
+            """);
+
+        var loaded = await new OptionsStore(store).LoadAsync();
+
+        Assert.Equal("http://v3-host:6969/", loaded.V3?.Address);
+        Assert.Equal(MonitorScope.AllScenes, loaded.DefaultMonitorScope);
+        Assert.Equal("https://media.example.com/cove", loaded.CallbackHost);
+
+        Assert.Null(loaded.V3?.BackstopWatermarkUtc);
+        Assert.Equal(UpgradeBehavior.Add, loaded.UpgradeBehavior);
+        Assert.Equal(
+            WhisparrSyncOptions.DefaultBackstopIntervalSeconds, loaded.BackstopIntervalSeconds);
+        Assert.Equal(new ImportHealthAggregate(), loaded.ImportHealth);
+        Assert.Empty(loaded.ImportRefusals);
+    }
+
+    /// <summary>
+    /// A stored interval below the floor is honoured as the floor, and the stored value is left as
+    /// it was found.
+    /// </summary>
+    /// <remarks>
+    /// Both cases arrive as a hand-written blob, because the point of flooring on the read is that a
+    /// value that never passed through a save is still floored.
+    /// </remarks>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    [InlineData(29)]
+    public async Task AStoredIntervalBelowTheFloorReadsBackAsTheFloor(int stored)
+    {
+        var store = new FakeStore();
+        await store.SetAsync(OptionsStore.Key, $$"""{ "BackstopIntervalSeconds": {{stored}} }""");
+
+        var loaded = await new OptionsStore(store).LoadAsync();
+
+        Assert.Equal(stored, loaded.BackstopIntervalSeconds);
+        Assert.Equal(
+            TimeSpan.FromSeconds(WhisparrSyncOptions.BackstopIntervalFloorSeconds),
+            loaded.BackstopInterval);
+    }
+
+    /// <summary>A stored interval at or above the floor is honoured as it stands.</summary>
+    [Fact]
+    public async Task AStoredIntervalAboveTheFloorIsHonoured()
+    {
+        var store = new FakeStore();
+        await store.SetAsync(OptionsStore.Key, """{ "BackstopIntervalSeconds": 45 }""");
+
+        Assert.Equal(
+            TimeSpan.FromSeconds(45), (await new OptionsStore(store).LoadAsync()).BackstopInterval);
+    }
+
+    /// <summary>
+    /// Two spellings of one Whisparr root differing only by a trailing separator are one entry.
+    /// </summary>
+    [Fact]
+    public void ARootIsHeldUnderOneSpellingWhateverSeparatorItArrivesWith()
+    {
+        var bare = new ImportRootRefusals { Root = "/whisparr/media", CountSinceLastSuccess = 1 };
+        var trailing = new ImportRootRefusals { Root = "/whisparr/media/", CountSinceLastSuccess = 1 };
+        var backslash = new ImportRootRefusals { Root = @"C:\whisparr\media\", CountSinceLastSuccess = 1 };
+
+        Assert.Equal(bare, trailing);
+        Assert.Equal("/whisparr/media", trailing.Root);
+        Assert.Equal(@"C:\whisparr\media", backslash.Root);
+    }
+
+    /// <summary>
+    /// A root that is nothing but a separator keeps one, so the root of a filesystem stays
+    /// addressable rather than folding into the blank key a delivery with no root uses.
+    /// </summary>
+    [Fact]
+    public void ARootOfNothingButSeparatorsKeepsOne()
+    {
+        Assert.Equal("/", ImportRootRefusals.NormaliseRoot("/"));
+        Assert.Equal("/", ImportRootRefusals.NormaliseRoot("///"));
+        Assert.Equal("", ImportRootRefusals.NormaliseRoot(""));
+        Assert.Equal("", ImportRootRefusals.NormaliseRoot(null));
+    }
+
+    /// <summary>
+    /// A recorded failure text is shortened where it is stored, so one exception message cannot make
+    /// the whole blob the host serves in one piece too large to serve.
+    /// </summary>
+    [Fact]
+    public void ARecordedFailureTextIsShortenedWhereItIsStored()
+    {
+        var health = new ImportHealthAggregate
+        {
+            LastError = new string('x', ImportHealthAggregate.LastErrorMaxLength * 4),
+        };
+
+        Assert.Equal(ImportHealthAggregate.LastErrorMaxLength, health.LastError.Length);
+
+        // Storing the already-shortened text again yields the same record, which is what keeps a
+        // round-trip through the store equal to what went into it.
+        Assert.Equal(health, new ImportHealthAggregate { LastError = health.LastError });
+    }
 
     /// <summary>
     /// The API key has no home in this record. It is in a table this extension owns, so the host's
@@ -140,6 +358,8 @@ public sealed class WhisparrSyncOptionsTests
 
     private static readonly DateTimeOffset VerifiedAt = new(2026, 8, 30, 11, 22, 33, TimeSpan.Zero);
     private static readonly DateTimeOffset ReachableAt = new(2026, 8, 30, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset V3Watermark = new(2026, 8, 30, 10, 15, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset V2Watermark = new(2026, 8, 29, 22, 5, 0, TimeSpan.Zero);
 
     private static WhisparrSyncOptions Populated() => new()
     {
@@ -150,6 +370,7 @@ public sealed class WhisparrSyncOptionsTests
             RecordedVersion = "3.3.8.1097",
             VersionVerifiedAtUtc = VerifiedAt,
             LastReachableAtUtc = ReachableAt,
+            BackstopWatermarkUtc = V3Watermark,
         },
         V2 = new WhisparrSyncGenerationConnection
         {
@@ -157,13 +378,53 @@ public sealed class WhisparrSyncOptionsTests
             RecordedVersion = "2.2.0.231",
             VersionVerifiedAtUtc = VerifiedAt,
             LastReachableAtUtc = ReachableAt,
+            BackstopWatermarkUtc = V2Watermark,
         },
-        PathTranslation =
-        [
-            new PathTranslationRule { CovePrefix = "/media", WhisparrPrefix = "/data" },
-            new PathTranslationRule { CovePrefix = "/archive", WhisparrPrefix = "/old" },
-        ],
         MetadataProviderEndpoints = new MetadataProviderEndpoints { V3 = "http://provider.invalid/v3" },
         CallbackHost = "https://media.example.com/cove",
+        UpgradeBehavior = UpgradeBehavior.Add,
+        BackstopIntervalSeconds = 600,
+        ImportHealth = new ImportHealthAggregate
+        {
+            LastWorkedAtUtc = ReachableAt,
+            LastFailedAtUtc = VerifiedAt,
+            LastError = "the path named in the delivery is under no library root",
+            ConsecutiveFailures = 3,
+            BackstopPositionLost = true,
+        },
+        ImportRefusals =
+        [
+            new ImportRootRefusals
+            {
+                Root = "/whisparr/media",
+                CountSinceLastSuccess = 3,
+                NewestPaths =
+                [
+                    new ImportRefusalEntry
+                    {
+                        Path = "/whisparr/media/scene-b/file.mp4",
+                        Cause = ImportRefusalCause.NotFoundUnderAnyRoot,
+                    },
+                    new ImportRefusalEntry
+                    {
+                        Path = "/whisparr/media/scene-a/file.mp4",
+                        Cause = ImportRefusalCause.AmbiguousCandidates,
+                    },
+                ],
+            },
+            new ImportRootRefusals
+            {
+                Root = "/whisparr/archive",
+                CountSinceLastSuccess = 1,
+                NewestPaths =
+                [
+                    new ImportRefusalEntry
+                    {
+                        Path = "/whisparr/archive/scene-c/file.mp4",
+                        Cause = ImportRefusalCause.Unreadable,
+                    },
+                ],
+            },
+        ],
     };
 }

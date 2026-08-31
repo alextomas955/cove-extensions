@@ -1,5 +1,6 @@
 using Cove.Plugins;
 using Microsoft.Extensions.DependencyInjection;
+using WhisparrSync.Options;
 
 namespace WhisparrSync;
 
@@ -14,7 +15,12 @@ namespace WhisparrSync;
 public sealed partial class WhisparrSync : IBackgroundExtension
 {
     /// <summary>How long the worker waits between wakes.</summary>
-    private static readonly TimeSpan WorkerPeriod = TimeSpan.FromSeconds(30);
+    /// <remarks>
+    /// A pass cannot run more often than a wake, so this period is also the backstop interval's
+    /// floor, and the two are one value rather than two that can drift apart.
+    /// </remarks>
+    private static readonly TimeSpan WorkerPeriod =
+        TimeSpan.FromSeconds(WhisparrSyncOptions.BackstopIntervalFloorSeconds);
 
     // UTC ticks read and written through Interlocked rather than a DateTimeOffset? field: the worker
     // writes these on its own thread while the host-configuration probe reads them on a request
