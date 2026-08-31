@@ -10,7 +10,12 @@ import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionReque
 
 import type { ConnectionTestView, WhisparrSyncSettingsView } from "../wire/api";
 import { api } from "../common/lib/extension";
-import { isGenerationChange, type CardGeneration } from "./connectLogic";
+import {
+  isGenerationChange,
+  testsStoredConnection,
+  valuesForCard,
+  type CardGeneration,
+} from "./connectLogic";
 import {
   createConnectionStore,
   type ConnectionPageState,
@@ -70,7 +75,15 @@ export function useConnection(reload: () => void): UseConnection {
   }, [read]);
 
   const test = useCallback(() => {
-    const { draft } = store.getSnapshot();
+    const { card, draft, settings } = store.getSnapshot();
+    const stored = valuesForCard(settings, card);
+    const asksAboutStored = testsStoredConnection(
+      stored,
+      settings?.selectedGeneration ?? null,
+      card,
+      draft,
+    );
+
     issued.current += 1;
     const token = issued.current;
     // Captured here rather than read back when the answer lands, so the result describes the address
@@ -78,19 +91,29 @@ export function useConnection(reload: () => void): UseConnection {
     const address = draft.address;
     store.beginTest(address);
 
+    // Naming neither is what asks about the stored connection. A pair is sent only when the form
+    // holds one, because the browser never has the stored key to send.
+    const asked = asksAboutStored
+      ? { address: null, apiKey: null }
+      : { address, apiKey: draft.apiKey };
+
     requestJson<ConnectionTestView>(CONNECTION_TEST_PATH, {
       method: "POST",
-      body: JSON.stringify({ address, apiKey: draft.apiKey }),
+      body: JSON.stringify(asked),
     })
       .then((result) => {
         if (token !== issued.current) return;
         store.answered(address, result);
+        // Only a test against the stored address records a version, so only that one changes what the
+        // recorded lines have to say. Re-read rather than derive it here: what was written is the
+        // server's answer, not this page's guess at it.
+        if (asksAboutStored) read();
       })
       .catch((err: unknown) => {
         if (token !== issued.current) return;
         store.testFailed(address, messageFor(err));
       });
-  }, [store]);
+  }, [store, read]);
 
   const save = useCallback(() => {
     const { card, draft, settings } = store.getSnapshot();
