@@ -159,11 +159,151 @@ public sealed class PathCandidateGuardTests
         Assert.Equal(["/data/scenes/scene.mp4"], reading.Candidates);
     }
 
+    /// <summary>The delivery reported a path under no root the instance itself declares.</summary>
+    /// <remarks>
+    /// The line a refusal is counted under is blank here, which is the case the banner most needs to
+    /// show: the delivery named a path its own instance cannot place.
+    /// </remarks>
     [Fact]
-    public void ExactlyOneVerifiedCandidateIsTheOneToActOn()
+    public void APathUnderNoReportingRootIsCountedUnderNoRoot()
     {
-        Assert.Equal("/data/scene.mp4", PathCandidateGuard.SingleVerified(["/data/scene.mp4"]));
-        Assert.Null(PathCandidateGuard.SingleVerified([]));
-        Assert.Null(PathCandidateGuard.SingleVerified(["/data/scene.mp4", "/data2/scene.mp4"]));
+        var reading = PathCandidateGuard.Read("/elsewhere/scene.mp4", ["/media"], HostRoots);
+
+        Assert.Empty(reading.ReportingRoots);
+        Assert.Equal("", reading.RefusalRoot);
     }
+
+    /// <summary>The reporting root a refusal is counted under, where one contains the path.</summary>
+    [Fact]
+    public void TheContainingReportingRootCarriesTheLine()
+    {
+        var reading = PathCandidateGuard.Read("/media/scenes/scene.mp4", ["/media"], HostRoots);
+
+        Assert.Equal(["/media"], reading.ReportingRoots);
+        Assert.Equal("/media", reading.RefusalRoot);
+    }
+
+    /// <summary>Nested reporting roots count under the first the instance listed.</summary>
+    /// <remarks>
+    /// Both contain the path and both yield a tail. The choice groups a count and settles nothing
+    /// about which file to import.
+    /// </remarks>
+    [Fact]
+    public void NestedReportingRootsCountUnderTheFirstTheInstanceListed()
+    {
+        var reading = PathCandidateGuard.Read(
+            "/media/inner/scene.mp4", ["/media/inner", "/media"], ["/data"]);
+
+        Assert.Equal(["/media/inner", "/media"], reading.ReportingRoots);
+        Assert.Equal("/media/inner", reading.RefusalRoot);
+    }
+
+    /// <summary>The resolution is total over the causes the refusal vocabulary declares.</summary>
+    /// <remarks>
+    /// Transcribed by hand rather than counted from the enum, so adding a member fails here and has to
+    /// be decided rather than absorbed.
+    /// </remarks>
+    [Fact]
+    public void TheRefusalVocabularyIsTheThreeCausesAndNoMore()
+        => Assert.Equal(
+            new[]
+            {
+                ImportRefusalCause.NotFoundUnderAnyRoot,
+                ImportRefusalCause.AmbiguousCandidates,
+                ImportRefusalCause.Unreadable,
+            }.Order(),
+            Enum.GetValues<ImportRefusalCause>().Order());
+
+    /// <summary>A resolution names a path or a cause, never both and never neither.</summary>
+    [Fact]
+    public void AResolutionNamesEitherAPathOrACauseAndNeverBoth()
+    {
+        var imported = PathCandidateGuard.Resolve([Found("/data/scene.mp4", 10)], 10);
+        Assert.Equal("/data/scene.mp4", imported.Path);
+        Assert.Null(imported.Cause);
+
+        var refused = PathCandidateGuard.Resolve([], 10);
+        Assert.Null(refused.Path);
+        Assert.NotNull(refused.Cause);
+    }
+
+    [Fact]
+    public void ExactlyOneVerifiedCandidateIsTheOneToImport()
+    {
+        var resolution = PathCandidateGuard.Resolve(
+            [Found("/data/scene.mp4", 10), Absent("/data2/scene.mp4")], 10);
+
+        Assert.Equal("/data/scene.mp4", resolution.Path);
+        Assert.Null(resolution.Cause);
+    }
+
+    [Fact]
+    public void NoVerifiedCandidateIsTheNotFoundCause()
+    {
+        var resolution = PathCandidateGuard.Resolve(
+            [Absent("/data/scene.mp4"), Absent("/data2/scene.mp4")], 10);
+
+        Assert.Null(resolution.Path);
+        Assert.Equal(ImportRefusalCause.NotFoundUnderAnyRoot, resolution.Cause);
+    }
+
+    /// <summary>
+    /// Two Cove roots where one contains the other, both holding the reported tail, is refused.
+    /// </summary>
+    /// <remarks>
+    /// The refusal is the point: a longest-root or first-root rule would import one of the two and
+    /// leave the user no signal that the other exists.
+    /// </remarks>
+    [Fact]
+    public void TwoVerifiedCandidatesUnderNestedCoveRootsAreRefusedAsAmbiguous()
+    {
+        var reading = PathCandidateGuard.Read(
+            "/media/scene.mp4", ["/media"], ["/data", "/data/inner"]);
+        Assert.Equal(["/data/scene.mp4", "/data/inner/scene.mp4"], reading.Candidates);
+
+        var resolution = PathCandidateGuard.Resolve(
+            [.. reading.Candidates.Select(path => Found(path, 10))], 10);
+
+        Assert.Null(resolution.Path);
+        Assert.Equal(ImportRefusalCause.AmbiguousCandidates, resolution.Cause);
+    }
+
+    /// <summary>A candidate of the right name and the wrong length is a different file.</summary>
+    /// <remarks>
+    /// Its control is the same pair resolved against the size that does match, which imports: without
+    /// it, a guard that verified nothing at all would pass the refusal too.
+    /// </remarks>
+    [Fact]
+    public void ASizeMismatchTurnsASingleVerificationIntoNone()
+    {
+        Assert.Equal(
+            ImportRefusalCause.NotFoundUnderAnyRoot,
+            PathCandidateGuard.Resolve([Found("/data/scene.mp4", 11)], 10).Cause);
+
+        Assert.Equal(
+            "/data/scene.mp4",
+            PathCandidateGuard.Resolve([Found("/data/scene.mp4", 10)], 10).Path);
+    }
+
+    /// <summary>A delivery that reported no size verifies on presence alone.</summary>
+    /// <remarks>
+    /// Absence of a size is not a mismatch. A candidate of any length verifies, and the same candidate
+    /// absent from disk still does not.
+    /// </remarks>
+    [Fact]
+    public void APayloadCarryingNoSizeVerifiesOnPresenceAlone()
+    {
+        Assert.Equal(
+            "/data/scene.mp4",
+            PathCandidateGuard.Resolve([Found("/data/scene.mp4", 999)], null).Path);
+
+        Assert.Equal(
+            ImportRefusalCause.NotFoundUnderAnyRoot,
+            PathCandidateGuard.Resolve([Absent("/data/scene.mp4")], null).Cause);
+    }
+
+    private static ProbedCandidate Found(string path, long size)
+        => new(path, new ProbedPath(true, size));
+
+    private static ProbedCandidate Absent(string path) => new(path, new ProbedPath(false, null));
 }
