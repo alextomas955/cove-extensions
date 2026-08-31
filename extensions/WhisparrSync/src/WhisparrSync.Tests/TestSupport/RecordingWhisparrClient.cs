@@ -10,6 +10,13 @@ namespace WhisparrSync.Tests.TestSupport;
 /// <param name="Body">The body sent, or null on a read.</param>
 public sealed record NotificationCall(string Verb, Uri BaseAddress, int? Id, JsonNode? Body);
 
+/// <summary>One history read this client was asked to make, with its arguments.</summary>
+/// <param name="BaseAddress">The instance it was aimed at.</param>
+/// <param name="ApiKey">The key it presented.</param>
+/// <param name="Page">Which page it asked for.</param>
+/// <param name="PageSize">How many records it asked that page to hold.</param>
+public sealed record HistoryCall(Uri BaseAddress, string ApiKey, int Page, int PageSize);
+
 /// <summary>
 /// An <see cref="IWhisparrClient"/> that records the ARGUMENTS of every request asked of it and
 /// answers with a response the caller chose.
@@ -33,19 +40,33 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer) : IWhispa
     /// <summary>Every notification request this client was asked for, in order.</summary>
     public List<NotificationCall> Notifications { get; } = [];
 
+    /// <summary>Every history read this client was asked for, in order.</summary>
+    public List<HistoryCall> Histories { get; } = [];
+
     /// <summary>
-    /// What each notification verb answers with, keyed by verb name.
+    /// The name of every request this client was asked to make, in order, whichever verb it was.
+    /// </summary>
+    /// <remarks>
+    /// An assertion over this states which verbs a path used rather than which it avoided, so a verb
+    /// added to the seam and then called is a failure rather than an omission from a list.
+    /// </remarks>
+    public List<string> Verbs { get; } = [];
+
+    /// <summary>
+    /// What each verb answers with, keyed by verb name.
     /// </summary>
     /// <remarks>
     /// A queue per verb, because a registration reads the list TWICE — once to find, once to read
     /// back — and the two answers are the point. A verb whose queue runs dry keeps answering with its
-    /// last entry, so a test only has to state the answers that differ.
+    /// last entry, so a test only has to state the answers that differ, and a paged walk longer than
+    /// the queue keeps reading the last page it was given.
     /// </remarks>
     public Dictionary<string, Queue<WhisparrResponse>> NotificationAnswers { get; } = [];
 
     public Task<WhisparrResponse> ReadStatusAsync(Uri baseAddress, string apiKey, CancellationToken ct)
     {
         Calls.Add((baseAddress, apiKey));
+        Verbs.Add(nameof(ReadStatusAsync));
         return Task.FromResult(answer);
     }
 
@@ -60,6 +81,14 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer) : IWhispa
     public Task<WhisparrResponse> ReadRootFoldersAsync(
         Uri baseAddress, string apiKey, CancellationToken ct)
         => Record(nameof(ReadRootFoldersAsync), baseAddress, null, null);
+
+    public Task<WhisparrResponse> ReadHistoryAsync(
+        Uri baseAddress, string apiKey, int page, int pageSize, CancellationToken ct)
+    {
+        Histories.Add(new HistoryCall(baseAddress, apiKey, page, pageSize));
+        Verbs.Add(nameof(ReadHistoryAsync));
+        return Task.FromResult(Answer(nameof(ReadHistoryAsync)));
+    }
 
     public Task<WhisparrResponse> CreateNotificationAsync(
         Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct)
@@ -87,11 +116,17 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer) : IWhispa
     private Task<WhisparrResponse> Record(string verb, Uri baseAddress, int? id, JsonNode? body)
     {
         Notifications.Add(new NotificationCall(verb, baseAddress, id, body?.DeepClone()));
+        Verbs.Add(verb);
+        return Task.FromResult(Answer(verb));
+    }
+
+    private WhisparrResponse Answer(string verb)
+    {
         if (!NotificationAnswers.TryGetValue(verb, out var queued) || queued.Count == 0)
         {
-            return Task.FromResult(answer);
+            return answer;
         }
 
-        return Task.FromResult(queued.Count == 1 ? queued.Peek() : queued.Dequeue());
+        return queued.Count == 1 ? queued.Peek() : queued.Dequeue();
     }
 }

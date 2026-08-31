@@ -64,6 +64,11 @@ public sealed record WhisparrResponse(int StatusCode, string? ContentType, strin
 /// no caller-supplied identifier and no verb, so the constraint above still holds over the whole
 /// interface.
 /// </para>
+/// <para>
+/// <see cref="ReadHistoryAsync"/> was added under the same rule, and is a read because re-issuing it
+/// reads again and grabs nothing. It names a page and a page size; the route and the order it asks
+/// for belong to the seam, so no call site supplies either.
+/// </para>
 /// </remarks>
 public interface IWhisparrClient
 {
@@ -91,6 +96,22 @@ public interface IWhisparrClient
     /// resolving a reported file path against its root has no other source for them.
     /// </remarks>
     Task<WhisparrResponse> ReadRootFoldersAsync(Uri baseAddress, string apiKey, CancellationToken ct);
+
+    /// <summary>Reads one page of the instance's import history.</summary>
+    /// <remarks>
+    /// The newest-first order is asked for and not relied on: whether the route honours the request is
+    /// unmeasured, so a caller reads the page's own order and refuses one it cannot walk.
+    /// </remarks>
+    /// <param name="baseAddress">The instance to read from.</param>
+    /// <param name="apiKey">The key that instance authenticates the read with.</param>
+    /// <param name="page">Which page, counting from one.</param>
+    /// <param name="pageSize">How many records that page holds at most.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="page"/> or <paramref name="pageSize"/> is below one.
+    /// </exception>
+    Task<WhisparrResponse> ReadHistoryAsync(
+        Uri baseAddress, string apiKey, int page, int pageSize, CancellationToken ct);
 
     /// <summary>Creates one notification.</summary>
     /// <remarks>
@@ -120,6 +141,11 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
     private const string NotificationPath = "api/v3/notification";
     private const string NotificationSchemaPath = "api/v3/notification/schema";
     private const string RootFolderPath = "api/v3/rootfolder";
+    private const string HistoryPath = "api/v3/history";
+
+    // The order belongs to the verb rather than to a call: newest-first is the only order a walk that
+    // stops at a stored position can read, and a call site free to spell it could ask for another.
+    private const string NewestFirstQuery = "sortKey=date&sortDirection=descending";
 
     /// <summary>How long one attempt may take before it is reported as unreachable.</summary>
     internal static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
@@ -160,6 +186,21 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
     public Task<WhisparrResponse> ReadRootFoldersAsync(
         Uri baseAddress, string apiKey, CancellationToken ct)
         => ReadAsync(baseAddress, apiKey, RootFolderPath, ct);
+
+    public Task<WhisparrResponse> ReadHistoryAsync(
+        Uri baseAddress, string apiKey, int page, int pageSize, CancellationToken ct)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(page, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+
+        return ReadAsync(
+            baseAddress,
+            apiKey,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"{HistoryPath}?page={page}&pageSize={pageSize}&{NewestFirstQuery}"),
+            ct);
+    }
 
     public Task<WhisparrResponse> CreateNotificationAsync(
         Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct)
