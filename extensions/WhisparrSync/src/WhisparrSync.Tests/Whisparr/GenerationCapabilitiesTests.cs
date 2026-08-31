@@ -33,14 +33,30 @@ public sealed class GenerationCapabilitiesTests
             GenerationCapabilities.For(WhisparrGeneration.V3).Held);
     }
 
+    [Fact]
+    public void TheV2SetAlsoHoldsTheOutOfBandSecretRole()
+    {
+        var role = OutOfBandRoleOf(WhisparrGeneration.V2);
+
+        Assert.NotNull(role);
+        Assert.Equal(
+            [WhisparrCapability.OutOfBandCallbackSecret],
+            GenerationCapabilities.For(WhisparrGeneration.V2).Held);
+    }
+
     /// <summary>
-    /// The refusal is an answer of its own: not null, not a default role, and not an exception the
+    /// A refusal is an answer of its own: not null, not a default role, and not an exception the
     /// caller has to catch to learn what happened.
     /// </summary>
+    /// <remarks>
+    /// Taken against a set built holding nothing, because no generation this product manages refuses
+    /// the one capability it declares today. Driving it through a generation that DID refuse would tie
+    /// the mechanism to a fact that has already changed once.
+    /// </remarks>
     [Fact]
-    public void TheV2SetRefusesTheOutOfBandSecretRoleAndNamesWhatItRefused()
+    public void ASetHoldingNoRoleRefusesAndNamesWhatItRefused()
     {
-        var capabilities = GenerationCapabilities.For(WhisparrGeneration.V2);
+        var capabilities = new WhisparrCapabilitySet(WhisparrGeneration.V2, []);
 
         var refusal = capabilities.Obtain<IOutOfBandSecretRegistration>()
             .Match<CapabilityRefusal?>(_ => null, refused => refused);
@@ -52,34 +68,68 @@ public sealed class GenerationCapabilitiesTests
     }
 
     /// <summary>
-    /// The split is the one the two builds declare: v3's Webhook schema carries a headers field and
-    /// v2's does not, which is the whole reason one generation holds the role.
+    /// Each generation carries the secret in fields its OWN schema declares, and the two sets are
+    /// disjoint: a list-of-headers field on one, a user-and-password pair on the other.
     /// </summary>
+    /// <remarks>
+    /// Checked against the schemas the two builds themselves returned, so this product's table is
+    /// compared with the instances rather than with itself. The absence half matters as much as the
+    /// presence half: registering one generation's field on the other is a save that is accepted and
+    /// delivers nothing.
+    /// </remarks>
     [Fact]
-    public void EachGenerationHoldsTheRoleExactlyWhenItsOwnSchemaDeclaresTheCarrierField()
+    public void EachGenerationCarriesTheSecretInFieldsItsOwnSchemaDeclares()
     {
-        Assert.Contains(V3HeaderSecretRegistration.HeadersField, DeclaredFields(V3SchemaFixture));
-        Assert.DoesNotContain(V3HeaderSecretRegistration.HeadersField, DeclaredFields(V2SchemaFixture));
+        var v3Fields = DeclaredFields(V3SchemaFixture);
+        var v2Fields = DeclaredFields(V2SchemaFixture);
 
-        Assert.Contains(
-            WhisparrCapability.OutOfBandCallbackSecret,
-            GenerationCapabilities.For(WhisparrGeneration.V3).Held);
-        Assert.DoesNotContain(
-            WhisparrCapability.OutOfBandCallbackSecret,
-            GenerationCapabilities.For(WhisparrGeneration.V2).Held);
+        Assert.Contains(V3HeaderSecretRegistration.HeadersField, v3Fields);
+        Assert.DoesNotContain(V3HeaderSecretRegistration.HeadersField, v2Fields);
+
+        Assert.Contains(V2BasicAuthSecretRegistration.UserField, v2Fields);
+        Assert.Contains(V2BasicAuthSecretRegistration.PasswordField, v2Fields);
+
+        foreach (var generation in new[] { WhisparrGeneration.V3, WhisparrGeneration.V2 })
+        {
+            var declared = generation == WhisparrGeneration.V3 ? v3Fields : v2Fields;
+            var carried = OutOfBandRoleOf(generation)!.Carry("a-secret");
+
+            Assert.All(carried.Fields, field => Assert.Contains(field.Name, declared));
+            Assert.Contains(
+                WhisparrCapability.OutOfBandCallbackSecret,
+                GenerationCapabilities.For(generation).Held);
+        }
     }
 
+    /// <summary>The newer generation sets one field, a list of headers, carrying this product's own.</summary>
     [Fact]
-    public void TheRoleCarriesTheSecretInTheFieldThatSchemaDeclares()
+    public void TheV3RoleCarriesTheSecretAsACustomHeader()
     {
-        var role = OutOfBandRoleOf(WhisparrGeneration.V3);
-        Assert.NotNull(role);
+        var carried = OutOfBandRoleOf(WhisparrGeneration.V3)!.Carry("a-secret");
 
-        var carried = role.Carry("a-secret");
+        var field = Assert.Single(carried.Fields);
+        Assert.Equal("headers", field.Name);
+        Assert.Equal("X-Cove-Whisparr-Sync-Secret", carried.ArrivesAsHeader);
+        Assert.Equal(
+            """[{"key":"X-Cove-Whisparr-Sync-Secret","value":"a-secret"}]""",
+            JsonSerializer.Serialize(field.Value, HostJsonOptions));
+    }
 
-        Assert.Equal("headers", carried.FieldName);
-        Assert.Equal("X-Cove-Whisparr-Sync-Secret", carried.HeaderName);
-        Assert.Equal("a-secret", carried.HeaderValue);
+    /// <summary>The older generation sets two fields, and the secret is the PASSWORD half.</summary>
+    /// <remarks>
+    /// That the instance then sends them as an authorization header, and that Cove delivers one to a
+    /// route declaring the anonymous convention, are both measured on the fixture rather than
+    /// inferred. The header named here is what such a delivery arrives in.
+    /// </remarks>
+    [Fact]
+    public void TheV2RoleCarriesTheSecretAsTheBasicAuthPassword()
+    {
+        var carried = OutOfBandRoleOf(WhisparrGeneration.V2)!.Carry("a-secret");
+
+        Assert.Equal("Authorization", carried.ArrivesAsHeader);
+        Assert.Equal(
+            [("username", "cove-whisparr-sync"), ("password", "a-secret")],
+            carried.Fields.Select(field => (field.Name, (string)field.Value)));
     }
 
     [Theory]
@@ -88,10 +138,13 @@ public sealed class GenerationCapabilitiesTests
     [InlineData("   ")]
     public void ASecretWithNothingInItIsRefusedRatherThanRegisteredAsAnEmptyHeader(string? secret)
     {
-        var role = OutOfBandRoleOf(WhisparrGeneration.V3);
-        Assert.NotNull(role);
+        foreach (var generation in new[] { WhisparrGeneration.V3, WhisparrGeneration.V2 })
+        {
+            var role = OutOfBandRoleOf(generation);
+            Assert.NotNull(role);
 
-        Assert.ThrowsAny<ArgumentException>(() => role.Carry(secret!));
+            Assert.ThrowsAny<ArgumentException>(() => role.Carry(secret!));
+        }
     }
 
     /// <summary>
