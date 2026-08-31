@@ -14,6 +14,8 @@ internal sealed class BackstopPass(
     ICredentialPort credentials,
     IImportCore core,
     TimeProvider clock,
+    FollowUpScanCoalescer followUp,
+    ICoveLibraryPort library,
     ILogger log) : IBackstopPass
 {
     /// <summary>How many records one page asks for.</summary>
@@ -60,6 +62,9 @@ internal sealed class BackstopPass(
             await RecordFailureAsync(walk.Outcome, ct).ConfigureAwait(false);
         }
 
+        // The pass boundary is a batch boundary: whatever this walk imported is covered by one scan
+        // rather than by one per record.
+        followUp.Flush(library);
         return walk;
     }
 

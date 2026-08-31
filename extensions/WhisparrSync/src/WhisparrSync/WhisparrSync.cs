@@ -106,18 +106,26 @@ public sealed partial class WhisparrSync : FullExtensionBase
             services.GetService<IScanService>(),
             services.GetService<IMetadataServerService>(),
             _coveConfig));
+        // The second singleton, and for the same reason as the root cache: the pending batch is what
+        // makes a burst of deliveries one scan instead of one each, and a batch held per scope would
+        // be a batch per delivery.
+        services.AddSingleton(services => new FollowUpScanCoalescer(
+            services.GetRequiredService<TimeProvider>(), _log));
         services.AddScoped<IBackstopPass>(services => new BackstopPass(
             services.GetRequiredService<IWhisparrClient>(),
             services.GetRequiredService<OptionsStore>(),
             services.GetRequiredService<ICredentialPort>(),
             services.GetRequiredService<IImportCore>(),
             services.GetRequiredService<TimeProvider>(),
+            services.GetRequiredService<FollowUpScanCoalescer>(),
+            services.GetRequiredService<ICoveLibraryPort>(),
             _log));
         services.AddScoped<IImportCore>(services => new ImportCore(
             services.GetRequiredService<IReportedRootPort>(),
             services.GetRequiredService<ICoveLibraryPort>(),
             services.GetRequiredService<IImportPathPort>(),
             services.GetRequiredService<OptionsStore>(),
+            services.GetRequiredService<FollowUpScanCoalescer>(),
             _log));
     }
 
