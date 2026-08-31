@@ -107,6 +107,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
             services.GetRequiredService<IReportedRootPort>(),
             services.GetRequiredService<ICoveLibraryPort>(),
             services.GetRequiredService<IImportPathPort>(),
+            services.GetRequiredService<OptionsStore>(),
             _log));
     }
 
