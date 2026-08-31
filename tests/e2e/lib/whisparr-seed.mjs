@@ -77,13 +77,17 @@ export function buildConfigXml({ apiKey, port }) {
  * object, which is enough to prove a reader imported nothing and cannot prove it imported
  * anything — a reported path lives in `Data`.
  *
+ * `eventTypes` names the stored EventType integers to cycle over the rows, and defaults to the
+ * pair the seeder declares. The rows descend a minute apart, so a caller that needs a row of one
+ * kind to be the NEWEST row names that kind alone.
+ *
  * `expectedTotal` is what the read-back waits for the instance to report, and defaults to `count`.
  * A second seed against an instance that already has a past must pass the running total, or the
  * read-back waits for a number the instance passed before this call was made.
  *
  * @param {{container: import("testcontainers").StartedTestContainer, api: {get: Function},
  *          generation: "v3"|"v2", count?: number, data?: (Record<string,string>|null)[],
- *          expectedTotal?: number}} options
+ *          eventTypes?: number[], expectedTotal?: number}} options
  */
 export async function seedHistory({
   container,
@@ -91,6 +95,7 @@ export async function seedHistory({
   generation,
   count = DEFAULT_HISTORY_ROWS,
   data,
+  eventTypes,
   expectedTotal = count,
 }) {
   const database = DATABASES[generation];
@@ -105,7 +110,7 @@ export async function seedHistory({
   // seeder itself is run AS the app's own user so the write-ahead and shared-memory siblings it
   // touches keep belonging to the process that has to go on using them.
   await container.exec(["chown", APP_USER, SEEDER_TARGET], { user: "root" });
-  const written = await runSeeder(container, generation, count, database, data);
+  const written = await runSeeder(container, generation, count, database, data, eventTypes);
 
   const {
     settled,
@@ -136,7 +141,7 @@ export async function seedHistory({
   };
 }
 
-async function runSeeder(container, generation, count, database, data) {
+async function runSeeder(container, generation, count, database, data, eventTypes) {
   const result = await container.exec(
     [
       "python3",
@@ -148,6 +153,7 @@ async function runSeeder(container, generation, count, database, data) {
       "--db",
       database,
       ...(data ? ["--data", JSON.stringify(data)] : []),
+      ...(eventTypes ? ["--event-types", JSON.stringify(eventTypes)] : []),
     ],
     { user: APP_USER },
   );
