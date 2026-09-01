@@ -57,7 +57,12 @@ internal sealed class BackstopPass(
             // pass is another first connect. The position IS lost here - the records before this mark
             // are never replayed - so the flag is raised in the same fold that clears the failures.
             await RecordWalkedAsync(
-                generation, walkedAddress, walk.Watermark ?? clock.GetUtcNow(), positionLost: true, ct)
+                generation,
+                walkedAddress,
+                walk.Watermark ?? clock.GetUtcNow(),
+                positionLost: true,
+                walk.Contained,
+                ct)
                 .ConfigureAwait(false);
         }
         else if (walk.Outcome == BackstopPassOutcome.Walked)
@@ -65,7 +70,8 @@ internal sealed class BackstopPass(
             // Recorded even with no watermark to write. A page with nothing past the mark is an
             // instance this pass reached, authenticated against and read the history of, which is what
             // the health half of this write reports; the mark simply stays where it was.
-            await RecordWalkedAsync(generation, walkedAddress, walk.Watermark, positionLost: false, ct)
+            await RecordWalkedAsync(
+                generation, walkedAddress, walk.Watermark, positionLost: false, walk.Contained, ct)
                 .ConfigureAwait(false);
         }
         else if (IsRefusal(walk.Outcome))
@@ -207,11 +213,19 @@ internal sealed class BackstopPass(
                 contained);
     }
 
-    /// <summary>Records where a pass that read history reached, and that the channel is working.</summary>
+    /// <summary>
+    /// Records where a pass that read history reached, what it could not take, and that the channel is
+    /// working.
+    /// </summary>
     /// <remarks>
     /// One fold, so the mark and the health cannot be written against two different readings of the
     /// blob. The last-failed instant is left alone: it records that a failure happened, and clearing
     /// it would destroy the only record of when.
+    /// <para>
+    /// <paramref name="contained"/> is added to the stored total rather than replacing it, and the
+    /// instant is only moved by a pass that contained something. Each counted record is one this same
+    /// write moves the mark past, so no later pass can offer it again and none has anything to clear.
+    /// </para>
     /// <para>
     /// The mark is refused when the stored record no longer names <paramref name="walkedAddress"/>,
     /// because it would then name a position in a different instance's history and every record
@@ -226,8 +240,11 @@ internal sealed class BackstopPass(
         string walkedAddress,
         DateTimeOffset? mark,
         bool positionLost,
+        int contained,
         CancellationToken ct)
-        => await gate.MutateAsync(
+    {
+        var containedAt = contained == 0 ? null : (DateTimeOffset?)clock.GetUtcNow();
+        await gate.MutateAsync(
             options,
             stored => Marked(stored, generation, walkedAddress, mark) with
             {
@@ -236,9 +253,12 @@ internal sealed class BackstopPass(
                     ConsecutiveFailures = 0,
                     LastError = "",
                     BackstopPositionLost = positionLost,
+                    RecordsContained = stored.ImportHealth.RecordsContained + contained,
+                    LastContainedAtUtc = containedAt ?? stored.ImportHealth.LastContainedAtUtc,
                 },
             },
             ct).ConfigureAwait(false);
+    }
 
     private static WhisparrSyncOptions Marked(
         WhisparrSyncOptions stored,

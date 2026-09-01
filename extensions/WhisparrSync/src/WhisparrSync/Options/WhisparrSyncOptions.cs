@@ -161,6 +161,20 @@ public sealed record ImportHealthAggregate
     /// </remarks>
     public bool BackstopPositionLost { get; init; }
 
+    /// <summary>How many history records a backstop pass could not take, over every pass.</summary>
+    /// <remarks>
+    /// A running total rather than a streak: the mark moves past a record the walk contained, so this
+    /// channel never offers it again and no later success clears it.
+    /// </remarks>
+    public int RecordsContained { get; init; }
+
+    /// <summary>When a pass last could not take a record, or null when none ever has.</summary>
+    /// <remarks>
+    /// Recorded because <see cref="RecordsContained"/> never clears, so the total alone cannot say
+    /// whether the containment is still happening.
+    /// </remarks>
+    public DateTimeOffset? LastContainedAtUtc { get; init; }
+
     private static string Shorten(string? text)
         => text is null || text.Length <= LastErrorMaxLength ? text ?? "" : text[..LastErrorMaxLength];
 }
