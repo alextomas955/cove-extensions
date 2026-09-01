@@ -217,6 +217,52 @@ public sealed class WhisparrSyncOptionsTests
         => Assert.Equal(new WhisparrSyncOptions(), await new OptionsStore(new FakeStore()).LoadAsync());
 
     /// <summary>
+    /// Every refusal-cause spelling an installed blob may carry still binds to its member.
+    /// </summary>
+    /// <remarks>
+    /// A value the model cannot bind makes the WHOLE load answer with the defaults object, so a
+    /// renamed member would discard the user's connection and watermarks with nothing observable
+    /// happening. The blob is a literal and the spellings are transcribed by hand from the server's
+    /// enum: a list computed from the enum would agree with it whatever it says.
+    /// </remarks>
+    [Fact]
+    public async Task ABlobCarryingEachStoredRefusalCauseBindsRatherThanLoadingTheDefaults()
+    {
+        var store = new FakeStore();
+        await store.SetAsync(
+            OptionsStore.Key,
+            """
+            {
+              "SelectedGeneration": "v3",
+              "V3": { "Address": "http://v3-host:6969/" },
+              "ImportRefusals": [
+                {
+                  "Root": "/whisparr-media",
+                  "CountSinceLastSuccess": 3,
+                  "NewestPaths": [
+                    { "Path": "/whisparr-media/a.mp4", "Cause": "notFoundUnderAnyRoot" },
+                    { "Path": "/whisparr-media/b.mp4", "Cause": "ambiguousCandidates" },
+                    { "Path": "/whisparr-media/c.mp4", "Cause": "unreadable" }
+                  ]
+                }
+              ]
+            }
+            """);
+
+        var loaded = await new OptionsStore(store).LoadAsync();
+
+        Assert.NotEqual(new WhisparrSyncOptions(), loaded);
+        Assert.Equal("http://v3-host:6969/", loaded.V3?.Address);
+        Assert.Equal(
+            [
+                ImportRefusalCause.NotFoundUnderAnyRoot,
+                ImportRefusalCause.AmbiguousCandidates,
+                ImportRefusalCause.Unreadable,
+            ],
+            Assert.Single(loaded.ImportRefusals).NewestPaths.Select(entry => entry.Cause));
+    }
+
+    /// <summary>
     /// A blob written before this record's current shape still loads: the member it carries that no
     /// longer exists is ignored, and the members it does not carry read as their defaults.
     /// </summary>

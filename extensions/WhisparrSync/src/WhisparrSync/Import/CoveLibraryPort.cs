@@ -44,13 +44,13 @@ internal sealed class CoveLibraryPort(
 
         if (scan is null)
         {
-            return new LibraryImport(false, null);
+            return new LibraryImport(LibraryImportOutcome.ServiceUnavailable, null);
         }
 
         try
         {
             return new LibraryImport(
-                true,
+                LibraryImportOutcome.Registered,
                 await scan.ImportDownloadedVideoAsync(path, videoId, ct).ConfigureAwait(false));
         }
         // The two the host's own import raises: the file is gone by the time it looks, and the row it
@@ -60,7 +60,7 @@ internal sealed class CoveLibraryPort(
         catch (Exception refused) when (refused is FileNotFoundException or InvalidOperationException)
         {
             WhisparrSyncLog.HostImportContained(log, refused);
-            return new LibraryImport(false, null);
+            return new LibraryImport(LibraryImportOutcome.HostRefused, null);
         }
     }
 

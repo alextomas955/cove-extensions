@@ -18,6 +18,11 @@ public enum ImportRefusalCause
     /// <summary>Two or more candidates verified, so none was chosen.</summary>
     AmbiguousCandidates,
 
-    /// <summary>The verified path could not be read by the host.</summary>
+    /// <summary>The host was asked to take the verified file and would not.</summary>
+    /// <remarks>
+    /// The wire spelling is persisted in the stored options blob, so it stays as it is: a value a
+    /// later model cannot bind makes the whole blob load as defaults, which discards the user's
+    /// connection and watermarks with nothing observable happening.
+    /// </remarks>
     Unreadable,
 }
