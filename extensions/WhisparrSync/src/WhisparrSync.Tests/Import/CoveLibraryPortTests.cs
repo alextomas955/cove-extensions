@@ -78,7 +78,7 @@ public sealed class CoveLibraryPortTests
 
         var imported = await library.Port.ImportVideoAsync("/data/scene.mp4", null, Ct);
 
-        Assert.False(imported.Reached);
+        Assert.Equal(LibraryImportOutcome.HostRefused, imported.Outcome);
         Assert.Null(imported.VideoId);
         Assert.Equal(1, log.ContainedHostImports);
     }
@@ -251,14 +251,18 @@ public sealed class CoveLibraryPortTests
         Assert.Equal([ConfiguredEndpoint], library.Port.ConfiguredMetadataEndpoints);
     }
 
+    /// <summary>
+    /// An import service the container could not produce is its own outcome, not the one a declined
+    /// file gets.
+    /// </summary>
     [Fact]
-    public async Task AnAbsentScanServiceReportsTheHostImportAsUnreachedAndRegistersNothing()
+    public async Task AnAbsentScanServiceReportsTheHostImportAsUnavailableAndRegistersNothing()
     {
         await using var library = await LibraryFixture.CreateAsync();
 
         var imported = await library.Port.ImportVideoAsync("/data/scene.mp4", null, Ct);
 
-        Assert.False(imported.Reached);
+        Assert.Equal(LibraryImportOutcome.ServiceUnavailable, imported.Outcome);
         Assert.Null(imported.VideoId);
     }
 

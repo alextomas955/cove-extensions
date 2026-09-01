@@ -98,18 +98,44 @@ public sealed class ImportCoreRefusalTests
         Assert.Equal(0, ingest.Store.SetCallCount);
     }
 
-    /// <summary>A host import that could not be reached is its own cause.</summary>
+    /// <summary>
+    /// An import service this extension's container could not produce blames no Whisparr root.
+    /// </summary>
+    /// <remarks>
+    /// Nothing about that state is a root the user misconfigured, and a line under one sends them to
+    /// a folder where there is nothing to change. Asserted on the stored aggregate, because the
+    /// outcome value alone says nothing about what the user is shown.
+    /// </remarks>
     [Fact]
-    public async Task AHostImportThatCouldNotBeReachedIsRecordedAsUnreadable()
+    public async Task ADeliveryWhoseHostImportServiceIsAbsentCountsAgainstNoRoot()
     {
         var ingest = new Ingest(hostImportReached: false);
         ingest.Paths.Present["/data/scene.mp4"] = ReportedSize;
 
         Assert.Equal(ImportOutcome.RefusedHostImportUnavailable, await ingest.DeliverAsync());
 
-        Assert.Equal(
-            ImportRefusalCause.Unreadable,
-            Assert.Single(Assert.Single((await ingest.StoredAsync()).ImportRefusals).NewestPaths).Cause);
+        Assert.Empty((await ingest.StoredAsync()).ImportRefusals);
+        Assert.Equal(0, ingest.Store.SetCallCount);
+    }
+
+    /// <summary>A file the host was asked for and declined IS counted against the reporting root.</summary>
+    /// <remarks>
+    /// The discriminating control for the test above: the path the host declined came from that
+    /// root, and it is the one thing the user can go and look at.
+    /// </remarks>
+    [Fact]
+    public async Task ADeliveryTheHostRefusedIsCountedAgainstTheReportingRoot()
+    {
+        var ingest = new Ingest();
+        ingest.Paths.Present["/data/scene.mp4"] = ReportedSize;
+        ingest.Library.ImportFailure = new InvalidOperationException();
+
+        Assert.Equal(ImportOutcome.RefusedHostRefusedFile, await ingest.DeliverAsync());
+
+        var entry = Assert.Single((await ingest.StoredAsync()).ImportRefusals);
+        Assert.Equal(WhisparrRoot, entry.Root);
+        Assert.Equal(ImportRefusalCause.Unreadable, Assert.Single(entry.NewestPaths).Cause);
+        Assert.Equal(ReportedPath, entry.NewestPaths[0].Path);
     }
 
     /// <summary>
@@ -131,7 +157,7 @@ public sealed class ImportCoreRefusalTests
 
         var outcome = await ingest.DeliverAsync();
 
-        Assert.Equal(ImportOutcome.RefusedHostImportUnavailable, outcome);
+        Assert.Equal(ImportOutcome.RefusedHostRefusedFile, outcome);
         Assert.Equal(("/data/scene.mp4", (int?)null), Assert.Single(ingest.Library.Imported));
     }
 
