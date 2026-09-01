@@ -50,7 +50,10 @@ public static class ImportRefusalProjector
         ArgumentNullException.ThrowIfNull(current);
 
         var key = ImportRootRefusals.NormaliseRoot(root);
-        var offending = path ?? "";
+
+        // Built before anything is compared, so both sides of the comparison below carry the same
+        // length bound. A path stored shortened would otherwise never match itself.
+        var refusal = new ImportRefusalEntry { Path = path ?? "", Cause = cause };
         var existing = current.FirstOrDefault(entry => entry.Root == key);
 
         if (existing is null)
@@ -59,11 +62,11 @@ public static class ImportRefusalProjector
             {
                 Root = key,
                 CountSinceLastSuccess = 1,
-                NewestPaths = [new ImportRefusalEntry { Path = offending, Cause = cause }],
+                NewestPaths = [refusal],
             }];
         }
 
-        var listed = existing.NewestPaths.FirstOrDefault(entry => entry.Path == offending);
+        var listed = existing.NewestPaths.FirstOrDefault(entry => entry.Path == refusal.Path);
         if (listed is not null)
         {
             // A path this root already lists is already reported, so the delivery neither lengthens
@@ -72,7 +75,7 @@ public static class ImportRefusalProjector
                 ? [.. current]
                 : Replacing(current, existing with
                 {
-                    NewestPaths = [.. existing.NewestPaths.Select(entry => entry.Path == offending
+                    NewestPaths = [.. existing.NewestPaths.Select(entry => entry.Path == refusal.Path
                         ? entry with { Cause = cause }
                         : entry)],
                 });
@@ -81,7 +84,7 @@ public static class ImportRefusalProjector
         return Replacing(current, existing with
         {
             CountSinceLastSuccess = Incremented(existing.CountSinceLastSuccess),
-            NewestPaths = NewestFirst(new ImportRefusalEntry { Path = offending, Cause = cause }, existing),
+            NewestPaths = NewestFirst(refusal, existing),
         });
     }
 
