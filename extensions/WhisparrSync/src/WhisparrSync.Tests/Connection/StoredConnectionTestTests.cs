@@ -176,11 +176,41 @@ public sealed class StoredConnectionTestTests
         string stored, string typed, bool same)
         => Assert.Equal(same, ConnectionTester.IsSameAddress(stored, typed));
 
+    /// <summary>
+    /// A writer that commits while the probe is in flight keeps its value, and the reading is still
+    /// recorded.
+    /// </summary>
+    /// <remarks>
+    /// The competing writer is the production secret-position write, which lands on the very
+    /// connection record this path read before it asked the instance anything.
+    /// </remarks>
+    [Fact]
+    public async Task AStoredTestKeepsAWriteCommittedWhileTheProbeWasInFlight()
+    {
+        var options = await SeededAsync(recordedVersion: null, verifiedAt: null, lastReachableAt: null);
+        using var gate = new OptionsWriteGate();
+        var tester = new DeliveringConnectionTester(
+            RecordingConnectionTester.Connected("3.3.8.1097"),
+            options,
+            gate,
+            CallbackSecretPosition.OutOfBand);
+
+        var view = await new ConnectionTestRunner(tester, options, gate, KeyPort(), new FixedClock(Now))
+            .TestStoredAsync(TestCt);
+
+        Assert.Equal(ConnectionFailureKind.Connected, view.Kind);
+        var stored = await ConnectionAsync(options);
+        Assert.Equal(CallbackSecretPosition.OutOfBand, stored.LastCallbackSecretPosition);
+        Assert.Equal("3.3.8.1097", stored.RecordedVersion);
+        Assert.Equal(Now, stored.VersionVerifiedAtUtc);
+        Assert.Equal(Now, stored.LastReachableAtUtc);
+    }
+
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     private static ConnectionTestRunner NewRunner(
         IWhisparrConnectionTester tester, OptionsStore options, ICredentialPort credentials)
-        => new(tester, options, credentials, new FixedClock(Now));
+        => new(tester, options, new OptionsWriteGate(), credentials, new FixedClock(Now));
 
     private static RecordingCredentialPort KeyPort()
         => new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredKey);
@@ -219,6 +249,24 @@ public sealed class StoredConnectionTestTests
             TestCt);
 
         return options;
+    }
+
+    /// <summary>
+    /// A tester that commits the production secret-position write before it answers, which is what a
+    /// delivery arriving during a probe does.
+    /// </summary>
+    private sealed class DeliveringConnectionTester(
+        IWhisparrConnectionTester inner,
+        OptionsStore options,
+        OptionsWriteGate gate,
+        CallbackSecretPosition position) : IWhisparrConnectionTester
+    {
+        public async Task<ConnectionTestView> TestAsync(
+            string? address, string? apiKey, CancellationToken ct)
+        {
+            await global::WhisparrSync.WhisparrSync.RecordSecretPositionAsync(options, gate, position, ct);
+            return await inner.TestAsync(address, apiKey, ct);
+        }
     }
 
     private sealed class RawKeyPort(ICredentialPort inner, string key) : ICredentialPort

@@ -9,6 +9,7 @@ internal sealed class ImportCore(
     ICoveLibraryPort library,
     IImportPathPort paths,
     OptionsStore options,
+    OptionsWriteGate gate,
     FollowUpScanCoalescer followUp,
     ILogger log) : IImportCore
 {
@@ -268,33 +269,22 @@ internal sealed class ImportCore(
         return outcome;
     }
 
-    // Read-modify-write over the one stored blob, and written only when the fold changed it: a
-    // delivery stream is per FILE, and a save per delivery would write the whole blob for every one.
     private async Task RecordAsync(
         string root, string path, ImportRefusalCause cause, CancellationToken ct)
-    {
-        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
-        await SaveIfChangedAsync(
-            stored,
-            stored with { ImportRefusals = ImportRefusalProjector.Refuse(stored.ImportRefusals, root, path, cause) },
+        => await gate.MutateAsync(
+            options,
+            stored => stored with
+            {
+                ImportRefusals = ImportRefusalProjector.Refuse(stored.ImportRefusals, root, path, cause),
+            },
             ct).ConfigureAwait(false);
-    }
 
     private async Task ClearAsync(string root, CancellationToken ct)
-    {
-        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
-        await SaveIfChangedAsync(
-            stored,
-            stored with { ImportRefusals = ImportRefusalProjector.Succeed(stored.ImportRefusals, root) },
+        => await gate.MutateAsync(
+            options,
+            stored => stored with
+            {
+                ImportRefusals = ImportRefusalProjector.Succeed(stored.ImportRefusals, root),
+            },
             ct).ConfigureAwait(false);
-    }
-
-    private async Task SaveIfChangedAsync(
-        WhisparrSyncOptions stored, WhisparrSyncOptions next, CancellationToken ct)
-    {
-        if (next != stored)
-        {
-            await options.SaveAsync(next, ct).ConfigureAwait(false);
-        }
-    }
 }
