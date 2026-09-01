@@ -5,6 +5,7 @@ using Cove.Extensions.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Import;
 
 namespace WhisparrSync.Tests.Import;
@@ -49,7 +50,7 @@ public sealed class SystemPrincipalTests
         await using var __ = connection;
 
         await SeedAsync(db);
-        var port = new CoveLibraryPort(db, scan: null, metadata: null, config: null);
+        var port = new CoveLibraryPort(db, scan: null, metadata: null, config: null, NullLogger.Instance);
 
         Assert.Empty(db.Model.FindEntityType(typeof(VideoRemoteId))!.GetDeclaredQueryFilters());
 
