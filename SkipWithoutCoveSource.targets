@@ -17,11 +17,12 @@
              Text="$(MSBuildProjectName): not built - CoveSourceMode is '$(CoveSourceMode)' and this project requires a Cove source checkout, so the solution build skipped it and its tests neither compiled nor ran. Point COVE_REPO or -p:CoveRepoRoot at a checkout to include it." />
 
     <!--
-      dotnet test's reporter suppresses both of these, so they carry the skip on the build path only.
-      There the Warning, unlike the Message, lands in the build summary's warning count.
+      dotnet test's reporter passes MSBuild warnings through and drops messages, so the Warning is
+      what carries the skip into a test run's own output. On the build path it also lands in the
+      summary's warning count, which the Message does not.
 
-      Removing the previous build's output leaves nothing executable behind for a run that reaches
-      this project anyway.
+      Removing the output directory leaves no executable, so a solution-wide dotnet test fails to
+      launch this module rather than running whatever a previous build under another mode left there.
     -->
     <Warning Text="$(MSBuildProjectName): not built - CoveSourceMode is '$(CoveSourceMode)' and this project requires a Cove source checkout, so the solution build skipped it and its tests neither compiled nor ran. Point COVE_REPO or -p:CoveRepoRoot at a checkout to include it." />
 
