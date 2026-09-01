@@ -25,6 +25,13 @@
       name disables the strip without re-triggering the default.
     -->
     <CoveHostProvidedAssemblies>;__renamer_cove_tests_no_strip__;</CoveHostProvidedAssemblies>
+    <!--
+      CA1716: the linked shared fakes (Testing.Cove/*.cs, LinkBase="TestSupport\Shared") declare the
+      Cove.Extensions.Shared.Testing namespace, whose "Shared" segment is a VB reserved keyword. These are
+      C#-only test types never consumed from VB, so the rule does not apply — mirror the suppression on the
+      Cove.Extensions.Shared(.Testing) projects. Fires here because linked files compile INTO this assembly.
+    -->
+    <NoWarn>$(NoWarn);CA1716</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -87,6 +94,18 @@
     -->
     <ProjectReference Include="$(CoveDataProjectPath)" />
     <ProjectReference Include="$(CoveCoreProjectPath)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      HOST-DEPENDENT shared test fakes: FakePrincipalAccessor (Cove.Core auth) + CoveContextFactory
+      (Cove.Data). They live in a source-only sibling dir with NO csproj and are pulled in as ordinary
+      per-project Compile items — NOT a ProjectReference (IDEs don't fully respect reference conditions;
+      msbuild#5410). Promoting that directory to a real csproj would give it its own dependency on a
+      Cove checkout, one level further down.
+    -->
+    <Compile Include="$(MSBuildThisFileDirectory)..\..\..\..\shared\Cove.Extensions.Shared.Testing.Cove\*.cs"
+             LinkBase="TestSupport\Shared" />
   </ItemGroup>
 
   <!--
