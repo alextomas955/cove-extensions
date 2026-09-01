@@ -80,15 +80,14 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      # Formatting/style check — reads root .editorconfig. The same subject set and the same dotnet
-      # format arguments as the repo-root npm check script, so a contributor's local run and this job
-      # cannot disagree about what is checked. The exclude keeps
-      # the sibling checkout out of the subject set: dotnet format walks the ProjectReference graph
-      # into Cove's own source otherwise. dotnet format takes no -p:, so
+      # Formatting/style check — reads root .editorconfig. Runs the same script the pre-commit hook
+      # and the repo-root npm scripts run; that script supplies the solution name itself. The exclude
+      # keeps the sibling checkout out of the subject set: dotnet format walks the ProjectReference
+      # graph into Cove's own source otherwise. dotnet format takes no -p:, so
       # COVE_SOURCE_MODE is the only spelling of the mode available to it.
       - name: dotnet format (verify)
         working-directory: extensions
-        run: dotnet format CoveExtensions.slnx --verify-no-changes --severity warn --exclude ../cove/
+        run: node scripts/check-csharp-format.mjs --verify-no-changes --severity warn --exclude ../cove/
         env:
           COVE_SOURCE_MODE: source
           COVE_REPO: ${{ github.workspace }}/cove
