@@ -80,6 +80,28 @@ public sealed class ImportRefusalProjectorTests
         Assert.Equal(once, twice);
     }
 
+    /// <summary>A path too long to be stored whole is still recognised on its second delivery.</summary>
+    /// <remarks>
+    /// Such a path is stored shortened, so a fold comparing the reported path against the stored one
+    /// never matches it against itself: one root reporting one path twice would take two of the three
+    /// slots its line keeps.
+    /// </remarks>
+    [Fact]
+    public void ARepeatedOverLongPathNeitherLengthensTheListNorCountsTwice()
+    {
+        var tooLong = Root + "/" + new string('a', ImportRefusalEntry.PathMaxLength);
+
+        var once = ImportRefusalProjector.Refuse(
+            [], Root, tooLong, ImportRefusalCause.NotFoundUnderAnyRoot);
+        var twice = ImportRefusalProjector.Refuse(
+            once, Root, tooLong, ImportRefusalCause.NotFoundUnderAnyRoot);
+
+        var entry = Assert.Single(twice);
+        Assert.Equal(1, entry.CountSinceLastSuccess);
+        Assert.Single(entry.NewestPaths);
+        Assert.Equal(once, twice);
+    }
+
     /// <summary>The same path refused for a different reason carries the newer reason.</summary>
     /// <remarks>
     /// Still one entry and still one count: the delivery said something new about a path the root
