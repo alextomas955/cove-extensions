@@ -55,10 +55,12 @@ if (typeof import.meta.main !== "boolean") {
     process.exit(1);
   }
 } else if (import.meta.main) {
-  // The staged file list reaches this argument vector, so the shell stays out of it.
+  // `shell: false`, so a filename lefthook interpolated into its own command string is not split a
+  // second time here.
   const run = spawnSync("dotnet", ["format", "CoveExtensions.slnx", ...process.argv.slice(2)], {
     encoding: "utf8",
     shell: false,
+    maxBuffer: 64 * 1024 * 1024,
   });
 
   const stdout = run.stdout ?? "";
@@ -70,10 +72,10 @@ if (typeof import.meta.main !== "boolean") {
   const unloaded = projectsWithUnloadedReferences(stdout + stderr);
   if (unloaded.length > 0) {
     console.log(
-      `check-csharp-format: PARTIAL - ${unloaded.join(", ")} loaded without their references, so only whitespace was checked there and no analyzer finding could be reported for them. Set COVE_REPO or add a ../cove sibling to include them.`,
+      `check-csharp-format: PARTIAL - references did not load for ${unloaded.join(", ")}, so only whitespace was checked there and no analyzer finding could be reported. Set COVE_REPO or add a ../cove sibling to restore analyzer coverage.`,
     );
   }
 
-  // This reports; it does not gate. Working without a Cove checkout is supported here.
+  // This reports; it does not gate.
   process.exit(run.status ?? 1);
 }
