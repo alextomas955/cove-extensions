@@ -10,11 +10,11 @@ namespace Renamer.Tests.Api;
 
 /// <summary>
 /// The only C# coverage of Renamer's REAL minimal-API transport boundary: MapEndpoints is mounted in an
-/// in-process WebApplication/TestServer and driven over HTTP. Pins the route table the MF-30/MF-31
-/// executor/planner extraction must preserve (every mounted route resolves — never 404/405) and that a
-/// representative response round-trips its DTO. Thin (route-exists + shape only) — the handler-level
-/// permission/logic tests already exist. It lives in the Cove-dependent test project because it needs a
-/// CovePrincipal and a real CoveContext.
+/// in-process WebApplication/TestServer and driven over HTTP.
+/// Pins the route table any later extraction of the executor and planner must preserve
+/// (every mounted route resolves — never 404/405) and that a representative response round-trips its
+/// DTO. Thin (route-exists + shape only) — the handler-level permission/logic tests already exist. It
+/// lives in the Cove-dependent test project because it needs a CovePrincipal and a real CoveContext.
 /// <para>
 /// This retires the standing "WebApplicationFactory can't mount extension routes" claim in Renamer.Api.cs:
 /// a minimal WebApplication driving the extension's own MapEndpoints does mount and serve them.
