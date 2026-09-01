@@ -298,10 +298,9 @@ Each of these is stated symptom first, because the symptom is what you arrive wi
   ProjectReference graph into the sibling Cove checkout. Use `npm run format:cs`, which excludes it.
 - **A `dotnet format` scoping flag reports nothing and exits 0.** A folder passed to `--include` or
   `--exclude` has to end in a path separator; without one it matches nothing and passes.
-- **A build succeeds but compiles fewer tests than you expect.** The Cove source selection fell back
-  to the published packages, which Compile-Removes every source that needs a Cove type. Read the
-  resolved-mode line the build prints, or query the properties - [Configuration
-  reference](./configuration#check-which-source-was-selected) has both.
+- **A build succeeds but compiles fewer tests than you expect.** You named one of an extension's two
+  test projects when you meant both. Name the solution instead, or the other project as well -
+  [Testing](./testing#which-set-of-c-tests-you-just-ran) has which covers what.
 - **A commit completes and nothing was checked.** The hook runner is missing. Confirm with
   `npx lefthook version`, and treat CI as the gate either way.
 - **The docs site build fails on a link that looks correct.** A markdown relative link to a repo file

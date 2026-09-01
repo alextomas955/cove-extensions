@@ -31,8 +31,8 @@ Pages this one does not restate:
 | UI           | An extension's UI bundle, plus the shared UI package's own suite                               | `npm run test`                       | the extension's UI dir |
 | End-to-end   | The assembled package installed into a released Cove container, driven over HTTP and a browser | `npm test -- --project=<e2eProject>` | `tests/e2e`            |
 
-The four are not interchangeable, and the C# tier in particular covers a different amount depending
-on how the build located Cove. Read [Which set of C# tests you just ran](#which-set-of-c-tests-you-just-ran)
+The four are not interchangeable, and the C# tier in particular is split across two projects that
+cover different things. Read [Which set of C# tests you just ran](#which-set-of-c-tests-you-just-ran)
 before you report a green C# run.
 
 ## Run the repo tooling tests
@@ -52,17 +52,25 @@ soon as it exists.
 
 ## Run the C# suite
 
-From the repo root, run every test project the solution declares:
+From the repo root, run every test project the solution declares. This needs a Cove source checkout,
+because one of the projects it holds cannot build without one:
 
 ```sh
 dotnet test CoveExtensions.slnx
 ```
 
-Or one extension's project alone:
+An extension declares two test projects, and the solution holds both. Renamer's are:
 
 ```sh
 dotnet test --project extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj
+dotnet test --project extensions/Renamer/src/Renamer.Cove.Tests/Renamer.Cove.Tests.csproj
 ```
+
+The first needs no Cove source checkout; the second needs one and refuses to build without it. Read
+[Which set of C# tests you just ran](#which-set-of-c-tests-you-just-ran) before you report either
+result on its own, and run them one after another rather than concurrently — [that project's
+README](https://github.com/alextomas955/cove-extensions/blob/main/extensions/Renamer/src/Renamer.Tests/README.md)
+has the drive-letter reason.
 
 The runner is xUnit on the Microsoft Testing Platform. `global.json` selects the platform and pins
 the SDK, so read both values there rather than anywhere else.
@@ -78,8 +86,8 @@ Two things about this tier are worth knowing before you read its result:
   differ. [Development](./development#regenerate-the-wire-types-after-a-handler-change) has the
   rewrite-and-regenerate loop for an intended change.
 
-`extensions/Renamer/src/Renamer.Tests/README.md` describes that project's own folder conventions and
-the platform gates some of its tests carry.
+`extensions/Renamer/src/Renamer.Tests/README.md` describes both of Renamer's test projects: their
+folder conventions, which one a new test belongs in, and the platform gates some of their tests carry.
 
 ## Run an extension's UI tests
 
@@ -157,48 +165,54 @@ by name instead of passing over an empty set.
 
 ## Which set of C# tests you just ran
 
-The C# test project compiles to a different set depending on how the build located Cove. In `none`
-mode, with no Cove source available, the project file removes from compilation every source that
-needs Cove's own source types. Four directories go wholesale: `Concurrency/`, `Events/`,
-`Execution/` with everything under it, and `Preview/`. Named files go with them, both under `Api/`,
-`Jobs/`, `Options/` and `TestSupport/` and at the project root. Read the `Compile Remove` group in the
-test project file for the authoritative list rather than reconstructing it from this paragraph.
+An extension's backend suite is split across two test projects, and **which project you named is what
+decides the set**. For Renamer:
 
-Both modes print `Passed!`, and the smaller run is much smaller. That is the whole hazard: a
-contributor with no Cove checkout can run the suite, see it pass, and report the full suite green.
+| Project                                                               | Covers                                           | Needs a Cove source checkout |
+| --------------------------------------------------------------------- | ------------------------------------------------ | ---------------------------- |
+| `extensions/Renamer/src/Renamer.Tests/Renamer.Tests.csproj`           | Everything provable without a real `CoveContext` | No                           |
+| `extensions/Renamer/src/Renamer.Cove.Tests/Renamer.Cove.Tests.csproj` | Everything that needs a real `CoveContext`       | Yes                          |
 
-Check which set you ran rather than assuming, in either of two ways:
+Name the solution and you get both. Name one project and you get that project, whatever mode the
+build resolved — the set no longer moves with how the build located Cove, so the same command reports
+the same total either way.
 
-- Read the Cove source selection. Every build prints one line naming the resolved mode and the
-  absolute root, and the property query answers the same question without a build. [Configuration
-  reference](./configuration#cove-source-selection) has both, plus the precedence that decides it.
-- Compare the totals. Run the same command a second time with `-p:CoveSourceMode=none` and read the
-  `total` line each run prints. The gap between them is the coverage the checkout is buying you. The
-  skip count moves too, because some platform-gated tests exist only in the larger set.
+Two consequences worth knowing:
 
-The mode is always declared explicitly in CI rather than inferred from whether a checkout landed,
-for exactly this reason: a failed clone would otherwise select the smaller set and still report
-success.
+- **Naming only the first project is a partial run.** It reports `Passed!` over the tier it holds and
+  says nothing about the endpoint and host-dependent tests. Say which project you ran when you report
+  a result.
+- **Naming the second project without a checkout fails immediately**, with one sentence telling you a
+  checkout is required. It does not fall back to a smaller run.
+
+To read the Cove source selection itself, every build prints one line naming the resolved mode and the
+absolute root, and a property query answers the same question without a build. [Configuration
+reference](./configuration#cove-source-selection) has both, plus the precedence that decides it.
+
+The mode is declared explicitly in CI rather than inferred from whether a checkout landed, so a failed
+clone fails the leg instead of quietly changing what it builds.
 
 ## The safety gate and the smoke leg
 
 `.github/workflows/build.yml` runs the C# tier three ways, and only two of them are evidence about
 behavior.
 
-- The **`build` job** compiles and tests with `-p:CoveSourceMode=none`. Everything in the removal
-  list above is absent, so what runs is the pure tier. This leg proves the extension still compiles
-  and its pure tests pass with no host present. It is a compile and pure-logic smoke, and it is
-  **not** the safety gate. Treat a green result here as proving the smaller claim it makes.
-- The **`test-cove-present` job** shallow-clones Cove at the version the workflow's axis resolved
-  and runs the same test project with `-p:CoveSourceMode=source`. It is the only leg that runs the
-  tests needing a real `CoveContext`.
+- The **`build` job** compiles and tests the checkout-free project with `-p:CoveSourceMode=none`. It
+  proves the extension still compiles and that whole project passes with no host present. It is a
+  compile and pure-logic smoke, and it is **not** the safety gate. Treat a green result here as
+  proving the smaller claim it makes.
+- The **`test-cove-present` job** shallow-clones Cove at the version the workflow's axis resolved and
+  runs **both** test projects with `-p:CoveSourceMode=source`. It is the only leg that runs the tests
+  needing a real `CoveContext`.
 - The **`e2e` job** installs the assembled package into a running released Cove container. It is the
   only leg that would notice a package the host refuses to load.
 
-`lint.yml` runs the C# tier a fourth way, on Windows. That leg also builds cove-absent, so it is the
-same smoke on another operating system rather than extra coverage of the removed directories. The
-end-to-end tier cannot run there at all: GitHub-hosted Windows runners fix Docker to Windows
-containers and Cove ships no Windows image.
+`lint.yml` adds two more. Its **`windows-build-test` job** builds and runs the checkout-free project
+on Windows in `none` mode, which is where the Windows-gated path assertions execute. Its
+**`csharp-format` job** checks out Cove at the floor the extensions declare and builds the whole
+solution in `source` mode with warnings as errors, so both test projects sit inside the format and
+analyzer gates. The end-to-end tier cannot run on Windows at all: GitHub-hosted Windows runners fix
+Docker to Windows containers and Cove ships no Windows image.
 
 `build.yml` aggregates its own legs into one job that asserts each result, and that aggregate is what
 branch protection is meant to require. Two qualifications:
@@ -213,9 +227,12 @@ branch protection is meant to require. Two qualifications:
 
 Each entry leads with the symptom, because that is what you arrive with.
 
-- **A C# run reports far fewer tests than you expect and still says `Passed!`.** The build took the
-  cove-absent path. See [Which set of C# tests you just
+- **A C# run reports far fewer tests than you expect and still says `Passed!`.** You named one test
+  project when you meant both. Name the solution instead. See [Which set of C# tests you just
   ran](#which-set-of-c-tests-you-just-ran).
+- **A C# build stops with one sentence saying a Cove source checkout is required.** You named the
+  Cove-dependent project, or the solution, with no checkout available. [Configuration
+  reference](./configuration#cove-source-selection) has the knobs that point the build at one.
 - **A C# run reports `Zero tests ran` and exits non-zero, with `failed: 0` in the summary.** Your
   filter matched nothing. Check the class name against the file's actual declarations rather than
   against its filename.

@@ -217,10 +217,12 @@ Jobs/ · Options/`). UI = feature slices directly under `src/` next to `index.ts
   race and made "how much history is kept" a number someone had to choose, where a row insert is atomic
   and a whole batch either falls inside the window or is gone.
 - **Testing.** Tests MIRROR their source folders; only test-only groups (`TestSupport/`,
-  `TransportSmoke/`, e2e) sit outside the mirror. The bare-CI (cove-absent) leg is a compile/pure
-  SMOKE — any test that references a Cove source type is Compile-Removed there — and is NOT the
-  safety gate; the containerized e2e job is the required safety gate. Keep `*Logic.ts` offline-gated
-  so pinned wire-casing enums fail a gate on drift.
+  `TransportSmoke/`, e2e) sit outside the mirror. An extension's backend suite is TWO projects split
+  on whether a test needs a real `CoveContext` from `Cove.Data`; a test that needs one and is not in
+  the Cove-dependent project does not compile. The bare-CI (cove-absent) leg runs the project holding
+  no Cove-source reference, and that leg is a compile/pure SMOKE and is NOT the safety gate; the
+  containerized e2e job is the required safety gate. Keep `*Logic.ts` offline-gated so pinned
+  wire-casing enums fail a gate on drift.
 - **Tooling as merge gates.** jscpd, knip, syncpack, and import-boundaries run as **blocking** merge
   gates. Rollout: land each tool, get it green on `main`, THEN flip to blocking. **Only a check a CI
   workflow runs can block a merge** — an entry in the local hook runner is advice a contributor can

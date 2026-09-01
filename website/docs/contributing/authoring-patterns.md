@@ -160,8 +160,10 @@ comment.
 ## Testing and tooling
 
 Mirror the source folders so a test is easy to find from its subject. What a test depends on is
-carried by where it sits and by the build: the folder places it, and the `Compile Remove` entries in
-the test project decide which files the cove-absent leg builds at all.
+carried by which of an extension's two test projects it sits in. The split is on one question - does
+the test need a real `CoveContext` from `Cove.Data`? If it does, it goes in the Cove-dependent project
+and runs only where a Cove source checkout exists. If it does not, it goes in the other, and it runs
+on every leg. Put a `CoveContext` test in the wrong one and the build fails on it.
 
 The lightweight "bare" CI leg is a compile-and-pure-logic smoke test; the containerized end-to-end job
 is the real safety gate. Copy-paste, dead-export, dependency-drift, and import-direction checks run as

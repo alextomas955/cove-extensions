@@ -18,13 +18,6 @@ namespace Renamer.Tests.Contracts;
 /// <see cref="CoveRevertJournal.RetentionWindow"/> through arithmetic that would agree with it forever,
 /// and the failure message names the file that has to move with it.
 /// </para>
-/// <para>
-/// PLACEMENT IS LOAD-BEARING, and this file is deliberately NOT under <c>Execution/</c> beside the
-/// class it reads. The cove-absent continuous-integration leg removes cove-dependent sources from those
-/// folders FILE BY FILE, so whether a pure suite placed beside its subject keeps running there depends
-/// on a <c>Compile Remove</c> entry nobody adds deliberately for a test that needs none.
-/// <c>Contracts/</c> is covered by no such entry at all, which is the guarantee.
-/// </para>
 /// </remarks>
 public sealed class RetentionWindowPinTests
 {

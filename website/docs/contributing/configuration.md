@@ -34,7 +34,7 @@ This page describes the levers, not the design.
 | `sdk.rollForward` | How far the installed SDK may exceed the pinned version before `dotnet` refuses. | `disable`, `patch`, `feature`, `minor`, `major`, `latestPatch`, `latestFeature`, `latestMinor`, `latestMajor`. |
 | `test.runner`     | Which test host `dotnet test` drives.                                            | `VSTest` or `Microsoft.Testing.Platform`.                                                                      |
 
-Under `Microsoft.Testing.Platform`, `dotnet test` names a project with `--project <path.csproj>`
+Under `Microsoft.Testing.Platform`, `dotnet test` names a project with `--project <project path>`
 as the workflows in `.github/workflows/` do. A bare project path also works, so treat `--project` as
 the form this repo standardises on rather than the only accepted one.
 
@@ -137,10 +137,11 @@ meets:
 | `EnableDynamicLoading`      | Required: every extension is loaded dynamically by the host.                                                            |
 
 `Directory.Build.targets` adds the Sonar C# analyzer to every project, unconditionally on how Cove is
-located. Two consequences worth knowing before you read a green result as a clean tree: the
-pre-commit hook runs per file, so it reports on the files you touched and not on their neighbours;
-and the CI legs build with `CoveSourceMode=none`, which sees a strict subset of the findings a
-local source build sees.
+located. Two things are worth knowing before you read a green result as a clean tree. The pre-commit
+hook runs per file, so it reports on the files you touched and not on their neighbours. And the CI
+legs do not all build the same way: the analyzer gate (`csharp-format` in `lint.yml`) builds the whole
+solution in `source` mode against a checked-out Cove, so it sees what a local source build sees, while
+the packaging and Windows legs build in `none` mode over the projects that do not need a checkout.
 
 ## Package versions
 
