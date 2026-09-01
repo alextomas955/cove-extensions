@@ -64,8 +64,8 @@ Precedence, highest first:
 Explicitness is captured before any defaulting, because the choice turns on how a value arrived rather
 than on whether a path happens to exist. Absence is a legitimate state for auto-detection and an error
 for explicit configuration, and that distinction is the point of the design: a mode that cannot
-deliver what it names stops the build with one plain message instead of falling back, because a silent
-fallback compiles a smaller test set and still reports success. The gate lives in the targets file
+deliver what it names stops the build with one plain message instead of falling back, because the
+fallback would skip the project that mode was chosen to build. The gate lives in the targets file
 rather than the props file for a mechanical reason - a property group can only compute, and stopping a
 build needs a target. It prints the resolved absolute path, which is what makes a shell's rewriting of
 a POSIX path into a drive-lettered one visible at all.
