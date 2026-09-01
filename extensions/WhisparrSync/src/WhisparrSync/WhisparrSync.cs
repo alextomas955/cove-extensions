@@ -89,7 +89,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
 
         // A singleton, so the request scopes and the background worker queue behind ONE gate. Per
         // scope it would be a gate per request and would serialise nothing.
-        services.AddSingleton<OptionsWriteGate>();
+        services.AddSingleton(_ => new OptionsWriteGate(_log));
 
         // A delivery arrives per file, so a reading held per scope would be a reading taken per file.
         services.AddSingleton(services => new ReportedRootCache(services.GetRequiredService<TimeProvider>()));
