@@ -156,6 +156,9 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
     /// </summary>
     internal const int MaxRedirects = 3;
 
+    /// <summary>How much of one answer the client will hold in memory before refusing it.</summary>
+    internal const long MaxResponseBytes = 8L * 1024 * 1024;
+
     public async Task<WhisparrResponse> ReadStatusAsync(
         Uri baseAddress,
         string apiKey,
