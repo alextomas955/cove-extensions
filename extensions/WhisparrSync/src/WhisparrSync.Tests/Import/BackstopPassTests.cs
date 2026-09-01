@@ -444,9 +444,8 @@ public sealed class BackstopPassTests
     /// </summary>
     /// <remarks>
     /// The across-page order check passes for this shape and no other: a repeated page starts newer
-    /// than the previous one ended unless every record on it carries the same instant. A genuine tie
-    /// takes that same shape, so the two are told apart by whether the range repeats rather than by
-    /// the order.
+    /// than the previous one ended unless every record on it carries the same instant. These records
+    /// carry no id, so the repeat is read off the range the two pages share.
     /// <para>
     /// The read count is bounded, so a rule that stops terminating raises here rather than running
     /// until the suite is killed.
@@ -458,6 +457,28 @@ public sealed class BackstopPassTests
         var mark = Noon.AddYears(-1);
         var pass = new Pass(mark, requestBudget: 8);
         pass.Answering(Page(Enumerable.Repeat(Noon, BackstopPass.PageSize)));
+
+        var result = await pass.RunAsync();
+
+        Assert.Equal(BackstopPassOutcome.RefusedPageOrder, result.Outcome);
+        Assert.Equal(2, result.PagesRead);
+        Assert.Equal(mark, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
+    }
+
+    /// <summary>
+    /// A route answering every page with the same identified records refuses rather than walking
+    /// forever, and leaves the mark where it was.
+    /// </summary>
+    /// <remarks>
+    /// The same page answered again is the one shape a walk cannot read its way out of, and reaching
+    /// the records past it means reaching them through a route that will not serve them.
+    /// </remarks>
+    [Fact]
+    public async Task ARouteAnsweringOnePageOfIdentifiedRecordsRefusesRatherThanWalkingForever()
+    {
+        var mark = Noon.AddYears(-1);
+        var pass = new Pass(mark, requestBudget: 8);
+        pass.Answering(PageOf(AtOneInstant(NewestRecordId, BackstopPass.PageSize)));
 
         var result = await pass.RunAsync();
 
@@ -525,12 +546,12 @@ public sealed class BackstopPassTests
         var pass = new Pass(mark: Noon.AddMinutes(-30));
         pass.Answering(Page([Noon.AddMinutes(-5), Noon]));
 
-        await RefusedRepeatedlyAsync(pass, 10);
+        await RefusedRepeatedlyAsync(pass, ImportHealthAggregate.ConsecutiveFailuresCeiling);
         var streak = (await pass.StoredAsync()).ImportHealth.ConsecutiveFailures;
 
-        await RefusedRepeatedlyAsync(pass, 10);
+        await RefusedRepeatedlyAsync(pass, ImportHealthAggregate.ConsecutiveFailuresCeiling);
 
-        Assert.Equal(10, streak);
+        Assert.Equal(ImportHealthAggregate.ConsecutiveFailuresCeiling, streak);
         Assert.Equal(streak, (await pass.StoredAsync()).ImportHealth.ConsecutiveFailures);
     }
 
