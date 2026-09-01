@@ -33,6 +33,9 @@ public sealed class BackstopPassTests
     /// </summary>
     private const string SceneIdentifier = "4149372";
 
+    /// <summary>The id of the newest record in the history the paging cases read.</summary>
+    private const int NewestRecordId = 1000;
+
     private static readonly DateTimeOffset Noon = new(2026, 8, 30, 12, 0, 0, TimeSpan.Zero);
 
     /// <summary>
@@ -463,6 +466,82 @@ public sealed class BackstopPassTests
         Assert.Equal(mark, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
     }
 
+    /// <summary>
+    /// Records added at the head between two page reads shift the second page without refusing the
+    /// pass, and the records it repeats are not taken twice.
+    /// </summary>
+    /// <remarks>
+    /// The route is offset-paged, so records arriving mid-walk push the window back and the next page
+    /// begins inside the one already read. This is the busiest moment the walk has - a long catch-up
+    /// while the instance is still importing - and it is exactly then that the pass has to keep going.
+    /// </remarks>
+    [Fact]
+    public async Task RecordsAddedAtTheHeadDuringTheWalkDoNotRefuseThePass()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-60));
+        pass.Answering(
+            PageOf(History(0, BackstopPass.PageSize)),
+            PageOf(History(BackstopPass.PageSize - 3, BackstopPass.PageSize)));
+
+        var result = await pass.RunAsync();
+
+        Assert.Equal(BackstopPassOutcome.Walked, result.Outcome);
+        Assert.Equal(Noon, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
+        Assert.Equal(
+            [.. History(0, 61).Select(record => PathOf(record.Id))],
+            pass.Core.Ingested.Select(candidate => candidate.ReportedPath));
+    }
+
+    /// <summary>A run of records sharing one instant that spans a page boundary is walked through.</summary>
+    /// <remarks>
+    /// A bulk import of more than one page of records at one instant produces two pages with the same
+    /// newest and oldest instant and no record in common, which is a continuing run rather than a page
+    /// answered twice.
+    /// </remarks>
+    [Fact]
+    public async Task ATieRunSpanningAPageBoundaryIsWalkedThrough()
+    {
+        var pass = new Pass(mark: Noon.AddYears(-1), requestBudget: 8);
+        pass.Answering(
+            PageOf(AtOneInstant(NewestRecordId, BackstopPass.PageSize)),
+            PageOf(AtOneInstant(NewestRecordId - BackstopPass.PageSize, BackstopPass.PageSize)),
+            Page([]));
+
+        var result = await pass.RunAsync();
+
+        Assert.Equal(BackstopPassOutcome.Walked, result.Outcome);
+        Assert.Equal(2 * BackstopPass.PageSize, result.RecordsTaken);
+    }
+
+    /// <summary>A refusal recurring on every pass stops climbing rather than reading as a worsening one.</summary>
+    /// <remarks>
+    /// The streak's job is to tell one bad pass from a channel that is stuck. Past the point where it
+    /// has said that, a number that keeps rising reports a condition getting worse while nothing about
+    /// it has changed.
+    /// </remarks>
+    [Fact]
+    public async Task ARefusalThatRepeatsStopsClimbingRatherThanReadingAsAWorseningOutage()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-30));
+        pass.Answering(Page([Noon.AddMinutes(-5), Noon]));
+
+        await RefusedRepeatedlyAsync(pass, 10);
+        var streak = (await pass.StoredAsync()).ImportHealth.ConsecutiveFailures;
+
+        await RefusedRepeatedlyAsync(pass, 10);
+
+        Assert.Equal(10, streak);
+        Assert.Equal(streak, (await pass.StoredAsync()).ImportHealth.ConsecutiveFailures);
+    }
+
+    private static async Task RefusedRepeatedlyAsync(Pass pass, int passes)
+    {
+        for (var attempt = 0; attempt < passes; attempt++)
+        {
+            Assert.Equal(BackstopPassOutcome.RefusedPageOrder, (await pass.RunAsync()).Outcome);
+        }
+    }
+
     /// <summary>An answer this product cannot read as a page refuses the pass.</summary>
     [Theory]
     [InlineData("not json at all")]
@@ -717,6 +796,49 @@ public sealed class BackstopPassTests
 
     private static DateTimeOffset[] Descending(int count)
         => [.. Enumerable.Range(0, count).Select(index => Noon.AddMinutes(-index))];
+
+    /// <summary>
+    /// A run of one descending history, starting <paramref name="from"/> records back from its newest.
+    /// </summary>
+    /// <remarks>
+    /// One record per minute with ids descending alongside the instants, so a page read after records
+    /// arrived at the head is the same run read from a later offset.
+    /// </remarks>
+    private static (int Id, DateTimeOffset Instant)[] History(int from, int count)
+        => [.. Enumerable
+            .Range(from, count)
+            .Select(offset => (NewestRecordId - offset, Noon.AddMinutes(-offset)))];
+
+    /// <summary>
+    /// <paramref name="count"/> records sharing one instant, ids descending from
+    /// <paramref name="firstId"/>.
+    /// </summary>
+    private static (int Id, DateTimeOffset Instant)[] AtOneInstant(int firstId, int count)
+        => [.. Enumerable.Range(0, count).Select(index => (firstId - index, Noon))];
+
+    /// <summary>The path the record with <paramref name="id"/> reports.</summary>
+    private static string PathOf(int id)
+        => string.Create(CultureInfo.InvariantCulture, $"/whisparr-media/scene{id}.mp4");
+
+    /// <summary>One page of import records, each carrying its own id and a path naming it.</summary>
+    private static WhisparrResponse PageOf(IEnumerable<(int Id, DateTimeOffset Instant)> records)
+    {
+        var page = new JsonArray();
+        foreach (var (id, instant) in records)
+        {
+            page.Add(
+                new JsonObject
+                {
+                    ["id"] = id,
+                    ["eventType"] = HistoryProjector.ImportedEventType,
+                    ["date"] = instant.ToString("O"),
+                    ["data"] = new JsonObject { ["importedPath"] = PathOf(id) },
+                });
+        }
+
+        return RecordingWhisparrClient.Json(
+            200, new JsonObject { ["records"] = page }.ToJsonString());
+    }
 
     /// <summary>One page's worth of records, one minute apart, descending from <paramref name="page"/>.</summary>
     private static WhisparrResponse FullPage(int page)
