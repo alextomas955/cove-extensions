@@ -407,10 +407,14 @@ public sealed class SafetyInvariantTests
                     WhisparrGeneration.V3, "Download", reportedPath, FileSize, remoteId),
                 TestCt);
 
+        /// <summary>The one gate every write in a case goes through, as the container has it.</summary>
+        public OptionsWriteGate Gate { get; } = new();
+
         public Task<BackstopPassResult> BackstopAsync()
             => new BackstopPass(
                     Client,
                     _options,
+                    Gate,
                     _credentials,
                     Core(),
                     new FixedClock(Now),
@@ -436,7 +440,7 @@ public sealed class SafetyInvariantTests
 
         private ImportCore Core()
             => new ImportCore(
-                _reportedRoots, Library, Paths, _options, _followUp, NullLogger.Instance);
+                _reportedRoots, Library, Paths, _options, Gate, _followUp, NullLogger.Instance);
     }
 
     /// <summary>The filesystem seam, faked, recording every operation it was asked for.</summary>

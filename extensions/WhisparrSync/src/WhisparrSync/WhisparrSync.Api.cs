@@ -70,8 +70,9 @@ public sealed partial class WhisparrSync
 
         endpoints.MapPut(SettingsRoute,
             (WhisparrSyncSettingsSaveRequest request, ICurrentPrincipalAccessor principal,
-             OptionsStore options, ICredentialPort credentials, TimeProvider clock, CancellationToken ct)
-                => SaveSettingsAsync(request, principal, options, credentials, clock, ct))
+             OptionsStore options, OptionsWriteGate gate, ICredentialPort credentials,
+             TimeProvider clock, CancellationToken ct)
+                => SaveSettingsAsync(request, principal, options, gate, credentials, clock, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
@@ -93,10 +94,12 @@ public sealed partial class WhisparrSync
 
         endpoints.MapPost(CallbackRegisterRoute,
             (RegisterCallbackRequest request, HttpContext http, ICurrentPrincipalAccessor principal,
-             OptionsStore options, ICredentialPort credentials, ICallbackSecretPort secrets,
-             IWhisparrNotificationPort notifications, TimeProvider clock, CancellationToken ct)
+             OptionsStore options, OptionsWriteGate gate, ICredentialPort credentials,
+             ICallbackSecretPort secrets, IWhisparrNotificationPort notifications, TimeProvider clock,
+             CancellationToken ct)
                 => RegisterCallbackAsync(
-                    request, http, principal, Id, options, credentials, secrets, notifications, clock, ct))
+                    request, http, principal, Id, options, gate, credentials, secrets, notifications,
+                    clock, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
@@ -225,6 +228,7 @@ public sealed partial class WhisparrSync
         WhisparrSyncSettingsSaveRequest request,
         ICurrentPrincipalAccessor principal,
         OptionsStore options,
+        OptionsWriteGate gate,
         ICredentialPort credentials,
         TimeProvider clock,
         CancellationToken ct)
@@ -236,6 +240,7 @@ public sealed partial class WhisparrSync
 
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(gate);
         ArgumentNullException.ThrowIfNull(credentials);
         ArgumentNullException.ThrowIfNull(clock);
 
@@ -247,10 +252,12 @@ public sealed partial class WhisparrSync
             WhisparrGeneration.V2, SettingsProjector.CredentialWriteFor(request.V2), now, ct)
             .ConfigureAwait(false);
 
-        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
-        await options.SaveAsync(SettingsProjector.Apply(stored, request), ct).ConfigureAwait(false);
+        var persisted = await gate
+            .MutateAsync(options, stored => SettingsProjector.Apply(stored, request), ct)
+            .ConfigureAwait(false);
 
-        return TypedResults.Ok(await ProjectSettingsAsync(options, credentials, ct).ConfigureAwait(false));
+        return TypedResults.Ok(
+            await ProjectSettingsAsync(persisted, credentials, ct).ConfigureAwait(false));
     }
 
     /// <summary>Reads the refusals outstanding, one line per Whisparr root that has any.</summary>
@@ -359,8 +366,10 @@ public sealed partial class WhisparrSync
         var outcome = await RunAsSystem.RunInSystemScopeAsync(scopes, async services =>
         {
             await RecordSecretPositionAsync(
-                services.GetRequiredService<OptionsStore>(), position, ct)
-                .ConfigureAwait(false);
+                services.GetRequiredService<OptionsStore>(),
+                services.GetRequiredService<OptionsWriteGate>(),
+                position,
+                ct).ConfigureAwait(false);
 
             if (reading.Outcome == WebhookProjectionOutcome.Ignored)
             {
@@ -504,6 +513,7 @@ public sealed partial class WhisparrSync
         ICurrentPrincipalAccessor principal,
         string extensionId,
         OptionsStore options,
+        OptionsWriteGate gate,
         ICredentialPort credentials,
         ICallbackSecretPort secrets,
         IWhisparrNotificationPort notifications,
@@ -518,18 +528,16 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(http);
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(gate);
         ArgumentNullException.ThrowIfNull(notifications);
-
-        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
 
         // Stored even when it equals the host this request arrived on. What storing it buys is that a
         // later request from a different host does not move the address.
         var edited = CallbackAddress.HostPartOf(request.CallbackAddress, extensionId);
-        if (edited.Length > 0 && !string.Equals(edited, stored.CallbackHost, StringComparison.Ordinal))
-        {
-            stored = stored with { CallbackHost = edited };
-            await options.SaveAsync(stored, ct).ConfigureAwait(false);
-        }
+        var stored = edited.Length > 0
+            ? await gate.MutateAsync(options, current => current with { CallbackHost = edited }, ct)
+                .ConfigureAwait(false)
+            : await options.LoadAsync(ct).ConfigureAwait(false);
 
         var generation = stored.SelectedGeneration;
         var connection = stored.ConnectionFor(generation) ?? new WhisparrSyncGenerationConnection();
@@ -554,12 +562,21 @@ public sealed partial class WhisparrSync
             secret,
             ct).ConfigureAwait(false);
 
-        stored = stored.WithConnectionFor(
-            generation, connection with { CallbackRegistration = outcome.Status });
-        await options.SaveAsync(stored, ct).ConfigureAwait(false);
+        // The status is folded onto the connection the gate loads, and the answer is projected from
+        // what the gate persisted. The registration is an outbound round trip, which is the longest
+        // window another writer of this same record has to commit inside - and the secret-position
+        // write is one such writer, on every delivery.
+        var persisted = await gate.MutateAsync(
+            options,
+            fresh => fresh.WithConnectionFor(
+                generation,
+                (fresh.ConnectionFor(generation) ?? new WhisparrSyncGenerationConnection())
+                    with
+                { CallbackRegistration = outcome.Status }),
+            ct).ConfigureAwait(false);
 
         return TypedResults.Ok(
-            ProjectCallback(stored, extensionId, secret, host, null, outcome.Refusal));
+            ProjectCallback(persisted, extensionId, secret, host, null, outcome.Refusal));
     }
 
     /// <summary>Reads the callback as it stands, without asking the instance anything.</summary>
@@ -643,34 +660,39 @@ public sealed partial class WhisparrSync
             CultureInfo.InvariantCulture,
             $"{http.Request.Scheme}://{http.Request.Host}{http.Request.PathBase}").TrimEnd('/');
 
-    // Written only when the position changes, so a delivery stream does not put every event into a
-    // read-modify-write over one stored value. The transition is the whole content of the reading: the
-    // note about the less private form is shown while it reads Address and clears when it reads
-    // OutOfBand.
-    private static async Task RecordSecretPositionAsync(
-        OptionsStore options, CallbackSecretPosition position, CancellationToken ct)
+    // The transition is the whole content of the reading: the note about the less private form is
+    // shown while it reads Address and clears when it reads OutOfBand.
+    internal static Task RecordSecretPositionAsync(
+        OptionsStore options,
+        OptionsWriteGate gate,
+        CallbackSecretPosition position,
+        CancellationToken ct)
     {
-        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
-        var connection = stored.ConnectionFor(stored.SelectedGeneration);
-        if (connection is null || connection.LastCallbackSecretPosition == position)
-        {
-            return;
-        }
+        ArgumentNullException.ThrowIfNull(gate);
 
-        await options.SaveAsync(
-            stored.WithConnectionFor(
-                stored.SelectedGeneration,
-                connection with { LastCallbackSecretPosition = position }),
-            ct).ConfigureAwait(false);
+        return gate.MutateAsync(
+            options,
+            stored => stored.ConnectionFor(stored.SelectedGeneration) is { } connection
+                ? stored.WithConnectionFor(
+                    stored.SelectedGeneration, connection with { LastCallbackSecretPosition = position })
+                : stored,
+            ct);
     }
 
     private static async Task<WhisparrSyncSettingsView> ProjectSettingsAsync(
         OptionsStore options, ICredentialPort credentials, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(options);
+
+        return await ProjectSettingsAsync(
+            await options.LoadAsync(ct).ConfigureAwait(false), credentials, ct).ConfigureAwait(false);
+    }
+
+    private static async Task<WhisparrSyncSettingsView> ProjectSettingsAsync(
+        WhisparrSyncOptions stored, ICredentialPort credentials, CancellationToken ct)
+    {
         ArgumentNullException.ThrowIfNull(credentials);
 
-        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
         return SettingsProjector.ToView(
             stored,
             await credentials.HasKeyAsync(WhisparrGeneration.V3, ct).ConfigureAwait(false),
