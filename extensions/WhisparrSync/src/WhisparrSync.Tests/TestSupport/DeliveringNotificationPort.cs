@@ -25,7 +25,8 @@ internal sealed class DeliveringNotificationPort(
         string secret,
         CancellationToken ct)
     {
-        await global::WhisparrSync.WhisparrSync.RecordSecretPositionAsync(options, gate, position, ct);
+        await global::WhisparrSync.WhisparrSync.RecordSecretPositionAsync(
+            options, gate, generation, position, ct);
         return new CallbackRegistrationOutcome(
             RegistrationStatus.Registered, callbackAddress, Created: true, Refusal: null);
     }
