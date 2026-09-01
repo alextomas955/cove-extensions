@@ -19,32 +19,92 @@ permissions:
 
 jobs:
   # ---- C# style + analyzer gate, run once against the shared .slnx, which is this gate's whole
-  # subject list. Adding an extension's projects to it stays manual because a .slnx is an explicit
-  # project list by design; an omission fails rather than passes, because validate-extension-repo.mjs
-  # asserts every catalog-implied project is declared there. ----
+  # subject list. dotnet format does not reach a referenced project, so narrowing the subject to one
+  # project silently drops the shared/ projects and the second test tier out of format coverage.
+  # Adding an extension's projects to the solution stays
+  # manual because a .slnx is an explicit project list by design; an omission fails rather than passes,
+  # because validate-extension-repo.mjs asserts every catalog-implied project is declared there.
+  #
+  # The subject list holds a test project that needs Cove's own source to compile, so this job checks
+  # Cove out and runs in source mode. The analyzer step gains independently: a `none` build sees a
+  # strict subset of the findings a source build sees, which Directory.Build.targets records about its
+  # own coverage.
+  #
+  # The two repositories are checked out as SIBLINGS under the workspace rather than nesting Cove
+  # inside this one. Cove carries no Directory.Packages.props, so a nested clone inherits this repo's
+  # central package management and every version-carrying PackageReference in Cove fails NU1008. ----
   csharp-format:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          path: extensions
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24.11.0"
+      # The ref is not named here: it is the highest floor the extensions themselves declare, read from
+      # each entry's own extension.json. A version written into this file would be a second declaration
+      # of a floor that already has one, free to disagree with it. Where entries disagree the highest
+      # wins, and the run names every floor it saw.
+      - name: Resolve the Cove ref from the declared floors
+        id: floor
+        working-directory: extensions
+        shell: bash
+        run: |
+          node --input-type=module -e '
+            import { readExtensionFloors } from "./scripts/fetch-cove-assemblies.mjs";
+            const declared = readExtensionFloors();
+            const parts = (v) => v.split(/[-+]/)[0].split(".").map(Number);
+            const highest = declared.reduce((left, right) => {
+              const [a, b] = [parts(left.floor), parts(right.floor)];
+              for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i] ? left : right;
+              return left;
+            });
+            for (const { entry, floor, manifestPath } of declared) {
+              console.error(entry.name + " declares floor " + floor + " (from " + manifestPath + ")");
+            }
+            const distinct = new Set(declared.map((d) => d.floor));
+            if (distinct.size > 1) {
+              console.error("::notice::" + distinct.size + " distinct floors are declared; formatting and analysing against the highest, " + highest.floor + ".");
+            }
+            console.log("ref=v" + highest.floor);
+          ' >> "$GITHUB_OUTPUT"
+      - name: Check out Cove at the declared floor
+        uses: actions/checkout@v7
+        with:
+          repository: yourcove/cove
+          ref: ${{ steps.floor.outputs.ref }}
+          fetch-depth: 1
+          path: cove
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       # Formatting/style check — reads root .editorconfig. Same invocation as `npm run
-      # format:cs:check`, so a contributor's local run and this job cannot disagree. The exclude is a
-      # no-op here (CI has no ../cove sibling, so Cove arrives from NuGet); it earns its place locally,
-      # where Directory.Build.props auto-detects the sibling and dotnet format then walks the
-      # ProjectReference graph into Cove's own source. A path that does not exist is accepted silently.
+      # format:cs:check`, so a contributor's local run and this job cannot disagree. The exclude keeps
+      # the sibling checkout out of the subject set: dotnet format walks the ProjectReference graph
+      # into Cove's own source otherwise. dotnet format takes no -p:, so
+      # COVE_SOURCE_MODE is the only spelling of the mode available to it.
       - name: dotnet format (verify)
+        working-directory: extensions
         run: dotnet format CoveExtensions.slnx --verify-no-changes --severity warn --exclude ../cove/
+        env:
+          COVE_SOURCE_MODE: source
+          COVE_REPO: ${{ github.workspace }}/cove
       # Analyzer gate: a Release build with TreatWarningsAsErrors=true (root Directory.Build.props)
       # fails on any CA/IDE warning.
       - name: Build with analyzers (warnings = errors)
-        run: dotnet build CoveExtensions.slnx -c Release -p:CoveSourceMode=none
+        working-directory: extensions
+        run: dotnet build CoveExtensions.slnx -c Release -p:CoveSourceMode=source -p:CoveRepoRoot="$COVE_REPO_ROOT"
+        env:
+          COVE_REPO_ROOT: ${{ github.workspace }}/cove
 
-  # ---- Windows build + unit-test signal. Compiles every solution member, then runs each catalog
-  # entry's testProjectPath, so adding an extension is a catalog edit.
+  # ---- Windows build + unit-test signal. Builds each catalog entry's cove-absent test project and
+  # then runs it, so adding an extension is a catalog edit. The subject is those projects rather than
+  # the whole solution, because the solution also holds a test project that needs Cove's own source,
+  # which this leg's `none` mode does not supply. dotnet build follows the ProjectReference graph, so
+  # building a test project also builds the extension and the shared projects it reaches.
   #
   # No E2E here, and this will not change: GitHub-hosted windows-latest runners fix Docker to Windows
   # containers with no supported switch to Linux ones, so Testcontainers cannot start the Cove app and
@@ -60,8 +120,26 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - name: Build
-        run: dotnet build CoveExtensions.slnx -c Release -p:CoveSourceMode=none
-      # The whole-slnx Build above already compiled every test project, so --no-build still holds.
+        shell: bash
+        run: |
+          mapfile -t tests < <(node -e '
+            const fs = require("fs");
+            const catalog = JSON.parse(fs.readFileSync("extensions/catalog.json", "utf8"));
+            for (const entry of catalog.extensions) {
+              if (entry.manifestOnly === true) continue;
+              if (entry.testProjectPath) console.log(entry.testProjectPath);
+            }
+          ')
+          for test in "${tests[@]}"; do
+            echo "::group::dotnet build $test"
+            dotnet build "$test" -c Release -p:CoveSourceMode=none
+            echo "::endgroup::"
+          done
+      # The step above built each of these projects, so --no-build still holds.
+      #
+      # The loop stays sequential. Tests that map and unmap a subst drive letter are serialized by a
+      # collection, and xUnit scopes a collection to one assembly, so two assemblies running at once
+      # can reclaim a letter another is still holding.
       - name: Test (unit tier)
         shell: bash
         run: |
@@ -75,7 +153,7 @@ jobs:
           ')
           for test in "${tests[@]}"; do
             echo "::group::dotnet test $test"
-            dotnet test --project "$test" -c Release --no-build
+            dotnet test --project "$test" -c Release --no-build -p:CoveSourceMode=none
             echo "::endgroup::"
           done
 
