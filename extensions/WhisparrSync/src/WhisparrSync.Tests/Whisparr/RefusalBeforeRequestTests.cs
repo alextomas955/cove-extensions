@@ -181,6 +181,39 @@ public sealed class RefusalBeforeRequestTests
         Assert.Single(client.Notifications);
     }
 
+    /// <summary>Once the held reading has run out, the instance is asked again.</summary>
+    /// <remarks>
+    /// The discriminating control for the burst above: without this, that assertion would equally
+    /// pass against a reading held for ever, which is a recovered instance nothing ever notices.
+    /// </remarks>
+    [Fact]
+    public async Task AnUnreachableInstanceIsAskedAgainOnceTheHeldReadingRunsOut()
+    {
+        var unreachable = new UnreachableRootFolders(RecordingWhisparrClient.Reporting(V3StatusFixture));
+        var clock = new MovableClock(Midnight);
+        var roots = await RootPortOverAsync(unreachable, StoredAddress, StoredKey, clock);
+
+        await roots.ReadAsync(WhisparrGeneration.V3, TestCt);
+        await roots.ReadAsync(WhisparrGeneration.V3, TestCt);
+        Assert.Equal(1, unreachable.Attempts);
+
+        clock.Advance(ReportedRootCache.NothingToReadLifetime);
+        await roots.ReadAsync(WhisparrGeneration.V3, TestCt);
+
+        Assert.Equal(2, unreachable.Attempts);
+    }
+
+    /// <summary>
+    /// A reading the instance did not give is held for less time than one it did.
+    /// </summary>
+    /// <remarks>
+    /// The trade the two constants make: how long an outage keeps a recovered instance invisible
+    /// against how often a burst re-probes one that is still down.
+    /// </remarks>
+    [Fact]
+    public void AReadingTheInstanceDidNotGiveIsHeldForLessTime()
+        => Assert.True(ReportedRootCache.NothingToReadLifetime < ReportedRootCache.Lifetime);
+
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     // The whole runtime the reported-root read runs through, with the client at the seam every
@@ -255,6 +288,8 @@ public sealed class RefusalBeforeRequestTests
         private DateTimeOffset _now = start;
 
         public override DateTimeOffset GetUtcNow() => _now;
+
+        public void Advance(TimeSpan by) => _now += by;
     }
 
     // The whole runtime the outbound path runs through, with the recording client at the seam every
