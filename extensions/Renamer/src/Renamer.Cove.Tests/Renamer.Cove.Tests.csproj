@@ -1,0 +1,105 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <!-- An xUnit v3 test project is a self-hosting Microsoft Testing Platform executable; the
+         framework refuses to build one that is not. -->
+    <OutputType>Exe</OutputType>
+    <!-- a test project is never a Cove plugin: neutralize the inherited dynamic-loading flag -->
+    <EnableDynamicLoading>false</EnableDynamicLoading>
+    <!--
+      Every type here declares a Renamer.Tests.* namespace, and the root namespace has to agree with
+      them. Left at its default it would follow the project name, which puts the generated test entry
+      point in Renamer.Cove.Tests and so brings a Renamer.Cove namespace into existence. C# resolves a
+      leading name by walking enclosing namespaces outward, so from inside Renamer.Tests.* the segment
+      `Cove` would then bind to Renamer.Cove and every `Cove.Core`/`Cove.Data` reference in this
+      assembly would fail with CS0234.
+    -->
+    <RootNamespace>Renamer.Tests</RootNamespace>
+    <!--
+      A test project is NOT a deployed plugin: it must RUN, so it needs its full runtime closure
+      copied local. Renamer.csproj's transitive Cove.Sdk PackageReference imports Cove.Sdk.targets,
+      whose CoveStripHostProvidedCopyLocal target would strip host-provided assemblies from THIS
+      project's output too, making xUnit fail to reflect over the assembly at runtime. The value must
+      be NON-EMPTY: Cove.Sdk.targets re-applies its full default denylist when the property is empty
+      (Condition="'$(CoveHostProvidedAssemblies)' == ''"). A sentinel that matches no real assembly
+      name disables the strip without re-triggering the default.
+    -->
+    <CoveHostProvidedAssemblies>;__renamer_cove_tests_no_strip__;</CoveHostProvidedAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <!--
+      This tier stands up a real CoveContext on SQLite-in-memory (constraint/transaction fidelity)
+      and EF-InMemory (fast Path-recompute). These EF providers + Cove.Data/Cove.Core are referenced
+      ONLY in test projects; the deployed Renamer.dll publishes Renamer.csproj alone, so host
+      assemblies are never bundled. No version-parity constraint with Cove.Data's own EF Core
+      version — EF Core patch releases are binary-compatible within a major.minor line.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <!--
+      A version PIN on an edge that already exists rather than a new dependency: Npgsql is restored
+      here anyway through Cove.Core → Pgvector, at a version that trails the one the host runs.
+      Naming it puts the compile graph on the runtime users receive; the symptom without it is an
+      MSB3277, which TreatWarningsAsErrors cannot catch because that switch is compiler-only.
+    -->
+    <PackageReference Include="Npgsql" />
+    <!--
+      TransportSmokeTests mounts the extension's MapEndpoints in an in-process
+      WebApplication/TestServer to cover the real minimal-API transport boundary.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Per-project items, not inherited from the sibling test project. -->
+    <Using Include="Xunit" />
+    <!-- The shared test fakes (FakeStore/ConcurrentFakeStore, FakePrincipalAccessor, CoveContextFactory)
+         all declare the Cove.Extensions.Shared.Testing namespace. Import it globally so consumers resolve
+         the types without a per-file using. -->
+    <Using Include="Cove.Extensions.Shared.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- reference the extension's CODE. -->
+    <ProjectReference Include="..\Renamer\Renamer.csproj" />
+    <!--
+      The pure test project, for the TestSupport/ helpers both tiers use and for the <see cref/>
+      targets this tier points at. Duplicating those helpers instead would put twelve near-identical
+      files under the duplication gate and let the two copies drift apart with nothing reporting it.
+    -->
+    <ProjectReference Include="..\Renamer.Tests\Renamer.Tests.csproj" />
+    <!--
+      CoveContext lives in Cove.Data; entities in Cove.Core. Mirrors Cove.Tests.
+
+      The two are named for different reasons. Cove.Data is on NO feed and the root
+      Directory.Build.targets deliberately does not wire it, so a project wanting CoveContext has to say
+      where Cove is for itself. Cove.Core IS on nuget.org and does reach every project transitively
+      through the Cove.Sdk chain the root targets wires — it is named anyway so the Cove.Core matching
+      the checkout is what compiles, rather than whatever version the feed last published. A mismatch
+      there splits the closure, and MSBuild reports that skew as a warning at most, which
+      TreatWarningsAsErrors does not cover because that switch is compiler-only.
+
+      The location comes from the repo-wide $(CoveSourceMode) seam rather than a relative path literal
+      of this project's own. Both are unconditional: this project has no meaning without them, and the
+      RequireCoveSource target below is what states that.
+    -->
+    <ProjectReference Include="$(CoveDataProjectPath)" />
+    <ProjectReference Include="$(CoveCoreProjectPath)" />
+  </ItemGroup>
+
+  <!--
+    This project's tests need Cove.Data types, which only a Cove source checkout supplies. Without
+    this target the misconfiguration is silent where it starts: an empty $(CoveDataProjectPath) makes
+    MSBuild drop the ProjectReference item and the build succeeds, and a path that does not exist
+    reports only MSB9008, an MSBuild warning TreatWarningsAsErrors does not cover because that switch
+    is compiler-only. Either way the first real signal is a wall of CS0234 far from its cause.
+    BeforeTargets="PrepareForBuild" lands ahead of the compiler, mirroring AssertCoveLocation in the
+    root Directory.Build.targets.
+  -->
+  <Target Name="RequireCoveSource" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(CoveSourceMode)' != 'source'"
+           Text="$(MSBuildProjectName) requires a Cove source checkout (CoveSourceMode is '$(CoveSourceMode)'). Point COVE_REPO or -p:CoveRepoRoot at one, or build $(MSBuildProjectName.Replace('.Cove.Tests', '.Tests')) instead, which needs no checkout." />
+  </Target>
+</Project>
