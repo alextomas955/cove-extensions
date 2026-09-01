@@ -60,6 +60,11 @@ export function isSameFile(entry, self, platform = process.platform) {
 // the URL form is the spelling available on every runtime that reaches it.
 const selfPath = import.meta.filename ?? fileURLToPath(import.meta.url);
 
+const SOLUTION = "CoveExtensions.slnx";
+// Hoisted so the call below fits on one line: the suppression has to sit on the line the issue is
+// reported at, and Prettier relocates a trailing comment that follows an inline object's `{`.
+const DOTNET_STDIO = { encoding: "utf8", shell: false, maxBuffer: 64 * 1024 * 1024 };
+
 // `import.meta.main` is a boolean from Node 22.18 onward and `undefined` before it, so a bare
 // `if (import.meta.main)` takes the not-main branch on an older runtime: run as a CLI, this script
 // then checks nothing and exits 0. The root package.json declares `engines.node: ">=22.18"`, but
@@ -80,11 +85,13 @@ if (typeof import.meta.main !== "boolean") {
 
   // `shell: false`, so a filename lefthook interpolated into its own command string is not split a
   // second time here.
-  const run = spawnSync("dotnet", ["format", "CoveExtensions.slnx", ...passthrough], {
-    encoding: "utf8",
-    shell: false,
-    maxBuffer: 64 * 1024 * 1024,
-  });
+  //
+  // The binary is named rather than resolved to a path: no absolute path to a dotnet install is
+  // portable across the operating systems this repo builds on. PATH substitution is the exposure
+  // that buys. The pre-commit hook and the merge-gating CI step both run this file as `node
+  // scripts/...`, which leaves node_modules/.bin off PATH entirely; under `npm run`, which puts it
+  // first, every other tool this repo runs already resolves from there.
+  const run = spawnSync("dotnet", ["format", SOLUTION, ...passthrough], DOTNET_STDIO); // NOSONAR javascript:S4036
 
   const stdout = run.stdout ?? "";
   const stderr = run.stderr ?? "";
