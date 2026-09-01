@@ -83,12 +83,24 @@ internal sealed class ImportCore(
         }
 
         var imported = await library.ImportVideoAsync(path, repointedTo, ct).ConfigureAwait(false);
-        if (!imported.Reached)
+
+        // A host whose import this extension's container could not produce is counted against no
+        // root: nothing about it is a Whisparr root the user misconfigured, and a line under one
+        // sends them somewhere they can change nothing. A file the host was asked for and would not
+        // take IS that root's, because the path it declined came from there.
+        if (imported.Outcome == LibraryImportOutcome.ServiceUnavailable)
+        {
+            return await RefusedAsync(
+                candidate, reading, ImportOutcome.RefusedHostImportUnavailable, null, ct)
+                .ConfigureAwait(false);
+        }
+
+        if (imported.Outcome == LibraryImportOutcome.HostRefused)
         {
             return await RefusedAsync(
                 candidate,
                 reading,
-                ImportOutcome.RefusedHostImportUnavailable,
+                ImportOutcome.RefusedHostRefusedFile,
                 ImportRefusalCause.Unreadable,
                 ct).ConfigureAwait(false);
         }
@@ -204,7 +216,7 @@ internal sealed class ImportCore(
         {
             ImportRefusalCause.NotFoundUnderAnyRoot => ImportOutcome.RefusedNotFound,
             ImportRefusalCause.AmbiguousCandidates => ImportOutcome.RefusedAmbiguous,
-            ImportRefusalCause.Unreadable => ImportOutcome.RefusedHostImportUnavailable,
+            ImportRefusalCause.Unreadable => ImportOutcome.RefusedHostRefusedFile,
             _ => ImportOutcome.RefusedUnreadablePayload,
         };
 
