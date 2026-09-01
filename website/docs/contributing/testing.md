@@ -24,12 +24,12 @@ Pages this one does not restate:
 
 ## The test tiers
 
-| Tier         | What it covers                                                                                 | Command                              | Directory              |
-| ------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------ | ---------------------- |
-| Repo tooling | The first-party Node scripts under `scripts/` that CI depends on                               | `npm test`                           | repo root              |
-| C#           | An extension's backend, from pure logic up to its endpoints on a real `CoveContext`            | `dotnet test CoveExtensions.slnx`    | repo root              |
-| UI           | An extension's UI bundle, plus the shared UI package's own suite                               | `npm run test`                       | the extension's UI dir |
-| End-to-end   | The assembled package installed into a released Cove container, driven over HTTP and a browser | `npm test -- --project=<e2eProject>` | `tests/e2e`            |
+| Tier         | What it covers                                                                                 | Command                                                         | Directory              |
+| ------------ | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------- |
+| Repo tooling | The first-party Node scripts under `scripts/` that CI depends on                               | `npm test`                                                      | repo root              |
+| C#           | An extension's backend, from pure logic up to its endpoints on a real `CoveContext`            | `dotnet test CoveExtensions.slnx --max-parallel-test-modules 1` | repo root              |
+| UI           | An extension's UI bundle, plus the shared UI package's own suite                               | `npm run test`                                                  | the extension's UI dir |
+| End-to-end   | The assembled package installed into a released Cove container, driven over HTTP and a browser | `npm test -- --project=<e2eProject>`                            | `tests/e2e`            |
 
 The four are not interchangeable, and the C# tier in particular is split across two projects that
 cover different things. Read [Which set of C# tests you just ran](#which-set-of-c-tests-you-just-ran)
@@ -53,9 +53,10 @@ soon as it exists.
 ## Run the C# suite
 
 From the repo root, run every test project the solution declares. This needs a Cove source checkout:
-without one the Cove-dependent project is not built, so
-the run fails on its missing test executable rather than reporting a smaller pass. The summary still
-reads `Passed!` over the project that did build, so read the exit code rather than that line:
+without one the Cove-dependent project is neither built nor run, and the run says nothing about it.
+It exits 0, and the summary counts only the checkout-free project — so that total is not the size of
+the suite. `dotnet build CoveExtensions.slnx` does name the project it skipped. To run both, point
+`COVE_REPO` at a checkout:
 
 ```sh
 dotnet test CoveExtensions.slnx --max-parallel-test-modules 1
@@ -239,10 +240,11 @@ Each entry leads with the symptom, because that is what you arrive with.
   Cove-dependent project directly with no checkout available. A whole-solution build does not stop
   there: it names the project it skipped and succeeds. [Configuration
   reference](./configuration#cove-source-selection) has the knobs that point the build at one.
-- **A whole-solution `dotnet test` run ends `Passed!` and still exits non-zero, naming a test
-  executable that does not exist.** The Cove-dependent project was skipped for want of a checkout, so
-  its module has nothing to run and the summary covers only the project that did build. Point the
-  build at a checkout, or name the checkout-free project when that smaller set is what you meant.
+- **A whole-solution `dotnet test` run exits 0 over a total smaller than the suite, and never
+  mentions the project it left out.** The Cove-dependent project was skipped for want of a checkout,
+  so it was neither built nor run and the summary covers only the project that did build. Run
+  `dotnet build CoveExtensions.slnx`, which does name the skipped project. Then point the build at a
+  checkout, or name the checkout-free project when that smaller set is what you meant.
 - **A C# run reports `Zero tests ran` and exits non-zero, with `failed: 0` in the summary.** Your
   filter matched nothing. Check the class name against the file's actual declarations rather than
   against its filename.
