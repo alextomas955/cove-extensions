@@ -439,7 +439,7 @@ public sealed class BackgroundLifecycleTests
                     throw new InvalidOperationException("the pass failed in a way it does not classify");
                 }
 
-                return new BackstopPassResult(BackstopPassOutcome.Walked, null, 0, 0, 0, 0);
+                return new BackstopPassResult(BackstopPassOutcome.Walked, null, 0, 0, 0, 0, 0);
             }
             finally
             {
