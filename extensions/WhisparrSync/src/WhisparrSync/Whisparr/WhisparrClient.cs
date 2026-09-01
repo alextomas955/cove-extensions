@@ -157,6 +157,10 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
     internal const int MaxRedirects = 3;
 
     /// <summary>How much of one answer the client will hold in memory before refusing it.</summary>
+    /// <remarks>
+    /// Exceeding it fails the read rather than yielding a short body, which would parse as a valid
+    /// page.
+    /// </remarks>
     internal const long MaxResponseBytes = 8L * 1024 * 1024;
 
     public async Task<WhisparrResponse> ReadStatusAsync(
@@ -236,6 +240,7 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
     {
         ArgumentNullException.ThrowIfNull(client);
         client.Timeout = RequestTimeout;
+        client.MaxResponseContentBufferSize = MaxResponseBytes;
     }
 
     /// <summary>The handler every request through this client is made through.</summary>
