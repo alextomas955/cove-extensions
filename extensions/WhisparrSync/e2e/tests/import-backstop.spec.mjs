@@ -10,7 +10,13 @@
 // is expected to arrive. The record sitting exactly on the mark is read again by design, so the
 // first file may arrive with it; what may not arrive is anything from further back.
 //
-// Across both acts the instance itself is read before and after: this channel reads and only reads,
+// Act three is the claim the two ingest channels agree. A scene the library ALREADY holds arrives
+// again at a new path, through the backstop alone, and must join the item that exists rather than
+// stand up a second one beside it. The wait ends on either settled outcome, so a duplicate reports
+// as itself instead of as a poll timeout, and the file joining the item is what separates "did not
+// duplicate" from "did nothing at all".
+//
+// Across every act the instance itself is read before and after: this channel reads and only reads,
 // so its notification list and its own history record count must be exactly what this spec put there.
 import {
   test as base,
@@ -54,6 +60,11 @@ const PAST_ROWS = SEEDED_ROWS + 1;
 // extension's constant; the instance's own rendering is asserted against it below rather than read
 // off it.
 const IMPORTED_EVENT_TYPE = "downloadFolderImported";
+
+// Transcribed by hand from the extension's own constant for the source the v3 lineage identifies
+// against. It is what the stamp falls back to where the host is configured with no source, which it
+// is here. The identifier stamped under it is read off the instance instead, below.
+const STASHDB_ENDPOINT = "https://stashdb.org/graphql";
 
 const WATERMARK_BUDGET_MS = 180_000;
 const IMPORT_BUDGET_MS = 180_000;
@@ -101,6 +112,38 @@ async function videoPathsIn(api) {
   const videos = await videosIn(api);
   const held = await Promise.all(videos.map((video) => api.get(`/api/videos/${video.id}`)));
   return held.flatMap((video) => (video.json?.files ?? []).map((file) => file.path));
+}
+
+/**
+ * One video as Cove holds it, with its files and its identity rows.
+ *
+ * Each read carries its own query so it gets its own output-cache entry: the host caches this route
+ * briefly, and two reads a moment apart would otherwise be one answer.
+ */
+async function videoDetail(api, id) {
+  const held = await api.get(`/api/videos/${id}?_=${randomUUID()}`);
+  expect(held.status, `GET /api/videos/${id} answered: ${held.text.slice(0, 300)}`).toBe(200);
+  return held.json;
+}
+
+/**
+ * The identifier the instance's own library entry declares for the seeded scene.
+ *
+ * Read off a route this extension never calls, so what the stamp is checked against comes from the
+ * instance rather than from the same answer the walk read it out of.
+ */
+async function sceneIdentifierIn(whisparrApi) {
+  const listed = await whisparrApi.get("/api/v3/movie");
+  expect(
+    listed.status,
+    `reading the instance's library answered: ${listed.text.slice(0, 300)}`,
+  ).toBe(200);
+  const declared = (listed.json ?? []).map((movie) => movie.stashId).filter(Boolean);
+  expect(
+    declared,
+    "the instance declares no scene identifier, so there is nothing for either channel to agree on",
+  ).toHaveLength(1);
+  return declared[0];
 }
 
 /** What the instance itself holds: how many notifications, and how many history records. */
@@ -295,13 +338,74 @@ test("the first backstop pass records where history ends and imports nothing, an
       "the backstop imported a file no record it should have read ever named",
     ).toEqual([]);
 
+    // ACT THREE. The scene the library now holds, arriving again at a THIRD path through the
+    // backstop alone. Both seeded records hang off the instance's one library entry, so every
+    // arrival on this channel names the same scene.
+    const declaredIdentifier = await sceneIdentifierIn(whisparrApi);
+    const held = await videosIn(api);
+    expect(
+      held.map((video) => video.id),
+      "the backstop stood up an item per file instead of one per scene, so the upgrade below has " +
+        "no single item to join",
+    ).toHaveLength(1);
+
+    const itemId = held[0].id;
+    const identified = await videoDetail(api, itemId);
+    expect(
+      identified.remoteIds,
+      "the backstop registered the file without its identity, so nothing later can match on it",
+    ).toEqual([{ endpoint: STASHDB_ENDPOINT, remoteId: declaredIdentifier }]);
+
+    const upgrade = `whisparr/${randomUUID()}.mp4`;
+    const upgradePath = await placeVideoUnregistered({
+      container: isolatedHarness.container,
+      destPath: `${COVE_ROOT}/${upgrade}`,
+    });
+    const upgradeRows = 1;
+    await whisparr.seedHistory("v3", {
+      count: upgradeRows,
+      eventTypes: [importedEventType],
+      data: [{ importedPath: `${WHISPARR_ROOT}/${upgrade}` }],
+      expectedTotal: PAST_ROWS + laterRows + upgradeRows,
+    });
+
+    // Either settled outcome ends the wait, so the failure this act exists to catch — a second item
+    // rather than a second file row — is reported as itself instead of as a poll timeout.
+    const afterUpgrade = await pollUntil(
+      async () => ({ item: await videoDetail(api, itemId), all: await videosIn(api) }),
+      (seen) =>
+        (seen.item.files ?? []).some((file) => file.path === upgradePath) || seen.all.length > 1,
+      {
+        timeoutMs: IMPORT_BUDGET_MS,
+        intervalMs: 2_000,
+        label: "the item to hold the file the later record named, or a second item to appear",
+      },
+    );
+
+    expect(
+      afterUpgrade.all.map((video) => video.id),
+      "a scene arriving through the backstop alone created a second item beside the one the " +
+        "library already held",
+    ).toEqual([itemId]);
+
+    // What separates "did not duplicate" from "did nothing at all": had the pass not acted, the
+    // path below would be on no item anywhere.
+    expect(
+      afterUpgrade.item.files?.map((file) => file.path),
+      "the backstop did not attach the new file to the item the library already had",
+    ).toContain(upgradePath);
+    expect(
+      afterUpgrade.item.remoteIds,
+      "the re-point added a second identity row for one source",
+    ).toEqual([{ endpoint: STASHDB_ENDPOINT, remoteId: declaredIdentifier }]);
+
     // The backstop mutates the instance not at all. Its history holds exactly the rows this spec
     // seeded, and its notification list is the one it had before any pass ran.
     const after = await instanceState(whisparrApi);
     expect(
       after.historyRecords,
       "the instance's history grew by something this spec did not seed",
-    ).toBe(PAST_ROWS + laterRows);
+    ).toBe(PAST_ROWS + laterRows + upgradeRows);
     expect(after.notifications, "a backstop pass changed the instance's notifications").toBe(
       before.notifications,
     );
