@@ -130,7 +130,11 @@ public sealed record ImportHealthAggregate
     /// <summary>The longest recorded failure text this keeps.</summary>
     public const int LastErrorMaxLength = 400;
 
+    /// <summary>The longest failure streak this counts to.</summary>
+    public const int ConsecutiveFailuresCeiling = 10;
+
     private readonly string _lastError = "";
+    private readonly int _consecutiveFailures;
 
     /// <summary>When an import last succeeded, or null when none has.</summary>
     public DateTimeOffset? LastWorkedAtUtc { get; init; }
@@ -150,8 +154,18 @@ public sealed record ImportHealthAggregate
         init => _lastError = Shorten(value);
     }
 
-    /// <summary>How many failures have followed the last success.</summary>
-    public int ConsecutiveFailures { get; init; }
+    /// <summary>How many failures have followed the last success, counted to a ceiling.</summary>
+    /// <remarks>
+    /// Held to <see cref="ConsecutiveFailuresCeiling"/> here rather than at each writer, as
+    /// <see cref="LastError"/> is shortened. Past the ceiling the streak's exact length says only that
+    /// the same failure is still recurring, and a figure that climbs on every pass reads as a
+    /// condition getting worse.
+    /// </remarks>
+    public int ConsecutiveFailures
+    {
+        get => _consecutiveFailures;
+        init => _consecutiveFailures = Math.Min(value, ConsecutiveFailuresCeiling);
+    }
 
     /// <summary>Whether the backstop's stored position was lost, so a gap may exist.</summary>
     /// <remarks>
