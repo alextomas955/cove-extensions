@@ -25,6 +25,10 @@ public sealed partial class SettingsProjectionTests
     private static readonly string[] CredentialVocabulary =
         ["key", "secret", "token", "password", "credential", "auth"];
 
+    /// <summary>The templates that report a failure this extension deliberately contained.</summary>
+    private static readonly string[] ContainedFailureTemplates =
+        ["BackstopRecordContained", "EnrichmentContained", "HostImportContained"];
+
     /// <summary>
     /// Every string the settings view can carry, by declaring type and member name.
     /// </summary>
@@ -182,13 +186,19 @@ public sealed partial class SettingsProjectionTests
             new[]
             {
                 "BackstopPassRefused.host",
+                // The three contained failures, each given the type of the exception and of its
+                // cause. A type name is chosen by whoever wrote the throw, so none of the three can
+                // hold a key, a path or an address whatever the failure was.
+                "BackstopRecordContained.failure",
                 "ConnectionTransportFailure.host",
+                "EnrichmentContained.failure",
                 // The registrable domain of a metadata source the host is configured with, reduced
                 // before it is passed. A domain carries no user-info, no path and no query, so the
                 // one part of an address that could hold a credential cannot reach the line. Both
                 // halves of the enrichment containment are given the same reduced value.
                 "EnrichmentContained.source",
                 "EnrichmentNotCommitted.source",
+                "HostImportContained.failure",
                 "ImportEventTypeIgnored.eventType",
                 // A Whisparr root folder, from the configured instance's own answer to an
                 // authenticated read rather than from an anonymous delivery's body. It names a
@@ -201,6 +211,30 @@ public sealed partial class SettingsProjectionTests
                 .Where(pair => pair.parameter.ParameterType == typeof(string))
                 .Select(pair => $"{pair.template.Name}.{pair.parameter.Name}")
                 .Order());
+
+    /// <summary>
+    /// No template reporting a contained failure takes an exception, so no failure message is written.
+    /// </summary>
+    /// <remarks>
+    /// The source generator hands an <see cref="Exception"/> parameter to the sink rather than
+    /// rendering it, and a sink writes it whole - message, path and all. The three names are
+    /// transcribed by hand, so the count is asserted first: a renamed template would otherwise leave
+    /// this checking nothing.
+    /// </remarks>
+    [Fact]
+    public void NoContainedFailureTemplateTakesAnException()
+    {
+        var templates = LogTemplates()
+            .Where(template => ContainedFailureTemplates.Contains(template.Name, StringComparer.Ordinal))
+            .ToList();
+
+        Assert.Equal(ContainedFailureTemplates.Length, templates.Count);
+        Assert.Empty(templates
+            .SelectMany(template => template.GetParameters(), (template, parameter) => (template, parameter))
+            .Where(pair => typeof(Exception).IsAssignableFrom(pair.parameter.ParameterType))
+            .Select(pair => $"{pair.template.Name}.{pair.parameter.Name}")
+            .ToList());
+    }
 
     [Fact]
     public void NoLogMessageNamesACredentialPlaceholder()

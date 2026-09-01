@@ -59,7 +59,7 @@ internal sealed class CoveLibraryPort(
         // broader catch here would hide a defect rather than contain a known refusal.
         catch (Exception refused) when (refused is FileNotFoundException or InvalidOperationException)
         {
-            WhisparrSyncLog.HostImportContained(log, refused);
+            WhisparrSyncLog.HostImportContained(log, WhisparrSyncLog.Classify(refused));
             return new LibraryImport(LibraryImportOutcome.HostRefused, null);
         }
     }
