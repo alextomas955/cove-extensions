@@ -368,6 +368,7 @@ public sealed partial class WhisparrSync
             await RecordSecretPositionAsync(
                 services.GetRequiredService<OptionsStore>(),
                 services.GetRequiredService<OptionsWriteGate>(),
+                generation.Value,
                 position,
                 ct).ConfigureAwait(false);
 
@@ -662,9 +663,15 @@ public sealed partial class WhisparrSync
 
     // The transition is the whole content of the reading: the note about the less private form is
     // shown while it reads Address and clears when it reads OutOfBand.
+    //
+    // The generation selects which connection carries it, and it is the generation the delivery was
+    // read as rather than the one the settings page has selected: the reading is the page's tell that
+    // an instance is registered AND delivering, so recorded against another instance it says that
+    // about one which has not delivered.
     internal static Task RecordSecretPositionAsync(
         OptionsStore options,
         OptionsWriteGate gate,
+        WhisparrGeneration generation,
         CallbackSecretPosition position,
         CancellationToken ct)
     {
@@ -672,9 +679,9 @@ public sealed partial class WhisparrSync
 
         return gate.MutateAsync(
             options,
-            stored => stored.ConnectionFor(stored.SelectedGeneration) is { } connection
+            stored => stored.ConnectionFor(generation) is { } connection
                 ? stored.WithConnectionFor(
-                    stored.SelectedGeneration, connection with { LastCallbackSecretPosition = position })
+                    generation, connection with { LastCallbackSecretPosition = position })
                 : stored,
             ct);
     }
