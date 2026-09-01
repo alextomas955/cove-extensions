@@ -382,6 +382,54 @@ public sealed class WhisparrSyncOptionsTests
     }
 
     /// <summary>
+    /// A stored refusal entry naming its path list as an explicit null loads with an empty list, and
+    /// both the projector and the banner run over what loaded.
+    /// </summary>
+    /// <remarks>
+    /// Written as a literal because the serializer never emits this shape, and nothing else on the
+    /// load path reaches it: a property initialiser runs only for an ABSENT key, and the store's
+    /// non-null restore does not descend into a collection's elements.
+    /// </remarks>
+    [Fact]
+    public async Task AnExplicitlyNullNewestPathsLoadsAsAnEmptyList()
+    {
+        var store = new FakeStore();
+        await store.SetAsync(
+            OptionsStore.Key,
+            """
+            {
+              "ImportRefusals": [
+                {
+                  "Root": "/whisparr/media",
+                  "CountSinceLastSuccess": 2,
+                  "NewestPaths": null
+                }
+              ]
+            }
+            """);
+
+        var loaded = await new OptionsStore(store).LoadAsync();
+
+        var entry = Assert.Single(loaded.ImportRefusals);
+        Assert.NotNull(entry.NewestPaths);
+        Assert.Empty(entry.NewestPaths);
+
+        var refused = ImportRefusalProjector.Refuse(
+            loaded.ImportRefusals,
+            entry.Root,
+            "/whisparr/media/scene-a/file.mp4",
+            ImportRefusalCause.Unreadable);
+        var counted = Assert.Single(refused);
+        Assert.Equal(3, counted.CountSinceLastSuccess);
+        Assert.Single(counted.NewestPaths);
+        Assert.Empty(ImportRefusalProjector.Succeed(refused, entry.Root));
+
+        var line = Assert.Single(ImportBannerView.From(loaded.ImportRefusals).Roots);
+        Assert.Equal("/whisparr/media", line.Root);
+        Assert.Empty(line.NewestPaths);
+    }
+
+    /// <summary>
     /// A recorded failure text is shortened where it is stored, so one exception message cannot make
     /// the whole blob the host serves in one piece too large to serve.
     /// </summary>
