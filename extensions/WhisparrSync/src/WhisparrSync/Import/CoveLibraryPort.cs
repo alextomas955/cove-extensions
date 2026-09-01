@@ -209,7 +209,24 @@ internal sealed class CoveLibraryPort(
             return false;
         }
 
-        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Above the broad catch, so a shutdown classifies as cancelled rather than as a failure.
+            throw;
+        }
+#pragma warning disable CA1031 // Raised on as its own kind, never handled here.
+        catch (Exception failure)
+        {
+            // The source has already answered by this point, so a caller told only that the call
+            // failed can report nothing but the source, which is not what failed.
+            throw new EnrichmentNotCommittedException(failure);
+        }
+#pragma warning restore CA1031
+
         return true;
     }
 
