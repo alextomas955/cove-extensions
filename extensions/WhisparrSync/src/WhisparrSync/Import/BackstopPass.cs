@@ -180,7 +180,8 @@ internal sealed class BackstopPass(
 #pragma warning disable CA1031 // The point of the guard is that no failure ends the walk.
                         catch (Exception failure)
                         {
-                            WhisparrSyncLog.BackstopRecordContained(log, generation, failure);
+                            WhisparrSyncLog.BackstopRecordContained(
+                                log, generation, WhisparrSyncLog.Classify(failure));
                             contained++;
                         }
 #pragma warning restore CA1031
