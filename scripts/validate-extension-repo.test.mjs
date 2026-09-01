@@ -466,16 +466,27 @@ test("a manifestOnly entry that declares a uiPath fails, naming both fields", ()
 
 // A C#-bearing entry, complete enough that only the membership check can speak: the project files
 // exist, so the existence checks are silent, and the manifest is valid for a non-manifestOnly entry.
-function csharpFixture({ solution, projectPath, testProjectPath, name = "Foo" }) {
+// `absentOnDisk` names declared paths the fixture deliberately does not plant, which is what
+// separates the declared-but-missing check from the solution-membership one — both report on the
+// same field, and a case that plants nothing cannot say which of the two spoke.
+function csharpFixture({
+  solution,
+  projectPath,
+  testProjectPath,
+  coveTestProjectPath,
+  absentOnDisk = [],
+  name = "Foo",
+}) {
   const entry = validEntry("com.example.foo", "Foo", {
     name,
     manifestOnly: false,
     ...(projectPath === undefined ? {} : { projectPath }),
     ...(testProjectPath === undefined ? {} : { testProjectPath }),
+    ...(coveTestProjectPath === undefined ? {} : { coveTestProjectPath }),
   });
   const filesByPath = {};
-  for (const declared of [projectPath, testProjectPath]) {
-    if (declared) filesByPath[declared] = "<Project />\n";
+  for (const declared of [projectPath, testProjectPath, coveTestProjectPath]) {
+    if (declared && !absentOnDisk.includes(declared)) filesByPath[declared] = "<Project />\n";
   }
   if (projectPath === undefined) filesByPath[`extensions/Foo/${name}.csproj`] = "<Project />\n";
   return makeFixture({
@@ -557,6 +568,94 @@ test("a solution declaring backslash separators matches a catalog declaring forw
     // The count, not merely exit 0: a comparison that matched nothing also finds nothing to report,
     // so only a confirmed membership says the two spellings were reconciled.
     assert.match(stdout, /1 CoveExtensions\.slnx membership\(s\)/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a declared coveTestProjectPath that does not exist fails, naming the field", () => {
+  // The Cove test project is consumed by the cove-present CI leg and by nothing the convention-derived
+  // checks reach, so a typo in it otherwise surfaces as a dotnet restore several steps into that leg.
+  // The solution declares the path under test, so only the existence check can speak here.
+  const root = csharpFixture({
+    projectPath: "extensions/Foo/Foo.csproj",
+    testProjectPath: "extensions/Foo/Foo.Tests.csproj",
+    coveTestProjectPath: "extensions/Foo/DoesNotExist.Cove.Tests.csproj",
+    absentOnDisk: ["extensions/Foo/DoesNotExist.Cove.Tests.csproj"],
+    solution: [
+      "extensions/Foo/Foo.csproj",
+      "extensions/Foo/Foo.Tests.csproj",
+      "extensions/Foo/DoesNotExist.Cove.Tests.csproj",
+    ],
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(
+      stderr,
+      /com\.example\.foo: coveTestProjectPath does not exist: extensions\/Foo\/DoesNotExist\.Cove\.Tests\.csproj/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a coveTestProjectPath absent from the solution fails, naming the entry, the field, the path and the file", () => {
+  // Same silence the projectPath membership case closes, on the tier that carries it further: the
+  // format and analyzer gates take their whole subject list from the solution, so a Cove test project
+  // missing from it is compiled by no gate and nothing says so.
+  const root = csharpFixture({
+    projectPath: "extensions/Foo/Foo.csproj",
+    testProjectPath: "extensions/Foo/Foo.Tests.csproj",
+    coveTestProjectPath: "extensions/Foo/Foo.Cove.Tests.csproj",
+    solution: ["extensions/Foo/Foo.csproj", "extensions/Foo/Foo.Tests.csproj"],
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(
+      stderr,
+      /com\.example\.foo: coveTestProjectPath extensions\/Foo\/Foo\.Cove\.Tests\.csproj is not declared in CoveExtensions\.slnx/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a coveTestProjectPath declared without a testProjectPath fails, naming both fields", () => {
+  // Each field is individually well-formed — the path exists and the solution declares it — so only
+  // the pairing is the defect. The Cove tier reaches the shared TestSupport helpers through a
+  // ProjectReference onto the pure tier, so declaring one without the other names a topology that
+  // does not build.
+  const root = csharpFixture({
+    projectPath: "extensions/Foo/Foo.csproj",
+    coveTestProjectPath: "extensions/Foo/Foo.Cove.Tests.csproj",
+    solution: ["extensions/Foo/Foo.csproj", "extensions/Foo/Foo.Cove.Tests.csproj"],
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(
+      stderr,
+      /com\.example\.foo: declares coveTestProjectPath without a testProjectPath/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("an entry declaring neither test project stays valid", () => {
+  // Both fields are optional to declare, and an extension with no tests at all must not be forced to
+  // grow one. The membership count is asserted rather than exit 0 alone: a run that examined nothing
+  // also exits 0.
+  const root = csharpFixture({
+    projectPath: "extensions/Foo/Foo.csproj",
+    solution: ["extensions/Foo/Foo.csproj"],
+  });
+  try {
+    const { status, stdout, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(stdout, /0 declared catalog path\(s\), 1 CoveExtensions\.slnx membership\(s\)/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

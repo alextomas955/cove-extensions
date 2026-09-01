@@ -194,8 +194,12 @@ let floorComparisons = 0;
 // reads for the floor comparison below. e2eProject is excluded deliberately: it is a Playwright project
 // name, not a path. Each of these is optional to DECLARE, so an entry declaring none is valid and only a
 // declared one is required to exist.
+//
+// The two test fields name two projects, split on whether a test needs a Cove source checkout to
+// compile. Only the Cove one presupposes the other, which is checked as a pairing below.
 const matrixPathFields = [
   "testProjectPath",
+  "coveTestProjectPath",
   "uiPath",
   "e2ePath",
   "e2eNodeTestsPath",
@@ -269,6 +273,15 @@ for (const entry of entries) {
     );
   }
 
+  // Each field can be individually well-formed while the pairing names a topology that does not
+  // build: the Cove-tier test project reaches the shared TestSupport helpers through a
+  // ProjectReference onto the pure one.
+  if (entry.coveTestProjectPath && !entry.testProjectPath) {
+    errors.push(
+      `${entry.id}: declares coveTestProjectPath without a testProjectPath — the Cove test project reaches the shared TestSupport helpers through a ProjectReference onto the pure one`,
+    );
+  }
+
   // Same reasoning as the loop above: an entry that short-circuits below still declares projects the
   // C# gates would have to compile, and a solution gap is worth reporting alongside whatever else is
   // wrong with the entry.
@@ -283,6 +296,13 @@ for (const entry of entries) {
   }
   if (entry.testProjectPath) {
     impliedProjects.push({ id: entry.id, field: "testProjectPath", value: entry.testProjectPath });
+  }
+  if (entry.coveTestProjectPath) {
+    impliedProjects.push({
+      id: entry.id,
+      field: "coveTestProjectPath",
+      value: entry.coveTestProjectPath,
+    });
   }
 
   if (!fs.existsSync(extensionDir)) {
