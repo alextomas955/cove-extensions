@@ -1,11 +1,30 @@
 namespace WhisparrSync.Import;
 
+/// <summary>How one call to the host's own import ended.</summary>
+/// <remarks>
+/// Two states rather than one "did not register": a host whose import this extension's container
+/// could not produce is the host's own configuration, and a file the host was asked for and would
+/// not take is that file's. Reported as one value they would reach the user as one sentence, and
+/// only one of the two is anything a user can act on.
+/// </remarks>
+public enum LibraryImportOutcome
+{
+    /// <summary>The host took the file and the library holds it.</summary>
+    Registered,
+
+    /// <summary>The host's import could not be obtained from this extension's container.</summary>
+    ServiceUnavailable,
+
+    /// <summary>The host was asked to take a verified file and would not.</summary>
+    HostRefused,
+}
+
 /// <summary>What one call to the host's own import produced.</summary>
-/// <param name="Reached">Whether the host's import service could be reached at all.</param>
+/// <param name="Outcome">How the call ended.</param>
 /// <param name="VideoId">
-/// The item the host attached the file to, or null when the call did not reach one.
+/// The item the host attached the file to, or null when the call registered nothing.
 /// </param>
-public sealed record LibraryImport(bool Reached, int? VideoId);
+public sealed record LibraryImport(LibraryImportOutcome Outcome, int? VideoId);
 
 /// <summary>A file row the library holds at one path.</summary>
 /// <remarks>

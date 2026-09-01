@@ -64,6 +64,14 @@ public enum ImportOutcome
     /// to correct at a root they configured, so the log line is the whole report.
     /// </remarks>
     RefusedDetachedFileWithoutIdentity,
+
+    /// <summary>The host was asked to take a verified file and would not.</summary>
+    /// <remarks>
+    /// Counted against the reporting root, unlike an import service that could not be obtained: the
+    /// path the host declined came from that root, and it is the one thing the user can go and look
+    /// at.
+    /// </remarks>
+    RefusedHostRefusedFile,
 }
 
 /// <summary>
