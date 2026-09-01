@@ -324,6 +324,64 @@ public sealed class WhisparrSyncOptionsTests
     }
 
     /// <summary>
+    /// A reported path is shortened where it is stored, so one delivery naming an arbitrarily long
+    /// path cannot make the whole blob the host serves in one piece too large to serve.
+    /// </summary>
+    [Fact]
+    public void AReportedPathIsShortenedWhereItIsStored()
+    {
+        var overLong = new ImportRefusalEntry
+        {
+            Path = new string('x', ImportRefusalEntry.PathMaxLength * 4),
+        };
+        var atTheMaximum = new ImportRefusalEntry
+        {
+            Path = new string('y', ImportRefusalEntry.PathMaxLength),
+        };
+        var underIt = new ImportRefusalEntry { Path = "/whisparr/media/scene-a/file.mp4" };
+
+        Assert.Equal(ImportRefusalEntry.PathMaxLength, overLong.Path.Length);
+        Assert.Equal(ImportRefusalEntry.PathMaxLength, atTheMaximum.Path.Length);
+        Assert.Equal("/whisparr/media/scene-a/file.mp4", underIt.Path);
+    }
+
+    /// <summary>
+    /// A stored path longer than the maximum loads shortened, so a blob an earlier build wrote
+    /// cannot reintroduce a value with no ceiling.
+    /// </summary>
+    /// <remarks>
+    /// Written as a literal rather than produced by serializing anything: the model can no longer
+    /// hold the value this asks the load path to bind.
+    /// </remarks>
+    [Fact]
+    public async Task AnOverLongStoredPathLoadsShortened()
+    {
+        var store = new FakeStore();
+        var stored = new string('x', ImportRefusalEntry.PathMaxLength * 4);
+        await store.SetAsync(
+            OptionsStore.Key,
+            $$"""
+            {
+              "ImportRefusals": [
+                {
+                  "Root": "/whisparr/media",
+                  "CountSinceLastSuccess": 1,
+                  "NewestPaths": [
+                    { "Path": "{{stored}}", "Cause": "unreadable" }
+                  ]
+                }
+              ]
+            }
+            """);
+
+        var loaded = await new OptionsStore(store).LoadAsync();
+
+        var entry = Assert.Single(Assert.Single(loaded.ImportRefusals).NewestPaths);
+        Assert.Equal(ImportRefusalEntry.PathMaxLength, entry.Path.Length);
+        Assert.Equal(ImportRefusalCause.Unreadable, entry.Cause);
+    }
+
+    /// <summary>
     /// A recorded failure text is shortened where it is stored, so one exception message cannot make
     /// the whole blob the host serves in one piece too large to serve.
     /// </summary>

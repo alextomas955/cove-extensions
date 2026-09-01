@@ -137,6 +137,26 @@ public sealed class WhisparrClientTransportTests
         Assert.Equal(WhisparrRetryPolicy.NoRetry, WhisparrRetryPolicy.AttemptsFor((WhisparrVerbClass)(-1)));
     }
 
+    /// <summary>The configured client holds a finite amount of one answer in memory.</summary>
+    /// <remarks>
+    /// Read off the configured client rather than off the constant, so a <c>Configure</c> that stopped
+    /// applying it is reported. The second assertion is what makes the ceiling a narrowing: a client
+    /// nothing configured supplies the value this one has to be below, so a constant raised to what the
+    /// framework already allows fails here rather than passing against itself.
+    /// </remarks>
+    [Fact]
+    public void TheConfiguredClientHoldsAFiniteAnswerInMemory()
+    {
+        using var configured = NewHttpClient();
+        using var unconfigured = new HttpClient();
+
+        Assert.Equal(WhisparrClient.MaxResponseBytes, configured.MaxResponseContentBufferSize);
+        Assert.True(
+            configured.MaxResponseContentBufferSize < unconfigured.MaxResponseContentBufferSize,
+            $"the ceiling is {configured.MaxResponseContentBufferSize}, which bounds nothing a client "
+                + $"nothing configured would not already refuse at {unconfigured.MaxResponseContentBufferSize}");
+    }
+
     /// <summary>
     /// The history read composes onto a base carrying a proxy subpath, and presents the key.
     /// </summary>
