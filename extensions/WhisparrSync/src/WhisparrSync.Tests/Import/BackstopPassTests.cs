@@ -359,6 +359,34 @@ public sealed class BackstopPassTests
         Assert.Equal(2, result.PagesRead);
     }
 
+    /// <summary>
+    /// A route answering every page with one page of a single instant refuses rather than walking
+    /// forever.
+    /// </summary>
+    /// <remarks>
+    /// The across-page order check passes for this shape and no other: a repeated page starts newer
+    /// than the previous one ended unless every record on it carries the same instant. A genuine tie
+    /// takes that same shape, so the two are told apart by whether the range repeats rather than by
+    /// the order.
+    /// <para>
+    /// The read count is bounded, so a rule that stops terminating raises here rather than running
+    /// until the suite is killed.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ARouteAnsweringOnePageOfOneInstantRefusesRatherThanWalkingForever()
+    {
+        var mark = Noon.AddYears(-1);
+        var pass = new Pass(mark, requestBudget: 8);
+        pass.Answering(Page(Enumerable.Repeat(Noon, BackstopPass.PageSize)));
+
+        var result = await pass.RunAsync();
+
+        Assert.Equal(BackstopPassOutcome.RefusedPageOrder, result.Outcome);
+        Assert.Equal(2, result.PagesRead);
+        Assert.Equal(mark, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
+    }
+
     /// <summary>An answer this product cannot read as a page refuses the pass.</summary>
     [Theory]
     [InlineData("not json at all")]
@@ -613,13 +641,16 @@ public sealed class BackstopPassTests
         public static readonly DateTimeOffset Now = new(2026, 8, 31, 9, 0, 0, TimeSpan.Zero);
 
         private readonly OptionsStore _options;
+        private readonly int? _requestBudget;
 
         public Pass(
             DateTimeOffset? mark,
             string address = Address,
-            WhisparrGeneration generation = WhisparrGeneration.V3)
+            WhisparrGeneration generation = WhisparrGeneration.V3,
+            int? requestBudget = null)
         {
             Generation = generation;
+            _requestBudget = requestBudget;
             Client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, """{"records":[]}"""));
             _options = new OptionsStore(Store);
             _options
@@ -661,7 +692,7 @@ public sealed class BackstopPassTests
 
         public Task<BackstopPassResult> RunAsync()
             => new BackstopPass(
-                    Client,
+                    _requestBudget is { } budget ? new BoundedClient(Client, budget) : Client,
                     _options,
                     Gate,
                     new RecordingCredentialPort().Holding(Generation, ApiKey),
@@ -707,6 +738,57 @@ public sealed class BackstopPassTests
             followUp.NoteImported(candidate.ReportedPath, library);
             return Task.FromResult(ImportOutcome.Imported);
         }
+    }
+
+    /// <summary>A client that raises once a walk has asked for more pages than it was allowed.</summary>
+    /// <remarks>
+    /// The raise is of a kind the walk classifies as neither unreachable nor cancelled, so it leaves
+    /// the pass instead of being recorded as a refusal. That is what makes a non-terminating walk a
+    /// failing case rather than a hanging one.
+    /// </remarks>
+    private sealed class BoundedClient(RecordingWhisparrClient inner, int budget) : IWhisparrClient
+    {
+        private int _reads;
+
+        public Task<WhisparrResponse> ReadHistoryAsync(
+            Uri baseAddress,
+            string apiKey,
+            WhisparrGeneration generation,
+            int page,
+            int pageSize,
+            CancellationToken ct)
+        {
+            _reads++;
+            return _reads > budget
+                ? throw new InvalidOperationException(
+                    string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"The walk asked for more than {budget} pages."))
+                : inner.ReadHistoryAsync(baseAddress, apiKey, generation, page, pageSize, ct);
+        }
+
+        public Task<WhisparrResponse> ReadStatusAsync(Uri baseAddress, string apiKey, CancellationToken ct)
+            => inner.ReadStatusAsync(baseAddress, apiKey, ct);
+
+        public Task<WhisparrResponse> ReadNotificationSchemaAsync(
+            Uri baseAddress, string apiKey, CancellationToken ct)
+            => inner.ReadNotificationSchemaAsync(baseAddress, apiKey, ct);
+
+        public Task<WhisparrResponse> ListNotificationsAsync(
+            Uri baseAddress, string apiKey, CancellationToken ct)
+            => inner.ListNotificationsAsync(baseAddress, apiKey, ct);
+
+        public Task<WhisparrResponse> ReadRootFoldersAsync(
+            Uri baseAddress, string apiKey, CancellationToken ct)
+            => inner.ReadRootFoldersAsync(baseAddress, apiKey, ct);
+
+        public Task<WhisparrResponse> CreateNotificationAsync(
+            Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct)
+            => inner.CreateNotificationAsync(baseAddress, apiKey, body, ct);
+
+        public Task<WhisparrResponse> UpdateNotificationAsync(
+            Uri baseAddress, string apiKey, int id, JsonNode body, CancellationToken ct)
+            => inner.UpdateNotificationAsync(baseAddress, apiKey, id, body, ct);
     }
 
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider
