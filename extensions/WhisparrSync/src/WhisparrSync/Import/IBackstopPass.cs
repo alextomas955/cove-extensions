@@ -36,13 +36,19 @@ internal enum BackstopPassOutcome
 /// <param name="RecordsTaken">How many records the walk read past the mark.</param>
 /// <param name="Imported">How many of those the ingest core registered.</param>
 /// <param name="WithoutCandidate">How many named an import this product could read no path from.</param>
+/// <param name="Contained">
+/// How many the ingest could not take at all. Counted apart from <paramref name="WithoutCandidate"/>
+/// because those records named a path this product did read, and a failure to take one is a
+/// different fact from a record with nothing in it to take.
+/// </param>
 internal sealed record BackstopPassResult(
     BackstopPassOutcome Outcome,
     DateTimeOffset? Watermark,
     int PagesRead,
     int RecordsTaken,
     int Imported,
-    int WithoutCandidate);
+    int WithoutCandidate,
+    int Contained);
 
 /// <summary>One walk back through a Whisparr instance's import history.</summary>
 /// <remarks>

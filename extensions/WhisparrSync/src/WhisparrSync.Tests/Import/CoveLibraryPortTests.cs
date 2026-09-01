@@ -3,6 +3,7 @@ using Cove.Core.Interfaces;
 using Cove.Data;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Import;
 
@@ -29,6 +30,72 @@ public sealed class CoveLibraryPortTests
 
         Assert.Equal(videoId, (await library.Port.HeldFileAtAsync("/data/scene.mp4", Ct))?.VideoId);
         Assert.Null(await library.Port.HeldFileAtAsync("/data/unknown.mp4", Ct));
+    }
+
+    /// <summary>
+    /// A row this extension itself detached still reads as a row, over a real relational context.
+    /// </summary>
+    /// <remarks>
+    /// The detached state is produced by the product's own write rather than seeded, so what is read
+    /// back is the database state a user reaches under the Replace behaviour. Answering null here
+    /// would send the redelivery of that path to the host's import with no item to attach it to,
+    /// which is the one input that import answers by throwing.
+    /// </remarks>
+    [Fact]
+    public async Task AFileRowThisExtensionDetachedIsStillReadAsHeldByTheLibrary()
+    {
+        await using var library = await LibraryFixture.CreateAsync();
+        var videoId = await library.SeedVideoWithFileAsync("/data/first.mp4");
+        await library.AttachFileAsync(videoId, "/data/second.mp4");
+
+        Assert.Equal(1, await library.Port.DetachSupersededFilesAsync(videoId, "/data/second.mp4", Ct));
+
+        var detached = await library.Port.HeldFileAtAsync("/data/first.mp4", Ct);
+        Assert.NotNull(detached);
+        Assert.Null(detached.VideoId);
+
+        Assert.Equal(videoId, (await library.Port.HeldFileAtAsync("/data/second.mp4", Ct))?.VideoId);
+        Assert.Null(await library.Port.HeldFileAtAsync("/data/unknown.mp4", Ct));
+    }
+
+    /// <summary>
+    /// Each exception the host's own import raises is answered rather than propagated, and reported
+    /// exactly once.
+    /// </summary>
+    /// <remarks>
+    /// The scan service is a double, because this extension does not reference the assembly the real
+    /// one lives in. That the real host raises these is proven where the real host runs, in the
+    /// containerized end-to-end spec.
+    /// </remarks>
+    [Theory]
+    [InlineData(typeof(FileNotFoundException))]
+    [InlineData(typeof(InvalidOperationException))]
+    public async Task AHostImportThatRaisesIsContainedRatherThanPropagated(Type raised)
+    {
+        var log = new CountingLogger();
+        await using var library = await LibraryFixture.CreateAsync(
+            scan: new RaisingScanService((Exception)Activator.CreateInstance(raised)!), log: log);
+
+        var imported = await library.Port.ImportVideoAsync("/data/scene.mp4", null, Ct);
+
+        Assert.False(imported.Reached);
+        Assert.Null(imported.VideoId);
+        Assert.Equal(1, log.ContainedHostImports);
+    }
+
+    /// <summary>An exception the host raises that this product does not know about still propagates.</summary>
+    /// <remarks>
+    /// The discriminating control for the containment above: without it, a catch of every exception
+    /// would satisfy the same assertions while hiding a defect.
+    /// </remarks>
+    [Fact]
+    public async Task AnExceptionTheHostImportIsNotKnownToRaiseIsNotContained()
+    {
+        await using var library = await LibraryFixture.CreateAsync(
+            scan: new RaisingScanService(new NotSupportedException()));
+
+        await Assert.ThrowsAsync<NotSupportedException>(
+            () => library.Port.ImportVideoAsync("/data/scene.mp4", null, Ct));
     }
 
     /// <summary>
@@ -207,6 +274,53 @@ public sealed class CoveLibraryPortTests
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    /// <summary>A host scan service whose video import raises, standing in for the real one.</summary>
+    private sealed class RaisingScanService(Exception raised) : IScanService
+    {
+        public string StartScan(ScanOperationOptions? options = null) => throw new NotSupportedException();
+
+        public Task<int> ImportDownloadedVideoAsync(string path, int? videoId, CancellationToken ct = default)
+            => Task.FromException<int>(raised);
+
+        public Task<int> ImportDownloadedImageAsync(string path, int? imageId, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
+        public Task<int> ImportDownloadedGalleryAsync(string path, int? galleryId, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
+        public Task<int> ImportDownloadedAudioAsync(string path, int? audioId, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
+        public Task<int> ImportDownloadedTextAsync(string path, int? textDocumentId, CancellationToken ct = default)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>Counts the one contained-host-import line, by its event id.</summary>
+    private sealed class CountingLogger : ILogger
+    {
+        private const int ContainedHostImportEventId = 2111;
+
+        public int ContainedHostImports { get; private set; }
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (eventId.Id == ContainedHostImportEventId)
+            {
+                ContainedHostImports++;
+            }
+        }
+    }
+
     /// <summary>One real relational library, with the port wired over its context.</summary>
     private sealed class LibraryFixture : IAsyncDisposable
     {
@@ -216,7 +330,9 @@ public sealed class CoveLibraryPortTests
         public CoveLibraryPort Port { get; private set; } = null!;
 
         public static async Task<LibraryFixture> CreateAsync(
-            IReadOnlyList<string>? configuredEndpoints = null)
+            IReadOnlyList<string>? configuredEndpoints = null,
+            IScanService? scan = null,
+            ILogger? log = null)
         {
             var fixture = new LibraryFixture();
             (fixture._db, fixture._connection) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -228,7 +344,7 @@ public sealed class CoveLibraryPortTests
             }
 
             fixture.Port = new CoveLibraryPort(
-                fixture._db, scan: null, metadata: null, config, NullLogger.Instance);
+                fixture._db, scan, metadata: null, config, log ?? NullLogger.Instance);
             return fixture;
         }
 
@@ -252,6 +368,18 @@ public sealed class CoveLibraryPortTests
             });
             await _db.SaveChangesAsync(Ct);
             return video.Id;
+        }
+
+        /// <summary>Gives <paramref name="videoId"/> a second file, so a detach has one to supersede.</summary>
+        public async Task AttachFileAsync(int videoId, string path)
+        {
+            _db.Add(new VideoFile
+            {
+                Basename = path[(path.LastIndexOf('/') + 1)..],
+                ParentFolder = await FolderAsync(Directory(path)),
+                VideoId = videoId,
+            });
+            await _db.SaveChangesAsync(Ct);
         }
 
         public async Task SeedIdentityAsync(int videoId, string endpoint, string remoteId)
