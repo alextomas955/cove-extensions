@@ -208,6 +208,60 @@ public sealed class ImportBannerEndpointTests
     }
 
     /// <summary>
+    /// The records the backstop could not take reach the surface as the stored scalars.
+    /// </summary>
+    /// <remarks>
+    /// A total larger than every refusal beside it, so a projection deriving the figure from the rows
+    /// it can see rather than reading the stored total fails here.
+    /// </remarks>
+    [Fact]
+    public async Task TheContainmentReachesTheSurfaceAsTheStoredScalars()
+    {
+        var (_, options) = await StoredAsync(new WhisparrSyncOptions
+        {
+            ImportRefusals = [RootWith("/whisparr-media", 2, 1)],
+            ImportHealth = new ImportHealthAggregate
+            {
+                RecordsContained = 41,
+                LastContainedAtUtc = Contained,
+            },
+        });
+
+        var view = ViewIn(await global::WhisparrSync.WhisparrSync.ReadImportBannerAsync(
+            Configure(), options, TestCt));
+
+        Assert.Equal(41, view.RecordsContained);
+        Assert.Equal(Contained, view.LastContainedAtUtc);
+    }
+
+    /// <summary>
+    /// A pass that could not take a record leaves the surface something to say with no refusal
+    /// recorded at all.
+    /// </summary>
+    /// <remarks>
+    /// The two halves are stored by different writers, and only the refusal half has a root to hang
+    /// on, so a projection keyed on the refusals having entries would answer an empty page here.
+    /// </remarks>
+    [Fact]
+    public async Task ContainmentIsProjectedWithNoRefusalsRecorded()
+    {
+        var (_, options) = await StoredAsync(new WhisparrSyncOptions
+        {
+            ImportHealth = new ImportHealthAggregate
+            {
+                RecordsContained = 3,
+                LastContainedAtUtc = Contained,
+            },
+        });
+
+        var view = ViewIn(await global::WhisparrSync.WhisparrSync.ReadImportBannerAsync(
+            Configure(), options, TestCt));
+
+        Assert.Empty(view.Roots);
+        Assert.Equal(3, view.RecordsContained);
+    }
+
+    /// <summary>
     /// The response's property names are camelCase, pinned against the whole serialized body.
     /// </summary>
     /// <remarks>
@@ -218,18 +272,29 @@ public sealed class ImportBannerEndpointTests
     [Fact]
     public async Task TheResponseIsAllCamelCase()
     {
-        var (_, options) = await StoredAsync(new ImportRootRefusals
+        var (_, options) = await StoredAsync(new WhisparrSyncOptions
         {
-            Root = "/whisparr-media",
-            CountSinceLastSuccess = 2,
-            NewestPaths =
+            ImportRefusals =
             [
-                new ImportRefusalEntry
+                new ImportRootRefusals
                 {
-                    Path = "/whisparr-media/a.mp4",
-                    Cause = ImportRefusalCause.NotFoundUnderAnyRoot,
+                    Root = "/whisparr-media",
+                    CountSinceLastSuccess = 2,
+                    NewestPaths =
+                    [
+                        new ImportRefusalEntry
+                        {
+                            Path = "/whisparr-media/a.mp4",
+                            Cause = ImportRefusalCause.NotFoundUnderAnyRoot,
+                        },
+                    ],
                 },
             ],
+            ImportHealth = new ImportHealthAggregate
+            {
+                RecordsContained = 41,
+                LastContainedAtUtc = Contained,
+            },
         });
 
         var body = Serialize(ViewIn(await global::WhisparrSync.WhisparrSync.ReadImportBannerAsync(
@@ -238,9 +303,13 @@ public sealed class ImportBannerEndpointTests
         Assert.Equal(
             "{\"roots\":[{\"root\":\"/whisparr-media\",\"countSinceLastSuccess\":2,"
                 + "\"newestPaths\":[{\"path\":\"/whisparr-media/a.mp4\","
-                + "\"cause\":\"notFoundUnderAnyRoot\"}]}]}",
+                + "\"cause\":\"notFoundUnderAnyRoot\"}]}],"
+                + "\"recordsContained\":41,\"lastContainedAtUtc\":\"2026-08-31T09:00:00+00:00\"}",
             body);
     }
+
+    /// <summary>The instant a stored containment is recorded at, in these cases.</summary>
+    private static readonly DateTimeOffset Contained = new(2026, 8, 31, 9, 0, 0, TimeSpan.Zero);
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
@@ -274,14 +343,17 @@ public sealed class ImportBannerEndpointTests
     /// A store holding <paramref name="refusals"/>, written through the options store the handler
     /// reads back through.
     /// </summary>
-    private static async Task<(FakeStore Store, OptionsStore Options)> StoredAsync(
+    private static Task<(FakeStore Store, OptionsStore Options)> StoredAsync(
         params ImportRootRefusals[] refusals)
+        => StoredAsync(new WhisparrSyncOptions { ImportRefusals = [.. refusals] });
+
+    /// <summary>A store holding <paramref name="stored"/>, written through that same store.</summary>
+    private static async Task<(FakeStore Store, OptionsStore Options)> StoredAsync(
+        WhisparrSyncOptions stored)
     {
         var store = new FakeStore();
         var options = new OptionsStore(store);
-        await options.SaveAsync(
-            new WhisparrSyncOptions { ImportRefusals = [.. refusals] },
-            TestContext.Current.CancellationToken);
+        await options.SaveAsync(stored, TestContext.Current.CancellationToken);
         return (store, options);
     }
 

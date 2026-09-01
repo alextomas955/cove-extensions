@@ -552,7 +552,9 @@
       },
       "ImportBannerView": {
         "required": [
-          "roots"
+          "roots",
+          "recordsContained",
+          "lastContainedAtUtc"
         ],
         "type": "object",
         "properties": {
@@ -561,6 +563,17 @@
             "items": {
               "$ref": "#/components/schemas/ImportBannerRootLine"
             }
+          },
+          "recordsContained": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastContainedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
