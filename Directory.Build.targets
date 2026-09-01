@@ -92,7 +92,32 @@
            Text="A Cove location was supplied explicitly (resolved CoveRepoRoot='$(CoveRepoRootResolved)') but the resolved mode is 'none'. Refusing to fall back to the cove-absent branch, because a location was supplied on purpose and the fallback would not use it." />
   </Target>
 
+  <PropertyGroup Condition="'$(RequiresCoveSource)' == 'true' AND '$(CoveSourceMode)' != 'source'">
+    <_CoveSourceMissing>true</_CoveSourceMissing>
+  </PropertyGroup>
+
+  <!--
+    dotnet test resolves a test module's executable directly and dotnet publish copies an output
+    directory, so neither goes through the Build target the import below overrides: without the three
+    properties here, a project the solution build skipped stays runnable and publishable on whatever a
+    previous build under another mode left behind.
+
+    They are gated on $(_CoveSourceMissing) rather than on $(_CoveSolutionBuildSkip) because dotnet
+    test enumerates test modules in an evaluation that carries no $(SolutionPath), so a property
+    gated on one is never seen there. The import keeps that scoping, so a direct build still reaches
+    this project's own checkout refusal.
+  -->
+  <PropertyGroup Condition="'$(_CoveSourceMissing)' == 'true'">
+    <IsTestProject>false</IsTestProject>
+    <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
+    <IsPublishable>false</IsPublishable>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_CoveSourceMissing)' == 'true' AND '$(SolutionPath)' != '*Undefined*' AND '$(SolutionPath)' != ''">
+    <_CoveSolutionBuildSkip>true</_CoveSolutionBuildSkip>
+  </PropertyGroup>
+
   <Import Project="$(MSBuildThisFileDirectory)SkipWithoutCoveSource.targets"
-          Condition="'$(RequiresCoveSource)' == 'true' AND '$(CoveSourceMode)' != 'source' AND '$(SolutionPath)' != '*Undefined*' AND '$(SolutionPath)' != ''" />
+          Condition="'$(_CoveSolutionBuildSkip)' == 'true'" />
 
 </Project>

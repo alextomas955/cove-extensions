@@ -15,6 +15,17 @@
   <Target Name="Build">
     <Message Importance="high"
              Text="$(MSBuildProjectName): not built - CoveSourceMode is '$(CoveSourceMode)' and this project requires a Cove source checkout, so the solution build skipped it and its tests neither compiled nor ran. Point COVE_REPO or -p:CoveRepoRoot at a checkout to include it." />
+
+    <!--
+      dotnet test's reporter suppresses both of these, so they carry the skip on the build path only.
+      There the Warning, unlike the Message, lands in the build summary's warning count.
+
+      Removing the previous build's output leaves nothing executable behind for a run that reaches
+      this project anyway.
+    -->
+    <Warning Text="$(MSBuildProjectName): not built - CoveSourceMode is '$(CoveSourceMode)' and this project requires a Cove source checkout, so the solution build skipped it and its tests neither compiled nor ran. Point COVE_REPO or -p:CoveRepoRoot at a checkout to include it." />
+
+    <RemoveDir Directories="$(OutputPath)" Condition="Exists('$(OutputPath)')" />
   </Target>
 
 </Project>
