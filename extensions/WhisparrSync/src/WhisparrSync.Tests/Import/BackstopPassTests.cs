@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging.Abstractions;
+using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 using WhisparrSync.Options;
@@ -23,6 +24,7 @@ namespace WhisparrSync.Tests.Import;
 public sealed class BackstopPassTests
 {
     private const string Address = "http://whisparr:6969";
+    private const string MovedAddress = "http://whisparr-elsewhere:6969";
     private const string ApiKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
     private const string ImportedPath = "/whisparr-media/scene.mp4";
 
@@ -126,6 +128,80 @@ public sealed class BackstopPassTests
 
         Assert.Empty(pass.Core.Ingested);
         Assert.Equal(mark, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
+    }
+
+    /// <summary>
+    /// A save that moved the address under the walk leaves the new instance's mark unset.
+    /// </summary>
+    /// <remarks>
+    /// A save that moves the address starts a new instance's history again, and the walk it lands
+    /// inside is an unbounded number of outbound reads long. Writing the instant read from the old
+    /// instance onto the new record would put every record older than it out of reach for good, with
+    /// nothing observable happening.
+    /// </remarks>
+    [Fact]
+    public async Task APassWhoseAddressMovedUnderItDoesNotMarkTheNewInstance()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-5));
+        pass.Answering(Page(Descending(3)));
+        pass.SavingDuringTheWalk(Aiming(MovedAddress));
+
+        var result = await pass.RunAsync();
+
+        var stored = await pass.StoredAsync();
+        Assert.Equal(Noon, result.Watermark);
+        Assert.Equal(MovedAddress, stored.V3?.Address);
+        Assert.Null(stored.V3?.BackstopWatermarkUtc);
+    }
+
+    /// <summary>
+    /// A pass whose address moved under it still records that it ran, because the health half
+    /// describes the pass and not a position in an instance's history.
+    /// </summary>
+    /// <remarks>
+    /// The failure streak is built first, so its reset is an observation rather than the value an
+    /// untouched aggregate already holds.
+    /// </remarks>
+    [Fact]
+    public async Task APassWhoseAddressMovedUnderItStillRecordsThatItRan()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-30));
+        pass.Answering(Page([Noon.AddMinutes(-5), Noon]), Page(Descending(3)));
+
+        await pass.RunAsync();
+        Assert.Equal(1, (await pass.StoredAsync()).ImportHealth.ConsecutiveFailures);
+
+        pass.SavingDuringTheWalk(Aiming(MovedAddress));
+        var walked = await pass.RunAsync();
+
+        var stored = await pass.StoredAsync();
+        Assert.Equal(BackstopPassOutcome.Walked, walked.Outcome);
+        Assert.Null(stored.V3?.BackstopWatermarkUtc);
+        Assert.Equal(0, stored.ImportHealth.ConsecutiveFailures);
+        Assert.Equal("", stored.ImportHealth.LastError);
+        Assert.False(stored.ImportHealth.BackstopPositionLost);
+    }
+
+    /// <summary>
+    /// A save landing under the walk that left the address where it points still records the mark.
+    /// </summary>
+    /// <remarks>
+    /// The discriminating control for the two cases above: a refusal keyed on a write having met the
+    /// pass, rather than on the instance having changed, would satisfy both and stop the backstop
+    /// advancing at all.
+    /// </remarks>
+    [Fact]
+    public async Task APassWhoseAddressStayedRecordsItsMarkThroughACompetingSave()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-5));
+        pass.Answering(Page(Descending(3)));
+        pass.SavingDuringTheWalk(Aiming(Address) with { UpgradeBehavior = UpgradeBehavior.Replace });
+
+        await pass.RunAsync();
+
+        var stored = await pass.StoredAsync();
+        Assert.Equal(UpgradeBehavior.Replace, stored.UpgradeBehavior);
+        Assert.Equal(Noon, stored.V3?.BackstopWatermarkUtc);
     }
 
     /// <summary>
@@ -558,6 +634,13 @@ public sealed class BackstopPassTests
     /// <summary>How long a result renders as, which grows with anything it accumulated.</summary>
     private static int RenderedSizeOf(BackstopPassResult result) => result.ToString().Length;
 
+    /// <summary>A settings save aiming v3 at <paramref name="address"/>, leaving the key alone.</summary>
+    private static WhisparrSyncSettingsSaveRequest Aiming(string address)
+        => new(
+            WhisparrGeneration.V3,
+            new WhisparrSyncGenerationSaveRequest(address, KeyWriteSignal.Keep, null),
+            null);
+
     private static DateTimeOffset[] Descending(int count)
         => [.. Enumerable.Range(0, count).Select(index => Noon.AddMinutes(-index))];
 
@@ -642,6 +725,7 @@ public sealed class BackstopPassTests
 
         private readonly OptionsStore _options;
         private readonly int? _requestBudget;
+        private WhisparrSyncSettingsSaveRequest? _competing;
 
         public Pass(
             DateTimeOffset? mark,
@@ -690,9 +774,19 @@ public sealed class BackstopPassTests
         public void Answering(params WhisparrResponse[] pages)
             => Client.Answering(nameof(IWhisparrClient.ReadHistoryAsync), pages);
 
+        /// <summary>
+        /// Commits <paramref name="save"/> at the first history read of the next pass, through the
+        /// gate and the projector the settings endpoint writes through.
+        /// </summary>
+        /// <remarks>
+        /// The competing write is the production one rather than a stand-in, so what the fold at the
+        /// end of the walk meets is what a save landing mid-walk really leaves behind.
+        /// </remarks>
+        public void SavingDuringTheWalk(WhisparrSyncSettingsSaveRequest save) => _competing = save;
+
         public Task<BackstopPassResult> RunAsync()
             => new BackstopPass(
-                    _requestBudget is { } budget ? new BoundedClient(Client, budget) : Client,
+                    ClientForRun(),
                     _options,
                     Gate,
                     new RecordingCredentialPort().Holding(Generation, ApiKey),
@@ -705,6 +799,73 @@ public sealed class BackstopPassTests
 
         public Task<WhisparrSyncOptions> StoredAsync()
             => _options.LoadAsync(TestContext.Current.CancellationToken);
+
+        private IWhisparrClient ClientForRun()
+        {
+            IWhisparrClient client = _requestBudget is { } budget
+                ? new BoundedClient(Client, budget)
+                : Client;
+            return _competing is { } save ? new SavingClient(client, () => CommitAsync(save)) : client;
+        }
+
+        private Task<WhisparrSyncOptions> CommitAsync(WhisparrSyncSettingsSaveRequest save)
+            => Gate.MutateAsync(
+                _options,
+                stored => SettingsProjector.Apply(stored, save),
+                TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>A client that commits one settings save before it answers the first history read.</summary>
+    /// <remarks>
+    /// The other verbs raise: a pass makes history reads and nothing else, so a call reaching one of
+    /// them is a change to what a pass does rather than a gap here.
+    /// </remarks>
+    private sealed class SavingClient(IWhisparrClient inner, Func<Task> save) : IWhisparrClient
+    {
+        private bool _committed;
+
+        public async Task<WhisparrResponse> ReadHistoryAsync(
+            Uri baseAddress,
+            string apiKey,
+            WhisparrGeneration generation,
+            int page,
+            int pageSize,
+            CancellationToken ct)
+        {
+            if (!_committed)
+            {
+                _committed = true;
+                await save().ConfigureAwait(false);
+            }
+
+            return await inner
+                .ReadHistoryAsync(baseAddress, apiKey, generation, page, pageSize, ct)
+                .ConfigureAwait(false);
+        }
+
+        public Task<WhisparrResponse> ReadStatusAsync(
+            Uri baseAddress, string apiKey, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<WhisparrResponse> ReadNotificationSchemaAsync(
+            Uri baseAddress, string apiKey, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<WhisparrResponse> ListNotificationsAsync(
+            Uri baseAddress, string apiKey, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<WhisparrResponse> ReadRootFoldersAsync(
+            Uri baseAddress, string apiKey, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<WhisparrResponse> CreateNotificationAsync(
+            Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<WhisparrResponse> UpdateNotificationAsync(
+            Uri baseAddress, string apiKey, int id, JsonNode body, CancellationToken ct)
+            => throw new NotSupportedException();
     }
 
     /// <summary>An ingest core recording every candidate handed to it.</summary>
