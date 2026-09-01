@@ -64,14 +64,15 @@ Highest first:
 The selection turns on how a value _arrived_, not on whether a path happens to exist. Absence is a
 legitimate state for the sibling auto-detect and an error for an explicit configuration, so
 `Directory.Build.targets` fails the build when `source` was selected and no `Cove.Data.csproj` is at
-the resolved location. It refuses to fall back, because falling back would compile a smaller test set
-and still report success.
+the resolved location. It refuses to fall back,
+because the fallback would skip the project that mode was chosen to build.
 
 ### Check which source was selected
 
 Do not infer the selection from your working directory. The sibling auto-detect resolves `../cove`
-relative to the monorepo root, so a checkout placed anywhere else silently takes the `none` branch,
-which compiles fewer tests and reports success.
+relative to the monorepo root, so a checkout placed anywhere else takes the `none` branch instead. A
+solution build then names each project it skipped for want of a checkout, and those tests neither
+compile nor run.
 
 Two things report the answer:
 
