@@ -213,6 +213,7 @@ public sealed class EndpointPermissionTests
             save,
             FakePrincipalAccessor.WithPermissions(Permissions.VideosRead),
             options,
+            new OptionsWriteGate(),
             credentials,
             TimeProvider.System,
             TestCt);
@@ -222,7 +223,7 @@ public sealed class EndpointPermissionTests
         Assert.Equal(0, store.SetCallCount);
 
         var answered = await global::WhisparrSync.WhisparrSync.SaveSettingsAsync(
-            save, Configure(), options, credentials, TimeProvider.System, TestCt);
+            save, Configure(), options, new OptionsWriteGate(), credentials, TimeProvider.System, TestCt);
 
         Assert.NotEqual(403, StatusOf(answered));
         Assert.Contains(

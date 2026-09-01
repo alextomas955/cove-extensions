@@ -212,6 +212,7 @@ public sealed class CallbackBodyTests
         => new ServiceCollection()
             .AddScoped<ICallbackSecretPort>(_ => new StoredSecretPort())
             .AddScoped(_ => new OptionsStore(new FakeStore()))
+            .AddSingleton<OptionsWriteGate>()
             .AddScoped<IImportCore>(_ => core)
             .BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
 

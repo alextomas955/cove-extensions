@@ -87,8 +87,11 @@ public sealed partial class WhisparrSync : FullExtensionBase
             services => new NotificationPort(services.GetRequiredService<IWhisparrClient>(), _log));
         services.AddScoped(_ => new OptionsStore(Store, _log));
 
-        // The root cache is the one singleton here. A delivery arrives per file, so a reading held
-        // per scope would be a reading taken per file.
+        // A singleton, so the request scopes and the background worker queue behind ONE gate. Per
+        // scope it would be a gate per request and would serialise nothing.
+        services.AddSingleton<OptionsWriteGate>();
+
+        // A delivery arrives per file, so a reading held per scope would be a reading taken per file.
         services.AddSingleton(services => new ReportedRootCache(services.GetRequiredService<TimeProvider>()));
         services.AddScoped<IImportPathPort, ImportPathPort>();
         services.AddScoped<IReportedRootPort>(services => new ReportedRootPort(
@@ -107,14 +110,14 @@ public sealed partial class WhisparrSync : FullExtensionBase
             services.GetService<IMetadataServerService>(),
             _coveConfig,
             _log));
-        // The second singleton, and for the same reason as the root cache: the pending batch is what
-        // makes a burst of deliveries one scan instead of one each, and a batch held per scope would
-        // be a batch per delivery.
+        // The pending batch is what makes a burst of deliveries one scan instead of one each, and a
+        // batch held per scope would be a batch per delivery.
         services.AddSingleton(services => new FollowUpScanCoalescer(
             services.GetRequiredService<TimeProvider>(), _log));
         services.AddScoped<IBackstopPass>(services => new BackstopPass(
             services.GetRequiredService<IWhisparrClient>(),
             services.GetRequiredService<OptionsStore>(),
+            services.GetRequiredService<OptionsWriteGate>(),
             services.GetRequiredService<ICredentialPort>(),
             services.GetRequiredService<IImportCore>(),
             services.GetRequiredService<TimeProvider>(),
@@ -126,6 +129,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
             services.GetRequiredService<ICoveLibraryPort>(),
             services.GetRequiredService<IImportPathPort>(),
             services.GetRequiredService<OptionsStore>(),
+            services.GetRequiredService<OptionsWriteGate>(),
             services.GetRequiredService<FollowUpScanCoalescer>(),
             _log));
     }
