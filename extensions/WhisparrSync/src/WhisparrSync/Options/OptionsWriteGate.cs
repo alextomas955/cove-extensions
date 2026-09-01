@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace WhisparrSync.Options;
 
 /// <summary>
@@ -18,9 +21,10 @@ namespace WhisparrSync.Options;
 /// awaited while the gate is held.
 /// </para>
 /// </remarks>
-public sealed class OptionsWriteGate : IDisposable
+public sealed class OptionsWriteGate(ILogger? logger = null) : IDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly ILogger _log = logger ?? NullLogger.Instance;
 
     /// <summary>
     /// Applies <paramref name="fold"/> to the stored options and answers what is persisted after the
@@ -32,6 +36,12 @@ public sealed class OptionsWriteGate : IDisposable
     /// the blob as it stands.
     /// <para>
     /// Nothing is written when the fold answers a value equal to the one it was given.
+    /// </para>
+    /// <para>
+    /// Nothing is written either when a blob is stored that the model could not bind: the value the
+    /// fold ran on is then the load's defaults, and saving it would replace the stored connection,
+    /// watermarks, callback host and upgrade behaviour with them. Such a call answers the loaded
+    /// defaults and does not throw.
     /// </para>
     /// </remarks>
     /// <param name="options">The store to load from and save to.</param>
@@ -54,10 +64,19 @@ public sealed class OptionsWriteGate : IDisposable
         await _gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+            var load = await options.LoadBoundAsync(ct).ConfigureAwait(false);
+            var stored = load.Options;
             var next = fold(stored);
             if (next == stored)
             {
+                return stored;
+            }
+
+            if (!load.Bound)
+            {
+                // Checked after the equal-value short circuit, so a fold that would have written
+                // nothing anyway is not reported as a refusal.
+                WhisparrSyncLog.OptionsMutationRefusedOverUnreadableBlob(_log);
                 return stored;
             }
 
