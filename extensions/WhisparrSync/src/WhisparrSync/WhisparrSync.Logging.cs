@@ -201,4 +201,12 @@ internal static partial class WhisparrSyncLog
         ILogger logger,
         WhisparrGeneration generation,
         Exception failure);
+
+    // A write dropped because the blob it would have been built on could not be read, so the fold ran
+    // on defaults. The stored configuration is what survives; the update the caller asked for is
+    // lost, and the writers that reach this run with nobody watching.
+    [LoggerMessage(
+        EventId = 2116, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] the stored options blob could not be read, so a change was NOT written over it; the stored configuration stands and the change was lost")]
+    internal static partial void OptionsMutationRefusedOverUnreadableBlob(ILogger logger);
 }
