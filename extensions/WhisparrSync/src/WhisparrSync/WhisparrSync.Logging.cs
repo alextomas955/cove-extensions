@@ -173,6 +173,14 @@ internal static partial class WhisparrSyncLog
         Message = "[WhisparrSync] the metadata source at {Source} applied nothing to a newly imported scene")]
     internal static partial void EnrichmentContained(ILogger logger, string source, Exception failure);
 
+    // The other half of the same call, after the source has already answered with a record. Stated
+    // apart from the line above because that one names the source, and here the source is not what
+    // failed - a user sent to look at it would find it answering correctly.
+    [LoggerMessage(
+        EventId = 2115, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] the record the metadata source at {Source} supplied for a newly imported scene could not be written")]
+    internal static partial void EnrichmentNotCommitted(ILogger logger, string source, Exception failure);
+
     // The host's own import declining a file this product verified. Contained rather than
     // propagated: it is raised into a route whose declared results hold no failure, and into a walk
     // that has to keep reading to reach its mark. The exception and nothing else — the path is a
