@@ -59,9 +59,17 @@ public sealed class FollowUpScanCoalescerTests
         Assert.Empty(ingest.Library.Scans);
     }
 
-    /// <summary>A delivery the library already holds a file for is not an import either.</summary>
+    /// <summary>
+    /// A delivery the library already holds a file for is still covered by a follow-up, and is still
+    /// not counted as an import.
+    /// </summary>
+    /// <remarks>
+    /// The cover is what closes the gap where a delivery registered the file with the host and was
+    /// interrupted before it could note the path, which would otherwise leave that item with no
+    /// asset-generation pass for good.
+    /// </remarks>
     [Fact]
-    public async Task ADeliveryForAPathTheLibraryAlreadyHoldsStartsNoScan()
+    public async Task ADeliveryForAPathTheLibraryAlreadyHoldsIsStillCoveredByAScan()
     {
         var ingest = new Ingest();
         var first = await ingest.DeliverAsync(0);
@@ -72,7 +80,7 @@ public sealed class FollowUpScanCoalescerTests
         Assert.Equal(ImportOutcome.AlreadyHeld, (await ingest.DeliverAsync(0)).Outcome);
 
         ingest.FollowUp.Flush(ingest.Library);
-        Assert.Empty(ingest.Library.Scans);
+        Assert.Equal([first.Path], Assert.Single(ingest.Library.Scans));
     }
 
     [Fact]

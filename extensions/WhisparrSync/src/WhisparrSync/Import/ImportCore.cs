@@ -70,6 +70,13 @@ internal sealed class ImportCore(
                     await StampAndEnrichAsync(carried, held, ct).ConfigureAwait(false);
                 }
 
+                // The file is in the library and it came from this root, so the root is working: the
+                // ordinary way a user recovers is to add the root they were missing and let Cove's own
+                // scan bring the files in, and every delivery after that arrives here. The follow-up
+                // covers the item in case the delivery that registered it was interrupted after the
+                // host committed and before it could be noted.
+                followUp.NoteImported(path, library);
+                await ClearAsync(reading.RefusalRoot, ct).ConfigureAwait(false);
                 return ImportOutcome.AlreadyHeld;
             }
 
@@ -275,6 +282,20 @@ internal sealed class ImportCore(
             stored => stored with
             {
                 ImportRefusals = ImportRefusalProjector.Refuse(stored.ImportRefusals, root, path, cause),
+            },
+            ct).ConfigureAwait(false);
+
+    /// <summary>Clears one root's outstanding refusals, and records nothing else.</summary>
+    /// <remarks>
+    /// The caller reached this without registering a file, so no member of the health aggregate is
+    /// touched: a delivery whose file was already there is not an import.
+    /// </remarks>
+    private async Task ClearAsync(string root, CancellationToken ct)
+        => await gate.MutateAsync(
+            options,
+            stored => stored with
+            {
+                ImportRefusals = ImportRefusalProjector.Succeed(stored.ImportRefusals, root),
             },
             ct).ConfigureAwait(false);
 

@@ -18,6 +18,12 @@ namespace WhisparrSync.Tests.Import;
 public sealed class ImportCoreIdempotencyTests
 {
     private const string WhisparrRoot = "/whisparr-media";
+
+    /// <summary>
+    /// A second root, whose line is the control that tells a per-root clear from a global one.
+    /// </summary>
+    private const string OtherWhisparrRoot = "/whisparr-elsewhere";
+
     private const string ReportedPath = "/whisparr-media/scene.mp4";
     private const string VerifiedPath = "/data/scene.mp4";
 
@@ -150,14 +156,18 @@ public sealed class ImportCoreIdempotencyTests
     }
 
     /// <summary>
-    /// The blob is compared as the store holds it, so a save that wrote an equal value would still be
-    /// caught by the write count beside it.
+    /// A delivery with nothing to report against its own root writes nothing at all.
     /// </summary>
+    /// <remarks>
+    /// The seeded line belongs to another root, which this delivery neither clears nor touches, so the
+    /// fold answers a value equal to the stored one. The blob is compared as the store holds it, so a
+    /// save that wrote an equal value would still be caught by the write count beside it.
+    /// </remarks>
     [Fact]
     public async Task ADeliveryThatRegisteredNothingLeavesTheStoredBlobByteIdentical()
     {
         var ingest = new Ingest();
-        await ingest.SeedRefusalAsync();
+        await ingest.SeedRefusalAsync(OtherWhisparrRoot);
         ingest.Holds(VerifiedPath);
 
         var before = await ingest.Store.GetAllAsync(TestContext.Current.CancellationToken);
@@ -168,6 +178,49 @@ public sealed class ImportCoreIdempotencyTests
         Assert.Equal(
             before, await ingest.Store.GetAllAsync(TestContext.Current.CancellationToken));
         Assert.Equal(writes, ingest.Store.SetCallCount);
+    }
+
+    /// <summary>
+    /// A delivery whose file the library already holds is evidence its root works: it covers the path
+    /// with a follow-up and clears that root's line, and only that root's.
+    /// </summary>
+    /// <remarks>
+    /// This is the ordinary recovery path. The user adds the root they were missing, Cove's own scan
+    /// imports the files, and the next delivery finds them already held - so if this branch reported
+    /// nothing, the banner would keep naming a root the user had already fixed until a genuinely new
+    /// file arrived under it.
+    /// </remarks>
+    [Fact]
+    public async Task AnAlreadyHeldDeliveryCoversItsPathAndClearsOnlyItsOwnRootsLine()
+    {
+        var ingest = new Ingest();
+        await ingest.SeedRefusalAsync();
+        await ingest.SeedRefusalAsync(OtherWhisparrRoot);
+        ingest.Holds(VerifiedPath);
+
+        Assert.Equal(ImportOutcome.AlreadyHeld, await ingest.DeliverAsync());
+
+        ingest.FollowUp.Flush(ingest.Library);
+        Assert.Equal([VerifiedPath], Assert.Single(ingest.Library.Scans));
+        Assert.Equal(
+            OtherWhisparrRoot,
+            Assert.Single((await ingest.StoredAsync()).ImportRefusals).Root);
+    }
+
+    /// <summary>
+    /// The already-held branch is not an import, and nothing it does reports one.
+    /// </summary>
+    [Fact]
+    public async Task AnAlreadyHeldDeliveryRecordsNoImportAsHavingWorked()
+    {
+        var ingest = new Ingest();
+        await ingest.SeedRefusalAsync();
+        ingest.Holds(VerifiedPath);
+
+        Assert.Equal(ImportOutcome.AlreadyHeld, await ingest.DeliverAsync());
+
+        Assert.Null((await ingest.StoredAsync()).ImportHealth.LastWorkedAtUtc);
+        Assert.Empty(ingest.Library.Imported);
     }
 
     /// <summary>
@@ -220,8 +273,11 @@ public sealed class ImportCoreIdempotencyTests
         /// <summary>Puts a row at <paramref name="path"/> that no item claims.</summary>
         public void HoldsDetached(string path) => Library.Held[path] = new HeldFile(null);
 
+        /// <summary>The one pending batch this ingest's imports collect into.</summary>
+        public FollowUpScanCoalescer FollowUp { get; } = new(new FixedClock(Now), NullLogger.Instance);
+
         /// <summary>Puts one outstanding refusal in the blob, so a clearing write would show.</summary>
-        public async Task SeedRefusalAsync()
+        public async Task SeedRefusalAsync(string root = WhisparrRoot)
         {
             var options = new OptionsStore(Store);
             var stored = await options.LoadAsync(TestContext.Current.CancellationToken);
@@ -230,7 +286,7 @@ public sealed class ImportCoreIdempotencyTests
                 {
                     ImportRefusals = ImportRefusalProjector.Refuse(
                         stored.ImportRefusals,
-                        WhisparrRoot,
+                        root,
                         ReportedPath,
                         ImportRefusalCause.NotFoundUnderAnyRoot),
                 },
@@ -248,7 +304,7 @@ public sealed class ImportCoreIdempotencyTests
                     Paths,
                     new OptionsStore(Store),
                     Gate,
-                    new FollowUpScanCoalescer(TimeProvider.System, NullLogger.Instance),
+                    FollowUp,
                     new FixedClock(Now),
                     NullLogger.Instance)
                 .IngestAsync(
