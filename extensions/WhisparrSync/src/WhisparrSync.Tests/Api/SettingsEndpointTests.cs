@@ -4,6 +4,7 @@ using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Options;
 using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
 using static Cove.Extensions.Shared.Testing.HttpResultUnwrap;
 
 namespace WhisparrSync.Tests.Api;
@@ -19,6 +20,8 @@ public sealed class SettingsEndpointTests
 {
     private const string StoredKey = "3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f";
     private const string StoredAddress = "http://whisparr-v3:6969";
+    private const string ExtensionId = "com.alextomas955.whisparrsync";
+    private const string CoveOrigin = "http://cove.example:8080";
     private static readonly DateTimeOffset Verified = new(2026, 5, 1, 12, 0, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset Now = new(2026, 6, 1, 12, 0, 0, TimeSpan.Zero);
 
@@ -199,6 +202,38 @@ public sealed class SettingsEndpointTests
             write => write.Generation == WhisparrGeneration.V3 && write.Kind != CredentialWriteKind.Keep);
     }
 
+    /// <summary>
+    /// A writer that commits while the registration is in flight keeps its value, in the stored blob
+    /// and in the answer the page is given.
+    /// </summary>
+    /// <remarks>
+    /// The competing writer is the production secret-position write, which is what a delivery arriving
+    /// during a registration performs, and it lands on the very connection record this handler read
+    /// before its outbound call.
+    /// </remarks>
+    [Fact]
+    public async Task ARegistrationKeepsAWriteCommittedWhileItWasInFlight()
+    {
+        var (_, options) = await SeededAsync();
+        using var gate = new OptionsWriteGate();
+        var credentials = new RecordingCredentialPort().Holding(WhisparrGeneration.V3, StoredKey);
+
+        var view = await RegisterAsync(
+            options,
+            gate,
+            credentials,
+            new DeliveringNotificationPort(options, gate, CallbackSecretPosition.Address));
+
+        // The blob first, then the answer: a handler that stored both and still answered from its
+        // pre-network local would pass an answer-first assertion for the wrong reason.
+        var stored = await options.LoadAsync(TestCt);
+        Assert.Equal(CallbackSecretPosition.Address, stored.V3?.LastCallbackSecretPosition);
+        Assert.Equal(RegistrationStatus.Registered, stored.V3?.CallbackRegistration);
+
+        Assert.Equal(RegistrationStatus.Registered, view.Status);
+        Assert.Equal(CallbackSecretPosition.Address, view.LastEventSecretPosition);
+    }
+
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     private static FakePrincipalAccessor Configure()
@@ -219,7 +254,41 @@ public sealed class SettingsEndpointTests
         OptionsStore options, RecordingCredentialPort credentials, WhisparrSyncSettingsSaveRequest request)
         => ValueOf<WhisparrSyncSettingsView>(
             await global::WhisparrSync.WhisparrSync.SaveSettingsAsync(
-                request, Configure(), options, credentials, new FixedClock(Now), TestCt));
+                request,
+                Configure(),
+                options,
+                new OptionsWriteGate(),
+                credentials,
+                new FixedClock(Now),
+                TestCt));
+
+    private static async Task<CallbackView> RegisterAsync(
+        OptionsStore options,
+        OptionsWriteGate gate,
+        RecordingCredentialPort credentials,
+        IWhisparrNotificationPort notifications)
+        => ValueOf<CallbackView>(
+            await global::WhisparrSync.WhisparrSync.RegisterCallbackAsync(
+                new RegisterCallbackRequest(null),
+                RequestFrom(CoveOrigin),
+                Configure(),
+                ExtensionId,
+                options,
+                gate,
+                credentials,
+                new MintedSecretPort(),
+                notifications,
+                new FixedClock(Now),
+                TestCt));
+
+    private static DefaultHttpContext RequestFrom(string origin)
+    {
+        var at = new Uri(origin);
+        var http = new DefaultHttpContext();
+        http.Request.Scheme = at.Scheme;
+        http.Request.Host = new HostString(at.Authority);
+        return http;
+    }
 
     // A v3 connection that has been tested once, and a v2 that has never been configured.
     private static async Task<(FakeStore Store, OptionsStore Options)> SeededAsync()

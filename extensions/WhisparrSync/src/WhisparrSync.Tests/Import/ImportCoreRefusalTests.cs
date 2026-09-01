@@ -209,6 +209,7 @@ public sealed class ImportCoreRefusalTests
                     Library,
                     Paths,
                     new OptionsStore(Store),
+                    new OptionsWriteGate(),
                     new FollowUpScanCoalescer(TimeProvider.System, NullLogger.Instance),
                     NullLogger.Instance)
                 .IngestAsync(

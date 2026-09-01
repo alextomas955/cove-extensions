@@ -239,6 +239,7 @@ public sealed class FollowUpScanCoalescerTests
                     Library,
                     Paths,
                     new OptionsStore(Store),
+                    new OptionsWriteGate(),
                     FollowUp,
                     NullLogger.Instance)
                 .IngestAsync(

@@ -171,6 +171,9 @@ public sealed class ImportCoreIdempotencyTests
     {
         public FakeStore Store { get; } = new();
 
+        /// <summary>The one gate every delivery in a case goes through, as the container has it.</summary>
+        public OptionsWriteGate Gate { get; } = new();
+
         public RecordingLibrary Library { get; } = new(reached: true, ["/data"]);
 
         public StubPaths Paths { get; } = new() { Present = { [VerifiedPath] = ReportedSize } };
@@ -203,6 +206,7 @@ public sealed class ImportCoreIdempotencyTests
                     Library,
                     Paths,
                     new OptionsStore(Store),
+                    Gate,
                     new FollowUpScanCoalescer(TimeProvider.System, NullLogger.Instance),
                     NullLogger.Instance)
                 .IngestAsync(
