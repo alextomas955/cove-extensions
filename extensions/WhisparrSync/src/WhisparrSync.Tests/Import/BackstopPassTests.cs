@@ -510,10 +510,18 @@ public sealed class BackstopPassTests
         Assert.NotEqual(mark, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
     }
 
-    /// <summary>A walk whose every record failed is still a walk, so the mark still moves.</summary>
+    /// <summary>
+    /// A walk whose every record failed is still a walk, so the mark still moves — and the records it
+    /// moved past are recorded rather than left to the log.
+    /// </summary>
     /// <remarks>
     /// The pages were read either way, which is what the mark records. Leaving it behind would make
     /// the next pass re-read exactly the records that already failed.
+    /// <para>
+    /// The stored count and instant are asserted with the mark, because it is the mark moving that
+    /// puts those records beyond this channel: without them the aggregate reports a pass that reached
+    /// the instance, cleared its failure streak and found nothing to take.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task AWalkWhoseEveryRecordFailedStillAdvancesTheMark()
@@ -527,8 +535,74 @@ public sealed class BackstopPassTests
         Assert.Equal(BackstopPassOutcome.Walked, result.Outcome);
         Assert.Equal(0, result.Imported);
         Assert.Equal(3, result.Contained);
-        Assert.Equal(Noon, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
+        var stored = await pass.StoredAsync();
+        Assert.Equal(Noon, stored.V3?.BackstopWatermarkUtc);
+        Assert.Equal(3, stored.ImportHealth.RecordsContained);
+        Assert.Equal(Pass.Now, stored.ImportHealth.LastContainedAtUtc);
         Assert.Empty(pass.Library.Scans);
+    }
+
+    /// <summary>A walk that took every record records no containment.</summary>
+    /// <remarks>
+    /// The control for the case above. A fold writing the count and the instant whatever the walk
+    /// contained satisfies that one, and every clean pass then reads as one that skipped records.
+    /// </remarks>
+    [Fact]
+    public async Task AWalkThatTookEveryRecordRecordsNoContainment()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-5));
+        pass.Answering(PageOfDistinctPaths(3));
+
+        var result = await pass.RunAsync();
+
+        Assert.Equal(3, result.Imported);
+        Assert.Equal(0, result.Contained);
+        var health = (await pass.StoredAsync()).ImportHealth;
+        Assert.Equal(0, health.RecordsContained);
+        Assert.Null(health.LastContainedAtUtc);
+    }
+
+    /// <summary>The containment total carries across passes rather than reporting the last one's.</summary>
+    /// <remarks>
+    /// Every counted record is one the mark has already moved past, so no later pass has anything to
+    /// clear and a total that reset would report the backlog as smaller than it is.
+    /// </remarks>
+    [Fact]
+    public async Task TheContainmentTotalCarriesAcrossPasses()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-5));
+        pass.Answering(PageOfDistinctPaths(3), Page([Noon.AddMinutes(2), Noon.AddMinutes(1)]));
+        pass.Core.ThrowForEverything(new FileNotFoundException());
+
+        var first = await pass.RunAsync();
+        var second = await pass.RunAsync();
+
+        Assert.Equal(3, first.Contained);
+        Assert.Equal(2, second.Contained);
+        Assert.Equal(5, (await pass.StoredAsync()).ImportHealth.RecordsContained);
+    }
+
+    /// <summary>A later pass that contained nothing keeps when the last containment happened.</summary>
+    /// <remarks>
+    /// The total that instant belongs to does not clear, so clearing the instant alone would leave a
+    /// count of records passed over with no when — and a pass runs on a timer, so the next one would
+    /// clear it almost at once.
+    /// </remarks>
+    [Fact]
+    public async Task APassThatContainedNothingKeepsWhenTheLastContainmentHappened()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-5));
+        pass.Answering(PageOfDistinctPaths(3), Page([Noon.AddMinutes(2), Noon.AddMinutes(1)]));
+        pass.Core.ThrowFor("/whisparr-media/scene0.mp4", new InvalidOperationException());
+
+        var first = await pass.RunAsync();
+        var second = await pass.RunAsync();
+
+        Assert.Equal(1, first.Contained);
+        Assert.Equal(0, second.Contained);
+        var health = (await pass.StoredAsync()).ImportHealth;
+        Assert.Equal(1, health.RecordsContained);
+        Assert.Equal(Pass.Now, health.LastContainedAtUtc);
     }
 
     /// <summary>A record naming an import with no path is counted rather than dropped.</summary>
