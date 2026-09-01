@@ -16,6 +16,19 @@ export function projectsWithUnloadedReferences(output) {
 }
 
 /**
+ * Splits this wrapper's own flags out of the arguments meant for `dotnet format`.
+ *
+ * `--fail-on-partial` is the wrapper's, and `dotnet format` rejects an argument it does not know, so
+ * a flag left in the passthrough set would fail every run that used it.
+ */
+export function splitWrapperArguments(argv) {
+  return {
+    failOnPartial: argv.includes("--fail-on-partial"),
+    passthrough: argv.filter((arg) => arg !== "--fail-on-partial"),
+  };
+}
+
+/**
  * Whether this process was STARTED from this file, rather than importing it for its helpers.
  *
  * Both sides are realpathed rather than compared as resolved strings: Node realpaths the module URL
@@ -55,9 +68,11 @@ if (typeof import.meta.main !== "boolean") {
     process.exitCode = 1;
   }
 } else if (import.meta.main) {
+  const { failOnPartial, passthrough } = splitWrapperArguments(process.argv.slice(2));
+
   // `shell: false`, so a filename lefthook interpolated into its own command string is not split a
   // second time here.
-  const run = spawnSync("dotnet", ["format", "CoveExtensions.slnx", ...process.argv.slice(2)], {
+  const run = spawnSync("dotnet", ["format", "CoveExtensions.slnx", ...passthrough], {
     encoding: "utf8",
     shell: false,
     maxBuffer: 64 * 1024 * 1024,
@@ -70,15 +85,24 @@ if (typeof import.meta.main !== "boolean") {
   if (run.error) process.stderr.write(`${run.error.message}\n`);
 
   const unloaded = projectsWithUnloadedReferences(stdout + stderr);
+  let refusedForPartialCoverage = false;
   if (unloaded.length > 0) {
     console.log(
       `check-csharp-format: PARTIAL - references did not load for ${unloaded.join(", ")}, so only whitespace was checked there and no analyzer finding could be reported. Set COVE_REPO or add a ../cove sibling to restore analyzer coverage.`,
     );
+    if (failOnPartial) {
+      refusedForPartialCoverage = true;
+      console.error(
+        "check-csharp-format: refusing to pass on partial coverage; this run was configured to have a Cove checkout.",
+      );
+    }
   }
 
-  // This reports; it does not gate.
+  // Without --fail-on-partial this reports and does not gate: working with no Cove checkout is a
+  // supported local state.
   //
   // Node's stdout is asynchronous on a pipe, and process.exit does not drain it: exiting here would
   // discard the disclosure above and most of the tool's own output while keeping the status.
-  process.exitCode = run.status ?? 1;
+  const status = run.status ?? 1;
+  process.exitCode = status === 0 && refusedForPartialCoverage ? 1 : status;
 }

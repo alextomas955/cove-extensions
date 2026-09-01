@@ -85,9 +85,13 @@ jobs:
       # keeps the sibling checkout out of the subject set: dotnet format walks the ProjectReference
       # graph into Cove's own source otherwise. dotnet format takes no -p:, so
       # COVE_SOURCE_MODE is the only spelling of the mode available to it.
+      #
+      # --fail-on-partial is passed here and nowhere else: the checkout this job's own preamble makes
+      # is what the analyzer half needs, so a run that reports references did not load is a run whose
+      # subject set is smaller than this job was set up to check.
       - name: dotnet format (verify)
         working-directory: extensions
-        run: node scripts/check-csharp-format.mjs --verify-no-changes --severity warn --exclude ../cove/
+        run: node scripts/check-csharp-format.mjs --verify-no-changes --severity warn --exclude ../cove/ --fail-on-partial
         env:
           COVE_SOURCE_MODE: source
           COVE_REPO: ${{ github.workspace }}/cove

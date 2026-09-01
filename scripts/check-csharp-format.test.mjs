@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { projectsWithUnloadedReferences } from "./check-csharp-format.mjs";
+import { projectsWithUnloadedReferences, splitWrapperArguments } from "./check-csharp-format.mjs";
 
 const REAL_LINE =
   "Required references did not load for Renamer.Cove.Tests or referenced project. Run `dotnet restore` prior to formatting.";
@@ -54,4 +54,25 @@ test("does not guess a project name from a line that is not the tool's sentence"
     projectsWithUnloadedReferences("Required references did not load for Renamer.Cove.Tests."),
     [],
   );
+});
+
+test("--fail-on-partial is kept out of the arguments dotnet format receives", () => {
+  // dotnet format rejects an argument it does not know, so a wrapper flag left in the passthrough set
+  // would fail every run that used it.
+  const { failOnPartial, passthrough } = splitWrapperArguments([
+    "--verify-no-changes",
+    "--fail-on-partial",
+    "--severity",
+    "warn",
+  ]);
+
+  assert.equal(failOnPartial, true);
+  assert.deepEqual(passthrough, ["--verify-no-changes", "--severity", "warn"]);
+});
+
+test("the wrapper flag is absent by default and every argument passes through", () => {
+  const { failOnPartial, passthrough } = splitWrapperArguments(["--severity", "warn"]);
+
+  assert.equal(failOnPartial, false);
+  assert.deepEqual(passthrough, ["--severity", "warn"]);
 });

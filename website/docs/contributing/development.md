@@ -316,7 +316,9 @@ Each of these is stated symptom first, because the symptom is what you arrive wi
   Cove source checkout that project's references do not load, so only whitespace is checked there.
   The pass says so: it prints a line starting `check-csharp-format: PARTIAL` and naming every
   project this happened to. Point `COVE_REPO` at a checkout, or add a `../cove` sibling, to get the
-  analyzer coverage back. The CI format leg checks Cove out, so the merge gate is unaffected.
+  analyzer coverage back. Locally this reports and does not gate, because working without a checkout
+  is supported. The CI format leg checks Cove out and adds `--fail-on-partial`, so a run there that
+  printed this line fails instead of merging green.
 - **A build succeeds but compiles fewer tests than you expect.** You named one of an extension's two
   test projects when you meant both. Name the solution instead, or the other project as well -
   [Testing](./testing#which-set-of-c-tests-you-just-ran) has which covers what.
