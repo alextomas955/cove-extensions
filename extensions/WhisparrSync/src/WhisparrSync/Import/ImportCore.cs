@@ -202,6 +202,10 @@ internal sealed class ImportCore(
             // Above the broad catch, so a shutdown classifies as cancelled rather than as a failure.
             throw;
         }
+        catch (EnrichmentNotCommittedException failure)
+        {
+            WhisparrSyncLog.EnrichmentNotCommitted(log, identity.Source, failure);
+        }
 #pragma warning disable CA1031 // Best-effort by the host's own documented contract.
         catch (Exception failure)
         {

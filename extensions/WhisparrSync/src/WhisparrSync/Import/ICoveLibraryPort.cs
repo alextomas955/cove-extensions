@@ -189,5 +189,10 @@ public interface ICoveLibraryPort
     /// <paramref name="endpoint"/> matches no metadata source the host is configured with. A caller
     /// that cannot guarantee one must treat this as best-effort and catch it.
     /// </exception>
+    /// <exception cref="EnrichmentNotCommittedException">
+    /// The source applied its record and it could not be written. Declared apart from the failure
+    /// above because a caller catching one answer for both can only report the source, which in this
+    /// case answered correctly.
+    /// </exception>
     Task<bool> EnrichAsync(int videoId, string endpoint, string remoteId, CancellationToken ct);
 }
