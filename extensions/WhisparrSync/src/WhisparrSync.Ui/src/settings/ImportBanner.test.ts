@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 /**
  * What the banner puts on the screen: nothing at all when there is nothing to report, one line per
- * root when there is, at most three paths under each, and a readable heading for the line no root
- * was reported for.
+ * root when there is, at most three paths under each, a readable heading for the line no root was
+ * reported for, and the sentence for the files the catch-up passed over — which either half can
+ * raise on its own.
  *
  * Absence is asserted as ELEMENT NOT PRESENT rather than as element empty: an empty red block still
  * occupies the screen and still reads as a problem in force.
@@ -56,11 +57,18 @@ function lineFor(root: string, count: number, paths: number): ImportBannerRootLi
   };
 }
 
+function viewOf(...roots: ImportBannerRootLine[]): ImportBannerView {
+  return { roots, recordsContained: 0, lastContainedAtUtc: null };
+}
+
+/** The instant the recorded ages below are measured against. */
+const NOW_MS = Date.parse("2026-08-31T09:00:00Z");
+
 async function render(read: AsyncRead, view: ImportBannerView | null) {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
-  root.render(createElement(ImportBanner, { read, view }));
+  root.render(createElement(ImportBanner, { read, view, now: NOW_MS }));
   await sleep(COMMIT_MS);
   return {
     blocks: container.querySelectorAll('[role="alert"]'),
@@ -76,7 +84,7 @@ async function render(read: AsyncRead, view: ImportBannerView | null) {
 }
 
 test("an answer with no roots puts nothing on the screen", async () => {
-  const view = await render(ANSWERED, { roots: [] });
+  const view = await render(ANSWERED, viewOf());
 
   expect(view.blocks.length).toBe(0);
   expect(view.text).toBe("");
@@ -92,9 +100,10 @@ test("a read that has not answered yet puts nothing on the screen", async () => 
 });
 
 test("two roots produce ONE block holding one line each", async () => {
-  const view = await render(ANSWERED, {
-    roots: [lineFor("/whisparr-media", 4, 2), lineFor("/whisparr-elsewhere", 1, 1)],
-  });
+  const view = await render(
+    ANSWERED,
+    viewOf(lineFor("/whisparr-media", 4, 2), lineFor("/whisparr-elsewhere", 1, 1)),
+  );
 
   expect(view.blocks.length).toBe(1);
   expect(view.rootLines.length).toBe(2);
@@ -105,7 +114,7 @@ test("two roots produce ONE block holding one line each", async () => {
 });
 
 test("a root with more recorded paths than the bound still lists three", async () => {
-  const view = await render(ANSWERED, { roots: [lineFor("/whisparr-media", 9, 6)] });
+  const view = await render(ANSWERED, viewOf(lineFor("/whisparr-media", 9, 6)));
 
   expect(view.pathsUnder(0).length).toBe(3);
   expect(view.text).toContain("/whisparr-media/0.mp4");
@@ -114,19 +123,18 @@ test("a root with more recorded paths than the bound still lists three", async (
 });
 
 test("each path names its own cause", async () => {
-  const view = await render(ANSWERED, {
-    roots: [
-      {
-        root: "/whisparr-media",
-        countSinceLastSuccess: 3,
-        newestPaths: [
-          { path: "/whisparr-media/a.mp4", cause: "notFoundUnderAnyRoot" },
-          { path: "/whisparr-media/b.mp4", cause: "ambiguousCandidates" },
-          { path: "/whisparr-media/c.mp4", cause: "unreadable" },
-        ],
-      },
-    ],
-  });
+  const view = await render(
+    ANSWERED,
+    viewOf({
+      root: "/whisparr-media",
+      countSinceLastSuccess: 3,
+      newestPaths: [
+        { path: "/whisparr-media/a.mp4", cause: "notFoundUnderAnyRoot" },
+        { path: "/whisparr-media/b.mp4", cause: "ambiguousCandidates" },
+        { path: "/whisparr-media/c.mp4", cause: "unreadable" },
+      ],
+    }),
+  );
 
   expect(view.text).toContain(IMPORT_CAUSE_NOT_FOUND);
   expect(view.text).toContain(IMPORT_CAUSE_AMBIGUOUS);
@@ -135,7 +143,7 @@ test("each path names its own cause", async () => {
 });
 
 test("the line no root was reported for reads as a sentence rather than a gap", async () => {
-  const view = await render(ANSWERED, { roots: [lineFor("", 5, 1)] });
+  const view = await render(ANSWERED, viewOf(lineFor("", 5, 1)));
 
   expect(view.rootLines.length).toBe(1);
   const heading = view.rootLines[0].querySelector("p")?.textContent ?? "";
@@ -146,8 +154,38 @@ test("the line no root was reported for reads as a sentence rather than a gap", 
 });
 
 test("the count is the stored integer rather than the number of paths listed", async () => {
-  const view = await render(ANSWERED, { roots: [lineFor("/whisparr-media", 412, 3)] });
+  const view = await render(ANSWERED, viewOf(lineFor("/whisparr-media", 412, 3)));
 
   expect(view.text).toContain("412");
+  view.teardown();
+});
+
+test("a containment with no root refused at all still puts a block on the screen", async () => {
+  const view = await render(ANSWERED, {
+    roots: [],
+    recordsContained: 3,
+    lastContainedAtUtc: "2026-08-31T08:30:00Z",
+  });
+
+  expect(view.blocks.length).toBe(1);
+  expect(view.rootLines.length).toBe(0);
+  expect(view.text).toContain("3 files");
+  expect(view.text).toContain("30 min ago");
+  // The heading belongs to the root list, and there is no root list here.
+  expect(view.text).not.toContain(IMPORTS_UNREADABLE);
+  view.teardown();
+});
+
+test("a containment and a refused root share ONE block", async () => {
+  const view = await render(ANSWERED, {
+    roots: [lineFor("/whisparr-media", 4, 1)],
+    recordsContained: 2,
+    lastContainedAtUtc: null,
+  });
+
+  expect(view.blocks.length).toBe(1);
+  expect(view.rootLines.length).toBe(1);
+  expect(view.text).toContain(IMPORTS_UNREADABLE);
+  expect(view.text).toContain("2 files");
   view.teardown();
 });

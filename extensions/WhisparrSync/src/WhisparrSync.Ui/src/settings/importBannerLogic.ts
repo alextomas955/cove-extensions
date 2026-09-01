@@ -1,6 +1,7 @@
 /**
  * Pure rules for the import banner: whether there is anything to say, the order the roots read in,
- * how each root's line is headed, and what each cause reads as.
+ * how each root's line is headed, what each cause reads as, and how the files the catch-up passed
+ * over read.
  *
  * Relative imports only, so this module runs with no environment and needs no doubles. The wire types
  * arrive as `import type`, which erases at runtime and so takes nothing with it.
@@ -12,7 +13,9 @@ import {
   IMPORT_CAUSE_UNREADABLE,
   importRefusalsUnderRootSentence,
   importRefusalsWithNoReportedRootSentence,
+  importsPassedOverSentence,
 } from "../common/ui/copy";
+import { describeInstant } from "./relativeTimeLogic";
 
 /**
  * The key a refusal is counted under when no reporting root contained the path.
@@ -77,9 +80,29 @@ export function bannerLines(view: ImportBannerView | null): readonly ImportBanne
   ];
 }
 
-/** Whether there is anything to say at all. Nothing to say is rendered as nothing at all. */
+/**
+ * The line for the files the catch-up passed over, or null when it has passed over none.
+ *
+ * The count never clears, so the instant is what separates a problem still happening from one that
+ * stopped long ago.
+ */
+export function passedOverLine(view: ImportBannerView | null, nowMs: number): string | null {
+  if (view === null || view.recordsContained <= 0) {
+    return null;
+  }
+  const when =
+    view.lastContainedAtUtc === null ? null : describeInstant(view.lastContainedAtUtc, nowMs);
+  return importsPassedOverSentence(view.recordsContained, when?.text ?? null);
+}
+
+/**
+ * Whether there is anything to say at all. Nothing to say is rendered as nothing at all.
+ *
+ * The two halves have different writers, and a pass can move past a record without any root having a
+ * refusal recorded against it, so neither half alone decides this.
+ */
 export function hasAnythingToSay(view: ImportBannerView | null): boolean {
-  return bannerLines(view).length > 0;
+  return bannerLines(view).length > 0 || (view?.recordsContained ?? 0) > 0;
 }
 
 /** How <code>line</code> is headed, naming its root where one was reported. */
