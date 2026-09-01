@@ -49,13 +49,19 @@ internal sealed class BackstopPass(
         if (walk.Outcome == BackstopPassOutcome.FirstConnect)
         {
             // A mark is written even against an instance with no history: without one, every later
-            // pass is another first connect.
-            await MarkAsync(generation, walk.Watermark ?? clock.GetUtcNow(), ct).ConfigureAwait(false);
-            await RecordPositionLostAsync(ct).ConfigureAwait(false);
+            // pass is another first connect. The position IS lost here - the records before this mark
+            // are never replayed - so the flag is raised in the same fold that clears the failures.
+            await RecordWalkedAsync(
+                generation, walk.Watermark ?? clock.GetUtcNow(), positionLost: true, ct)
+                .ConfigureAwait(false);
         }
-        else if (walk is { Outcome: BackstopPassOutcome.Walked, Watermark: { } reached })
+        else if (walk.Outcome == BackstopPassOutcome.Walked)
         {
-            await MarkAsync(generation, reached, ct).ConfigureAwait(false);
+            // Recorded even with no watermark to write. A page with nothing past the mark is an
+            // instance this pass reached, authenticated against and read the history of, which is what
+            // the health half of this write reports; the mark simply stays where it was.
+            await RecordWalkedAsync(generation, walk.Watermark, positionLost: false, ct)
+                .ConfigureAwait(false);
         }
         else if (IsRefusal(walk.Outcome))
         {
@@ -193,25 +199,34 @@ internal sealed class BackstopPass(
                 contained);
     }
 
+    /// <summary>Records where a pass that read history reached, and that the channel is working.</summary>
+    /// <remarks>
+    /// One fold, so the mark and the health cannot be written against two different readings of the
+    /// blob. The last-failed instant is left alone: it records that a failure happened, and clearing
+    /// it would destroy the only record of when.
+    /// </remarks>
     // Folded onto whatever the gate loads rather than onto the blob this pass opened with: the ingest
     // core writes the refusal aggregate to the same blob while the walk runs.
-    private async Task MarkAsync(
-        WhisparrGeneration generation, DateTimeOffset mark, CancellationToken ct)
+    private async Task RecordWalkedAsync(
+        WhisparrGeneration generation, DateTimeOffset? mark, bool positionLost, CancellationToken ct)
         => await gate.MutateAsync(
             options,
-            stored => stored.ConnectionFor(generation) is { } connection
-                ? stored.WithConnectionFor(generation, connection with { BackstopWatermarkUtc = mark })
-                : stored,
-            ct).ConfigureAwait(false);
-
-    private async Task RecordPositionLostAsync(CancellationToken ct)
-        => await gate.MutateAsync(
-            options,
-            stored => stored with
+            stored => Marked(stored, generation, mark) with
             {
-                ImportHealth = stored.ImportHealth with { BackstopPositionLost = true },
+                ImportHealth = stored.ImportHealth with
+                {
+                    ConsecutiveFailures = 0,
+                    LastError = "",
+                    BackstopPositionLost = positionLost,
+                },
             },
             ct).ConfigureAwait(false);
+
+    private static WhisparrSyncOptions Marked(
+        WhisparrSyncOptions stored, WhisparrGeneration generation, DateTimeOffset? mark)
+        => mark is { } reached && stored.ConnectionFor(generation) is { } connection
+            ? stored.WithConnectionFor(generation, connection with { BackstopWatermarkUtc = reached })
+            : stored;
 
     private async Task RecordFailureAsync(BackstopPassOutcome outcome, CancellationToken ct)
     {
