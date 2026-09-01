@@ -45,10 +45,13 @@ reference](./configuration).
 
 Two things to read before you take a green build as proof of anything:
 
-- Every build prints one line naming the Cove source it resolved and the absolute path it resolved
-  it from. In none mode the solution build also
-  prints one line for each project it skipped because that project requires a Cove checkout, and
-  those projects' tests neither compiled nor ran.
+- `dotnet build` prints one line naming the Cove source it resolved and the absolute path it
+  resolved it from. In none mode the solution build also prints one line for each project it skipped
+  because that project requires a Cove checkout, and those projects' tests neither compiled nor ran.
+  `dotnet test` shows neither line - it reports test results and nothing else - so a test run tells
+  you nothing about which source it built against or what it left out. To read the selection back
+  without building at all, query the properties: [Configuration
+  reference](./configuration#check-which-source-was-selected) has the command.
 - A project missing from `CoveExtensions.slnx` is not compiled by the solution build and is not seen
   by the C# formatting gate. The catalog validator is what catches that, not the build.
 
@@ -184,8 +187,10 @@ both of which have bitten here:
 - A folder path passed to `--include` or `--exclude` must end in a path separator. Without one it
   matches nothing and exits 0, so a scoping mistake does not fail - it silently passes.
 
-The C# job in `.github/workflows/lint.yml` checks the same subject set with the same `dotnet format`
-arguments as the check script, so your local run and CI cannot disagree about what is checked.
+The C# job in `.github/workflows/lint.yml` runs that same script, so your local run and CI check the
+same subject set and both print the same partial-coverage disclosure. The depth can still differ: CI
+checks Cove out, and without a local checkout the Cove-dependent test project gets a whitespace-only
+check on your machine. [Known traps](#known-traps) has the symptom and how to get the coverage back.
 
 ## Run the merge gates
 
@@ -205,6 +210,13 @@ push; run all of them if you touched root tooling.
 | Catalog validator  | A declared catalog path that does not exist, a project missing from the solution, a floor that disagrees with a manifest | `node scripts/validate-extension-repo.mjs`                             | repo root        |
 | Repo tooling tests | A regression in the scripts under `scripts/`                                                                             | `npm test`                                                             | repo root        |
 | UI verify          | Typecheck, formatting, class discipline, and unit tests for one bundle                                                   | `npm run verify`                                                       | the UI directory |
+
+The C# analyzers row needs a Cove source checkout. Its `-p:CoveSourceMode=source` refuses to fall
+back, so on a clone without one the command fails before it compiles anything. A `../cove` sibling
+supplies a checkout by auto-detect, and `COVE_REPO` names one explicitly; [Configuration
+reference](./configuration#cove-source-selection) has both knobs and the precedence between them. CI
+clones Cove itself and points the build at that clone, which is why the row's command runs there
+without you having a checkout of your own.
 
 knip resolves the end-to-end packages' configs, so it needs a plain `npm ci` at the root rather than
 the `--no-workspaces` form, and it needs the wire types generated. The dead-code class it gates on the
