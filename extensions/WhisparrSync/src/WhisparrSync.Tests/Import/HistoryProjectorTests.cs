@@ -40,19 +40,87 @@ public sealed class HistoryProjectorTests
     }
 
     /// <summary>
-    /// A history record yields no size and no identifier.
+    /// A history record yields no size.
     /// </summary>
     /// <remarks>
-    /// Neither has been shown to live on one, so neither is read. A candidate with no size is
-    /// verified on presence alone, and one with no identifier is imported and left unstamped.
+    /// A size has not been shown to live on one, so none is read, and a candidate with no size is
+    /// verified on presence alone.
     /// </remarks>
     [Fact]
-    public void AProjectedCandidateCarriesNeitherASizeNorAnIdentifier()
+    public void AProjectedCandidateCarriesNoSize()
+        => Assert.Null(HistoryProjector.Read(WhisparrGeneration.V3, Record(ImportedPath)).Candidate?.ReportedSize);
+
+    /// <summary>
+    /// Each lineage's record yields the identifier its own metadata entity declares.
+    /// </summary>
+    /// <remarks>
+    /// The entity and the member are the ones the live channel reads for the same lineage, which is
+    /// what makes one scene the same scene whichever channel reported it. Transcribed by hand from
+    /// an instance's own answer on each lineage.
+    /// </remarks>
+    [Theory]
+    [InlineData("v3")]
+    [InlineData("v2")]
+    public void ARecordProjectsTheIdentifierItsOwnLineagesEntityDeclares(string lineage)
+    {
+        var (generation, record, declared) = Identified(lineage);
+
+        var reading = HistoryProjector.Read(generation, record);
+
+        Assert.Equal(HistoryProjectionOutcome.Projected, reading.Outcome);
+        Assert.Equal(declared, reading.Candidate?.RemoteId);
+    }
+
+    /// <summary>
+    /// A record read as the other lineage yields no identifier.
+    /// </summary>
+    /// <remarks>
+    /// The discriminating control for the two cases above: a reader that looked in both places would
+    /// pass them with the per-lineage rule untested.
+    /// </remarks>
+    [Theory]
+    [InlineData("v3")]
+    [InlineData("v2")]
+    public void ARecordReadAsTheOtherLineageYieldsNoIdentifier(string lineage)
+    {
+        var (generation, record, _) = Identified(lineage);
+        var other = generation == WhisparrGeneration.V3 ? WhisparrGeneration.V2 : WhisparrGeneration.V3;
+
+        Assert.Null(HistoryProjector.Read(other, record).Candidate?.RemoteId);
+    }
+
+    /// <summary>
+    /// A record whose answer embedded no entity still projects, carrying no identifier.
+    /// </summary>
+    /// <remarks>
+    /// The residual. A file an instance never matched is still a file to register, and the absence is
+    /// what tells a later match there is nothing to match on.
+    /// </remarks>
+    [Fact]
+    public void ARecordCarryingNoEntityStillProjectsWithNoIdentifier()
     {
         var reading = HistoryProjector.Read(WhisparrGeneration.V3, Record(ImportedPath));
 
-        Assert.Null(reading.Candidate?.ReportedSize);
+        Assert.Equal(HistoryProjectionOutcome.Projected, reading.Outcome);
         Assert.Null(reading.Candidate?.RemoteId);
+    }
+
+    /// <summary>
+    /// Each lineage's own unset rendering yields no identifier.
+    /// </summary>
+    /// <remarks>
+    /// One lineage omits its member or leaves it blank; the other carries a number its schema starts
+    /// every row at. Read as an identifier, an unset rendering would make every unmatched scene the
+    /// same scene.
+    /// </remarks>
+    [Theory]
+    [InlineData("v3")]
+    [InlineData("v2")]
+    public void AnUnsetIdentifierYieldsNone(string lineage)
+    {
+        var (generation, record, _) = Unidentified(lineage);
+
+        Assert.Null(HistoryProjector.Read(generation, record).Candidate?.RemoteId);
     }
 
     [Theory]
@@ -172,4 +240,49 @@ public sealed class HistoryProjectorTests
             ["sourceTitle"] = "Cove.E2E.Seeded.0.1080p.WEB-DL",
             ["data"] = new JsonObject { ["importedPath"] = path },
         };
+
+    /// <summary>
+    /// One lineage, one record its own instance would answer with, and the identifier it declares.
+    /// </summary>
+    /// <remarks>
+    /// The entity member, the identifier member and the JSON type of each are transcribed by hand
+    /// from a live answer on that lineage.
+    /// </remarks>
+    private static (WhisparrGeneration Generation, JsonObject Record, string Declared) Identified(
+        string lineage)
+        => lineage switch
+        {
+            "v3" => (
+                WhisparrGeneration.V3,
+                Embedding("movie", new JsonObject { ["stashId"] = "1703a150-ceec-4953-ac10-d7ebc7d0974f" }),
+                "1703a150-ceec-4953-ac10-d7ebc7d0974f"),
+            "v2" => (
+                WhisparrGeneration.V2,
+                Embedding("episode", new JsonObject { ["tvdbId"] = 4149372 }),
+                "4149372"),
+            _ => throw new ArgumentOutOfRangeException(nameof(lineage)),
+        };
+
+    /// <summary>One lineage, and a record whose entity was never matched to a scene.</summary>
+    private static (WhisparrGeneration Generation, JsonObject Record, string Declared) Unidentified(
+        string lineage)
+        => lineage switch
+        {
+            "v3" => (
+                WhisparrGeneration.V3,
+                Embedding("movie", new JsonObject { ["stashId"] = "" }),
+                ""),
+            "v2" => (
+                WhisparrGeneration.V2,
+                Embedding("episode", new JsonObject { ["tvdbId"] = 0 }),
+                "0"),
+            _ => throw new ArgumentOutOfRangeException(nameof(lineage)),
+        };
+
+    private static JsonObject Embedding(string member, JsonObject entity)
+    {
+        var record = Record(ImportedPath);
+        record[member] = entity;
+        return record;
+    }
 }
