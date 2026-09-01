@@ -53,9 +53,10 @@ soon as it exists.
 ## Run the C# suite
 
 From the repo root, run every test project the solution declares. This needs a Cove source checkout:
-without one the Cove-dependent project is neither built nor run, and the run says nothing about it.
-It exits 0, and the summary counts only the checkout-free project — so that total is not the size of
-the suite. `dotnet build CoveExtensions.slnx` does name the project it skipped. To run both, point
+without one the Cove-dependent project is neither built nor run. The run warns by name that it
+skipped that project, then fails to launch its test module and exits non-zero. The summary printed
+above that still reads `Passed!`, because it covers only the checkout-free project — so read the exit
+status rather than the summary, and treat that total as smaller than the suite. To run both, point
 `COVE_REPO` at a checkout:
 
 ```sh
@@ -240,11 +241,11 @@ Each entry leads with the symptom, because that is what you arrive with.
   Cove-dependent project directly with no checkout available. A whole-solution build does not stop
   there: it names the project it skipped and succeeds. [Configuration
   reference](./configuration#cove-source-selection) has the knobs that point the build at one.
-- **A whole-solution `dotnet test` run exits 0 over a total smaller than the suite, and never
-  mentions the project it left out.** The Cove-dependent project was skipped for want of a checkout,
-  so it was neither built nor run and the summary covers only the project that did build. Run
-  `dotnet build CoveExtensions.slnx`, which does name the skipped project. Then point the build at a
-  checkout, or name the checkout-free project when that smaller set is what you meant.
+- **A whole-solution `dotnet test` run ends `Passed!` and still exits non-zero, after a warning
+  naming a project it did not build and an exception naming a test executable that does not exist.**
+  The Cove-dependent project was skipped for want of a checkout, so it was neither built nor run, its
+  test module could not be launched, and the summary covers only the project that did build. Point
+  the build at a checkout, or name the checkout-free project when that smaller set is what you meant.
 - **A C# run reports `Zero tests ran` and exits non-zero, with `failed: 0` in the summary.** Your
   filter matched nothing. Check the class name against the file's actual declarations rather than
   against its filename.

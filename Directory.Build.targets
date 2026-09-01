@@ -94,19 +94,14 @@
   </PropertyGroup>
 
   <!--
-    dotnet test resolves a test module's executable directly and dotnet publish copies an output
-    directory, so neither goes through the Build target the import below overrides: without the three
-    properties here, a project the solution build skipped stays runnable and publishable on whatever a
-    previous build under another mode left behind.
+    dotnet publish copies an output directory rather than going through the Build target the import
+    below overrides.
 
-    They are gated on $(_CoveSourceMissing) rather than on $(_CoveSolutionBuildSkip) because dotnet
-    test enumerates test modules in an evaluation that carries no $(SolutionPath), so a property
-    gated on one is never seen there. The import keeps that scoping, so a direct build still reaches
-    this project's own checkout refusal.
+    IsTestProject stays true here. False removes the project from the module list dotnet test
+    enumerates, and a solution-wide run then reports success over a smaller suite without naming what
+    it left out; true makes that run fail on the executable the Build override removes.
   -->
   <PropertyGroup Condition="'$(_CoveSourceMissing)' == 'true'">
-    <IsTestProject>false</IsTestProject>
-    <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
     <IsPublishable>false</IsPublishable>
   </PropertyGroup>
 
