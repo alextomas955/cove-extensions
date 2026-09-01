@@ -25,6 +25,7 @@ public sealed class CallbackBodyTests
 {
     private const string StoredSecret = "the-stored-secret";
     private const string V3UserAgent = "Whisparr/3.3.8.1097 (alpine 3.23.5)";
+    private const string V2UserAgent = "Whisparr/2.2.0.231 (alpine 3.23.5)";
 
     [Fact]
     public async Task AWrongSecretIsRefusedWithoutTheBodyBeingRead()
@@ -195,23 +196,100 @@ public sealed class CallbackBodyTests
         Assert.Empty(core.Ingested);
     }
 
+    /// <summary>
+    /// A delivery read as one generation records its secret position on THAT generation's connection.
+    /// </summary>
+    /// <remarks>
+    /// The generation is read off the delivery's own user-agent while the settings page has the other
+    /// one selected, which is the ordinary state of a user who is moving between instances. The
+    /// selected generation's connection is asserted untouched, because a write that landed on it would
+    /// tell the page an instance is delivering that has not.
+    /// </remarks>
+    [Fact]
+    public async Task ADeliveryFromTheGenerationThatIsNotSelectedRecordsItsPositionOnItsOwnConnection()
+    {
+        var core = new RecordingImportCore();
+        var options = await SeededAsync(WhisparrGeneration.V3, storeV2Connection: true);
+
+        var answered = await CallbackAsync(
+            Request(new WatchedStream(CapturedV2()), StoredSecret, userAgent: V2UserAgent),
+            core,
+            options);
+
+        Assert.Equal(200, StatusOf(answered));
+        Assert.Equal(WhisparrGeneration.V2, Assert.Single(core.Ingested).Generation);
+
+        var stored = await options.LoadAsync(TestCt);
+        Assert.Equal(CallbackSecretPosition.OutOfBand, stored.V2?.LastCallbackSecretPosition);
+        Assert.Null(stored.V3?.LastCallbackSecretPosition);
+    }
+
+    /// <summary>
+    /// A delivery for a generation with no stored connection records nothing and is still answered.
+    /// </summary>
+    /// <remarks>
+    /// There is nothing to record a position on, and refusing the delivery over that would drop an
+    /// import for the sake of a reading the settings page only shows.
+    /// </remarks>
+    [Fact]
+    public async Task ADeliveryForAGenerationWithNoStoredConnectionRecordsNothingAndIsStillAnswered()
+    {
+        var core = new RecordingImportCore();
+        var options = await SeededAsync(WhisparrGeneration.V3, storeV2Connection: false);
+
+        var answered = await CallbackAsync(
+            Request(new WatchedStream(CapturedV2()), StoredSecret, userAgent: V2UserAgent),
+            core,
+            options);
+
+        Assert.Equal(200, StatusOf(answered));
+        Assert.Single(core.Ingested);
+
+        var stored = await options.LoadAsync(TestCt);
+        Assert.Null(stored.V2);
+        Assert.Null(stored.V3?.LastCallbackSecretPosition);
+    }
+
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     private static byte[] Captured()
         => Encoding.UTF8.GetBytes(ProbeFixtures.Read("whisparr-v3-3.3.8.1097-webhook-import.json"));
 
-    private static async Task<IResult> CallbackAsync(HttpContext http, RecordingImportCore core)
+    private static byte[] CapturedV2()
+        => Encoding.UTF8.GetBytes(ProbeFixtures.Read("whisparr-v2-2.2.0.231-webhook-import.json"));
+
+    /// <summary>A store holding a connection per generation, with one of them selected.</summary>
+    private static async Task<OptionsStore> SeededAsync(
+        WhisparrGeneration selected, bool storeV2Connection)
     {
-        await using var services = Container(core);
+        var options = new OptionsStore(new FakeStore());
+        await options.SaveAsync(
+            new WhisparrSyncOptions
+            {
+                SelectedGeneration = selected,
+                V3 = new WhisparrSyncGenerationConnection { Address = "http://whisparr-v3:6969" },
+                V2 = storeV2Connection
+                    ? new WhisparrSyncGenerationConnection { Address = "http://whisparr-v2:6969" }
+                    : null,
+            },
+            TestCt);
+
+        return options;
+    }
+
+    private static async Task<IResult> CallbackAsync(
+        HttpContext http, RecordingImportCore core, OptionsStore? options = null)
+    {
+        await using var services = Container(core, options);
         return await global::WhisparrSync.WhisparrSync.CallbackAsync(
             http, services.GetRequiredService<IServiceScopeFactory>(), NullLogger.Instance, TestCt);
     }
 
     /// <summary>The services the handler resolves, and nothing it does not.</summary>
-    private static ServiceProvider Container(RecordingImportCore core)
+    private static ServiceProvider Container(RecordingImportCore core, OptionsStore? options = null)
         => new ServiceCollection()
             .AddScoped<ICallbackSecretPort>(_ => new StoredSecretPort())
-            .AddScoped(_ => new OptionsStore(new FakeStore()))
+            .AddScoped(_ => options ?? new OptionsStore(new FakeStore()))
             .AddSingleton<OptionsWriteGate>()
             .AddScoped<IImportCore>(_ => core)
             .BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
