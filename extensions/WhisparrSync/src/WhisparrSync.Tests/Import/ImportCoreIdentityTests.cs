@@ -68,7 +68,7 @@ public sealed class ImportCoreIdentityTests
     {
         var ingest = new Ingest();
         await ingest.DeliverAsync();
-        ingest.Library.Held[VerifiedPath] = 1;
+        ingest.Library.Held[VerifiedPath] = new HeldFile(1);
 
         Assert.Equal(ImportOutcome.AlreadyHeld, await ingest.DeliverAsync());
 

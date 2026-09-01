@@ -52,22 +52,36 @@ internal sealed class ImportCore(
         // The host's own lookup by parent folder and basename returns the existing row rather than
         // creating a video, and it gates neither the enrichment nor the follow-up. Those are this
         // check's to decide.
-        if (await library.VideoHoldingFileAtAsync(path, ct).ConfigureAwait(false) is { } held)
-        {
-            // The identity is still written where the item carries none: the channel that arrives
-            // first may be the one that reads no identifier at all.
-            if (identity is { } carried)
-            {
-                await StampAndEnrichAsync(carried, held, ct).ConfigureAwait(false);
-            }
-
-            return ImportOutcome.AlreadyHeld;
-        }
-
         // The one argument that separates a second item from the same item now holding two files.
         // Move detection is off on the host's import path, so a byte-identical file at a new path
         // creates a new item unless the item the identifier named is passed deliberately.
         var repointedTo = identity?.Resolution.VideoId;
+
+        if (await library.HeldFileAtAsync(path, ct).ConfigureAwait(false) is { } row)
+        {
+            if (row.VideoId is { } held)
+            {
+                // The identity is still written where the item carries none: the channel that arrives
+                // first may be the one that reads no identifier at all.
+                if (identity is { } carried)
+                {
+                    await StampAndEnrichAsync(carried, held, ct).ConfigureAwait(false);
+                }
+
+                return ImportOutcome.AlreadyHeld;
+            }
+
+            // A row the Replace behaviour left behind. Whether the delivery resolved an identity is
+            // what separates a re-attachment from a file this product cannot place: the host attaches
+            // the row to the item it is handed, and handed none it leaves the key unset and raises.
+            if (repointedTo is null)
+            {
+                return await RefusedAsync(
+                    candidate, reading, ImportOutcome.RefusedDetachedFileWithoutIdentity, null, ct)
+                    .ConfigureAwait(false);
+            }
+        }
+
         var imported = await library.ImportVideoAsync(path, repointedTo, ct).ConfigureAwait(false);
         if (!imported.Reached)
         {

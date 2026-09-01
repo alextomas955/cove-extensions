@@ -3,6 +3,7 @@ using Cove.Core.Interfaces;
 using Cove.Data;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Import;
 
 namespace WhisparrSync.Tests.Import;
@@ -26,8 +27,8 @@ public sealed class CoveLibraryPortTests
         await using var library = await LibraryFixture.CreateAsync();
         var videoId = await library.SeedVideoWithFileAsync("/data/scene.mp4");
 
-        Assert.Equal(videoId, await library.Port.VideoHoldingFileAtAsync("/data/scene.mp4", Ct));
-        Assert.Null(await library.Port.VideoHoldingFileAtAsync("/data/unknown.mp4", Ct));
+        Assert.Equal(videoId, (await library.Port.HeldFileAtAsync("/data/scene.mp4", Ct))?.VideoId);
+        Assert.Null(await library.Port.HeldFileAtAsync("/data/unknown.mp4", Ct));
     }
 
     /// <summary>
@@ -226,7 +227,8 @@ public sealed class CoveLibraryPortTests
                 config.Scraping.MetadataServers.Add(new MetadataServerInstance { Endpoint = endpoint });
             }
 
-            fixture.Port = new CoveLibraryPort(fixture._db, scan: null, metadata: null, config);
+            fixture.Port = new CoveLibraryPort(
+                fixture._db, scan: null, metadata: null, config, NullLogger.Instance);
             return fixture;
         }
 
