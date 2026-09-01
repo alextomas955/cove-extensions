@@ -576,6 +576,9 @@ public sealed class BackstopPassTests
 
         public FakeStore Store { get; } = new();
 
+        /// <summary>The one gate every write in a case goes through, as the container has it.</summary>
+        public OptionsWriteGate Gate { get; } = new();
+
         public RecordingWhisparrClient Client { get; }
 
         /// <summary>The one pending batch this pass's imports collect into.</summary>
@@ -595,6 +598,7 @@ public sealed class BackstopPassTests
             => new BackstopPass(
                     Client,
                     _options,
+                    Gate,
                     new RecordingCredentialPort().Holding(Generation, ApiKey),
                     Core,
                     new FixedClock(Now),

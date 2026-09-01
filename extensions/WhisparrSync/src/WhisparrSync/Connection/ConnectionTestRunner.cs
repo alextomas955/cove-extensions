@@ -27,6 +27,7 @@ public interface IConnectionTestRunner
 internal sealed class ConnectionTestRunner(
     IWhisparrConnectionTester tester,
     OptionsStore options,
+    OptionsWriteGate gate,
     ICredentialPort credentials,
     TimeProvider clock) : IConnectionTestRunner
 {
@@ -39,18 +40,18 @@ internal sealed class ConnectionTestRunner(
             return view;
         }
 
-        // Reachability is recorded only when the address tested is the one that is stored. A test of
-        // some other instance says nothing about whether the stored one is answering.
-        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
-        var connection = stored.ConnectionFor(stored.SelectedGeneration);
-        if (connection is null || !ConnectionTester.IsSameAddress(connection.Address, address))
-        {
-            return view;
-        }
+        var reachableAt = clock.GetUtcNow();
 
-        await SaveConnectionAsync(
-            stored,
-            connection with { LastReachableAtUtc = clock.GetUtcNow() },
+        // Reachability is recorded only when the address tested is the one that is stored, and the
+        // comparison is against the address the gate loads: a settings save committed while the probe
+        // was in flight may have moved it.
+        await gate.MutateAsync(
+            options,
+            stored => stored.ConnectionFor(stored.SelectedGeneration) is { } connection
+                && ConnectionTester.IsSameAddress(connection.Address, address)
+                    ? stored.WithConnectionFor(
+                        stored.SelectedGeneration, connection with { LastReachableAtUtc = reachableAt })
+                    : stored,
             ct).ConfigureAwait(false);
         return view;
     }
@@ -81,14 +82,29 @@ internal sealed class ConnectionTestRunner(
         }
 
         var now = clock.GetUtcNow();
-        var recorded = connection with { LastReachableAtUtc = now };
-        if (view.Kind == ConnectionFailureKind.Connected)
-        {
-            recorded = recorded with { RecordedVersion = view.Version, VersionVerifiedAtUtc = now };
-        }
+        var generation = stored.SelectedGeneration;
+        var connected = view.Kind == ConnectionFailureKind.Connected;
 
-        await SaveConnectionAsync(stored, recorded, ct).ConfigureAwait(false);
+        // The reading is applied to the connection the gate loads, not to the one read before the
+        // probe: another writer may have committed to the same record while the instance was being
+        // asked, and only what this call learned is this call's to replace.
+        await gate.MutateAsync(
+            options,
+            fresh => fresh.WithConnectionFor(
+                generation,
+                Recording(fresh.ConnectionFor(generation) ?? new WhisparrSyncGenerationConnection())),
+            ct).ConfigureAwait(false);
         return view;
+
+        WhisparrSyncGenerationConnection Recording(WhisparrSyncGenerationConnection current)
+            => connected
+                ? current with
+                {
+                    LastReachableAtUtc = now,
+                    RecordedVersion = view.Version,
+                    VersionVerifiedAtUtc = now,
+                }
+                : current with { LastReachableAtUtc = now };
     }
 
     /// <summary>Whether something at the address answered, whatever it answered with.</summary>
@@ -98,8 +114,4 @@ internal sealed class ConnectionTestRunner(
     /// </remarks>
     private static bool InstanceAnswered(ConnectionFailureKind kind)
         => kind is not (ConnectionFailureKind.NotConfigured or ConnectionFailureKind.Unreachable);
-
-    private Task SaveConnectionAsync(
-        WhisparrSyncOptions stored, WhisparrSyncGenerationConnection connection, CancellationToken ct)
-        => options.SaveAsync(stored.WithConnectionFor(stored.SelectedGeneration, connection), ct);
 }
