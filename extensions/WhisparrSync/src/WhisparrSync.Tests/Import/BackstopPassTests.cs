@@ -26,6 +26,11 @@ public sealed class BackstopPassTests
     private const string ApiKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
     private const string ImportedPath = "/whisparr-media/scene.mp4";
 
+    /// <summary>
+    /// The identifier the entity on a record names, written so both lineages can carry it as text.
+    /// </summary>
+    private const string SceneIdentifier = "4149372";
+
     private static readonly DateTimeOffset Noon = new(2026, 8, 30, 12, 0, 0, TimeSpan.Zero);
 
     /// <summary>
@@ -158,6 +163,67 @@ public sealed class BackstopPassTests
         await pass.RunAsync();
 
         Assert.Empty(pass.Library.Scans);
+    }
+
+    /// <summary>
+    /// The walk asks each page for the entity spelling of the lineage it is connected to.
+    /// </summary>
+    /// <remarks>
+    /// The argument rather than the count: the identifier the candidate carries lives on the entity
+    /// that argument asks for, so a walk asking the other lineage's spelling would read a page with no
+    /// entity on it and hand the core a candidate matchable on nothing.
+    /// </remarks>
+    [Theory]
+    [InlineData(WhisparrGeneration.V3)]
+    [InlineData(WhisparrGeneration.V2)]
+    public async Task TheWalkAsksForTheConnectedLineagesEntity(WhisparrGeneration generation)
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-5), generation: generation);
+        pass.Answering(Page(Descending(3)));
+
+        await pass.RunAsync();
+
+        Assert.All(pass.Client.Histories, call => Assert.Equal(generation, call.Generation));
+        Assert.NotEmpty(pass.Client.Histories);
+    }
+
+    /// <summary>
+    /// A record whose entity declares an identifier hands the ingest core a candidate carrying it.
+    /// </summary>
+    /// <remarks>
+    /// This is what lets an arrival through this channel re-point onto the item a webhook arrival for
+    /// the same scene would have found, rather than creating a second one beside it.
+    /// </remarks>
+    [Theory]
+    [InlineData(WhisparrGeneration.V3)]
+    [InlineData(WhisparrGeneration.V2)]
+    public async Task ARecordNamingASceneReachesTheCoreCarryingItsIdentifier(
+        WhisparrGeneration generation)
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-5), generation: generation);
+        pass.Answering(PageNamingAScene(generation));
+
+        await pass.RunAsync();
+
+        Assert.Equal(SceneIdentifier, Assert.Single(pass.Core.Ingested).RemoteId);
+    }
+
+    /// <summary>
+    /// A record whose answer embedded no entity still reaches the core, carrying no identifier.
+    /// </summary>
+    /// <remarks>
+    /// The discriminating control for the case above, and the residual this plan leaves in place: a
+    /// file an instance never matched is still one to register.
+    /// </remarks>
+    [Fact]
+    public async Task ARecordNamingNoSceneStillReachesTheCore()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-5));
+        pass.Answering(Page(Descending(1)));
+
+        await pass.RunAsync();
+
+        Assert.Null(Assert.Single(pass.Core.Ingested).RemoteId);
     }
 
     /// <summary>Two records sharing one instant are both handed to the ingest core.</summary>
@@ -432,6 +498,28 @@ public sealed class BackstopPassTests
             200, new JsonObject { ["records"] = records }.ToJsonString());
     }
 
+    /// <summary>
+    /// One page holding a single import record whose entity names <see cref="SceneIdentifier"/>, in
+    /// the spelling <paramref name="generation"/>'s own instance answers with.
+    /// </summary>
+    private static WhisparrResponse PageNamingAScene(WhisparrGeneration generation)
+    {
+        var (entity, member) = generation == WhisparrGeneration.V3
+            ? ("movie", "stashId")
+            : ("episode", "tvdbId");
+
+        var record = new JsonObject
+        {
+            ["eventType"] = HistoryProjector.ImportedEventType,
+            ["date"] = Noon.ToString("O"),
+            ["data"] = new JsonObject { ["importedPath"] = ImportedPath },
+            [entity] = new JsonObject { [member] = SceneIdentifier },
+        };
+
+        return RecordingWhisparrClient.Json(
+            200, new JsonObject { ["records"] = new JsonArray(record) }.ToJsonString());
+    }
+
     private static WhisparrResponse Page(
         IEnumerable<DateTimeOffset> instants, string? path = ImportedPath)
     {
@@ -461,25 +549,30 @@ public sealed class BackstopPassTests
 
         private readonly OptionsStore _options;
 
-        public Pass(DateTimeOffset? mark, string address = Address)
+        public Pass(
+            DateTimeOffset? mark,
+            string address = Address,
+            WhisparrGeneration generation = WhisparrGeneration.V3)
         {
+            Generation = generation;
             Client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, """{"records":[]}"""));
             _options = new OptionsStore(Store);
             _options
                 .SaveAsync(
-                    new WhisparrSyncOptions
-                    {
-                        SelectedGeneration = WhisparrGeneration.V3,
-                        V3 = new WhisparrSyncGenerationConnection
+                    new WhisparrSyncOptions { SelectedGeneration = generation }.WithConnectionFor(
+                        generation,
+                        new WhisparrSyncGenerationConnection
                         {
                             Address = address,
                             BackstopWatermarkUtc = mark,
-                        },
-                    },
+                        }),
                     TestContext.Current.CancellationToken)
                 .GetAwaiter()
                 .GetResult();
         }
+
+        /// <summary>The lineage this pass is connected to.</summary>
+        public WhisparrGeneration Generation { get; }
 
         public FakeStore Store { get; } = new();
 
@@ -502,7 +595,7 @@ public sealed class BackstopPassTests
             => new BackstopPass(
                     Client,
                     _options,
-                    new RecordingCredentialPort().Holding(WhisparrGeneration.V3, ApiKey),
+                    new RecordingCredentialPort().Holding(Generation, ApiKey),
                     Core,
                     new FixedClock(Now),
                     FollowUp,

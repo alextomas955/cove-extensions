@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net.Mime;
 using System.Text;
 using System.Text.Json.Nodes;
+using WhisparrSync.Contracts;
 
 namespace WhisparrSync.Whisparr;
 
@@ -66,8 +67,8 @@ public sealed record WhisparrResponse(int StatusCode, string? ContentType, strin
 /// </para>
 /// <para>
 /// <see cref="ReadHistoryAsync"/> was added under the same rule, and is a read because re-issuing it
-/// reads again and grabs nothing. It names a page and a page size; the route and the order it asks
-/// for belong to the seam, so no call site supplies either.
+/// reads again and grabs nothing. It names a page, a page size and a lineage; the route, the order
+/// and the entity spelling belong to the seam, so no call site supplies any of them.
 /// </para>
 /// </remarks>
 public interface IWhisparrClient
@@ -97,21 +98,34 @@ public interface IWhisparrClient
     /// </remarks>
     Task<WhisparrResponse> ReadRootFoldersAsync(Uri baseAddress, string apiKey, CancellationToken ct);
 
-    /// <summary>Reads one page of the instance's import history.</summary>
+    /// <summary>
+    /// Reads one page of the instance's import history, with each record's own metadata entity.
+    /// </summary>
     /// <remarks>
     /// The newest-first order is asked for and not relied on: whether the route honours the request is
     /// unmeasured, so a caller reads the page's own order and refuses one it cannot walk.
+    /// <para>
+    /// Which entity to embed is the one thing the generation decides here. The route, the order and
+    /// the request to embed at all belong to the seam, so no call site supplies any of them.
+    /// </para>
     /// </remarks>
     /// <param name="baseAddress">The instance to read from.</param>
     /// <param name="apiKey">The key that instance authenticates the read with.</param>
+    /// <param name="generation">The lineage whose entity spelling the page is asked for.</param>
     /// <param name="page">Which page, counting from one.</param>
     /// <param name="pageSize">How many records that page holds at most.</param>
     /// <param name="ct">Cancels the read.</param>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="page"/> or <paramref name="pageSize"/> is below one.
+    /// <paramref name="page"/> or <paramref name="pageSize"/> is below one, or
+    /// <paramref name="generation"/> is not a lineage this product reads.
     /// </exception>
     Task<WhisparrResponse> ReadHistoryAsync(
-        Uri baseAddress, string apiKey, int page, int pageSize, CancellationToken ct);
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        int page,
+        int pageSize,
+        CancellationToken ct);
 
     /// <summary>Creates one notification.</summary>
     /// <remarks>
@@ -146,6 +160,12 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
     // The order belongs to the verb rather than to a call: newest-first is the only order a walk that
     // stops at a stored position can read, and a call site free to spell it could ask for another.
     private const string NewestFirstQuery = "sortKey=date&sortDirection=descending";
+
+    // Each lineage names its own metadata entity on this one route, and that entity is where the
+    // identifier the two ingest channels agree on lives. Asked for on the same request rather than
+    // through a second one, so what a page costs does not grow with what it holds.
+    private const string V3EntityQuery = "includeMovie=true";
+    private const string V2EntityQuery = "includeEpisode=true";
 
     /// <summary>How long one attempt may take before it is reported as unreachable.</summary>
     internal static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
@@ -195,7 +215,12 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
         => ReadAsync(baseAddress, apiKey, RootFolderPath, ct);
 
     public Task<WhisparrResponse> ReadHistoryAsync(
-        Uri baseAddress, string apiKey, int page, int pageSize, CancellationToken ct)
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        int page,
+        int pageSize,
+        CancellationToken ct)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(page, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
@@ -205,7 +230,7 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
             apiKey,
             string.Create(
                 CultureInfo.InvariantCulture,
-                $"{HistoryPath}?page={page}&pageSize={pageSize}&{NewestFirstQuery}"),
+                $"{HistoryPath}?page={page}&pageSize={pageSize}&{NewestFirstQuery}&{EntityQueryFor(generation)}"),
             ct);
     }
 
@@ -222,6 +247,15 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
             string.Create(CultureInfo.InvariantCulture, $"{NotificationPath}/{id}"),
             body,
             ct);
+
+    /// <summary>Which entity <paramref name="generation"/> is asked to embed on a history record.</summary>
+    private static string EntityQueryFor(WhisparrGeneration generation)
+        => generation switch
+        {
+            WhisparrGeneration.V3 => V3EntityQuery,
+            WhisparrGeneration.V2 => V2EntityQuery,
+            _ => throw new ArgumentOutOfRangeException(nameof(generation)),
+        };
 
     /// <summary>Whether <paramref name="address"/> is one a socket may be opened to.</summary>
     /// <remarks>

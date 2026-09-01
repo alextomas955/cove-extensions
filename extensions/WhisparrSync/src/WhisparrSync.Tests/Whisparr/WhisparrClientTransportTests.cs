@@ -158,27 +158,39 @@ public sealed class WhisparrClientTransportTests
     }
 
     /// <summary>
-    /// The history read composes onto a base carrying a proxy subpath, and presents the key.
+    /// The history read composes onto a base carrying a proxy subpath, presents the key, and asks
+    /// each lineage for its own metadata entity.
     /// </summary>
     /// <remarks>
     /// The subpath is the case relative composition gets wrong: a base whose path does not end in a
     /// separator drops its last segment, which would aim the request at the site root.
+    /// <para>
+    /// The query is written out per lineage rather than composed from the client's own constants: an
+    /// expectation computed from the module it checks agrees with that module however wrong both are.
+    /// Each spelling was transcribed by hand from an instance of that lineage answering it.
+    /// </para>
     /// </remarks>
-    [Fact]
-    public async Task TheHistoryReadComposesOntoASubpathAndCarriesTheKey()
+    [Theory]
+    [InlineData(WhisparrGeneration.V3, "?page=2&pageSize=50&sortKey=date&sortDirection=descending&includeMovie=true")]
+    [InlineData(WhisparrGeneration.V2, "?page=2&pageSize=50&sortKey=date&sortDirection=descending&includeEpisode=true")]
+    public async Task TheHistoryReadComposesOntoASubpathAndCarriesTheKey(
+        WhisparrGeneration generation, string query)
     {
         var handler = StubHandler.Answering(Answer(200, "application/json", "{}"));
         using var http = new HttpClient(handler);
 
         await new WhisparrClient(http).ReadHistoryAsync(
-            new Uri("http://whisparr:6969/whisparr"), SomeKey, 2, 50, TestContext.Current.CancellationToken);
+            new Uri("http://whisparr:6969/whisparr"),
+            SomeKey,
+            generation,
+            2,
+            50,
+            TestContext.Current.CancellationToken);
 
         var request = Assert.Single(handler.Requests);
         Assert.Equal(HttpMethod.Get, request.Method);
         Assert.Equal("/whisparr/api/v3/history", request.RequestUri?.AbsolutePath);
-        Assert.Equal(
-            "?page=2&pageSize=50&sortKey=date&sortDirection=descending",
-            request.RequestUri?.Query);
+        Assert.Equal(query, request.RequestUri?.Query);
         Assert.Equal(SomeKey, Assert.Single(request.Headers.GetValues(WhisparrClient.ApiKeyHeader)));
     }
 
@@ -190,7 +202,12 @@ public sealed class WhisparrClientTransportTests
         using var http = new HttpClient(handler);
 
         var response = await new WhisparrClient(http).ReadHistoryAsync(
-            new Uri("http://whisparr:6969"), SomeKey, 1, 10, TestContext.Current.CancellationToken);
+            new Uri("http://whisparr:6969"),
+            SomeKey,
+            WhisparrGeneration.V3,
+            1,
+            10,
+            TestContext.Current.CancellationToken);
 
         Assert.Equal(2, handler.Requests.Count);
         Assert.Equal(200, response.StatusCode);
@@ -209,7 +226,12 @@ public sealed class WhisparrClientTransportTests
         using var http = new HttpClient(handler);
 
         var response = await new WhisparrClient(http).ReadHistoryAsync(
-            new Uri("http://whisparr:6969"), SomeKey, 1, 10, TestContext.Current.CancellationToken);
+            new Uri("http://whisparr:6969"),
+            SomeKey,
+            WhisparrGeneration.V3,
+            1,
+            10,
+            TestContext.Current.CancellationToken);
 
         Assert.Single(handler.Requests);
         Assert.Equal(401, response.StatusCode);
@@ -230,7 +252,12 @@ public sealed class WhisparrClientTransportTests
         using var http = new HttpClient(handler);
 
         var response = await new WhisparrClient(http).ReadHistoryAsync(
-            new Uri("http://whisparr:6969"), SomeKey, 1, 10, TestContext.Current.CancellationToken);
+            new Uri("http://whisparr:6969"),
+            SomeKey,
+            WhisparrGeneration.V3,
+            1,
+            10,
+            TestContext.Current.CancellationToken);
 
         Assert.Equal("application/json; charset=utf-8", response.ContentType);
     }
@@ -246,7 +273,12 @@ public sealed class WhisparrClientTransportTests
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
             () => new WhisparrClient(http).ReadHistoryAsync(
-                new Uri("http://whisparr:6969"), SomeKey, page, pageSize, TestContext.Current.CancellationToken));
+                new Uri("http://whisparr:6969"),
+                SomeKey,
+                WhisparrGeneration.V3,
+                page,
+                pageSize,
+                TestContext.Current.CancellationToken));
 
         Assert.Empty(handler.Requests);
     }
@@ -263,11 +295,14 @@ public sealed class WhisparrClientTransportTests
         var address = new Uri("http://whisparr:6969");
 
         await ((IWhisparrClient)client).ReadHistoryAsync(
-            address, SomeKey, 1, 20, TestContext.Current.CancellationToken);
+            address, SomeKey, WhisparrGeneration.V3, 1, 20, TestContext.Current.CancellationToken);
         await ((IWhisparrClient)client).ReadHistoryAsync(
-            address, SomeKey, 2, 20, TestContext.Current.CancellationToken);
+            address, SomeKey, WhisparrGeneration.V2, 2, 20, TestContext.Current.CancellationToken);
 
         Assert.Equal([1, 2], client.Histories.Select(call => call.Page));
+        Assert.Equal(
+            [WhisparrGeneration.V3, WhisparrGeneration.V2],
+            client.Histories.Select(call => call.Generation));
         Assert.All(client.Histories, call => Assert.Equal(20, call.PageSize));
         Assert.All(client.Histories, call => Assert.Equal(address, call.BaseAddress));
         Assert.All(client.Verbs, verb => Assert.Equal(nameof(IWhisparrClient.ReadHistoryAsync), verb));
