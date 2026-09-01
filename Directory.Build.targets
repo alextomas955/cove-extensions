@@ -7,9 +7,6 @@
     Note what adoption does to the pre-commit hook, because nothing else says it: that hook runs
     per-file, so from here on it is also a per-file Sonar gate - clean on a file you did not touch
     while findings may stand elsewhere.
-    The CI legs do not all build the same way: the analyzer gate in lint.yml builds the solution in source mode
-    against a checked-out Cove, so it sees what a local source build sees, while the packaging and Windows
-    legs build in none mode over the projects that need no checkout.
   -->
   <ItemGroup>
     <PackageReference Include="SonarAnalyzer.CSharp" />
