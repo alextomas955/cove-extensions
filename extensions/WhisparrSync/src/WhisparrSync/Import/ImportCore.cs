@@ -209,7 +209,10 @@ internal sealed class ImportCore(
 #pragma warning disable CA1031 // Best-effort by the host's own documented contract.
         catch (Exception failure)
         {
-            WhisparrSyncLog.EnrichmentContained(log, identity.Source, failure);
+            // A local rather than an argument: CA1873 reads a call in the argument of a line whose
+            // level may be disabled as work that should not have been done.
+            var classified = WhisparrSyncLog.Classify(failure);
+            WhisparrSyncLog.EnrichmentContained(log, identity.Source, classified);
         }
 #pragma warning restore CA1031
     }

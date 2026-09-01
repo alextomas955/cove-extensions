@@ -166,12 +166,13 @@ internal static partial class WhisparrSyncLog
 
     // The one best-effort catch on the enrichment call. The import succeeded and the item carries its
     // identity either way, so the failure is contained - but a scene left bare with no trace is not
-    // something a user could ever explain. The registrable domain of the source and nothing else: it
-    // names which source did not answer and can carry neither a key nor a path.
+    // something a user could ever explain. The registrable domain of the source and the failure's
+    // classification: it names which source did not answer, neither part can carry a key or a path,
+    // and the failure's own message can carry both.
     [LoggerMessage(
         EventId = 2106, Level = LogLevel.Information,
-        Message = "[WhisparrSync] the metadata source at {Source} applied nothing to a newly imported scene")]
-    internal static partial void EnrichmentContained(ILogger logger, string source, Exception failure);
+        Message = "[WhisparrSync] the metadata source at {Source} applied nothing to a newly imported scene ({Failure})")]
+    internal static partial void EnrichmentContained(ILogger logger, string source, string failure);
 
     // The other half of the same call, after the source has already answered with a record. Stated
     // apart from the line above because that one names the source, and here the source is not what
@@ -183,24 +184,26 @@ internal static partial class WhisparrSyncLog
 
     // The host's own import declining a file this product verified. Contained rather than
     // propagated: it is raised into a route whose declared results hold no failure, and into a walk
-    // that has to keep reading to reach its mark. The exception and nothing else — the path is a
-    // caller-supplied string and a log sink is durable and readable.
+    // that has to keep reading to reach its mark. The failure's classification and nothing else - the
+    // path is a caller-supplied string that the failure's own message quotes, and a log sink is
+    // durable and readable.
     [LoggerMessage(
         EventId = 2111, Level = LogLevel.Warning,
-        Message = "[WhisparrSync] the host's own import would not take a verified file")]
-    internal static partial void HostImportContained(ILogger logger, Exception failure);
+        Message = "[WhisparrSync] the host's own import would not take a verified file ({Failure})")]
+    internal static partial void HostImportContained(ILogger logger, string failure);
 
     // One record of a walk the ingest could not take. The walk goes on, because the mark says how far
     // history has been read and a record that could not be taken is not a page that was not read -
     // but a channel quietly taking nothing is not something a user could ever explain. The generation
-    // and the exception: no path, no address.
+    // and the failure's classification: no path and no address, both of which the failure's own
+    // message can carry.
     [LoggerMessage(
         EventId = 2112, Level = LogLevel.Warning,
-        Message = "[WhisparrSync] a backstop record from {Generation} could not be ingested; the walk went on")]
+        Message = "[WhisparrSync] a backstop record from {Generation} could not be ingested ({Failure}); the walk went on")]
     internal static partial void BackstopRecordContained(
         ILogger logger,
         WhisparrGeneration generation,
-        Exception failure);
+        string failure);
 
     // A write dropped because the blob it would have been built on could not be read, so the fold ran
     // on defaults. The stored configuration is what survives; the update the caller asked for is
@@ -209,4 +212,18 @@ internal static partial class WhisparrSyncLog
         EventId = 2116, Level = LogLevel.Warning,
         Message = "[WhisparrSync] the stored options blob could not be read, so a change was NOT written over it; the stored configuration stands and the change was lost")]
     internal static partial void OptionsMutationRefusedOverUnreadableBlob(ILogger logger);
+
+    /// <summary>
+    /// What a contained failure is given to a log line as: its type, and its cause's type where it
+    /// has one.
+    /// </summary>
+    /// <remarks>
+    /// Type names rather than <see cref="Exception.Message"/>, which can quote a filesystem path or a
+    /// configured address. A type name is chosen by whoever wrote the throw, so no part of it is
+    /// supplied by a caller or by a remote instance.
+    /// </remarks>
+    internal static string Classify(Exception failure)
+        => failure.InnerException is { } cause
+            ? $"{failure.GetType().Name} caused by {cause.GetType().Name}"
+            : failure.GetType().Name;
 }
