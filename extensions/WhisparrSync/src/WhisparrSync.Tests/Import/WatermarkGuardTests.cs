@@ -131,6 +131,91 @@ public sealed class WatermarkGuardTests
         Assert.Equal(2, reading.Take);
     }
 
+    /// <summary>
+    /// A page whose whole instant range repeats the previous page's, with nothing on it past the
+    /// mark, is refused.
+    /// </summary>
+    /// <remarks>
+    /// This is the shape a route ignoring its page parameter produces once every record on the page
+    /// shares one instant, which is the only repeated shape the across-page order check admits.
+    /// Refusing leaves the mark alone, so the history is read again rather than stepped over.
+    /// </remarks>
+    [Fact]
+    public void APageRepeatingThePreviousPagesWholeRangeIsRefused()
+    {
+        var atOneInstant = new[] { Noon, Noon, Noon };
+
+        var reading = WatermarkGuard.Read(
+            atOneInstant,
+            Noon.AddMinutes(-30),
+            Noon,
+            previousPageOldest: Noon,
+            previousPageNewest: Noon);
+
+        Assert.True(reading.Refused);
+        Assert.Equal(0, reading.Take);
+        Assert.False(reading.Continue);
+    }
+
+    /// <summary>
+    /// A page repeating the previous page's range that DOES carry a record past the mark is still
+    /// walked.
+    /// </summary>
+    /// <remarks>
+    /// The discriminating control for the refusal above: a rule keyed on the repeated range alone
+    /// would swallow the records this page is the walk's only chance to read.
+    /// </remarks>
+    [Fact]
+    public void APageRepeatingTheRangeButReachingPastTheMarkIsWalked()
+    {
+        var reading = WatermarkGuard.Read(
+            [Noon, Noon, Noon.AddMinutes(-30)],
+            Noon.AddMinutes(-10),
+            Noon,
+            previousPageOldest: Noon,
+            previousPageNewest: Noon);
+
+        Assert.False(reading.Refused);
+        Assert.Equal(2, reading.Take);
+        Assert.False(reading.Continue);
+    }
+
+    /// <summary>
+    /// A page whose oldest instant repeats but whose newest does not is walked.
+    /// </summary>
+    /// <remarks>
+    /// A tie run genuinely spanning a boundary looks like this, and the walk has to keep reading it:
+    /// the range is what says a page has been seen before, not either end of it alone.
+    /// </remarks>
+    [Fact]
+    public void APageSharingOnlyTheBoundaryInstantIsWalked()
+    {
+        var reading = WatermarkGuard.Read(
+            [Noon.AddMinutes(-10), Noon.AddMinutes(-10)],
+            Noon.AddMinutes(-30),
+            Noon,
+            previousPageOldest: Noon.AddMinutes(-10),
+            previousPageNewest: Noon);
+
+        Assert.False(reading.Refused);
+        Assert.Equal(2, reading.Take);
+        Assert.True(reading.Continue);
+    }
+
+    /// <summary>The page's own newest instant is reported for the next read to compare against.</summary>
+    [Fact]
+    public void ThePagesOwnNewestInstantIsReported()
+    {
+        var reading = WatermarkGuard.Read(
+            [Noon.AddMinutes(-10), Noon.AddMinutes(-11)],
+            Noon.AddMinutes(-30),
+            Noon,
+            previousPageOldest: Noon.AddMinutes(-5));
+
+        Assert.Equal(Noon.AddMinutes(-10), reading.PageNewest);
+        Assert.Null(WatermarkGuard.Read([], Noon, Noon, null).PageNewest);
+    }
+
     /// <summary>The newest instant is fixed by the first page and carried unchanged.</summary>
     [Fact]
     public void TheNewestInstantIsCarriedRatherThanRecomputed()
