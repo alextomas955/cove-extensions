@@ -7,6 +7,16 @@ namespace WhisparrSync.Import;
 /// </param>
 public sealed record LibraryImport(bool Reached, int? VideoId);
 
+/// <summary>A file row the library holds at one path.</summary>
+/// <remarks>
+/// A null key is a row no item claims, which is the state
+/// <see cref="ICoveLibraryPort.DetachSupersededFilesAsync"/> leaves behind. Reading it as "the
+/// library holds nothing here" would hand the host's own import a path it already has a row for and
+/// no item to attach it to, which is the one input that import answers by throwing.
+/// </remarks>
+/// <param name="VideoId">The item claiming the row, or null when none does.</param>
+public sealed record HeldFile(int? VideoId);
+
 /// <summary>Which video a remote identifier names, or why none can be named.</summary>
 /// <remarks>
 /// Exactly one of the three states is reachable, and nothing outside <see cref="ICoveLibraryPort"/>
@@ -78,9 +88,12 @@ public interface ICoveLibraryPort
     /// <param name="ct">Cancels the operation.</param>
     Task<LibraryImport> ImportVideoAsync(string path, int? videoId, CancellationToken ct);
 
-    /// <summary>The video the library already holds a file at <paramref name="path"/> for.</summary>
-    /// <returns>The video's key, or null when the library holds no file there.</returns>
-    Task<int?> VideoHoldingFileAtAsync(string path, CancellationToken ct);
+    /// <summary>The file row the library holds at <paramref name="path"/>.</summary>
+    /// <returns>
+    /// Null when the library holds no row there. A row is answered as itself whether or not an item
+    /// claims it, because those are different states and the caller has to act differently on each.
+    /// </returns>
+    Task<HeldFile?> HeldFileAtAsync(string path, CancellationToken ct);
 
     /// <summary>
     /// Clears the video key on every file row of <paramref name="videoId"/> except the row at

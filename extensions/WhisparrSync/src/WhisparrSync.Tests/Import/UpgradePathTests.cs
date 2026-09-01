@@ -75,7 +75,7 @@ public sealed class UpgradePathTests
     {
         var ingest = new Ingest();
         ingest.Library.ExistingIdentities.Add((7, "https://stashdb.org/graphql", RemoteId));
-        ingest.Library.Held["/data/held.mp4"] = 7;
+        ingest.Library.Held["/data/held.mp4"] = new HeldFile(7);
         await ingest.StoreAsync(UpgradeBehavior.Replace);
 
         Assert.Equal(ImportOutcome.AlreadyHeld, await ingest.DeliverAsync("held.mp4"));
@@ -269,7 +269,7 @@ public sealed class UpgradePathTests
             var fixture = new LibraryFixture();
             (fixture._db, fixture._connection) = await CoveContextFactory.CreateSqliteContextAsync();
             fixture.Port = new CoveLibraryPort(
-                fixture._db, scan: null, metadata: null, new CoveConfiguration());
+                fixture._db, scan: null, metadata: null, new CoveConfiguration(), NullLogger.Instance);
             return fixture;
         }
 

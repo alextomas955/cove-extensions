@@ -54,6 +54,16 @@ public enum ImportOutcome
     /// cannot say which scene the delivery meant, and refuses rather than choosing.
     /// </summary>
     RefusedAmbiguousIdentity,
+
+    /// <summary>
+    /// The library holds a file row at the resolved path that no item claims, and the delivery named
+    /// no identifier to say which item should claim it.
+    /// </summary>
+    /// <remarks>
+    /// Counted against no Whisparr root. The file is in the library and there is nothing for the user
+    /// to correct at a root they configured, so the log line is the whole report.
+    /// </remarks>
+    RefusedDetachedFileWithoutIdentity,
 }
 
 /// <summary>

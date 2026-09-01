@@ -22,8 +22,8 @@ internal sealed class RecordingLibrary(bool reached, IReadOnlyList<string> roots
     /// <summary>The identity rows the library already holds before any delivery.</summary>
     public List<(int VideoId, string Endpoint, string RemoteId)> ExistingIdentities { get; } = [];
 
-    /// <summary>The video the library already holds a file for, keyed by path.</summary>
-    public Dictionary<string, int?> Held { get; } = [];
+    /// <summary>The file rows the library already holds, keyed by path.</summary>
+    public Dictionary<string, HeldFile> Held { get; } = [];
 
     /// <summary>Every path the live dedupe read asked about, in order.</summary>
     /// <remarks>
@@ -54,10 +54,23 @@ internal sealed class RecordingLibrary(bool reached, IReadOnlyList<string> roots
 
     public IReadOnlyList<string> ConfiguredMetadataEndpoints => ConfiguredEndpoints;
 
+    /// <summary>The exception the host's own import raises, which the real port contains.</summary>
+    /// <remarks>
+    /// Answered here the way the port answers it, never raised: the containment lives in the port,
+    /// and a fake that raised would be standing in for the host rather than for the seam. What the
+    /// real port does with each of these is proven against a real port and a raising scan service.
+    /// </remarks>
+    public Exception? ImportFailure { get; set; }
+
     public Task<LibraryImport> ImportVideoAsync(string path, int? videoId, CancellationToken ct)
     {
         Imported.Add((path, videoId));
-        return Task.FromResult(new LibraryImport(reached, reached ? videoId ?? ImportedVideoId : null));
+        if (ImportFailure is not null || !reached)
+        {
+            return Task.FromResult(new LibraryImport(false, null));
+        }
+
+        return Task.FromResult(new LibraryImport(true, videoId ?? ImportedVideoId));
     }
 
     /// <summary>Every detach asked for, with the path each one kept.</summary>
@@ -83,10 +96,10 @@ internal sealed class RecordingLibrary(bool reached, IReadOnlyList<string> roots
         return true;
     }
 
-    public Task<int?> VideoHoldingFileAtAsync(string path, CancellationToken ct)
+    public Task<HeldFile?> HeldFileAtAsync(string path, CancellationToken ct)
     {
         Probed.Add(path);
-        return Task.FromResult(Held.TryGetValue(path, out var videoId) ? videoId : null);
+        return Task.FromResult(Held.GetValueOrDefault(path));
     }
 
     public Task<IdentityResolution> ResolveByRemoteIdAsync(

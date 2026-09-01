@@ -65,7 +65,7 @@ public sealed class FollowUpScanCoalescerTests
     {
         var ingest = new Ingest();
         var first = await ingest.DeliverAsync(0);
-        ingest.Library.Held[first.Path] = 1;
+        ingest.Library.Held[first.Path] = new HeldFile(1);
         ingest.FollowUp.Flush(ingest.Library);
         ingest.Library.Scans.Clear();
 

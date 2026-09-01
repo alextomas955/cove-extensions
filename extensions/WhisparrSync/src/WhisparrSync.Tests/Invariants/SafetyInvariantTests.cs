@@ -283,7 +283,7 @@ public sealed class SafetyInvariantTests
 
         // The state the second delivery meets: the host registered the file, which is what the live
         // dedupe reads back.
-        ingest.Library.Held[Ingest.VerifiedPath] = Ingest.HeldVideoId;
+        ingest.Library.Held[Ingest.VerifiedPath] = new HeldFile(Ingest.HeldVideoId);
 
         Assert.Equal(
             ImportOutcome.AlreadyHeld, await ingest.DeliverAsync(Ingest.ReportedPath, Ingest.RemoteId));

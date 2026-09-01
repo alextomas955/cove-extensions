@@ -105,7 +105,8 @@ public sealed partial class WhisparrSync : FullExtensionBase
             services.GetRequiredService<DbContext>(),
             services.GetService<IScanService>(),
             services.GetService<IMetadataServerService>(),
-            _coveConfig));
+            _coveConfig,
+            _log));
         // The second singleton, and for the same reason as the root cache: the pending batch is what
         // makes a burst of deliveries one scan instead of one each, and a batch held per scope would
         // be a batch per delivery.
