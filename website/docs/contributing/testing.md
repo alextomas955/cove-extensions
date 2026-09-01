@@ -52,11 +52,13 @@ soon as it exists.
 
 ## Run the C# suite
 
-From the repo root, run every test project the solution declares. This needs a Cove source checkout,
-because one of the projects it holds cannot build without one:
+From the repo root, run every test project the solution declares. This needs a Cove source checkout:
+without one the Cove-dependent project is not built, so
+the run fails on its missing test executable rather than reporting a smaller pass. The summary still
+reads `Passed!` over the project that did build, so read the exit code rather than that line:
 
 ```sh
-dotnet test CoveExtensions.slnx
+dotnet test CoveExtensions.slnx --max-parallel-test-modules 1
 ```
 
 An extension declares two test projects, and the solution holds both. Renamer's are:
@@ -70,7 +72,8 @@ The first needs no Cove source checkout; the second needs one and refuses to bui
 [Which set of C# tests you just ran](#which-set-of-c-tests-you-just-ran) before you report either
 result on its own, and run them one after another rather than concurrently — [that project's
 README](https://github.com/alextomas955/cove-extensions/blob/main/extensions/Renamer/src/Renamer.Tests/README.md)
-has the drive-letter reason.
+has the drive-letter reason. The whole-solution command above pins module parallelism to one for that
+same reason.
 
 The runner is xUnit on the Microsoft Testing Platform. `global.json` selects the platform and pins
 the SDK, so read both values there rather than anywhere else.
@@ -233,8 +236,13 @@ Each entry leads with the symptom, because that is what you arrive with.
   project when you meant both. Name the solution instead. See [Which set of C# tests you just
   ran](#which-set-of-c-tests-you-just-ran).
 - **A C# build stops with one sentence saying a Cove source checkout is required.** You named the
-  Cove-dependent project, or the solution, with no checkout available. [Configuration
+  Cove-dependent project directly with no checkout available. A whole-solution build does not stop
+  there: it names the project it skipped and succeeds. [Configuration
   reference](./configuration#cove-source-selection) has the knobs that point the build at one.
+- **A whole-solution `dotnet test` run ends `Passed!` and still exits non-zero, naming a test
+  executable that does not exist.** The Cove-dependent project was skipped for want of a checkout, so
+  its module has nothing to run and the summary covers only the project that did build. Point the
+  build at a checkout, or name the checkout-free project when that smaller set is what you meant.
 - **A C# run reports `Zero tests ran` and exits non-zero, with `failed: 0` in the summary.** Your
   filter matched nothing. Check the class name against the file's actual declarations rather than
   against its filename.
