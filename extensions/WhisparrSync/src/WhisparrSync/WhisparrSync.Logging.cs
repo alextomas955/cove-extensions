@@ -165,4 +165,16 @@ internal static partial class WhisparrSyncLog
         EventId = 2111, Level = LogLevel.Warning,
         Message = "[WhisparrSync] the host's own import would not take a verified file")]
     internal static partial void HostImportContained(ILogger logger, Exception failure);
+
+    // One record of a walk the ingest could not take. The walk goes on, because the mark says how far
+    // history has been read and a record that could not be taken is not a page that was not read -
+    // but a channel quietly taking nothing is not something a user could ever explain. The generation
+    // and the exception: no path, no address.
+    [LoggerMessage(
+        EventId = 2112, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] a backstop record from {Generation} could not be ingested; the walk went on")]
+    internal static partial void BackstopRecordContained(
+        ILogger logger,
+        WhisparrGeneration generation,
+        Exception failure);
 }

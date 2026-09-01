@@ -112,6 +112,29 @@ public sealed class ImportCoreRefusalTests
             Assert.Single(Assert.Single((await ingest.StoredAsync()).ImportRefusals).NewestPaths).Cause);
     }
 
+    /// <summary>
+    /// A host import the port contained is answered as a refusal, whichever exception the host raised.
+    /// </summary>
+    /// <remarks>
+    /// The fake answers here as the port answers, because the containment is the port's. What this
+    /// pins is the half above it: nothing escapes the ingest, and the delivery gets a named outcome
+    /// rather than a propagating failure.
+    /// </remarks>
+    [Theory]
+    [InlineData(typeof(FileNotFoundException))]
+    [InlineData(typeof(InvalidOperationException))]
+    public async Task AHostImportThatThrowsIsContainedAndReportedRatherThanPropagated(Type raised)
+    {
+        var ingest = new Ingest();
+        ingest.Paths.Present["/data/scene.mp4"] = ReportedSize;
+        ingest.Library.ImportFailure = (Exception)Activator.CreateInstance(raised)!;
+
+        var outcome = await ingest.DeliverAsync();
+
+        Assert.Equal(ImportOutcome.RefusedHostImportUnavailable, outcome);
+        Assert.Equal(("/data/scene.mp4", (int?)null), Assert.Single(ingest.Library.Imported));
+    }
+
     /// <summary>A reported path under none of the instance's own roots is counted with no root.</summary>
     [Fact]
     public async Task APathUnderNoReportingRootIsCountedUnderTheStatedPlaceholder()
