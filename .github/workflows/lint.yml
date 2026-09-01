@@ -27,8 +27,7 @@ jobs:
   #
   # The subject list holds a test project that needs Cove's own source to compile, so this job checks
   # Cove out and runs in source mode. The analyzer step gains independently: a `none` build sees a
-  # strict subset of the findings a source build sees, which Directory.Build.targets records about its
-  # own coverage.
+  # strict subset of the findings a source build sees.
   #
   # The two repositories are checked out as SIBLINGS under the workspace rather than nesting Cove
   # inside this one. Cove carries no Directory.Packages.props, so a nested clone inherits this repo's
@@ -81,8 +80,9 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      # Formatting/style check — reads root .editorconfig. Same invocation as `npm run
-      # format:cs:check`, so a contributor's local run and this job cannot disagree. The exclude keeps
+      # Formatting/style check — reads root .editorconfig. The same subject set and the same dotnet
+      # format arguments as the repo-root npm check script, so a contributor's local run and this job
+      # cannot disagree about what is checked. The exclude keeps
       # the sibling checkout out of the subject set: dotnet format walks the ProjectReference graph
       # into Cove's own source otherwise. dotnet format takes no -p:, so
       # COVE_SOURCE_MODE is the only spelling of the mode available to it.
