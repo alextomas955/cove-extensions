@@ -276,6 +276,71 @@ public sealed class BackstopPassTests
     }
 
     /// <summary>
+    /// A pass that walked resets the streak the refusals before it built, so the recorded health can
+    /// improve as well as decline.
+    /// </summary>
+    /// <remarks>
+    /// The last-failed instant is deliberately left where it was. It records that a failure happened,
+    /// and a later readout has to be able to say when.
+    /// </remarks>
+    [Fact]
+    public async Task AWalkedPassClearsTheFailureStreakAndKeepsWhenTheFailureHappened()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-30));
+        pass.Answering(Page([Noon.AddMinutes(-5), Noon]), Page(Descending(3)));
+
+        var refused = await pass.RunAsync();
+        Assert.Equal(BackstopPassOutcome.RefusedPageOrder, refused.Outcome);
+        var failed = (await pass.StoredAsync()).ImportHealth.LastFailedAtUtc;
+        Assert.NotNull(failed);
+
+        var walked = await pass.RunAsync();
+
+        Assert.Equal(BackstopPassOutcome.Walked, walked.Outcome);
+        var health = (await pass.StoredAsync()).ImportHealth;
+        Assert.Equal(0, health.ConsecutiveFailures);
+        Assert.Equal("", health.LastError);
+        Assert.Equal(failed, health.LastFailedAtUtc);
+    }
+
+    /// <summary>
+    /// The lost-position flag a first connect raises is cleared by the next pass that walks, so it
+    /// reports a gap that may exist rather than one that did once.
+    /// </summary>
+    [Fact]
+    public async Task ThePositionLostFlagAFirstConnectRaisesIsClearedByTheNextWalk()
+    {
+        var pass = new Pass(mark: null);
+        pass.Answering(Page(Descending(3)));
+
+        await pass.RunAsync();
+        Assert.True((await pass.StoredAsync()).ImportHealth.BackstopPositionLost);
+
+        var walked = await pass.RunAsync();
+
+        Assert.Equal(BackstopPassOutcome.Walked, walked.Outcome);
+        Assert.False((await pass.StoredAsync()).ImportHealth.BackstopPositionLost);
+    }
+
+    /// <summary>
+    /// A pass that reached the instance and imported nothing still counts as the channel working: it
+    /// authenticated, read the history and advanced the mark.
+    /// </summary>
+    [Fact]
+    public async Task AWalkedPassThatImportedNothingStillCountsAsTheChannelWorking()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-30));
+        pass.Answering(Page([Noon.AddMinutes(-5), Noon]), Page([]));
+
+        await pass.RunAsync();
+        var walked = await pass.RunAsync();
+
+        Assert.Equal(BackstopPassOutcome.Walked, walked.Outcome);
+        Assert.Empty(pass.Core.Ingested);
+        Assert.Equal(0, (await pass.StoredAsync()).ImportHealth.ConsecutiveFailures);
+    }
+
+    /// <summary>
     /// A route answering every page with the same one refuses rather than walking forever.
     /// </summary>
     /// <remarks>

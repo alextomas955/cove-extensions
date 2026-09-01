@@ -20,6 +20,10 @@ public sealed class ImportCoreIdempotencyTests
     private const string WhisparrRoot = "/whisparr-media";
     private const string ReportedPath = "/whisparr-media/scene.mp4";
     private const string VerifiedPath = "/data/scene.mp4";
+
+    /// <summary>A reported path no probe finds, so its delivery is refused by name.</summary>
+    private const string MissingPath = "/whisparr-media/nothing-is-here.mp4";
+
     private const string RemoteId = "e1a5c0d2-0000-4000-8000-000000000004";
     private const long ReportedSize = 10;
 
@@ -166,9 +170,42 @@ public sealed class ImportCoreIdempotencyTests
         Assert.Equal(writes, ingest.Store.SetCallCount);
     }
 
+    /// <summary>
+    /// An ingest that registered a file records when an import last worked, and one that was refused
+    /// does not.
+    /// </summary>
+    /// <remarks>
+    /// Written from the ingest rather than from the backstop, because the live channel imports with no
+    /// pass running at all and a member only a pass wrote would read as never against a working
+    /// webhook.
+    /// </remarks>
+    [Fact]
+    public async Task AnIngestThatRegisteredAFileRecordsWhenAnImportLastWorked()
+    {
+        var ingest = new Ingest();
+
+        Assert.Equal(ImportOutcome.Imported, await ingest.DeliverAsync());
+
+        Assert.Equal(Ingest.Now, (await ingest.StoredAsync()).ImportHealth.LastWorkedAtUtc);
+    }
+
+    [Fact]
+    public async Task AnIngestThatWasRefusedRecordsNoImportAsHavingWorked()
+    {
+        var ingest = new Ingest();
+
+        Assert.Equal(
+            ImportOutcome.RefusedNotFound, await ingest.DeliverAsync(reportedPath: MissingPath));
+
+        Assert.Null((await ingest.StoredAsync()).ImportHealth.LastWorkedAtUtc);
+    }
+
     /// <summary>One ingest wired over fakes, with the live dedupe read recorded.</summary>
     private sealed class Ingest
     {
+        /// <summary>The instant this ingest's clock reads.</summary>
+        public static readonly DateTimeOffset Now = new(2026, 8, 31, 9, 0, 0, TimeSpan.Zero);
+
         public FakeStore Store { get; } = new();
 
         /// <summary>The one gate every delivery in a case goes through, as the container has it.</summary>
@@ -200,7 +237,11 @@ public sealed class ImportCoreIdempotencyTests
                 TestContext.Current.CancellationToken);
         }
 
-        public Task<ImportOutcome> DeliverAsync(string? remoteId = RemoteId)
+        public Task<WhisparrSyncOptions> StoredAsync()
+            => new OptionsStore(Store).LoadAsync(TestContext.Current.CancellationToken);
+
+        public Task<ImportOutcome> DeliverAsync(
+            string? remoteId = RemoteId, string reportedPath = ReportedPath)
             => new ImportCore(
                     new StubReportedRoots(WhisparrRoot),
                     Library,
@@ -208,11 +249,17 @@ public sealed class ImportCoreIdempotencyTests
                     new OptionsStore(Store),
                     Gate,
                     new FollowUpScanCoalescer(TimeProvider.System, NullLogger.Instance),
+                    new FixedClock(Now),
                     NullLogger.Instance)
                 .IngestAsync(
                     new ImportCandidate(
-                        WhisparrGeneration.V3, "Download", ReportedPath, ReportedSize, remoteId),
+                        WhisparrGeneration.V3, "Download", reportedPath, ReportedSize, remoteId),
                     TestContext.Current.CancellationToken);
+    }
+
+    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
     }
 
     private sealed class StubReportedRoots(params string[] roots) : IReportedRootPort

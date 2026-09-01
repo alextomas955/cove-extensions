@@ -440,7 +440,14 @@ public sealed class SafetyInvariantTests
 
         private ImportCore Core()
             => new ImportCore(
-                _reportedRoots, Library, Paths, _options, Gate, _followUp, NullLogger.Instance);
+                _reportedRoots,
+                Library,
+                Paths,
+                _options,
+                Gate,
+                _followUp,
+                new FixedClock(Now),
+                NullLogger.Instance);
     }
 
     /// <summary>The filesystem seam, faked, recording every operation it was asked for.</summary>

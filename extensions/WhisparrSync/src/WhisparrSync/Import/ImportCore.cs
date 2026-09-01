@@ -11,6 +11,7 @@ internal sealed class ImportCore(
     OptionsStore options,
     OptionsWriteGate gate,
     FollowUpScanCoalescer followUp,
+    TimeProvider clock,
     ILogger log) : IImportCore
 {
     public async Task<ImportOutcome> IngestAsync(ImportCandidate candidate, CancellationToken ct)
@@ -116,10 +117,8 @@ internal sealed class ImportCore(
             await StampAndEnrichAsync(named, item, ct).ConfigureAwait(false);
         }
 
-        // Only a delivery that registered a file clears the root's outstanding refusals, and only one
-        // is covered by a follow-up. A refusal is not an import.
         followUp.NoteImported(path, library);
-        await ClearAsync(reading.RefusalRoot, ct).ConfigureAwait(false);
+        await RecordImportedAsync(reading.RefusalRoot, ct).ConfigureAwait(false);
         return ImportOutcome.Imported;
     }
 
@@ -279,12 +278,22 @@ internal sealed class ImportCore(
             },
             ct).ConfigureAwait(false);
 
-    private async Task ClearAsync(string root, CancellationToken ct)
-        => await gate.MutateAsync(
+    /// <summary>Clears the root's outstanding refusals and records that an import worked.</summary>
+    /// <remarks>
+    /// The instant is taken before the gate, so it records when the file was registered rather than
+    /// when the lock came free. This is the only writer of it: the live channel imports with no pass
+    /// running at all, so a member the pass wrote would read as never against a working webhook.
+    /// </remarks>
+    private async Task RecordImportedAsync(string root, CancellationToken ct)
+    {
+        var workedAt = clock.GetUtcNow();
+        await gate.MutateAsync(
             options,
             stored => stored with
             {
                 ImportRefusals = ImportRefusalProjector.Succeed(stored.ImportRefusals, root),
+                ImportHealth = stored.ImportHealth with { LastWorkedAtUtc = workedAt },
             },
             ct).ConfigureAwait(false);
+    }
 }
