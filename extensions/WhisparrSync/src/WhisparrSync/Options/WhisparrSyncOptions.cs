@@ -6,6 +6,24 @@ using WhisparrSync.Import;
 
 namespace WhisparrSync.Options;
 
+/// <summary>Shortens a string whose length something outside this product decides.</summary>
+/// <remarks>
+/// One rule for every bounded string; each caller declares its own ceiling.
+/// </remarks>
+internal static class BoundedText
+{
+    /// <summary>
+    /// <paramref name="text"/> cut to <paramref name="maxLength"/> characters, or as it arrived when
+    /// it is no longer than that.
+    /// </summary>
+    /// <remarks>
+    /// A null is returned as null, so a member that distinguishes "never set" from "empty" keeps that
+    /// distinction and a member that does not coalesces at its own accessor.
+    /// </remarks>
+    internal static string? Shorten(string? text, int maxLength)
+        => text is null || text.Length <= maxLength ? text : text[..maxLength];
+}
+
 /// <summary>How much of an entity's catalogue monitoring arms.</summary>
 /// <remarks>
 /// Neither scope searches or downloads. The wire spelling is declared on the type; an equivalent
@@ -63,11 +81,22 @@ public sealed record WhisparrSyncGenerationConnection
     /// <summary>The longest reported version string this keeps.</summary>
     public const int RecordedVersionMaxLength = 64;
 
+    private readonly string? _recordedVersion;
+
     /// <summary>The instance's base address, as it was saved.</summary>
     public string Address { get; init; } = "";
 
     /// <summary>The version string the instance sent, character for character.</summary>
-    public string? RecordedVersion { get; init; }
+    /// <remarks>
+    /// Shortened to <see cref="RecordedVersionMaxLength"/> here rather than at the write that records
+    /// it. The instance decides how long its own version string is, and this blob is served whole by
+    /// the host's bulk extension-data route. Null while no test has read one.
+    /// </remarks>
+    public string? RecordedVersion
+    {
+        get => _recordedVersion;
+        init => _recordedVersion = BoundedText.Shorten(value, RecordedVersionMaxLength);
+    }
 
     /// <summary>When a test against this stored address read that version.</summary>
     public DateTimeOffset? VersionVerifiedAtUtc { get; init; }
@@ -154,7 +183,7 @@ public sealed record ImportHealthAggregate
     public string LastError
     {
         get => _lastError;
-        init => _lastError = Shorten(value);
+        init => _lastError = BoundedText.Shorten(value, LastErrorMaxLength) ?? "";
     }
 
     /// <summary>How many failures have followed the last success, counted to a ceiling.</summary>
@@ -191,9 +220,6 @@ public sealed record ImportHealthAggregate
     /// whether the containment is still happening.
     /// </remarks>
     public DateTimeOffset? LastContainedAtUtc { get; init; }
-
-    private static string Shorten(string? text)
-        => text is null || text.Length <= LastErrorMaxLength ? text ?? "" : text[..LastErrorMaxLength];
 }
 
 /// <summary>One offending path and why it was not imported.</summary>
@@ -212,14 +238,11 @@ public sealed record ImportRefusalEntry
     public string Path
     {
         get => _path;
-        init => _path = Shorten(value);
+        init => _path = BoundedText.Shorten(value, PathMaxLength) ?? "";
     }
 
     /// <summary>Why that path was refused.</summary>
     public ImportRefusalCause Cause { get; init; }
-
-    private static string Shorten(string? path)
-        => path is null || path.Length <= PathMaxLength ? path ?? "" : path[..PathMaxLength];
 }
 
 /// <summary>One Whisparr root's refusals since that root's last successful import.</summary>
