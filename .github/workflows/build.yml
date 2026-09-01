@@ -231,8 +231,8 @@ jobs:
           PROJECT_PATH: ${{ matrix.extension.projectPath }}
           EXTENSION_VERSION: ${{ steps.check.outputs.version }}
 
-      # Cove-absent tier: CoveSourceMode=none Compile-Removes the cove-referencing sources, leaving every
-      # test that needs no Cove source type. The mode is DECLARED, never inferred from whether a ../cove
+      # Cove-absent tier: the project this step runs carries no reference to a Cove source project, so
+      # `none` withholds nothing from it. The mode is DECLARED, never inferred from whether a ../cove
       # sibling is on disk, or a smaller run reads as a pass. Before Publish, so a test failure blocks
       # packaging. Skipped for an entry with no testProjectPath.
       #
@@ -518,10 +518,13 @@ jobs:
           path: tests/e2e/playwright-report/
           retention-days: 7
 
-  # ---- Cove-present tier. The build job above compiles against CoveSourceMode=none, which
-  # Compile-Removes every source referencing a Cove type, so the tests that need a real CoveContext
-  # never run there. This job supplies Cove by shallow-cloning the release tag the version axis
-  # resolved, which is what lets the full suite compile and run on a runner with no Cove checkout.
+  # ---- Cove-present tier. The tests needing a real CoveContext live in their own project, which the
+  # build job above does not run. This job supplies Cove by shallow-cloning the release tag the version
+  # axis resolved, which is what lets that project compile and run on a runner with no Cove checkout.
+  #
+  # It runs BOTH test projects. The pure tier is not duplicated coverage here: with a checkout it binds
+  # the checkout's Cove assemblies, where the build job binds the published packages' — the same tests
+  # against a different resolution.
   #
   # The mode is DECLARED, never inferred from whether a checkout landed: without an explicit
   # -p:CoveSourceMode=source a failed clone selects the cove-absent branch and a smaller run reports
@@ -599,6 +602,26 @@ jobs:
             -p:CoveRepoRoot="$COVE_REPO_ROOT"
         env:
           TEST_PROJECT_PATH: ${{ matrix.extension.testProjectPath }}
+          COVE_REPO_ROOT: ${{ github.workspace }}/cove
+
+      # The emptiness guard is in the body rather than in `if:`, so this step stays on the same
+      # has_tier gate as the one above and an entry with a pure tier and no Cove tier is skipped rather
+      # than failed. Same zero-test property: the platform exits 8 on a run that executes nothing.
+      - name: Test (cove-present tier, the Cove-dependent project)
+        if: steps.check.outputs.has_tier == 'true'
+        working-directory: extensions
+        shell: bash
+        run: |
+          if [[ -z "$COVE_TEST_PROJECT_PATH" ]]; then
+            echo "::notice::$EXTENSION_NAME declares no coveTestProjectPath — it has no Cove-dependent tier to run."
+            exit 0
+          fi
+          dotnet test --project "$COVE_TEST_PROJECT_PATH" -c Release \
+            -p:CoveSourceMode=source \
+            -p:CoveRepoRoot="$COVE_REPO_ROOT"
+        env:
+          EXTENSION_NAME: ${{ matrix.extension.name }}
+          COVE_TEST_PROJECT_PATH: ${{ matrix.extension.coveTestProjectPath }}
           COVE_REPO_ROOT: ${{ github.workspace }}/cove
 
   # ---- Required-check aggregation.
