@@ -260,7 +260,10 @@ public sealed partial class WhisparrSync
             await ProjectSettingsAsync(persisted, credentials, ct).ConfigureAwait(false));
     }
 
-    /// <summary>Reads the refusals outstanding, one line per Whisparr root that has any.</summary>
+    /// <summary>
+    /// Reads the refusals outstanding, one line per Whisparr root that has any, and how many records
+    /// the backstop could not take.
+    /// </summary>
     /// <remarks>
     /// The configure tier, which is the tier Cove's own bulk extension-data route already requires to
     /// read these same values, so this route exposes nothing a caller could not already read. The gate
@@ -283,7 +286,7 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(options);
 
         var stored = await options.LoadAsync(ct).ConfigureAwait(false);
-        return TypedResults.Ok(ImportBannerView.From(stored.ImportRefusals));
+        return TypedResults.Ok(ImportBannerView.From(stored.ImportRefusals, stored.ImportHealth));
     }
 
     /// <summary>Receives one callback from Whisparr and answers whether it was this product's.</summary>

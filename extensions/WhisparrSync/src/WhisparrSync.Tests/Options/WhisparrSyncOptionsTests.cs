@@ -470,7 +470,8 @@ public sealed class WhisparrSyncOptionsTests
         Assert.Single(counted.NewestPaths);
         Assert.Empty(ImportRefusalProjector.Succeed(refused, entry.Root));
 
-        var line = Assert.Single(ImportBannerView.From(loaded.ImportRefusals).Roots);
+        var line = Assert.Single(
+            ImportBannerView.From(loaded.ImportRefusals, loaded.ImportHealth).Roots);
         Assert.Equal("/whisparr/media", line.Root);
         Assert.Empty(line.NewestPaths);
     }

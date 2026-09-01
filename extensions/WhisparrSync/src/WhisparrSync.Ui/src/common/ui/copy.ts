@@ -69,6 +69,19 @@ export function importRefusalsWithNoReportedRootSentence(count: number): string 
 }
 
 /**
+ * Files Whisparr reported that Cove's catch-up could not take, and has already moved past.
+ *
+ * The catch-up keeps one mark and nothing moves it back, so these records are beyond it for good.
+ * `when` is the rendered instant, or null while none is recorded.
+ */
+export function importsPassedOverSentence(count: number, when: string | null): string {
+  const files = count === 1 ? "file" : "files";
+  const them = count === 1 ? "it" : "them";
+  const passedOver = `${String(count)} ${files} Whisparr reported could not be taken in, and Cove's regular catch-up has moved past ${them}, so it will not try ${them} again.`;
+  return when === null ? passedOver : `${passedOver} Most recently ${when}.`;
+}
+
+/**
  * What the default upgrade behaviour does, in the terms the reader sees the result in.
  *
  * Neither behaviour removes anything from disk, so both sentences say so rather than leaving the
