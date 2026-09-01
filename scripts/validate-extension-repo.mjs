@@ -114,14 +114,31 @@ function collectProjectFiles(dir, collected = []) {
 // Resolved against the containing project's own directory, because that is how MSBuild reads a
 // relative Include, and returned repo-relative so it can be compared against a catalog field. An
 // Include resolving outside the root yields leading parent segments, which match no catalog value.
-function readProjectReferences(projectFilePath) {
+//
+// An Include is an MSBuild item list, so one attribute may name several projects separated by
+// semicolons, and XML admits either quote character as the delimiter. A segment naming a property or
+// a wildcard is collected into unresolvable rather than resolved, because expanding one needs
+// MSBuild's own evaluation - and this repo's own wiring writes Includes in that spelling, so a rule
+// that dropped them would be silent over the shape most likely to carry the reference.
+function readProjectReferences(projectFilePath, unresolvable) {
   const content = fs.readFileSync(projectFilePath, "utf8");
   const projectDir = path.dirname(projectFilePath);
   const references = [];
-  const pattern = /<ProjectReference\b[^>]*\bInclude\s*=\s*"([^"]*)"/g;
+  const pattern = /<ProjectReference\b[^>]*?\bInclude\s*=\s*(["'])(.*?)\1/g;
   for (const match of content.matchAll(pattern)) {
-    const resolved = path.resolve(projectDir, normalizeSeparators(match[1]));
-    references.push(normalizeSeparators(path.relative(root, resolved)));
+    for (const raw of match[2].split(";")) {
+      const include = raw.trim();
+      if (include === "") continue;
+      if (include.includes("$(") || include.includes("*")) {
+        unresolvable.push(
+          `${normalizeSeparators(path.relative(root, projectFilePath))}: ${include}`,
+        );
+        continue;
+      }
+
+      const resolved = path.resolve(projectDir, normalizeSeparators(include));
+      references.push(normalizeSeparators(path.relative(root, resolved)));
+    }
   }
   return references;
 }
@@ -484,6 +501,7 @@ if (impliedProjects.length > 0) {
 // solution build from a direct one, and it does not separate an entry project from one reached
 // through a ProjectReference. The invariant holds today only because nothing takes that reference.
 let projectFilesScanned = 0;
+const unresolvableIncludes = [];
 if (coveTestProjects.length > 0) {
   const declaredCoveTestProjects = new Map(
     coveTestProjects.map((project) => [normalizeSeparators(project.value), project]),
@@ -491,7 +509,7 @@ if (coveTestProjects.length > 0) {
   for (const projectFile of collectProjectFiles(root)) {
     projectFilesScanned++;
     const referencingProject = normalizeSeparators(path.relative(root, projectFile));
-    for (const reference of readProjectReferences(projectFile)) {
+    for (const reference of readProjectReferences(projectFile, unresolvableIncludes)) {
       const target = declaredCoveTestProjects.get(reference);
       if (!target) continue;
       errors.push(
@@ -511,6 +529,12 @@ if (errors.length > 0) {
 // nothing wrong" and "this never ran" two readings of the same line, and that collision is what let
 // the self-comparing checks removed in deviation #2 stay invisible. Every counter above is
 // incremented at the point its check examines a subject, so this line is what the run examined.
+for (const unjudged of unresolvableIncludes) {
+  console.log(
+    `NOTICE: ${unjudged} - Include not resolvable without MSBuild evaluation, so the reference rule did not judge it.`,
+  );
+}
+
 console.log(
   `Validated ${entries.length} extension catalog entries: ` +
     `${floorComparisons} minCoveVersion floor comparison(s), ` +
@@ -519,5 +543,6 @@ console.log(
     `${registryFloorComparisons} registry row(s) compared across ` +
     `${registrySubjects} declared registry manifest(s), ` +
     `${projectFilesScanned} project file(s) scanned for ProjectReference items onto ` +
-    `${coveTestProjects.length} declared Cove test project(s).`,
+    `${coveTestProjects.length} declared Cove test project(s), ` +
+    `${unresolvableIncludes.length} Include(s) left unjudged.`,
 );

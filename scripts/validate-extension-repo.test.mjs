@@ -177,7 +177,7 @@ test("the summary line reports counts, and a check with no subject renders 0 rat
         "1 registry row(s) compared across " +
         "1 declared registry manifest(s), " +
         "0 project file(s) scanned for ProjectReference items onto " +
-        "0 declared Cove test project(s).",
+        "0 declared Cove test project(s), 0 Include(s) left unjudged.",
     );
   } finally {
     rmSync(maximal, { recursive: true, force: true });
@@ -199,7 +199,7 @@ test("the summary line reports counts, and a check with no subject renders 0 rat
         "0 registry row(s) compared across " +
         "0 declared registry manifest(s), " +
         "0 project file(s) scanned for ProjectReference items onto " +
-        "0 declared Cove test project(s).",
+        "0 declared Cove test project(s), 0 Include(s) left unjudged.",
     );
   } finally {
     rmSync(minimal, { recursive: true, force: true });
@@ -717,6 +717,61 @@ test("a backslash-separated ProjectReference onto a coveTestProjectPath is judge
     const { status, stderr } = runValidator(root);
     assert.notEqual(status, 0);
     assert.match(stderr, /coveTestProjectPath extensions\/Foo\/Foo\.Cove\.Tests\.csproj/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a semicolon-delimited Include naming the coveTestProjectPath among others still fails", () => {
+  // An Include is an MSBuild item list, so one attribute can name several projects. Reading the whole
+  // attribute as a single path makes a forbidden reference sitting beside another one invisible.
+  const root = referenceFixture("../Foo/Foo.Tests.csproj;../Foo/Foo.Cove.Tests.csproj");
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(stderr, /coveTestProjectPath extensions\/Foo\/Foo\.Cove\.Tests\.csproj/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a single-quoted Include onto the coveTestProjectPath is judged the same as a double-quoted one", () => {
+  // XML admits either quote character as an attribute delimiter, and MSBuild reads both.
+  const root = csharpFixture({
+    projectPath: "extensions/Foo/Foo.csproj",
+    testProjectPath: "extensions/Foo/Foo.Tests.csproj",
+    coveTestProjectPath: "extensions/Foo/Foo.Cove.Tests.csproj",
+    solution: [
+      "extensions/Foo/Foo.csproj",
+      "extensions/Foo/Foo.Tests.csproj",
+      "extensions/Foo/Foo.Cove.Tests.csproj",
+    ],
+    extraFiles: {
+      "extensions/Bar/Bar.csproj":
+        "<Project>\n  <ItemGroup>\n" +
+        "    <ProjectReference Include='../Foo/Foo.Cove.Tests.csproj' />\n" +
+        "  </ItemGroup>\n</Project>\n",
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(stderr, /coveTestProjectPath extensions\/Foo\/Foo\.Cove\.Tests\.csproj/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a property-expanded Include is named as unjudged rather than counted clean", () => {
+  // Expanding $(…) needs MSBuild's own evaluation, which this script does not have. Passing such an
+  // Include silently would report success over a reference the rule never read, so it is disclosed by
+  // name and by count instead.
+  const root = referenceFixture("$(CoveTestProject)");
+  try {
+    const { status, stdout, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(stdout, /NOTICE: extensions\/Bar\/Bar\.csproj: \$\(CoveTestProject\)/);
+    assert.match(stdout, /1 Include\(s\) left unjudged\./);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
