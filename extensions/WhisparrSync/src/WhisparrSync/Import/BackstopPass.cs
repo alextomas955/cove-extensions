@@ -91,8 +91,8 @@ internal sealed class BackstopPass(
             or BackstopPassOutcome.RefusedUnreadableAnswer
             or BackstopPassOutcome.RefusedUnreachable;
 
-    // Counters and instants. No page, record, file or candidate collection is held across an
-    // iteration: however far the walk reads, what it hands back is the same size.
+    // Counters, instants, and one page's record ids. Nothing held across an iteration grows with the
+    // walk: however far it reads, what it holds and what it hands back are the same size.
     private async Task<BackstopPassResult> WalkAsync(
         WhisparrGeneration generation,
         Uri baseAddress,
@@ -108,6 +108,10 @@ internal sealed class BackstopPass(
         DateTimeOffset? newest = null;
         DateTimeOffset? previousPageOldest = null;
         DateTimeOffset? previousPageNewest = null;
+
+        // Replaced by each page rather than added to, so it holds one page's ids however far the walk
+        // reads.
+        IReadOnlyList<string>? previousPageIds = null;
 
         while (true)
         {
@@ -139,15 +143,16 @@ internal sealed class BackstopPass(
                 return Ended(BackstopPassOutcome.RefusedUnreadableAnswer);
             }
 
+            var ids = HistoryProjector.IdsIn(records);
             var reading = WatermarkGuard.Read(
-                instants, mark, newest, previousPageOldest, previousPageNewest);
+                instants, mark, newest, previousPageOldest, previousPageNewest, ids, previousPageIds);
             newest = reading.Newest;
             if (reading.Refused)
             {
                 return Ended(BackstopPassOutcome.RefusedPageOrder);
             }
 
-            for (var index = 0; index < reading.Take; index++)
+            for (var index = reading.Skip; index < reading.Skip + reading.Take; index++)
             {
                 taken++;
                 switch (HistoryProjector.Read(generation, records[index] as JsonObject))
@@ -199,6 +204,7 @@ internal sealed class BackstopPass(
 
             previousPageOldest = instants[^1];
             previousPageNewest = reading.PageNewest;
+            previousPageIds = ids;
             page++;
         }
 
