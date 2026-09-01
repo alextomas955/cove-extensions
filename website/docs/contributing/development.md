@@ -179,13 +179,13 @@ both of which have bitten here:
 
 - With a `../cove` sibling checkout present, the extensions reference Cove by project, so
   `dotnet format` walks the ProjectReference graph into Cove's own source and reports hundreds of
-  findings that are not yours. The script excludes that path. The exclude is a harmless no-op in CI,
-  which has no sibling checkout.
+  findings that are not yours. The script excludes that path. The exclude does the same work in CI,
+  which checks Cove out beside this repo.
 - A folder path passed to `--include` or `--exclude` must end in a path separator. Without one it
   matches nothing and exits 0, so a scoping mistake does not fail - it silently passes.
 
-The C# job in `.github/workflows/lint.yml` uses the same invocation as the script, so your local run
-and CI cannot disagree.
+The C# job in `.github/workflows/lint.yml` checks the same subject set with the same `dotnet format`
+arguments as the check script, so your local run and CI cannot disagree about what is checked.
 
 ## Run the merge gates
 
@@ -236,8 +236,9 @@ when the change touches one of the paths that file lists, and it never publishes
 ## The pre-commit hook
 
 `lefthook.yml` at the repo root declares what runs when you commit: Prettier and ESLint on staged
-files, the class check for each UI bundle, the host-import check, and `dotnet format` on staged C#
-files. The formatting and lint entries fix and restage rather than report, because the check costs the
+files, the class check for each UI bundle, the host-import check, and `check-csharp-format` on staged
+C# files, which runs `dotnet format` and passes its output and exit status through unchanged. The
+formatting and lint entries fix and restage rather than report, because the check costs the
 same either way. It is deliberately light - no build and no test run on commit.
 
 The runner is installed by the root `prepare` script. The binary it installs comes from the lefthook
@@ -299,6 +300,11 @@ Each of these is stated symptom first, because the symptom is what you arrive wi
   ProjectReference graph into the sibling Cove checkout. Use `npm run format:cs`, which excludes it.
 - **A `dotnet format` scoping flag reports nothing and exits 0.** A folder passed to `--include` or
   `--exclude` has to end in a path separator; without one it matches nothing and passes.
+- **The C# format pass reports no analyzer finding for the Cove-dependent test project.** Without a
+  Cove source checkout that project's references do not load, so only whitespace is checked there.
+  The pass says so: it prints a line starting `check-csharp-format: PARTIAL` and naming every
+  project this happened to. Point `COVE_REPO` at a checkout, or add a `../cove` sibling, to get the
+  analyzer coverage back. The CI format leg checks Cove out, so the merge gate is unaffected.
 - **A build succeeds but compiles fewer tests than you expect.** You named one of an extension's two
   test projects when you meant both. Name the solution instead, or the other project as well -
   [Testing](./testing#which-set-of-c-tests-you-just-ran) has which covers what.
