@@ -73,7 +73,7 @@ public sealed class CoveLibraryPortTests
     [InlineData(typeof(InvalidOperationException))]
     public async Task AHostImportThatRaisesIsContainedRatherThanPropagated(Type raised)
     {
-        var log = new CountingLogger();
+        var log = new RecordingLogger();
         await using var library = await LibraryFixture.CreateAsync(
             scan: new RaisingScanService((Exception)Activator.CreateInstance(raised)!), log: log);
 
@@ -81,7 +81,34 @@ public sealed class CoveLibraryPortTests
 
         Assert.Equal(LibraryImportOutcome.HostRefused, imported.Outcome);
         Assert.Null(imported.VideoId);
-        Assert.Equal(1, log.ContainedHostImports);
+        Assert.Single(log.ContainedHostImportLines);
+    }
+
+    /// <summary>
+    /// The one line a contained host import emits carries no part of the path the failure names.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="FileNotFoundException"/> is one of the two the host's import raises, and its message
+    /// quotes the file it could not find. The message here is composed by the runtime from the file
+    /// name, so the value the assertion searches for is not one this test wrote into it.
+    /// <para>
+    /// The line is read as a sink writes it - the rendered message together with the exception the
+    /// logger was handed - because a sink writes both.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task AContainedHostImportIsLoggedWithoutThePathTheFailureNames()
+    {
+        const string path = "/data/whisparr-verified/scene.mp4";
+        var log = new RecordingLogger();
+        await using var library = await LibraryFixture.CreateAsync(
+            scan: new RaisingScanService(new FileNotFoundException(message: null, fileName: path)),
+            log: log);
+
+        await library.Port.ImportVideoAsync(path, null, Ct);
+
+        var line = Assert.Single(log.ContainedHostImportLines);
+        Assert.DoesNotContain(path, line, StringComparison.Ordinal);
     }
 
     /// <summary>An exception the host raises that this product does not know about still propagates.</summary>
@@ -365,12 +392,14 @@ public sealed class CoveLibraryPortTests
         }
     }
 
-    /// <summary>Counts the one contained-host-import line, by its event id.</summary>
-    private sealed class CountingLogger : ILogger
+    /// <summary>Keeps the contained-host-import lines, by event id, as a sink would write them.</summary>
+    private sealed class RecordingLogger : ILogger
     {
         private const int ContainedHostImportEventId = 2111;
 
-        public int ContainedHostImports { get; private set; }
+        private readonly List<string> _lines = [];
+
+        public IReadOnlyList<string> ContainedHostImportLines => _lines;
 
         public IDisposable? BeginScope<TState>(TState state)
             where TState : notnull => null;
@@ -386,7 +415,7 @@ public sealed class CoveLibraryPortTests
         {
             if (eventId.Id == ContainedHostImportEventId)
             {
-                ContainedHostImports++;
+                _lines.Add($"{formatter(state, exception)} {exception}");
             }
         }
     }
