@@ -93,8 +93,8 @@ function normalizeSeparators(value) {
 }
 
 // Build output, dependencies and the docs site, none of which hold first-party project source. An
-// extension placing a .csproj under one of these names would be invisible to the reference rule
-// below, and nothing would report it.
+// extension placing a .csproj under one of these names is invisible to the reference rule below, so
+// the summary names them rather than leaving the hole here where no run output shows it.
 const referenceScanSkippedDirectories = new Set(["node_modules", "bin", "obj", ".git", "website"]);
 
 // Directory.Build.props/.targets carry ProjectReference items that MSBuild injects into every project
@@ -103,8 +103,21 @@ const referenceScanFileNames = new Set(["Directory.Build.props", "Directory.Buil
 
 // Walked from the repository root rather than read from the catalog, because a project taking the
 // forbidden reference is by definition one the catalog does not declare.
+// Dirent.isDirectory() is false for a symlink, so a project reached only through one is not walked.
+// The summary says so; an unreadable directory is reported by name rather than thrown as a stack
+// trace, because either way the rule has not read what is under it.
 function collectProjectFiles(dir, collected = []) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch (cause) {
+    errors.push(
+      `${normalizeSeparators(path.relative(root, dir)) || "."}: could not be read, so no project file under it was checked for a ProjectReference (${cause.code}).`,
+    );
+    return collected;
+  }
+
+  for (const entry of entries) {
     if (entry.isDirectory()) {
       if (referenceScanSkippedDirectories.has(entry.name)) continue;
       collectProjectFiles(path.join(dir, entry.name), collected);
@@ -553,5 +566,7 @@ console.log(
     `${registrySubjects} declared registry manifest(s), ` +
     `${projectFilesScanned} project file(s) scanned for ProjectReference items onto ` +
     `${coveTestProjects.length} declared Cove test project(s), ` +
-    `${unresolvableIncludes.length} Include(s) left unjudged.`,
+    `${unresolvableIncludes.length} Include(s) left unjudged; ` +
+    `directories named ${[...referenceScanSkippedDirectories].join(", ")} and all symlinked ` +
+    `directories were not walked.`,
 );

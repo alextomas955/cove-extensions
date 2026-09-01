@@ -7,7 +7,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, readFileSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  copyFileSync,
+  readFileSync,
+  rmSync,
+  chmodSync,
+  statSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -177,7 +186,9 @@ test("the summary line reports counts, and a check with no subject renders 0 rat
         "1 registry row(s) compared across " +
         "1 declared registry manifest(s), " +
         "0 project file(s) scanned for ProjectReference items onto " +
-        "0 declared Cove test project(s), 0 Include(s) left unjudged.",
+        "0 declared Cove test project(s), 0 Include(s) left unjudged; " +
+        "directories named node_modules, bin, obj, .git, website and all symlinked " +
+        "directories were not walked.",
     );
   } finally {
     rmSync(maximal, { recursive: true, force: true });
@@ -199,7 +210,9 @@ test("the summary line reports counts, and a check with no subject renders 0 rat
         "0 registry row(s) compared across " +
         "0 declared registry manifest(s), " +
         "0 project file(s) scanned for ProjectReference items onto " +
-        "0 declared Cove test project(s), 0 Include(s) left unjudged.",
+        "0 declared Cove test project(s), 0 Include(s) left unjudged; " +
+        "directories named node_modules, bin, obj, .git, website and all symlinked " +
+        "directories were not walked.",
     );
   } finally {
     rmSync(minimal, { recursive: true, force: true });
@@ -771,7 +784,7 @@ test("a property-expanded Include is named as unjudged rather than counted clean
     const { status, stdout, stderr } = runValidator(root);
     assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
     assert.match(stdout, /NOTICE: extensions\/Bar\/Bar\.csproj: \$\(CoveTestProject\)/);
-    assert.match(stdout, /1 Include\(s\) left unjudged\./);
+    assert.match(stdout, /1 Include\(s\) left unjudged;/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -848,6 +861,38 @@ test("a ProjectReference injected from Directory.Build.targets onto the coveTest
       /Directory\.Build\.targets declares a ProjectReference onto coveTestProjectPath/,
     );
   } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a directory the walk cannot read is reported by name rather than thrown", () => {
+  // The walk cannot judge what it cannot open, and reporting success over it is the one outcome the
+  // rule must not produce. A stack trace naming readdirSync is not that report either.
+  const root = csharpFixture({
+    projectPath: "extensions/Foo/Foo.csproj",
+    testProjectPath: "extensions/Foo/Foo.Tests.csproj",
+    coveTestProjectPath: "extensions/Foo/Foo.Cove.Tests.csproj",
+    solution: [
+      "extensions/Foo/Foo.csproj",
+      "extensions/Foo/Foo.Tests.csproj",
+      "extensions/Foo/Foo.Cove.Tests.csproj",
+    ],
+    extraFiles: { "extensions/Sealed/Placeholder.csproj": "<Project />\n" },
+  });
+  const sealedDirectory = path.join(root, "extensions", "Sealed");
+  try {
+    chmodSync(sealedDirectory, 0o000);
+    if (statSync(sealedDirectory).mode & 0o400) return; // running with rights that ignore the mode
+
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(
+      stderr,
+      /extensions\/Sealed: could not be read, so no project file under it was checked/,
+    );
+    assert.doesNotMatch(stderr, /readdirSync/);
+  } finally {
+    chmodSync(sealedDirectory, 0o755);
     rmSync(root, { recursive: true, force: true });
   }
 });
