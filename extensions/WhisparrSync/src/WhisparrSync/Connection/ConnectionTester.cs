@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Microsoft.Extensions.Logging;
 using WhisparrSync.Contracts;
+using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Connection;
@@ -26,8 +27,8 @@ internal sealed class ConnectionTester(IWhisparrClient client, ILogger<Connectio
 {
     /// <summary>How much of a name the answering instance chose is echoed back.</summary>
     /// <remarks>
-    /// Long enough for every branch and application name either generation declares. The version is
-    /// held to the ceiling the stored reading uses instead, so what a test echoes and what it records
+    /// Long enough for every branch and application name either generation declares. The version
+    /// answers to the stored reading's ceiling instead, so the echoed version and the recorded one
     /// cannot differ in length.
     /// </remarks>
     internal const int ReportedNameMaxLength = 64;
@@ -161,14 +162,18 @@ internal sealed class ConnectionTester(IWhisparrClient client, ILogger<Connectio
         // describes the generation that answered, not the one the settings currently select.
         var connected = kind == ConnectionFailureKind.Connected ? reading.Generation : null;
 
+        // Nothing between the response buffer's ceiling and this projection bounds what the answering
+        // instance chose to send. The version is held to the stored reading's ceiling because the
+        // stored reading is taken from it.
         return new ConnectionTestView(
             kind,
             connected,
             connected is { } generation ? GenerationCapabilities.For(generation).Held : null,
-            reading.Version,
-            reading.Branch,
+            BoundedText.Shorten(
+                reading.Version, WhisparrSyncGenerationConnection.RecordedVersionMaxLength),
+            BoundedText.Shorten(reading.Branch, ReportedNameMaxLength),
             reading.Corroborated,
-            otherApplication,
+            BoundedText.Shorten(otherApplication, ReportedNameMaxLength),
             baseAddress.ToString(),
             null);
     }
