@@ -255,6 +255,10 @@ public sealed class StoredConnectionTestTests
     /// A tester that commits the production secret-position write before it answers, which is what a
     /// delivery arriving during a probe does.
     /// </summary>
+    /// <remarks>
+    /// The delivery is attributed to the generation this fixture stores and selects, which is the
+    /// connection the probe under test read before it asked the instance anything.
+    /// </remarks>
     private sealed class DeliveringConnectionTester(
         IWhisparrConnectionTester inner,
         OptionsStore options,
@@ -264,7 +268,8 @@ public sealed class StoredConnectionTestTests
         public async Task<ConnectionTestView> TestAsync(
             string? address, string? apiKey, CancellationToken ct)
         {
-            await global::WhisparrSync.WhisparrSync.RecordSecretPositionAsync(options, gate, position, ct);
+            await global::WhisparrSync.WhisparrSync.RecordSecretPositionAsync(
+                options, gate, WhisparrGeneration.V3, position, ct);
             return await inner.TestAsync(address, apiKey, ct);
         }
     }
