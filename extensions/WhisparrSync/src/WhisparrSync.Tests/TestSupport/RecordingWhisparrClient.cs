@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using WhisparrSync.Contracts;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Tests.TestSupport;
@@ -13,9 +14,11 @@ public sealed record NotificationCall(string Verb, Uri BaseAddress, int? Id, Jso
 /// <summary>One history read this client was asked to make, with its arguments.</summary>
 /// <param name="BaseAddress">The instance it was aimed at.</param>
 /// <param name="ApiKey">The key it presented.</param>
+/// <param name="Generation">The lineage whose entity spelling it asked the page for.</param>
 /// <param name="Page">Which page it asked for.</param>
 /// <param name="PageSize">How many records it asked that page to hold.</param>
-public sealed record HistoryCall(Uri BaseAddress, string ApiKey, int Page, int PageSize);
+public sealed record HistoryCall(
+    Uri BaseAddress, string ApiKey, WhisparrGeneration Generation, int Page, int PageSize);
 
 /// <summary>
 /// An <see cref="IWhisparrClient"/> that records the ARGUMENTS of every request asked of it and
@@ -83,9 +86,14 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer) : IWhispa
         => Record(nameof(ReadRootFoldersAsync), baseAddress, null, null);
 
     public Task<WhisparrResponse> ReadHistoryAsync(
-        Uri baseAddress, string apiKey, int page, int pageSize, CancellationToken ct)
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        int page,
+        int pageSize,
+        CancellationToken ct)
     {
-        Histories.Add(new HistoryCall(baseAddress, apiKey, page, pageSize));
+        Histories.Add(new HistoryCall(baseAddress, apiKey, generation, page, pageSize));
         Verbs.Add(nameof(ReadHistoryAsync));
         return Task.FromResult(Answer(nameof(ReadHistoryAsync)));
     }

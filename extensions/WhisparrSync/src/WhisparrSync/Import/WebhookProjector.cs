@@ -137,8 +137,8 @@ internal static class WebhookProjector
     private static string? RemoteIdOf(WhisparrGeneration generation, JsonObject body)
         => generation switch
         {
-            WhisparrGeneration.V3 => ValueOf(ObjectAt(body, "movie"), "stashId"),
-            WhisparrGeneration.V2 => ValueOf(FirstObjectIn(body, "episodes"), "tvdbId"),
+            WhisparrGeneration.V3 => RemoteIdGuard.Identifying(ValueOf(ObjectAt(body, "movie"), "stashId")),
+            WhisparrGeneration.V2 => RemoteIdGuard.Identifying(ValueOf(FirstObjectIn(body, "episodes"), "tvdbId")),
             _ => null,
         };
 

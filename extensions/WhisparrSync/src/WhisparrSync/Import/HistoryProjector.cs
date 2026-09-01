@@ -123,13 +123,37 @@ internal static class HistoryProjector
             return new HistoryReading(HistoryProjectionOutcome.NoReadablePath, eventType, null);
         }
 
-        // No size and no identifier. A history record has never been shown to carry either, and a
-        // member read on the strength of a guess reads as absent whether or not the guess was right.
+        // No size. A history record has never been shown to carry one, and a member read on the
+        // strength of a guess reads as absent whether or not the guess was right.
         return new HistoryReading(
             HistoryProjectionOutcome.Projected,
             eventType,
-            new ImportCandidate(generation, eventType, path, null, null));
+            new ImportCandidate(generation, eventType, path, null, RemoteIdOf(generation, record)));
     }
+
+    /// <summary>
+    /// The shared remote identifier the record's own metadata entity declares, or null when the
+    /// answer embedded none.
+    /// </summary>
+    /// <remarks>
+    /// Each lineage names its own entity and its own identifier member, and identifies against its
+    /// own metadata source. Both are what the live channel reads for that same lineage, which is what
+    /// makes an arrival through either channel the same scene.
+    /// <para>
+    /// The entity is embedded only where the read asked its lineage for it, so a record carrying none
+    /// yields no identifier and is imported as one carrying none always has been.
+    /// </para>
+    /// </remarks>
+    private static string? RemoteIdOf(WhisparrGeneration generation, JsonObject record)
+        => generation switch
+        {
+            WhisparrGeneration.V3 => IdentifierOn(record, "movie", "stashId"),
+            WhisparrGeneration.V2 => IdentifierOn(record, "episode", "tvdbId"),
+            _ => null,
+        };
+
+    private static string? IdentifierOn(JsonObject record, string entity, string member)
+        => RemoteIdGuard.Identifying(ValueOf(record[entity] as JsonObject, member));
 
     /// <summary>When <paramref name="record"/> says it happened, or null when it does not say.</summary>
     private static DateTimeOffset? InstantOf(JsonObject? record)
