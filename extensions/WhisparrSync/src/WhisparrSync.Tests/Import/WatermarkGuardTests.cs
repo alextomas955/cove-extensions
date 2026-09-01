@@ -3,7 +3,7 @@ using WhisparrSync.Import;
 namespace WhisparrSync.Tests.Import;
 
 /// <summary>
-/// The stop rule, over pages of instants and nothing else.
+/// The stop rule, over pages of record ids and instants and nothing else.
 /// </summary>
 /// <remarks>
 /// The two directions this rule can be wrong in are the phase's two named failure modes: stopping one
@@ -139,6 +139,9 @@ public sealed class WatermarkGuardTests
     /// This is the shape a route ignoring its page parameter produces once every record on the page
     /// shares one instant, which is the only repeated shape the across-page order check admits.
     /// Refusing leaves the mark alone, so the history is read again rather than stepped over.
+    /// <para>
+    /// The page carries no id, so this is the rule reading the instants alone.
+    /// </para>
     /// </remarks>
     [Fact]
     public void APageRepeatingThePreviousPagesWholeRangeIsRefused()
@@ -184,8 +187,9 @@ public sealed class WatermarkGuardTests
     /// A page whose oldest instant repeats but whose newest does not is walked.
     /// </summary>
     /// <remarks>
-    /// A tie run genuinely spanning a boundary looks like this, and the walk has to keep reading it:
-    /// the range is what says a page has been seen before, not either end of it alone.
+    /// Reading the instants alone, the range is what says a page has been seen before, not either end
+    /// of it alone. A tie run spanning a boundary reaches this rule in this shape; a run filling the
+    /// whole page repeats the range too, and is told apart by its ids instead.
     /// </remarks>
     [Fact]
     public void APageSharingOnlyTheBoundaryInstantIsWalked()
@@ -199,6 +203,106 @@ public sealed class WatermarkGuardTests
 
         Assert.False(reading.Refused);
         Assert.Equal(2, reading.Take);
+        Assert.True(reading.Continue);
+    }
+
+    /// <summary>A page opening on the records the one before it ended with is read on from there.</summary>
+    /// <remarks>
+    /// Records arriving at the head of an offset-paged history push the window back, so the next page
+    /// begins inside the page already read. It starts newer than that page ended, which by the
+    /// instants alone is the shape of a route not paging at all - the shared ids are what tell the two
+    /// apart, and what say where the walk has not read yet.
+    /// </remarks>
+    [Fact]
+    public void APageTheRouteShiftedIsReadOnFromTheFirstUnseenRecord()
+    {
+        var reading = WatermarkGuard.Read(
+            [Noon.AddMinutes(-1), Noon.AddMinutes(-2), Noon.AddMinutes(-3), Noon.AddMinutes(-4)],
+            Noon.AddMinutes(-30),
+            Noon,
+            previousPageOldest: Noon.AddMinutes(-2),
+            previousPageNewest: Noon,
+            ids: ["29", "28", "27", "26"],
+            previousPageIds: ["31", "30", "29", "28"]);
+
+        Assert.False(reading.Refused);
+        Assert.Equal(2, reading.Skip);
+        Assert.Equal(2, reading.Take);
+        Assert.True(reading.Continue);
+    }
+
+    /// <summary>
+    /// A page sharing no record with the one before it and starting newer than it ended is still
+    /// refused.
+    /// </summary>
+    /// <remarks>
+    /// The discriminating control for the shift above: a rule that let any page carrying ids through
+    /// the across-page order check would walk a route answering out of order.
+    /// </remarks>
+    [Fact]
+    public void APageOfUnseenRecordsThatDoesNotFollowTheOneBeforeItIsRefused()
+    {
+        var reading = WatermarkGuard.Read(
+            Descending(3),
+            Noon.AddMinutes(-30),
+            Noon,
+            previousPageOldest: Noon.AddMinutes(-10),
+            previousPageNewest: Noon.AddMinutes(-5),
+            ids: ["28", "27", "26"],
+            previousPageIds: ["31", "30", "29"]);
+
+        Assert.True(reading.Refused);
+        Assert.Equal(0, reading.Take);
+    }
+
+    /// <summary>A page carrying every record the one before it carried is refused.</summary>
+    /// <remarks>
+    /// The shape a route ignoring its page parameter produces. Its instants descend within the page
+    /// and from the previous one, so the ids are the whole of what refuses it.
+    /// </remarks>
+    [Fact]
+    public void APageCarryingEveryRecordOfTheOneBeforeItIsRefused()
+    {
+        string[] sameRecords = ["31", "30", "29"];
+
+        var reading = WatermarkGuard.Read(
+            [Noon, Noon, Noon],
+            Noon.AddMinutes(-30),
+            Noon,
+            previousPageOldest: Noon,
+            previousPageNewest: Noon,
+            ids: sameRecords,
+            previousPageIds: sameRecords);
+
+        Assert.True(reading.Refused);
+        Assert.Equal(0, reading.Take);
+        Assert.False(reading.Continue);
+    }
+
+    /// <summary>
+    /// A page repeating the previous page's whole instant range with records it has not seen is
+    /// walked.
+    /// </summary>
+    /// <remarks>
+    /// The discriminating control for the refusal above, and the shape a bulk import of more than one
+    /// page of records at one instant produces: by the instants alone the two are the same page, and
+    /// refusing this one is how the run past it is never reached.
+    /// </remarks>
+    [Fact]
+    public void APageOfUnseenRecordsRepeatingThePreviousRangeIsWalked()
+    {
+        var reading = WatermarkGuard.Read(
+            [Noon, Noon, Noon],
+            Noon.AddMinutes(-30),
+            Noon,
+            previousPageOldest: Noon,
+            previousPageNewest: Noon,
+            ids: ["28", "27", "26"],
+            previousPageIds: ["31", "30", "29"]);
+
+        Assert.False(reading.Refused);
+        Assert.Equal(0, reading.Skip);
+        Assert.Equal(3, reading.Take);
         Assert.True(reading.Continue);
     }
 

@@ -105,6 +105,40 @@ internal static class HistoryProjector
         return instants;
     }
 
+    /// <summary>
+    /// Each record's identifier as the page rendered it, in order, or null when one carries none.
+    /// </summary>
+    /// <remarks>
+    /// Read as text: the walk only ever compares one identifier against another, and the type an
+    /// instance renders it as is not something this product is told.
+    /// <para>
+    /// A page carrying a record with no identifier yields null, which places that page by its instants
+    /// instead. An absent identifier is not a refusal - the page is still readable, only not placeable
+    /// against the page before it.
+    /// </para>
+    /// <para>
+    /// The list is one page long, which the caller fixes, so it is bounded however much history the
+    /// walk goes on to read.
+    /// </para>
+    /// </remarks>
+    internal static IReadOnlyList<string>? IdsIn(JsonArray records)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+
+        var ids = new List<string>(records.Count);
+        foreach (var record in records)
+        {
+            if (ValueOf(record as JsonObject, "id") is not { } id)
+            {
+                return null;
+            }
+
+            ids.Add(id);
+        }
+
+        return ids;
+    }
+
     /// <summary>What <paramref name="record"/> reports, read as <paramref name="generation"/> renders it.</summary>
     internal static HistoryReading Read(WhisparrGeneration generation, JsonObject? record)
     {
