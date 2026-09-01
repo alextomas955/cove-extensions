@@ -39,7 +39,7 @@ export function WhisparrSyncPage() {
 
   return (
     <div className="space-y-4">
-      <ImportBanner read={banner.read} view={banner.view} />
+      <ImportBanner read={banner.read} view={banner.view} now={now} />
 
       {sharedReason === null ? null : (
         <RefusalNotice reason={sharedReason} affectedControls={SHARED_REASON_CONTROLS} />

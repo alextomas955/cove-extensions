@@ -3,8 +3,12 @@ import { describe, expect, it } from "vitest";
 import type { ImportBannerView } from "../wire/api";
 import { createImportBannerStore, INITIAL_IMPORT_BANNER_STATE } from "./importBannerStore";
 
-/** An answer in which no root has refusals outstanding: the genuinely-empty read. */
-const NOTHING_OUTSTANDING: ImportBannerView = { roots: [] };
+/** An answer with nothing outstanding and nothing passed over: the genuinely-empty read. */
+const NOTHING_OUTSTANDING: ImportBannerView = {
+  roots: [],
+  recordsContained: 0,
+  lastContainedAtUtc: null,
+};
 
 const ONE_ROOT: ImportBannerView = {
   roots: [
@@ -14,6 +18,8 @@ const ONE_ROOT: ImportBannerView = {
       newestPaths: [{ path: "/whisparr-media/a.mp4", cause: "notFoundUnderAnyRoot" }],
     },
   ],
+  recordsContained: 0,
+  lastContainedAtUtc: null,
 };
 
 describe("the state before a read and the state after an empty one", () => {
