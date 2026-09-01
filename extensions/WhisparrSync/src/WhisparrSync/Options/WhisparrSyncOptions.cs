@@ -168,6 +168,9 @@ public sealed record ImportHealthAggregate
 /// <summary>One offending path and why it was not imported.</summary>
 public sealed record ImportRefusalEntry
 {
+    /// <summary>The longest reported path this stores.</summary>
+    public const int PathMaxLength = 512;
+
     /// <summary>The path the delivery reported.</summary>
     public string Path { get; init; } = "";
 
