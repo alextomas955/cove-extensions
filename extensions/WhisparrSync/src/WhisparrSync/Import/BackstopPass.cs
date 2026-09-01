@@ -37,7 +37,7 @@ internal sealed class BackstopPass(
         // connection reaches nothing that could make a request.
         if (!ConnectionTester.TryReadConnection(connection?.Address, apiKey, out var baseAddress, out _))
         {
-            return new BackstopPassResult(BackstopPassOutcome.NotConfigured, null, 0, 0, 0, 0);
+            return new BackstopPassResult(BackstopPassOutcome.NotConfigured, null, 0, 0, 0, 0, 0);
         }
 
         var walk = await WalkAsync(generation, baseAddress, apiKey, connection!.BackstopWatermarkUtc, ct)
@@ -86,6 +86,7 @@ internal sealed class BackstopPass(
         var taken = 0;
         var imported = 0;
         var withoutCandidate = 0;
+        var contained = 0;
         DateTimeOffset? newest = null;
         DateTimeOffset? previousPageOldest = null;
 
@@ -131,11 +132,32 @@ internal sealed class BackstopPass(
                 switch (HistoryProjector.Read(generation, records[index] as JsonObject))
                 {
                     case { Outcome: HistoryProjectionOutcome.Projected, Candidate: { } candidate }:
-                        if (await core.IngestAsync(candidate, ct).ConfigureAwait(false)
-                            == ImportOutcome.Imported)
+                        // Guarded per record, because the pass's mark means "history up to here has
+                        // been read". One record the ingest cannot take must not decide whether the
+                        // mark is written: a walk that ends in a throw leaves the mark where it was,
+                        // and every later pass then reads the same page and throws on the same
+                        // record for ever.
+                        try
                         {
-                            imported++;
+                            if (await core.IngestAsync(candidate, ct).ConfigureAwait(false)
+                                == ImportOutcome.Imported)
+                            {
+                                imported++;
+                            }
                         }
+                        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                        {
+                            // Above the broad catch, so a shutdown classifies as cancelled rather
+                            // than as a record that could not be taken.
+                            throw;
+                        }
+#pragma warning disable CA1031 // The point of the guard is that no failure ends the walk.
+                        catch (Exception failure)
+                        {
+                            WhisparrSyncLog.BackstopRecordContained(log, generation, failure);
+                            contained++;
+                        }
+#pragma warning restore CA1031
 
                         break;
 
@@ -165,7 +187,8 @@ internal sealed class BackstopPass(
                 page,
                 taken,
                 imported,
-                withoutCandidate);
+                withoutCandidate,
+                contained);
     }
 
     // Reloaded rather than folded into the blob this pass opened with: the ingest core writes the

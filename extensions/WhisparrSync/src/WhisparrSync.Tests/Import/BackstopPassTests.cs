@@ -243,6 +243,59 @@ public sealed class BackstopPassTests
         Assert.Empty(pass.Core.Ingested);
     }
 
+    /// <summary>
+    /// A record the ingest cannot take at all leaves the walk running and the mark moving.
+    /// </summary>
+    /// <remarks>
+    /// The mark means "history up to here has been read", so a record that could not be taken is not
+    /// a page that was not read. A walk that ended in the throw would leave the mark where it was,
+    /// and every later pass would then read the same page and fail on the same record for ever - a
+    /// channel that has silently stopped importing, which is the state it exists to prevent.
+    /// <para>
+    /// Asserted on the STORED mark after the pass rather than on a call count: a mark write that ran
+    /// and wrote nothing would satisfy a count.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ARecordWhoseIngestThrowsDoesNotAbortTheWalkOrFreezeTheMark()
+    {
+        var mark = Noon.AddMinutes(-5);
+        var pass = new Pass(mark);
+        pass.Answering(PageOfDistinctPaths(3));
+        pass.Core.ThrowFor("/whisparr-media/scene1.mp4", new InvalidOperationException());
+
+        var result = await pass.RunAsync();
+
+        Assert.Equal(BackstopPassOutcome.Walked, result.Outcome);
+        Assert.Equal(3, result.RecordsTaken);
+        Assert.Equal(2, result.Imported);
+        Assert.Equal(1, result.Contained);
+        Assert.Equal(Noon, result.Watermark);
+        Assert.Equal(Noon, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
+        Assert.NotEqual(mark, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
+    }
+
+    /// <summary>A walk whose every record failed is still a walk, so the mark still moves.</summary>
+    /// <remarks>
+    /// The pages were read either way, which is what the mark records. Leaving it behind would make
+    /// the next pass re-read exactly the records that already failed.
+    /// </remarks>
+    [Fact]
+    public async Task AWalkWhoseEveryRecordFailedStillAdvancesTheMark()
+    {
+        var pass = new Pass(mark: Noon.AddMinutes(-5));
+        pass.Answering(PageOfDistinctPaths(3));
+        pass.Core.ThrowForEverything(new FileNotFoundException());
+
+        var result = await pass.RunAsync();
+
+        Assert.Equal(BackstopPassOutcome.Walked, result.Outcome);
+        Assert.Equal(0, result.Imported);
+        Assert.Equal(3, result.Contained);
+        Assert.Equal(Noon, (await pass.StoredAsync()).V3?.BackstopWatermarkUtc);
+        Assert.Empty(pass.Library.Scans);
+    }
+
     /// <summary>A record naming an import with no path is counted rather than dropped.</summary>
     [Fact]
     public async Task ARecordWithNoReadablePathIsCounted()
@@ -469,11 +522,26 @@ public sealed class BackstopPassTests
     private sealed class RecordingImportCore(FollowUpScanCoalescer followUp, ICoveLibraryPort library)
         : IImportCore
     {
+        private readonly Dictionary<string, Exception> _raised = [];
+        private Exception? _raisedForEverything;
+
         public List<ImportCandidate> Ingested { get; } = [];
+
+        /// <summary>Makes the ingest of the candidate naming <paramref name="path"/> raise.</summary>
+        public void ThrowFor(string path, Exception failure) => _raised[path] = failure;
+
+        /// <summary>Makes every ingest raise.</summary>
+        public void ThrowForEverything(Exception failure) => _raisedForEverything = failure;
 
         public Task<ImportOutcome> IngestAsync(ImportCandidate candidate, CancellationToken ct)
         {
             Ingested.Add(candidate);
+            var failure = _raisedForEverything ?? _raised.GetValueOrDefault(candidate.ReportedPath);
+            if (failure is not null)
+            {
+                return Task.FromException<ImportOutcome>(failure);
+            }
+
             followUp.NoteImported(candidate.ReportedPath, library);
             return Task.FromResult(ImportOutcome.Imported);
         }

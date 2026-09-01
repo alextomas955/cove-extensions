@@ -88,6 +88,51 @@ public sealed class ImportCoreIdempotencyTests
             (1, "https://stashdb.org/graphql", RemoteId), Assert.Single(ingest.Library.Stamped));
     }
 
+    /// <summary>
+    /// A row no item claims, named by a delivery carrying no identifier, reaches the host not at all.
+    /// </summary>
+    /// <remarks>
+    /// Handing the host a path it already has a row for and no item to attach it to is the one input
+    /// its import answers by raising, so this is the refusal that keeps the delivery inside its
+    /// answer.
+    /// </remarks>
+    [Fact]
+    public async Task ADeliveryForADetachedPathWithNoIdentityReachesNoHostImport()
+    {
+        var ingest = new Ingest();
+        ingest.HoldsDetached(VerifiedPath);
+
+        Assert.Equal(
+            ImportOutcome.RefusedDetachedFileWithoutIdentity,
+            await ingest.DeliverAsync(remoteId: null));
+
+        Assert.Empty(ingest.Library.Imported);
+        Assert.Empty(ingest.Library.Stamped);
+        Assert.Empty(ingest.Library.Enriched);
+    }
+
+    /// <summary>
+    /// The same row, named by a delivery whose identifier resolves, is handed to the host WITH that
+    /// item's key.
+    /// </summary>
+    /// <remarks>
+    /// Asserted on the argument the host import received. A core that called it with no key would
+    /// satisfy "the host was called" and none of the claim - that key is the whole difference between
+    /// the host re-attaching the row and the host raising.
+    /// </remarks>
+    [Fact]
+    public async Task ADeliveryForADetachedPathWithAnIdentityHandsTheHostThatVideoKey()
+    {
+        const int carrier = 7;
+        var ingest = new Ingest();
+        ingest.HoldsDetached(VerifiedPath);
+        ingest.Library.ExistingIdentities.Add((carrier, "https://stashdb.org/graphql", RemoteId));
+
+        Assert.Equal(ImportOutcome.Imported, await ingest.DeliverAsync());
+
+        Assert.Equal((VerifiedPath, (int?)carrier), Assert.Single(ingest.Library.Imported));
+    }
+
     [Fact]
     public async Task TheDedupeReadIsIssuedOnEveryDeliveryIncludingTheSecond()
     {
@@ -131,6 +176,9 @@ public sealed class ImportCoreIdempotencyTests
         public StubPaths Paths { get; } = new() { Present = { [VerifiedPath] = ReportedSize } };
 
         public void Holds(string path) => Library.Held[path] = new HeldFile(1);
+
+        /// <summary>Puts a row at <paramref name="path"/> that no item claims.</summary>
+        public void HoldsDetached(string path) => Library.Held[path] = new HeldFile(null);
 
         /// <summary>Puts one outstanding refusal in the blob, so a clearing write would show.</summary>
         public async Task SeedRefusalAsync()
