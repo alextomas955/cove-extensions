@@ -41,7 +41,12 @@ internal sealed class BackstopPass(
             return new BackstopPassResult(BackstopPassOutcome.NotConfigured, null, 0, 0, 0, 0, 0);
         }
 
-        var walk = await WalkAsync(generation, baseAddress, apiKey, connection!.BackstopWatermarkUtc, ct)
+        // Captured beside the connection this pass is about to use rather than read back at the end: a
+        // save committed while the walk runs moves the stored one, and what the fold has to decide is
+        // whether the record it lands on is still the instance this walk read.
+        var walkedAddress = connection!.Address;
+
+        var walk = await WalkAsync(generation, baseAddress, apiKey, connection.BackstopWatermarkUtc, ct)
             .ConfigureAwait(false);
 
         // A refused pass leaves the mark where it was. Moving it forward over pages the walk declined
@@ -52,7 +57,7 @@ internal sealed class BackstopPass(
             // pass is another first connect. The position IS lost here - the records before this mark
             // are never replayed - so the flag is raised in the same fold that clears the failures.
             await RecordWalkedAsync(
-                generation, walk.Watermark ?? clock.GetUtcNow(), positionLost: true, ct)
+                generation, walkedAddress, walk.Watermark ?? clock.GetUtcNow(), positionLost: true, ct)
                 .ConfigureAwait(false);
         }
         else if (walk.Outcome == BackstopPassOutcome.Walked)
@@ -60,7 +65,7 @@ internal sealed class BackstopPass(
             // Recorded even with no watermark to write. A page with nothing past the mark is an
             // instance this pass reached, authenticated against and read the history of, which is what
             // the health half of this write reports; the mark simply stays where it was.
-            await RecordWalkedAsync(generation, walk.Watermark, positionLost: false, ct)
+            await RecordWalkedAsync(generation, walkedAddress, walk.Watermark, positionLost: false, ct)
                 .ConfigureAwait(false);
         }
         else if (IsRefusal(walk.Outcome))
@@ -207,14 +212,24 @@ internal sealed class BackstopPass(
     /// One fold, so the mark and the health cannot be written against two different readings of the
     /// blob. The last-failed instant is left alone: it records that a failure happened, and clearing
     /// it would destroy the only record of when.
+    /// <para>
+    /// The mark is refused when the stored record no longer names <paramref name="walkedAddress"/>,
+    /// because it would then name a position in a different instance's history and every record
+    /// before it would never be read. The health half is written either way: it describes the pass
+    /// and not the position.
+    /// </para>
     /// </remarks>
     // Folded onto whatever the gate loads rather than onto the blob this pass opened with: the ingest
     // core writes the refusal aggregate to the same blob while the walk runs.
     private async Task RecordWalkedAsync(
-        WhisparrGeneration generation, DateTimeOffset? mark, bool positionLost, CancellationToken ct)
+        WhisparrGeneration generation,
+        string walkedAddress,
+        DateTimeOffset? mark,
+        bool positionLost,
+        CancellationToken ct)
         => await gate.MutateAsync(
             options,
-            stored => Marked(stored, generation, mark) with
+            stored => Marked(stored, generation, walkedAddress, mark) with
             {
                 ImportHealth = stored.ImportHealth with
                 {
@@ -226,10 +241,15 @@ internal sealed class BackstopPass(
             ct).ConfigureAwait(false);
 
     private static WhisparrSyncOptions Marked(
-        WhisparrSyncOptions stored, WhisparrGeneration generation, DateTimeOffset? mark)
-        => mark is { } reached && stored.ConnectionFor(generation) is { } connection
-            ? stored.WithConnectionFor(generation, connection with { BackstopWatermarkUtc = reached })
-            : stored;
+        WhisparrSyncOptions stored,
+        WhisparrGeneration generation,
+        string walkedAddress,
+        DateTimeOffset? mark)
+        => mark is { } reached
+            && stored.ConnectionFor(generation) is { } connection
+            && ConnectionTester.IsSameAddress(connection.Address, walkedAddress)
+                ? stored.WithConnectionFor(generation, connection with { BackstopWatermarkUtc = reached })
+                : stored;
 
     private async Task RecordFailureAsync(BackstopPassOutcome outcome, CancellationToken ct)
     {
