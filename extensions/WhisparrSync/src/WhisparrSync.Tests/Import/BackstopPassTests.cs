@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Globalization;
 using System.Reflection;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
@@ -781,8 +782,8 @@ public sealed class BackstopPassTests
         Assert.Equal(20 * BackstopPass.PageSize, overAThousand.RecordsTaken);
         Assert.Equal(3, overThree.RecordsTaken);
         Assert.Equal(
-            RenderedSizeOf(overThree with { RecordsTaken = 0, Imported = 0, PagesRead = 0 }),
-            RenderedSizeOf(overAThousand with { RecordsTaken = 0, Imported = 0, PagesRead = 0 }));
+            Serialized(overThree with { RecordsTaken = 0, Imported = 0, PagesRead = 0 }),
+            Serialized(overAThousand with { RecordsTaken = 0, Imported = 0, PagesRead = 0 }));
     }
 
     /// <summary>Neither the pass nor its answer declares a collection member.</summary>
@@ -805,8 +806,13 @@ public sealed class BackstopPassTests
     private static bool IsCollection(Type type)
         => type != typeof(string) && typeof(IEnumerable).IsAssignableFrom(type);
 
-    /// <summary>How long a result renders as, which grows with anything it accumulated.</summary>
-    private static int RenderedSizeOf(BackstopPassResult result) => result.ToString().Length;
+    /// <summary>Everything a result carries, written out in full.</summary>
+    /// <remarks>
+    /// A record's own <c>ToString</c> renders a collection member as its type name, which is the same
+    /// length whatever the member holds, so a result that accumulated the library would render at the
+    /// size of one that accumulated nothing.
+    /// </remarks>
+    private static string Serialized(BackstopPassResult result) => JsonSerializer.Serialize(result);
 
     /// <summary>A settings save aiming v3 at <paramref name="address"/>, leaving the key alone.</summary>
     private static WhisparrSyncSettingsSaveRequest Aiming(string address)
