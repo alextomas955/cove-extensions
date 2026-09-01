@@ -44,8 +44,11 @@ which one you hit:
 - a `SecondVolume.IsAvailable` gate for the cross-volume tests, which need a real second mount and skip
   with the reason that helper reports.
 
-The Windows-gated path tests live in `Renamer.Tests`, and the Windows CI leg runs `Renamer.Tests`, so
-that leg is coverage for them.
+**Do not read the Windows CI leg as coverage for every Windows-gated case.** Those cases are split
+across both projects, and the Windows leg builds and runs only the checkout-free one. The
+Windows-gated cases in the Cove-dependent project run in no CI leg: no Windows runner builds that
+project, and on the Linux legs they skip. They execute on a Windows machine with a Cove checkout and
+nowhere else. Check which set you actually ran rather than assuming.
 
 ## Run the two projects one after another, not at once
 
@@ -69,8 +72,8 @@ lists for the current set; what matters here is which leg runs which project.
 - **The `test-cove-present` job** checks out Cove at the version under test and runs **both**
   projects in `source` mode. If you want to know whether the host-dependent tests passed in CI, this
   is the leg to read.
-- **The `windows-build-test` job** in `lint.yml` runs `Renamer.Tests` on Windows in `none` mode. That
-  is where the Windows-gated path assertions actually execute.
+- **The `windows-build-test` job** in `lint.yml` runs `Renamer.Tests` on Windows in `none` mode.
+  It is the only leg that executes any Windows-gated case, and it reaches only the ones in that project.
 - **The `csharp-format` job** in `lint.yml` builds the whole solution in `source` mode with warnings
   as errors, so both projects are inside the analyzer and format gates.
 - **The containerized end-to-end job** drives the real rename and relocate flow against the Cove app
