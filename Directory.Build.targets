@@ -90,4 +90,7 @@
            Text="A Cove location was supplied explicitly (resolved CoveRepoRoot='$(CoveRepoRootResolved)') but the resolved mode is 'none'. Refusing to fall back to the cove-absent branch, because it would compile a smaller test set and still report success." />
   </Target>
 
+  <Import Project="$(MSBuildThisFileDirectory)SkipWithoutCoveSource.targets"
+          Condition="'$(RequiresCoveSource)' == 'true' AND '$(CoveSourceMode)' != 'source' AND '$(SolutionPath)' != '*Undefined*' AND '$(SolutionPath)' != ''" />
+
 </Project>

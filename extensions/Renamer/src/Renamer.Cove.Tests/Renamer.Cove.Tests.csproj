@@ -6,6 +6,9 @@
     <OutputType>Exe</OutputType>
     <!-- a test project is never a Cove plugin: neutralize the inherited dynamic-loading flag -->
     <EnableDynamicLoading>false</EnableDynamicLoading>
+    <!-- The project's own statement that it cannot compile without a Cove source checkout. The root
+         Directory.Build.targets reads it, so the repository root never names this project. -->
+    <RequiresCoveSource>true</RequiresCoveSource>
     <!--
       Every type here declares a Renamer.Tests.* namespace, and the root namespace has to agree with
       them. Left at its default it would follow the project name, which puts the generated test entry

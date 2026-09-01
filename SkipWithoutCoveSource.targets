@@ -1,0 +1,20 @@
+<Project>
+
+  <!--
+    A Target element cannot be conditioned out of existence, and an overriding Build has to be absent
+    entirely where it does not apply, so it sits in its own file that Directory.Build.targets imports
+    under a condition.
+
+    The override takes effect only because Directory.Build.targets is evaluated after the SDK targets
+    that define Build.
+
+    $(SolutionPath) separates a solution build from a direct one; it does not separate an entry
+    project from one reached through a ProjectReference, which would take this skip with it. Scoping
+    the skip to a solution build holds only while nothing references this project.
+  -->
+  <Target Name="Build">
+    <Message Importance="high"
+             Text="$(MSBuildProjectName): not built - CoveSourceMode is '$(CoveSourceMode)' and this project requires a Cove source checkout, so the solution build skipped it and its tests neither compiled nor ran. Point COVE_REPO or -p:CoveRepoRoot at a checkout to include it." />
+  </Target>
+
+</Project>
