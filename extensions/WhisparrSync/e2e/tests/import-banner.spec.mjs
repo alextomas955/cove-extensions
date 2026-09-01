@@ -1,9 +1,12 @@
 // The banner, on the settings page a user actually opens, against a live Cove and a live Whisparr.
 //
-// Three acts. The first asserts the banner is ABSENT before anything is delivered, so its later
+// Four acts. The first asserts the banner is ABSENT before anything is delivered, so its later
 // presence cannot have been true all along. The second builds one root's line up past the three paths
 // it keeps. The third is the point of the whole design: a success under one root must clear that
-// root's line and leave a root that is still failing exactly as it was.
+// root's line and leave a root that is still failing exactly as it was. The fourth is the ordinary way
+// a user recovers - they add the root they were missing, Cove's own import brings the file in, and the
+// next delivery for it finds it already there - which must clear that root's line without waiting for
+// a genuinely new file.
 //
 // Every assertion is on the Cove side — what the page draws, and what the extension stored. The
 // callback's status says the request was well formed and nothing about whether anything was
@@ -19,7 +22,7 @@ import {
   isolatedHarnessFixture,
 } from "@cove-extensions/e2e";
 import { pollUntil } from "@cove-extensions/e2e/poll";
-import { placeVideoUnregistered } from "@cove-extensions/e2e/seed-media";
+import { placeVideoUnregistered, seedVideo } from "@cove-extensions/e2e/seed-media";
 import { registerRootFolder, startWhisparr } from "@cove-extensions/e2e/whisparr";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -61,6 +64,8 @@ const COVE_ROOT = "/data";
 const ACT_TWO_REFUSAL_BUDGET_MS = 60_000;
 const ACT_THREE_REFUSAL_BUDGET_MS = 60_000;
 const ACT_THREE_IMPORT_BUDGET_MS = 120_000;
+const ACT_FOUR_REFUSAL_BUDGET_MS = 60_000;
+const ACT_FOUR_CLEAR_BUDGET_MS = 60_000;
 
 // A cold container serving the extension bundle for the first time is slow rather than broken and
 // raises no signal to wait on.
@@ -210,9 +215,9 @@ test("the banner names each failing root, bounds its list, and clears only the r
   baseUrl,
   page,
 }) => {
-  // A Cove pair, a Whisparr container, six deliveries and five panel loads between them. The default
+  // A Cove pair, a Whisparr container, nine deliveries and seven panel loads between them. The default
   // per-test budget covers none of it.
-  test.setTimeout(900_000);
+  test.setTimeout(1_200_000);
 
   const api = createApiClient(
     () => isolatedHarness.baseUrl,
@@ -410,6 +415,104 @@ test("the banner names each failing root, bounds its list, and clears only the r
       await bannerAfterOpening(page, baseUrl),
       "act three: the banner is still on the page with nothing left to report",
     ).toBeNull();
+
+    // ---- act four: the user fixes the root, Cove's own import brings the file in ----
+    // Two lines raised first, so the clear below has something to clear and something to leave alone.
+    const recoveredTail = `${randomUUID()}.mp4`;
+    const stillFailingTail = `${randomUUID()}.mp4`;
+    await deliver(`${WHISPARR_ROOT}/${recoveredTail}`, 4096);
+    await deliver(`${WHISPARR_OTHER_ROOT}/${stillFailingTail}`, 4096);
+
+    await pollUntil(
+      () => refusalsIn(api),
+      (refusals) =>
+        lineFor(refusals, WHISPARR_ROOT) !== undefined &&
+        lineFor(refusals, WHISPARR_OTHER_ROOT) !== undefined,
+      {
+        timeoutMs: ACT_FOUR_REFUSAL_BUDGET_MS,
+        intervalMs: 1_000,
+        label: "act four: a refusal counted against each root",
+      },
+    );
+
+    const stillFailingBefore = (await bannerAfterOpening(page, baseUrl))?.find((line) =>
+      line.includes(WHISPARR_OTHER_ROOT),
+    );
+    expect(stillFailingBefore, `act four: no line named ${WHISPARR_OTHER_ROOT}`).toBeDefined();
+
+    const idsBeforeSeed = (await videosIn(api)).map((video) => video.id);
+
+    // Registered through COVE's own import route rather than this extension's, which is what the user
+    // gets when they add the missing root and let the library scan run. The item therefore exists
+    // without this extension having caused it.
+    await seedVideo({
+      container: isolatedHarness.container,
+      baseUrl: isolatedHarness.baseUrl,
+      token: isolatedHarness.token,
+      destName: recoveredTail,
+    });
+
+    // Polled, not assumed: the redelivery below only exercises the already-held branch once Cove
+    // itself holds the file, so this is the precondition of the act rather than a convenience.
+    const idsAfterSeed = await pollUntil(
+      () => videosIn(api).then((videos) => videos.map((video) => video.id)),
+      (ids) => ids.length > idsBeforeSeed.length,
+      {
+        timeoutMs: ACT_FOUR_CLEAR_BUDGET_MS,
+        intervalMs: 1_000,
+        label: `act four: Cove's own import to hold ${recoveredTail} (was ${JSON.stringify(idsBeforeSeed)})`,
+      },
+    );
+
+    const recovered = await isolatedHarness.exec([
+      "stat",
+      "-c",
+      "%s",
+      `${COVE_ROOT}/${recoveredTail}`,
+    ]);
+    const recoveredSize = Number(recovered.output.trim());
+    expect(
+      Number.isInteger(recoveredSize) && recoveredSize > 0,
+      `stat reported ${recovered.output.trim()}`,
+    ).toBe(true);
+
+    // The same reported path as the refused delivery. Only the size differs, and the size decides
+    // nothing until there is a file to compare it against.
+    await deliver(`${WHISPARR_ROOT}/${recoveredTail}`, recoveredSize);
+
+    await pollUntil(
+      () => refusalsIn(api),
+      (refusals) => lineFor(refusals, WHISPARR_ROOT) === undefined,
+      {
+        timeoutMs: ACT_FOUR_CLEAR_BUDGET_MS,
+        intervalMs: 1_000,
+        label: `act four: ${WHISPARR_ROOT}'s line to be cleared by a delivery it already held`,
+      },
+    );
+
+    expect(
+      lineFor(await refusalsIn(api), WHISPARR_OTHER_ROOT),
+      `act four: ${WHISPARR_OTHER_ROOT}'s line went with it, so the clear was not per root`,
+    ).toBeDefined();
+
+    // The same items, not merely the same number of them: a redelivery for a file the library already
+    // holds must neither stand up a second item nor take one away.
+    expect(
+      (await videosIn(api)).map((video) => video.id),
+      "act four: the redelivery changed which items Cove holds for a file it already had",
+    ).toEqual(idsAfterSeed);
+
+    const afterRecovery = await bannerAfterOpening(page, baseUrl);
+    expect(afterRecovery, "act four: the whole banner went away").not.toBeNull();
+    expect(afterRecovery).toHaveLength(1);
+    expect(
+      afterRecovery[0],
+      `act four: ${WHISPARR_ROOT}'s line survived a delivery whose file the library already held`,
+    ).not.toContain(WHISPARR_ROOT);
+    expect(
+      afterRecovery[0],
+      `act four: ${WHISPARR_OTHER_ROOT}'s line changed although nothing happened under it`,
+    ).toBe(stillFailingBefore);
   } finally {
     // Before the harness's own, which the isolated fixture runs after this test: the daemon refuses
     // to remove a network a container still holds an endpoint on.
