@@ -130,7 +130,7 @@ public sealed class ImportCoreIdempotencyTests
 
         public StubPaths Paths { get; } = new() { Present = { [VerifiedPath] = ReportedSize } };
 
-        public void Holds(string path) => Library.Held[path] = 1;
+        public void Holds(string path) => Library.Held[path] = new HeldFile(1);
 
         /// <summary>Puts one outstanding refusal in the blob, so a clearing write would show.</summary>
         public async Task SeedRefusalAsync()
