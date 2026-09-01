@@ -207,6 +207,7 @@ public sealed record ImportRootRefusals
     public const int NewestPathsKept = 3;
 
     private readonly string _root = "";
+    private readonly List<ImportRefusalEntry> _newestPaths = [];
 
     /// <summary>The Whisparr root the refused path fell under.</summary>
     public string Root
@@ -219,7 +220,16 @@ public sealed record ImportRootRefusals
     public int CountSinceLastSuccess { get; init; }
 
     /// <summary>The newest offending paths, newest first.</summary>
-    public List<ImportRefusalEntry> NewestPaths { get; init; } = [];
+    /// <remarks>
+    /// Emptied here rather than by an initialiser, which runs only for an ABSENT key: a stored blob
+    /// naming this member as null binds it as null, and the load path's non-null restore does not
+    /// descend into a collection's elements to replace it.
+    /// </remarks>
+    public List<ImportRefusalEntry> NewestPaths
+    {
+        get => _newestPaths;
+        init => _newestPaths = value ?? [];
+    }
 
     /// <summary>
     /// <paramref name="root"/> in the one spelling this aggregate stores it under.
