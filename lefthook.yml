@@ -45,8 +45,10 @@ pre-commit:
     # --- C#: format changed projects in place (cheap; no full build) ---
     # Fixes rather than verifies, matching the prettier/eslint hooks above: the check costs the same
     # solution load either way, so reporting a violation a contributor then has to fix by hand buys
-    # nothing over fixing it here.
+    # nothing over fixing it here. The wrapper passes these arguments, the tool's output and its exit
+    # status through unchanged, and adds one line naming any project whose references did not load —
+    # without a Cove checkout those projects get a whitespace-only check and no analyzer finding.
     csharp-format:
       glob: "*.cs"
-      run: dotnet format CoveExtensions.slnx --severity warn --include {staged_files}
+      run: node scripts/check-csharp-format.mjs --severity warn --include {staged_files}
       stage_fixed: true
