@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Options;
@@ -206,7 +207,73 @@ public sealed class StoredConnectionTestTests
         Assert.Equal(Now, stored.LastReachableAtUtc);
     }
 
+    /// <summary>
+    /// The version an instance reports is stored shortened however long the answer was, so the one
+    /// write that records a reading cannot be how an oversized value reaches the blob.
+    /// </summary>
+    [Fact]
+    public async Task AnOverLongReportedVersionIsStoredShortened()
+    {
+        var options = await SeededAsync(recordedVersion: null, verifiedAt: null, lastReachableAt: null);
+        var reported = new string('x', WhisparrSyncGenerationConnection.RecordedVersionMaxLength * 4);
+        var runner = NewRunner(RecordingConnectionTester.Connected(reported), options, KeyPort());
+
+        await runner.TestStoredAsync(TestCt);
+
+        var stored = await ConnectionAsync(options);
+        Assert.Equal(
+            WhisparrSyncGenerationConnection.RecordedVersionMaxLength,
+            stored.RecordedVersion?.Length);
+        Assert.Equal(Now, stored.VersionVerifiedAtUtc);
+    }
+
+    /// <summary>
+    /// The three readings the answering instance chooses are shortened where the view is projected,
+    /// so the body the settings page reads cannot be as large as the body that arrived.
+    /// </summary>
+    /// <remarks>
+    /// The ordinary document is the control: a projection that dropped all three would satisfy the
+    /// length assertions on their own. The echoed version is held to the ceiling the stored reading
+    /// uses, because the stored reading is this value.
+    /// </remarks>
+    [Fact]
+    public async Task TheEchoedReadingsAreShortenedWhereTheViewIsProjected()
+    {
+        var overLong = new string('x', ConnectionTester.ReportedNameMaxLength * 4);
+
+        var shortened = await ViewOfAsync("3." + overLong, overLong, overLong);
+
+        Assert.Equal(
+            WhisparrSyncGenerationConnection.RecordedVersionMaxLength, shortened.Version?.Length);
+        Assert.Equal(ConnectionTester.ReportedNameMaxLength, shortened.Branch?.Length);
+        Assert.Equal(ConnectionTester.ReportedNameMaxLength, shortened.OtherApplication?.Length);
+
+        var ordinary = await ViewOfAsync("3.3.8.1097", "eros", "Radarr");
+
+        Assert.Equal("3.3.8.1097", ordinary.Version);
+        Assert.Equal("eros", ordinary.Branch);
+        Assert.Equal("Radarr", ordinary.OtherApplication);
+    }
+
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
+
+    /// <summary>The view a status document naming those three readings is projected into.</summary>
+    /// <remarks>
+    /// Driven through the real tester over the recording client seam, so the projection under test is
+    /// the one the route reaches rather than a view a double assembled.
+    /// </remarks>
+    private static async Task<ConnectionTestView> ViewOfAsync(
+        string version, string branch, string appName)
+    {
+        var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(
+            200,
+            $$"""
+            { "appName": "{{appName}}", "version": "{{version}}", "branch": "{{branch}}" }
+            """));
+
+        return await new ConnectionTester(client, NullLogger<ConnectionTester>.Instance)
+            .TestAsync(StoredAddress, StoredKey, TestCt);
+    }
 
     private static ConnectionTestRunner NewRunner(
         IWhisparrConnectionTester tester, OptionsStore options, ICredentialPort credentials)

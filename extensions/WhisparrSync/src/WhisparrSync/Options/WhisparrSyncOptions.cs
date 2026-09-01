@@ -60,6 +60,9 @@ public enum UpgradeBehavior
 /// </remarks>
 public sealed record WhisparrSyncGenerationConnection
 {
+    /// <summary>The longest reported version string this keeps.</summary>
+    public const int RecordedVersionMaxLength = 64;
+
     /// <summary>The instance's base address, as it was saved.</summary>
     public string Address { get; init; } = "";
 

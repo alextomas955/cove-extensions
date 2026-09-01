@@ -477,6 +477,70 @@ public sealed class WhisparrSyncOptionsTests
     }
 
     /// <summary>
+    /// A reported version is shortened where it is stored, so an instance at the configured address
+    /// cannot make the whole blob the host serves in one piece too large to serve.
+    /// </summary>
+    /// <remarks>
+    /// The ordinary reading is the control: a bound that blanked every value would satisfy the two
+    /// length assertions on their own. Null is kept as null, which is what distinguishes a connection
+    /// no test has read a version from.
+    /// </remarks>
+    [Fact]
+    public void AReportedVersionIsShortenedWhereItIsStored()
+    {
+        var maximum = WhisparrSyncGenerationConnection.RecordedVersionMaxLength;
+        var overLong = new WhisparrSyncGenerationConnection
+        {
+            RecordedVersion = new string('x', maximum * 4),
+        };
+        var atTheMaximum = new WhisparrSyncGenerationConnection
+        {
+            RecordedVersion = new string('y', maximum),
+        };
+        var ordinary = new WhisparrSyncGenerationConnection { RecordedVersion = "3.3.8.1097" };
+        var neverRead = new WhisparrSyncGenerationConnection();
+
+        Assert.Equal(maximum, overLong.RecordedVersion?.Length);
+        Assert.Equal(maximum, atTheMaximum.RecordedVersion?.Length);
+        Assert.Equal("3.3.8.1097", ordinary.RecordedVersion);
+        Assert.Null(neverRead.RecordedVersion);
+    }
+
+    /// <summary>
+    /// A stored version longer than the maximum loads shortened, so a blob an earlier build wrote
+    /// cannot reintroduce a value with no ceiling.
+    /// </summary>
+    /// <remarks>
+    /// Written as a literal rather than produced by serializing anything: the model can no longer
+    /// hold the value this asks the load path to bind.
+    /// </remarks>
+    [Fact]
+    public async Task AnOverLongStoredVersionLoadsShortened()
+    {
+        var store = new FakeStore();
+        var stored = new string('x', WhisparrSyncGenerationConnection.RecordedVersionMaxLength * 4);
+        await store.SetAsync(
+            OptionsStore.Key,
+            $$"""
+            {
+              "SelectedGeneration": "v3",
+              "V3": {
+                "Address": "http://v3-host:6969/",
+                "RecordedVersion": "{{stored}}"
+              }
+            }
+            """);
+
+        var loaded = await new OptionsStore(store).LoadAsync();
+
+        var connection = loaded.ConnectionFor(WhisparrGeneration.V3);
+        Assert.NotNull(connection);
+        Assert.Equal(
+            WhisparrSyncGenerationConnection.RecordedVersionMaxLength,
+            connection.RecordedVersion?.Length);
+    }
+
+    /// <summary>
     /// A recorded failure text is shortened where it is stored, so one exception message cannot make
     /// the whole blob the host serves in one piece too large to serve.
     /// </summary>
