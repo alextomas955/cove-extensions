@@ -168,6 +168,7 @@ public sealed class ImportCoreIdentityTests
                     new OptionsStore(Store),
                     new OptionsWriteGate(),
                     new FollowUpScanCoalescer(TimeProvider.System, NullLogger.Instance),
+                    TimeProvider.System,
                     log ?? NullLogger.Instance)
                 .IngestAsync(
                     new ImportCandidate(
