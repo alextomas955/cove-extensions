@@ -21,8 +21,8 @@ public enum ImportRefusalCause
     /// <summary>The host was asked to take the verified file and would not.</summary>
     /// <remarks>
     /// The wire spelling is persisted in the stored options blob, so it stays as it is: a value a
-    /// later model cannot bind makes the whole blob load as defaults, which discards the user's
-    /// connection and watermarks with nothing observable happening.
+    /// later model cannot bind makes the whole blob load as defaults, and the extension then runs on
+    /// them, refusing every write, until the stored blob is repaired.
     /// </remarks>
     Unreadable,
 }

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 using Cove.Plugins;
+using Microsoft.Extensions.Logging;
 using WhisparrSync.Options;
 
 namespace WhisparrSync.Tests.Options;
@@ -16,6 +17,17 @@ namespace WhisparrSync.Tests.Options;
 public sealed class OptionsWriteGateTests
 {
     private const string MovedHost = "http://cove.example:8080";
+    private const string StoredAddress = "http://whisparr.example:6969";
+    private const string StoredWatermark = "2026-01-01T00:00:00+00:00";
+
+    /// <summary>A stored blob carrying a configured connection that the model cannot bind.</summary>
+    /// <remarks>
+    /// The interval is a string where the model declares an int, which is what fails the bind. The
+    /// address and the watermark are the members a save built on the fallback would replace.
+    /// </remarks>
+    private const string UnbindableBlob = $$"""
+        {"v3":{"address":"{{StoredAddress}}","backstopWatermarkUtc":"{{StoredWatermark}}"},"backstopIntervalSeconds":"every so often"}
+        """;
 
     /// <summary>How long a mutation that is not blocked on the store may take.</summary>
     private static readonly TimeSpan Budget = TimeSpan.FromSeconds(10);
@@ -25,6 +37,9 @@ public sealed class OptionsWriteGateTests
     /// somewhere the store cannot see.
     /// </summary>
     private static readonly TimeSpan Lapse = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>The instant the health fold records, standing in for a clock reading.</summary>
+    private static readonly DateTimeOffset WorkedAt = new(2026, 2, 3, 4, 5, 6, TimeSpan.Zero);
 
     /// <summary>
     /// Two mutations that meet both survive, because the second folds onto what the first stored.
@@ -147,7 +162,90 @@ public sealed class OptionsWriteGateTests
         Assert.Equal(typeof(Func<WhisparrSyncOptions, WhisparrSyncOptions>), fold.ParameterType);
     }
 
+    /// <summary>
+    /// A blob the model cannot bind loads as defaults, and a mutation folded onto those defaults is
+    /// not written over it.
+    /// </summary>
+    /// <remarks>
+    /// The fold is the one the import channel performs on every success, which writes an instant that
+    /// always differs, so the equal-value short circuit never stands in for the refusal.
+    /// </remarks>
+    [Fact]
+    public async Task AMutationOnABlobTheModelCannotBindIsNotSavedOverIt()
+    {
+        var store = new FakeStore();
+        await store.SetAsync(OptionsStore.Key, UnbindableBlob, TestCt);
+        var options = new OptionsStore(store);
+        var log = new CountingLogger();
+        using var gate = new OptionsWriteGate(log);
+        var writes = store.SetCallCount;
+
+        var answered = await gate.MutateAsync(options, RecordAnImport, TestCt);
+
+        var persisted = await store.GetAsync(OptionsStore.Key, TestCt);
+        Assert.Contains(StoredAddress, persisted);
+        Assert.Contains(StoredWatermark, persisted);
+        Assert.Equal(UnbindableBlob, persisted);
+        Assert.Equal(writes, store.SetCallCount);
+        Assert.Null(answered.ImportHealth.LastWorkedAtUtc);
+        Assert.Equal(1, log.Refusals);
+    }
+
+    /// <summary>
+    /// A store with nothing under the key still loads defaults, and the same mutation is written.
+    /// </summary>
+    /// <remarks>
+    /// An absent blob and an unbindable one are different states. Without this, a gate that refused
+    /// every write would satisfy the refusal above.
+    /// </remarks>
+    [Fact]
+    public async Task AnEmptyStoreLoadsDefaultsAndTheSameMutationIsSaved()
+    {
+        var store = new FakeStore();
+        var options = new OptionsStore(store);
+        var log = new CountingLogger();
+        using var gate = new OptionsWriteGate(log);
+
+        var answered = await gate.MutateAsync(options, RecordAnImport, TestCt);
+
+        Assert.Equal(WorkedAt, answered.ImportHealth.LastWorkedAtUtc);
+        Assert.Equal(1, store.SetCallCount);
+        var reloaded = await options.LoadAsync(TestCt);
+        Assert.Equal(WorkedAt, reloaded.ImportHealth.LastWorkedAtUtc);
+        Assert.Equal(0, log.Refusals);
+    }
+
+    /// <summary>The fold the import channel runs on every successful import.</summary>
+    private static WhisparrSyncOptions RecordAnImport(WhisparrSyncOptions stored)
+        => stored with { ImportHealth = stored.ImportHealth with { LastWorkedAtUtc = WorkedAt } };
+
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
+
+    /// <summary>Counts the one refused-mutation line, by its event id.</summary>
+    private sealed class CountingLogger : ILogger
+    {
+        private const int RefusedMutationEventId = 2116;
+
+        public int Refusals { get; private set; }
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (eventId.Id == RefusedMutationEventId)
+            {
+                Refusals++;
+            }
+        }
+    }
 
     /// <summary>
     /// A store whose load parks until the test releases it, so the window between one writer's load
