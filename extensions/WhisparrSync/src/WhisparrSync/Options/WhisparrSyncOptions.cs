@@ -168,14 +168,27 @@ public sealed record ImportHealthAggregate
 /// <summary>One offending path and why it was not imported.</summary>
 public sealed record ImportRefusalEntry
 {
-    /// <summary>The longest reported path this stores.</summary>
+    /// <summary>The longest reported path this keeps.</summary>
     public const int PathMaxLength = 512;
 
+    private readonly string _path = "";
+
     /// <summary>The path the delivery reported.</summary>
-    public string Path { get; init; } = "";
+    /// <remarks>
+    /// Shortened to <see cref="PathMaxLength"/> here rather than at each writer. A reported path has
+    /// no length of its own, and this blob is served whole by the host's bulk extension-data route.
+    /// </remarks>
+    public string Path
+    {
+        get => _path;
+        init => _path = Shorten(value);
+    }
 
     /// <summary>Why that path was refused.</summary>
     public ImportRefusalCause Cause { get; init; }
+
+    private static string Shorten(string? path)
+        => path is null || path.Length <= PathMaxLength ? path ?? "" : path[..PathMaxLength];
 }
 
 /// <summary>One Whisparr root's refusals since that root's last successful import.</summary>
