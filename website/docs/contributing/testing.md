@@ -208,7 +208,9 @@ behavior.
   only leg that would notice a package the host refuses to load.
 
 `lint.yml` adds two more. Its **`windows-build-test` job** builds and runs the checkout-free project
-on Windows in `none` mode, which is where the Windows-gated path assertions execute. Its
+on Windows in `none` mode. It is the only leg that executes any Windows-gated case, and it reaches
+only the ones in that project — the Windows-gated cases in the Cove-dependent project run in no CI leg.
+Check which set you actually ran rather than assuming. Its
 **`csharp-format` job** checks out Cove at the floor the extensions declare and builds the whole
 solution in `source` mode with warnings as errors, so both test projects sit inside the format and
 analyzer gates. The end-to-end tier cannot run on Windows at all: GitHub-hosted Windows runners fix
