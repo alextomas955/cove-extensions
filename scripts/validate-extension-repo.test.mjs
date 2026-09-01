@@ -175,7 +175,9 @@ test("the summary line reports counts, and a check with no subject renders 0 rat
       "Validated 1 extension catalog entries: 1 minCoveVersion floor comparison(s), " +
         "4 declared catalog path(s), 2 CoveExtensions.slnx membership(s), " +
         "1 registry row(s) compared across " +
-        "1 declared registry manifest(s).",
+        "1 declared registry manifest(s), " +
+        "0 project file(s) scanned for ProjectReference items onto " +
+        "0 declared Cove test project(s).",
     );
   } finally {
     rmSync(maximal, { recursive: true, force: true });
@@ -195,7 +197,9 @@ test("the summary line reports counts, and a check with no subject renders 0 rat
       "Validated 1 extension catalog entries: 0 minCoveVersion floor comparison(s), " +
         "0 declared catalog path(s), 0 CoveExtensions.slnx membership(s), " +
         "0 registry row(s) compared across " +
-        "0 declared registry manifest(s).",
+        "0 declared registry manifest(s), " +
+        "0 project file(s) scanned for ProjectReference items onto " +
+        "0 declared Cove test project(s).",
     );
   } finally {
     rmSync(minimal, { recursive: true, force: true });

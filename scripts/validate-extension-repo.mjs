@@ -92,6 +92,40 @@ function normalizeSeparators(value) {
   return value.replaceAll("\\", "/");
 }
 
+// Build output, dependencies and the docs site, none of which hold first-party project source. An
+// extension placing a .csproj under one of these names would be invisible to the reference rule
+// below, and nothing would report it.
+const referenceScanSkippedDirectories = new Set(["node_modules", "bin", "obj", ".git", "website"]);
+
+// Walked from the repository root rather than read from the catalog, because a project taking the
+// forbidden reference is by definition one the catalog does not declare.
+function collectProjectFiles(dir, collected = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (referenceScanSkippedDirectories.has(entry.name)) continue;
+      collectProjectFiles(path.join(dir, entry.name), collected);
+    } else if (entry.isFile() && entry.name.endsWith(".csproj")) {
+      collected.push(path.join(dir, entry.name));
+    }
+  }
+  return collected;
+}
+
+// Resolved against the containing project's own directory, because that is how MSBuild reads a
+// relative Include, and returned repo-relative so it can be compared against a catalog field. An
+// Include resolving outside the root yields leading parent segments, which match no catalog value.
+function readProjectReferences(projectFilePath) {
+  const content = fs.readFileSync(projectFilePath, "utf8");
+  const projectDir = path.dirname(projectFilePath);
+  const references = [];
+  const pattern = /<ProjectReference\b[^>]*\bInclude\s*=\s*"([^"]*)"/g;
+  for (const match of content.matchAll(pattern)) {
+    const resolved = path.resolve(projectDir, normalizeSeparators(match[1]));
+    references.push(normalizeSeparators(path.relative(root, resolved)));
+  }
+  return references;
+}
+
 function parseVersion(value) {
   if (typeof value !== "string") return null;
   const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(value);
@@ -219,6 +253,10 @@ let registryFloorComparisons = 0;
 // solution is read once rather than per entry.
 const impliedProjects = [];
 
+// The subset that requires a Cove source checkout, gathered separately so the repository is walked
+// once, and only when there is something to compare against.
+const coveTestProjects = [];
+
 const ids = new Set();
 const tagPrefixes = new Set();
 for (const entry of entries) {
@@ -303,6 +341,7 @@ for (const entry of entries) {
       field: "coveTestProjectPath",
       value: entry.coveTestProjectPath,
     });
+    coveTestProjects.push({ id: entry.id, value: entry.coveTestProjectPath });
   }
 
   if (!fs.existsSync(extensionDir)) {
@@ -441,6 +480,27 @@ if (impliedProjects.length > 0) {
   }
 }
 
+// SkipWithoutCoveSource.targets states the condition this asserts: $(SolutionPath) separates a
+// solution build from a direct one, and it does not separate an entry project from one reached
+// through a ProjectReference. The invariant holds today only because nothing takes that reference.
+let projectFilesScanned = 0;
+if (coveTestProjects.length > 0) {
+  const declaredCoveTestProjects = new Map(
+    coveTestProjects.map((project) => [normalizeSeparators(project.value), project]),
+  );
+  for (const projectFile of collectProjectFiles(root)) {
+    projectFilesScanned++;
+    const referencingProject = normalizeSeparators(path.relative(root, projectFile));
+    for (const reference of readProjectReferences(projectFile)) {
+      const target = declaredCoveTestProjects.get(reference);
+      if (!target) continue;
+      errors.push(
+        `${target.id}: ${referencingProject} declares a ProjectReference onto coveTestProjectPath ${target.value}, which requires a Cove source checkout. The solution build's skip for that project is scoped by $(SolutionPath), which does not separate a referenced project from an entry project, so ${referencingProject} would take the skip and then fail to resolve an output that was never produced.`,
+      );
+    }
+  }
+}
+
 if (errors.length > 0) {
   for (const error of errors) console.error(`ERROR: ${error}`);
   process.exit(1);
@@ -457,5 +517,7 @@ console.log(
     `${declaredPathChecks} declared catalog path(s), ` +
     `${solutionMemberships} ${solutionFileName} membership(s), ` +
     `${registryFloorComparisons} registry row(s) compared across ` +
-    `${registrySubjects} declared registry manifest(s).`,
+    `${registrySubjects} declared registry manifest(s), ` +
+    `${projectFilesScanned} project file(s) scanned for ProjectReference items onto ` +
+    `${coveTestProjects.length} declared Cove test project(s).`,
 );
