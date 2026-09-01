@@ -1,3 +1,4 @@
+using Cove.Core.DTOs;
 using Cove.Core.Entities;
 using Cove.Core.Interfaces;
 using Cove.Data;
@@ -276,6 +277,49 @@ public sealed class CoveLibraryPortTests
         Assert.False(await library.Port.EnrichAsync(videoId, ConfiguredEndpoint, RemoteId, Ct));
     }
 
+    /// <summary>A source that applied a record and a library that took it is the answered case.</summary>
+    /// <remarks>
+    /// The positive control for the case below: without it, a refusal to commit could equally mean the
+    /// merge is never reached at all.
+    /// </remarks>
+    [Fact]
+    public async Task AMergedRecordThatWasSavedIsAnsweredAsApplied()
+    {
+        await using var library = await LibraryFixture.CreateAsync(
+            configuredEndpoints: [ConfiguredEndpoint],
+            metadata: new MergingMetadataServer(video => video.Title = "the source's title"));
+        var videoId = await library.SeedVideoWithFileAsync("/data/scene.mp4");
+
+        Assert.True(await library.Port.EnrichAsync(videoId, ConfiguredEndpoint, RemoteId, Ct));
+        Assert.Equal("the source's title", await library.TitleOfAsync(videoId));
+    }
+
+    /// <summary>
+    /// A save that failed after the merge answered is raised as its own failure, not as the source's.
+    /// </summary>
+    /// <remarks>
+    /// Both halves of the call otherwise reach the caller as one broad catch, which can then only name
+    /// the source — and here the source applied its record. The record is applied and the connection
+    /// dropped inside the merge, so there is a real change to commit and no library to commit it to.
+    /// </remarks>
+    [Fact]
+    public async Task ASaveThatFailedAfterTheMergeIsRaisedAsAnUncommittedEnrichment()
+    {
+        await using var library = await LibraryFixture.CreateAsync(
+            configuredEndpoints: [ConfiguredEndpoint]);
+        var videoId = await library.SeedVideoWithFileAsync("/data/scene.mp4");
+        library.Reconfigure(new MergingMetadataServer(video =>
+        {
+            video.Title = "the source's title";
+            library.DropTheConnection();
+        }));
+
+        var raised = await Assert.ThrowsAsync<EnrichmentNotCommittedException>(
+            () => library.Port.EnrichAsync(videoId, ConfiguredEndpoint, RemoteId, Ct));
+
+        Assert.NotNull(raised.InnerException);
+    }
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     /// <summary>A host scan service whose video import raises, standing in for the real one.</summary>
@@ -297,6 +341,28 @@ public sealed class CoveLibraryPortTests
 
         public Task<int> ImportDownloadedTextAsync(string path, int? textDocumentId, CancellationToken ct = default)
             => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// A metadata source that applies a record and leaves the save to the caller, as the host's own
+    /// does.
+    /// </summary>
+    /// <remarks>
+    /// The host's merge mutates the entity it is handed and saves nothing, so what a test does inside
+    /// <paramref name="apply"/> lands in exactly the window the port then has to commit.
+    /// </remarks>
+    private sealed class MergingMetadataServer(Action<Video> apply) : IMetadataServerService
+    {
+        public Task<bool> MergeVideoAsync(
+            Video video,
+            string endpoint,
+            string videoId,
+            MetadataServerVideoImportRequestDto? importConfig,
+            CancellationToken ct)
+        {
+            apply(video);
+            return Task.FromResult(true);
+        }
     }
 
     /// <summary>Counts the one contained-host-import line, by its event id.</summary>
@@ -330,13 +396,17 @@ public sealed class CoveLibraryPortTests
     {
         private CoveContext _db = null!;
         private SqliteConnection _connection = null!;
+        private CoveConfiguration _config = null!;
+        private IScanService? _scan;
+        private ILogger _log = NullLogger.Instance;
 
         public CoveLibraryPort Port { get; private set; } = null!;
 
         public static async Task<LibraryFixture> CreateAsync(
             IReadOnlyList<string>? configuredEndpoints = null,
             IScanService? scan = null,
-            ILogger? log = null)
+            ILogger? log = null,
+            IMetadataServerService? metadata = null)
         {
             var fixture = new LibraryFixture();
             (fixture._db, fixture._connection) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -347,10 +417,26 @@ public sealed class CoveLibraryPortTests
                 config.Scraping.MetadataServers.Add(new MetadataServerInstance { Endpoint = endpoint });
             }
 
-            fixture.Port = new CoveLibraryPort(
-                fixture._db, scan, metadata: null, config, log ?? NullLogger.Instance);
+            fixture._config = config;
+            fixture._scan = scan;
+            fixture._log = log ?? NullLogger.Instance;
+            fixture.Reconfigure(metadata);
             return fixture;
         }
+
+        /// <summary>Rebuilds the port over the same library with <paramref name="metadata"/>.</summary>
+        /// <remarks>
+        /// A metadata double that has to reach back into this fixture cannot be constructed before it,
+        /// so it is supplied afterwards rather than the fixture being built in two halves.
+        /// </remarks>
+        public void Reconfigure(IMetadataServerService? metadata)
+            => Port = new CoveLibraryPort(_db, _scan, metadata, _config, _log);
+
+        /// <summary>Drops the library's connection, so the next save cannot be committed.</summary>
+        public void DropTheConnection() => _connection.Close();
+
+        public async Task<string?> TitleOfAsync(int videoId)
+            => (await _db.Set<Video>().AsNoTracking().FirstAsync(video => video.Id == videoId, Ct)).Title;
 
         /// <summary>
         /// Seeds one video with one file. The file's stored path is left for the host's own save to

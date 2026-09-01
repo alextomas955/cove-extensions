@@ -119,6 +119,10 @@ public sealed class ImportCoreIdentityTests
     }
 
     /// <summary>The documented failure of an unconfigured source, contained.</summary>
+    /// <remarks>
+    /// This is the case the source-applied-nothing line correctly describes, so it is asserted to be
+    /// the one emitted rather than merely that something was.
+    /// </remarks>
     [Fact]
     public async Task AnUnconfiguredSourceIsCaughtLoggedOnceAndTheImportStillSucceeds()
     {
@@ -131,6 +135,31 @@ public sealed class ImportCoreIdentityTests
 
         Assert.Single(ingest.Library.Stamped);
         Assert.Equal(1, log.ContainedEnrichments);
+        Assert.Equal(0, log.UncommittedEnrichments);
+    }
+
+    /// <summary>
+    /// A save that failed after the source applied its record is not reported as the source applying
+    /// nothing.
+    /// </summary>
+    /// <remarks>
+    /// One call does the merge and then the save, so both failures arrive at one containment. A line
+    /// naming the source for the second sends a user to look at a source that answered correctly, and
+    /// the scene is bare either way - which is what makes the wrong line hard to notice.
+    /// </remarks>
+    [Fact]
+    public async Task ASaveThatFailedAfterTheSourceAppliedItsRecordDoesNotBlameTheSource()
+    {
+        var log = new CountingLogger();
+        var ingest = new Ingest(log);
+        ingest.Library.EnrichmentFailure = new EnrichmentNotCommittedException(
+            new InvalidOperationException("the library could not be saved"));
+
+        Assert.Equal(ImportOutcome.Imported, await ingest.DeliverAsync());
+
+        Assert.Equal((1, "https://stashdb.org/graphql", RemoteId), Assert.Single(ingest.Library.Stamped));
+        Assert.Equal(1, log.UncommittedEnrichments);
+        Assert.Equal(0, log.ContainedEnrichments);
     }
 
     /// <summary>
@@ -193,12 +222,19 @@ public sealed class ImportCoreIdentityTests
                 : new ProbedPath(false, null);
     }
 
-    /// <summary>Counts the one contained-enrichment line, by its event id.</summary>
+    /// <summary>Counts the two enrichment-containment lines apart, by their event ids.</summary>
+    /// <remarks>
+    /// The ids are transcribed by hand from the declared templates. Counted separately and not as one
+    /// total, because which of the two was emitted is the whole claim.
+    /// </remarks>
     private sealed class CountingLogger : ILogger
     {
         private const int ContainedEnrichmentEventId = 2106;
+        private const int UncommittedEnrichmentEventId = 2115;
 
         public int ContainedEnrichments { get; private set; }
+
+        public int UncommittedEnrichments { get; private set; }
 
         public IDisposable? BeginScope<TState>(TState state)
             where TState : notnull => null;
@@ -215,6 +251,11 @@ public sealed class ImportCoreIdentityTests
             if (eventId.Id == ContainedEnrichmentEventId)
             {
                 ContainedEnrichments++;
+            }
+
+            if (eventId.Id == UncommittedEnrichmentEventId)
+            {
+                UncommittedEnrichments++;
             }
         }
     }
