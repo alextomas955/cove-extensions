@@ -46,8 +46,8 @@ export const IMPORT_CAUSE_NOT_FOUND = "No Cove library folder holds this file.";
 export const IMPORT_CAUSE_AMBIGUOUS =
   "This name is under more than one of your library folders, so Cove did not choose between them.";
 
-/** The file was found where it was reported and the read of it did not succeed. */
-export const IMPORT_CAUSE_UNREADABLE = "Cove found this file and could not read it.";
+/** The file was found where it was reported and Cove's own import would not take it. */
+export const IMPORT_CAUSE_UNREADABLE = "Cove found this file and would not take it in.";
 
 /**
  * One Whisparr root folder's outstanding refusals.

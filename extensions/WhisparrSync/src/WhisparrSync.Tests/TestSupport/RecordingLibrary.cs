@@ -8,6 +8,11 @@ namespace WhisparrSync.Tests.TestSupport;
 /// "the file the extension verified reaches the host" whatever path was handed over. The one count
 /// kept is the enrichment call's, because "at most once per scene" is a claim about the count.
 /// </remarks>
+/// <param name="reached">
+/// Whether this extension's container could produce the host's import service at all. False is the
+/// host's own configuration, which is a different answer from a file the host declined.
+/// </param>
+/// <param name="roots">The host's configured library paths.</param>
 internal sealed class RecordingLibrary(bool reached, IReadOnlyList<string> roots) : ICoveLibraryPort
 {
     /// <summary>The paths handed to the host's import, with the item each was attached to.</summary>
@@ -65,12 +70,18 @@ internal sealed class RecordingLibrary(bool reached, IReadOnlyList<string> roots
     public Task<LibraryImport> ImportVideoAsync(string path, int? videoId, CancellationToken ct)
     {
         Imported.Add((path, videoId));
-        if (ImportFailure is not null || !reached)
+        if (!reached)
         {
-            return Task.FromResult(new LibraryImport(false, null));
+            return Task.FromResult(new LibraryImport(LibraryImportOutcome.ServiceUnavailable, null));
         }
 
-        return Task.FromResult(new LibraryImport(true, videoId ?? ImportedVideoId));
+        if (ImportFailure is not null)
+        {
+            return Task.FromResult(new LibraryImport(LibraryImportOutcome.HostRefused, null));
+        }
+
+        return Task.FromResult(
+            new LibraryImport(LibraryImportOutcome.Registered, videoId ?? ImportedVideoId));
     }
 
     /// <summary>Every detach asked for, with the path each one kept.</summary>
