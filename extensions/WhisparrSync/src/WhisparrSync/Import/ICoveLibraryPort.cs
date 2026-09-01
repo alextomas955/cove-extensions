@@ -64,6 +64,16 @@ public sealed record IdentityResolution
     internal static IdentityResolution At(int videoId) => new(videoId, false);
 }
 
+/// <summary>The record a metadata source supplied could not be written to the library.</summary>
+/// <remarks>
+/// Enrichment merges the source's record into the entity and then saves it, so two unrelated failures
+/// otherwise reach one caller through one answer: a source that applied nothing, and an application
+/// that could not be committed. The second is raised as this, because a caller that cannot tell them
+/// apart can only report the source — and in this case the source answered.
+/// </remarks>
+public sealed class EnrichmentNotCommittedException(Exception inner)
+    : Exception("The record the metadata source supplied could not be committed.", inner);
+
 /// <summary>
 /// The one seam through which this extension reaches Cove's own library.
 /// </summary>
