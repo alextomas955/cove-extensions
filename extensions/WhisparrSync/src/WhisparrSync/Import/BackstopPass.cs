@@ -80,7 +80,7 @@ internal sealed class BackstopPass(
             or BackstopPassOutcome.RefusedUnreadableAnswer
             or BackstopPassOutcome.RefusedUnreachable;
 
-    // Counters and two instants. No page, record, file or candidate collection is held across an
+    // Counters and instants. No page, record, file or candidate collection is held across an
     // iteration: however far the walk reads, what it hands back is the same size.
     private async Task<BackstopPassResult> WalkAsync(
         WhisparrGeneration generation,
@@ -96,6 +96,7 @@ internal sealed class BackstopPass(
         var contained = 0;
         DateTimeOffset? newest = null;
         DateTimeOffset? previousPageOldest = null;
+        DateTimeOffset? previousPageNewest = null;
 
         while (true)
         {
@@ -127,7 +128,8 @@ internal sealed class BackstopPass(
                 return Ended(BackstopPassOutcome.RefusedUnreadableAnswer);
             }
 
-            var reading = WatermarkGuard.Read(instants, mark, newest, previousPageOldest);
+            var reading = WatermarkGuard.Read(
+                instants, mark, newest, previousPageOldest, previousPageNewest);
             newest = reading.Newest;
             if (reading.Refused)
             {
@@ -185,6 +187,7 @@ internal sealed class BackstopPass(
             }
 
             previousPageOldest = instants[^1];
+            previousPageNewest = reading.PageNewest;
             page++;
         }
 
