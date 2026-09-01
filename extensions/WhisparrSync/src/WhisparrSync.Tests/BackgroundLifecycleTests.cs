@@ -1,4 +1,5 @@
 using Cove.Core.Auth;
+using Cove.Plugins;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -42,6 +43,10 @@ public sealed class BackgroundLifecycleTests
 
     /// <summary>A configured interval three wakes long.</summary>
     private const int EveryThirdWake = 3 * WhisparrSyncOptions.BackstopIntervalFloorSeconds;
+
+    /// <summary>The interval a read that failed falls back to, transcribed by hand from the model.</summary>
+    private static readonly TimeSpan DefaultInterval =
+        TimeSpan.FromSeconds(WhisparrSyncOptions.DefaultBackstopIntervalSeconds);
 
     /// <summary>Real time allowed for the worker's continuations between two clock advances.</summary>
     private static readonly TimeSpan SettleWindow = TimeSpan.FromMilliseconds(100);
@@ -274,6 +279,127 @@ public sealed class BackgroundLifecycleTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
     }
 
+    /// <summary>A follow-up that fails unexpectedly does not take the worker with it.</summary>
+    /// <remarks>
+    /// The follow-up opens a scope and resolves the library out of it, so a host whose scan service
+    /// this extension's container cannot produce fails the resolve rather than the enqueue. Two wakes
+    /// are driven and the SECOND one's pass is what is asserted: a worker that ended on the first
+    /// failure would leave the first pass's own record behind and look like a success.
+    /// </remarks>
+    [Fact]
+    public async Task AFollowUpThatFailsUnexpectedlyLeavesTheWorkerRunning()
+    {
+        var pass = new BlockingPass(blocking: false);
+        var clock = new ManualTimeProvider(Start);
+        var noted = new RecordingLibrary(reached: true, ["/data"]);
+        var followUp = new FollowUpScanCoalescer(clock, NullLogger.Instance);
+        var extension = WhisparrSyncFixture.Create();
+        await using var services = WorkerServices(clock, pass, EveryWake, followUp, library: null);
+        using var stop = new CancellationTokenSource();
+
+        var worker = extension.RunAsync(services, stop.Token);
+        await Settle();
+
+        followUp.NoteImported("/data/scene.mp4", noted);
+        clock.Advance(FollowUpScanCoalescer.QuietPeriod);
+
+        clock.Advance(WorkerPeriod);
+        await Settle();
+        clock.Advance(WorkerPeriod);
+        await Settle();
+
+        Assert.Equal(2, pass.Started);
+        Assert.False(worker.IsCompleted, "a failed follow-up ended the worker");
+
+        await stop.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
+    }
+
+    /// <summary>
+    /// An interval read that fails costs the wakes the default interval covers, not the worker.
+    /// </summary>
+    /// <remarks>
+    /// The read is a live query and the store catches only a bind failure, so a transient database
+    /// failure reaches the loop. What the loop does with it is asserted through the CADENCE that
+    /// follows: a fallback that read as the floor would run a pass on every wake, and one that
+    /// remembered nothing at all would end the worker.
+    /// </remarks>
+    [Fact]
+    public async Task AnIntervalReadThatFailsFallsBackToTheDefaultRatherThanEndingTheWorker()
+    {
+        var pass = new BlockingPass(blocking: false);
+        var clock = new ManualTimeProvider(Start);
+        var extension = WhisparrSyncFixture.Create();
+        await using var services = WorkerServices(
+            clock,
+            pass,
+            EveryWake,
+            new FollowUpScanCoalescer(clock, NullLogger.Instance),
+            new RecordingLibrary(reached: true, ["/data"]),
+            new RaisingStore(() => new InvalidOperationException("the options blob could not be read")));
+        using var stop = new CancellationTokenSource();
+
+        var worker = extension.RunAsync(services, stop.Token);
+        await Settle();
+
+        // The first wake passes whatever the interval reads: nothing has run yet.
+        clock.Advance(WorkerPeriod);
+        await Settle();
+        Assert.Equal(1, pass.Started);
+
+        clock.Advance(WorkerPeriod);
+        await Settle();
+        Assert.Equal(1, pass.Started);
+
+        clock.Advance(DefaultInterval);
+        await Settle();
+        Assert.Equal(2, pass.Started);
+        Assert.False(worker.IsCompleted, "a failed interval read ended the worker");
+
+        await stop.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
+    }
+
+    /// <summary>
+    /// A cancellation arising inside a contained call still ends the worker as cancelled.
+    /// </summary>
+    /// <remarks>
+    /// The host's catch is conditioned on the token being cancelled and it does not restart a worker
+    /// that ended any other way, so a containment that held on to a cancellation would turn a
+    /// shutdown into a fault. The pass is the discriminator: a swallowed cancellation would let the
+    /// loop body run on to it.
+    /// </remarks>
+    [Fact]
+    public async Task ACancellationArisingInsideAContainedCallStillEndsTheWorkerAsCancelled()
+    {
+        var pass = new BlockingPass(blocking: false);
+        var clock = new ManualTimeProvider(Start);
+        var extension = WhisparrSyncFixture.Create();
+        using var stop = new CancellationTokenSource();
+        await using var services = WorkerServices(
+            clock,
+            pass,
+            EveryWake,
+            new FollowUpScanCoalescer(clock, NullLogger.Instance),
+            new RecordingLibrary(reached: true, ["/data"]),
+            new RaisingStore(() =>
+            {
+                stop.Cancel();
+                return new OperationCanceledException();
+            }));
+
+        var worker = extension.RunAsync(services, stop.Token);
+        await Settle();
+
+        clock.Advance(WorkerPeriod);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
+
+        Assert.True(worker.IsCanceled, "the worker did not end as cancelled");
+        Assert.False(worker.IsFaulted);
+        Assert.Equal(0, pass.Started);
+        Assert.NotNull(ProbeOf(extension).WorkerCancelledAtUtc);
+    }
+
     /// <summary>A quiet batch is covered by a wake, whether or not that wake runs a pass.</summary>
     /// <remarks>
     /// The follow-up sits before the interval gate, so a live delivery is not left uncovered until
@@ -358,29 +484,44 @@ public sealed class BackgroundLifecycleTests
             new RecordingLibrary(reached: true, ["/data"]));
 
     /// <inheritdoc cref="WorkerServices(TimeProvider, IBackstopPass, int)"/>
+    /// <remarks>
+    /// A null library is registered as no library at all, which is what the resolve inside the
+    /// follow-up meets on a host whose scan service this extension's container cannot produce.
+    /// </remarks>
     private static ServiceProvider WorkerServices(
         TimeProvider clock,
         IBackstopPass pass,
         int intervalSeconds,
         FollowUpScanCoalescer followUp,
-        ICoveLibraryPort library)
+        ICoveLibraryPort? library,
+        IExtensionStore? store = null)
+    {
+        var options = new OptionsStore(store ?? SeededStore(intervalSeconds));
+        var services = new ServiceCollection()
+            .AddSingleton(clock)
+            .AddSingleton(followUp)
+            .AddScoped(_ => options)
+            .AddScoped(_ => pass);
+
+        if (library is not null)
+        {
+            services.AddScoped(_ => library);
+        }
+
+        return services.BuildServiceProvider();
+    }
+
+    private static FakeStore SeededStore(int intervalSeconds)
     {
         var store = new FakeStore();
-        var options = new OptionsStore(store);
-        options
+        new OptionsStore(store)
             .SaveAsync(
                 new WhisparrSyncOptions { BackstopIntervalSeconds = intervalSeconds },
                 TestContext.Current.CancellationToken)
             .GetAwaiter()
             .GetResult();
 
-        return new ServiceCollection()
-            .AddSingleton(clock)
-            .AddSingleton(followUp)
-            .AddScoped(_ => options)
-            .AddScoped(_ => pass)
-            .AddScoped(_ => library)
-            .BuildServiceProvider();
+        return store;
     }
 
     /// <summary>Lets the worker's own continuations run before the next reading is taken.</summary>
@@ -396,6 +537,28 @@ public sealed class BackgroundLifecycleTests
 
     private static T ValueOf<T>(IResult result)
         => Assert.IsType<T>(Assert.IsAssignableFrom<IValueHttpResult>(Unwrap(result)).Value);
+
+    /// <summary>
+    /// A store whose reads raise, standing in for the failure an options load does not catch.
+    /// </summary>
+    /// <remarks>
+    /// The failure comes from a factory rather than as a value so that a test can cancel the worker's
+    /// own token as the read fails, which is the only way a cancellation arises INSIDE the read rather
+    /// than beside it.
+    /// </remarks>
+    private sealed class RaisingStore(Func<Exception> raised) : IExtensionStore
+    {
+        public Task<string?> GetAsync(string key, CancellationToken ct = default)
+            => Task.FromException<string?>(raised());
+
+        public Task SetAsync(string key, string value, CancellationToken ct = default)
+            => Task.CompletedTask;
+
+        public Task DeleteAsync(string key, CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task<Dictionary<string, string>> GetAllAsync(CancellationToken ct = default)
+            => Task.FromException<Dictionary<string, string>>(raised());
+    }
 
     /// <summary>
     /// A pass a test starts, watches and releases.
