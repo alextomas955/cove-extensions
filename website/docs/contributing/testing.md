@@ -238,8 +238,9 @@ Each entry leads with the symptom, because that is what you arrive with.
   project when you meant both. Name the solution instead. See [Which set of C# tests you just
   ran](#which-set-of-c-tests-you-just-ran).
 - **A C# build stops with one sentence saying a Cove source checkout is required.** You named the
-  Cove-dependent project directly with no checkout available. A whole-solution build does not stop
-  there: it names the project it skipped and succeeds. [Configuration
+  Cove-dependent project directly with no checkout available, either to `dotnet build` or to
+  `dotnet test --project`, which builds first. A whole-solution build does not stop there: it names
+  the project it skipped and succeeds. [Configuration
   reference](./configuration#cove-source-selection) has the knobs that point the build at one.
 - **A whole-solution `dotnet test` run ends `Passed!` and still exits non-zero, after a warning
   naming a project it did not build and an exception naming a test executable that does not exist.**
