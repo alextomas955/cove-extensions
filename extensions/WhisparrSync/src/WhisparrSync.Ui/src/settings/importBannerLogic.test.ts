@@ -16,6 +16,7 @@ import {
   IMPORT_REFUSAL_CAUSES,
   NEWEST_PATHS_SHOWN,
   NO_REPORTED_ROOT,
+  passedOverLine,
   pathsShownFor,
 } from "./importBannerLogic";
 
@@ -38,8 +39,16 @@ function lineFor(root: string, count: number, paths: number): ImportBannerRootLi
 }
 
 function viewOf(...roots: ImportBannerRootLine[]): ImportBannerView {
-  return { roots };
+  return { roots, recordsContained: 0, lastContainedAtUtc: null };
 }
+
+/** An answer carrying only a containment, which no root has a refusal recorded for. */
+function passedOver(count: number, at: string | null): ImportBannerView {
+  return { roots: [], recordsContained: count, lastContainedAtUtc: at };
+}
+
+/** The instant the recorded ages below are measured against. */
+const NOW_MS = Date.parse("2026-08-31T09:00:00Z");
 
 describe("the cause vocabulary", () => {
   it("has exactly the three causes the server emits", () => {
@@ -68,6 +77,40 @@ describe("whether there is anything to say", () => {
 
   it("says something for one root with one refusal", () => {
     expect(hasAnythingToSay(viewOf(lineFor("/whisparr-media", 1, 1)))).toBe(true);
+  });
+
+  it("says something for a containment with no root refused at all", () => {
+    expect(hasAnythingToSay(passedOver(1, null))).toBe(true);
+  });
+});
+
+describe("the files the catch-up passed over", () => {
+  it("says nothing while it has passed over none", () => {
+    expect(passedOverLine(viewOf(lineFor("/whisparr-media", 4, 1)), NOW_MS)).toBeNull();
+    expect(passedOverLine(null, NOW_MS)).toBeNull();
+  });
+
+  it("names the count and how long ago the last one was", () => {
+    const line = passedOverLine(passedOver(3, "2026-08-31T08:30:00Z"), NOW_MS);
+
+    expect(line).not.toBeNull();
+    expect(line).toContain("3 files");
+    expect(line).toContain("30 min ago");
+  });
+
+  it("agrees with the count for one file", () => {
+    const line = passedOverLine(passedOver(1, null), NOW_MS) ?? "";
+
+    expect(line).toContain("1 file ");
+    expect(line).not.toContain("1 files");
+  });
+
+  it("says the catch-up will not return to them, because the mark never does", () => {
+    expect(passedOverLine(passedOver(2, null), NOW_MS)).toContain("will not try them again");
+  });
+
+  it("leaves out the age when none was recorded", () => {
+    expect(passedOverLine(passedOver(2, null), NOW_MS)).not.toContain("Most recently");
   });
 });
 
