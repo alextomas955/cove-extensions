@@ -154,11 +154,14 @@ a prefix match that missed a bare name would silently bundle a second React with
 break hook identity at runtime.
 
 Test support sits beside these two and is not part of the shipped layer. Helpers needing no Cove types
-are an ordinary project a test project references. The fakes that do need Cove's own types have no
-project file at all: they are pulled in as compile items under the source-mode condition, so on the
-cove-absent leg they drop out rather than failing to compile. The condition is keyed on the mode rather
-than on a path probe, because what those files need is the types, and only `source` mode supplies
-them.
+are an ordinary project a test project references.
+The fakes that do need Cove's own types have no project file at all: the Cove-dependent test project
+pulls them in as ordinary compile items, unconditionally, rather than as a project reference,
+because an IDE does not fully respect a reference condition. Promoting that directory to a project
+of its own would give it its own dependency on a Cove checkout, one level further down.
+Nothing here decides per mode what compiles. The project simply requires a checkout, a target in it
+says so as one plain error before the compiler runs, and a solution build with no checkout skips the
+project and names it rather than failing.
 
 What belongs at repo level is decided by reach, never by a directory name. That rule, and the
 extension-local `common/` layer it implies, is on [Extension authoring
