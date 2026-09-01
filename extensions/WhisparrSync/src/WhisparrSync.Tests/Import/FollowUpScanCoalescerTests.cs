@@ -163,17 +163,24 @@ public sealed class FollowUpScanCoalescerTests
     }
 
     /// <summary>
-    /// The pending batch never reaches the store, so a burst of imports leaves the one blob the
-    /// host's bulk data route serves whole exactly as it was.
+    /// The pending batch never reaches the store, so the one blob the host's bulk data route serves
+    /// whole is the same size after a burst as after a single import.
     /// </summary>
+    /// <remarks>
+    /// Compared against the blob after the FIRST import rather than against the one before it: an
+    /// import records that the channel worked, which is a fixed-size instant. What must not grow with
+    /// the burst is everything else.
+    /// </remarks>
     [Fact]
-    public async Task ABurstOfImportsLeavesTheStoredBlobByteIdentical()
+    public async Task ABurstOfImportsLeavesTheStoredBlobByteIdenticalToOneImports()
     {
         var ingest = new Ingest();
         await ingest.SeedAsync();
-        var before = await ingest.Store.GetAllAsync(TestContext.Current.CancellationToken);
 
-        for (var scene = 0; scene < 10; scene++)
+        await ingest.DeliverAsync(0);
+        var afterOne = await ingest.Store.GetAllAsync(TestContext.Current.CancellationToken);
+
+        for (var scene = 1; scene < 10; scene++)
         {
             await ingest.DeliverAsync(scene);
         }
@@ -182,7 +189,7 @@ public sealed class FollowUpScanCoalescerTests
         ingest.FollowUp.FlushIfQuiet(ingest.Library);
 
         Assert.Single(ingest.Library.Scans);
-        Assert.Equal(before, await ingest.Store.GetAllAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(afterOne, await ingest.Store.GetAllAsync(TestContext.Current.CancellationToken));
     }
 
     /// <summary>A batch with nowhere to go is reported rather than swallowed.</summary>
@@ -241,6 +248,7 @@ public sealed class FollowUpScanCoalescerTests
                     new OptionsStore(Store),
                     new OptionsWriteGate(),
                     FollowUp,
+                    Clock,
                     NullLogger.Instance)
                 .IngestAsync(
                     new ImportCandidate(

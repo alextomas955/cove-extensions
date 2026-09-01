@@ -86,16 +86,21 @@ public sealed class ImportCoreRefusalTests
         Assert.Equal(afterFirst, ingest.Store.SetCallCount);
     }
 
-    /// <summary>A success for a root that has no line writes nothing either.</summary>
+    /// <summary>A success for a root that has no line adds none, and writes only the health.</summary>
+    /// <remarks>
+    /// One write, not none: an import records that the channel worked. What it must not do is put a
+    /// line under a root whose delivery succeeded.
+    /// </remarks>
     [Fact]
-    public async Task ASuccessForARootWithNoLineWritesNothing()
+    public async Task ASuccessForARootWithNoLineAddsNoLineAndWritesOnlyTheHealth()
     {
         var ingest = new Ingest();
         ingest.Paths.Present["/data/scene.mp4"] = ReportedSize;
 
         Assert.Equal(ImportOutcome.Imported, await ingest.DeliverAsync());
 
-        Assert.Equal(0, ingest.Store.SetCallCount);
+        Assert.Empty((await ingest.StoredAsync()).ImportRefusals);
+        Assert.Equal(1, ingest.Store.SetCallCount);
     }
 
     /// <summary>
@@ -211,6 +216,7 @@ public sealed class ImportCoreRefusalTests
                     new OptionsStore(Store),
                     new OptionsWriteGate(),
                     new FollowUpScanCoalescer(TimeProvider.System, NullLogger.Instance),
+                    TimeProvider.System,
                     NullLogger.Instance)
                 .IngestAsync(
                     new ImportCandidate(WhisparrGeneration.V3, "Download", path, ReportedSize, null),
