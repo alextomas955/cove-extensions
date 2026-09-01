@@ -186,7 +186,8 @@ test("the summary line reports counts, and a check with no subject renders 0 rat
         "1 registry row(s) compared across " +
         "1 declared registry manifest(s), " +
         "0 project file(s) scanned for ProjectReference items onto " +
-        "0 declared Cove test project(s), 0 Include(s) left unjudged; " +
+        "0 declared Cove test project(s), 0 Include(s) left unjudged, " +
+        "0 project file(s) left unjudged for an unclosed comment; " +
         "directories named node_modules, bin, obj, .git, website and all symlinked " +
         "directories were not walked.",
     );
@@ -210,7 +211,8 @@ test("the summary line reports counts, and a check with no subject renders 0 rat
         "0 registry row(s) compared across " +
         "0 declared registry manifest(s), " +
         "0 project file(s) scanned for ProjectReference items onto " +
-        "0 declared Cove test project(s), 0 Include(s) left unjudged; " +
+        "0 declared Cove test project(s), 0 Include(s) left unjudged, " +
+        "0 project file(s) left unjudged for an unclosed comment; " +
         "directories named node_modules, bin, obj, .git, website and all symlinked " +
         "directories were not walked.",
     );
@@ -784,7 +786,7 @@ test("a property-expanded Include is named as unjudged rather than counted clean
     const { status, stdout, stderr } = runValidator(root);
     assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
     assert.match(stdout, /NOTICE: extensions\/Bar\/Bar\.csproj: \$\(CoveTestProject\)/);
-    assert.match(stdout, /1 Include\(s\) left unjudged;/);
+    assert.match(stdout, /1 Include\(s\) left unjudged,/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -829,6 +831,41 @@ test("a ProjectReference inside an XML comment does not fail the reference rule"
   try {
     const { status, stderr } = runValidator(root);
     assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a ProjectReference after an unclosed XML comment is not judged, and the file is named", () => {
+  // Nothing after an unclosed opener can be told from live markup, so a commented-out reference
+  // there must not fail a blocking gate. The file is malformed and MSBuild rejects it outright, so
+  // the rule declines to judge it and names which file it skipped.
+  const root = csharpFixture({
+    projectPath: "extensions/Foo/Foo.csproj",
+    testProjectPath: "extensions/Foo/Foo.Tests.csproj",
+    coveTestProjectPath: "extensions/Foo/Foo.Cove.Tests.csproj",
+    solution: [
+      "extensions/Foo/Foo.csproj",
+      "extensions/Foo/Foo.Tests.csproj",
+      "extensions/Foo/Foo.Cove.Tests.csproj",
+    ],
+    extraFiles: {
+      "extensions/Bar/Bar.csproj":
+        "<Project>\n  <ItemGroup>\n" +
+        "    <!-- closed -->\n" +
+        "    <!-- opened and never closed\n" +
+        '    <ProjectReference Include="../Foo/Foo.Cove.Tests.csproj" />\n' +
+        "  </ItemGroup>\n</Project>\n",
+    },
+  });
+  try {
+    const { status, stdout, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(
+      stdout,
+      /extensions\/Bar\/Bar\.csproj - an XML comment is opened and never closed/,
+    );
+    assert.match(stdout, /1 project file\(s\) left unjudged for an unclosed comment/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

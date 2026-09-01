@@ -140,14 +140,35 @@ function collectProjectFiles(dir, collected = []) {
 // a wildcard is collected into unresolvable rather than resolved, because expanding one needs
 // MSBuild's own evaluation - and this repo's own wiring writes Includes in that spelling, so a rule
 // that dropped them would be silent over the shape most likely to carry the reference.
-// XML comments are stripped first: several project files here discuss ProjectReference wiring in
-// prose, and the first one to quote the markup would otherwise fail a blocking gate on a comment.
-function readProjectReferences(projectFilePath, unresolvable) {
-  const content = fs.readFileSync(projectFilePath, "utf8").replaceAll(/<!--[\s\S]*?-->/g, "");
+// Several project files here discuss ProjectReference wiring in prose, and the first one to quote
+// the markup would otherwise fail a blocking gate on a comment. Returns null when a comment is
+// opened and never closed, because nothing after that opener can be told from live markup; MSBuild
+// rejects such a file outright, so the caller names it rather than judging half of it.
+function xmlCommentSpans(text) {
+  const spans = [];
+  const opener = /<!--/g;
+  let match;
+  while ((match = opener.exec(text)) !== null) {
+    const close = text.indexOf("-->", match.index + 4);
+    if (close === -1) return null;
+    spans.push([match.index, close + 3]);
+    opener.lastIndex = close + 3;
+  }
+  return spans;
+}
+
+function readProjectReferences(projectFilePath, unresolvable, unparsable) {
+  const content = fs.readFileSync(projectFilePath, "utf8");
+  const commentSpans = xmlCommentSpans(content);
+  if (commentSpans === null) {
+    unparsable.push(normalizeSeparators(path.relative(root, projectFilePath)));
+    return [];
+  }
   const projectDir = path.dirname(projectFilePath);
   const references = [];
   const pattern = /<ProjectReference\b[^>]*?\bInclude\s*=\s*(["'])(.*?)\1/g;
   for (const match of content.matchAll(pattern)) {
+    if (commentSpans.some(([start, end]) => match.index >= start && match.index < end)) continue;
     for (const raw of match[2].split(";")) {
       const include = raw.trim();
       if (include === "") continue;
@@ -524,6 +545,7 @@ if (impliedProjects.length > 0) {
 // through a ProjectReference. The invariant holds today only because nothing takes that reference.
 let projectFilesScanned = 0;
 const unresolvableIncludes = [];
+const unparsableProjectFiles = [];
 if (coveTestProjects.length > 0) {
   const declaredCoveTestProjects = new Map(
     coveTestProjects.map((project) => [normalizeSeparators(project.value), project]),
@@ -531,7 +553,11 @@ if (coveTestProjects.length > 0) {
   for (const projectFile of collectProjectFiles(root)) {
     projectFilesScanned++;
     const referencingProject = normalizeSeparators(path.relative(root, projectFile));
-    for (const reference of readProjectReferences(projectFile, unresolvableIncludes)) {
+    for (const reference of readProjectReferences(
+      projectFile,
+      unresolvableIncludes,
+      unparsableProjectFiles,
+    )) {
       const target = declaredCoveTestProjects.get(reference);
       if (!target) continue;
       errors.push(
@@ -557,6 +583,12 @@ for (const unjudged of unresolvableIncludes) {
   );
 }
 
+for (const unparsable of unparsableProjectFiles) {
+  console.log(
+    `NOTICE: ${unparsable} - an XML comment is opened and never closed, so the reference rule did not judge this file.`,
+  );
+}
+
 console.log(
   `Validated ${entries.length} extension catalog entries: ` +
     `${floorComparisons} minCoveVersion floor comparison(s), ` +
@@ -566,7 +598,8 @@ console.log(
     `${registrySubjects} declared registry manifest(s), ` +
     `${projectFilesScanned} project file(s) scanned for ProjectReference items onto ` +
     `${coveTestProjects.length} declared Cove test project(s), ` +
-    `${unresolvableIncludes.length} Include(s) left unjudged; ` +
+    `${unresolvableIncludes.length} Include(s) left unjudged, ` +
+    `${unparsableProjectFiles.length} project file(s) left unjudged for an unclosed comment; ` +
     `directories named ${[...referenceScanSkippedDirectories].join(", ")} and all symlinked ` +
     `directories were not walked.`,
 );
