@@ -228,6 +228,7 @@ public sealed class UpgradePathTests
                     new OptionsStore(Store),
                     new OptionsWriteGate(),
                     new FollowUpScanCoalescer(TimeProvider.System, NullLogger.Instance),
+                    TimeProvider.System,
                     NullLogger.Instance)
                 .IngestAsync(
                     new ImportCandidate(

@@ -131,6 +131,7 @@ public sealed partial class WhisparrSync : FullExtensionBase
             services.GetRequiredService<OptionsStore>(),
             services.GetRequiredService<OptionsWriteGate>(),
             services.GetRequiredService<FollowUpScanCoalescer>(),
+            services.GetRequiredService<TimeProvider>(),
             _log));
     }
 
