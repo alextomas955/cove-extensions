@@ -4,6 +4,7 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const UNLOADED_REFERENCES = /^Required references did not load for (.+?) or referenced project\./gm;
 
@@ -29,16 +30,19 @@ export function splitWrapperArguments(argv) {
 }
 
 /**
- * Whether this process was STARTED from this file, rather than importing it for its helpers.
+ * Whether `entry` (a `process.argv[1]`) and `self` (a module's own path) name the same file.
  *
  * Both sides are realpathed rather than compared as resolved strings: Node realpaths the module URL
  * and leaves process.argv[1] as the caller spelled it, so an invocation through a junction or symlink
- * — the shape this repo's worktree workflow uses — compares unequal and the refusal below never
- * fires. Windows drive-letter casing is normalised for the same reason.
+ * — the shape this repo's worktree workflow uses — compares unequal. Windows drive-letter casing is
+ * normalised for the same reason, which is what `platform` selects.
+ *
+ * An absent or empty `entry` is false, which is what an import rather than a CLI run looks like.
  */
-function invokedAsScript() {
-  const entry = process.argv[1];
+export function isSameFile(entry, self, platform = process.platform) {
   if (typeof entry !== "string" || entry === "") return false;
+  if (typeof self !== "string" || self === "") return false;
+
   const canonical = (value) => {
     let resolved = path.resolve(value);
     try {
@@ -47,10 +51,14 @@ function invokedAsScript() {
       // Left as resolved: a path that cannot be realpathed is one that does not exist, and comparing
       // the resolved form is no weaker than not comparing at all.
     }
-    return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+    return platform === "win32" ? resolved.toLowerCase() : resolved;
   };
-  return canonical(entry) === canonical(import.meta.filename);
+  return canonical(entry) === canonical(self);
 }
+
+// import.meta.filename landed in Node 20.11, which is inside the range the guard below exists for, so
+// the URL form is the spelling available on every runtime that reaches it.
+const selfPath = import.meta.filename ?? fileURLToPath(import.meta.url);
 
 // `import.meta.main` is a boolean from Node 22.18 onward and `undefined` before it, so a bare
 // `if (import.meta.main)` takes the not-main branch on an older runtime: run as a CLI, this script
@@ -61,7 +69,7 @@ function invokedAsScript() {
 // Scoped to the CLI on purpose: the exported parse works fine on an older Node, and refusing at
 // import time would break this file's own tests for a feature only the entry guard needs.
 if (typeof import.meta.main !== "boolean") {
-  if (invokedAsScript()) {
+  if (isSameFile(process.argv[1], selfPath)) {
     console.error(
       `check-csharp-format: this Node (${process.version}) does not implement import.meta.main, so this script cannot tell it was run rather than imported and would check nothing while exiting 0. Node 22.18 or newer is required to run it.`,
     );
