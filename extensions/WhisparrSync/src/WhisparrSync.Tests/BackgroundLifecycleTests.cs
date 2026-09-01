@@ -400,6 +400,53 @@ public sealed class BackgroundLifecycleTests
         Assert.NotNull(ProbeOf(extension).WorkerCancelledAtUtc);
     }
 
+    /// <summary>
+    /// A cancellation arising while the worker's token is still live is contained, and the worker
+    /// keeps waking.
+    /// </summary>
+    /// <remarks>
+    /// An outbound read that times out raises <see cref="TaskCanceledException"/>, which derives from
+    /// <see cref="OperationCanceledException"/>. The host's catch for a cancellation is conditioned on
+    /// the token, so a containment that rethrew this one would end the worker through no handler at
+    /// all and stop the backstop until the extension was reloaded.
+    /// <para>
+    /// The token is deliberately left live. A case that cancels it first drives the shutdown path and
+    /// holds whether or not the containment tells the two apart.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ACancellationArisingWhileTheTokenIsLiveIsContainedRatherThanEndingTheWorker()
+    {
+        var pass = new BlockingPass(blocking: false);
+        var clock = new ManualTimeProvider(Start);
+        var extension = WhisparrSyncFixture.Create();
+        await using var services = WorkerServices(
+            clock,
+            pass,
+            EveryWake,
+            new FollowUpScanCoalescer(clock, NullLogger.Instance),
+            new RecordingLibrary(reached: true, ["/data"]),
+            new RaisingStore(() => new TaskCanceledException()));
+        using var stop = new CancellationTokenSource();
+
+        var worker = extension.RunAsync(services, stop.Token);
+        await Settle();
+
+        clock.Advance(WorkerPeriod);
+        await Settle();
+
+        Assert.Equal(1, pass.Started);
+        Assert.False(worker.IsCompleted, "a cancellation the host never asked for ended the worker");
+
+        // The cadence the default interval sets, which is what the contained read fell back to.
+        clock.Advance(DefaultInterval);
+        await Settle();
+        Assert.Equal(2, pass.Started);
+
+        await stop.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
+    }
+
     /// <summary>A quiet batch is covered by a wake, whether or not that wake runs a pass.</summary>
     /// <remarks>
     /// The follow-up sits before the interval gate, so a live delivery is not left uncovered until

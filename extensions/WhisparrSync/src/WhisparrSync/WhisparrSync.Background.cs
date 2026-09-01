@@ -89,7 +89,8 @@ public sealed partial class WhisparrSync : IBackgroundExtension
                 // wake is a backstop wake, so the follow-up does not wait on the backstop interval.
                 await ContainedAsync(
                     () => FollowUpAsync(scopes, followUp),
-                    WhisparrSyncLog.FollowUpFaulted).ConfigureAwait(false);
+                    WhisparrSyncLog.FollowUpFaulted,
+                    ct).ConfigureAwait(false);
 
                 // Read each wake rather than once at the start, so a change to the interval takes
                 // effect within one wake instead of after up to a whole interval of the old value.
@@ -104,7 +105,8 @@ public sealed partial class WhisparrSync : IBackgroundExtension
                                 .ConfigureAwait(false))
                             .BackstopInterval),
                     DefaultInterval,
-                    WhisparrSyncLog.BackstopIntervalUnreadable).ConfigureAwait(false);
+                    WhisparrSyncLog.BackstopIntervalUnreadable,
+                    ct).ConfigureAwait(false);
 
                 if (clock.GetUtcNow() - lastPassStartedAt < interval)
                 {
@@ -114,7 +116,8 @@ public sealed partial class WhisparrSync : IBackgroundExtension
                 lastPassStartedAt = clock.GetUtcNow();
                 await ContainedAsync(
                     () => PassAsync(scopes, ct),
-                    WhisparrSyncLog.BackstopPassFaulted).ConfigureAwait(false);
+                    WhisparrSyncLog.BackstopPassFaulted,
+                    ct).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -172,16 +175,19 @@ public sealed partial class WhisparrSync : IBackgroundExtension
     /// <param name="step">The call to contain.</param>
     /// <param name="whenContained">What the step reads as when it failed.</param>
     /// <param name="report">The line the failure is reported in.</param>
+    /// <param name="ct">The worker's own token, which is what tells a shutdown from a timeout.</param>
     private async Task<T> ContainedAsync<T>(
-        Func<Task<T>> step, T whenContained, Action<ILogger, Exception> report)
+        Func<Task<T>> step, T whenContained, Action<ILogger, Exception> report, CancellationToken ct)
     {
         try
         {
             return await step().ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             // Above the broad catch, so a shutdown classifies as cancelled rather than as a failure.
+            // Conditioned on the token: an outbound timeout raises TaskCanceledException, which
+            // derives from this, and the only handler a rethrow reaches admits a shutdown alone.
             throw;
         }
 #pragma warning disable CA1031 // A step that failed unexpectedly must not take the worker with it.
@@ -194,7 +200,8 @@ public sealed partial class WhisparrSync : IBackgroundExtension
     }
 
     /// <inheritdoc cref="ContainedAsync{T}"/>
-    private async Task ContainedAsync(Func<Task> step, Action<ILogger, Exception> report)
+    private async Task ContainedAsync(
+        Func<Task> step, Action<ILogger, Exception> report, CancellationToken ct)
         => await ContainedAsync<object?>(
                 async () =>
                 {
@@ -202,7 +209,8 @@ public sealed partial class WhisparrSync : IBackgroundExtension
                     return null;
                 },
                 null,
-                report)
+                report,
+                ct)
             .ConfigureAwait(false);
 
     private static DateTimeOffset? InstantOf(long utcTicks)
