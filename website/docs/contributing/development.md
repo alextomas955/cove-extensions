@@ -46,8 +46,9 @@ reference](./configuration).
 Two things to read before you take a green build as proof of anything:
 
 - Every build prints one line naming the Cove source it resolved and the absolute path it resolved
-  it from. A build that fell back to the published packages compiles a smaller set of tests and
-  still reports success.
+  it from. In none mode the solution build also
+  prints one line for each project it skipped because that project requires a Cove checkout, and
+  those projects' tests neither compiled nor ran.
 - A project missing from `CoveExtensions.slnx` is not compiled by the solution build and is not seen
   by the C# formatting gate. The catalog validator is what catches that, not the build.
 
@@ -191,19 +192,19 @@ and CI cannot disagree.
 Each of these runs on every pull request. Run the ones your change can plausibly break before you
 push; run all of them if you touched root tooling.
 
-| Gate               | What it catches                                                                                                          | Command                                                              | Directory        |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- | ---------------- |
-| Prettier           | Formatting drift in everything not ignored, including this page                                                          | `npm run format:check`                                               | repo root        |
-| ESLint             | Lint and import-boundary violations across every UI bundle and every first-party script                                  | `npm run lint`                                                       | repo root        |
-| C# formatting      | `.editorconfig` violations across the solution                                                                           | `npm run format:cs:check`                                            | repo root        |
-| C# analyzers       | Any compiler or analyzer warning, which is an error here                                                                 | `dotnet build CoveExtensions.slnx -c Release -p:CoveSourceMode=none` | repo root        |
-| syncpack           | The same dependency pinned to different versions across the repo's `package.json` files                                  | `npm run syncpack`                                                   | repo root        |
-| knip               | Dead files, unused exports, and unused dependencies on the TypeScript side                                               | `npm run knip`                                                       | repo root        |
-| jscpd              | New copy-paste, above the threshold its config declares                                                                  | `npm run jscpd`                                                      | repo root        |
-| markdownlint       | Markdown rule violations in the docs                                                                                     | `npx markdownlint-cli2`                                              | repo root        |
-| Catalog validator  | A declared catalog path that does not exist, a project missing from the solution, a floor that disagrees with a manifest | `node scripts/validate-extension-repo.mjs`                           | repo root        |
-| Repo tooling tests | A regression in the scripts under `scripts/`                                                                             | `npm test`                                                           | repo root        |
-| UI verify          | Typecheck, formatting, class discipline, and unit tests for one bundle                                                   | `npm run verify`                                                     | the UI directory |
+| Gate               | What it catches                                                                                                          | Command                                                                | Directory        |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- | ---------------- |
+| Prettier           | Formatting drift in everything not ignored, including this page                                                          | `npm run format:check`                                                 | repo root        |
+| ESLint             | Lint and import-boundary violations across every UI bundle and every first-party script                                  | `npm run lint`                                                         | repo root        |
+| C# formatting      | `.editorconfig` violations across the solution                                                                           | `npm run format:cs:check`                                              | repo root        |
+| C# analyzers       | Any compiler or analyzer warning, which is an error here                                                                 | `dotnet build CoveExtensions.slnx -c Release -p:CoveSourceMode=source` | repo root        |
+| syncpack           | The same dependency pinned to different versions across the repo's `package.json` files                                  | `npm run syncpack`                                                     | repo root        |
+| knip               | Dead files, unused exports, and unused dependencies on the TypeScript side                                               | `npm run knip`                                                         | repo root        |
+| jscpd              | New copy-paste, above the threshold its config declares                                                                  | `npm run jscpd`                                                        | repo root        |
+| markdownlint       | Markdown rule violations in the docs                                                                                     | `npx markdownlint-cli2`                                                | repo root        |
+| Catalog validator  | A declared catalog path that does not exist, a project missing from the solution, a floor that disagrees with a manifest | `node scripts/validate-extension-repo.mjs`                             | repo root        |
+| Repo tooling tests | A regression in the scripts under `scripts/`                                                                             | `npm test`                                                             | repo root        |
+| UI verify          | Typecheck, formatting, class discipline, and unit tests for one bundle                                                   | `npm run verify`                                                       | the UI directory |
 
 knip resolves the end-to-end packages' configs, so it needs a plain `npm ci` at the root rather than
 the `--no-workspaces` form, and it needs the wire types generated. The dead-code class it gates on the
