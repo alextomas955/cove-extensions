@@ -52,7 +52,7 @@ if (typeof import.meta.main !== "boolean") {
     console.error(
       `check-csharp-format: this Node (${process.version}) does not implement import.meta.main, so this script cannot tell it was run rather than imported and would check nothing while exiting 0. Node 22.18 or newer is required to run it.`,
     );
-    process.exit(1);
+    process.exitCode = 1;
   }
 } else if (import.meta.main) {
   // `shell: false`, so a filename lefthook interpolated into its own command string is not split a
@@ -77,5 +77,8 @@ if (typeof import.meta.main !== "boolean") {
   }
 
   // This reports; it does not gate.
-  process.exit(run.status ?? 1);
+  //
+  // Node's stdout is asynchronous on a pipe, and process.exit does not drain it: exiting here would
+  // discard the disclosure above and most of the tool's own output while keeping the status.
+  process.exitCode = run.status ?? 1;
 }
