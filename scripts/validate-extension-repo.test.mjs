@@ -787,7 +787,65 @@ test("a ProjectReference onto a project that is not the coveTestProjectPath stay
     assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
     assert.match(
       stdout,
-      /4 project file\(s\) scanned for ProjectReference items onto 1 declared Cove test project\(s\)/,
+      /5 project file\(s\) scanned for ProjectReference items onto 1 declared Cove test project\(s\)/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a ProjectReference inside an XML comment does not fail the reference rule", () => {
+  // Several project files here discuss ProjectReference wiring in prose. Matching inside a comment
+  // would fail a blocking gate on text MSBuild never reads.
+  const root = csharpFixture({
+    projectPath: "extensions/Foo/Foo.csproj",
+    testProjectPath: "extensions/Foo/Foo.Tests.csproj",
+    coveTestProjectPath: "extensions/Foo/Foo.Cove.Tests.csproj",
+    solution: [
+      "extensions/Foo/Foo.csproj",
+      "extensions/Foo/Foo.Tests.csproj",
+      "extensions/Foo/Foo.Cove.Tests.csproj",
+    ],
+    extraFiles: {
+      "extensions/Bar/Bar.csproj":
+        "<Project>\n  <ItemGroup>\n" +
+        '    <!-- <ProjectReference Include="../Foo/Foo.Cove.Tests.csproj" /> -->\n' +
+        "  </ItemGroup>\n</Project>\n",
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a ProjectReference injected from Directory.Build.targets onto the coveTestProjectPath fails", () => {
+  // A root-level injection reaches every project beneath it without editing any .csproj, so a walk
+  // collecting only .csproj files cannot see the one shape that needs no project edit at all.
+  const root = csharpFixture({
+    projectPath: "extensions/Foo/Foo.csproj",
+    testProjectPath: "extensions/Foo/Foo.Tests.csproj",
+    coveTestProjectPath: "extensions/Foo/Foo.Cove.Tests.csproj",
+    solution: [
+      "extensions/Foo/Foo.csproj",
+      "extensions/Foo/Foo.Tests.csproj",
+      "extensions/Foo/Foo.Cove.Tests.csproj",
+    ],
+    extraFiles: {
+      "Directory.Build.targets":
+        "<Project>\n  <ItemGroup>\n" +
+        '    <ProjectReference Include="extensions/Foo/Foo.Cove.Tests.csproj" />\n' +
+        "  </ItemGroup>\n</Project>\n",
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(
+      stderr,
+      /Directory\.Build\.targets declares a ProjectReference onto coveTestProjectPath/,
     );
   } finally {
     rmSync(root, { recursive: true, force: true });

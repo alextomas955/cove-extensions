@@ -97,6 +97,10 @@ function normalizeSeparators(value) {
 // below, and nothing would report it.
 const referenceScanSkippedDirectories = new Set(["node_modules", "bin", "obj", ".git", "website"]);
 
+// Directory.Build.props/.targets carry ProjectReference items that MSBuild injects into every project
+// beneath them, which is the one place a reference can be added without editing any .csproj at all.
+const referenceScanFileNames = new Set(["Directory.Build.props", "Directory.Build.targets"]);
+
 // Walked from the repository root rather than read from the catalog, because a project taking the
 // forbidden reference is by definition one the catalog does not declare.
 function collectProjectFiles(dir, collected = []) {
@@ -104,7 +108,10 @@ function collectProjectFiles(dir, collected = []) {
     if (entry.isDirectory()) {
       if (referenceScanSkippedDirectories.has(entry.name)) continue;
       collectProjectFiles(path.join(dir, entry.name), collected);
-    } else if (entry.isFile() && entry.name.endsWith(".csproj")) {
+    } else if (
+      entry.isFile() &&
+      (entry.name.endsWith(".csproj") || referenceScanFileNames.has(entry.name))
+    ) {
       collected.push(path.join(dir, entry.name));
     }
   }
@@ -120,8 +127,10 @@ function collectProjectFiles(dir, collected = []) {
 // a wildcard is collected into unresolvable rather than resolved, because expanding one needs
 // MSBuild's own evaluation - and this repo's own wiring writes Includes in that spelling, so a rule
 // that dropped them would be silent over the shape most likely to carry the reference.
+// XML comments are stripped first: several project files here discuss ProjectReference wiring in
+// prose, and the first one to quote the markup would otherwise fail a blocking gate on a comment.
 function readProjectReferences(projectFilePath, unresolvable) {
-  const content = fs.readFileSync(projectFilePath, "utf8");
+  const content = fs.readFileSync(projectFilePath, "utf8").replaceAll(/<!--[\s\S]*?-->/g, "");
   const projectDir = path.dirname(projectFilePath);
   const references = [];
   const pattern = /<ProjectReference\b[^>]*?\bInclude\s*=\s*(["'])(.*?)\1/g;
