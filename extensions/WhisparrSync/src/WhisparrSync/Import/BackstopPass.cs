@@ -11,6 +11,7 @@ namespace WhisparrSync.Import;
 internal sealed class BackstopPass(
     IWhisparrClient client,
     OptionsStore options,
+    OptionsWriteGate gate,
     ICredentialPort credentials,
     IImportCore core,
     TimeProvider clock,
@@ -192,47 +193,40 @@ internal sealed class BackstopPass(
                 contained);
     }
 
-    // Reloaded rather than folded into the blob this pass opened with: the ingest core writes the
-    // refusal aggregate to the same blob while the walk runs, and a save built on the earlier reading
-    // would drop those writes.
+    // Folded onto whatever the gate loads rather than onto the blob this pass opened with: the ingest
+    // core writes the refusal aggregate to the same blob while the walk runs.
     private async Task MarkAsync(
         WhisparrGeneration generation, DateTimeOffset mark, CancellationToken ct)
-    {
-        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
-        if (stored.ConnectionFor(generation) is not { } connection)
-        {
-            return;
-        }
-
-        await options
-            .SaveAsync(
-                stored.WithConnectionFor(generation, connection with { BackstopWatermarkUtc = mark }), ct)
-            .ConfigureAwait(false);
-    }
+        => await gate.MutateAsync(
+            options,
+            stored => stored.ConnectionFor(generation) is { } connection
+                ? stored.WithConnectionFor(generation, connection with { BackstopWatermarkUtc = mark })
+                : stored,
+            ct).ConfigureAwait(false);
 
     private async Task RecordPositionLostAsync(CancellationToken ct)
-    {
-        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
-        await options
-            .SaveAsync(stored with { ImportHealth = stored.ImportHealth with { BackstopPositionLost = true } }, ct)
-            .ConfigureAwait(false);
-    }
+        => await gate.MutateAsync(
+            options,
+            stored => stored with
+            {
+                ImportHealth = stored.ImportHealth with { BackstopPositionLost = true },
+            },
+            ct).ConfigureAwait(false);
 
     private async Task RecordFailureAsync(BackstopPassOutcome outcome, CancellationToken ct)
     {
-        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
-        await options
-            .SaveAsync(
-                stored with
+        var failedAt = clock.GetUtcNow();
+        await gate.MutateAsync(
+            options,
+            stored => stored with
+            {
+                ImportHealth = stored.ImportHealth with
                 {
-                    ImportHealth = stored.ImportHealth with
-                    {
-                        LastFailedAtUtc = clock.GetUtcNow(),
-                        LastError = outcome.ToString(),
-                        ConsecutiveFailures = stored.ImportHealth.ConsecutiveFailures + 1,
-                    },
+                    LastFailedAtUtc = failedAt,
+                    LastError = outcome.ToString(),
+                    ConsecutiveFailures = stored.ImportHealth.ConsecutiveFailures + 1,
                 },
-                ct)
-            .ConfigureAwait(false);
+            },
+            ct).ConfigureAwait(false);
     }
 }

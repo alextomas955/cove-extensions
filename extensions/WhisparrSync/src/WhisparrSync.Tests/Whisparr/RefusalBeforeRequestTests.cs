@@ -158,6 +158,7 @@ public sealed class RefusalBeforeRequestTests
         return new ConnectionTestRunner(
             new ConnectionTester(client, NullLogger<ConnectionTester>.Instance),
             options,
+            new OptionsWriteGate(),
             credentials,
             TimeProvider.System);
     }

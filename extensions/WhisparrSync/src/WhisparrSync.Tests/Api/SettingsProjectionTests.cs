@@ -115,6 +115,7 @@ public sealed partial class SettingsProjectionTests
                 null),
             FakePrincipalAccessor.WithPermissions(Permissions.ExtensionsConfigure),
             options,
+            new OptionsWriteGate(),
             credentials,
             TimeProvider.System,
             TestContext.Current.CancellationToken);
