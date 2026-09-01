@@ -185,8 +185,10 @@ public sealed partial class SettingsProjectionTests
                 "ConnectionTransportFailure.host",
                 // The registrable domain of a metadata source the host is configured with, reduced
                 // before it is passed. A domain carries no user-info, no path and no query, so the
-                // one part of an address that could hold a credential cannot reach the line.
+                // one part of an address that could hold a credential cannot reach the line. Both
+                // halves of the enrichment containment are given the same reduced value.
                 "EnrichmentContained.source",
+                "EnrichmentNotCommitted.source",
                 "ImportEventTypeIgnored.eventType",
                 // A Whisparr root folder, from the configured instance's own answer to an
                 // authenticated read rather than from an anonymous delivery's body. It names a
