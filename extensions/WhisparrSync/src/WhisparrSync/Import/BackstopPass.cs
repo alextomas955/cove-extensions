@@ -95,7 +95,8 @@ internal sealed class BackstopPass(
             WhisparrResponse answer;
             try
             {
-                answer = await client.ReadHistoryAsync(baseAddress, apiKey, page, PageSize, ct)
+                answer = await client
+                    .ReadHistoryAsync(baseAddress, apiKey, generation, page, PageSize, ct)
                     .ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
