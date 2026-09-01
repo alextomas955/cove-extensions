@@ -1,6 +1,8 @@
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
+using WhisparrSync.Import;
 using WhisparrSync.Options;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
@@ -22,6 +24,11 @@ public sealed class RefusalBeforeRequestTests
     private const string StoredAddress = "http://whisparr-v3:6969";
     private const string V2Address = "http://whisparr-v2:6969";
     private const string StoredKey = "7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c";
+
+    /// <summary>How many deliveries one burst stands for.</summary>
+    private const int Burst = 10;
+
+    private static readonly DateTimeOffset Midnight = new(2026, 8, 31, 0, 0, 0, TimeSpan.Zero);
 
     /// <summary>
     /// The control the emptiness assertions rest on: this recorder reports a send, with the address
@@ -128,7 +135,127 @@ public sealed class RefusalBeforeRequestTests
         Assert.Single(client.Calls);
     }
 
+    /// <summary>
+    /// A burst of deliveries arriving while the instance is unreachable costs one outbound probe.
+    /// </summary>
+    /// <remarks>
+    /// A read that reaches the client re-pays the client's own timeout and retry, and it does so
+    /// inside the inbound request pipeline. Uncached, a burst during an outage is therefore a burst of
+    /// stalls rather than a burst of refusals.
+    /// </remarks>
+    [Fact]
+    public async Task ABurstAgainstAnUnreachableInstanceProbesItOnce()
+    {
+        var unreachable = new UnreachableRootFolders(RecordingWhisparrClient.Reporting(V3StatusFixture));
+        var roots = await RootPortOverAsync(unreachable, StoredAddress, StoredKey, new MovableClock(Midnight));
+
+        for (var delivery = 0; delivery < Burst; delivery++)
+        {
+            Assert.Empty(await roots.ReadAsync(WhisparrGeneration.V3, TestCt));
+        }
+
+        Assert.Equal(1, unreachable.Attempts);
+    }
+
+    /// <summary>A burst against an unconfigured connection reaches no request at all.</summary>
+    /// <remarks>
+    /// Paired with a send taken through the SAME double, so the empty log is a fact about the refusal
+    /// rather than the only thing this case could report.
+    /// </remarks>
+    [Fact]
+    public async Task ABurstAgainstAnUnconfiguredConnectionSendsNothing()
+    {
+        var client = RecordingWhisparrClient.Reporting(V3StatusFixture);
+        var unconfigured = await RootPortOverAsync(client, "", null, new MovableClock(Midnight));
+
+        for (var delivery = 0; delivery < Burst; delivery++)
+        {
+            Assert.Empty(await unconfigured.ReadAsync(WhisparrGeneration.V3, TestCt));
+        }
+
+        Assert.Empty(client.Notifications);
+
+        var configured = await RootPortOverAsync(
+            client, StoredAddress, StoredKey, new MovableClock(Midnight));
+        await configured.ReadAsync(WhisparrGeneration.V3, TestCt);
+        Assert.Single(client.Notifications);
+    }
+
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
+
+    // The whole runtime the reported-root read runs through, with the client at the seam every
+    // request would leave by.
+    private static async Task<IReportedRootPort> RootPortOverAsync(
+        IWhisparrClient client, string address, string? apiKey, TimeProvider clock)
+    {
+        var options = new OptionsStore(new FakeStore());
+        await options.SaveAsync(
+            new WhisparrSyncOptions
+            {
+                SelectedGeneration = WhisparrGeneration.V3,
+                V3 = new WhisparrSyncGenerationConnection { Address = address },
+            },
+            TestCt);
+
+        var credentials = new RecordingCredentialPort();
+        if (apiKey is not null)
+        {
+            credentials.Holding(WhisparrGeneration.V3, apiKey);
+        }
+
+        return new ReportedRootPort(
+            client, options, credentials, new ReportedRootCache(clock), NullLogger.Instance);
+    }
+
+    /// <summary>A client whose root-folder read never arrives, counting what it was asked for.</summary>
+    private sealed class UnreachableRootFolders(RecordingWhisparrClient inner) : IWhisparrClient
+    {
+        /// <summary>How many root-folder reads were attempted against the instance.</summary>
+        public int Attempts { get; private set; }
+
+        public Task<WhisparrResponse> ReadRootFoldersAsync(
+            Uri baseAddress, string apiKey, CancellationToken ct)
+        {
+            Attempts++;
+            throw new HttpRequestException("the instance answered nothing");
+        }
+
+        public Task<WhisparrResponse> ReadStatusAsync(Uri baseAddress, string apiKey, CancellationToken ct)
+            => inner.ReadStatusAsync(baseAddress, apiKey, ct);
+
+        public Task<WhisparrResponse> ReadNotificationSchemaAsync(
+            Uri baseAddress, string apiKey, CancellationToken ct)
+            => inner.ReadNotificationSchemaAsync(baseAddress, apiKey, ct);
+
+        public Task<WhisparrResponse> ListNotificationsAsync(
+            Uri baseAddress, string apiKey, CancellationToken ct)
+            => inner.ListNotificationsAsync(baseAddress, apiKey, ct);
+
+        public Task<WhisparrResponse> ReadHistoryAsync(
+            Uri baseAddress,
+            string apiKey,
+            WhisparrGeneration generation,
+            int page,
+            int pageSize,
+            CancellationToken ct)
+            => inner.ReadHistoryAsync(baseAddress, apiKey, generation, page, pageSize, ct);
+
+        public Task<WhisparrResponse> CreateNotificationAsync(
+            Uri baseAddress, string apiKey, JsonNode body, CancellationToken ct)
+            => inner.CreateNotificationAsync(baseAddress, apiKey, body, ct);
+
+        public Task<WhisparrResponse> UpdateNotificationAsync(
+            Uri baseAddress, string apiKey, int id, JsonNode body, CancellationToken ct)
+            => inner.UpdateNotificationAsync(baseAddress, apiKey, id, body, ct);
+    }
+
+    /// <summary>A clock the case moves by hand, so a lifetime is exercised without waiting one.</summary>
+    private sealed class MovableClock(DateTimeOffset start) : TimeProvider
+    {
+        private DateTimeOffset _now = start;
+
+        public override DateTimeOffset GetUtcNow() => _now;
+    }
 
     // The whole runtime the outbound path runs through, with the recording client at the seam every
     // request would leave by.
