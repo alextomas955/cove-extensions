@@ -468,13 +468,16 @@ test("a manifestOnly entry that declares a uiPath fails, naming both fields", ()
 // exist, so the existence checks are silent, and the manifest is valid for a non-manifestOnly entry.
 // `absentOnDisk` names declared paths the fixture deliberately does not plant, which is what
 // separates the declared-but-missing check from the solution-membership one — both report on the
-// same field, and a case that plants nothing cannot say which of the two spoke.
+// same field, and a case that plants nothing cannot say which of the two spoke. `extraFiles` plants
+// project files the catalog does not declare, which is the only way to express a project that takes a
+// reference onto a declared one.
 function csharpFixture({
   solution,
   projectPath,
   testProjectPath,
   coveTestProjectPath,
   absentOnDisk = [],
+  extraFiles = {},
   name = "Foo",
 }) {
   const entry = validEntry("com.example.foo", "Foo", {
@@ -484,7 +487,7 @@ function csharpFixture({
     ...(testProjectPath === undefined ? {} : { testProjectPath }),
     ...(coveTestProjectPath === undefined ? {} : { coveTestProjectPath }),
   });
-  const filesByPath = {};
+  const filesByPath = { ...extraFiles };
   for (const declared of [projectPath, testProjectPath, coveTestProjectPath]) {
     if (declared && !absentOnDisk.includes(declared)) filesByPath[declared] = "<Project />\n";
   }
@@ -656,6 +659,77 @@ test("an entry declaring neither test project stays valid", () => {
     const { status, stdout, stderr } = runValidator(root);
     assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
     assert.match(stdout, /0 declared catalog path\(s\), 1 CoveExtensions\.slnx membership\(s\)/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// A fully-declared C# entry whose extra project takes one reference, so only the reference rule can
+// speak: every declared path exists and the solution declares all three.
+function referenceFixture(includeValue) {
+  return csharpFixture({
+    projectPath: "extensions/Foo/Foo.csproj",
+    testProjectPath: "extensions/Foo/Foo.Tests.csproj",
+    coveTestProjectPath: "extensions/Foo/Foo.Cove.Tests.csproj",
+    solution: [
+      "extensions/Foo/Foo.csproj",
+      "extensions/Foo/Foo.Tests.csproj",
+      "extensions/Foo/Foo.Cove.Tests.csproj",
+    ],
+    extraFiles: {
+      "extensions/Bar/Bar.csproj":
+        "<Project>\n  <ItemGroup>\n" +
+        `    <ProjectReference Include="${includeValue}" />\n` +
+        "  </ItemGroup>\n</Project>\n",
+    },
+  });
+}
+
+test("a ProjectReference onto a declared coveTestProjectPath fails, naming the referencing project and the field", () => {
+  // The Cove test project declares that it requires a Cove source checkout, and the whole-solution
+  // skip that honours that declaration is scoped by $(SolutionPath). That property separates a
+  // solution build from a direct one; it does not separate an entry project from one reached through
+  // a reference, so the referencing project takes the skip and then fails to resolve an output
+  // nothing produced. The invariant is documented where the skip lives and nothing else asserts it.
+  const root = referenceFixture("../Foo/Foo.Cove.Tests.csproj");
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(
+      stderr,
+      /com\.example\.foo: extensions\/Bar\/Bar\.csproj declares a ProjectReference onto coveTestProjectPath extensions\/Foo\/Foo\.Cove\.Tests\.csproj/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a backslash-separated ProjectReference onto a coveTestProjectPath is judged the same as a forward-slash one", () => {
+  // The repository is authored on Windows and built on Linux, so a Windows-spelled Include names the
+  // same file. Case is deliberately not folded here either, for the reason the solution comparison
+  // states.
+  const root = referenceFixture("..\\Foo\\Foo.Cove.Tests.csproj");
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notEqual(status, 0);
+    assert.match(stderr, /coveTestProjectPath extensions\/Foo\/Foo\.Cove\.Tests\.csproj/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a ProjectReference onto a project that is not the coveTestProjectPath stays valid", () => {
+  // Without this the rule could be satisfied by refusing every reference, which would refuse the real
+  // repository's own topology. The scanned count is asserted rather than exit 0 alone: a walk that
+  // reached no project file also finds nothing to report.
+  const root = referenceFixture("../Foo/Foo.Tests.csproj");
+  try {
+    const { status, stdout, stderr } = runValidator(root);
+    assert.equal(status, 0, "expected exit 0, stderr: " + stderr);
+    assert.match(
+      stdout,
+      /4 project file\(s\) scanned for ProjectReference items onto 1 declared Cove test project\(s\)/,
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
