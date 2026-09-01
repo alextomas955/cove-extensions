@@ -24,6 +24,14 @@ public interface IWhisparrConnectionTester
 internal sealed class ConnectionTester(IWhisparrClient client, ILogger<ConnectionTester> logger)
     : IWhisparrConnectionTester
 {
+    /// <summary>How much of a name the answering instance chose is echoed back.</summary>
+    /// <remarks>
+    /// Long enough for every branch and application name either generation declares. The version is
+    /// held to the ceiling the stored reading uses instead, so what a test echoes and what it records
+    /// cannot differ in length.
+    /// </remarks>
+    internal const int ReportedNameMaxLength = 64;
+
     public async Task<ConnectionTestView> TestAsync(string? address, string? apiKey, CancellationToken ct)
     {
         if (!TryReadConnection(address, apiKey, out var baseAddress, out var missing))
