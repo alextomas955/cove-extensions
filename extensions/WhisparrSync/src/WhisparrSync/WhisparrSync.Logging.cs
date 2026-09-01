@@ -132,6 +132,22 @@ internal static partial class WhisparrSyncLog
         Message = "[WhisparrSync] a backstop pass ended in an unexpected failure; the next wake tries again")]
     internal static partial void BackstopPassFaulted(ILogger logger, Exception failure);
 
+    // The follow-up step of a wake, ended by a failure the step itself does not classify. It opens a
+    // scope, resolves the library out of it and reaches the host's own job enqueue, and a failure in
+    // any of those leaves the batch pending for the next wake to try again.
+    [LoggerMessage(
+        EventId = 2113, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] a follow-up scan could not be started; the next wake tries again")]
+    internal static partial void FollowUpFaulted(ILogger logger, Exception failure);
+
+    // The interval read of a wake, which is a live query. The wake works to the declared default
+    // instead, so the backstop keeps running at a slower cadence than a user configured - a state
+    // nothing else about the extension would show.
+    [LoggerMessage(
+        EventId = 2114, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] the stored backstop interval could not be read; this wake worked to the default")]
+    internal static partial void BackstopIntervalUnreadable(ILogger logger, Exception failure);
+
     // A pending follow-up batch let go at shutdown. The files are on disk and Cove's own library scan
     // finds them, so the drop is the correct outcome - but imports left uncovered with no trace are
     // not something a user could ever explain. The count and nothing else: the paths are per file.

@@ -1,6 +1,7 @@
 using Cove.Extensions.Shared;
 using Cove.Plugins;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using WhisparrSync.Import;
 using WhisparrSync.Options;
 
@@ -23,6 +24,10 @@ public sealed partial class WhisparrSync : IBackgroundExtension
     /// </remarks>
     private static readonly TimeSpan WorkerPeriod =
         TimeSpan.FromSeconds(WhisparrSyncOptions.BackstopIntervalFloorSeconds);
+
+    /// <summary>The interval a wake works to when the stored one could not be read.</summary>
+    private static readonly TimeSpan DefaultInterval =
+        TimeSpan.FromSeconds(WhisparrSyncOptions.DefaultBackstopIntervalSeconds);
 
     // UTC ticks read and written through Interlocked rather than a DateTimeOffset? field: the worker
     // writes these on its own thread while the host-configuration probe reads them on a request
@@ -82,17 +87,24 @@ public sealed partial class WhisparrSync : IBackgroundExtension
             {
                 // Before the interval gate: the live channel's batch is covered whether or not this
                 // wake is a backstop wake, so the follow-up does not wait on the backstop interval.
-                await FollowUpAsync(scopes, followUp).ConfigureAwait(false);
+                await ContainedAsync(
+                    () => FollowUpAsync(scopes, followUp),
+                    WhisparrSyncLog.FollowUpFaulted).ConfigureAwait(false);
 
                 // Read each wake rather than once at the start, so a change to the interval takes
                 // effect within one wake instead of after up to a whole interval of the old value.
-                var interval = await RunAsSystem.RunInSystemScopeAsync(
-                    scopes,
-                    async scope => (await scope
-                            .GetRequiredService<OptionsStore>()
-                            .LoadAsync(ct)
-                            .ConfigureAwait(false))
-                        .BackstopInterval).ConfigureAwait(false);
+                // A read that failed costs the wakes the default covers: an interval remembered from
+                // an earlier wake would be a value whose staleness nothing reports.
+                var interval = await ContainedAsync(
+                    () => RunAsSystem.RunInSystemScopeAsync(
+                        scopes,
+                        async scope => (await scope
+                                .GetRequiredService<OptionsStore>()
+                                .LoadAsync(ct)
+                                .ConfigureAwait(false))
+                            .BackstopInterval),
+                    DefaultInterval,
+                    WhisparrSyncLog.BackstopIntervalUnreadable).ConfigureAwait(false);
 
                 if (clock.GetUtcNow() - lastPassStartedAt < interval)
                 {
@@ -100,7 +112,9 @@ public sealed partial class WhisparrSync : IBackgroundExtension
                 }
 
                 lastPassStartedAt = clock.GetUtcNow();
-                await PassAsync(scopes, ct).ConfigureAwait(false);
+                await ContainedAsync(
+                    () => PassAsync(scopes, ct),
+                    WhisparrSyncLog.BackstopPassFaulted).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -135,31 +149,61 @@ public sealed partial class WhisparrSync : IBackgroundExtension
             }).ConfigureAwait(false);
     }
 
-    /// <summary>Runs one pass, and keeps the worker alive through a failure it did not expect.</summary>
+    /// <summary>Runs one pass.</summary>
+    /// <remarks>The pass reports its own reading; nothing in the loop reads the returned one.</remarks>
+    private static async Task PassAsync(IServiceScopeFactory scopes, CancellationToken ct)
+        => await RunAsSystem.RunInSystemScopeAsync(
+                scopes, scope => scope.GetRequiredService<IBackstopPass>().RunAsync(ct))
+            .ConfigureAwait(false);
+
+    /// <summary>
+    /// Runs one step of the loop body, and keeps the worker alive through a failure it did not expect.
+    /// </summary>
     /// <remarks>
     /// The host treats anything but a cancellation as a fault and does not restart the worker, so an
-    /// exception let out here would stop the backstop until the extension is reloaded.
+    /// exception let out of the body would stop the backstop until the extension is reloaded. Every
+    /// call the body makes comes through here: a guard around one of them leaves the others able to
+    /// end the worker, and which call the failure came from is not something a user can see.
+    /// <para>
+    /// The timer wait is deliberately outside. A failure there is the host stopping this worker and
+    /// has to reach the cancellation handling.
+    /// </para>
     /// </remarks>
-    private async Task PassAsync(IServiceScopeFactory scopes, CancellationToken ct)
+    /// <param name="step">The call to contain.</param>
+    /// <param name="whenContained">What the step reads as when it failed.</param>
+    /// <param name="report">The line the failure is reported in.</param>
+    private async Task<T> ContainedAsync<T>(
+        Func<Task<T>> step, T whenContained, Action<ILogger, Exception> report)
     {
         try
         {
-            await RunAsSystem.RunInSystemScopeAsync(
-                scopes,
-                scope => scope.GetRequiredService<IBackstopPass>().RunAsync(ct)).ConfigureAwait(false);
+            return await step().ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
             // Above the broad catch, so a shutdown classifies as cancelled rather than as a failure.
             throw;
         }
-#pragma warning disable CA1031 // A pass that failed unexpectedly must not take the worker with it.
+#pragma warning disable CA1031 // A step that failed unexpectedly must not take the worker with it.
         catch (Exception failure)
         {
-            WhisparrSyncLog.BackstopPassFaulted(_log, failure);
+            report(_log, failure);
+            return whenContained;
         }
 #pragma warning restore CA1031
     }
+
+    /// <inheritdoc cref="ContainedAsync{T}"/>
+    private async Task ContainedAsync(Func<Task> step, Action<ILogger, Exception> report)
+        => await ContainedAsync<object?>(
+                async () =>
+                {
+                    await step().ConfigureAwait(false);
+                    return null;
+                },
+                null,
+                report)
+            .ConfigureAwait(false);
 
     private static DateTimeOffset? InstantOf(long utcTicks)
         => utcTicks == 0 ? null : new DateTimeOffset(utcTicks, TimeSpan.Zero);
