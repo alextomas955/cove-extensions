@@ -23,6 +23,15 @@
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
     <!--
+      TEST-ONLY. Named for the RUNTIME closure, not for the compile: EF Core reaches the compile
+      transitively through Cove.Core either way, but only the package path copies the assembly into
+      this project's bin/. With a Cove checkout, Cove.Sdk arrives as a Private=false /
+      ExcludeAssets=runtime ProjectReference, so nothing copies EF Core and the tests that dispatch
+      through the extension fail at load with FileNotFoundException. The build is clean in both modes
+      either way, so this edge is invisible to every compile-time check.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <!--
       TEST-ONLY, and a version PIN on an edge that already exists rather than a new dependency: Npgsql
       is restored here anyway through Cove.Core → Pgvector, at a version that trails the one the host
       runs. Naming it puts the compile graph on the runtime users receive; the symptom without it is an
