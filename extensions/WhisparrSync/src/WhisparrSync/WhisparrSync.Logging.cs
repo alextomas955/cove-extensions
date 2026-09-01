@@ -156,4 +156,13 @@ internal static partial class WhisparrSyncLog
         EventId = 2106, Level = LogLevel.Information,
         Message = "[WhisparrSync] the metadata source at {Source} applied nothing to a newly imported scene")]
     internal static partial void EnrichmentContained(ILogger logger, string source, Exception failure);
+
+    // The host's own import declining a file this product verified. Contained rather than
+    // propagated: it is raised into a route whose declared results hold no failure, and into a walk
+    // that has to keep reading to reach its mark. The exception and nothing else — the path is a
+    // caller-supplied string and a log sink is durable and readable.
+    [LoggerMessage(
+        EventId = 2111, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] the host's own import would not take a verified file")]
+    internal static partial void HostImportContained(ILogger logger, Exception failure);
 }

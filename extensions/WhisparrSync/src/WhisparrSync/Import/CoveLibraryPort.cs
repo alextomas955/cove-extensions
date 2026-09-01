@@ -1,6 +1,7 @@
 using Cove.Core.Entities;
 using Cove.Core.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace WhisparrSync.Import;
 
@@ -25,7 +26,8 @@ internal sealed class CoveLibraryPort(
     DbContext db,
     IScanService? scan,
     IMetadataServerService? metadata,
-    CoveConfiguration? config) : ICoveLibraryPort
+    CoveConfiguration? config,
+    ILogger log) : ICoveLibraryPort
 {
     public IReadOnlyList<string> LibraryRoots => ReadLibraryRoots(config);
 
@@ -45,7 +47,21 @@ internal sealed class CoveLibraryPort(
             return new LibraryImport(false, null);
         }
 
-        return new LibraryImport(true, await scan.ImportDownloadedVideoAsync(path, videoId, ct).ConfigureAwait(false));
+        try
+        {
+            return new LibraryImport(
+                true,
+                await scan.ImportDownloadedVideoAsync(path, videoId, ct).ConfigureAwait(false));
+        }
+        // The two the host's own import raises: the file is gone by the time it looks, and the row it
+        // resolved is claimed by no item. Both would otherwise leave a route answering outside its
+        // declared results and a background walk unable to reach its mark. Narrow on purpose - a
+        // broader catch here would hide a defect rather than contain a known refusal.
+        catch (Exception refused) when (refused is FileNotFoundException or InvalidOperationException)
+        {
+            WhisparrSyncLog.HostImportContained(log, refused);
+            return new LibraryImport(false, null);
+        }
     }
 
     public async Task<int> DetachSupersededFilesAsync(int videoId, string keptPath, CancellationToken ct)
@@ -88,16 +104,21 @@ internal sealed class CoveLibraryPort(
         return true;
     }
 
-    public async Task<int?> VideoHoldingFileAtAsync(string path, CancellationToken ct)
+    public async Task<HeldFile?> HeldFileAtAsync(string path, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        return await db.Set<VideoFile>()
+        // Answered from how many rows came back rather than from the projected value. The video key
+        // is nullable, so a single projected key cannot say whether there was a row to project.
+        var keys = await db.Set<VideoFile>()
             .AsNoTracking()
             .Where(file => file.Path == path)
             .Select(file => file.VideoId)
-            .FirstOrDefaultAsync(ct)
+            .Take(1)
+            .ToListAsync(ct)
             .ConfigureAwait(false);
+
+        return keys.Count == 0 ? null : new HeldFile(keys[0]);
     }
 
     public async Task<IdentityResolution> ResolveByRemoteIdAsync(
