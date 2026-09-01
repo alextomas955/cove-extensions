@@ -113,6 +113,10 @@ for (const generation of ["v3", "v2"]) {
     expect(before.status, before.text.slice(0, 300)).toBe(200);
     expect(before.json.status).toBe("notCheckedYet");
 
+    // Nothing is registered, so Whisparr holds no address to deliver to and no event can have
+    // arrived. "No event yet" is a state of its own, distinct from not being registered.
+    expect(before.json.lastEventSecretPosition ?? null).toBeNull();
+
     // ── First registration ───────────────────────────────────────────────────────────────────────
     const first = await api.post(REGISTER_PATH, {
       callbackAddress: `${FIRST_HOST}/api/extensions/${EXTENSION_ID}/callback`,
@@ -174,8 +178,9 @@ for (const generation of ["v3", "v2"]) {
     // page: this read is a fresh request that supplied no address.
     expect(after.json.copyableAddress.startsWith(secondHost)).toBe(true);
 
-    // No event has arrived yet, which is a state of its own and the tell for a callback address
-    // Whisparr cannot actually reach.
-    expect(after.json.lastEventSecretPosition ?? null).toBeNull();
+    // The secret position is not asserted here: the registered address resolves on the shared
+    // network, so a delivery can land at any point once the registration returns, and a delivery's
+    // position survives the registration that was in flight. Its absence is asserted above, before
+    // anything is registered.
   });
 }
