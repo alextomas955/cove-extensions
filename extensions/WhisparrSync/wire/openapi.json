@@ -626,7 +626,12 @@
       },
       "WhisparrCapability": {
         "enum": [
-          "outOfBandCallbackSecret"
+          "outOfBandCallbackSecret",
+          "monitorStudio",
+          "monitorPerformer",
+          "registerMissingScenes",
+          "reflectOwnedFiles",
+          "searchMonitored"
         ]
       },
       "WhisparrGeneration": {

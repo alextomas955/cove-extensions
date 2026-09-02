@@ -1,4 +1,5 @@
 using WhisparrSync.Contracts;
+using WhisparrSync.Monitoring;
 
 namespace WhisparrSync.Whisparr;
 
@@ -48,6 +49,11 @@ public sealed class WhisparrCapabilitySet
     private static readonly Dictionary<Type, WhisparrCapability> CapabilityByRole = new()
     {
         [typeof(IOutOfBandSecretRegistration)] = WhisparrCapability.OutOfBandCallbackSecret,
+        [typeof(IWhisparrStudioActing)] = WhisparrCapability.MonitorStudio,
+        [typeof(IWhisparrPerformerActing)] = WhisparrCapability.MonitorPerformer,
+        [typeof(IWhisparrMissingSceneActing)] = WhisparrCapability.RegisterMissingScenes,
+        [typeof(IWhisparrReflectOwnedActing)] = WhisparrCapability.ReflectOwnedFiles,
+        [typeof(IWhisparrSearchGrabbing)] = WhisparrCapability.SearchMonitored,
     };
 
     private readonly Dictionary<WhisparrCapability, object> _roles;
