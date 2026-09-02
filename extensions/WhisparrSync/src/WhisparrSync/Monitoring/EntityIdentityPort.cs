@@ -19,9 +19,9 @@ namespace WhisparrSync.Monitoring;
 /// had already loaded, and a filter applied after loading every row would be linear in the library.
 /// </para>
 /// <para>
-/// The identifier is sent to the instance exactly as the library holds it. A prefixed form looks
-/// more correct and fails in silence: the older generation answers a <c>tpdb:</c> prefixed uuid with
-/// an empty result and a success status. No prefix is composed anywhere on this path.
+/// The identifier is answered exactly as the library holds it, and nothing here reshapes it for the
+/// generation it is about. What each generation is asked under is composed where its request is,
+/// beside the reason a reshaped form is dangerous.
 /// </para>
 /// </remarks>
 internal sealed class EntityIdentityPort(DbContext db, OptionsStore options) : IEntityIdentityPort
