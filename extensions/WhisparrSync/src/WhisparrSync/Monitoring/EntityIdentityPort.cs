@@ -26,10 +26,13 @@ namespace WhisparrSync.Monitoring;
 /// </remarks>
 internal sealed class EntityIdentityPort(DbContext db, OptionsStore options) : IEntityIdentityPort
 {
-    public async Task<IdentityResolution> ResolveStudioAsync(
-        int studioId, WhisparrGeneration generation, CancellationToken ct)
+    public async Task<IdentityResolution> ResolveAsync(
+        WhisparrEntityKind kind, int coveId, WhisparrGeneration generation, CancellationToken ct)
     {
-        if (studioId < 1)
+        // The kind is read before the id is, so an unexpressible kind is a fault rather than an
+        // unmatched entity: the two answers mean different things and only one is about the library.
+        var rows = CarriedBy(kind, coveId);
+        if (coveId < 1)
         {
             return IdentityResolution.Unmatched;
         }
@@ -37,19 +40,35 @@ internal sealed class EntityIdentityPort(DbContext db, OptionsStore options) : I
         var stored = await options.LoadAsync(ct).ConfigureAwait(false);
         var namespaced = IdentityEndpoint.PreferredFor(generation, stored.MetadataProviderEndpoints);
 
-        var carried = await db.Set<StudioRemoteId>()
-            .AsNoTracking()
-            .Where(row => row.StudioId == studioId)
-            .Select(row => new { row.Endpoint, row.RemoteId })
-            .ToListAsync(ct)
-            .ConfigureAwait(false);
+        var carried = await rows.AsNoTracking().ToListAsync(ct).ConfigureAwait(false);
 
         // The endpoint rule is the host's, which no provider can translate, so it is applied in
-        // memory. Comparing the two spellings as strings would answer that a studio the host itself
+        // memory. Comparing the two spellings as strings would answer that an entity the host itself
         // treats as identified carries no identity.
         var found = carried.Find(row => EndpointMatchGuard.SameSource(row.Endpoint, namespaced));
         return found is null || string.IsNullOrWhiteSpace(found.RemoteId)
             ? IdentityResolution.Unmatched
             : IdentityResolution.At(found.RemoteId);
     }
+
+    /// <summary>The identity rows the library holds for one entity, as a query.</summary>
+    /// <remarks>
+    /// Each kind has its own indexed identifier column and its own table, and neither table is
+    /// reachable from the other's entity without a navigation walk.
+    /// </remarks>
+    private IQueryable<CarriedIdentity> CarriedBy(WhisparrEntityKind kind, int coveId)
+        => kind switch
+        {
+            WhisparrEntityKind.Studio => db.Set<StudioRemoteId>()
+                .Where(row => row.StudioId == coveId)
+                .Select(row => new CarriedIdentity(row.Endpoint, row.RemoteId)),
+            WhisparrEntityKind.Performer => db.Set<PerformerRemoteId>()
+                .Where(row => row.PerformerId == coveId)
+                .Select(row => new CarriedIdentity(row.Endpoint, row.RemoteId)),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(kind), kind, "This is not an entity kind this product expresses."),
+        };
+
+    /// <summary>One identity row, reduced to the two columns the endpoint rule reads.</summary>
+    private sealed record CarriedIdentity(string Endpoint, string RemoteId);
 }
