@@ -80,6 +80,10 @@ const RENDERED_BY_THE_IMPORT_BANNER = [
   "IMPORT_CAUSE_UNREADABLE",
 ];
 
+/** The entity control's two names. It carries the product's mark instead of a word, so its
+ * accessible name is the only name it has. */
+const RENDERED_BY_THE_ENTITY_CONTROL = ["MONITOR_IN_WHISPARR", "MONITORED_IN_WHISPARR"];
+
 /**
  * The kind whose sentence is the surface's to write, because the spec's affordance for it is to name
  * the surface's own setting. Every other kind carries a specified sentence.
@@ -178,6 +182,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
     const accountedByName = [
       ...DECLARED_FOR_LATER,
       ...RENDERED_BY_THE_CONNECT_SURFACE,
+      ...RENDERED_BY_THE_ENTITY_CONTROL,
       ...RENDERED_BY_THE_IMPORT_BANNER,
       ...RENDERED_BY_THE_IMPORT_BEHAVIOR_SECTION,
       ...RENDERED_ON_A_STALE_READ,
@@ -195,6 +200,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
     for (const name of [
       ...DECLARED_FOR_LATER,
       ...RENDERED_BY_THE_CONNECT_SURFACE,
+      ...RENDERED_BY_THE_ENTITY_CONTROL,
       ...RENDERED_BY_THE_IMPORT_BANNER,
       ...RENDERED_BY_THE_IMPORT_BEHAVIOR_SECTION,
       ...RENDERED_ON_A_STALE_READ,
