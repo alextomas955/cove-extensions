@@ -96,10 +96,6 @@
   <!--
     dotnet publish copies an output directory rather than going through the Build target the import
     below overrides.
-
-    IsTestProject stays true here. False removes the project from the module list dotnet test
-    enumerates, and a solution-wide run then reports success over a smaller suite without naming what
-    it left out; true makes that run fail on the executable the Build override removes.
   -->
   <PropertyGroup Condition="'$(_CoveSourceMissing)' == 'true'">
     <IsPublishable>false</IsPublishable>

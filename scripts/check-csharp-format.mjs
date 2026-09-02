@@ -56,8 +56,8 @@ export function isSameFile(entry, self, platform = process.platform) {
   return canonical(entry) === canonical(self);
 }
 
-// import.meta.filename landed in Node 20.11, which is inside the range the guard below exists for, so
-// the URL form is the spelling available on every runtime that reaches it.
+// import.meta.filename is absent on part of the range the guard below exists for, so the URL form is
+// the spelling available on every runtime that reaches it.
 const selfPath = import.meta.filename ?? fileURLToPath(import.meta.url);
 
 const SOLUTION = "CoveExtensions.slnx";
@@ -65,11 +65,12 @@ const SOLUTION = "CoveExtensions.slnx";
 // reported at, and Prettier relocates a trailing comment that follows an inline object's `{`.
 const DOTNET_STDIO = { encoding: "utf8", shell: false, maxBuffer: 64 * 1024 * 1024 };
 
-// `import.meta.main` is a boolean from Node 22.18 onward and `undefined` before it, so a bare
-// `if (import.meta.main)` takes the not-main branch on an older runtime: run as a CLI, this script
-// then checks nothing and exits 0. The root package.json declares `engines.node: ">=22.18"`, but
-// without engine-strict npm prints EBADENGINE and installs anyway, and a script run directly never
-// consults it at all, so the absent feature is refused BY NAME here.
+// `import.meta.main` is `undefined` rather than a boolean on a runtime that does not implement it, so
+// a bare `if (import.meta.main)` takes the not-main branch there: run as a CLI, this script then
+// checks nothing and exits 0. The root package.json declares an engines floor, but without
+// engine-strict npm prints EBADENGINE and installs anyway, and a script run directly never consults
+// it at all, so the absent feature is refused BY NAME here. The refusal message carries the version
+// a reader needs.
 //
 // Scoped to the CLI on purpose: the exported parse works fine on an older Node, and refusing at
 // import time would break this file's own tests for a feature only the entry guard needs.
