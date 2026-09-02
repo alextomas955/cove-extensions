@@ -19,6 +19,8 @@ const EXTENSION_ID = "com.alextomas955.whisparrsync";
 const PROBE_PATH = `/api/extensions/${EXTENSION_ID}/host-configuration`;
 const CONNECTION_TEST_PATH = `/api/extensions/${EXTENSION_ID}/connection/test`;
 const SETTINGS_PATH = `/api/extensions/${EXTENSION_ID}/settings`;
+const CALLBACK_REGISTER_PATH = `/api/extensions/${EXTENSION_ID}/callback/register`;
+const CALLBACK_STATUS_PATH = `/api/extensions/${EXTENSION_ID}/callback/status`;
 
 // A port nothing inside the Cove container listens on. Well-formed, so it passes the address check
 // and a request really is attempted, and refused at once rather than left to time out.
@@ -259,4 +261,45 @@ test("the settings routes refuse an authenticated caller holding only the read t
   const owner = await ownerClient(authHarness).get(SETTINGS_PATH);
   expect(owner.status, `GET ${SETTINGS_PATH} as the owner answered: ${owner.text}`).toBe(200);
   expect(owner.json?.v3?.keyIsSet, "the refused write stored a key anyway").toBe(false);
+});
+
+test("the callback routes refuse an authenticated caller holding only the read tier", async ({
+  authHarness,
+}) => {
+  const readOnly = await authHarness.createRestrictedUser({
+    username: "e2e-callback-read-tier",
+    roleName: "e2e-callback-read-tier",
+    permissions: ["videos.read"],
+  });
+  const asReadOnly = createApiClient(() => authHarness.baseUrl, readOnly.token);
+
+  // The discriminating control: the same credential reaches the READ-tier route, so the refusals
+  // below are about the gate rather than about the token.
+  const probe = await asReadOnly.get(PROBE_PATH);
+  expect(probe.status, `GET ${PROBE_PATH} as a read-tier caller answered: ${probe.text}`).toBe(200);
+
+  const status = await asReadOnly.get(CALLBACK_STATUS_PATH);
+  expect(
+    status.status,
+    `GET ${CALLBACK_STATUS_PATH} as a read-tier caller answered: ${status.text}`,
+  ).toBe(403);
+  expect(status.json?.code).toBe("FORBIDDEN");
+  // The status view carries this installation's own secret in the address it offers, so a refusal
+  // that leaked a body would hand the caller the one value the callback route authenticates on.
+  expect(status.text).not.toContain("copyableAddress");
+
+  const registered = await asReadOnly.post(CALLBACK_REGISTER_PATH, { callbackAddress: null });
+  expect(
+    registered.status,
+    `POST ${CALLBACK_REGISTER_PATH} as a read-tier caller answered: ${registered.text}`,
+  ).toBe(403);
+  expect(registered.json?.code).toBe("FORBIDDEN");
+
+  // The refused registration reached nothing: the owner, who may read, still sees the status this
+  // instance had before it - never checked, rather than a registration the refusal performed.
+  const owner = await ownerClient(authHarness).get(CALLBACK_STATUS_PATH);
+  expect(owner.status, `GET ${CALLBACK_STATUS_PATH} as the owner answered: ${owner.text}`).toBe(
+    200,
+  );
+  expect(owner.json?.status, "the refused registration was performed anyway").toBe("notCheckedYet");
 });
