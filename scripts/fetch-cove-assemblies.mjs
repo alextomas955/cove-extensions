@@ -429,8 +429,9 @@ export function highestDeclaredFloor(declared) {
     }
     return { candidate, version };
   });
-  return parsed.reduce((left, right) =>
-    compareSemver(left.version, right.version) >= 0 ? left : right,
+  return parsed.reduce(
+    (left, right) => (compareSemver(left.version, right.version) >= 0 ? left : right),
+    parsed[0],
   ).candidate;
 }
 
