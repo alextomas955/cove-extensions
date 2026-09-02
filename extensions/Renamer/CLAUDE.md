@@ -1,92 +1,37 @@
-## Project
+# Renamer
 
-A Cove extension (**Renamer**, `com.alextomas955.renamer`) — a C# class library that plugs into a
-self-hosted Cove media-library instance. It lets users rename — and optionally relocate — their
-media files based on metadata, using configurable naming templates, all configured from a settings
-panel inside Cove's own UI and persisted in Cove's backend.
+Cove extension `com.alextomas955.renamer`. It renames and optionally relocates media files from
+metadata templates, previews every change before touching disk, and keeps Cove's database
+authoritative. If everything else is cut, dry-run-then-rename that never loses track of a file must
+still work.
 
-**Core Value:** Users can rename their media files from metadata **safely** — the operation never
-loses track of a file (Cove's database stays authoritative) and is previewable before it touches
-disk. If everything else is cut, a reliable dry-run-then-rename that keeps the library intact is
-the thing that must work.
+The repo-root `CLAUDE.md` rules apply here. This file adds only what is specific to Renamer.
 
-> The monorepo-wide rules — the extension-authoring contract, build wiring and Cove source
-> selection, the bans on bundling host assemblies and writing to the DB directly, the C#
-> comment / XML-doc policy, and documentation upkeep — live in the repo-root `CLAUDE.md` and apply
-> here too. This file adds only what is specific to Renamer.
+## Facts the code does not show
 
-## What NOT to do (Renamer-specific)
+- Cove has no core rename service. `POST /api/files/move` changes the folder and keeps the
+  basename, so Renamer does the disk rename itself.
+- `extension.json` names `Renamer.dll` as `entryDll` and `index.mjs` as the bundle.
+- The backend is one rich capability layered by domain: `Engine/`, `Planner/`, `Execution/` beside
+  `Api/`, `Contracts/`, `Jobs/`, `Options/`. Keep that layering. Do not split it into per-verb
+  folders.
+- UI slices: `settings/` (with the dry-run modal nested at `settings/dry-run/`) and
+  `rename-action/`. Extension-local shared code is `common/`.
+- `settings/options.ts` is a hand-written REQUEST shape. The options blob travels in the PascalCase
+  spelling of the C# record, which the wire document does not describe. Its casing must match the
+  record exactly. Everything else the UI reads comes from the generated `wire/api.ts`.
 
-| Avoid                                                         | Why                                                                                                                       |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Assuming a core "rename/move file" service exists on the host | **It does not.** Only `POST /api/files/move` (changes folder, keeps basename). The extension does the disk rename itself. |
+## Build and deploy
 
-The monorepo-wide bans (shipping host assemblies, direct SQLite/Postgres writes) are in the root
-`CLAUDE.md`.
+- `pwsh scripts/deploy-dev.ps1` builds against the local Cove checkout, builds the UI, assembles the
+  catalog's file set, installs it, and restarts the host. Always `pwsh`. Set `COVE_HOME` off
+  Windows.
+- `@cove/extension-sdk` is not on npm. It is vendored as a tarball under `src/Renamer.Ui/vendor/`
+  and installs offline. Regenerate it with `scripts/update-cove-sdk.ps1` when the SDK version
+  changes.
 
-## Contract
+## Where comments are needed
 
-- `extension.json` is the manifest Cove loads the built assembly through; its `entryDll` MUST be
-  `Renamer.dll` and the JS bundle is `index.mjs`.
-- Renamer subclasses `FullExtensionBase` (`IExtension` from `Cove.Plugins`) and references `Cove.Sdk`
-  through the root build wiring — `Renamer.csproj` adds no direct Cove reference of its own.
-
-## Structure & patterns (Renamer-specific)
-
-The monorepo shape rules — six-kind taxonomy, no `features/` wrapper, suffix-as-kind, two-level shared
-(`common/` for extension-local), all-camelCase wire + generated `wire/api.ts`, correctness + testing + tooling
-gates — live in the root `CLAUDE.md` under **Extension authoring patterns** and apply here. Renamer
-specifics:
-
-- **One rich capability → domain-layered, not capability-sliced.** The C# backend stays
-  `Engine/ · Planner/ · Execution/` (+ `Options/ · Jobs/ · Contracts/`) at the project root — the
-  exemplary pure-`Engine/` layering is a feature, not a thing to slice into per-verb folders.
-- **UI slices directly under `src/`, no `features/` wrapper.** `settings/` holds the panel + its
-  per-section children; the dry-run modal NESTS as `settings/dry-run/` (it is launched only from the
-  settings panel). The bulk-action handler is its own slice (`rename-action/`).
-- **Extension-local shared is `common/`, not "shared".** `common/lib/preview.ts` — evicted from any
-  old `shared/` bucket; nothing Renamer-specific goes in the repo-level `shared/` packages.
-- **Wire home: the generated `src/wire/api.ts`** (UI) + a `Contracts/` unit in the assembly
-  (`PreviewItemView` split out of the plan model so the domain can evolve without a wire break). The
-  panel declares no RESPONSE type of its own — those are generated from the extension's own emitted
-  document. `settings/options.ts` is the exception and is a REQUEST shape, not a response: the options
-  blob the panel persists travels in the PascalCase spelling the C# record uses, which the wire
-  document does not describe, so that mirror is hand-written and its casing is load-bearing.
-- **Tests mirror source** (`Engine/ · Execution/{…}/ · Options/ · Api/ · TransportSmoke/`). Widen the
-  `IRenamerDataPort` write seam so a throwing fake can unit-test the rollback spine at L0.
-
-## Working on this extension
-
-- Renamer lives at `extensions/Renamer/` inside the monorepo. It is **not** its own git repo — no
-  own remote and no own CI workflow. CI is defined once at the monorepo root
-  (`.github/workflows/build.yml`) and driven by Renamer's entry in `extensions/catalog.json`.
-- Launch your editor/agent tooling with the sibling Cove core checkout also available (e.g. via an
-  `--add-dir`-style flag) so the local Cove source is available for SDK/source reference — the exact
-  relative path depends on where you launch from, so follow your workspace's routing convention
-  rather than hardcoding a path here.
-
-## Dev build & deploy
-
-- The **dev local-source build** is the path used to load into the running dev Cove: it resolves
-  `Cove.Sdk` from a local Cove checkout so the extension is ABI-identical to the running host (the
-  source-selection precedence and host-assembly stripping are handled at the repo root). Use
-  `scripts/deploy-dev.ps1` for the full build → frontend-build → assemble → deploy → restart loop, and
-  invoke it as `pwsh` on any OS.
-- **Publish-readiness** targets the published NuGet packages (the pinned `CoveSdkVersion`,
-  `Private=false`), where `Cove.Sdk.targets` is imported transitively from the package.
-
-## Frontend SDK (`Renamer.Ui`)
-
-- Renamer ships a frontend — the settings/preview panel bundle built from `src/Renamer.Ui/` to
-  `dist/index.mjs` — using **`@cove/extension-sdk`**, the Cove _frontend_ host SDK (separate from
-  `Cove.Sdk`). It is not published to npm, so it is vendored as a committed tarball at
-  `src/Renamer.Ui/vendor/` and consumed through a `file:` dependency that `npm ci` installs offline.
-  Regenerate the tarball with `scripts/update-cove-sdk.ps1` when the SDK version changes.
-
-## Comments — where they are earned in Renamer
-
-The monorepo C# comment / XML-doc policy (root `CLAUDE.md`) applies. Renamer's value is _safe_
-renaming, so the invariants that earn a comment here are the safety-critical ones: TOCTOU windows,
-copy-then-verify-then-delete across volumes, MAX_PATH re-anchoring, the single-writer revert log,
-and the routing precedence (Tags over Studio over Default). Comment those; leave the obvious code
-uncommented.
+The safety invariants: TOCTOU windows, copy-verify-delete across volumes, MAX_PATH re-anchoring,
+the single-writer revert log, and the destination routing precedence documented on
+`DestinationResolver`.

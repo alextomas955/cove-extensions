@@ -16,6 +16,7 @@
     "**/.planning/**",
     "**/.archive/**",
     "**/CLAUDE.md",
+    "**/.claude/**",
     "**/e2e/fixtures/**",
   ],
 }
