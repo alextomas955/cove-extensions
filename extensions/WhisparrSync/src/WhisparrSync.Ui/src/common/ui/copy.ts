@@ -102,6 +102,55 @@ export const ADD_ALL_MISSING =
 export const SEARCH_ALL_MONITORED =
   "Asks Whisparr to search for every scene it wants for this entity, and to download what it finds.";
 
+/** The item that turns monitoring off. Named for what it does, not for the flag it writes. */
+export const STOP_MONITORING_IN_WHISPARR = "Stop monitoring in Whisparr";
+
+/** The three secondary actions, named as the product names them everywhere it offers them. */
+export const ACTION_ADD_ALL_MISSING = "Add all missing";
+export const ACTION_REFLECT_OWNED = "Reflect owned";
+export const ACTION_SEARCH_ALL_MONITORED = "Search all monitored";
+
+/**
+ * Why a control is unavailable while the last thing asked for is still on its way.
+ *
+ * A dimmed control with nothing to hear is the defect this exists to prevent, and a transient reason
+ * needs one as much as a permanent one does.
+ */
+export const WAITING_FOR_WHISPARR = "Waiting for Whisparr to answer the last thing you asked for.";
+
+/**
+ * Nothing is connected, said on a page that is not the settings page.
+ *
+ * Names where to go, because the reader cannot see the address field from here.
+ */
+export const NO_INSTANCE_CONNECTED =
+  "No Whisparr instance is connected. Connect one on the Whisparr Sync settings page.";
+
+/**
+ * The entity carries no identifier the connected instance could be given.
+ *
+ * Which link is needed depends on which instance is connected, so the sentence names neither and the
+ * reader checks the link chips this page already shows.
+ */
+export const NO_IDENTITY_IN_THIS_NAMESPACE =
+  "Cove holds no link for this entity that the connected Whisparr can identify it by.";
+
+/** The instance offers no quality profile, so nothing could be composed to send. */
+export const INSTANCE_OFFERS_NO_QUALITY_PROFILE =
+  "Whisparr offers no quality profile, so nothing was sent. Add one in Whisparr and try again.";
+
+/** The instance offers no library root, so nothing could be composed to send. */
+export const INSTANCE_OFFERS_NO_ROOT_FOLDER =
+  "Whisparr offers no root folder, so nothing was sent. Add one in Whisparr and try again.";
+
+/**
+ * The instance answered and declined.
+ *
+ * Says nothing about why. This generation answers a refused add with a stack trace, so its own words
+ * are never read and never repeated.
+ */
+export const INSTANCE_REFUSED = "Whisparr would not do this. Nothing here was changed.";
+
 /**
  * The version-gap sentence, for a capability the connected generation does not have.
  *

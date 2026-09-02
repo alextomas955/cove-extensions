@@ -100,6 +100,24 @@ const CARRIED_BY_THE_MONITOR_MENU_ITEMS = [
   "REFLECT_OWNED",
   "ADD_ALL_MISSING",
   "SEARCH_ALL_MONITORED",
+  "STOP_MONITORING_IN_WHISPARR",
+  "ACTION_ADD_ALL_MISSING",
+  "ACTION_REFLECT_OWNED",
+  "ACTION_SEARCH_ALL_MONITORED",
+];
+
+/**
+ * One sentence per reason a monitor control can be unavailable. The menu rules module maps the kind
+ * the server answered onto exactly one of these, and a kind with none would be a dimmed control with
+ * nothing to hear.
+ */
+const RENDERED_AS_A_MONITOR_REFUSAL = [
+  "WAITING_FOR_WHISPARR",
+  "NO_INSTANCE_CONNECTED",
+  "NO_IDENTITY_IN_THIS_NAMESPACE",
+  "INSTANCE_OFFERS_NO_QUALITY_PROFILE",
+  "INSTANCE_OFFERS_NO_ROOT_FOLDER",
+  "INSTANCE_REFUSED",
 ];
 
 /** The outcome sentence for the one secondary action that can decline to do anything. */
@@ -207,6 +225,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...RENDERED_BY_THE_ENTITY_CONTROL,
       ...RENDERED_BY_THE_IMPORT_BANNER,
       ...RENDERED_BY_THE_IMPORT_BEHAVIOR_SECTION,
+      ...RENDERED_AS_A_MONITOR_REFUSAL,
       ...RENDERED_ON_A_STALE_READ,
       ...RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED,
     ];
@@ -227,6 +246,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...RENDERED_BY_THE_ENTITY_CONTROL,
       ...RENDERED_BY_THE_IMPORT_BANNER,
       ...RENDERED_BY_THE_IMPORT_BEHAVIOR_SECTION,
+      ...RENDERED_AS_A_MONITOR_REFUSAL,
       ...RENDERED_ON_A_STALE_READ,
       ...RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED,
     ]) {
