@@ -27,7 +27,8 @@ public sealed class AbsentCapabilityTests
     /// evidence of anything: the claim is that exactly one member of the whole seam can send a
     /// grabbing command name and only the separately obtained role declares that member, which
     /// <see cref="SafetyInvariantTests.ExactlyOneSeamMemberGrabsAndOnlyTheGrabbingRoleDeclaresIt"/>
-    /// asserts. What each composed command body names is asserted where that body is composed.
+    /// asserts. That no body off a monitoring path names one of those commands is
+    /// <see cref="SafetyInvariantTests.NoBodyOffAMonitoringPathCanNameAGrabbingCommand"/>.
     /// </remarks>
     private static readonly string[] DeclaredRoutes =
     [
@@ -60,8 +61,10 @@ public sealed class AbsentCapabilityTests
     /// what lets a reader of that interface hold it without holding an add.
     /// <para>
     /// The behavioural half — that every composed add body carries both of its generation's
-    /// acquisition-suppressing flags, present and false — is asserted where those bodies are
-    /// composed. This test is the type-level half: it says which members can add, not what they send.
+    /// acquisition-suppressing flags, present and false, over every generation, kind and scope the
+    /// registered capabilities allow — is
+    /// <see cref="SafetyInvariantTests.EveryAddThisProductCanComposeSuppressesAcquisitionInBothSpellings"/>.
+    /// This test is the type-level half: it says which members can add, not what they send.
     /// </para>
     /// </remarks>
     [Fact]
