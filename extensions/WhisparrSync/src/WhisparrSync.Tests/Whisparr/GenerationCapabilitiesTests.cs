@@ -30,7 +30,11 @@ public sealed class GenerationCapabilitiesTests
 
         Assert.NotNull(role);
         Assert.Equal(
-            [WhisparrCapability.OutOfBandCallbackSecret, WhisparrCapability.MonitorStudio],
+            [
+                WhisparrCapability.OutOfBandCallbackSecret,
+                WhisparrCapability.MonitorStudio,
+                WhisparrCapability.MonitorPerformer,
+            ],
             GenerationCapabilities.For(WhisparrGeneration.V3).Held);
     }
 
@@ -71,6 +75,47 @@ public sealed class GenerationCapabilitiesTests
     }
 
     /// <summary>
+    /// The older generation addresses no performer at all, so it holds no performer capability and a
+    /// caller asking for that role is told which capability was refused and on which generation.
+    /// </summary>
+    /// <remarks>
+    /// The refusal is the absence of a registration rather than a check: there is nothing in either
+    /// table to reach, so no code path exists that could be asked to decide this.
+    /// </remarks>
+    [Fact]
+    public void TheOlderGenerationHoldsNoPerformerCapabilityAndRefusesTheRoleByName()
+    {
+        var capabilities = GenerationCapabilities.For(
+            WhisparrGeneration.V2,
+            WhisparrRoleSet.From(new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"))));
+
+        var refusal = capabilities.Obtain<IWhisparrPerformerActing>()
+            .Match<CapabilityRefusal?>(_ => null, refused => refused);
+
+        Assert.NotNull(refusal);
+        Assert.Equal(WhisparrCapability.MonitorPerformer, refusal.Capability);
+        Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
+        Assert.DoesNotContain(WhisparrCapability.MonitorPerformer, capabilities.Held);
+        Assert.DoesNotContain(
+            WhisparrCapability.MonitorPerformer,
+            GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
+    }
+
+    /// <summary>The newer generation holds the performer capability and hands out the role.</summary>
+    [Fact]
+    public void TheNewerGenerationHoldsThePerformerCapabilityAndHandsOutTheRole()
+    {
+        var capabilities = GenerationCapabilities.For(
+            WhisparrGeneration.V3,
+            WhisparrRoleSet.From(new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"))));
+
+        Assert.Contains(WhisparrCapability.MonitorPerformer, capabilities.Held);
+        Assert.NotNull(
+            capabilities.Obtain<IWhisparrPerformerActing>()
+                .Match<IWhisparrPerformerActing?>(held => held, _ => null));
+    }
+
+    /// <summary>
     /// A capability the generation HOLDS, asked of a set built with no source for it, is a fault
     /// rather than a refusal.
     /// </summary>
@@ -89,7 +134,11 @@ public sealed class GenerationCapabilitiesTests
     public void EachGenerationsCapabilitiesAreWrittenDownPerGeneration()
     {
         Assert.Equal(
-            [WhisparrCapability.OutOfBandCallbackSecret, WhisparrCapability.MonitorStudio],
+            [
+                WhisparrCapability.OutOfBandCallbackSecret,
+                WhisparrCapability.MonitorStudio,
+                WhisparrCapability.MonitorPerformer,
+            ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
         Assert.Equal(
             [WhisparrCapability.OutOfBandCallbackSecret],
@@ -190,7 +239,7 @@ public sealed class GenerationCapabilitiesTests
     [Fact]
     public void TheCapabilityTravelsInTheCamelCaseSpelling()
         => Assert.Equal(
-            "[\"outOfBandCallbackSecret\",\"monitorStudio\"]",
+            "[\"outOfBandCallbackSecret\",\"monitorStudio\",\"monitorPerformer\"]",
             JsonSerializer.Serialize(
                 GenerationCapabilities.For(WhisparrGeneration.V3).Held, HostJsonOptions));
 
