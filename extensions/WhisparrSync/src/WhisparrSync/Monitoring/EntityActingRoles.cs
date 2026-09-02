@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using WhisparrSync.Contracts;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Monitoring;
@@ -18,16 +19,27 @@ namespace WhisparrSync.Monitoring;
 /// <see cref="IWhisparrSearchGrabbing.SearchMonitoredAsync"/>, on a role of its own that a caller has
 /// to obtain by name.
 /// </para>
+/// <para>
+/// Every member names the connected generation, because both generations honour this role and neither
+/// addresses a studio the way the other does. It is the one thing a call site supplies that the
+/// implementation could not read for itself, and it names a lineage rather than a route: which routes
+/// and which bodies follow from it belong to the implementation, so no call site chooses either.
+/// </para>
 /// </remarks>
 public interface IWhisparrStudioActing
 {
     /// <summary>Reads the studio <paramref name="foreignId"/> names.</summary>
     /// <remarks>
     /// Returns whatever the instance answered, including a not-found: whether the entity is held at
-    /// all is the precondition the caller classifies.
+    /// all is the precondition the caller classifies. One generation answers that question through no
+    /// single route, so on it the answer is assembled and reported in the same two spellings.
     /// </remarks>
     Task<WhisparrResponse> ReadStudioAsync(
-        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct);
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        string foreignId,
+        CancellationToken ct);
 
     /// <summary>Adds the studio <paramref name="foreignId"/> names, monitored at <paramref name="scope"/>.</summary>
     /// <remarks>
@@ -38,6 +50,7 @@ public interface IWhisparrStudioActing
     Task<WhisparrResponse> AddMonitoredStudioAsync(
         Uri baseAddress,
         string apiKey,
+        WhisparrGeneration generation,
         string foreignId,
         MonitorScope scope,
         AddDefaults defaults,
@@ -50,15 +63,30 @@ public interface IWhisparrStudioActing
     /// nothing already wanted.
     /// </remarks>
     Task<WhisparrResponse> SetStudioMonitoredAsync(
-        Uri baseAddress, string apiKey, int entityId, bool monitored, CancellationToken ct);
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        int entityId,
+        bool monitored,
+        CancellationToken ct);
 
     /// <summary>Sets the monitor scope on the studio <paramref name="entityId"/> names.</summary>
     /// <remarks>
     /// Declared for a studio and for no other kind, because the field a future-only scope is expressed
     /// through exists on the studio resource alone.
+    /// <para>
+    /// What the two generations then do differs and a caller has to know it: one re-applies the option
+    /// over everything the instance already holds, in both directions, and the other gates only what a
+    /// later catalogue read adds.
+    /// </para>
     /// </remarks>
     Task<WhisparrResponse> SetStudioScopeAsync(
-        Uri baseAddress, string apiKey, int entityId, MonitorScope scope, CancellationToken ct);
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        int entityId,
+        MonitorScope scope,
+        CancellationToken ct);
 }
 
 /// <summary>Monitors a performer on the connected instance.</summary>

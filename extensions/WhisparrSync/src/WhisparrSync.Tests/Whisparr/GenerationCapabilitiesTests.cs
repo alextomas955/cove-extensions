@@ -45,7 +45,7 @@ public sealed class GenerationCapabilitiesTests
 
         Assert.NotNull(role);
         Assert.Equal(
-            [WhisparrCapability.OutOfBandCallbackSecret],
+            [WhisparrCapability.OutOfBandCallbackSecret, WhisparrCapability.MonitorStudio],
             GenerationCapabilities.For(WhisparrGeneration.V2).Held);
     }
 
@@ -54,9 +54,10 @@ public sealed class GenerationCapabilitiesTests
     /// caller has to catch to learn what happened.
     /// </summary>
     /// <remarks>
-    /// Taken through a real generation gap: the older generation addresses no studio at all, so its
-    /// set holds no studio-acting role. A generation whose capability list is empty would be a
-    /// generation nothing manages, so the refusal is asserted where a user actually meets one.
+    /// Taken through a real generation gap: the two remaining acting verbs have no implementation on
+    /// either generation, so neither set holds a role for them. A generation whose capability list is
+    /// empty would be a generation nothing manages, so the refusal is asserted where a user actually
+    /// meets one.
     /// </remarks>
     [Fact]
     public void ASetHoldingNoRoleRefusesAndNamesWhatItRefused()
@@ -65,13 +66,13 @@ public sealed class GenerationCapabilitiesTests
             WhisparrGeneration.V2,
             WhisparrRoleSet.From(new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"))));
 
-        var refusal = capabilities.Obtain<IWhisparrStudioActing>()
+        var refusal = capabilities.Obtain<IWhisparrReflectOwnedActing>()
             .Match<CapabilityRefusal?>(_ => null, refused => refused);
 
         Assert.NotNull(refusal);
-        Assert.Equal(WhisparrCapability.MonitorStudio, refusal.Capability);
+        Assert.Equal(WhisparrCapability.ReflectOwnedFiles, refusal.Capability);
         Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
-        Assert.DoesNotContain(WhisparrCapability.MonitorStudio, capabilities.Held);
+        Assert.DoesNotContain(WhisparrCapability.ReflectOwnedFiles, capabilities.Held);
     }
 
     /// <summary>
@@ -141,9 +142,79 @@ public sealed class GenerationCapabilitiesTests
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
         Assert.Equal(
-            [WhisparrCapability.OutOfBandCallbackSecret],
+            [WhisparrCapability.OutOfBandCallbackSecret, WhisparrCapability.MonitorStudio],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
         Assert.Empty(GenerationCapabilities.CapabilitiesOf((WhisparrGeneration)(-1)));
+    }
+
+    /// <summary>
+    /// The older generation holds exactly what it can honour, and every capability it cannot is absent
+    /// from its table rather than present and refusing when it is called.
+    /// </summary>
+    /// <remarks>
+    /// Four absences, and each has its own reason: it addresses no performer, no route on it adds a
+    /// catalogue item, and the two remaining verbs have no implementation on either generation yet. A
+    /// capability registered ahead of its implementation is worse than an absent one, because the
+    /// refusal a caller was forced to state would never fire.
+    /// </remarks>
+    [Fact]
+    public void TheOlderGenerationHoldsExactlyTheCapabilitiesItCanHonour()
+    {
+        var held = GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2);
+
+        Assert.Equal(
+            [WhisparrCapability.OutOfBandCallbackSecret, WhisparrCapability.MonitorStudio], held);
+        Assert.All(
+            new[]
+            {
+                WhisparrCapability.MonitorPerformer,
+                WhisparrCapability.RegisterMissingScenes,
+                WhisparrCapability.ReflectOwnedFiles,
+                WhisparrCapability.SearchMonitored,
+            },
+            absent => Assert.DoesNotContain(absent, held));
+    }
+
+    /// <summary>
+    /// The older generation refuses the missing-scene role by name, because no route on it adds a
+    /// catalogue item at all.
+    /// </summary>
+    /// <remarks>
+    /// Its catalogue arrives only by re-reading its own metadata source, which pulls whatever that
+    /// source lists, so there is no way to register an item this library holds and the instance does
+    /// not. The capability is genuinely absent rather than expressed differently.
+    /// </remarks>
+    [Fact]
+    public void TheOlderGenerationHoldsNoMissingSceneCapabilityAndRefusesTheRoleByName()
+    {
+        var capabilities = GenerationCapabilities.For(
+            WhisparrGeneration.V2,
+            WhisparrRoleSet.From(new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"))));
+
+        var refusal = capabilities.Obtain<IWhisparrMissingSceneActing>()
+            .Match<CapabilityRefusal?>(_ => null, refused => refused);
+
+        Assert.NotNull(refusal);
+        Assert.Equal(WhisparrCapability.RegisterMissingScenes, refusal.Capability);
+        Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
+    }
+
+    /// <summary>
+    /// The older generation hands out the studio-acting role, and the role it hands out is the one the
+    /// set was built with.
+    /// </summary>
+    [Fact]
+    public void TheOlderGenerationHoldsTheStudioCapabilityAndHandsOutTheRole()
+    {
+        var client = new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"));
+        var capabilities = GenerationCapabilities.For(
+            WhisparrGeneration.V2, WhisparrRoleSet.From(client));
+
+        Assert.Contains(WhisparrCapability.MonitorStudio, capabilities.Held);
+        Assert.Same(
+            client,
+            capabilities.Obtain<IWhisparrStudioActing>()
+                .Match<IWhisparrStudioActing?>(held => held, _ => null));
     }
 
     /// <summary>

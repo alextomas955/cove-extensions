@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net.Mime;
 using System.Text;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 
@@ -180,7 +181,7 @@ public interface IWhisparrClient
 /// type holding an HTTP client and a second holder would be a second outbound surface for every
 /// invariant that reflects over this one to cover.
 /// </remarks>
-internal sealed class WhisparrClient(HttpClient http)
+internal sealed class WhisparrClient(HttpClient http, ILogger log)
     : IWhisparrClient, IWhisparrStudioActing, IWhisparrPerformerActing
 {
     /// <summary>The header both generations authenticate an API request with.</summary>
@@ -210,6 +211,14 @@ internal sealed class WhisparrClient(HttpClient http)
     internal const string MoviePath = "api/v3/movie";
     internal const string ManualImportPath = "api/v3/manualimport";
     internal const string MediaManagementConfigPath = "api/v3/config/mediamanagement";
+
+    // The two statuses this product composes rather than receives, and the only ones anywhere in it.
+    // The older generation answers "do you hold this entity" through no single route, so that reading
+    // is assembled from a lookup and a listing and reported in the two spellings a caller already
+    // classifies. Named rather than written inline so a reader is not left to infer that an instance
+    // sent them.
+    private const int AssembledNotHeld = 404;
+    private const int AssembledRefused = 409;
 
     // The order belongs to the verb rather than to a call: newest-first is the only order a walk that
     // stops at a stored position can read, and a call site free to spell it could ask for another.
@@ -307,35 +316,90 @@ internal sealed class WhisparrClient(HttpClient http)
             ct);
 
     public Task<WhisparrResponse> ReadStudioAsync(
-        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
-        => ReadEntityAsync(baseAddress, apiKey, StudioPath, foreignId, ct);
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        string foreignId,
+        CancellationToken ct)
+        => generation switch
+        {
+            WhisparrGeneration.V3 => ReadEntityAsync(baseAddress, apiKey, StudioPath, foreignId, ct),
+            WhisparrGeneration.V2 => ReadHeldSeriesAsync(baseAddress, apiKey, foreignId, ct),
+            _ => throw new ArgumentOutOfRangeException(nameof(generation)),
+        };
 
     public Task<WhisparrResponse> AddMonitoredStudioAsync(
         Uri baseAddress,
         string apiKey,
+        WhisparrGeneration generation,
         string foreignId,
         MonitorScope scope,
         AddDefaults defaults,
         CancellationToken ct)
-        => ActAsync(
-            baseAddress,
-            apiKey,
-            HttpMethod.Post,
-            StudioPath,
-            V3BodyProjector.AddStudio(foreignId, scope, defaults, DateTimeOffset.UtcNow),
-            ct);
+        => generation switch
+        {
+            WhisparrGeneration.V3 => ActAsync(
+                baseAddress,
+                apiKey,
+                HttpMethod.Post,
+                StudioPath,
+                V3BodyProjector.AddStudio(foreignId, scope, defaults, DateTimeOffset.UtcNow),
+                ct),
+            WhisparrGeneration.V2 => AddMonitoredSeriesAsync(
+                baseAddress, apiKey, foreignId, scope, defaults, ct),
+            _ => throw new ArgumentOutOfRangeException(nameof(generation)),
+        };
 
     public Task<WhisparrResponse> SetStudioMonitoredAsync(
-        Uri baseAddress, string apiKey, int entityId, bool monitored, CancellationToken ct)
-        => ActAsync(
-            baseAddress,
-            apiKey,
-            HttpMethod.Put,
-            StudioEditorPath,
-            V3BodyProjector.SetStudioMonitored(entityId, monitored),
-            ct);
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        int entityId,
+        bool monitored,
+        CancellationToken ct)
+        => generation switch
+        {
+            WhisparrGeneration.V3 => ActAsync(
+                baseAddress,
+                apiKey,
+                HttpMethod.Put,
+                StudioEditorPath,
+                V3BodyProjector.SetStudioMonitored(entityId, monitored),
+                ct),
+            WhisparrGeneration.V2 => ActAsync(
+                baseAddress,
+                apiKey,
+                HttpMethod.Put,
+                SeriesEditorPath,
+                V2BodyProjector.SetMonitored(entityId, monitored),
+                ct),
+            _ => throw new ArgumentOutOfRangeException(nameof(generation)),
+        };
 
-    public async Task<WhisparrResponse> SetStudioScopeAsync(
+    public Task<WhisparrResponse> SetStudioScopeAsync(
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        int entityId,
+        MonitorScope scope,
+        CancellationToken ct)
+        => generation switch
+        {
+            WhisparrGeneration.V3 => SetStudioDateGateAsync(baseAddress, apiKey, entityId, scope, ct),
+
+            // Re-applied over the existing catalogue in one request, so nothing is read first. The
+            // route answers an empty body with a server failure, so the body is what makes it work.
+            WhisparrGeneration.V2 => ActAsync(
+                baseAddress,
+                apiKey,
+                HttpMethod.Post,
+                SeasonPassPath,
+                V2BodyProjector.SetScope(entityId, scope),
+                ct),
+            _ => throw new ArgumentOutOfRangeException(nameof(generation)),
+        };
+
+    private async Task<WhisparrResponse> SetStudioDateGateAsync(
         Uri baseAddress, string apiKey, int entityId, MonitorScope scope, CancellationToken ct)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
@@ -355,6 +419,91 @@ internal sealed class WhisparrClient(HttpClient http)
             V3BodyProjector.WithScope(studio, scope, DateTimeOffset.UtcNow), ct)
             .ConfigureAwait(false);
     }
+
+    /// <summary>Whether the older generation's instance holds the entity named by an identifier.</summary>
+    /// <remarks>
+    /// Two reads, because this generation answers the question through no single route: its lookup
+    /// resolves the identifier to an entity and carries no instance-side id until that entity has been
+    /// added, and its own listing is what says whether it has been. Only the matched entry is carried
+    /// onward, so the listing's size reaches nothing.
+    /// </remarks>
+    private async Task<WhisparrResponse> ReadHeldSeriesAsync(
+        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+    {
+        var resolved = await ResolveSiteAsync(baseAddress, apiKey, foreignId, ct).ConfigureAwait(false);
+        if (resolved.Site is not { } site)
+        {
+            return resolved.Answer;
+        }
+
+        var listed = await ReadAsync(baseAddress, apiKey, SeriesPath, ct).ConfigureAwait(false);
+        if (!IsSuccess(listed.StatusCode))
+        {
+            return listed;
+        }
+
+        return V2LookupProjector.HeldEntry(listed.Body, site.EntityId) is { } held
+            ? new WhisparrResponse(listed.StatusCode, listed.ContentType, held.ToJsonString())
+            : new WhisparrResponse(AssembledNotHeld, listed.ContentType, string.Empty);
+    }
+
+    private async Task<WhisparrResponse> AddMonitoredSeriesAsync(
+        Uri baseAddress,
+        string apiKey,
+        string foreignId,
+        MonitorScope scope,
+        AddDefaults defaults,
+        CancellationToken ct)
+    {
+        var resolved = await ResolveSiteAsync(baseAddress, apiKey, foreignId, ct).ConfigureAwait(false);
+        if (resolved.Site is not { } site)
+        {
+            return resolved.Answer;
+        }
+
+        return await ActAsync(
+            baseAddress,
+            apiKey,
+            HttpMethod.Post,
+            SeriesPath,
+            V2BodyProjector.AddStudio(site.EntityId, site.Title, site.TitleSlug, scope, defaults),
+            ct).ConfigureAwait(false);
+    }
+
+    /// <summary>The entity an identifier names on the older generation, or the answer standing for it.</summary>
+    /// <remarks>
+    /// The answer never echoes the term, so exactly one result is what the correspondence rests on. A
+    /// second result is refused rather than picked from, because nothing in the answer says which of
+    /// them was meant and acting on either would act on an entity nobody named.
+    /// </remarks>
+    private async Task<(V2Site? Site, WhisparrResponse Answer)> ResolveSiteAsync(
+        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+    {
+        var lookup = await ReadAsync(
+            baseAddress,
+            apiKey,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"{SeriesLookupPath}?term={Uri.EscapeDataString(V2BodyProjector.LookupTerm(foreignId))}"),
+            ct).ConfigureAwait(false);
+
+        if (!IsSuccess(lookup.StatusCode))
+        {
+            return (null, lookup);
+        }
+
+        var resolution = V2LookupProjector.Resolve(lookup.Body);
+        if (resolution.Reading == V2LookupReading.Ambiguous)
+        {
+            WhisparrSyncLog.EntityLookupNotDistinct(log, WhisparrGeneration.V2);
+        }
+
+        return resolution.Site is { } site
+            ? (site, lookup)
+            : (null, new WhisparrResponse(AssembledRefused, lookup.ContentType, string.Empty));
+    }
+
+    private static bool IsSuccess(int statusCode) => statusCode is >= 200 and < 300;
 
     public Task<WhisparrResponse> ReadPerformerAsync(
         Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
