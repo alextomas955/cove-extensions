@@ -64,6 +64,14 @@ const RENDERED_BY_THE_IMPORT_BEHAVIOR_SECTION = [
   "UPGRADE_DROPS_THE_SUPERSEDED_FILE",
 ];
 
+/**
+ * The sentence both read surfaces show when a refresh failed over content already on screen.
+ *
+ * Its own group rather than either surface's, because two surfaces render it and a per-surface list
+ * would have to name it twice.
+ */
+const RENDERED_ON_A_STALE_READ = ["READ_IS_STALE"];
+
 /** Sentences the import banner reads: its heading, and one per refusal cause. */
 const RENDERED_BY_THE_IMPORT_BANNER = [
   "IMPORTS_UNREADABLE",
@@ -172,6 +180,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...RENDERED_BY_THE_CONNECT_SURFACE,
       ...RENDERED_BY_THE_IMPORT_BANNER,
       ...RENDERED_BY_THE_IMPORT_BEHAVIOR_SECTION,
+      ...RENDERED_ON_A_STALE_READ,
     ];
 
     const orphans = CONSTANTS.filter(
@@ -188,6 +197,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ...RENDERED_BY_THE_CONNECT_SURFACE,
       ...RENDERED_BY_THE_IMPORT_BANNER,
       ...RENDERED_BY_THE_IMPORT_BEHAVIOR_SECTION,
+      ...RENDERED_ON_A_STALE_READ,
     ]) {
       expect(declared, name).toContain(name);
     }

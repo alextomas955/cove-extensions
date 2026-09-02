@@ -128,5 +128,7 @@ export function registrationRead(view: CallbackView | null, failed: boolean): As
   if (view === null) {
     return { reading: !failed, failed, hasContent: false };
   }
-  return { reading: false, failed: false, hasContent: view.status !== "notCheckedYet" };
+  const hasContent = view.status !== "notCheckedYet";
+  // Carried only where the state machine keeps the content, for the reason recordedRead states.
+  return { reading: false, failed: hasContent && failed, hasContent };
 }
