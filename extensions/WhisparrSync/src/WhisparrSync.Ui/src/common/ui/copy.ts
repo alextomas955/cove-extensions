@@ -11,6 +11,17 @@
  */
 
 /**
+ * The entity control's own name while the entity is not monitored in Whisparr.
+ *
+ * The control carries the product's mark instead of a word, so its accessible name is the only name
+ * it has. A filled two-tone disc cannot inherit `currentColor`, so it cannot carry the state either.
+ */
+export const MONITOR_IN_WHISPARR = "Monitor in Whisparr";
+
+/** The same control's name once the connected instance monitors the entity. */
+export const MONITORED_IN_WHISPARR = "Monitored in Whisparr";
+
+/**
  * The version-gap sentence, for a capability the connected generation does not have.
  *
  * Never wording that suggests migrating, and never a generic "not supported".
