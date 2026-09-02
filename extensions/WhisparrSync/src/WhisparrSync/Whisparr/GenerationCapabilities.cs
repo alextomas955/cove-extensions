@@ -64,8 +64,10 @@ public sealed class WhisparrCapabilitySet
         Generation = generation;
         _roles = roles;
 
-        // Declaration order, so the list a browser reads does not vary with how the set was built.
-        Held = [.. Enum.GetValues<WhisparrCapability>().Where(roles.ContainsKey)];
+        // What the generation can honour, not what this set happened to be built with. Read off the
+        // registrations it would report whichever roles a caller supplied, so a set built for a read
+        // would tell a browser the generation cannot do what it can.
+        Held = GenerationCapabilities.CapabilitiesOf(generation);
     }
 
     /// <summary>The generation this set was built for.</summary>
@@ -79,8 +81,9 @@ public sealed class WhisparrCapabilitySet
     /// </summary>
     /// <typeparam name="TRole">The role asked for.</typeparam>
     /// <exception cref="InvalidOperationException">
-    /// <typeparamref name="TRole"/> is not one of this product's roles. That says nothing about a
-    /// generation, so it is not expressible as a refusal.
+    /// <typeparamref name="TRole"/> is not one of this product's roles, or it is one this generation
+    /// holds and this set was built without the source that implements it. Neither says anything
+    /// about a generation, so neither is expressible as a refusal.
     /// </exception>
     public Capability<TRole> Obtain<TRole>()
         where TRole : class
@@ -92,9 +95,22 @@ public sealed class WhisparrCapabilitySet
                     + "beside the capability it expresses.");
         }
 
-        return _roles.TryGetValue(capability, out var role)
-            ? new Capability<TRole>((TRole)role, null)
-            : new Capability<TRole>(null, new CapabilityRefusal(capability, Generation));
+        if (_roles.TryGetValue(capability, out var role))
+        {
+            return new Capability<TRole>((TRole)role, null);
+        }
+
+        // A capability the generation HOLDS, asked of a set built without the source implementing it,
+        // is a construction fault. Answered as a refusal it would be indistinguishable from a real
+        // generation gap, which is the silent-bug class the capability split exists to remove.
+        if (Held.Contains(capability))
+        {
+            throw new InvalidOperationException(
+                $"{Generation} holds {capability}, but this capability set was built with no source for "
+                    + $"{typeof(TRole)}. Build it through the overload taking a role set.");
+        }
+
+        return new Capability<TRole>(null, new CapabilityRefusal(capability, Generation));
     }
 }
 
@@ -105,25 +121,112 @@ public sealed class WhisparrCapabilitySet
 /// </remarks>
 public static class GenerationCapabilities
 {
-    /// <summary>What <paramref name="generation"/> can honour.</summary>
+    // Declaration order, so the list a browser reads is stable. A capability is written down here
+    // only once some generation has an implementation to register for it: registered ahead of one it
+    // would report a capability whose only possible answer is a fault.
+    private static readonly WhisparrCapability[] V3Capabilities =
+    [
+        WhisparrCapability.OutOfBandCallbackSecret,
+        WhisparrCapability.MonitorStudio,
+    ];
+
+    /// <inheritdoc cref="V3Capabilities"/>
+    private static readonly WhisparrCapability[] V2Capabilities =
+    [
+        WhisparrCapability.OutOfBandCallbackSecret,
+    ];
+
+    /// <summary>What <paramref name="generation"/> can honour, with no acting role supplied.</summary>
+    /// <remarks>
+    /// For a caller that only needs to know what the generation can do, or one of the capabilities
+    /// needing no outbound client. Asking this set for an acting role throws rather than refusing,
+    /// because a set built with no source for a capability the generation holds is a construction
+    /// fault and not a generation gap.
+    /// </remarks>
     public static WhisparrCapabilitySet For(WhisparrGeneration generation)
-        => new(generation, RolesFor(generation));
+        => new(generation, RolesFor(generation, null));
+
+    /// <summary>What <paramref name="generation"/> can honour, acting through <paramref name="roles"/>.</summary>
+    internal static WhisparrCapabilitySet For(WhisparrGeneration generation, WhisparrRoleSet roles)
+    {
+        ArgumentNullException.ThrowIfNull(roles);
+        return new WhisparrCapabilitySet(generation, RolesFor(generation, roles));
+    }
+
+    /// <summary>The capabilities <paramref name="generation"/> can honour, in declaration order.</summary>
+    /// <remarks>
+    /// The authoritative table. What a set was BUILT with is a fact about the caller, so reading a
+    /// generation's capabilities off its registrations would answer differently depending on which
+    /// route asked.
+    /// </remarks>
+    internal static IReadOnlyList<WhisparrCapability> CapabilitiesOf(WhisparrGeneration generation)
+        => generation switch
+        {
+            WhisparrGeneration.V3 => V3Capabilities,
+            WhisparrGeneration.V2 => V2Capabilities,
+            _ => [],
+        };
 
     // Both generations can carry a secret off the address, by fields neither shares with the other:
     // a list-of-headers field on one, a user-and-password pair on the other. The implementation is
     // therefore per generation, and a generation whose schema declared neither would hold no role at
     // all rather than one that refused once it was called.
-    private static Dictionary<WhisparrCapability, object> RolesFor(WhisparrGeneration generation)
-        => generation switch
+    //
+    // The acting roles are registered per generation AND per entity kind for the same reason: the
+    // kind one generation cannot address at all is an absent registration rather than a check inside
+    // a role that claims to cover it.
+    private static Dictionary<WhisparrCapability, object> RolesFor(
+        WhisparrGeneration generation, WhisparrRoleSet? roles)
+    {
+        var registered = new Dictionary<WhisparrCapability, object>();
+        switch (generation)
         {
-            WhisparrGeneration.V3 => new Dictionary<WhisparrCapability, object>
-            {
-                [WhisparrCapability.OutOfBandCallbackSecret] = new V3HeaderSecretRegistration(),
-            },
-            WhisparrGeneration.V2 => new Dictionary<WhisparrCapability, object>
-            {
-                [WhisparrCapability.OutOfBandCallbackSecret] = new V2BasicAuthSecretRegistration(),
-            },
-            _ => [],
-        };
+            case WhisparrGeneration.V3:
+                registered[WhisparrCapability.OutOfBandCallbackSecret] = new V3HeaderSecretRegistration();
+                if (roles is not null)
+                {
+                    registered[WhisparrCapability.MonitorStudio] = roles.StudioActing;
+                }
+
+                break;
+
+            case WhisparrGeneration.V2:
+                registered[WhisparrCapability.OutOfBandCallbackSecret] = new V2BasicAuthSecretRegistration();
+                break;
+
+            default:
+                break;
+        }
+
+        return registered;
+    }
+}
+
+/// <summary>The role implementations one capability set acts through.</summary>
+/// <remarks>
+/// Constructed only where a capability set is built and registered in no container, so no consumer
+/// holds a property bag handing out roles it never asked for.
+/// <para>
+/// A role joins this record with its implementation, never ahead of it, which is the same rule the
+/// per-generation capability table follows. A member declared here that nothing implements would be
+/// a promise the type could not keep.
+/// </para>
+/// </remarks>
+/// <param name="StudioActing">Monitors a studio.</param>
+internal sealed record WhisparrRoleSet(IWhisparrStudioActing StudioActing)
+{
+    /// <summary>The roles <paramref name="client"/> implements.</summary>
+    /// <exception cref="InvalidOperationException">
+    /// <paramref name="client"/> implements no acting role. The acting roles are implemented on the
+    /// one type holding this product's HTTP client, so a client that does not is a registration
+    /// fault rather than a capability a generation lacks.
+    /// </exception>
+    internal static WhisparrRoleSet From(IWhisparrClient client)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+        return client is IWhisparrStudioActing studioActing
+            ? new WhisparrRoleSet(studioActing)
+            : throw new InvalidOperationException(
+                $"{client.GetType()} holds this product's HTTP client but implements no acting role.");
+    }
 }

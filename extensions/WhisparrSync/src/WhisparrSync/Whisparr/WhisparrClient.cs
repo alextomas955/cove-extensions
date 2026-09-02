@@ -3,6 +3,7 @@ using System.Net.Mime;
 using System.Text;
 using System.Text.Json.Nodes;
 using WhisparrSync.Contracts;
+using WhisparrSync.Monitoring;
 
 namespace WhisparrSync.Whisparr;
 
@@ -174,7 +175,12 @@ public interface IWhisparrClient
 }
 
 /// <inheritdoc cref="IWhisparrClient"/>
-internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
+/// <remarks>
+/// The acting roles are implemented here rather than on a type of their own, because this is the one
+/// type holding an HTTP client and a second holder would be a second outbound surface for every
+/// invariant that reflects over this one to cover.
+/// </remarks>
+internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient, IWhisparrStudioActing
 {
     /// <summary>The header both generations authenticate an API request with.</summary>
     internal const string ApiKeyHeader = "X-Api-Key";
@@ -299,6 +305,68 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
             body,
             ct);
 
+    public Task<WhisparrResponse> ReadStudioAsync(
+        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(foreignId);
+
+        // Escaped as one path segment. The identifier comes from a stored identity row rather than
+        // from a caller, and escaping it keeps that true of the composed route as well: a value
+        // carrying a separator would otherwise name a different route.
+        return ReadAsync(
+            baseAddress,
+            apiKey,
+            string.Create(
+                CultureInfo.InvariantCulture, $"{StudioPath}/{Uri.EscapeDataString(foreignId)}"),
+            ct);
+    }
+
+    public Task<WhisparrResponse> AddMonitoredStudioAsync(
+        Uri baseAddress,
+        string apiKey,
+        string foreignId,
+        MonitorScope scope,
+        AddDefaults defaults,
+        CancellationToken ct)
+        => ActAsync(
+            baseAddress,
+            apiKey,
+            HttpMethod.Post,
+            StudioPath,
+            V3BodyProjector.AddStudio(foreignId, scope, defaults, DateTimeOffset.UtcNow),
+            ct);
+
+    public Task<WhisparrResponse> SetStudioMonitoredAsync(
+        Uri baseAddress, string apiKey, int entityId, bool monitored, CancellationToken ct)
+        => ActAsync(
+            baseAddress,
+            apiKey,
+            HttpMethod.Put,
+            StudioEditorPath,
+            V3BodyProjector.SetStudioMonitored(entityId, monitored),
+            ct);
+
+    public async Task<WhisparrResponse> SetStudioScopeAsync(
+        Uri baseAddress, string apiKey, int entityId, MonitorScope scope, CancellationToken ct)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
+
+        // Read then replaced, because the editor resource declares no add-time date gate: a scope
+        // sent there is accepted and applies nothing. The read is idempotent and the replace is sent
+        // once.
+        var path = string.Create(CultureInfo.InvariantCulture, $"{StudioPath}/{entityId}");
+        var held = await ReadAsync(baseAddress, apiKey, path, ct).ConfigureAwait(false);
+        if (MonitoringProjector.AsObject(held.Body) is not { } studio)
+        {
+            return held;
+        }
+
+        return await ActAsync(
+            baseAddress, apiKey, HttpMethod.Put, path,
+            V3BodyProjector.WithScope(studio, scope, DateTimeOffset.UtcNow), ct)
+            .ConfigureAwait(false);
+    }
+
     /// <summary>Which entity <paramref name="generation"/> is asked to embed on a history record.</summary>
     private static string EntityQueryFor(WhisparrGeneration generation)
         => generation switch
@@ -360,9 +428,20 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
         return await SendAsync(baseAddress, apiKey, HttpMethod.Get, path, null, ct).ConfigureAwait(false);
     }
 
-    // Sent once. This class acts on the instance, and a request whose answer did not arrive is not
-    // the same as one that says nothing happened.
+    // Sent once. This class changes the instance's own configuration, and a request whose answer did
+    // not arrive is not the same as one that says nothing happened.
     private Task<WhisparrResponse> ConfigureAsync(
+        Uri baseAddress, string apiKey, HttpMethod method, string path, JsonNode body, CancellationToken ct)
+        => SentOnceAsync(baseAddress, apiKey, method, path, body, ct);
+
+    // Sent once for the same reason, and named apart from a configure because the CLASS of work is
+    // what the retry policy is keyed on: an attempt count added for one class must not silently
+    // cover the other.
+    private Task<WhisparrResponse> ActAsync(
+        Uri baseAddress, string apiKey, HttpMethod method, string path, JsonNode body, CancellationToken ct)
+        => SentOnceAsync(baseAddress, apiKey, method, path, body, ct);
+
+    private Task<WhisparrResponse> SentOnceAsync(
         Uri baseAddress, string apiKey, HttpMethod method, string path, JsonNode body, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(body);

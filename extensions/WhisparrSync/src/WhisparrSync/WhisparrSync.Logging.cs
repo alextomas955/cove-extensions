@@ -205,6 +205,19 @@ internal static partial class WhisparrSyncLog
         WhisparrGeneration generation,
         string failure);
 
+    // One monitoring request that produced no response at all. Contained rather than propagated: it
+    // is raised into a route whose declared results hold no failure, and the caller turns it into a
+    // classified answer for the user. The failure's classification and the host, and nothing else -
+    // an address may carry credentials in its user-info and a log sink is durable and readable.
+    [LoggerMessage(
+        EventId = 2117, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] a monitoring request to {Generation} at {Host} produced no response ({Failure})")]
+    internal static partial void MonitoringRequestContained(
+        ILogger logger,
+        WhisparrGeneration generation,
+        string failure,
+        string host);
+
     // A write dropped because the blob it would have been built on could not be read, so the fold ran
     // on defaults. The stored configuration is what survives; the update the caller asked for is
     // lost, and the writers that reach this run with nobody watching.

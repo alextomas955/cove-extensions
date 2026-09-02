@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Import;
+using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
 
@@ -86,6 +87,9 @@ public sealed partial class WhisparrSync : FullExtensionBase
         services.AddScoped<IWhisparrNotificationPort>(
             services => new NotificationPort(services.GetRequiredService<IWhisparrClient>(), _log));
         services.AddScoped(_ => new OptionsStore(Store, _log));
+        services.AddScoped<IEntityIdentityPort>(services => new EntityIdentityPort(
+            services.GetRequiredService<DbContext>(),
+            services.GetRequiredService<OptionsStore>()));
 
         // A singleton, so the request scopes and the background worker queue behind ONE gate. Per
         // scope it would be a gate per request and would serialise nothing.
