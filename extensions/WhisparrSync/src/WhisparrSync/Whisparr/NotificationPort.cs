@@ -57,8 +57,13 @@ internal sealed class NotificationPort(IWhisparrClient client, ILogger log) : IW
     /// The name this product's registration is held under, which is also how it is found again.
     /// </summary>
     /// <remarks>
-    /// FROZEN. The instance enforces name uniqueness and this is the only key the find step has, so
-    /// changing it would leave the old registration in place and delivering, and create a second.
+    /// FROZEN. It is the only key the find step has, so changing it would leave the old registration
+    /// in place and delivering, and create a second.
+    /// <para>
+    /// The instance does NOT refuse a second entry under this name when the address matches, so the
+    /// find-then-write pair is serialised by <see cref="RegistrationGate"/> rather than relying on
+    /// uniqueness being enforced there.
+    /// </para>
     /// </remarks>
     internal const string RegistrationName = "Cove Whisparr Sync";
 
