@@ -26,7 +26,14 @@
     -->
     <Warning Text="$(MSBuildProjectName): not built - CoveSourceMode is '$(CoveSourceMode)' and this project requires a Cove source checkout, so the solution build skipped it and its tests neither compiled nor ran. Point COVE_REPO or -p:CoveRepoRoot at a checkout to include it." />
 
-    <RemoveDir Directories="$(OutputPath)" Condition="Exists('$(OutputPath)')" />
+    <!--
+      Scoped to an output directory this project owns. $(OutputPath) is caller-supplied, and a solution
+      build pointed at one shared directory would otherwise have this target delete every other
+      project's output, with the build still succeeding.
+    -->
+    <RemoveDir
+      Directories="$(OutputPath)"
+      Condition="Exists('$(OutputPath)') AND $([System.IO.Path]::GetFullPath('$(OutputPath)').StartsWith($([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)'))))" />
   </Target>
 
 </Project>
