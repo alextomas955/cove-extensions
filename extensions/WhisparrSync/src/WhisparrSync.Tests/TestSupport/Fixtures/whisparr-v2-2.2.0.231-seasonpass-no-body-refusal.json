@@ -1,0 +1,9 @@
+{
+  "type": "https://tools.ietf.org/html/rfc7231#section-6.5.1",
+  "title": "One or more validation errors occurred.",
+  "status": 400,
+  "traceId": "00-82d002fbea97740d72e28a12f647fb3a-917ba7706e91b513-00",
+  "errors": {
+    "": ["A non-empty request body is required."]
+  }
+}

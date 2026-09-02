@@ -1,0 +1,15 @@
+[
+  {
+    "key": "chooseImportMode",
+    "label": "ChooseImportMode",
+    "disabled": true
+  },
+  {
+    "key": "move",
+    "label": "MoveFiles"
+  },
+  {
+    "key": "copy",
+    "label": "HardlinkCopyFiles"
+  }
+]

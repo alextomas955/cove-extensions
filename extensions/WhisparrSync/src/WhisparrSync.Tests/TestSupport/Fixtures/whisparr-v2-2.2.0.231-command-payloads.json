@@ -1,0 +1,10 @@
+[
+  {
+    "name": "SeriesSearch",
+    "seriesId": 1
+  },
+  {
+    "name": "RefreshSeries",
+    "seriesId": 1
+  }
+]

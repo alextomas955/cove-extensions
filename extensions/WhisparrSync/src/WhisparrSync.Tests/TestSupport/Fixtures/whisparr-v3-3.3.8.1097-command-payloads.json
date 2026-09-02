@@ -1,0 +1,14 @@
+[
+  {
+    "name": "StudiosSearch",
+    "studioIds": [1]
+  },
+  {
+    "name": "PerformersSearch",
+    "performerIds": [1]
+  },
+  {
+    "name": "RefreshStudios",
+    "studioIds": [1]
+  }
+]

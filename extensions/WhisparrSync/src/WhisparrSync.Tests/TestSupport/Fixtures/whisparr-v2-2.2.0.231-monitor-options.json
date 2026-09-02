@@ -1,0 +1,57 @@
+[
+  {
+    "key": "all",
+    "label": "MonitorAllScenes",
+    "localized": "All Scenes"
+  },
+  {
+    "key": "future",
+    "label": "MonitorFutureScenes",
+    "localized": "Future Scenes"
+  },
+  {
+    "key": "missing",
+    "label": "MonitorMissingScenes",
+    "localized": "Missing Scene"
+  },
+  {
+    "key": "existing",
+    "label": "MonitorExistingScenes",
+    "localized": "Existing Scenes"
+  },
+  {
+    "key": "recent",
+    "label": "MonitorRecentEpisodes",
+    "localized": null
+  },
+  {
+    "key": "pilot",
+    "label": "MonitorPilotEpisode",
+    "localized": null
+  },
+  {
+    "key": "firstSeason",
+    "label": "MonitorFirstYear",
+    "localized": "First Year"
+  },
+  {
+    "key": "latestSeason",
+    "label": "MonitorLatestYear",
+    "localized": "Latest Year"
+  },
+  {
+    "key": "monitorSpecials",
+    "label": "MonitorSpecialEpisodes",
+    "localized": null
+  },
+  {
+    "key": "unmonitorSpecials",
+    "label": "UnmonitorSpecialEpisodes",
+    "localized": null
+  },
+  {
+    "key": "none",
+    "label": "MonitorNone",
+    "localized": "None"
+  }
+]
