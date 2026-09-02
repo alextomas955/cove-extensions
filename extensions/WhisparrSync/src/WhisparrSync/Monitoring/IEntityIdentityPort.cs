@@ -27,7 +27,7 @@ public sealed record IdentityResolution(string? ForeignId, MonitorRefusalKind Re
 public interface IEntityIdentityPort
 {
     /// <summary>
-    /// What the studio <paramref name="studioId"/> names is known as in
+    /// What the <paramref name="kind"/> entity <paramref name="coveId"/> names is known as in
     /// <paramref name="generation"/>'s namespace.
     /// </summary>
     /// <remarks>
@@ -35,6 +35,10 @@ public interface IEntityIdentityPort
     /// generations identify entities in namespaces neither shares with the other, so a row in one is
     /// no identity at all in the other.
     /// </remarks>
-    Task<IdentityResolution> ResolveStudioAsync(
-        int studioId, WhisparrGeneration generation, CancellationToken ct);
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="kind"/> is not a kind this product expresses. A kind resolving to another
+    /// kind's identity table would aim this extension's credential at an unrelated entity.
+    /// </exception>
+    Task<IdentityResolution> ResolveAsync(
+        WhisparrEntityKind kind, int coveId, WhisparrGeneration generation, CancellationToken ct);
 }

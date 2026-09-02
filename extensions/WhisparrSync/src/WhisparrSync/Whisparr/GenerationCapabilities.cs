@@ -128,6 +128,7 @@ public static class GenerationCapabilities
     [
         WhisparrCapability.OutOfBandCallbackSecret,
         WhisparrCapability.MonitorStudio,
+        WhisparrCapability.MonitorPerformer,
     ];
 
     /// <inheritdoc cref="V3Capabilities"/>
@@ -186,10 +187,13 @@ public static class GenerationCapabilities
                 if (roles is not null)
                 {
                     registered[WhisparrCapability.MonitorStudio] = roles.StudioActing;
+                    registered[WhisparrCapability.MonitorPerformer] = roles.PerformerActing;
                 }
 
                 break;
 
+            // No performer registration in either table. The older generation addresses no performer
+            // at all, so a caller obtains no role and has to state what happens instead.
             case WhisparrGeneration.V2:
                 registered[WhisparrCapability.OutOfBandCallbackSecret] = new V2BasicAuthSecretRegistration();
                 break;
@@ -213,20 +217,25 @@ public static class GenerationCapabilities
 /// </para>
 /// </remarks>
 /// <param name="StudioActing">Monitors a studio.</param>
-internal sealed record WhisparrRoleSet(IWhisparrStudioActing StudioActing)
+/// <param name="PerformerActing">Monitors a performer.</param>
+internal sealed record WhisparrRoleSet(
+    IWhisparrStudioActing StudioActing, IWhisparrPerformerActing PerformerActing)
 {
     /// <summary>The roles <paramref name="client"/> implements.</summary>
     /// <exception cref="InvalidOperationException">
-    /// <paramref name="client"/> implements no acting role. The acting roles are implemented on the
-    /// one type holding this product's HTTP client, so a client that does not is a registration
-    /// fault rather than a capability a generation lacks.
+    /// <paramref name="client"/> implements one of the acting roles this record declares and not
+    /// every one of them. The acting roles are implemented on the one type holding this product's
+    /// HTTP client, so a client that does not is a registration fault rather than a capability a
+    /// generation lacks.
     /// </exception>
     internal static WhisparrRoleSet From(IWhisparrClient client)
     {
         ArgumentNullException.ThrowIfNull(client);
         return client is IWhisparrStudioActing studioActing
-            ? new WhisparrRoleSet(studioActing)
+            and IWhisparrPerformerActing performerActing
+            ? new WhisparrRoleSet(studioActing, performerActing)
             : throw new InvalidOperationException(
-                $"{client.GetType()} holds this product's HTTP client but implements no acting role.");
+                $"{client.GetType()} holds this product's HTTP client but implements only part of "
+                    + $"{nameof(WhisparrRoleSet)}.");
     }
 }
