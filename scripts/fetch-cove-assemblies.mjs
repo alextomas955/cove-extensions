@@ -407,6 +407,33 @@ export function resolveCoveLegs({ floor, tags, source = "the registry tag list" 
  * @param {(entry: object) => boolean} [select]
  * @param {string} [catalogPath]
  */
+/**
+ * Picks the highest floor from what `readExtensionFloors` returned, by semver precedence.
+ *
+ * Throws on an empty list rather than returning a default, because the caller's next act is to check
+ * out a ref: a silent fallback there formats and analyses against a version nothing declared.
+ * A floor that does not parse is a hard failure for the same reason.
+ */
+export function highestDeclaredFloor(declared) {
+  if (!Array.isArray(declared) || declared.length === 0) {
+    throw new Error("No extension floor was declared, so there is no Cove ref to resolve.");
+  }
+  // Parsed up front rather than inside the reduce: a single-entry list never invokes the callback, so
+  // a lone unparseable floor would otherwise be returned unchecked.
+  const parsed = declared.map((candidate) => {
+    const version = parseSemver(candidate.floor);
+    if (version === null) {
+      throw new Error(
+        `${candidate.entry.name} declares a floor that is not a semver: ${candidate.floor}`,
+      );
+    }
+    return { candidate, version };
+  });
+  return parsed.reduce((left, right) =>
+    compareSemver(left.version, right.version) >= 0 ? left : right,
+  ).candidate;
+}
+
 export function readExtensionFloors(select, catalogPath = DEFAULT_CATALOG_PATH) {
   if (!fs.existsSync(catalogPath)) {
     throw new Error(`${catalogPath} does not exist, so no extension floor can be read.`);
