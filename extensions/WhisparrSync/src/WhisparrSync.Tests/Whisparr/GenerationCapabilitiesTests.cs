@@ -1,5 +1,6 @@
 using System.Text.Json;
 using WhisparrSync.Contracts;
+using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
@@ -29,7 +30,7 @@ public sealed class GenerationCapabilitiesTests
 
         Assert.NotNull(role);
         Assert.Equal(
-            [WhisparrCapability.OutOfBandCallbackSecret],
+            [WhisparrCapability.OutOfBandCallbackSecret, WhisparrCapability.MonitorStudio],
             GenerationCapabilities.For(WhisparrGeneration.V3).Held);
     }
 
@@ -49,22 +50,51 @@ public sealed class GenerationCapabilitiesTests
     /// caller has to catch to learn what happened.
     /// </summary>
     /// <remarks>
-    /// Taken against a set built holding nothing, because no generation this product manages refuses
-    /// the one capability it declares today. Driving it through a generation that DID refuse would tie
-    /// the mechanism to a fact that has already changed once.
+    /// Taken through a real generation gap: the older generation addresses no studio at all, so its
+    /// set holds no studio-acting role. A generation whose capability list is empty would be a
+    /// generation nothing manages, so the refusal is asserted where a user actually meets one.
     /// </remarks>
     [Fact]
     public void ASetHoldingNoRoleRefusesAndNamesWhatItRefused()
     {
-        var capabilities = new WhisparrCapabilitySet(WhisparrGeneration.V2, []);
+        var capabilities = GenerationCapabilities.For(
+            WhisparrGeneration.V2,
+            WhisparrRoleSet.From(new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"))));
 
-        var refusal = capabilities.Obtain<IOutOfBandSecretRegistration>()
+        var refusal = capabilities.Obtain<IWhisparrStudioActing>()
             .Match<CapabilityRefusal?>(_ => null, refused => refused);
 
         Assert.NotNull(refusal);
-        Assert.Equal(WhisparrCapability.OutOfBandCallbackSecret, refusal.Capability);
+        Assert.Equal(WhisparrCapability.MonitorStudio, refusal.Capability);
         Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
-        Assert.Empty(capabilities.Held);
+        Assert.DoesNotContain(WhisparrCapability.MonitorStudio, capabilities.Held);
+    }
+
+    /// <summary>
+    /// A capability the generation HOLDS, asked of a set built with no source for it, is a fault
+    /// rather than a refusal.
+    /// </summary>
+    /// <remarks>
+    /// The two answers are what a caller would otherwise be unable to tell apart: one says the
+    /// instance cannot do this and the other says this product was wired wrong, and only the first is
+    /// something to tell a user about their Whisparr.
+    /// </remarks>
+    [Fact]
+    public void ACapabilityHeldButUnsourcedIsAFaultRatherThanARefusal()
+        => Assert.Throws<InvalidOperationException>(
+            () => GenerationCapabilities.For(WhisparrGeneration.V3).Obtain<IWhisparrStudioActing>());
+
+    /// <summary>The capability table is per generation, and the newer one holds strictly more.</summary>
+    [Fact]
+    public void EachGenerationsCapabilitiesAreWrittenDownPerGeneration()
+    {
+        Assert.Equal(
+            [WhisparrCapability.OutOfBandCallbackSecret, WhisparrCapability.MonitorStudio],
+            GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
+        Assert.Equal(
+            [WhisparrCapability.OutOfBandCallbackSecret],
+            GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
+        Assert.Empty(GenerationCapabilities.CapabilitiesOf((WhisparrGeneration)(-1)));
     }
 
     /// <summary>
@@ -160,7 +190,7 @@ public sealed class GenerationCapabilitiesTests
     [Fact]
     public void TheCapabilityTravelsInTheCamelCaseSpelling()
         => Assert.Equal(
-            "[\"outOfBandCallbackSecret\"]",
+            "[\"outOfBandCallbackSecret\",\"monitorStudio\"]",
             JsonSerializer.Serialize(
                 GenerationCapabilities.For(WhisparrGeneration.V3).Held, HostJsonOptions));
 
