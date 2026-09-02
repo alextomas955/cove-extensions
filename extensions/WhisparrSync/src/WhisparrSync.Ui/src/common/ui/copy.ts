@@ -39,6 +39,15 @@ export const NOTHING_MISSING = "You own every scene {provider} lists for {entity
 /** Imports Cove recorded but can no longer read. Self-clears on a success. */
 export const IMPORTS_UNREADABLE = "Sync problem - Cove can't find imported files";
 
+/**
+ * A refresh that failed over content already on screen.
+ *
+ * Says what is on screen rather than what went wrong: the values are still the last true answer, and
+ * what the reader needs to know is that they may have moved since.
+ */
+export const READ_IS_STALE =
+  "Cove couldn't check this just now. These are the last values it read.";
+
 /** No Cove library folder holds the reported file at all. */
 export const IMPORT_CAUSE_NOT_FOUND = "No Cove library folder holds this file.";
 
