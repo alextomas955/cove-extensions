@@ -22,6 +22,87 @@ export const MONITOR_IN_WHISPARR = "Monitor in Whisparr";
 export const MONITORED_IN_WHISPARR = "Monitored in Whisparr";
 
 /**
+ * The narrower monitor scope, in Whisparr's own words.
+ *
+ * Both generations use these two names, so neither is this product's coinage and neither has to be
+ * reconciled across a generation. Whisparr's other monitor wording is not carried across: its own
+ * dropdown renders unsubstituted localization keys, so mimicry stops here.
+ */
+export const SCOPE_FUTURE_SCENES = "Future Scenes";
+
+/** The wider monitor scope, in Whisparr's own words. */
+export const SCOPE_ALL_SCENES = "All Scenes";
+
+/**
+ * What the wider scope costs, stated where the scope is chosen rather than after it is taken.
+ *
+ * Names the cost the reader pays rather than the flag that is written, because a flag is not
+ * something anyone budgets for.
+ */
+export const ALL_SCENES_MARKS_THE_BACK_CATALOGUE =
+  "All Scenes marks every scene Whisparr already lists for this entity as wanted, which spends indexer traffic and disk.";
+
+/**
+ * What choosing a scope does not decide, stated beside every scope option.
+ *
+ * Naming only the wider scope's cost would leave the narrower one reading as a limit. The connected
+ * instance decides what a scope covers and has been seen covering everything, so the reader is told
+ * that rather than being left to infer a guarantee.
+ *
+ * The wording here is provisional and single-sourced so it is one edit to change.
+ */
+export const SCOPE_DOES_NOT_LIMIT_WHAT_IS_MONITORED =
+  "Whisparr monitors every scene it lists for this entity whichever scope you choose.";
+
+/**
+ * That the wider scope is a one-way door, stated where the scope is chosen.
+ *
+ * For the generation whose date gate applies only to what a later refresh adds. The generation that
+ * rewrites every flag on a scope change does not render this, because there it would be false.
+ */
+export const ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE =
+  "Changing the scope back to Future Scenes does not undo this: a scene that is already wanted stays wanted.";
+
+/**
+ * What unmonitoring stops and what it leaves behind.
+ *
+ * The second sentence is the point of the message. A reader who unmonitors to stop acquisition has
+ * not stopped it, and no other sentence in this product says so.
+ */
+export const UNMONITORING_DOES_NOT_RETRACT =
+  "Unmonitoring stops Whisparr wanting new scenes. It does not retract what All Scenes already made wanted.";
+
+/**
+ * Why a performer is offered no scope choice, stated on the one item that replaces the pair.
+ *
+ * Monitoring a performer with no date gate is All-Scenes behaviour, so the item says so rather than
+ * presenting the wider scope as the only option.
+ */
+export const PERFORMER_HAS_NO_FUTURE_ONLY_SCOPE =
+  "Whisparr offers no future-only option for a performer, so monitoring one covers every scene it lists.";
+
+/**
+ * What reflect owned does, for both generations at once.
+ *
+ * Neither generation offers an in-place import mode, so a sentence promising one generation less
+ * than the other could not be written truthfully.
+ */
+export const REFLECT_OWNED =
+  "Whisparr links each file you already own into its scene's folder. This costs no extra disk while Whisparr's hard-link setting is on, and is skipped while that setting is off.";
+
+/** Why nothing was linked. Names the setting, because turning it on is what changes the answer. */
+export const REFLECT_OWNED_SKIPPED =
+  "Skipped: with Whisparr's hard-link setting off each file would be copied rather than linked, and would use disk twice.";
+
+/** What add all missing does. Says what it does not do, because the name suggests acquisition. */
+export const ADD_ALL_MISSING =
+  "Registers every scene Cove holds that Whisparr does not. Nothing is downloaded.";
+
+/** The one action that downloads, said plainly rather than shaded into the others. */
+export const SEARCH_ALL_MONITORED =
+  "Asks Whisparr to search for every scene it wants for this entity, and to download what it finds.";
+
+/**
  * The version-gap sentence, for a capability the connected generation does not have.
  *
  * Never wording that suggests migrating, and never a generic "not supported".
