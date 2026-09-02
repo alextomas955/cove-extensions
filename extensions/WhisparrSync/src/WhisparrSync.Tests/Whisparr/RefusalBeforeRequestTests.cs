@@ -78,17 +78,32 @@ public sealed class RefusalBeforeRequestTests
     }
 
     /// <summary>
-    /// The capability vocabulary, and which generations hold each member.
+    /// The capability vocabulary, and what each generation holds of it.
     /// </summary>
     /// <remarks>
-    /// Both generations hold the one member today, by carriers neither shares with the other. The
-    /// vocabulary is written out so a capability added later fails here rather than passing over a
-    /// case nothing drives.
+    /// All three sets are written out, so a capability added later fails here rather than passing over
+    /// a case nothing drives, and a generation that begins holding one fails here rather than gaining
+    /// it in silence.
+    /// <para>
+    /// A member held by neither generation is not a gap here. A capability names what a caller can be
+    /// refused under, so it is declared as soon as a role expresses it and held only once some
+    /// generation has an implementation to register; until then it reads as refused, which is what it
+    /// is.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void EveryCapabilityThisProductDeclaresIsHeldBySomeGeneration()
+    public void TheCapabilityVocabularyAndWhatEachGenerationHoldsAreWrittenDown()
     {
-        Assert.Equal([WhisparrCapability.OutOfBandCallbackSecret], Enum.GetValues<WhisparrCapability>());
+        Assert.Equal(
+            [
+                WhisparrCapability.OutOfBandCallbackSecret,
+                WhisparrCapability.MonitorStudio,
+                WhisparrCapability.MonitorPerformer,
+                WhisparrCapability.RegisterMissingScenes,
+                WhisparrCapability.ReflectOwnedFiles,
+                WhisparrCapability.SearchMonitored,
+            ],
+            Enum.GetValues<WhisparrCapability>());
         Assert.Equal(
             [WhisparrCapability.OutOfBandCallbackSecret],
             GenerationCapabilities.For(WhisparrGeneration.V3).Held);
