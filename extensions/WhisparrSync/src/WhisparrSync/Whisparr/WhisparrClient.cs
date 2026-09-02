@@ -180,7 +180,8 @@ public interface IWhisparrClient
 /// type holding an HTTP client and a second holder would be a second outbound surface for every
 /// invariant that reflects over this one to cover.
 /// </remarks>
-internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient, IWhisparrStudioActing
+internal sealed class WhisparrClient(HttpClient http)
+    : IWhisparrClient, IWhisparrStudioActing, IWhisparrPerformerActing
 {
     /// <summary>The header both generations authenticate an API request with.</summary>
     internal const string ApiKeyHeader = "X-Api-Key";
@@ -307,19 +308,7 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient, IWhispa
 
     public Task<WhisparrResponse> ReadStudioAsync(
         Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(foreignId);
-
-        // Escaped as one path segment. The identifier comes from a stored identity row rather than
-        // from a caller, and escaping it keeps that true of the composed route as well: a value
-        // carrying a separator would otherwise name a different route.
-        return ReadAsync(
-            baseAddress,
-            apiKey,
-            string.Create(
-                CultureInfo.InvariantCulture, $"{StudioPath}/{Uri.EscapeDataString(foreignId)}"),
-            ct);
-    }
+        => ReadEntityAsync(baseAddress, apiKey, StudioPath, foreignId, ct);
 
     public Task<WhisparrResponse> AddMonitoredStudioAsync(
         Uri baseAddress,
@@ -365,6 +354,50 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient, IWhispa
             baseAddress, apiKey, HttpMethod.Put, path,
             V3BodyProjector.WithScope(studio, scope, DateTimeOffset.UtcNow), ct)
             .ConfigureAwait(false);
+    }
+
+    public Task<WhisparrResponse> ReadPerformerAsync(
+        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+        => ReadEntityAsync(baseAddress, apiKey, PerformerPath, foreignId, ct);
+
+    public Task<WhisparrResponse> AddMonitoredPerformerAsync(
+        Uri baseAddress,
+        string apiKey,
+        string foreignId,
+        AddDefaults defaults,
+        CancellationToken ct)
+        => ActAsync(
+            baseAddress,
+            apiKey,
+            HttpMethod.Post,
+            PerformerPath,
+            V3BodyProjector.AddPerformer(foreignId, defaults),
+            ct);
+
+    public Task<WhisparrResponse> SetPerformerMonitoredAsync(
+        Uri baseAddress, string apiKey, int entityId, bool monitored, CancellationToken ct)
+        => ActAsync(
+            baseAddress,
+            apiKey,
+            HttpMethod.Put,
+            PerformerEditorPath,
+            V3BodyProjector.SetPerformerMonitored(entityId, monitored),
+            ct);
+
+    // Escaped as one path segment. The identifier comes from a stored identity row rather than from a
+    // caller, and escaping it keeps that true of the composed route as well: a value carrying a
+    // separator would otherwise name a different route.
+    private Task<WhisparrResponse> ReadEntityAsync(
+        Uri baseAddress, string apiKey, string entityPath, string foreignId, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(foreignId);
+
+        return ReadAsync(
+            baseAddress,
+            apiKey,
+            string.Create(
+                CultureInfo.InvariantCulture, $"{entityPath}/{Uri.EscapeDataString(foreignId)}"),
+            ct);
     }
 
     /// <summary>Which entity <paramref name="generation"/> is asked to embed on a history record.</summary>
