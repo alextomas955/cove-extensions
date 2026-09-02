@@ -278,6 +278,7 @@ public sealed class SettingsEndpointTests
                 credentials,
                 new MintedSecretPort(),
                 notifications,
+                new RegistrationGate(),
                 new FixedClock(Now),
                 TestCt));
 

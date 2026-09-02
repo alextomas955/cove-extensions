@@ -91,6 +91,9 @@ public sealed partial class WhisparrSync : FullExtensionBase
         // scope it would be a gate per request and would serialise nothing.
         services.AddSingleton(_ => new OptionsWriteGate(_log));
 
+        // A singleton for the same reason: the window it closes spans two requests.
+        services.AddSingleton(_ => new RegistrationGate());
+
         // A delivery arrives per file, so a reading held per scope would be a reading taken per file.
         services.AddSingleton(services => new ReportedRootCache(services.GetRequiredService<TimeProvider>()));
         services.AddScoped<IImportPathPort, ImportPathPort>();
