@@ -264,6 +264,10 @@ public sealed class RefusalBeforeRequestTests
             Uri baseAddress, string apiKey, CancellationToken ct)
             => inner.ListNotificationsAsync(baseAddress, apiKey, ct);
 
+        public Task<WhisparrResponse> ReadQualityProfilesAsync(
+            Uri baseAddress, string apiKey, CancellationToken ct)
+            => inner.ReadQualityProfilesAsync(baseAddress, apiKey, ct);
+
         public Task<WhisparrResponse> ReadHistoryAsync(
             Uri baseAddress,
             string apiKey,
