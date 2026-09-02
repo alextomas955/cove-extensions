@@ -10,7 +10,7 @@
  * A wrapper rather than an addition to `Button`: the shared primitives file is consumed by every
  * extension, and this system belongs to this one.
  */
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Button } from "@cove-extensions/ui-shared";
 
 /**
@@ -28,8 +28,13 @@ const OFF_SCREEN: CSSProperties = {
 };
 
 type DisabledControlProps = {
-  /** What the control is called. Announced first, and the only part drawn on screen. */
+  /** What the control is called. Always announced first, and drawn on screen only where no icon is given. */
   name: string;
+  /**
+   * Drawn in place of the name. Hidden from the accessibility tree here rather than left to the
+   * caller, because a mark that named itself would name the button twice.
+   */
+  icon?: ReactNode;
   onClick: () => void;
   variant?: "primary" | "ghost";
 } & (
@@ -50,31 +55,56 @@ type DisabledControlProps = {
  */
 export function OptionallyDisabled({
   name,
+  icon,
   onClick,
   variant,
   reason,
 }: {
   name: string;
+  icon?: ReactNode;
   onClick: () => void;
   variant?: "primary" | "ghost";
   /** Why the control is unavailable, or null when it is available. */
   reason: string | null;
 }) {
   return reason === null ? (
-    <DisabledControl name={name} onClick={onClick} variant={variant} />
+    <DisabledControl name={name} icon={icon} onClick={onClick} variant={variant} />
   ) : (
-    <DisabledControl name={name} onClick={onClick} variant={variant} disabled reason={reason} />
+    <DisabledControl
+      name={name}
+      icon={icon}
+      onClick={onClick}
+      variant={variant}
+      disabled
+      reason={reason}
+    />
   );
 }
 
 export function DisabledControl(props: DisabledControlProps) {
-  const { name, onClick, variant, disabled } = props;
+  const { name, icon, onClick, variant, disabled } = props;
   const reason = props.disabled === true ? props.reason : undefined;
+
+  if (icon === undefined) {
+    return (
+      <span title={reason} className="inline-flex">
+        <Button variant={variant} onClick={onClick} disabled={disabled}>
+          {name}
+          {reason === undefined ? null : <span style={OFF_SCREEN}>{reason}</span>}
+        </Button>
+      </span>
+    );
+  }
+
+  // With no visible label the accessible name is the only name the control has, so the name leads
+  // the off-screen text and the hover text is that same string: a reason on its own would hover
+  // beside a bare mark as a sentence about nothing named.
+  const spoken = reason === undefined ? name : `${name}, ${reason}`;
   return (
-    <span title={reason} className="inline-flex">
+    <span title={spoken} className="inline-flex">
       <Button variant={variant} onClick={onClick} disabled={disabled}>
-        {name}
-        {reason === undefined ? null : <span style={OFF_SCREEN}>{reason}</span>}
+        <span aria-hidden="true">{icon}</span>
+        <span style={OFF_SCREEN}>{spoken}</span>
       </Button>
     </span>
   );
