@@ -35,6 +35,9 @@ public sealed record ActingCall(string Verb, Uri BaseAddress, string ApiKey)
     /// <summary>The entity kind named, or null where the member names one kind by itself.</summary>
     public WhisparrEntityKind? Kind { get; init; }
 
+    /// <summary>The generation named, or null where the member names none.</summary>
+    public WhisparrGeneration? Generation { get; init; }
+
     /// <summary>The already-resolved identifier supplied, or null where the member takes none.</summary>
     public string? ForeignId { get; init; }
 
@@ -164,17 +167,23 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
         => Record(nameof(UpdateNotificationAsync), baseAddress, id, body);
 
     public Task<WhisparrResponse> ReadStudioAsync(
-        Uri baseAddress, string apiKey, string foreignId, CancellationToken ct)
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        string foreignId,
+        CancellationToken ct)
         => RecordActing(
             new ActingCall(nameof(ReadStudioAsync), baseAddress, apiKey)
             {
                 Kind = WhisparrEntityKind.Studio,
+                Generation = generation,
                 ForeignId = foreignId,
             });
 
     public Task<WhisparrResponse> AddMonitoredStudioAsync(
         Uri baseAddress,
         string apiKey,
+        WhisparrGeneration generation,
         string foreignId,
         MonitorScope scope,
         AddDefaults defaults,
@@ -183,6 +192,7 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
             new ActingCall(nameof(AddMonitoredStudioAsync), baseAddress, apiKey)
             {
                 Kind = WhisparrEntityKind.Studio,
+                Generation = generation,
                 ForeignId = foreignId,
                 Scope = scope,
                 Defaults = defaults,
@@ -190,21 +200,33 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
             });
 
     public Task<WhisparrResponse> SetStudioMonitoredAsync(
-        Uri baseAddress, string apiKey, int entityId, bool monitored, CancellationToken ct)
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        int entityId,
+        bool monitored,
+        CancellationToken ct)
         => RecordActing(
             new ActingCall(nameof(SetStudioMonitoredAsync), baseAddress, apiKey)
             {
                 Kind = WhisparrEntityKind.Studio,
+                Generation = generation,
                 EntityId = entityId,
                 Monitored = monitored,
             });
 
     public Task<WhisparrResponse> SetStudioScopeAsync(
-        Uri baseAddress, string apiKey, int entityId, MonitorScope scope, CancellationToken ct)
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        int entityId,
+        MonitorScope scope,
+        CancellationToken ct)
         => RecordActing(
             new ActingCall(nameof(SetStudioScopeAsync), baseAddress, apiKey)
             {
                 Kind = WhisparrEntityKind.Studio,
+                Generation = generation,
                 EntityId = entityId,
                 Scope = scope,
             });

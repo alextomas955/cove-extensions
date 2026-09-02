@@ -55,6 +55,9 @@ internal static class ComposedAdds
     /// <summary>The instance-side values every enumerated add is composed with.</summary>
     private static readonly AddDefaults Defaults = new(4, "/config/library");
 
+    /// <summary>The same, for a generation that refuses a profile the other one accepts.</summary>
+    private static readonly AddDefaults V2Defaults = new(1, "/config/library");
+
     private static readonly DateTimeOffset Now = new(2026, 9, 2, 0, 0, 0, TimeSpan.Zero);
 
     /// <summary>A studio as an instance holds one, for the verbs that read before they write.</summary>
@@ -166,6 +169,25 @@ internal static class ComposedAdds
                     V3BodyProjector.AddPerformer(MonitorHost.PerformerRemoteIdValue, Defaults)),
             ],
 
+            // The older generation addresses a studio as a series, and its add is composed from the
+            // numeric identifier its own lookup answered with rather than from the one the library
+            // holds. The identifiers below are what that lookup was measured answering.
+            (WhisparrGeneration.V2, WhisparrCapability.MonitorStudio) =>
+            [
+                new ComposedAdd(
+                    generation,
+                    WhisparrEntityKind.Studio,
+                    MonitorScope.FutureScenes,
+                    V2BodyProjector.AddStudio(
+                        3372, "Vixen", "vixen", MonitorScope.FutureScenes, V2Defaults)),
+                new ComposedAdd(
+                    generation,
+                    WhisparrEntityKind.Studio,
+                    MonitorScope.AllScenes,
+                    V2BodyProjector.AddStudio(
+                        3372, "Vixen", "vixen", MonitorScope.AllScenes, V2Defaults)),
+            ],
+
             _ => throw new NotSupportedException(
                 $"{generation} holds {capability} and no composed add body for it is enumerated in "
                     + $"{nameof(ComposedAdds)}. Add the combination's body beside the others so the "
@@ -188,23 +210,71 @@ internal static class ComposedAdds
 public sealed class NonGrabbingBodyTests
 {
     /// <summary>
-    /// The case list comes from the capability table, and it is not empty.
+    /// The case list comes from the capability table, and how many cases each generation contributes
+    /// is written down beside what that generation's table holds.
     /// </summary>
     /// <remarks>
-    /// The older generation's emptiness is asserted beside what its table holds, so this reads as
-    /// "that generation registers no monitoring capability yet" rather than as an assertion passing
-    /// over nothing.
+    /// The counts are the measure of how much of the never-search guarantee is behaviourally covered.
+    /// They are asserted exactly, so a monitoring capability registered for either generation makes
+    /// this false whether or not its case was added — and a case added without a registration makes it
+    /// false too.
     /// </remarks>
     [Fact]
     public void TheCaseListIsDerivedFromTheRegisteredCapabilityTable()
     {
-        Assert.NotEmpty(ComposedAdds.All());
-        Assert.NotEmpty(ComposedAdds.On(WhisparrGeneration.V3));
-
-        Assert.Empty(ComposedAdds.On(WhisparrGeneration.V2));
+        Assert.Equal(3, ComposedAdds.On(WhisparrGeneration.V3).Count);
         Assert.Equal(
-            [WhisparrCapability.OutOfBandCallbackSecret],
+            [
+                WhisparrCapability.OutOfBandCallbackSecret,
+                WhisparrCapability.MonitorStudio,
+                WhisparrCapability.MonitorPerformer,
+            ],
+            GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
+
+        Assert.Equal(2, ComposedAdds.On(WhisparrGeneration.V2).Count);
+        Assert.Equal(
+            [WhisparrCapability.OutOfBandCallbackSecret, WhisparrCapability.MonitorStudio],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
+
+        Assert.Equal(5, ComposedAdds.All().Count);
+    }
+
+    /// <summary>
+    /// The older generation's suppression spellings are not the newer one's, and no body composed for
+    /// one generation carries the other's.
+    /// </summary>
+    /// <remarks>
+    /// Both pairs live inside an add-options member on one generation while the other reads one of its
+    /// two at the top level, so a rule written in either generation's spellings leaves every body of
+    /// the other unguarded. This asserts each generation's enumerated bodies against its own pair AND
+    /// against the absence of the other's.
+    /// </remarks>
+    [Fact]
+    public void NoAddCarriesTheOtherGenerationsSuppressionSpellings()
+    {
+        Assert.All(
+            ComposedAdds.Generations,
+            generation =>
+            {
+                var mine = ComposedAdds.SuppressionPathsOn(generation);
+                var theirs = ComposedAdds.Generations
+                    .Where(other => other != generation)
+                    .SelectMany(ComposedAdds.SuppressionPathsOn)
+                    .Select(path => path.Split('.')[^1])
+                    .ToArray();
+
+                Assert.NotEmpty(ComposedAdds.On(generation));
+                Assert.All(
+                    ComposedAdds.On(generation),
+                    added =>
+                    {
+                        Assert.All(mine, path => Assert.NotNull(ComposedAdds.At(added.Body, path)));
+                        Assert.All(
+                            theirs,
+                            spelling => Assert.DoesNotContain(
+                                spelling, added.Body.ToJsonString(), StringComparison.Ordinal));
+                    });
+            });
     }
 
     /// <summary>
