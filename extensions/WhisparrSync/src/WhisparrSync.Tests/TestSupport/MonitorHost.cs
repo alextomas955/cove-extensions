@@ -1,0 +1,220 @@
+using System.Globalization;
+using System.Net.Http.Json;
+using System.Text;
+using Cove.Core.Auth;
+using Cove.Core.Entities;
+using Cove.Data;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
+using WhisparrSync.Connection;
+using WhisparrSync.Contracts;
+using WhisparrSync.Monitoring;
+using WhisparrSync.Options;
+using WhisparrSync.Whisparr;
+
+namespace WhisparrSync.Tests.TestSupport;
+
+/// <summary>One test server over one real relational library, with the outbound seam recorded.</summary>
+/// <remarks>
+/// The routes are the shipped ones, mapped by the shipped extension: a test calling a handler method
+/// directly would agree with a route mounted at the wrong pattern, bound to a body the browser cannot
+/// send, or reachable by a caller the declaration excludes.
+/// <para>
+/// One recorder for the whole outbound surface, so an ordered <see cref="RecordingWhisparrClient.Verbs"/>
+/// list from any case covers every verb this product can issue rather than the ones one seam declares.
+/// </para>
+/// </remarks>
+internal sealed class MonitorHost : IAsyncDisposable
+{
+    /// <summary>An identifier a studio is stored under in the newer generation's namespace.</summary>
+    public const string StudioRemoteIdValue = "44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e";
+
+    /// <summary>A second identifier in the same namespace, held by a performer rather than a studio.</summary>
+    public const string PerformerRemoteIdValue = "9f0d6f27-1f3a-4a5f-8b21-6b2d3a5f9c10";
+
+    /// <summary>The spelling the host stores a StashDB identity under, without a scheme.</summary>
+    /// <remarks>
+    /// Deliberately not the standard address this product prefers. The two name one source under the
+    /// host's own rule, and a read comparing them as strings would answer that the entity carries no
+    /// identity.
+    /// </remarks>
+    public const string StoredEndpoint = "stashdb.org/graphql";
+
+    public const string StoredAddress = "http://whisparr-v3:6969";
+
+    public const string StoredKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
+
+    /// <summary>Profiles as an instance offered them, in the order received and not in id order.</summary>
+    public const string UnsortedProfiles = """[{"id":4,"name":"Any"},{"id":1,"name":"HD-1080p"}]""";
+
+    public const string OneRootFolder = """[{"id":1,"path":"/config/library","accessible":true}]""";
+
+    public const string AddedStudio =
+        """{"id":1,"foreignId":"44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e","monitored":true}""";
+
+    public const string AddedPerformer =
+        """{"id":2,"foreignId":"9f0d6f27-1f3a-4a5f-8b21-6b2d3a5f9c10","monitored":true}""";
+
+    private WebApplication _app = null!;
+    private CoveContext _db = null!;
+    private SqliteConnection _connection = null!;
+    private int _seeded;
+
+    public RecordingWhisparrClient Client { get; private set; } = null!;
+
+    public HttpClient Http { get; private set; } = null!;
+
+    private string RouteBase { get; set; } = null!;
+
+    public static async Task<MonitorHost> CreateAsync(
+        FakePrincipalAccessor? principal = null, string? apiKey = StoredKey)
+    {
+        var host = new MonitorHost();
+        (host._db, host._connection) = await CoveContextFactory.CreateSqliteContextAsync();
+
+        // Every read answers 200 with an empty object unless a test queues something else, so a verb
+        // no test named is still a recorded call rather than a throw.
+        host.Client = new RecordingWhisparrClient(Json(200, "{}"))
+            .Answering(nameof(IWhisparrClient.ReadQualityProfilesAsync), Json(200, UnsortedProfiles))
+            .Answering(nameof(IWhisparrClient.ReadRootFoldersAsync), Json(200, OneRootFolder))
+            .Answering(nameof(IWhisparrStudioActing.ReadStudioAsync), Json(404, ""))
+            .Answering(nameof(IWhisparrStudioActing.AddMonitoredStudioAsync), Json(201, AddedStudio))
+            .Answering(nameof(IWhisparrPerformerActing.ReadPerformerAsync), Json(404, ""))
+            .Answering(
+                nameof(IWhisparrPerformerActing.AddMonitoredPerformerAsync),
+                Json(201, AddedPerformer));
+
+        var options = new OptionsStore(new FakeStore());
+        await options.SaveAsync(
+            new WhisparrSyncOptions
+            {
+                SelectedGeneration = WhisparrGeneration.V3,
+                V3 = new WhisparrSyncGenerationConnection { Address = StoredAddress },
+            },
+            TestCt);
+
+        var credentials = new RecordingCredentialPort();
+        if (apiKey is not null)
+        {
+            credentials.Holding(WhisparrGeneration.V3, apiKey);
+        }
+
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.WebHost.UseTestServer();
+        builder.Services.AddWhisparrSyncBindingServices();
+        builder.Services.AddRouting();
+
+        // Both tiers, because the two routes declare different ones: the read is at the tier a caller
+        // already needs to see the entity page, and the action at the configure tier.
+        builder.Services.AddSingleton<ICurrentPrincipalAccessor>(
+            principal ?? FakePrincipalAccessor.WithPermissions(
+                Permissions.VideosRead, Permissions.ExtensionsConfigure));
+        builder.Services.AddSingleton<IWhisparrClient>(host.Client);
+        builder.Services.AddSingleton<IEntityIdentityPort>(new EntityIdentityPort(host._db, options));
+        builder.Services.AddSingleton(options);
+        builder.Services.AddSingleton<ICredentialPort>(credentials);
+
+        host._app = builder.Build();
+        var extension = WhisparrSyncFixture.Create();
+        extension.MapEndpoints(host._app);
+        host.RouteBase = "/api/extensions/" + extension.Id;
+        await host._app.StartAsync(TestCt);
+        host.Http = host._app.GetTestClient();
+        return host;
+    }
+
+    public static WhisparrResponse Json(int status, string body)
+        => RecordingWhisparrClient.Json(status, body);
+
+    public string RouteFor(string kind, int coveId, string verb)
+        => string.Create(CultureInfo.InvariantCulture, $"{RouteBase}/entity/{kind}/{coveId}/{verb}");
+
+    /// <summary>Seeds one studio, with an identity row when an endpoint is named.</summary>
+    /// <remarks>
+    /// The name is made unique per call. The host's own name key is unique, so a second studio seeded
+    /// under one name fails the save rather than the assertion.
+    /// </remarks>
+    public async Task<int> SeedStudioAsync(string? endpoint, string? remoteId)
+    {
+        var name = "Studio " + (++_seeded).ToString(CultureInfo.InvariantCulture);
+        var studio = new Studio { Name = name, NameKey = name.ToLowerInvariant() };
+        _db.Add(studio);
+        await _db.SaveChangesAsync(TestCt);
+
+        if (endpoint is not null && remoteId is not null)
+        {
+            _db.Add(new StudioRemoteId
+            {
+                StudioId = studio.Id,
+                Endpoint = endpoint,
+                RemoteId = remoteId,
+            });
+            await _db.SaveChangesAsync(TestCt);
+        }
+
+        return studio.Id;
+    }
+
+    /// <summary>Seeds one performer, with an identity row when an endpoint is named.</summary>
+    /// <remarks>
+    /// Seeded through the same context as a studio, so a case can hold both kinds at once and a path
+    /// reading the wrong identity table finds a row rather than nothing.
+    /// </remarks>
+    public async Task<int> SeedPerformerAsync(string? endpoint, string? remoteId)
+    {
+        var name = "Performer " + (++_seeded).ToString(CultureInfo.InvariantCulture);
+        var performer = new Performer { Name = name, IdentityKey = name.ToLowerInvariant() };
+        _db.Add(performer);
+        await _db.SaveChangesAsync(TestCt);
+
+        if (endpoint is not null && remoteId is not null)
+        {
+            _db.Add(new PerformerRemoteId
+            {
+                PerformerId = performer.Id,
+                Endpoint = endpoint,
+                RemoteId = remoteId,
+            });
+            await _db.SaveChangesAsync(TestCt);
+        }
+
+        return performer.Id;
+    }
+
+    public Task<EntityMonitoringView> MonitorAsync(int studioId)
+        => MonitorAsync("studio", studioId);
+
+    public Task<EntityMonitoringView> MonitorAsync(string kind, int coveId)
+        => MonitorRawAsync(kind, coveId, """{"scope":"futureScenes"}""");
+
+    public Task<EntityMonitoringView> MonitorRawAsync(int studioId, string body)
+        => MonitorRawAsync("studio", studioId, body);
+
+    public async Task<EntityMonitoringView> MonitorRawAsync(string kind, int coveId, string body)
+    {
+        using var content = new StringContent(body, Encoding.UTF8, "application/json");
+        var answered = await Http.PostAsync(RouteFor(kind, coveId, "monitor"), content, TestCt);
+        answered.EnsureSuccessStatusCode();
+        return (await answered.Content.ReadFromJsonAsync<EntityMonitoringView>(TestCt))!;
+    }
+
+    public async Task<EntityMonitoringView> ReadMonitoringAsync(int studioId)
+    {
+        var answered = await Http.GetAsync(RouteFor("studio", studioId, "monitoring"), TestCt);
+        answered.EnsureSuccessStatusCode();
+        return (await answered.Content.ReadFromJsonAsync<EntityMonitoringView>(TestCt))!;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Http?.Dispose();
+        await _app.StopAsync(TestCt);
+        await _app.DisposeAsync();
+        await _db.DisposeAsync();
+        await _connection.DisposeAsync();
+    }
+
+    private static CancellationToken TestCt => TestContext.Current.CancellationToken;
+}

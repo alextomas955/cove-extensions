@@ -10,6 +10,7 @@ using WhisparrSync.Contracts;
 using WhisparrSync.Import;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
+using WhisparrSync.Tests.Monitoring;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
 
@@ -239,12 +240,87 @@ public sealed class SafetyInvariantTests
     }
 
     /// <summary>
+    /// Every add this product can compose carries both of its generation's acquisition-suppressing
+    /// spellings, each present as a member and each false, over every generation, entity kind and
+    /// scope the registered capabilities allow.
+    /// </summary>
+    /// <remarks>
+    /// The case list is DERIVED from the per-generation capability table rather than transcribed.
+    /// Everywhere else here a transcribed list is the stronger source, because it disagrees with the
+    /// code as soon as the code changes and someone has to reconcile the two. The failure this one
+    /// has to catch runs the other way: a generation-and-kind combination that becomes registered
+    /// and is never covered. A transcribed list would go on agreeing with itself while that
+    /// combination composed whatever it liked, so the enumeration reads the same table the product
+    /// acts through and a registration with no case fails the suite.
+    /// <para>
+    /// Presence is asserted apart from the value, because an absent member and a false one read the
+    /// same off a value and the instance's default for the absent case is not this product's to
+    /// rely on. What each case actually holds is asserted case by case in the body group; this
+    /// states the claim and the derivation.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    [Trait(SafetyInvariant.Trait, SafetyInvariant.EveryAddIsNonGrabbing)]
+    public void EveryAddThisProductCanComposeSuppressesAcquisitionInBothSpellings()
+    {
+        var composed = ComposedAdds.All();
+
+        Assert.NotEmpty(composed);
+        Assert.All(
+            composed,
+            added =>
+            {
+                var paths = ComposedAdds.SuppressionPathsOn(added.Generation);
+                Assert.Equal(2, paths.Count);
+                Assert.Equal(
+                    new bool?[] { false, false },
+                    paths.Select(path => ComposedAdds.At(added.Body, path)?.GetValue<bool>())
+                        .ToArray());
+            });
+
+        // Every registered capability is classified, so a combination registered later reaches the
+        // enumeration's own refusal rather than escaping it.
+        Assert.All(
+            ComposedAdds.Generations,
+            generation => Assert.NotNull(ComposedAdds.On(generation)));
+    }
+
+    /// <summary>
+    /// The only path whose composed body can name a grabbing command is the one reached through the
+    /// separately obtained grabbing role, and no monitoring path reaches that role's member.
+    /// </summary>
+    /// <remarks>
+    /// The behavioural half: every body a monitor, unmonitor, scope change or add composes is
+    /// searched as serialised text for each transcribed grabbing command name. The type-level half is
+    /// the assertion below it, which says the seam declares exactly one member that can grab.
+    /// </remarks>
+    [Fact]
+    [Trait(SafetyInvariant.Trait, SafetyInvariant.OnlyAnExplicitSearchGrabs)]
+    public void NoBodyOffAMonitoringPathCanNameAGrabbingCommand()
+    {
+        var bodies = ComposedAdds.EveryNonGrabbingBody();
+
+        Assert.NotEmpty(bodies);
+        Assert.All(
+            bodies,
+            body => Assert.All(
+                ComposedAdds.GrabbingCommandNames,
+                name => Assert.DoesNotContain(name, body.ToJsonString(), StringComparison.Ordinal)));
+
+        // The member that CAN name one is declared on that role alone, so no monitoring call site
+        // holds an implementation to reach it through.
+        Assert.Equal(
+            [typeof(IWhisparrSearchGrabbing)],
+            OutboundSeam.SeamsDeclaring(nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync)));
+    }
+
+    /// <summary>
     /// Exactly one member of the whole outbound seam can make an instance download, and only the
     /// separately obtained role declares it.
     /// </summary>
     /// <remarks>
     /// The type-level half of the guarantee: a call site that never obtains that role cannot express
-    /// the request, whatever it intended. What a composed body says is asserted where it is composed.
+    /// the request, whatever it intended. What a composed body says is asserted above.
     /// </remarks>
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.OnlyAnExplicitSearchGrabs)]
