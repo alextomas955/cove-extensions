@@ -107,7 +107,11 @@ public sealed class RefusalBeforeRequestTests
             ],
             Enum.GetValues<WhisparrCapability>());
         Assert.Equal(
-            [WhisparrCapability.OutOfBandCallbackSecret, WhisparrCapability.MonitorStudio],
+            [
+                WhisparrCapability.OutOfBandCallbackSecret,
+                WhisparrCapability.MonitorStudio,
+                WhisparrCapability.MonitorPerformer,
+            ],
             GenerationCapabilities.For(WhisparrGeneration.V3).Held);
         Assert.Equal(
             [WhisparrCapability.OutOfBandCallbackSecret],

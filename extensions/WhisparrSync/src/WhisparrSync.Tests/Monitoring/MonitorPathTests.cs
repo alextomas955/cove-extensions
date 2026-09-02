@@ -49,6 +49,9 @@ public sealed class MonitorPathTests
 {
     private const string SeededRemoteId = "44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e";
 
+    /// <summary>A second identifier in the same namespace, held by a performer rather than a studio.</summary>
+    private const string SeededPerformerRemoteId = "9f0d6f27-1f3a-4a5f-8b21-6b2d3a5f9c10";
+
     /// <summary>The spelling the host stores a StashDB identity under, without a scheme.</summary>
     /// <remarks>
     /// Deliberately not the standard address this product prefers. The two name one source under the
@@ -67,6 +70,9 @@ public sealed class MonitorPathTests
 
     private const string AddedStudio =
         """{"id":1,"foreignId":"44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e","monitored":true}""";
+
+    private const string AddedPerformer =
+        """{"id":2,"foreignId":"44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e","monitored":true}""";
 
     /// <summary>
     /// The whole gesture: one stored identity row in, one monitored studio out, and nothing that
@@ -350,6 +356,74 @@ public sealed class MonitorPathTests
         Assert.DoesNotContain("Whisparr.Api.V3", JsonSerializer.Serialize(view));
     }
 
+    /// <summary>
+    /// The same two routes serve a performer, and the kind on the route selects both the identity
+    /// table read and the acting member sent.
+    /// </summary>
+    /// <remarks>
+    /// A studio is seeded beside the performer, in the same namespace, under a DIFFERENT stored
+    /// identifier and carrying the same cove id: the two kinds number their rows independently. A
+    /// path reading the wrong identity table would therefore find a row and send that studio's
+    /// identifier, which is what the identifier assertion below refuses.
+    /// </remarks>
+    [Fact]
+    public async Task TheKindOnTheRouteSelectsThePerformerTableAndThePerformerAdd()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var studioId = await host.SeedStudioAsync(SeededEndpoint, SeededRemoteId);
+        var performerId = await host.SeedPerformerAsync(SeededEndpoint, SeededPerformerRemoteId);
+        Assert.Equal(studioId, performerId);
+
+        var view = await host.MonitorAsync("performer", performerId);
+
+        Assert.Equal(MonitorRefusalKind.None, view.Refusal);
+        Assert.True(view.Monitored);
+        Assert.Equal(WhisparrEntityKind.Performer, view.Kind);
+        Assert.Contains(WhisparrCapability.MonitorPerformer, view.Capabilities);
+
+        Assert.Equal(
+            [
+                nameof(IWhisparrPerformerActing.ReadPerformerAsync),
+                nameof(IWhisparrClient.ReadQualityProfilesAsync),
+                nameof(IWhisparrClient.ReadRootFoldersAsync),
+                nameof(IWhisparrPerformerActing.AddMonitoredPerformerAsync),
+            ],
+            host.Client.Verbs);
+        Assert.DoesNotContain(nameof(IWhisparrStudioActing.AddMonitoredStudioAsync), host.Client.Verbs);
+        Assert.DoesNotContain(
+            host.Client.Verbs,
+            verb => OutboundSeam.VerbClassByMember.GetValueOrDefault(verb) == WhisparrVerbClass.Grab);
+
+        var add = host.Client.Acting.Single(
+            call => call.Verb == nameof(IWhisparrPerformerActing.AddMonitoredPerformerAsync));
+        Assert.Equal(SeededPerformerRemoteId, add.ForeignId);
+
+        // No scope reaches the performer add, because the member declares none to reach.
+        Assert.Null(add.Scope);
+    }
+
+    /// <summary>A performer carrying no identity row refuses before anything is sent.</summary>
+    /// <remarks>
+    /// Paired with a send through the same double, so the empty log is evidence rather than the only
+    /// thing this case could report.
+    /// </remarks>
+    [Fact]
+    public async Task APerformerWithNoStoredRowRefusesBeforeAnythingIsSent()
+    {
+        await using var host = await MonitorHost.CreateAsync();
+        var unidentified = await host.SeedPerformerAsync(endpoint: null, remoteId: null);
+
+        var view = await host.MonitorAsync("performer", unidentified);
+
+        Assert.Equal(MonitorRefusalKind.NoIdentityInThisNamespace, view.Refusal);
+        Assert.Equal(WhisparrEntityKind.Performer, view.Kind);
+        Assert.Empty(host.Client.Verbs);
+
+        var identified = await host.SeedPerformerAsync(SeededEndpoint, SeededPerformerRemoteId);
+        Assert.Equal(MonitorRefusalKind.None, (await host.MonitorAsync("performer", identified)).Refusal);
+        Assert.NotEmpty(host.Client.Verbs);
+    }
+
     /// <summary>A kind no route segment can be read as is a malformed request, never a default.</summary>
     [Fact]
     public async Task AKindTheRouteCannotBeReadAsIsRefusedAsABadRequest()
@@ -451,7 +525,11 @@ public sealed class MonitorPathTests
                 .Answering(nameof(IWhisparrClient.ReadQualityProfilesAsync), Json(200, UnsortedProfiles))
                 .Answering(nameof(IWhisparrClient.ReadRootFoldersAsync), Json(200, OneRootFolder))
                 .Answering(nameof(IWhisparrStudioActing.ReadStudioAsync), Json(404, ""))
-                .Answering(nameof(IWhisparrStudioActing.AddMonitoredStudioAsync), Json(201, AddedStudio));
+                .Answering(nameof(IWhisparrStudioActing.AddMonitoredStudioAsync), Json(201, AddedStudio))
+                .Answering(nameof(IWhisparrPerformerActing.ReadPerformerAsync), Json(404, ""))
+                .Answering(
+                    nameof(IWhisparrPerformerActing.AddMonitoredPerformerAsync),
+                    Json(201, AddedPerformer));
 
             var options = new OptionsStore(new FakeStore());
             await options.SaveAsync(
@@ -522,13 +600,45 @@ public sealed class MonitorPathTests
             return studio.Id;
         }
 
-        public Task<EntityMonitoringView> MonitorAsync(int studioId)
-            => MonitorRawAsync(studioId, """{"scope":"futureScenes"}""");
+        /// <summary>Seeds one performer, with an identity row when an endpoint is named.</summary>
+        /// <remarks>
+        /// Seeded through the same context as a studio, so a case can hold both kinds at once and a
+        /// path reading the wrong identity table finds a row rather than nothing.
+        /// </remarks>
+        public async Task<int> SeedPerformerAsync(string? endpoint, string? remoteId)
+        {
+            var name = "Performer " + (++_seeded).ToString(CultureInfo.InvariantCulture);
+            var performer = new Performer { Name = name, IdentityKey = name.ToLowerInvariant() };
+            _db.Add(performer);
+            await _db.SaveChangesAsync(TestCt);
 
-        public async Task<EntityMonitoringView> MonitorRawAsync(int studioId, string body)
+            if (endpoint is not null && remoteId is not null)
+            {
+                _db.Add(new PerformerRemoteId
+                {
+                    PerformerId = performer.Id,
+                    Endpoint = endpoint,
+                    RemoteId = remoteId,
+                });
+                await _db.SaveChangesAsync(TestCt);
+            }
+
+            return performer.Id;
+        }
+
+        public Task<EntityMonitoringView> MonitorAsync(int studioId)
+            => MonitorAsync("studio", studioId);
+
+        public Task<EntityMonitoringView> MonitorAsync(string kind, int coveId)
+            => MonitorRawAsync(kind, coveId, """{"scope":"futureScenes"}""");
+
+        public Task<EntityMonitoringView> MonitorRawAsync(int studioId, string body)
+            => MonitorRawAsync("studio", studioId, body);
+
+        public async Task<EntityMonitoringView> MonitorRawAsync(string kind, int coveId, string body)
         {
             using var content = new StringContent(body, Encoding.UTF8, "application/json");
-            var answered = await Http.PostAsync(RouteFor("studio", studioId, "monitor"), content, TestCt);
+            var answered = await Http.PostAsync(RouteFor(kind, coveId, "monitor"), content, TestCt);
             answered.EnsureSuccessStatusCode();
             return (await answered.Content.ReadFromJsonAsync<EntityMonitoringView>(TestCt))!;
         }
