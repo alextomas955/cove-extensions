@@ -48,8 +48,8 @@ Two things to read before you take a green build as proof of anything:
 - `dotnet build` prints one line naming the Cove source it resolved and the absolute path it
   resolved it from. In none mode the solution build also prints one line for each project it skipped
   because that project requires a Cove checkout, and those projects' tests neither compiled nor ran.
-  `dotnet test` shows neither line - it reports test results and nothing else - so a test run tells
-  you nothing about which source it built against or what it left out. To read the selection back
+  `dotnet test` drops the resolved-source line but passes the skip warning through, so a test run
+  names what it left out and stays silent about which source it built against. To read the selection back
   without building at all, query the properties: [Configuration
   reference](./configuration#check-which-source-was-selected) has the command.
 - A project missing from `CoveExtensions.slnx` is not compiled by the solution build and is not seen
