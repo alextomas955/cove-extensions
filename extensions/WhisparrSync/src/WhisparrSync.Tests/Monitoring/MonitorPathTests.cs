@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
 using WhisparrSync.Tests.Invariants;
@@ -36,6 +37,14 @@ namespace WhisparrSync.Tests.Monitoring;
 /// </remarks>
 public sealed class MonitorPathTests
 {
+    /// <summary>A stored identifier of the shape the older generation's source mints.</summary>
+    private const string V2StoredIdentifier = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
+
+    /// <summary>One site as the older generation's lookup answers with it.</summary>
+    private const string V2OneSite = """
+        [{"tvdbId":3372,"title":"Vixen","titleSlug":"vixen","year":2016}]
+        """;
+
     /// <summary>
     /// The whole gesture: one stored identity row in, one monitored studio out, and nothing that
     /// could make the instance acquire anything at any position in the sequence.
@@ -93,9 +102,10 @@ public sealed class MonitorPathTests
         var handler = BodyRecordingHandler.Answering(HttpStatusCode.Created, MonitorHost.AddedStudio);
         using var http = new HttpClient(handler);
 
-        await ((IWhisparrStudioActing)new WhisparrClient(http)).AddMonitoredStudioAsync(
+        await ((IWhisparrStudioActing)new WhisparrClient(http, NullLogger.Instance)).AddMonitoredStudioAsync(
             new Uri(MonitorHost.StoredAddress),
             MonitorHost.StoredKey,
+            WhisparrGeneration.V3,
             MonitorHost.StudioRemoteIdValue,
             MonitorScope.FutureScenes,
             new AddDefaults(4, "/config/library"),
@@ -123,6 +133,184 @@ public sealed class MonitorPathTests
         Assert.False(body["moviesMonitored"]!.GetValue<bool>());
         Assert.False(addOptions["moviesMonitored"]!.GetValue<bool>());
         Assert.Equal(4, body["qualityProfileId"]!.GetValue<int>());
+    }
+
+    /// <summary>
+    /// The older generation is asked under the stored identifier exactly as the library holds it, and
+    /// the entity is then added under the numeric identifier the lookup answered with.
+    /// </summary>
+    /// <remarks>
+    /// The prefixed spelling is answered with a success and an empty list, so a term carrying one
+    /// would compose no add at all and report nothing wrong. The query is what this asserts, because
+    /// that is where the term travels.
+    /// </remarks>
+    [Fact]
+    public async Task TheOlderGenerationIsAskedUnprefixedAndAddedUnderTheIdentifierItAnsweredWith()
+    {
+        var handler = BodyRecordingHandler.AnsweringInTurn(
+            (HttpStatusCode.OK, V2OneSite), (HttpStatusCode.Created, "{\"id\":1}"));
+        using var http = new HttpClient(handler);
+
+        await ((IWhisparrStudioActing)new WhisparrClient(http, NullLogger.Instance))
+            .AddMonitoredStudioAsync(
+                new Uri(MonitorHost.StoredAddress),
+                MonitorHost.StoredKey,
+                WhisparrGeneration.V2,
+                V2StoredIdentifier,
+                MonitorScope.FutureScenes,
+                new AddDefaults(1, "/config/library"),
+                TestCt);
+
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Equal(HttpMethod.Get, handler.Requests[0].Method);
+        Assert.Equal("/api/v3/series/lookup", handler.Requests[0].Path);
+        Assert.Equal("/api/v3/series/lookup?term=" + V2StoredIdentifier, handler.Targets[0]);
+        Assert.DoesNotContain("tpdb", handler.Targets[0], StringComparison.OrdinalIgnoreCase);
+
+        Assert.Equal(HttpMethod.Post, handler.Requests[1].Method);
+        Assert.Equal("/api/v3/series", handler.Requests[1].Path);
+
+        var body = Assert.IsType<JsonObject>(JsonNode.Parse(handler.Requests[1].Body));
+        Assert.Equal(3372, body["tvdbId"]!.GetValue<int>());
+        Assert.DoesNotContain(V2StoredIdentifier, handler.Requests[1].Body, StringComparison.Ordinal);
+
+        var addOptions = Assert.IsType<JsonObject>(body["addOptions"]);
+        Assert.Equal("future", addOptions["monitor"]!.GetValue<string>());
+        Assert.False(addOptions["searchForMissingEpisodes"]!.GetValue<bool>());
+        Assert.False(addOptions["searchForCutoffUnmetEpisodes"]!.GetValue<bool>());
+        Assert.Equal(1, body["qualityProfileId"]!.GetValue<int>());
+    }
+
+    /// <summary>
+    /// A lookup naming more than one entity stops the gesture with nothing composed and nothing sent
+    /// after it.
+    /// </summary>
+    /// <remarks>
+    /// Paired with the case above, which sends a second request through the same stub, so the single
+    /// recorded request here is evidence about the refusal rather than about the stub.
+    /// </remarks>
+    [Fact]
+    public async Task ALookupNamingMoreThanOneEntityAddsNothing()
+    {
+        const string twoSites = """
+            [{"tvdbId":3372,"title":"Vixen","titleSlug":"vixen"},
+             {"tvdbId":36826,"title":"Vixen Media Group","titleSlug":"vixen-media-group"}]
+            """;
+
+        var handler = BodyRecordingHandler.AnsweringInTurn(
+            (HttpStatusCode.OK, twoSites), (HttpStatusCode.Created, "{\"id\":1}"));
+        using var http = new HttpClient(handler);
+
+        var answered = await ((IWhisparrStudioActing)new WhisparrClient(http, NullLogger.Instance))
+            .AddMonitoredStudioAsync(
+                new Uri(MonitorHost.StoredAddress),
+                MonitorHost.StoredKey,
+                WhisparrGeneration.V2,
+                V2StoredIdentifier,
+                MonitorScope.AllScenes,
+                new AddDefaults(1, "/config/library"),
+                TestCt);
+
+        Assert.Equal(HttpMethod.Get, Assert.Single(handler.Requests).Method);
+        Assert.NotEqual(
+            MonitorRefusalKind.None, MonitoringProjector.Accepted(answered.StatusCode));
+    }
+
+    /// <summary>
+    /// Whether the older generation's instance holds the entity is read out of its own listing, and
+    /// only the matched entry is carried onward.
+    /// </summary>
+    [Fact]
+    public async Task TheOlderGenerationsHeldReadingComesFromItsOwnListing()
+    {
+        const string listed = """
+            [{"id":1,"tvdbId":3372,"title":"Vixen","monitored":true},
+             {"id":2,"tvdbId":247,"title":"Tushy Raw","monitored":false}]
+            """;
+
+        var handler = BodyRecordingHandler.AnsweringInTurn(
+            (HttpStatusCode.OK, V2OneSite), (HttpStatusCode.OK, listed));
+        using var http = new HttpClient(handler);
+
+        var read = await ((IWhisparrStudioActing)new WhisparrClient(http, NullLogger.Instance))
+            .ReadStudioAsync(
+                new Uri(MonitorHost.StoredAddress),
+                MonitorHost.StoredKey,
+                WhisparrGeneration.V2,
+                V2StoredIdentifier,
+                TestCt);
+
+        Assert.Equal("/api/v3/series", handler.Requests[1].Path);
+        Assert.Equal(
+            MonitoringProjector.EntityReading.Held, MonitoringProjector.Reading(read.StatusCode));
+        Assert.Equal(1, MonitoringProjector.EntityIdIn(read.Body));
+        Assert.True(MonitoringProjector.MonitoredIn(read.Body));
+        Assert.DoesNotContain("Tushy Raw", read.Body, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An entity the older generation's instance lists nowhere reads as not held, which is not a
+    /// refusal: it is the precondition for adding it.
+    /// </summary>
+    [Fact]
+    public async Task AnEntityTheOlderGenerationDoesNotListReadsAsNotHeld()
+    {
+        var handler = BodyRecordingHandler.AnsweringInTurn(
+            (HttpStatusCode.OK, V2OneSite), (HttpStatusCode.OK, "[]"));
+        using var http = new HttpClient(handler);
+
+        var read = await ((IWhisparrStudioActing)new WhisparrClient(http, NullLogger.Instance))
+            .ReadStudioAsync(
+                new Uri(MonitorHost.StoredAddress),
+                MonitorHost.StoredKey,
+                WhisparrGeneration.V2,
+                V2StoredIdentifier,
+                TestCt);
+
+        Assert.Equal(
+            MonitoringProjector.EntityReading.NotHeld, MonitoringProjector.Reading(read.StatusCode));
+    }
+
+    /// <summary>
+    /// The flag flip and the scope change reach this generation's own routes with its own bodies, and
+    /// neither reads anything first.
+    /// </summary>
+    /// <remarks>
+    /// The scope change is one request here and a read-then-replace on the other generation, because
+    /// this one re-applies the option over what the instance already holds while the other's editor
+    /// resource declares no gate at all.
+    /// </remarks>
+    [Fact]
+    public async Task TheOlderGenerationsFlipAndScopeChangeReachItsOwnRoutes()
+    {
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.Accepted, "{}");
+        using var http = new HttpClient(handler);
+        var client = new WhisparrClient(http, NullLogger.Instance);
+        var address = new Uri(MonitorHost.StoredAddress);
+
+        await ((IWhisparrStudioActing)client).SetStudioMonitoredAsync(
+            address, MonitorHost.StoredKey, WhisparrGeneration.V2, 1, monitored: true, TestCt);
+        await ((IWhisparrStudioActing)client).SetStudioScopeAsync(
+            address, MonitorHost.StoredKey, WhisparrGeneration.V2, 1, MonitorScope.AllScenes, TestCt);
+
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Equal(HttpMethod.Put, handler.Requests[0].Method);
+        Assert.Equal("/api/v3/series/editor", handler.Requests[0].Path);
+        Assert.Equal(
+            ["monitored", "seriesIds"],
+            Assert.IsType<JsonObject>(JsonNode.Parse(handler.Requests[0].Body))
+                .Select(member => member.Key)
+                .Order());
+
+        Assert.Equal(HttpMethod.Post, handler.Requests[1].Method);
+        Assert.Equal("/api/v3/seasonpass", handler.Requests[1].Path);
+        var scope = Assert.IsType<JsonObject>(JsonNode.Parse(handler.Requests[1].Body));
+        Assert.Equal(
+            1,
+            Assert.IsType<JsonObject>(Assert.Single(Assert.IsType<JsonArray>(scope["series"])))["id"]!
+                .GetValue<int>());
+        Assert.Equal(
+            "all", ((JsonObject)scope["monitoringOptions"]!)["monitor"]!.GetValue<string>());
     }
 
     /// <summary>An identifier a caller put in the body reaches nothing.</summary>
@@ -469,12 +657,38 @@ public sealed class MonitorPathTests
     /// The body is read here rather than off the request afterwards: the client disposes the request
     /// and its content once the send returns, so a body read later is a read of a disposed stream.
     /// </remarks>
-    private sealed class BodyRecordingHandler(HttpStatusCode status, string answer) : HttpMessageHandler
+    /// <summary>
+    /// A stub answering a prepared sequence, and recording what each request was.
+    /// </summary>
+    /// <remarks>
+    /// A queue rather than one answer, because one generation reaches its entity through two reads and
+    /// the two answers are the point. A dry queue keeps answering with its last entry, so a case only
+    /// has to state the answers that differ.
+    /// <para>
+    /// The query is recorded beside the path. What one generation is asked under is a query value, and
+    /// a recording that dropped it could not tell a term that matches from one that silently matches
+    /// nothing.
+    /// </para>
+    /// </remarks>
+    private sealed class BodyRecordingHandler : HttpMessageHandler
     {
+        private readonly Queue<(HttpStatusCode Status, string Answer)> _answers;
+
+        private BodyRecordingHandler(params (HttpStatusCode Status, string Answer)[] answers)
+            => _answers = new Queue<(HttpStatusCode, string)>(answers);
+
         public List<(HttpMethod Method, string Path, string Body)> Requests { get; } = [];
 
+        /// <summary>The full path and query of each request, in order.</summary>
+        public List<string> Targets { get; } = [];
+
         public static BodyRecordingHandler Answering(HttpStatusCode status, string answer)
-            => new(status, answer);
+            => new((status, answer));
+
+        /// <summary>Answers each of <paramref name="answers"/> in turn.</summary>
+        public static BodyRecordingHandler AnsweringInTurn(
+            params (HttpStatusCode Status, string Answer)[] answers)
+            => new(answers);
 
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
@@ -483,7 +697,9 @@ public sealed class MonitorPathTests
                 ? string.Empty
                 : await request.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             Requests.Add((request.Method, request.RequestUri?.AbsolutePath ?? string.Empty, body));
+            Targets.Add(request.RequestUri?.PathAndQuery ?? string.Empty);
 
+            var (status, answer) = _answers.Count > 1 ? _answers.Dequeue() : _answers.Peek();
             return new HttpResponseMessage(status)
             {
                 Content = new StringContent(answer, Encoding.UTF8, "application/json"),

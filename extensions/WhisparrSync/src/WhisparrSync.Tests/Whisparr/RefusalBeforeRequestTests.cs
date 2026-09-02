@@ -54,10 +54,10 @@ public sealed class RefusalBeforeRequestTests
     /// client is then shown to record a request, so the empty log above is a fact about the refusal.
     /// </summary>
     /// <remarks>
-    /// Taken against a real generation gap rather than against a set built holding nothing: the older
-    /// generation addresses no studio at all, so its set holds no studio-acting role and the refusal
-    /// under test is the one a user actually reaches. What is asserted is the property CAP-2 asks
-    /// for: obtaining a role that is absent produces a refusal and nothing leaves.
+    /// Taken against a real generation gap rather than against a set built holding nothing: no route
+    /// on the older generation adds a catalogue item at all, so its set holds no missing-scene role and
+    /// the refusal under test is the one a user actually reaches. What is asserted is the property
+    /// CAP-2 asks for: obtaining a role that is absent produces a refusal and nothing leaves.
     /// </remarks>
     [Fact]
     public async Task ACapabilityTheSetDoesNotHoldIsRefusedWithNothingSent()
@@ -66,11 +66,11 @@ public sealed class RefusalBeforeRequestTests
         var runner = await RunnerOverAsync(client, V2Address, StoredKey, WhisparrGeneration.V2);
 
         var refusal = GenerationCapabilities.For(WhisparrGeneration.V2, WhisparrRoleSet.From(client))
-            .Obtain<IWhisparrStudioActing>()
+            .Obtain<IWhisparrMissingSceneActing>()
             .Match<CapabilityRefusal?>(_ => null, refused => refused);
 
         Assert.NotNull(refusal);
-        Assert.Equal(WhisparrCapability.MonitorStudio, refusal.Capability);
+        Assert.Equal(WhisparrCapability.RegisterMissingScenes, refusal.Capability);
         Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
         Assert.Empty(client.Calls);
 
@@ -114,7 +114,7 @@ public sealed class RefusalBeforeRequestTests
             ],
             GenerationCapabilities.For(WhisparrGeneration.V3).Held);
         Assert.Equal(
-            [WhisparrCapability.OutOfBandCallbackSecret],
+            [WhisparrCapability.OutOfBandCallbackSecret, WhisparrCapability.MonitorStudio],
             GenerationCapabilities.For(WhisparrGeneration.V2).Held);
     }
 
