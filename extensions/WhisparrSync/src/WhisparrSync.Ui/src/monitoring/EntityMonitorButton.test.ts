@@ -16,7 +16,10 @@ import { createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
 vi.mock("@cove-extensions/ui-shared", () => ({
-  Spinner: () => null,
+  // The real primitive draws an SVG, so the stand-in draws one too. A stand-in rendering nothing
+  // would make every "no mark yet" assertion below agree with the stand-in instead of with what the
+  // read surface actually paints while it reads.
+  Spinner: () => createElement("svg", { "data-stand-in": "spinner" }),
   // The real builder, because the route the control asks for is one of the things under test.
   extensionApi: (extensionId: string) => (route: string) => `/extensions/${extensionId}/${route}`,
 }));
