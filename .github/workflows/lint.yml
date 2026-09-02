@@ -34,7 +34,9 @@ jobs:
   # central package management and every version-carrying PackageReference in Cove fails NU1008. ----
   csharp-format:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Clones and builds Cove's own source, so the budget covers a cold clone and a full Release build,
+    # not only the format pass. A timeout here would read as a style failure on the contributor's branch.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
@@ -52,14 +54,9 @@ jobs:
         shell: bash
         run: |
           node --input-type=module -e '
-            import { readExtensionFloors } from "./scripts/fetch-cove-assemblies.mjs";
+            import { readExtensionFloors, highestDeclaredFloor } from "./scripts/fetch-cove-assemblies.mjs";
             const declared = readExtensionFloors();
-            const parts = (v) => v.split(/[-+]/)[0].split(".").map(Number);
-            const highest = declared.reduce((left, right) => {
-              const [a, b] = [parts(left.floor), parts(right.floor)];
-              for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i] ? left : right;
-              return left;
-            });
+            const highest = highestDeclaredFloor(declared);
             for (const { entry, floor, manifestPath } of declared) {
               console.error(entry.name + " declares floor " + floor + " (from " + manifestPath + ")");
             }
@@ -104,15 +101,14 @@ jobs:
           COVE_REPO_ROOT: ${{ github.workspace }}/cove
 
   # ---- Windows build + unit-test signal. Builds each catalog entry's cove-absent test project and
-  # then runs it, so adding an extension is a catalog edit. The subject is those projects rather than
-  # the whole solution, because the solution also holds a test project that needs Cove's own source,
-  # which this leg's `none` mode does not supply. dotnet build follows the ProjectReference graph, so
-  # building a test project also builds the extension and the shared projects it reaches.
+  # then runs it, so adding an extension is a catalog edit. dotnet build follows the ProjectReference
+  # graph, so building a test project also builds the extension and the shared projects it reaches.
+  # A solution member no test project reaches is therefore not built here.
   #
   # No E2E here, and this will not change: GitHub-hosted windows-latest runners fix Docker to Windows
   # containers with no supported switch to Linux ones, so Testcontainers cannot start the Cove app and
-  # Postgres images at all. What is achievable is verified instead — the solution builds and the
-  # cove-absent unit tier passes on Windows. A full Windows E2E would need a self-hosted runner. ----
+  # Postgres images at all. What is achievable is verified instead — each cove-absent test project
+  # builds and passes on Windows. A full Windows E2E would need a self-hosted runner. ----
   windows-build-test:
     runs-on: windows-latest
     timeout-minutes: 25
