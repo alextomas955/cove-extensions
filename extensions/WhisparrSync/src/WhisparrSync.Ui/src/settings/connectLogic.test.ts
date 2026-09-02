@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ConnectionTestView, WhisparrSyncGenerationSettingsView } from "../wire/api";
+import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import { CAP_UNAVAILABLE_ON_THIS_GENERATION } from "../common/ui/copy";
 import {
   affordancesForKind,
@@ -342,5 +343,25 @@ describe("the four-way read the recorded lines render through", () => {
     expect(
       recordedRead({ ...NOTHING_STORED, recordedVersion: "3.3.8.1097" }, false).hasContent,
     ).toBe(true);
+  });
+
+  // HON-7. A re-read that fails while the recorded lines are on screen has to reach the state
+  // machine as a failure, or the outage can never be raised and the staleness is silent.
+  it("carries a failed re-read through when there is content to keep", () => {
+    const withContent = { ...NOTHING_STORED, recordedVersion: "3.3.8.1097" };
+    const read = recordedRead(withContent, true);
+
+    expect(read).toEqual({ reading: false, failed: true, hasContent: true });
+    expect(deriveAsyncRegionState(read)).toEqual({ status: "content", outage: true });
+  });
+
+  // The control on the assertion above: with nothing to keep, a failed re-read must NOT become a
+  // failure state, because content and empty render the same stored lines and the failure branch
+  // replaces them with an error.
+  it("does not turn a failed re-read into a failure when there is nothing to keep", () => {
+    const read = recordedRead(NOTHING_STORED, true);
+
+    expect(read).toEqual({ reading: false, failed: false, hasContent: false });
+    expect(deriveAsyncRegionState(read)).toEqual({ status: "empty", outage: false });
   });
 });

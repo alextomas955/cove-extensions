@@ -15,6 +15,7 @@ import type { CallbackView } from "../wire/api";
 import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { OptionallyDisabled } from "../common/ui/DisabledControl";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
+import { READ_IS_STALE } from "../common/ui/copy";
 import type { CopyResult } from "./useRegistration";
 import {
   describeRegistration,
@@ -91,6 +92,7 @@ export function ImportWebhookSection({
         <AsyncRegion
           state={deriveAsyncRegionState(registrationRead(view, readFailed))}
           reading={<StatusText kind="muted">Reading the callback status…</StatusText>}
+          outageNotice={<StatusText kind="error">{READ_IS_STALE}</StatusText>}
           content={<Status view={view} />}
           empty={<Status view={view} />}
           failed={<StatusText kind="error">Cove could not read the callback status.</StatusText>}

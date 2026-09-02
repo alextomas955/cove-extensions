@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { CallbackView, RegistrationStatus } from "../wire/api";
+import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
 import {
   carriesSecretInAddress,
   describeRegistration,
@@ -172,5 +173,22 @@ describe("the four-way read the status renders through", () => {
     expect(registrationRead(callback({ status: "notCheckedYet" }), false).hasContent).toBe(false);
     expect(registrationRead(callback({ status: "notRegistered" }), false).hasContent).toBe(true);
     expect(registrationRead(callback({ status: "registered" }), false).hasContent).toBe(true);
+  });
+
+  // HON-7, the same rule the recorded lines follow: a failed re-read over a status already on
+  // screen has to reach the state machine as a failure, or the staleness is silent.
+  it("carries a failed re-read through when there is a status to keep", () => {
+    const read = registrationRead(callback({ status: "registered" }), true);
+
+    expect(read).toEqual({ reading: false, failed: true, hasContent: true });
+    expect(deriveAsyncRegionState(read)).toEqual({ status: "content", outage: true });
+  });
+
+  // The control: with nothing to keep, the failure branch would replace a genuine zero.
+  it("does not turn a failed re-read into a failure when there is nothing to keep", () => {
+    const read = registrationRead(callback({ status: "notCheckedYet" }), true);
+
+    expect(read).toEqual({ reading: false, failed: false, hasContent: false });
+    expect(deriveAsyncRegionState(read)).toEqual({ status: "empty", outage: false });
   });
 });

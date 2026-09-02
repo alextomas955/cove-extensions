@@ -125,23 +125,25 @@ itself once a delivery arrives that way. There is no dismiss control: it goes wh
 
 ## Options with no control in the page
 
-Four options exist in Whisparr Sync's stored settings and have **no control on the settings tab**.
+Three options exist in Whisparr Sync's stored settings and have **no control on the settings tab**.
 They are listed here because they are part of what the extension stores, not because you can set them
 from the page.
 
-| Option                      | What it is for                                                                                                                                                        | Default                                  |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| Path translation            | A prefix-rewrite table for setups where Cove and Whisparr genuinely see the library at different paths. First matching rule wins, matched at a path-segment boundary. | Empty - paths are identical              |
-| Default monitor scope       | The scope used when a caller does not ask for one. Both scopes are non-grabbing.                                                                                      | New releases only                        |
-| Metadata provider endpoints | Which metadata provider configured in Cove counts as the identity source, per generation.                                                                             | Blank - each provider's standard address |
-| Callback host               | The host the callback address is built on before a registration exists.                                                                                               | Blank - derived from the request host    |
+| Option                      | What it is for                                                                            | Default                                  | Read today                        |
+| --------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------- | --------------------------------- |
+| Callback host               | The host the callback address is built on before a registration exists.                   | Blank - derived from the request host    | Yes                               |
+| Metadata provider endpoints | Which metadata provider configured in Cove counts as the identity source, per generation. | Blank - each provider's standard address | Yes, by the import path           |
+| Default monitor scope       | The scope used when a caller does not ask for one. Both scopes are non-grabbing.          | New releases only                        | No - stored, and nothing reads it |
 
-**Callback host** is the one of the four with an effect today, and you never type it directly: it is
-written for you from the callback address you edit, which is what makes that edit survive a refresh.
+**Callback host** you never type directly: it is written for you from the callback address you edit,
+which is what makes that edit survive a refresh.
 
-**The other three are stored and nothing reads them yet.** They belong to the import path, which is
-not built. Setting one today changes no behaviour. They are documented here so that when that path
-arrives, its defaults are the ones stated above rather than values chosen silently.
+**Metadata provider endpoints** decides which provider an imported scene's identity is stamped
+against. Leave it blank unless you run more than one provider for the same generation.
 
-Saving the settings tab never touches any of the four: the page submits no value for them, and a save
-leaves whatever is stored exactly as it was.
+**Default monitor scope** is stored and nothing reads it yet. Setting it today changes no behaviour.
+It is documented here so that when a caller for it arrives, its default is the one stated above
+rather than a value chosen silently.
+
+Saving the settings tab never touches any of the three: the page submits no value for them, and a
+save leaves whatever is stored exactly as it was.

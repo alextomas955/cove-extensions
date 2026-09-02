@@ -29,6 +29,7 @@ internal static class BindingServices
         services.AddSingleton<IWhisparrNotificationPort>(_ => null!);
         services.AddSingleton<OptionsStore>(_ => null!);
         services.AddSingleton<OptionsWriteGate>(_ => null!);
+        services.AddSingleton<RegistrationGate>(_ => null!);
         services.AddSingleton<TimeProvider>(_ => null!);
         return services;
     }

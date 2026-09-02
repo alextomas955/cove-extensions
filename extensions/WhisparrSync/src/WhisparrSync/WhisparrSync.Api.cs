@@ -95,11 +95,11 @@ public sealed partial class WhisparrSync
         endpoints.MapPost(CallbackRegisterRoute,
             (RegisterCallbackRequest request, HttpContext http, ICurrentPrincipalAccessor principal,
              OptionsStore options, OptionsWriteGate gate, ICredentialPort credentials,
-             ICallbackSecretPort secrets, IWhisparrNotificationPort notifications, TimeProvider clock,
-             CancellationToken ct)
+             ICallbackSecretPort secrets, IWhisparrNotificationPort notifications,
+             RegistrationGate registrations, TimeProvider clock, CancellationToken ct)
                 => RegisterCallbackAsync(
                     request, http, principal, Id, options, gate, credentials, secrets, notifications,
-                    clock, ct))
+                    registrations, clock, ct))
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
@@ -521,6 +521,7 @@ public sealed partial class WhisparrSync
         ICredentialPort credentials,
         ICallbackSecretPort secrets,
         IWhisparrNotificationPort notifications,
+        RegistrationGate registrations,
         TimeProvider clock,
         CancellationToken ct)
     {
@@ -534,6 +535,7 @@ public sealed partial class WhisparrSync
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(gate);
         ArgumentNullException.ThrowIfNull(notifications);
+        ArgumentNullException.ThrowIfNull(registrations);
 
         // Stored even when it equals the host this request arrived on. What storing it buys is that a
         // later request from a different host does not move the address.
@@ -556,14 +558,18 @@ public sealed partial class WhisparrSync
             return TypedResults.Ok(ProjectCallback(stored, extensionId, secret, host, missing, null));
         }
 
-        var outcome = await notifications.RegisterAsync(
-            generation,
-            baseAddress,
-            apiKey,
-            TravelsOutOfBand(generation)
-                ? CallbackAddress.WithoutSecret(host, extensionId)
-                : CallbackAddress.WithSecret(host, extensionId, secret),
-            secret,
+        // Gated, because the port finds this product's notification and then creates or updates it:
+        // two registrations overlapping that pair both find none and both create one.
+        var outcome = await registrations.RunAsync(
+            token => notifications.RegisterAsync(
+                generation,
+                baseAddress,
+                apiKey,
+                TravelsOutOfBand(generation)
+                    ? CallbackAddress.WithoutSecret(host, extensionId)
+                    : CallbackAddress.WithSecret(host, extensionId, secret),
+                secret,
+                token),
             ct).ConfigureAwait(false);
 
         // The status is folded onto the connection the gate loads, and the answer is projected from

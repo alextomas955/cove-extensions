@@ -22,6 +22,7 @@ import type { WhisparrSyncGenerationSettingsView } from "../wire/api";
 import { AsyncRegion } from "../common/ui/AsyncRegion";
 import { OptionallyDisabled } from "../common/ui/DisabledControl";
 import { deriveAsyncRegionState } from "../common/ui/asyncRegionLogic";
+import { READ_IS_STALE } from "../common/ui/copy";
 import {
   describeRecorded,
   detectionOutcome,
@@ -110,6 +111,7 @@ export function ConnectionSection({
           reading={<StatusText kind="muted">Reading the stored connection…</StatusText>}
           content={<RecordedLines stored={stored} now={now} />}
           empty={<RecordedLines stored={stored} now={now} />}
+          outageNotice={<StatusText kind="error">{READ_IS_STALE}</StatusText>}
           failed={
             <StatusText kind="error">
               Cove could not read what is stored for this connection.

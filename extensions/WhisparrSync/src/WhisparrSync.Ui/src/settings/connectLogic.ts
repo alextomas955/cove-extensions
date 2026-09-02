@@ -280,11 +280,10 @@ export function recordedRead(
   if (stored === null) {
     return { reading: !failed, failed, hasContent: false };
   }
-  return {
-    reading: false,
-    failed: false,
-    hasContent: stored.recordedVersion !== null || stored.lastReachableAtUtc !== null,
-  };
+  const hasContent = stored.recordedVersion !== null || stored.lastReachableAtUtc !== null;
+  // Carried only where the state machine keeps the content. With none, a failed re-read would
+  // replace the stored lines with an error and lose what is already known to be true.
+  return { reading: false, failed: hasContent && failed, hasContent };
 }
 
 /** The two recorded lines, which measure different things and are never merged into one. */
