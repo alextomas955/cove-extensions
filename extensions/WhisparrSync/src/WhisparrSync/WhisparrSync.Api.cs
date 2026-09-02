@@ -371,7 +371,14 @@ public sealed partial class WhisparrSync
             WhisparrEntityKind.Studio => target.Capabilities.Obtain<IWhisparrStudioActing>()
                 .Match(
                     acting => ReadResolvedAsync(
-                        entityKind, coveId, target, identities, log, acting.ReadStudioAsync, ct),
+                        entityKind,
+                        coveId,
+                        target,
+                        identities,
+                        log,
+                        (address, key, foreignId, readCt) => acting.ReadStudioAsync(
+                            address, key, target.Generation, foreignId, readCt),
+                        ct),
                     _ => RefusedAsync(entityKind, target)),
             WhisparrEntityKind.Performer => target.Capabilities.Obtain<IWhisparrPerformerActing>()
                 .Match(
@@ -518,11 +525,12 @@ public sealed partial class WhisparrSync
     private static KindActing ActingOn(
         IWhisparrStudioActing acting, MonitoringTarget target, string foreignId, MonitorScope scope)
         => new(
-            readCt => acting.ReadStudioAsync(target.BaseAddress, target.ApiKey, foreignId, readCt),
+            readCt => acting.ReadStudioAsync(
+                target.BaseAddress, target.ApiKey, target.Generation, foreignId, readCt),
             (defaults, addCt) => acting.AddMonitoredStudioAsync(
-                target.BaseAddress, target.ApiKey, foreignId, scope, defaults, addCt),
+                target.BaseAddress, target.ApiKey, target.Generation, foreignId, scope, defaults, addCt),
             (entityId, flipCt) => acting.SetStudioMonitoredAsync(
-                target.BaseAddress, target.ApiKey, entityId, true, flipCt));
+                target.BaseAddress, target.ApiKey, target.Generation, entityId, true, flipCt));
 
     private static KindActing ActingOn(
         IWhisparrPerformerActing acting, MonitoringTarget target, string foreignId)
