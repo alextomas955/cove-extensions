@@ -21,6 +21,18 @@ public enum WhisparrVerbClass
     /// after an answer that did not arrive would act twice.
     /// </summary>
     Configure,
+
+    /// <summary>
+    /// A request that changes what an instance monitors. Never re-issued: a second attempt after an
+    /// answer that did not arrive would act twice.
+    /// </summary>
+    Act,
+
+    /// <summary>
+    /// The one class that can make an instance download. Never re-issued, and reachable only through
+    /// the role a caller obtains by name.
+    /// </summary>
+    Grab,
 }
 
 /// <summary>How many attempts a verb class is allowed.</summary>
@@ -70,6 +82,16 @@ public sealed record WhisparrResponse(int StatusCode, string? ContentType, strin
 /// reads again and grabs nothing. It names a page, a page size and a lineage; the route, the order
 /// and the entity spelling belong to the seam, so no call site supplies any of them.
 /// </para>
+/// <para>
+/// <see cref="ReadQualityProfilesAsync"/> was added under the same rule. It takes no caller-supplied
+/// path, no caller-supplied identifier and no verb.
+/// </para>
+/// <para>
+/// The verbs that change what an instance monitors were deliberately NOT added here. They are the
+/// roles in <c>WhisparrSync.Monitoring</c>, and the one verb that can make an instance download is
+/// alone on <c>IWhisparrSearchGrabbing</c> there. Each is obtained by name through a capability set,
+/// so the constraint above stays true of this interface however far the acting surface grows.
+/// </para>
 /// </remarks>
 public interface IWhisparrClient
 {
@@ -97,6 +119,14 @@ public interface IWhisparrClient
     /// resolving a reported file path against its root has no other source for them.
     /// </remarks>
     Task<WhisparrResponse> ReadRootFoldersAsync(Uri baseAddress, string apiKey, CancellationToken ct);
+
+    /// <summary>Reads the quality profiles the instance offers.</summary>
+    /// <remarks>
+    /// An add cannot be composed without one, and which profiles exist is the instance's own and not
+    /// this product's to assume: a profile id it does not offer is refused by one generation and
+    /// accepted by the other.
+    /// </remarks>
+    Task<WhisparrResponse> ReadQualityProfilesAsync(Uri baseAddress, string apiKey, CancellationToken ct);
 
     /// <summary>
     /// Reads one page of the instance's import history, with each record's own metadata entity.
@@ -156,6 +186,23 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
     private const string NotificationSchemaPath = "api/v3/notification/schema";
     private const string RootFolderPath = "api/v3/rootfolder";
     private const string HistoryPath = "api/v3/history";
+    private const string QualityProfilePath = "api/v3/qualityprofile";
+
+    // Every route this product can issue is declared on this type, whichever role issues it. The
+    // route invariant reads this type's own literals, so a constant declared anywhere else is
+    // invisible to it and the transcribed set it is compared against would still agree.
+    internal const string StudioPath = "api/v3/studio";
+    internal const string StudioEditorPath = "api/v3/studio/editor";
+    internal const string PerformerPath = "api/v3/performer";
+    internal const string PerformerEditorPath = "api/v3/performer/editor";
+    internal const string SeriesPath = "api/v3/series";
+    internal const string SeriesLookupPath = "api/v3/series/lookup";
+    internal const string SeriesEditorPath = "api/v3/series/editor";
+    internal const string SeasonPassPath = "api/v3/seasonpass";
+    internal const string CommandPath = "api/v3/command";
+    internal const string MoviePath = "api/v3/movie";
+    internal const string ManualImportPath = "api/v3/manualimport";
+    internal const string MediaManagementConfigPath = "api/v3/config/mediamanagement";
 
     // The order belongs to the verb rather than to a call: newest-first is the only order a walk that
     // stops at a stored position can read, and a call site free to spell it could ask for another.
@@ -213,6 +260,10 @@ internal sealed class WhisparrClient(HttpClient http) : IWhisparrClient
     public Task<WhisparrResponse> ReadRootFoldersAsync(
         Uri baseAddress, string apiKey, CancellationToken ct)
         => ReadAsync(baseAddress, apiKey, RootFolderPath, ct);
+
+    public Task<WhisparrResponse> ReadQualityProfilesAsync(
+        Uri baseAddress, string apiKey, CancellationToken ct)
+        => ReadAsync(baseAddress, apiKey, QualityProfilePath, ct);
 
     public Task<WhisparrResponse> ReadHistoryAsync(
         Uri baseAddress,

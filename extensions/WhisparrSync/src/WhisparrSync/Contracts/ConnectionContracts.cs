@@ -39,6 +39,24 @@ public enum WhisparrCapability
 {
     /// <summary>A callback secret can travel somewhere other than the address registered.</summary>
     OutOfBandCallbackSecret,
+
+    /// <summary>A studio can be monitored, and the scope of a held one changed.</summary>
+    MonitorStudio,
+
+    /// <summary>A performer can be monitored. Only one generation addresses a performer at all.</summary>
+    MonitorPerformer,
+
+    /// <summary>A scene the instance's catalogue lacks can be registered without acquiring it.</summary>
+    RegisterMissingScenes,
+
+    /// <summary>A file the library already holds can be attached without its data being transferred.</summary>
+    ReflectOwnedFiles,
+
+    /// <summary>
+    /// The instance can be asked to look for what it monitors and does not hold. The one capability
+    /// here that acquires anything.
+    /// </summary>
+    SearchMonitored,
 }
 
 /// <summary>
