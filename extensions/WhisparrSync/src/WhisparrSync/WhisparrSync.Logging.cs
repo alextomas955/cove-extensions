@@ -218,6 +218,17 @@ internal static partial class WhisparrSyncLog
         string failure,
         string host);
 
+    // A lookup that named more than one entity, refused rather than picked from. The identifier is a
+    // stored library value and the answer is an upstream body, so neither is named: the generation is
+    // what makes it diagnosable, and without this line a refusal nobody can explain looks the same as
+    // an entity the instance simply does not know.
+    [LoggerMessage(
+        EventId = 2118, Level = LogLevel.Warning,
+        Message = "[WhisparrSync] a lookup on {Generation} named more than one entity and was refused rather than guessed at")]
+    internal static partial void EntityLookupNotDistinct(
+        ILogger logger,
+        WhisparrGeneration generation);
+
     // A write dropped because the blob it would have been built on could not be read, so the fold ran
     // on defaults. The stored configuration is what survives; the update the caller asked for is
     // lost, and the writers that reach this run with nobody watching.

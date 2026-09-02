@@ -76,7 +76,11 @@ public sealed partial class WhisparrSync : FullExtensionBase
         base.ConfigureServices(services, context);
 
         services.AddHttpClient<IWhisparrClient, WhisparrClient>(WhisparrClient.Configure)
-            .ConfigurePrimaryHttpMessageHandler(WhisparrClient.CreateHandler);
+            .ConfigurePrimaryHttpMessageHandler(WhisparrClient.CreateHandler)
+
+            // Built here rather than from the container, so the client writes to this extension's own
+            // logger for the same reason every other service constructed above does.
+            .AddTypedClient<IWhisparrClient>((client, _) => new WhisparrClient(client, _log));
 
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<IWhisparrConnectionTester, ConnectionTester>();
