@@ -58,8 +58,10 @@ export function ImportBanner({ read, view, now }: ImportBannerProps) {
                     <ul className="list-none space-y-1">
                       {pathsShownFor(line).map((path) => (
                         <li key={path.path} className="text-xs text-red-300">
-                          <span className="break-all font-mono">{path.path}</span>{" "}
-                          {describeCause(path.cause)}
+                          {/* Two blocks rather than one line: a path carries spaces of its own, so
+                              a space is not a boundary a reader can see between it and the prose. */}
+                          <p className="break-all font-mono">{path.path}</p>
+                          <p className="pl-4">{describeCause(path.cause)}</p>
                         </li>
                       ))}
                     </ul>
