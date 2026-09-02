@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
+using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
@@ -63,10 +64,41 @@ internal static class OutboundSeam
             [nameof(IWhisparrClient.ReadNotificationSchemaAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrClient.ListNotificationsAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrClient.ReadRootFoldersAsync)] = WhisparrVerbClass.Read,
+            [nameof(IWhisparrClient.ReadQualityProfilesAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrClient.ReadHistoryAsync)] = WhisparrVerbClass.Read,
             [nameof(IWhisparrClient.CreateNotificationAsync)] = WhisparrVerbClass.Configure,
             [nameof(IWhisparrClient.UpdateNotificationAsync)] = WhisparrVerbClass.Configure,
+            [nameof(IWhisparrStudioActing.ReadStudioAsync)] = WhisparrVerbClass.Read,
+            [nameof(IWhisparrStudioActing.AddMonitoredStudioAsync)] = WhisparrVerbClass.Act,
+            [nameof(IWhisparrStudioActing.SetStudioMonitoredAsync)] = WhisparrVerbClass.Act,
+            [nameof(IWhisparrStudioActing.SetStudioScopeAsync)] = WhisparrVerbClass.Act,
+            [nameof(IWhisparrPerformerActing.ReadPerformerAsync)] = WhisparrVerbClass.Read,
+            [nameof(IWhisparrPerformerActing.AddMonitoredPerformerAsync)] = WhisparrVerbClass.Act,
+            [nameof(IWhisparrPerformerActing.SetPerformerMonitoredAsync)] = WhisparrVerbClass.Act,
+            [nameof(IWhisparrMissingSceneActing.AddSceneAsync)] = WhisparrVerbClass.Act,
+            [nameof(IWhisparrMissingSceneActing.RefreshCatalogueAsync)] = WhisparrVerbClass.Act,
+            [nameof(IWhisparrReflectOwnedActing.ReadHardlinkSettingAsync)] = WhisparrVerbClass.Read,
+            [nameof(IWhisparrReflectOwnedActing.ListImportableFilesAsync)] = WhisparrVerbClass.Read,
+            [nameof(IWhisparrReflectOwnedActing.AttachOwnedFilesAsync)] = WhisparrVerbClass.Act,
+            [nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync)] = WhisparrVerbClass.Grab,
         };
+
+    /// <summary>Every interface an outbound request of this product can be expressed through.</summary>
+    /// <remarks>
+    /// Transcribed by hand for the same reason the table above is: a seam interface added later and
+    /// left out of this list is what fails
+    /// <see cref="SafetyInvariantTests.TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall"/>,
+    /// rather than being covered by an assertion nobody wrote.
+    /// </remarks>
+    public static IReadOnlyList<Type> SeamInterfaces { get; } =
+    [
+        typeof(IWhisparrClient),
+        typeof(IWhisparrStudioActing),
+        typeof(IWhisparrPerformerActing),
+        typeof(IWhisparrMissingSceneActing),
+        typeof(IWhisparrReflectOwnedActing),
+        typeof(IWhisparrSearchGrabbing),
+    ];
 
     /// <summary>The members doing <paramref name="verbClass"/>'s class of work, in name order.</summary>
     public static IEnumerable<string> MembersOf(WhisparrVerbClass verbClass)
@@ -74,6 +106,12 @@ internal static class OutboundSeam
             .Where(member => member.Value == verbClass)
             .Select(member => member.Key)
             .Order();
+
+    /// <summary>Every seam interface declaring a member named <paramref name="member"/>.</summary>
+    public static IEnumerable<Type> SeamsDeclaring(string member)
+        => SeamInterfaces.Where(seam => seam
+            .GetMethods()
+            .Any(method => string.Equals(method.Name, member, StringComparison.Ordinal)));
 }
 
 /// <summary>
@@ -142,13 +180,85 @@ public sealed class SafetyInvariantTests
         await app.StopAsync(TestCt);
     }
 
+    /// <summary>
+    /// The transcribed table names every member of every seam interface, and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// One assertion over a declared union rather than one per interface, so a seam interface added
+    /// and left out of <see cref="OutboundSeam.SeamInterfaces"/> fails the count below instead of
+    /// slipping past an assertion that was never written for it. No name is duplicated across the
+    /// union on purpose: two interfaces declaring one name would fail here too.
+    /// </remarks>
     [Fact]
     [Trait(SafetyInvariant.Trait, SafetyInvariant.NothingMovedOrDeleted)]
     public void TheOutboundSeamDeclaresExactlyTheMembersThisProductCanCall()
     {
+        Assert.Equal(6, OutboundSeam.SeamInterfaces.Count);
+
         Assert.Equal(
             OutboundSeam.VerbClassByMember.Keys.Order().ToList(),
-            typeof(IWhisparrClient).GetMethods().Select(method => method.Name).Order().ToList());
+            OutboundSeam.SeamInterfaces
+                .SelectMany(seam => seam.GetMethods())
+                .Select(method => method.Name)
+                .Order()
+                .ToList());
+    }
+
+    /// <summary>
+    /// Every acting and grabbing member is sent once, and each of those two classes has members.
+    /// </summary>
+    /// <remarks>
+    /// The retry table's silence about both classes, stated as the answer a caller actually gets. A
+    /// reader of the table infers the default; this reads it back through
+    /// <see cref="WhisparrRetryPolicy.AttemptsFor"/>, which is what a request goes through.
+    /// </remarks>
+    [Fact]
+    [Trait(SafetyInvariant.Trait, SafetyInvariant.NoAutoRetriedGrab)]
+    public void EveryActingAndGrabbingMemberIsSentOnceAndNeverRetried()
+    {
+        WhisparrVerbClass[] neverRetried = [WhisparrVerbClass.Act, WhisparrVerbClass.Grab];
+
+        Assert.All(
+            neverRetried,
+            verbClass => Assert.Equal(
+                WhisparrRetryPolicy.NoRetry, WhisparrRetryPolicy.AttemptsFor(verbClass)));
+
+        var members = OutboundSeam.VerbClassByMember
+            .Where(member => neverRetried.Contains(member.Value))
+            .ToList();
+
+        // Both classes carry members, so neither assertion above is passing over an empty set.
+        Assert.Equal(
+            neverRetried.Order().ToList(),
+            members.Select(member => member.Value).Distinct().Order().ToList());
+
+        Assert.All(
+            members,
+            member => Assert.Equal(
+                WhisparrRetryPolicy.NoRetry, WhisparrRetryPolicy.AttemptsFor(member.Value)));
+    }
+
+    /// <summary>
+    /// Exactly one member of the whole outbound seam can make an instance download, and only the
+    /// separately obtained role declares it.
+    /// </summary>
+    /// <remarks>
+    /// The type-level half of the guarantee: a call site that never obtains that role cannot express
+    /// the request, whatever it intended. What a composed body says is asserted where it is composed.
+    /// </remarks>
+    [Fact]
+    [Trait(SafetyInvariant.Trait, SafetyInvariant.OnlyAnExplicitSearchGrabs)]
+    public void ExactlyOneSeamMemberGrabsAndOnlyTheGrabbingRoleDeclaresIt()
+    {
+        Assert.Equal(
+            [nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync)],
+            OutboundSeam.MembersOf(WhisparrVerbClass.Grab));
+
+        Assert.Equal(
+            [typeof(IWhisparrSearchGrabbing)],
+            OutboundSeam.SeamsDeclaring(nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync)));
+
+        Assert.Single(typeof(IWhisparrSearchGrabbing).GetMethods());
     }
 
     /// <summary>
