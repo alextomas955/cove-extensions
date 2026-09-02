@@ -85,6 +85,27 @@ const RENDERED_BY_THE_IMPORT_BANNER = [
 const RENDERED_BY_THE_ENTITY_CONTROL = ["MONITOR_IN_WHISPARR", "MONITORED_IN_WHISPARR"];
 
 /**
+ * The scope names, the two consequence sentences that must be read before a scope is chosen, and one
+ * per secondary action. Each is placed on a menu item by `monitoring/monitorMenuLogic.ts`; the menu
+ * that draws those items arrives with the rest of the entity surface.
+ */
+const CARRIED_BY_THE_MONITOR_MENU_ITEMS = [
+  "SCOPE_FUTURE_SCENES",
+  "SCOPE_ALL_SCENES",
+  "ALL_SCENES_MARKS_THE_BACK_CATALOGUE",
+  "SCOPE_DOES_NOT_LIMIT_WHAT_IS_MONITORED",
+  "ALL_SCENES_IS_NOT_UNDONE_BY_A_LATER_SCOPE_CHANGE",
+  "UNMONITORING_DOES_NOT_RETRACT",
+  "PERFORMER_HAS_NO_FUTURE_ONLY_SCOPE",
+  "REFLECT_OWNED",
+  "ADD_ALL_MISSING",
+  "SEARCH_ALL_MONITORED",
+];
+
+/** The outcome sentence for the one secondary action that can decline to do anything. */
+const RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED = ["REFLECT_OWNED_SKIPPED"];
+
+/**
  * The kind whose sentence is the surface's to write, because the spec's affordance for it is to name
  * the surface's own setting. Every other kind carries a specified sentence.
  */
@@ -180,12 +201,14 @@ describe("no sentence is orphaned and no kind is silent", () => {
       ),
     );
     const accountedByName = [
+      ...CARRIED_BY_THE_MONITOR_MENU_ITEMS,
       ...DECLARED_FOR_LATER,
       ...RENDERED_BY_THE_CONNECT_SURFACE,
       ...RENDERED_BY_THE_ENTITY_CONTROL,
       ...RENDERED_BY_THE_IMPORT_BANNER,
       ...RENDERED_BY_THE_IMPORT_BEHAVIOR_SECTION,
       ...RENDERED_ON_A_STALE_READ,
+      ...RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED,
     ];
 
     const orphans = CONSTANTS.filter(
@@ -198,12 +221,14 @@ describe("no sentence is orphaned and no kind is silent", () => {
   it("names no sentence that no longer exists", () => {
     const declared = CONSTANTS.map(([name]) => name);
     for (const name of [
+      ...CARRIED_BY_THE_MONITOR_MENU_ITEMS,
       ...DECLARED_FOR_LATER,
       ...RENDERED_BY_THE_CONNECT_SURFACE,
       ...RENDERED_BY_THE_ENTITY_CONTROL,
       ...RENDERED_BY_THE_IMPORT_BANNER,
       ...RENDERED_BY_THE_IMPORT_BEHAVIOR_SECTION,
       ...RENDERED_ON_A_STALE_READ,
+      ...RENDERED_WHEN_REFLECT_OWNED_IS_SKIPPED,
     ]) {
       expect(declared, name).toContain(name);
     }
