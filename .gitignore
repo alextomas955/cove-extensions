@@ -22,7 +22,8 @@ node_modules/
 .planning/
 # Durable local keepsakes (milestone screenshots, research snapshots) — never published.
 .archive/
-.claude/
+.claude/*
+!.claude/rules/
 .agents/
 .cursor/
 .codex/
