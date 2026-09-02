@@ -132,9 +132,16 @@ public static class GenerationCapabilities
     ];
 
     /// <inheritdoc cref="V3Capabilities"/>
+    /// <remarks>
+    /// No performer entry: this generation answers a not-found on every performer route and addresses
+    /// one only as a studio's own catalogue, so a caller obtains no role and has to state what happens
+    /// instead. No missing-scene entry either: no route on this generation adds a catalogue item at
+    /// all, and its catalogue arrives only by re-reading its own metadata source.
+    /// </remarks>
     private static readonly WhisparrCapability[] V2Capabilities =
     [
         WhisparrCapability.OutOfBandCallbackSecret,
+        WhisparrCapability.MonitorStudio,
     ];
 
     /// <summary>What <paramref name="generation"/> can honour, with no acting role supplied.</summary>
@@ -196,6 +203,11 @@ public static class GenerationCapabilities
             // at all, so a caller obtains no role and has to state what happens instead.
             case WhisparrGeneration.V2:
                 registered[WhisparrCapability.OutOfBandCallbackSecret] = new V2BasicAuthSecretRegistration();
+                if (roles is not null)
+                {
+                    registered[WhisparrCapability.MonitorStudio] = roles.StudioActing;
+                }
+
                 break;
 
             default:
