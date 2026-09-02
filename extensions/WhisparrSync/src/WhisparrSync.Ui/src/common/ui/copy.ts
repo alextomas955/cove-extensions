@@ -22,7 +22,7 @@ export const CAP_UNAVAILABLE_ON_THIS_GENERATION = "Currently available on Whispa
  * renders differently from a failed request.
  */
 export const SEARCH_WITH_NO_ENTRY =
-  "Whisparr has no entry for this scene yet, so there is nothing to search for — mark it wanted first.";
+  "Whisparr has no entry for this scene yet, so there is nothing to search for - mark it wanted first.";
 
 /**
  * A missing-check whose provider did not answer.
@@ -31,13 +31,13 @@ export const SEARCH_WITH_NO_ENTRY =
  * text: the surface that renders this fills them with the names it holds.
  */
 export const PROVIDER_UNREACHABLE =
-  "Couldn't reach {provider} to check what's missing for {entity}. This isn't the same as owning everything — try again shortly.";
+  "Couldn't reach {provider} to check what's missing for {entity}. This isn't the same as owning everything - try again shortly.";
 
 /** A missing-check that succeeded and found nothing missing. Only for a check that did succeed. */
 export const NOTHING_MISSING = "You own every scene {provider} lists for {entity}.";
 
 /** Imports Cove recorded but can no longer read. Self-clears on a success. */
-export const IMPORTS_UNREADABLE = "Sync problem — Cove can't find imported files";
+export const IMPORTS_UNREADABLE = "Sync problem - Cove can't find imported files";
 
 /** No Cove library folder holds the reported file at all. */
 export const IMPORT_CAUSE_NOT_FOUND = "No Cove library folder holds this file.";
