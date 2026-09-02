@@ -168,6 +168,118 @@
         }
       }
     },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/monitoring": {
+      "get": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityMonitoringView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/monitor": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MonitorEntityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityMonitoringView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/extensions/com.alextomas955.whisparrsync/callback": {
       "post": {
         "tags": [
@@ -439,6 +551,43 @@
           }
         }
       },
+      "EntityMonitoringView": {
+        "required": [
+          "kind",
+          "generation",
+          "monitored",
+          "refusal",
+          "capabilities"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/WhisparrEntityKind"
+          },
+          "generation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WhisparrGeneration"
+              }
+            ]
+          },
+          "monitored": {
+            "type": "boolean"
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/MonitorRefusalKind"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhisparrCapability"
+            }
+          }
+        }
+      },
       "ErrorCode": {
         "required": [
           "code"
@@ -597,6 +746,42 @@
           "clear"
         ]
       },
+      "MonitorEntityRequest": {
+        "required": [
+          "scope"
+        ],
+        "type": "object",
+        "properties": {
+          "scope": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MonitorScope"
+              }
+            ]
+          }
+        }
+      },
+      "MonitorRefusalKind": {
+        "enum": [
+          "none",
+          "notConfigured",
+          "noIdentityInThisNamespace",
+          "capabilityAbsentOnThisGeneration",
+          "noQualityProfile",
+          "noRootFolder",
+          "instanceRefused"
+        ]
+      },
+      "MonitorScope": {
+        "enum": [
+          "futureScenes",
+          "allScenes",
+          null
+        ]
+      },
       "RegisterCallbackRequest": {
         "required": [
           "callbackAddress"
@@ -632,6 +817,12 @@
           "registerMissingScenes",
           "reflectOwnedFiles",
           "searchMonitored"
+        ]
+      },
+      "WhisparrEntityKind": {
+        "enum": [
+          "studio",
+          "performer"
         ]
       },
       "WhisparrGeneration": {

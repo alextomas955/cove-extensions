@@ -27,7 +27,12 @@ public sealed partial class SettingsProjectionTests
 
     /// <summary>The templates that report a failure this extension deliberately contained.</summary>
     private static readonly string[] ContainedFailureTemplates =
-        ["BackstopRecordContained", "EnrichmentContained", "HostImportContained"];
+    [
+        "BackstopRecordContained",
+        "EnrichmentContained",
+        "HostImportContained",
+        "MonitoringRequestContained",
+    ];
 
     /// <summary>
     /// Every string the settings view can carry, by declaring type and member name.
@@ -200,6 +205,10 @@ public sealed partial class SettingsProjectionTests
                 "EnrichmentNotCommitted.source",
                 "HostImportContained.failure",
                 "ImportEventTypeIgnored.eventType",
+                // A monitoring request that reached nothing: the failure's classification and the
+                // host, exactly what an outbound failure is given everywhere else here.
+                "MonitoringRequestContained.failure",
+                "MonitoringRequestContained.host",
                 // A Whisparr root folder, from the configured instance's own answer to an
                 // authenticated read rather than from an anonymous delivery's body. It names a
                 // directory the user configured and can hold no credential.

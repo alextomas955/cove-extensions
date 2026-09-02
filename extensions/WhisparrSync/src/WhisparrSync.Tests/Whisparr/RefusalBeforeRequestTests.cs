@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
+using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
@@ -53,10 +54,10 @@ public sealed class RefusalBeforeRequestTests
     /// client is then shown to record a request, so the empty log above is a fact about the refusal.
     /// </summary>
     /// <remarks>
-    /// The refusal is taken against a set built holding nothing rather than against a generation,
-    /// because no generation this product manages refuses the one capability it declares today. What
-    /// is asserted is still the property CAP-2 asks for: obtaining a role that is absent produces a
-    /// refusal and nothing leaves.
+    /// Taken against a real generation gap rather than against a set built holding nothing: the older
+    /// generation addresses no studio at all, so its set holds no studio-acting role and the refusal
+    /// under test is the one a user actually reaches. What is asserted is the property CAP-2 asks
+    /// for: obtaining a role that is absent produces a refusal and nothing leaves.
     /// </remarks>
     [Fact]
     public async Task ACapabilityTheSetDoesNotHoldIsRefusedWithNothingSent()
@@ -64,11 +65,12 @@ public sealed class RefusalBeforeRequestTests
         var client = RecordingWhisparrClient.Reporting(V2StatusFixture);
         var runner = await RunnerOverAsync(client, V2Address, StoredKey, WhisparrGeneration.V2);
 
-        var refusal = new WhisparrCapabilitySet(WhisparrGeneration.V2, [])
-            .Obtain<IOutOfBandSecretRegistration>()
+        var refusal = GenerationCapabilities.For(WhisparrGeneration.V2, WhisparrRoleSet.From(client))
+            .Obtain<IWhisparrStudioActing>()
             .Match<CapabilityRefusal?>(_ => null, refused => refused);
 
         Assert.NotNull(refusal);
+        Assert.Equal(WhisparrCapability.MonitorStudio, refusal.Capability);
         Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
         Assert.Empty(client.Calls);
 
@@ -105,7 +107,7 @@ public sealed class RefusalBeforeRequestTests
             ],
             Enum.GetValues<WhisparrCapability>());
         Assert.Equal(
-            [WhisparrCapability.OutOfBandCallbackSecret],
+            [WhisparrCapability.OutOfBandCallbackSecret, WhisparrCapability.MonitorStudio],
             GenerationCapabilities.For(WhisparrGeneration.V3).Held);
         Assert.Equal(
             [WhisparrCapability.OutOfBandCallbackSecret],
