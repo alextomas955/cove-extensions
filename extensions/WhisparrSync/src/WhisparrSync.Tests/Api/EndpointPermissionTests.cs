@@ -41,11 +41,13 @@ public sealed class EndpointPermissionTests
     [
         "GET /api/extensions/com.alextomas955.whisparrsync/host-configuration",
         "GET /api/extensions/com.alextomas955.whisparrsync/callback/status",
+        "GET /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/monitoring",
         "GET /api/extensions/com.alextomas955.whisparrsync/import/banner",
         "GET /api/extensions/com.alextomas955.whisparrsync/settings",
         "POST /api/extensions/com.alextomas955.whisparrsync/callback",
         "POST /api/extensions/com.alextomas955.whisparrsync/callback/register",
         "POST /api/extensions/com.alextomas955.whisparrsync/connection/test",
+        "POST /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/monitor",
         "PUT /api/extensions/com.alextomas955.whisparrsync/settings",
     ];
 

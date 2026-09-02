@@ -15,8 +15,14 @@ using Microsoft.Extensions.Logging;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Import;
+using WhisparrSync.Monitoring;
 using WhisparrSync.Options;
 using WhisparrSync.Whisparr;
+
+// Two types in this assembly are named MonitorScope: the stored settings default carries the spec's
+// earlier vocabulary, and the acting one carries the two names both generations use. They share a
+// member name, so an unqualified reference compiles and means the other one.
+using MonitorScope = WhisparrSync.Monitoring.MonitorScope;
 
 namespace WhisparrSync;
 
@@ -30,6 +36,8 @@ public sealed partial class WhisparrSync
     private string ConnectionTestRoute => RouteBase + "/connection/test";
     private string SettingsRoute => RouteBase + "/settings";
     private string ImportBannerRoute => RouteBase + "/import/banner";
+    private string MonitoringReadRoute => RouteBase + "/entity/{kind}/{coveId}/monitoring";
+    private string MonitorRoute => RouteBase + "/entity/{kind}/{coveId}/monitor";
 
     // Derived from the same builder the registered address is, so the route Whisparr is told to call
     // and the route this extension mounts cannot drift apart.
@@ -82,6 +90,24 @@ public sealed partial class WhisparrSync
             .WithTags(WireTag)
             .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
 
+        endpoints.MapGet(MonitoringReadRoute,
+            (string kind, int coveId, ICurrentPrincipalAccessor principal, OptionsStore options,
+             ICredentialPort credentials, IWhisparrClient client, IEntityIdentityPort identities,
+             CancellationToken ct)
+                => ReadEntityMonitoringAsync(
+                    kind, coveId, principal, options, credentials, client, identities, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ReadPermissions);
+
+        endpoints.MapPost(MonitorRoute,
+            (string kind, int coveId, MonitorEntityRequest request,
+             ICurrentPrincipalAccessor principal, OptionsStore options, ICredentialPort credentials,
+             IWhisparrClient client, IEntityIdentityPort identities, CancellationToken ct)
+                => MonitorEntityAsync(
+                    kind, coveId, request, principal, options, credentials, client, identities, _log, ct))
+            .WithTags(WireTag)
+            .RequireCovePermission(PermissionMode.Any, ConfigurePermissions);
+
         // The ONE route of this extension that answers a caller holding no Cove permission, and it
         // says so with the SDK's own convention rather than by declaring nothing. An endpoint
         // declaring no convention also admits an anonymous caller, but silently and with a host
@@ -124,13 +150,19 @@ public sealed partial class WhisparrSync
     private const string SettingsTabKey = "whisparr-sync";
 
     /// <summary>
-    /// The settings surface the host mounts: one dedicated tab under the Extensions settings group.
+    /// The surfaces the host mounts: one dedicated settings tab, and one control in the studio
+    /// page's own action row.
     /// </summary>
     /// <remarks>
     /// Page layout, so the host renders the panel full-width with no card chrome and this extension
-    /// draws its own. <c>componentName</c> must be byte-identical to the key in the bundle's
+    /// draws its own. Every <c>componentName</c> must be byte-identical to the key in the bundle's
     /// <c>defineExtension</c> component map: the host resolves one to the other by exact string and
     /// renders nothing, with no error, when they differ.
+    /// <para>
+    /// The action-row slot is the only position an extension can reach on a studio page. The host's
+    /// own entity-action contribution point answers with an empty list for anything but a video or an
+    /// image, so a control registered there would never render at all.
+    /// </para>
     /// </remarks>
     public override UIManifest GetUIManifest()
         => ManifestBuilder()
@@ -144,6 +176,7 @@ public sealed partial class WhisparrSync
                 targetTab: SettingsTabKey,
                 label: "Whisparr Sync",
                 componentName: "WhisparrSyncPage")
+            .AddSlot("studio-detail-actions", componentName: "WhisparrStudioActions", order: 100)
             .WithJsBundle("index.mjs")
             .Build();
 
@@ -287,6 +320,359 @@ public sealed partial class WhisparrSync
 
         var stored = await options.LoadAsync(ct).ConfigureAwait(false);
         return TypedResults.Ok(ImportBannerView.From(stored.ImportRefusals, stored.ImportHealth));
+    }
+
+    /// <summary>Reads how the connected instance monitors one Cove entity, right now.</summary>
+    /// <remarks>
+    /// Live on every read, holding nothing: one request per entity page view, no cache and no stored
+    /// per-entity row. A stored answer would be a table growing with the library, and a stale one
+    /// would paint a state the instance no longer reports.
+    /// <para>
+    /// The read tier, which is the tier a caller already needs to see the entity page this answers
+    /// for. The gate is checked before the store, so a principal without it causes no read.
+    /// </para>
+    /// <para>
+    /// The answer names the capabilities the connected generation holds, so the browser reads its
+    /// menu from the server rather than carrying a generation table of its own.
+    /// </para>
+    /// </remarks>
+    internal static async Task<Results<Ok<EntityMonitoringView>, BadRequest, ForbiddenCode>>
+        ReadEntityMonitoringAsync(
+            string kind,
+            int coveId,
+            ICurrentPrincipalAccessor principal,
+            OptionsStore options,
+            ICredentialPort credentials,
+            IWhisparrClient client,
+            IEntityIdentityPort identities,
+            ILogger log,
+            CancellationToken ct)
+    {
+        if (!HasReadPermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        if (!Enum.TryParse<WhisparrEntityKind>(kind, ignoreCase: true, out var entityKind))
+        {
+            return TypedResults.BadRequest();
+        }
+
+        ArgumentNullException.ThrowIfNull(identities);
+
+        if (await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
+            is not { } target)
+        {
+            return TypedResults.Ok(EntityMonitoringView.NotConfigured(entityKind));
+        }
+
+        if (entityKind != WhisparrEntityKind.Studio)
+        {
+            return TypedResults.Ok(RefusedForUnhandledKind(entityKind, target));
+        }
+
+        return TypedResults.Ok(
+            await target.Capabilities.Obtain<IWhisparrStudioActing>()
+                .Match(
+                    acting => ReadStudioMonitoringAsync(coveId, target, acting, identities, log, ct),
+                    _ => Task.FromResult(
+                        Refused(entityKind, target, MonitorRefusalKind.CapabilityAbsentOnThisGeneration)))
+                .ConfigureAwait(false));
+    }
+
+    /// <summary>Monitors one Cove entity on the connected instance, in one gesture.</summary>
+    /// <remarks>
+    /// The request carries a scope and nothing else. Which entity the instance is asked about is read
+    /// from the stored identity row for the Cove entity the route names, so an identifier a caller put
+    /// in the body reaches nothing and there is no value to validate.
+    /// <para>
+    /// The configure tier, the same tier the connection test takes: this route aims this extension's
+    /// stored credential at a third party, so it is deliberately out of reach of a caller who cannot
+    /// configure the extension. The gate is checked before the body is read.
+    /// </para>
+    /// <para>
+    /// The order is load-bearing. Identity first, so a refusal happens before any outbound request.
+    /// Then the entity itself, because one the instance already holds keeps its own add defaults and
+    /// reading them would only invite sending them over values a user chose. Only then the defaults,
+    /// which are the instance's own, and each empty answer is a stop taken before anything is sent.
+    /// </para>
+    /// </remarks>
+    internal static async Task<Results<Ok<EntityMonitoringView>, BadRequest, ForbiddenCode>>
+        MonitorEntityAsync(
+            string kind,
+            int coveId,
+            MonitorEntityRequest request,
+            ICurrentPrincipalAccessor principal,
+            OptionsStore options,
+            ICredentialPort credentials,
+            IWhisparrClient client,
+            IEntityIdentityPort identities,
+            ILogger log,
+            CancellationToken ct)
+    {
+        if (!HasConfigurePermission(principal))
+        {
+            return new ForbiddenCode();
+        }
+
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(identities);
+
+        if (!Enum.TryParse<WhisparrEntityKind>(kind, ignoreCase: true, out var entityKind))
+        {
+            return TypedResults.BadRequest();
+        }
+
+        if (await ResolveTargetAsync(options, credentials, client, ct).ConfigureAwait(false)
+            is not { } target)
+        {
+            return TypedResults.Ok(EntityMonitoringView.NotConfigured(entityKind));
+        }
+
+        if (entityKind != WhisparrEntityKind.Studio)
+        {
+            return TypedResults.Ok(RefusedForUnhandledKind(entityKind, target));
+        }
+
+        // The product's own default rather than the instance's. Choosing the narrower scope wrongly
+        // costs one more gesture; choosing the wider one wrongly marks a whole back catalogue wanted,
+        // and on this generation that is not undone by narrowing the scope again.
+        var scope = request.Scope ?? MonitorScope.FutureScenes;
+
+        return TypedResults.Ok(
+            await target.Capabilities.Obtain<IWhisparrStudioActing>()
+                .Match(
+                    acting => MonitorStudioAsync(coveId, scope, target, acting, identities, log, ct),
+                    _ => Task.FromResult(
+                        Refused(entityKind, target, MonitorRefusalKind.CapabilityAbsentOnThisGeneration)))
+                .ConfigureAwait(false));
+    }
+
+    /// <summary>What the connected instance is, and what its generation can honour.</summary>
+    private sealed record MonitoringTarget(
+        WhisparrGeneration Generation,
+        Uri BaseAddress,
+        string ApiKey,
+        WhisparrCapabilitySet Capabilities,
+        IWhisparrClient Reads);
+
+    /// <summary>The instance to act against, or null when none is configured.</summary>
+    private static async Task<MonitoringTarget?> ResolveTargetAsync(
+        OptionsStore options, ICredentialPort credentials, IWhisparrClient client, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(credentials);
+
+        var stored = await options.LoadAsync(ct).ConfigureAwait(false);
+        var generation = stored.SelectedGeneration;
+        var apiKey = await credentials.ReadAsync(generation, ct).ConfigureAwait(false);
+
+        // Refused here rather than by handing an empty pair to the client, so an unconfigured
+        // connection reaches nothing that could make a request.
+        return ConnectionTester.TryReadConnection(
+                stored.ConnectionFor(generation)?.Address, apiKey, out var baseAddress, out _)
+            ? new MonitoringTarget(
+                generation,
+                baseAddress,
+                apiKey,
+                GenerationCapabilities.For(generation, WhisparrRoleSet.From(client)),
+                client)
+            : null;
+    }
+
+    private static async Task<EntityMonitoringView> ReadStudioMonitoringAsync(
+        int coveId,
+        MonitoringTarget target,
+        IWhisparrStudioActing acting,
+        IEntityIdentityPort identities,
+        ILogger log,
+        CancellationToken ct)
+    {
+        var identity = await identities.ResolveStudioAsync(coveId, target.Generation, ct)
+            .ConfigureAwait(false);
+        if (identity.ForeignId is not { } foreignId)
+        {
+            return Refused(WhisparrEntityKind.Studio, target, identity.Refusal);
+        }
+
+        var read = await ContainedAsync(
+            () => acting.ReadStudioAsync(target.BaseAddress, target.ApiKey, foreignId, ct),
+            target,
+            log,
+            ct).ConfigureAwait(false);
+
+        return read is null
+            ? Refused(WhisparrEntityKind.Studio, target, MonitorRefusalKind.InstanceRefused)
+            : MonitoringProjector.Reading(read.StatusCode) switch
+            {
+                // Not held is not a refusal: the studio is simply not monitored yet.
+                MonitoringProjector.EntityReading.NotHeld => State(target, monitored: false),
+                MonitoringProjector.EntityReading.Held
+                    => State(target, MonitoringProjector.MonitoredIn(read.Body)),
+                _ => Refused(WhisparrEntityKind.Studio, target, MonitorRefusalKind.InstanceRefused),
+            };
+    }
+
+    private static async Task<EntityMonitoringView> MonitorStudioAsync(
+        int coveId,
+        MonitorScope scope,
+        MonitoringTarget target,
+        IWhisparrStudioActing acting,
+        IEntityIdentityPort identities,
+        ILogger log,
+        CancellationToken ct)
+    {
+        var identity = await identities.ResolveStudioAsync(coveId, target.Generation, ct)
+            .ConfigureAwait(false);
+        if (identity.ForeignId is not { } foreignId)
+        {
+            return Refused(WhisparrEntityKind.Studio, target, identity.Refusal);
+        }
+
+        var read = await ContainedAsync(
+            () => acting.ReadStudioAsync(target.BaseAddress, target.ApiKey, foreignId, ct),
+            target,
+            log,
+            ct).ConfigureAwait(false);
+        if (read is null)
+        {
+            return Refused(WhisparrEntityKind.Studio, target, MonitorRefusalKind.InstanceRefused);
+        }
+
+        switch (MonitoringProjector.Reading(read.StatusCode))
+        {
+            case MonitoringProjector.EntityReading.Held:
+                return await MonitorHeldStudioAsync(read.Body, target, acting, log, ct)
+                    .ConfigureAwait(false);
+            case MonitoringProjector.EntityReading.NotHeld:
+                break;
+            default:
+                return Refused(WhisparrEntityKind.Studio, target, MonitorRefusalKind.InstanceRefused);
+        }
+
+        var profiles = await ContainedAsync(
+            () => target.Reads.ReadQualityProfilesAsync(target.BaseAddress, target.ApiKey, ct),
+            target,
+            log,
+            ct).ConfigureAwait(false);
+        var roots = profiles is null
+            ? null
+            : await ContainedAsync(
+                () => target.Reads.ReadRootFoldersAsync(target.BaseAddress, target.ApiKey, ct),
+                target,
+                log,
+                ct).ConfigureAwait(false);
+        if (profiles is null || roots is null)
+        {
+            return Refused(WhisparrEntityKind.Studio, target, MonitorRefusalKind.InstanceRefused);
+        }
+
+        var defaults = AddDefaultsProjector.From(profiles.Body, roots.Body);
+        if (defaults.Defaults is not { } composeWith)
+        {
+            return Refused(WhisparrEntityKind.Studio, target, defaults.Refusal);
+        }
+
+        var added = await ContainedAsync(
+            () => acting.AddMonitoredStudioAsync(
+                target.BaseAddress, target.ApiKey, foreignId, scope, composeWith, ct),
+            target,
+            log,
+            ct).ConfigureAwait(false);
+
+        return added is null || MonitoringProjector.Accepted(added.StatusCode) != MonitorRefusalKind.None
+            ? Refused(WhisparrEntityKind.Studio, target, MonitorRefusalKind.InstanceRefused)
+            : State(target, monitored: true);
+    }
+
+    /// <summary>Turns monitoring on for a studio the instance already holds.</summary>
+    /// <remarks>
+    /// A held studio keeps its own profile, root folder, tags and date gate: only the flag is sent,
+    /// and every other field of the editor resource is left unset because an unset field is not
+    /// applied. Reporting the click as done without sending the flip would be a success for something
+    /// that did not happen.
+    /// </remarks>
+    private static async Task<EntityMonitoringView> MonitorHeldStudioAsync(
+        string body, MonitoringTarget target, IWhisparrStudioActing acting, ILogger log, CancellationToken ct)
+    {
+        if (MonitoringProjector.MonitoredIn(body))
+        {
+            return State(target, monitored: true);
+        }
+
+        if (MonitoringProjector.EntityIdIn(body) is not { } entityId)
+        {
+            return Refused(WhisparrEntityKind.Studio, target, MonitorRefusalKind.InstanceRefused);
+        }
+
+        var flipped = await ContainedAsync(
+            () => acting.SetStudioMonitoredAsync(target.BaseAddress, target.ApiKey, entityId, true, ct),
+            target,
+            log,
+            ct).ConfigureAwait(false);
+
+        return flipped is null
+            || MonitoringProjector.Accepted(flipped.StatusCode) != MonitorRefusalKind.None
+                ? Refused(WhisparrEntityKind.Studio, target, MonitorRefusalKind.InstanceRefused)
+                : State(target, monitored: true);
+    }
+
+    /// <summary>
+    /// The refusal for a kind this route has no arm for.
+    /// </summary>
+    /// <remarks>
+    /// The capability table is the authority, so a generation that HOLDS the capability while this
+    /// route cannot act on it is a fault rather than a refusal: a capability is registered with the
+    /// member that honours it, never ahead of it, and reporting a gap that does not exist would send
+    /// the user to a sentence about their instance.
+    /// </remarks>
+    private static EntityMonitoringView RefusedForUnhandledKind(
+        WhisparrEntityKind kind, MonitoringTarget target)
+    {
+        var capability = MonitoringProjector.CapabilityFor(kind);
+        return target.Capabilities.Held.Contains(capability)
+            ? throw new InvalidOperationException(
+                $"{target.Generation} holds {capability}, but this route has no arm acting on a {kind}.")
+            : Refused(kind, target, MonitorRefusalKind.CapabilityAbsentOnThisGeneration);
+    }
+
+    private static EntityMonitoringView Refused(
+        WhisparrEntityKind kind, MonitoringTarget target, MonitorRefusalKind refusal)
+        => EntityMonitoringView.Refused(kind, target.Generation, target.Capabilities.Held, refusal);
+
+    private static EntityMonitoringView State(MonitoringTarget target, bool monitored)
+        => EntityMonitoringView.State(
+            WhisparrEntityKind.Studio, target.Generation, target.Capabilities.Held, monitored);
+
+    /// <summary>
+    /// <paramref name="request"/>'s answer, or null when it produced none.
+    /// </summary>
+    /// <remarks>
+    /// Contained rather than propagated: it is raised into a route whose declared results hold no
+    /// failure. Exactly one line is emitted, from a filter naming the two exceptions it contains, and
+    /// a named outcome is returned. A shutdown rethrows, because it is not a verdict about the
+    /// instance.
+    /// </remarks>
+    private static async Task<WhisparrResponse?> ContainedAsync(
+        Func<Task<WhisparrResponse>> request,
+        MonitoringTarget target,
+        ILogger log,
+        CancellationToken ct)
+    {
+        try
+        {
+            return await request().ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception failure) when (failure is HttpRequestException or TaskCanceledException)
+        {
+            WhisparrSyncLog.MonitoringRequestContained(
+                log, target.Generation, WhisparrSyncLog.Classify(failure), target.BaseAddress.Host);
+            return null;
+        }
     }
 
     /// <summary>Receives one callback from Whisparr and answers whether it was this product's.</summary>
