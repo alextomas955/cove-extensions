@@ -1,21 +1,10 @@
-using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Cove.Core.Auth;
-using Cove.Core.Entities;
-using Cove.Data;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
-using WhisparrSync.Options;
 using WhisparrSync.Tests.Invariants;
 using WhisparrSync.Tests.TestSupport;
 using WhisparrSync.Whisparr;
@@ -47,33 +36,6 @@ namespace WhisparrSync.Tests.Monitoring;
 /// </remarks>
 public sealed class MonitorPathTests
 {
-    private const string SeededRemoteId = "44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e";
-
-    /// <summary>A second identifier in the same namespace, held by a performer rather than a studio.</summary>
-    private const string SeededPerformerRemoteId = "9f0d6f27-1f3a-4a5f-8b21-6b2d3a5f9c10";
-
-    /// <summary>The spelling the host stores a StashDB identity under, without a scheme.</summary>
-    /// <remarks>
-    /// Deliberately not the standard address this product prefers. The two name one source under the
-    /// host's own rule, and a read comparing them as strings would answer that this studio carries no
-    /// identity.
-    /// </remarks>
-    private const string SeededEndpoint = "stashdb.org/graphql";
-
-    private const string StoredAddress = "http://whisparr-v3:6969";
-    private const string StoredKey = "0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e";
-
-    /// <summary>Profiles as an instance offered them, in the order received and not in id order.</summary>
-    private const string UnsortedProfiles = """[{"id":4,"name":"Any"},{"id":1,"name":"HD-1080p"}]""";
-
-    private const string OneRootFolder = """[{"id":1,"path":"/config/library","accessible":true}]""";
-
-    private const string AddedStudio =
-        """{"id":1,"foreignId":"44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e","monitored":true}""";
-
-    private const string AddedPerformer =
-        """{"id":2,"foreignId":"44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e","monitored":true}""";
-
     /// <summary>
     /// The whole gesture: one stored identity row in, one monitored studio out, and nothing that
     /// could make the instance acquire anything at any position in the sequence.
@@ -82,7 +44,7 @@ public sealed class MonitorPathTests
     public async Task OneStoredIdentityRowMonitorsTheStudioAndStartsNoSearch()
     {
         await using var host = await MonitorHost.CreateAsync();
-        var studioId = await host.SeedStudioAsync(SeededEndpoint, SeededRemoteId);
+        var studioId = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
         var view = await host.MonitorAsync(studioId);
 
@@ -110,7 +72,7 @@ public sealed class MonitorPathTests
 
         var add = host.Client.Acting.Single(
             call => call.Verb == nameof(IWhisparrStudioActing.AddMonitoredStudioAsync));
-        Assert.Equal(SeededRemoteId, add.ForeignId);
+        Assert.Equal(MonitorHost.StudioRemoteIdValue, add.ForeignId);
         Assert.Equal(MonitorScope.FutureScenes, add.Scope);
         Assert.Equal(4, add.Defaults?.QualityProfileId);
         Assert.Equal("/config/library", add.Defaults?.RootFolderPath);
@@ -128,13 +90,13 @@ public sealed class MonitorPathTests
     [Fact]
     public async Task TheAddTheInstanceReceivesCarriesBothSuppressionFlagsPresentAndFalse()
     {
-        var handler = BodyRecordingHandler.Answering(HttpStatusCode.Created, AddedStudio);
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.Created, MonitorHost.AddedStudio);
         using var http = new HttpClient(handler);
 
         await ((IWhisparrStudioActing)new WhisparrClient(http)).AddMonitoredStudioAsync(
-            new Uri(StoredAddress),
-            StoredKey,
-            SeededRemoteId,
+            new Uri(MonitorHost.StoredAddress),
+            MonitorHost.StoredKey,
+            MonitorHost.StudioRemoteIdValue,
             MonitorScope.FutureScenes,
             new AddDefaults(4, "/config/library"),
             TestCt);
@@ -172,7 +134,7 @@ public sealed class MonitorPathTests
     public async Task AnIdentifierInTheRequestBodyIsIgnoredAndTheStoredRowIsWhatIsSent()
     {
         await using var host = await MonitorHost.CreateAsync();
-        var studioId = await host.SeedStudioAsync(SeededEndpoint, SeededRemoteId);
+        var studioId = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
         var view = await host.MonitorRawAsync(
             studioId,
@@ -185,7 +147,7 @@ public sealed class MonitorPathTests
 
         var add = host.Client.Acting.Single(
             call => call.Verb == nameof(IWhisparrStudioActing.AddMonitoredStudioAsync));
-        Assert.Equal(SeededRemoteId, add.ForeignId);
+        Assert.Equal(MonitorHost.StudioRemoteIdValue, add.ForeignId);
     }
 
     /// <summary>A studio carrying no identity in the connected generation's namespace.</summary>
@@ -202,7 +164,7 @@ public sealed class MonitorPathTests
         Assert.Empty(host.Client.Verbs);
 
         // The same double, driven down a path that does send.
-        var identified = await host.SeedStudioAsync(SeededEndpoint, SeededRemoteId);
+        var identified = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
         Assert.Equal(MonitorRefusalKind.None, (await host.MonitorAsync(identified)).Refusal);
         Assert.NotEmpty(host.Client.Verbs);
     }
@@ -212,7 +174,7 @@ public sealed class MonitorPathTests
     public async Task AStudioIdentifiedOnlyInTheOtherNamespaceRefusesBeforeAnythingIsSent()
     {
         await using var host = await MonitorHost.CreateAsync();
-        var studioId = await host.SeedStudioAsync("theporndb.net/graphql", SeededRemoteId);
+        var studioId = await host.SeedStudioAsync("theporndb.net/graphql", MonitorHost.StudioRemoteIdValue);
 
         var view = await host.MonitorAsync(studioId);
 
@@ -230,7 +192,7 @@ public sealed class MonitorPathTests
     {
         await using var host = await MonitorHost.CreateAsync();
         host.Client.Answering(nameof(IWhisparrClient.ReadQualityProfilesAsync), Json(200, "[]"));
-        var studioId = await host.SeedStudioAsync(SeededEndpoint, SeededRemoteId);
+        var studioId = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
         var view = await host.MonitorAsync(studioId);
 
@@ -249,7 +211,7 @@ public sealed class MonitorPathTests
         await using var host = await MonitorHost.CreateAsync();
         host.Client.Answering(
             nameof(IWhisparrClient.ReadQualityProfilesAsync), Json(200, """[{"id":0,"name":"Any"}]"""));
-        var studioId = await host.SeedStudioAsync(SeededEndpoint, SeededRemoteId);
+        var studioId = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
         var view = await host.MonitorAsync(studioId);
 
@@ -263,7 +225,7 @@ public sealed class MonitorPathTests
     {
         await using var host = await MonitorHost.CreateAsync();
         host.Client.Answering(nameof(IWhisparrClient.ReadRootFoldersAsync), Json(200, "[]"));
-        var studioId = await host.SeedStudioAsync(SeededEndpoint, SeededRemoteId);
+        var studioId = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
         var view = await host.MonitorAsync(studioId);
 
@@ -280,7 +242,7 @@ public sealed class MonitorPathTests
     [Fact]
     public void TheProfileChosenIsTheFirstOfferedAndNotTheLowestId()
     {
-        var resolved = AddDefaultsProjector.From(UnsortedProfiles, OneRootFolder);
+        var resolved = AddDefaultsProjector.From(MonitorHost.UnsortedProfiles, MonitorHost.OneRootFolder);
 
         Assert.Equal(MonitorRefusalKind.None, resolved.Refusal);
         Assert.Equal(4, resolved.Defaults?.QualityProfileId);
@@ -292,8 +254,8 @@ public sealed class MonitorPathTests
     public async Task AStudioTheInstanceAlreadyHoldsIsNotReadForDefaultsAndIsNotAddedAgain()
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(IWhisparrStudioActing.ReadStudioAsync), Json(200, AddedStudio));
-        var studioId = await host.SeedStudioAsync(SeededEndpoint, SeededRemoteId);
+        host.Client.Answering(nameof(IWhisparrStudioActing.ReadStudioAsync), Json(200, MonitorHost.AddedStudio));
+        var studioId = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
         var view = await host.MonitorAsync(studioId);
 
@@ -310,8 +272,8 @@ public sealed class MonitorPathTests
     public async Task TheMountReadAnswersTheLiveStateAndTheHeldCapabilities()
     {
         await using var host = await MonitorHost.CreateAsync();
-        host.Client.Answering(nameof(IWhisparrStudioActing.ReadStudioAsync), Json(200, AddedStudio));
-        var studioId = await host.SeedStudioAsync(SeededEndpoint, SeededRemoteId);
+        host.Client.Answering(nameof(IWhisparrStudioActing.ReadStudioAsync), Json(200, MonitorHost.AddedStudio));
+        var studioId = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
         var view = await host.ReadMonitoringAsync(studioId);
 
@@ -327,7 +289,7 @@ public sealed class MonitorPathTests
     public async Task AStudioTheInstanceDoesNotHoldReadsAsNotMonitored()
     {
         await using var host = await MonitorHost.CreateAsync();
-        var studioId = await host.SeedStudioAsync(SeededEndpoint, SeededRemoteId);
+        var studioId = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
         var view = await host.ReadMonitoringAsync(studioId);
 
@@ -347,7 +309,7 @@ public sealed class MonitorPathTests
         host.Client.Answering(
             nameof(IWhisparrStudioActing.AddMonitoredStudioAsync),
             Json(409, """{"message":"constraint failed","description":"at Whisparr.Api.V3 ... "}"""));
-        var studioId = await host.SeedStudioAsync(SeededEndpoint, SeededRemoteId);
+        var studioId = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
         var view = await host.MonitorAsync(studioId);
 
@@ -370,8 +332,8 @@ public sealed class MonitorPathTests
     public async Task TheKindOnTheRouteSelectsThePerformerTableAndThePerformerAdd()
     {
         await using var host = await MonitorHost.CreateAsync();
-        var studioId = await host.SeedStudioAsync(SeededEndpoint, SeededRemoteId);
-        var performerId = await host.SeedPerformerAsync(SeededEndpoint, SeededPerformerRemoteId);
+        var studioId = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
+        var performerId = await host.SeedPerformerAsync(MonitorHost.StoredEndpoint, MonitorHost.PerformerRemoteIdValue);
         Assert.Equal(studioId, performerId);
 
         var view = await host.MonitorAsync("performer", performerId);
@@ -396,7 +358,7 @@ public sealed class MonitorPathTests
 
         var add = host.Client.Acting.Single(
             call => call.Verb == nameof(IWhisparrPerformerActing.AddMonitoredPerformerAsync));
-        Assert.Equal(SeededPerformerRemoteId, add.ForeignId);
+        Assert.Equal(MonitorHost.PerformerRemoteIdValue, add.ForeignId);
 
         // No scope reaches the performer add, because the member declares none to reach.
         Assert.Null(add.Scope);
@@ -419,7 +381,7 @@ public sealed class MonitorPathTests
         Assert.Equal(WhisparrEntityKind.Performer, view.Kind);
         Assert.Empty(host.Client.Verbs);
 
-        var identified = await host.SeedPerformerAsync(SeededEndpoint, SeededPerformerRemoteId);
+        var identified = await host.SeedPerformerAsync(MonitorHost.StoredEndpoint, MonitorHost.PerformerRemoteIdValue);
         Assert.Equal(MonitorRefusalKind.None, (await host.MonitorAsync("performer", identified)).Refusal);
         Assert.NotEmpty(host.Client.Verbs);
     }
@@ -443,7 +405,7 @@ public sealed class MonitorPathTests
     {
         await using var host = await MonitorHost.CreateAsync(
             principal: FakePrincipalAccessor.None());
-        var studioId = await host.SeedStudioAsync(SeededEndpoint, SeededRemoteId);
+        var studioId = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
         var monitor = await host.Http.PostAsJsonAsync(
             host.RouteFor("studio", studioId, "monitor"),
@@ -461,7 +423,7 @@ public sealed class MonitorPathTests
     public async Task AnUnconfiguredConnectionRefusesBeforeAnythingIsSent()
     {
         await using var host = await MonitorHost.CreateAsync(apiKey: null);
-        var studioId = await host.SeedStudioAsync(SeededEndpoint, SeededRemoteId);
+        var studioId = await host.SeedStudioAsync(MonitorHost.StoredEndpoint, MonitorHost.StudioRemoteIdValue);
 
         var view = await host.MonitorAsync(studioId);
 
@@ -485,180 +447,19 @@ public sealed class MonitorPathTests
 
         Assert.Equal(
             "2026-09-02T00:00:00Z",
-            V3BodyProjector.AddStudio(SeededRemoteId, MonitorScope.FutureScenes, defaults, now)["afterDate"]
+            V3BodyProjector.AddStudio(MonitorHost.StudioRemoteIdValue, MonitorScope.FutureScenes, defaults, now)["afterDate"]
                 ?.GetValue<string>());
         Assert.False(
-            V3BodyProjector.AddStudio(SeededRemoteId, MonitorScope.AllScenes, defaults, now)
+            V3BodyProjector.AddStudio(MonitorHost.StudioRemoteIdValue, MonitorScope.AllScenes, defaults, now)
                 .ContainsKey("afterDate"));
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => V3BodyProjector.AddStudio(SeededRemoteId, (MonitorScope)(-1), defaults, now));
+            () => V3BodyProjector.AddStudio(MonitorHost.StudioRemoteIdValue, (MonitorScope)(-1), defaults, now));
     }
 
     private static CancellationToken TestCt => TestContext.Current.CancellationToken;
 
     private static WhisparrResponse Json(int status, string body)
         => RecordingWhisparrClient.Json(status, body);
-
-    /// <summary>One test server over one real relational library, with the outbound seam recorded.</summary>
-    private sealed class MonitorHost : IAsyncDisposable
-    {
-        private WebApplication _app = null!;
-        private CoveContext _db = null!;
-        private SqliteConnection _connection = null!;
-        private int _seeded;
-
-        public RecordingWhisparrClient Client { get; private set; } = null!;
-
-        public HttpClient Http { get; private set; } = null!;
-
-        private string RouteBase { get; set; } = null!;
-
-        public static async Task<MonitorHost> CreateAsync(
-            FakePrincipalAccessor? principal = null, string? apiKey = StoredKey)
-        {
-            var host = new MonitorHost();
-            (host._db, host._connection) = await CoveContextFactory.CreateSqliteContextAsync();
-
-            // Every read answers 200 with an empty object unless a test queues something else, so a
-            // verb no test named is still a recorded call rather than a throw.
-            host.Client = new RecordingWhisparrClient(Json(200, "{}"))
-                .Answering(nameof(IWhisparrClient.ReadQualityProfilesAsync), Json(200, UnsortedProfiles))
-                .Answering(nameof(IWhisparrClient.ReadRootFoldersAsync), Json(200, OneRootFolder))
-                .Answering(nameof(IWhisparrStudioActing.ReadStudioAsync), Json(404, ""))
-                .Answering(nameof(IWhisparrStudioActing.AddMonitoredStudioAsync), Json(201, AddedStudio))
-                .Answering(nameof(IWhisparrPerformerActing.ReadPerformerAsync), Json(404, ""))
-                .Answering(
-                    nameof(IWhisparrPerformerActing.AddMonitoredPerformerAsync),
-                    Json(201, AddedPerformer));
-
-            var options = new OptionsStore(new FakeStore());
-            await options.SaveAsync(
-                new WhisparrSyncOptions
-                {
-                    SelectedGeneration = WhisparrGeneration.V3,
-                    V3 = new WhisparrSyncGenerationConnection { Address = StoredAddress },
-                },
-                TestCt);
-
-            var credentials = new RecordingCredentialPort();
-            if (apiKey is not null)
-            {
-                credentials.Holding(WhisparrGeneration.V3, apiKey);
-            }
-
-            var builder = WebApplication.CreateSlimBuilder();
-            builder.WebHost.UseTestServer();
-            builder.Services.AddWhisparrSyncBindingServices();
-            builder.Services.AddRouting();
-            // Both tiers, because the two routes declare different ones: the read is at the tier a
-            // caller already needs to see the entity page, and the action at the configure tier.
-            builder.Services.AddSingleton<ICurrentPrincipalAccessor>(
-                principal ?? FakePrincipalAccessor.WithPermissions(
-                    Permissions.VideosRead, Permissions.ExtensionsConfigure));
-            builder.Services.AddSingleton<IWhisparrClient>(host.Client);
-            builder.Services.AddSingleton<IEntityIdentityPort>(
-                new EntityIdentityPort(host._db, options));
-            builder.Services.AddSingleton(options);
-            builder.Services.AddSingleton<ICredentialPort>(credentials);
-
-            host._app = builder.Build();
-            var extension = WhisparrSyncFixture.Create();
-            extension.MapEndpoints(host._app);
-            host.RouteBase = "/api/extensions/" + extension.Id;
-            await host._app.StartAsync(TestCt);
-            host.Http = host._app.GetTestClient();
-            return host;
-        }
-
-        public string RouteFor(string kind, int coveId, string verb)
-            => string.Create(
-                CultureInfo.InvariantCulture, $"{RouteBase}/entity/{kind}/{coveId}/{verb}");
-
-        /// <summary>Seeds one studio, with an identity row when an endpoint is named.</summary>
-        /// <remarks>
-        /// The name is made unique per call. The host's own name key is unique, so a second studio
-        /// seeded under one name fails the save rather than the assertion.
-        /// </remarks>
-        public async Task<int> SeedStudioAsync(string? endpoint, string? remoteId)
-        {
-            var name = "Studio " + (++_seeded).ToString(CultureInfo.InvariantCulture);
-            var studio = new Studio { Name = name, NameKey = name.ToLowerInvariant() };
-            _db.Add(studio);
-            await _db.SaveChangesAsync(TestCt);
-
-            if (endpoint is not null && remoteId is not null)
-            {
-                _db.Add(new StudioRemoteId
-                {
-                    StudioId = studio.Id,
-                    Endpoint = endpoint,
-                    RemoteId = remoteId,
-                });
-                await _db.SaveChangesAsync(TestCt);
-            }
-
-            return studio.Id;
-        }
-
-        /// <summary>Seeds one performer, with an identity row when an endpoint is named.</summary>
-        /// <remarks>
-        /// Seeded through the same context as a studio, so a case can hold both kinds at once and a
-        /// path reading the wrong identity table finds a row rather than nothing.
-        /// </remarks>
-        public async Task<int> SeedPerformerAsync(string? endpoint, string? remoteId)
-        {
-            var name = "Performer " + (++_seeded).ToString(CultureInfo.InvariantCulture);
-            var performer = new Performer { Name = name, IdentityKey = name.ToLowerInvariant() };
-            _db.Add(performer);
-            await _db.SaveChangesAsync(TestCt);
-
-            if (endpoint is not null && remoteId is not null)
-            {
-                _db.Add(new PerformerRemoteId
-                {
-                    PerformerId = performer.Id,
-                    Endpoint = endpoint,
-                    RemoteId = remoteId,
-                });
-                await _db.SaveChangesAsync(TestCt);
-            }
-
-            return performer.Id;
-        }
-
-        public Task<EntityMonitoringView> MonitorAsync(int studioId)
-            => MonitorAsync("studio", studioId);
-
-        public Task<EntityMonitoringView> MonitorAsync(string kind, int coveId)
-            => MonitorRawAsync(kind, coveId, """{"scope":"futureScenes"}""");
-
-        public Task<EntityMonitoringView> MonitorRawAsync(int studioId, string body)
-            => MonitorRawAsync("studio", studioId, body);
-
-        public async Task<EntityMonitoringView> MonitorRawAsync(string kind, int coveId, string body)
-        {
-            using var content = new StringContent(body, Encoding.UTF8, "application/json");
-            var answered = await Http.PostAsync(RouteFor(kind, coveId, "monitor"), content, TestCt);
-            answered.EnsureSuccessStatusCode();
-            return (await answered.Content.ReadFromJsonAsync<EntityMonitoringView>(TestCt))!;
-        }
-
-        public async Task<EntityMonitoringView> ReadMonitoringAsync(int studioId)
-        {
-            var answered = await Http.GetAsync(RouteFor("studio", studioId, "monitoring"), TestCt);
-            answered.EnsureSuccessStatusCode();
-            return (await answered.Content.ReadFromJsonAsync<EntityMonitoringView>(TestCt))!;
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            Http?.Dispose();
-            await _app.StopAsync(TestCt);
-            await _app.DisposeAsync();
-            await _db.DisposeAsync();
-            await _connection.DisposeAsync();
-        }
-    }
 
     /// <summary>
     /// A handler recording the path and the BODY of every request, below the client and above the
