@@ -188,6 +188,7 @@ test("the summary line reports counts, and a check with no subject renders 0 rat
         "0 project file(s) scanned for ProjectReference items onto " +
         "0 declared Cove test project(s), 0 Include(s) left unjudged, " +
         "0 project file(s) left unjudged for an unclosed comment; " +
+        "only .csproj, .props, .targets files were read, and " +
         "directories named node_modules, bin, obj, .git, website and all symlinked " +
         "directories were not walked.",
     );
@@ -213,6 +214,7 @@ test("the summary line reports counts, and a check with no subject renders 0 rat
         "0 project file(s) scanned for ProjectReference items onto " +
         "0 declared Cove test project(s), 0 Include(s) left unjudged, " +
         "0 project file(s) left unjudged for an unclosed comment; " +
+        "only .csproj, .props, .targets files were read, and " +
         "directories named node_modules, bin, obj, .git, website and all symlinked " +
         "directories were not walked.",
     );
@@ -896,6 +898,38 @@ test("a ProjectReference injected from Directory.Build.targets onto the coveTest
     assert.match(
       stderr,
       /Directory\.Build\.targets declares a ProjectReference onto coveTestProjectPath/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a ProjectReference injected from a root .props onto the coveTestProjectPath fails", () => {
+  // An imported .props or .targets reaches a project without that project declaring anything, so a
+  // scan keyed on two conventional file names judges the repository's own import graph only by
+  // accident. Directory.Packages.props is imported by the SDK on every build here.
+  const root = csharpFixture({
+    projectPath: "extensions/Foo/Foo.csproj",
+    testProjectPath: "extensions/Foo/Foo.Tests.csproj",
+    coveTestProjectPath: "extensions/Foo/Foo.Cove.Tests.csproj",
+    solution: [
+      "extensions/Foo/Foo.csproj",
+      "extensions/Foo/Foo.Tests.csproj",
+      "extensions/Foo/Foo.Cove.Tests.csproj",
+    ],
+    extraFiles: {
+      "Directory.Packages.props":
+        "<Project>\n  <ItemGroup>\n" +
+        '    <ProjectReference Include="extensions/Foo/Foo.Cove.Tests.csproj" />\n' +
+        "  </ItemGroup>\n</Project>\n",
+    },
+  });
+  try {
+    const { status, stderr } = runValidator(root);
+    assert.notStrictEqual(status, 0);
+    assert.match(
+      stderr,
+      /Directory\.Packages\.props declares a ProjectReference onto coveTestProjectPath/,
     );
   } finally {
     rmSync(root, { recursive: true, force: true });

@@ -97,9 +97,11 @@ function normalizeSeparators(value) {
 // the summary names them rather than leaving the hole here where no run output shows it.
 const referenceScanSkippedDirectories = new Set(["node_modules", "bin", "obj", ".git", "website"]);
 
-// Directory.Build.props/.targets carry ProjectReference items that MSBuild injects into every project
-// beneath them, which is the one place a reference can be added without editing any .csproj at all.
-const referenceScanFileNames = new Set(["Directory.Build.props", "Directory.Build.targets"]);
+// A .props or .targets carries ProjectReference items that reach a project without that project
+// declaring them, whether MSBuild imports the file by convention or a csproj imports it by name. Naming
+// the two conventional files would miss both the third this repository imports and any per-extension
+// one, so the extension is what selects, and the summary states which extensions were read.
+const referenceScanFileExtensions = [".csproj", ".props", ".targets"];
 
 // Walked from the repository root rather than read from the catalog, because a project taking the
 // forbidden reference is by definition one the catalog does not declare.
@@ -123,7 +125,7 @@ function collectProjectFiles(dir, collected = []) {
       collectProjectFiles(path.join(dir, entry.name), collected);
     } else if (
       entry.isFile() &&
-      (entry.name.endsWith(".csproj") || referenceScanFileNames.has(entry.name))
+      referenceScanFileExtensions.some((extension) => entry.name.endsWith(extension))
     ) {
       collected.push(path.join(dir, entry.name));
     }
@@ -600,6 +602,7 @@ console.log(
     `${coveTestProjects.length} declared Cove test project(s), ` +
     `${unresolvableIncludes.length} Include(s) left unjudged, ` +
     `${unparsableProjectFiles.length} project file(s) left unjudged for an unclosed comment; ` +
-    `directories named ${[...referenceScanSkippedDirectories].join(", ")} and all symlinked ` +
+    `only ${referenceScanFileExtensions.join(", ")} files were read, and directories named ` +
+    `${[...referenceScanSkippedDirectories].join(", ")} and all symlinked ` +
     `directories were not walked.`,
 );
