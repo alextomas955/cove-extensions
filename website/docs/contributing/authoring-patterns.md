@@ -165,6 +165,13 @@ the test need a real `CoveContext` from `Cove.Data`? If it does, it goes in the 
 and runs only where a Cove source checkout exists. If it does not, it goes in the other, and it runs
 on every leg. Put a `CoveContext` test in the wrong one and the build fails on it.
 
+The refusal runs one way only. A test that needs `Cove.Data` cannot compile in the checkout-free
+project, so that mistake is impossible. A test that needs nothing from Cove compiles perfectly well in
+the Cove-dependent project - and then runs only where a checkout exists, disappearing from the
+checkout-free leg and from the Windows leg without anything reporting it. Nothing checks that
+direction, so it is on you: if a test does not reach a `CoveContext`, put it in the checkout-free
+project.
+
 The lightweight "bare" CI leg is a compile-and-pure-logic smoke test; the containerized end-to-end job
 is the real safety gate. Copy-paste, dead-export, dependency-drift, and import-direction checks run as
 merge gates in the lint workflow. Only a check a CI workflow runs is a gate — an entry in the local
