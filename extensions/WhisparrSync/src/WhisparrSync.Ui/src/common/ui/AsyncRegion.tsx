@@ -13,7 +13,10 @@ export function AsyncRegion({
   state,
   available = true,
   outageNotice,
-  reading,
+  // Defaulted here rather than inside the branch, so an OMITTED slot takes the spinner while a slot
+  // passed as null renders nothing. A coalesce in the branch treats the two the same, and a caller
+  // asking for nothing then gets a spinner with no error anywhere.
+  reading = <Spinner />,
   content,
   empty,
   failed,
@@ -26,6 +29,7 @@ export function AsyncRegion({
   available?: boolean;
   /** Rendered above kept content when a read failed behind it. */
   outageNotice?: ReactNode;
+  /** Omit for the spinner; pass `null` for a surface that must draw nothing while it reads. */
   reading?: ReactNode;
   content: ReactNode;
   empty: ReactNode;
@@ -37,7 +41,7 @@ export function AsyncRegion({
 
   switch (state.status) {
     case "reading":
-      return <>{reading ?? <Spinner />}</>;
+      return <>{reading}</>;
     case "content":
       return (
         <>
