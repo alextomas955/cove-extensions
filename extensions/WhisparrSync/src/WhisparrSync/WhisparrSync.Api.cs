@@ -366,18 +366,22 @@ public sealed partial class WhisparrSync
             return TypedResults.Ok(EntityMonitoringView.NotConfigured(entityKind));
         }
 
-        if (entityKind != WhisparrEntityKind.Studio)
+        var reading = entityKind switch
         {
-            return TypedResults.Ok(RefusedForUnhandledKind(entityKind, target));
-        }
-
-        return TypedResults.Ok(
-            await target.Capabilities.Obtain<IWhisparrStudioActing>()
+            WhisparrEntityKind.Studio => target.Capabilities.Obtain<IWhisparrStudioActing>()
                 .Match(
-                    acting => ReadStudioMonitoringAsync(coveId, target, acting, identities, log, ct),
-                    _ => Task.FromResult(
-                        Refused(entityKind, target, MonitorRefusalKind.CapabilityAbsentOnThisGeneration)))
-                .ConfigureAwait(false));
+                    acting => ReadResolvedAsync(
+                        entityKind, coveId, target, identities, log, acting.ReadStudioAsync, ct),
+                    _ => RefusedAsync(entityKind, target)),
+            WhisparrEntityKind.Performer => target.Capabilities.Obtain<IWhisparrPerformerActing>()
+                .Match(
+                    acting => ReadResolvedAsync(
+                        entityKind, coveId, target, identities, log, acting.ReadPerformerAsync, ct),
+                    _ => RefusedAsync(entityKind, target)),
+            _ => Task.FromResult(RefusedForUnhandledKind(entityKind, target)),
+        };
+
+        return TypedResults.Ok(await reading.ConfigureAwait(false));
     }
 
     /// <summary>Monitors one Cove entity on the connected instance, in one gesture.</summary>
@@ -429,23 +433,43 @@ public sealed partial class WhisparrSync
             return TypedResults.Ok(EntityMonitoringView.NotConfigured(entityKind));
         }
 
-        if (entityKind != WhisparrEntityKind.Studio)
-        {
-            return TypedResults.Ok(RefusedForUnhandledKind(entityKind, target));
-        }
-
         // The product's own default rather than the instance's. Choosing the narrower scope wrongly
         // costs one more gesture; choosing the wider one wrongly marks a whole back catalogue wanted,
         // and on this generation that is not undone by narrowing the scope again.
         var scope = request.Scope ?? MonitorScope.FutureScenes;
 
-        return TypedResults.Ok(
-            await target.Capabilities.Obtain<IWhisparrStudioActing>()
+        var monitoring = entityKind switch
+        {
+            WhisparrEntityKind.Studio => target.Capabilities.Obtain<IWhisparrStudioActing>()
                 .Match(
-                    acting => MonitorStudioAsync(coveId, scope, target, acting, identities, log, ct),
-                    _ => Task.FromResult(
-                        Refused(entityKind, target, MonitorRefusalKind.CapabilityAbsentOnThisGeneration)))
-                .ConfigureAwait(false));
+                    acting => MonitorResolvedAsync(
+                        entityKind,
+                        coveId,
+                        target,
+                        identities,
+                        log,
+                        foreignId => ActingOn(acting, target, foreignId, scope),
+                        ct),
+                    _ => RefusedAsync(entityKind, target)),
+
+            // No scope reaches this arm. The field a future-only scope is expressed through exists on
+            // the studio resource and on no other, so a scope a caller named for a performer names
+            // nothing the request could carry.
+            WhisparrEntityKind.Performer => target.Capabilities.Obtain<IWhisparrPerformerActing>()
+                .Match(
+                    acting => MonitorResolvedAsync(
+                        entityKind,
+                        coveId,
+                        target,
+                        identities,
+                        log,
+                        foreignId => ActingOn(acting, target, foreignId),
+                        ct),
+                    _ => RefusedAsync(entityKind, target)),
+            _ => Task.FromResult(RefusedForUnhandledKind(entityKind, target)),
+        };
+
+        return TypedResults.Ok(await monitoring.ConfigureAwait(false));
     }
 
     /// <summary>What the connected instance is, and what its generation can honour.</summary>
@@ -480,74 +504,102 @@ public sealed partial class WhisparrSync
             : null;
     }
 
-    private static async Task<EntityMonitoringView> ReadStudioMonitoringAsync(
+    /// <summary>The acting verbs one entity kind is monitored through, already aimed.</summary>
+    /// <remarks>
+    /// One kind's members reduced to what the shared flow needs, so the flow is written once and the
+    /// difference between the two kinds is confined to where each is built. The scope is bound where
+    /// the studio's verbs are, so no shared step can carry a scope to a kind that expresses none.
+    /// </remarks>
+    private sealed record KindActing(
+        Func<CancellationToken, Task<WhisparrResponse>> ReadEntity,
+        Func<AddDefaults, CancellationToken, Task<WhisparrResponse>> AddMonitored,
+        Func<int, CancellationToken, Task<WhisparrResponse>> TurnMonitoringOn);
+
+    private static KindActing ActingOn(
+        IWhisparrStudioActing acting, MonitoringTarget target, string foreignId, MonitorScope scope)
+        => new(
+            readCt => acting.ReadStudioAsync(target.BaseAddress, target.ApiKey, foreignId, readCt),
+            (defaults, addCt) => acting.AddMonitoredStudioAsync(
+                target.BaseAddress, target.ApiKey, foreignId, scope, defaults, addCt),
+            (entityId, flipCt) => acting.SetStudioMonitoredAsync(
+                target.BaseAddress, target.ApiKey, entityId, true, flipCt));
+
+    private static KindActing ActingOn(
+        IWhisparrPerformerActing acting, MonitoringTarget target, string foreignId)
+        => new(
+            readCt => acting.ReadPerformerAsync(target.BaseAddress, target.ApiKey, foreignId, readCt),
+            (defaults, addCt) => acting.AddMonitoredPerformerAsync(
+                target.BaseAddress, target.ApiKey, foreignId, defaults, addCt),
+            (entityId, flipCt) => acting.SetPerformerMonitoredAsync(
+                target.BaseAddress, target.ApiKey, entityId, true, flipCt));
+
+    private static async Task<EntityMonitoringView> ReadResolvedAsync(
+        WhisparrEntityKind kind,
         int coveId,
         MonitoringTarget target,
-        IWhisparrStudioActing acting,
         IEntityIdentityPort identities,
         ILogger log,
+        Func<Uri, string, string, CancellationToken, Task<WhisparrResponse>> readEntity,
         CancellationToken ct)
     {
-        var identity = await identities.ResolveStudioAsync(coveId, target.Generation, ct)
+        var identity = await identities.ResolveAsync(kind, coveId, target.Generation, ct)
             .ConfigureAwait(false);
         if (identity.ForeignId is not { } foreignId)
         {
-            return Refused(WhisparrEntityKind.Studio, target, identity.Refusal);
+            return Refused(kind, target, identity.Refusal);
         }
 
         var read = await ContainedAsync(
-            () => acting.ReadStudioAsync(target.BaseAddress, target.ApiKey, foreignId, ct),
+            () => readEntity(target.BaseAddress, target.ApiKey, foreignId, ct),
             target,
             log,
             ct).ConfigureAwait(false);
 
         return read is null
-            ? Refused(WhisparrEntityKind.Studio, target, MonitorRefusalKind.InstanceRefused)
+            ? Refused(kind, target, MonitorRefusalKind.InstanceRefused)
             : MonitoringProjector.Reading(read.StatusCode) switch
             {
-                // Not held is not a refusal: the studio is simply not monitored yet.
-                MonitoringProjector.EntityReading.NotHeld => State(target, monitored: false),
+                // Not held is not a refusal: the entity is simply not monitored yet.
+                MonitoringProjector.EntityReading.NotHeld => State(kind, target, monitored: false),
                 MonitoringProjector.EntityReading.Held
-                    => State(target, MonitoringProjector.MonitoredIn(read.Body)),
-                _ => Refused(WhisparrEntityKind.Studio, target, MonitorRefusalKind.InstanceRefused),
+                    => State(kind, target, MonitoringProjector.MonitoredIn(read.Body)),
+                _ => Refused(kind, target, MonitorRefusalKind.InstanceRefused),
             };
     }
 
-    private static async Task<EntityMonitoringView> MonitorStudioAsync(
+    private static async Task<EntityMonitoringView> MonitorResolvedAsync(
+        WhisparrEntityKind kind,
         int coveId,
-        MonitorScope scope,
         MonitoringTarget target,
-        IWhisparrStudioActing acting,
         IEntityIdentityPort identities,
         ILogger log,
+        Func<string, KindActing> actingFor,
         CancellationToken ct)
     {
-        var identity = await identities.ResolveStudioAsync(coveId, target.Generation, ct)
+        var identity = await identities.ResolveAsync(kind, coveId, target.Generation, ct)
             .ConfigureAwait(false);
         if (identity.ForeignId is not { } foreignId)
         {
-            return Refused(WhisparrEntityKind.Studio, target, identity.Refusal);
+            return Refused(kind, target, identity.Refusal);
         }
 
-        var read = await ContainedAsync(
-            () => acting.ReadStudioAsync(target.BaseAddress, target.ApiKey, foreignId, ct),
-            target,
-            log,
-            ct).ConfigureAwait(false);
+        var acting = actingFor(foreignId);
+        var read = await ContainedAsync(() => acting.ReadEntity(ct), target, log, ct)
+            .ConfigureAwait(false);
         if (read is null)
         {
-            return Refused(WhisparrEntityKind.Studio, target, MonitorRefusalKind.InstanceRefused);
+            return Refused(kind, target, MonitorRefusalKind.InstanceRefused);
         }
 
         switch (MonitoringProjector.Reading(read.StatusCode))
         {
             case MonitoringProjector.EntityReading.Held:
-                return await MonitorHeldStudioAsync(read.Body, target, acting, log, ct)
+                return await MonitorHeldEntityAsync(kind, read.Body, target, acting, log, ct)
                     .ConfigureAwait(false);
             case MonitoringProjector.EntityReading.NotHeld:
                 break;
             default:
-                return Refused(WhisparrEntityKind.Studio, target, MonitorRefusalKind.InstanceRefused);
+                return Refused(kind, target, MonitorRefusalKind.InstanceRefused);
         }
 
         var profiles = await ContainedAsync(
@@ -564,57 +616,55 @@ public sealed partial class WhisparrSync
                 ct).ConfigureAwait(false);
         if (profiles is null || roots is null)
         {
-            return Refused(WhisparrEntityKind.Studio, target, MonitorRefusalKind.InstanceRefused);
+            return Refused(kind, target, MonitorRefusalKind.InstanceRefused);
         }
 
         var defaults = AddDefaultsProjector.From(profiles.Body, roots.Body);
         if (defaults.Defaults is not { } composeWith)
         {
-            return Refused(WhisparrEntityKind.Studio, target, defaults.Refusal);
+            return Refused(kind, target, defaults.Refusal);
         }
 
         var added = await ContainedAsync(
-            () => acting.AddMonitoredStudioAsync(
-                target.BaseAddress, target.ApiKey, foreignId, scope, composeWith, ct),
-            target,
-            log,
-            ct).ConfigureAwait(false);
+            () => acting.AddMonitored(composeWith, ct), target, log, ct).ConfigureAwait(false);
 
         return added is null || MonitoringProjector.Accepted(added.StatusCode) != MonitorRefusalKind.None
-            ? Refused(WhisparrEntityKind.Studio, target, MonitorRefusalKind.InstanceRefused)
-            : State(target, monitored: true);
+            ? Refused(kind, target, MonitorRefusalKind.InstanceRefused)
+            : State(kind, target, monitored: true);
     }
 
-    /// <summary>Turns monitoring on for a studio the instance already holds.</summary>
+    /// <summary>Turns monitoring on for an entity the instance already holds.</summary>
     /// <remarks>
-    /// A held studio keeps its own profile, root folder, tags and date gate: only the flag is sent,
+    /// A held entity keeps its own profile, root folder, tags and date gate: only the flag is sent,
     /// and every other field of the editor resource is left unset because an unset field is not
     /// applied. Reporting the click as done without sending the flip would be a success for something
     /// that did not happen.
     /// </remarks>
-    private static async Task<EntityMonitoringView> MonitorHeldStudioAsync(
-        string body, MonitoringTarget target, IWhisparrStudioActing acting, ILogger log, CancellationToken ct)
+    private static async Task<EntityMonitoringView> MonitorHeldEntityAsync(
+        WhisparrEntityKind kind,
+        string body,
+        MonitoringTarget target,
+        KindActing acting,
+        ILogger log,
+        CancellationToken ct)
     {
         if (MonitoringProjector.MonitoredIn(body))
         {
-            return State(target, monitored: true);
+            return State(kind, target, monitored: true);
         }
 
         if (MonitoringProjector.EntityIdIn(body) is not { } entityId)
         {
-            return Refused(WhisparrEntityKind.Studio, target, MonitorRefusalKind.InstanceRefused);
+            return Refused(kind, target, MonitorRefusalKind.InstanceRefused);
         }
 
         var flipped = await ContainedAsync(
-            () => acting.SetStudioMonitoredAsync(target.BaseAddress, target.ApiKey, entityId, true, ct),
-            target,
-            log,
-            ct).ConfigureAwait(false);
+            () => acting.TurnMonitoringOn(entityId, ct), target, log, ct).ConfigureAwait(false);
 
         return flipped is null
             || MonitoringProjector.Accepted(flipped.StatusCode) != MonitorRefusalKind.None
-                ? Refused(WhisparrEntityKind.Studio, target, MonitorRefusalKind.InstanceRefused)
-                : State(target, monitored: true);
+                ? Refused(kind, target, MonitorRefusalKind.InstanceRefused)
+                : State(kind, target, monitored: true);
     }
 
     /// <summary>
@@ -640,9 +690,16 @@ public sealed partial class WhisparrSync
         WhisparrEntityKind kind, MonitoringTarget target, MonitorRefusalKind refusal)
         => EntityMonitoringView.Refused(kind, target.Generation, target.Capabilities.Held, refusal);
 
-    private static EntityMonitoringView State(MonitoringTarget target, bool monitored)
+    /// <summary>The refusal a generation holding no role for <paramref name="kind"/> answers with.</summary>
+    private static Task<EntityMonitoringView> RefusedAsync(
+        WhisparrEntityKind kind, MonitoringTarget target)
+        => Task.FromResult(
+            Refused(kind, target, MonitorRefusalKind.CapabilityAbsentOnThisGeneration));
+
+    private static EntityMonitoringView State(
+        WhisparrEntityKind kind, MonitoringTarget target, bool monitored)
         => EntityMonitoringView.State(
-            WhisparrEntityKind.Studio, target.Generation, target.Capabilities.Held, monitored);
+            kind, target.Generation, target.Capabilities.Held, monitored);
 
     /// <summary>
     /// <paramref name="request"/>'s answer, or null when it produced none.
