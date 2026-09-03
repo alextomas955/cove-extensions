@@ -444,16 +444,18 @@ public sealed class NonGrabbingBodyTests
     }
 
     /// <summary>
-    /// A scope change overwrites both suppression spellings on the resource it is composed over, each
-    /// present as a member and each false.
+    /// A scope change overwrites every suppression spelling the resource it is composed over carried,
+    /// each still present as a member and each false.
     /// </summary>
     /// <remarks>
-    /// The resource is what the instance answered a read with, so it carries the user's own flags: a
-    /// studio added in the instance's interface with search-on-add ticked holds both spellings true,
-    /// and a clone that left them alone would re-assert them on a request this product originated.
+    /// The resource is what the instance answered a read with, so it carries the user's own flags: an
+    /// entity added in the instance's interface with search-on-add ticked holds them true, and a clone
+    /// that left them alone would re-assert them on a request this product originated.
     /// <para>
-    /// Overwritten rather than removed, and presence is asserted apart from the value. Removal would
-    /// rest on the instance defaulting an absent member to false, which was never measured.
+    /// What the resource carried is asserted first, so a fixture quietly losing either spelling fails
+    /// here rather than making the rest vacuous. Overwritten rather than removed, and presence is
+    /// asserted apart from the value: removal would rest on the instance defaulting an absent member
+    /// to false, which was never measured.
     /// </para>
     /// </remarks>
     [Fact]
