@@ -7,7 +7,7 @@
 import { GenericContainer, Wait } from "testcontainers";
 import { createApiClient } from "./apiClient.mjs";
 import { APP_USER, whisparrImage } from "./whisparr-images.mjs";
-import { buildConfigXml, seedHistory } from "./whisparr-seed.mjs";
+import { buildConfigXml, seedEntity, seedHistory } from "./whisparr-seed.mjs";
 
 const WHISPARR_PORT = 6969;
 
@@ -151,6 +151,28 @@ export async function startWhisparr({
         ...options,
       });
       return instance.history;
+    },
+
+    /**
+     * Puts one catalogue entity on a generation, and answers with it as that instance projects it.
+     *
+     * The root folder defaults to the one this start registered, because the seed's column is NOT
+     * NULL and a root the instance never accepted is not a value it will project an entity under.
+     */
+    async seedEntity(generation, options = {}) {
+      const instance = instances[generation];
+      if (instance === undefined) {
+        throw new Error(
+          `startWhisparr: seedEntity("${generation}") — this call started ${handle.generations.join(", ") || "nothing"}.`,
+        );
+      }
+      return seedEntity({
+        container: instance.container,
+        api: handle.apiFor(generation),
+        generation,
+        rootFolderPath: instance.rootFolder,
+        ...options,
+      });
     },
 
     async stop() {
