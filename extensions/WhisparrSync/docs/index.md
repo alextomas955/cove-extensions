@@ -19,11 +19,21 @@ Installing this release adds a **Whisparr Sync** tab under Settings → Extensio
 - **Register the import webhook.** One click writes Cove's callback into the connected instance, or
   you can copy the address and paste it into Whisparr yourself. The status line below it says whether
   the callback is registered, and whether anything has arrived through it.
+- **Take in what Whisparr imports.** A delivery through that callback is matched against your Cove
+  library folders and the file is brought into your library. A delivery Cove cannot place is refused
+  and counted, and the tab reports the outstanding refusals.
 
-**Nothing is imported yet.** When Whisparr calls the webhook, Cove checks the delivery is genuinely
-Whisparr's and acknowledges it. It does not read what the delivery says, match it to your library, or
-change anything. The import path arrives in a later release, and the registration you make now is what
-it will use.
+It also adds a Whisparr button to studio and performer pages, and one to those lists' selection bars:
+
+- **Monitor a studio or a performer from its own page**, in one click, at either of Whisparr's two
+  scopes. Whisparr Sync never asks Whisparr to search.
+- **Unmonitor from the same menu.** It stops Whisparr wanting new scenes and retracts nothing that
+  is already wanted.
+- **Do the same for a whole selection**, as one background job that reports in Cove's job list.
+
+Read [Monitor a studio or a performer](./monitoring.md) before the first time you press it: the
+wider scope marks a whole back catalogue wanted, and on Whisparr v3 (Eros) that choice is not undone
+by narrowing the scope again.
 
 For every setting on the tab, see the [Settings reference](./settings.md).
 
@@ -60,6 +70,8 @@ below, so on an older Cove this extension is not offered to you in the first pla
 
 ## In this section
 
+- [Monitor a studio or a performer](./monitoring.md) - the button, the two scopes and what each
+  costs, and the same actions in bulk.
 - [Settings reference](./settings.md) - every setting on the tab, its default and its valid values.
 - [Changelog](./changelog.mdx) - user-facing changes, newest first.
 
