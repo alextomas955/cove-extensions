@@ -186,7 +186,8 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
         IWhisparrStudioActing,
         IWhisparrPerformerActing,
         IWhisparrMissingSceneActing,
-        IWhisparrReflectOwnedActing
+        IWhisparrReflectOwnedActing,
+        IWhisparrSearchGrabbing
 {
     /// <summary>The header both generations authenticate an API request with.</summary>
     internal const string ApiKeyHeader = "X-Api-Key";
@@ -591,6 +592,28 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
         => ActAsync(
             baseAddress, apiKey, HttpMethod.Post, CommandPath, ReflectOwnedPlanner.Command(files), ct);
 
+    // The one member of this whole seam that can make an instance acquire anything, and the only one
+    // whose invocation is recorded on its own. Its verb class has no retry entry, so an attempt whose
+    // answer did not arrive is reported rather than re-issued: a second search is a second download.
+    public Task<WhisparrResponse> SearchMonitoredAsync(
+        Uri baseAddress,
+        string apiKey,
+        WhisparrGeneration generation,
+        WhisparrEntityKind kind,
+        int entityId,
+        CancellationToken ct)
+    {
+        var body = generation switch
+        {
+            WhisparrGeneration.V3 => V3BodyProjector.SearchMonitored(kind, entityId),
+            WhisparrGeneration.V2 => V2BodyProjector.SearchMonitored(entityId),
+            _ => throw new ArgumentOutOfRangeException(nameof(generation)),
+        };
+
+        WhisparrSyncLog.SearchIssued(log, kind);
+        return GrabAsync(baseAddress, apiKey, HttpMethod.Post, CommandPath, body, ct);
+    }
+
     // Escaped as one path segment. The identifier comes from a stored identity row rather than from a
     // caller, and escaping it keeps that true of the composed route as well: a value carrying a
     // separator would otherwise name a different route.
@@ -678,6 +701,13 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
     // what the retry policy is keyed on: an attempt count added for one class must not silently
     // cover the other.
     private Task<WhisparrResponse> ActAsync(
+        Uri baseAddress, string apiKey, HttpMethod method, string path, JsonNode body, CancellationToken ct)
+        => SentOnceAsync(baseAddress, apiKey, method, path, body, ct);
+
+    // Sent once, and named apart from the acting send because the CLASS of work is what the retry
+    // policy is keyed on: an attempt count added for the acting class must not silently cover the one
+    // class that downloads.
+    private Task<WhisparrResponse> GrabAsync(
         Uri baseAddress, string apiKey, HttpMethod method, string path, JsonNode body, CancellationToken ct)
         => SentOnceAsync(baseAddress, apiKey, method, path, body, ct);
 

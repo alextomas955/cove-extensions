@@ -55,6 +55,18 @@ internal static class ComposedAdds
     /// <summary>A scene the library holds that an instance's catalogue does not.</summary>
     private const string SceneForeignId = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
 
+    /// <summary>
+    /// Every capability whose verb can make an instance acquire something, transcribed rather than
+    /// derived from a registration.
+    /// </summary>
+    /// <remarks>
+    /// The enumeration below filters on this rather than on whether a capability is registered. A
+    /// grabbing capability leaking into a non-grabbing case list would either fail spuriously or,
+    /// worse, assert that a grab body is non-grabbing.
+    /// </remarks>
+    public static readonly WhisparrCapability[] GrabbingCapabilities =
+        [WhisparrCapability.SearchMonitored];
+
     /// <summary>The instance-side values every enumerated add is composed with.</summary>
     private static readonly AddDefaults Defaults = new(4, "/config/library");
 
@@ -77,6 +89,7 @@ internal static class ComposedAdds
     public static IReadOnlyList<ComposedAdd> On(WhisparrGeneration generation) =>
     [
         .. GenerationCapabilities.CapabilitiesOf(generation)
+            .Where(capability => !GrabbingCapabilities.Contains(capability))
             .SelectMany(capability => CasesFor(generation, capability))
     ];
 
@@ -256,6 +269,7 @@ public sealed class NonGrabbingBodyTests
                 WhisparrCapability.MonitorPerformer,
                 WhisparrCapability.RegisterMissingScenes,
                 WhisparrCapability.ReflectOwnedFiles,
+                WhisparrCapability.SearchMonitored,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
 
@@ -265,10 +279,20 @@ public sealed class NonGrabbingBodyTests
                 WhisparrCapability.OutOfBandCallbackSecret,
                 WhisparrCapability.MonitorStudio,
                 WhisparrCapability.ReflectOwnedFiles,
+                WhisparrCapability.SearchMonitored,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
 
         Assert.Equal(6, ComposedAdds.All().Count);
+
+        // The filter is on the verb class rather than on the registration, so a grabbing capability
+        // both generations now hold contributes no case to a list of bodies asserted non-grabbing.
+        Assert.All(
+            ComposedAdds.GrabbingCapabilities,
+            grabbing => Assert.All(
+                ComposedAdds.Generations,
+                generation => Assert.Contains(
+                    grabbing, GenerationCapabilities.CapabilitiesOf(generation))));
     }
 
     /// <summary>
@@ -405,16 +429,19 @@ public sealed class NonGrabbingBodyTests
     }
 
     /// <summary>
-    /// The one role that can make an instance download is absent from the set every monitoring call
-    /// site obtains its own role from.
+    /// The role that can make an instance download is reached only by asking for it BY NAME, and a
+    /// caller that asks is forced to say what happens when it is absent.
     /// </summary>
     /// <remarks>
-    /// The set a monitor is acted through is the same one this asks, so this is a fact about the path
-    /// under test rather than about a set assembled for the question.
+    /// Both generations now hold the capability, so absence is no longer what keeps a monitoring path
+    /// from grabbing. What does is that the member lives on that role alone and no monitoring path
+    /// obtains it, which the whole-gesture case above asserts behaviourally. A generation this product
+    /// does not manage holds nothing, and is what a refusal is asserted over.
     /// </remarks>
     [Fact]
-    public void TheGrabbingRoleIsAbsentFromTheSetEveryMonitorPathObtainsFrom()
-        => Assert.All(
+    public void TheGrabbingRoleIsReachedOnlyByAskingForItByName()
+    {
+        Assert.All(
             ComposedAdds.Generations,
             generation =>
             {
@@ -423,9 +450,16 @@ public sealed class NonGrabbingBodyTests
                     WhisparrRoleSet.From(
                         new RecordingWhisparrClient(RecordingWhisparrClient.Json(200, "{}"))));
 
-                Assert.DoesNotContain(WhisparrCapability.SearchMonitored, capabilities.Held);
-                Assert.Null(
+                Assert.NotNull(
                     capabilities.Obtain<IWhisparrSearchGrabbing>()
                         .Match<IWhisparrSearchGrabbing?>(held => held, _ => null));
             });
+
+        var unmanaged = GenerationCapabilities.For((WhisparrGeneration)(-1));
+
+        Assert.Empty(unmanaged.Held);
+        Assert.Null(
+            unmanaged.Obtain<IWhisparrSearchGrabbing>()
+                .Match<IWhisparrSearchGrabbing?>(held => held, _ => null));
+    }
 }
