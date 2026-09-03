@@ -315,6 +315,132 @@ public sealed class SecondaryVerbTests
         Assert.Equal("copy", attach["importMode"]!.GetValue<string>());
     }
 
+    /// <summary>
+    /// The newer generation's search names the studio command and the performer command, each with an
+    /// id ARRAY, matching literals transcribed from that generation's own interface bundle.
+    /// </summary>
+    [Fact]
+    public void TheNewerGenerationsSearchNamesEachCommandWithAnIdArray()
+    {
+        var studio = V3BodyProjector.SearchMonitored(WhisparrEntityKind.Studio, 1);
+        var performer = V3BodyProjector.SearchMonitored(WhisparrEntityKind.Performer, 1);
+
+        Assert.Equal("StudiosSearch", studio["name"]!.GetValue<string>());
+        Assert.Equal([1], Assert.IsType<JsonArray>(studio["studioIds"]).Select(id => id!.GetValue<int>()));
+
+        Assert.Equal("PerformersSearch", performer["name"]!.GetValue<string>());
+        Assert.Equal(
+            [1], Assert.IsType<JsonArray>(performer["performerIds"]).Select(id => id!.GetValue<int>()));
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => V3BodyProjector.SearchMonitored((WhisparrEntityKind)(-1), 1));
+    }
+
+    /// <summary>
+    /// The older generation's search names its own command with a SCALAR id, and no array form reaches
+    /// it.
+    /// </summary>
+    [Fact]
+    public void TheOlderGenerationsSearchNamesItsCommandWithAScalarIdAndNoArrayReachesIt()
+    {
+        var series = V2BodyProjector.SearchMonitored(1);
+
+        Assert.Equal("SeriesSearch", series["name"]!.GetValue<string>());
+        Assert.Null(series["seriesId"] as JsonArray);
+        Assert.Equal(1, series["seriesId"]!.GetValue<int>());
+        Assert.DoesNotContain("[", series.ToJsonString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("studioIds", series.ToJsonString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("performerIds", series.ToJsonString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The body that leaves for each generation is that generation's own, chosen inside the seam from
+    /// the lineage rather than by a call site.
+    /// </summary>
+    /// <remarks>
+    /// Read off a stub below the client. A cross-lineage payload is answered as created and does
+    /// nothing at all, so a status says nothing about whether the right shape was sent.
+    /// </remarks>
+    [Fact]
+    public async Task EachGenerationsSearchBodyIsChosenInsideTheSeam()
+    {
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.Created, EmptyEntity);
+        using var http = new HttpClient(handler);
+        var client = new WhisparrClient(http, NullLogger.Instance);
+
+        await ((IWhisparrSearchGrabbing)client).SearchMonitoredAsync(
+            Address, Key, WhisparrGeneration.V3, WhisparrEntityKind.Studio, 4, TestCt);
+        await ((IWhisparrSearchGrabbing)client).SearchMonitoredAsync(
+            Address, Key, WhisparrGeneration.V2, WhisparrEntityKind.Studio, 3, TestCt);
+
+        Assert.All(handler.Requests, request => Assert.Equal("/api/v3/command", request.Path));
+
+        var newer = Assert.IsType<JsonObject>(JsonNode.Parse(handler.Requests[0].Body));
+        Assert.Equal("StudiosSearch", newer["name"]!.GetValue<string>());
+        Assert.Equal([4], Assert.IsType<JsonArray>(newer["studioIds"]).Select(id => id!.GetValue<int>()));
+
+        var older = Assert.IsType<JsonObject>(JsonNode.Parse(handler.Requests[1].Body));
+        Assert.Equal("SeriesSearch", older["name"]!.GetValue<string>());
+        Assert.Equal(3, older["seriesId"]!.GetValue<int>());
+
+        // A lineage this product does not manage composes nothing rather than defaulting to either
+        // generation's shape.
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => ((IWhisparrSearchGrabbing)client).SearchMonitoredAsync(
+                Address, Key, (WhisparrGeneration)(-1), WhisparrEntityKind.Studio, 3, TestCt));
+    }
+
+    /// <summary>
+    /// A caller reaches the grabbing verb only by obtaining its role by name, and obtaining it forces
+    /// the caller to state what happens when it is absent.
+    /// </summary>
+    /// <remarks>
+    /// The refusal is taken over a lineage this product does not manage, which holds nothing at all.
+    /// Both managed generations hold the capability, so their refusal is not reachable and asserting
+    /// one over a set built without the role would assert a construction fault instead.
+    /// </remarks>
+    [Fact]
+    public void TheSearchVerbIsReachedThroughItsOwnRoleAndAnAbsentOneIsARefusal()
+    {
+        var client = Recorder();
+
+        foreach (var generation in new[] { WhisparrGeneration.V3, WhisparrGeneration.V2 })
+        {
+            Assert.Same(
+                client,
+                CapabilitiesOn(generation, client)
+                    .Obtain<IWhisparrSearchGrabbing>()
+                    .Match<IWhisparrSearchGrabbing?>(held => held, _ => null));
+        }
+
+        var refusal = GenerationCapabilities.For((WhisparrGeneration)(-1))
+            .Obtain<IWhisparrSearchGrabbing>()
+            .Match<CapabilityRefusal?>(_ => null, refused => refused);
+
+        Assert.NotNull(refusal);
+        Assert.Equal(WhisparrCapability.SearchMonitored, refusal.Capability);
+        Assert.Empty(client.Verbs);
+    }
+
+    /// <summary>The one class that downloads gets one attempt and is never re-issued.</summary>
+    /// <remarks>
+    /// Read back through the policy a request actually goes through rather than off the table it reads,
+    /// and asserted now that a live implementation stands behind the declaration.
+    /// </remarks>
+    [Fact]
+    public void TheGrabbingClassGetsOneAttemptOverALiveImplementation()
+    {
+        Assert.Equal(
+            WhisparrRetryPolicy.NoRetry, WhisparrRetryPolicy.AttemptsFor(WhisparrVerbClass.Grab));
+        Assert.Equal(
+            [nameof(IWhisparrSearchGrabbing.SearchMonitoredAsync)],
+            OutboundSeam.MembersOf(WhisparrVerbClass.Grab));
+        Assert.Contains(typeof(IWhisparrSearchGrabbing), typeof(WhisparrClient).GetInterfaces());
+    }
+
+    /// <summary>An answer a request is given when nothing about the answer is the subject.</summary>
+    private const string EmptyEntity = """{"id":1}""";
+
     private static Uri Address { get; } = new(MonitorHost.StoredAddress);
 
     private static string Key => MonitorHost.StoredKey;
