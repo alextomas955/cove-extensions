@@ -311,12 +311,14 @@ internal sealed class RecordingWhisparrClient(WhisparrResponse answer)
     public Task<WhisparrResponse> SearchMonitoredAsync(
         Uri baseAddress,
         string apiKey,
+        WhisparrGeneration generation,
         WhisparrEntityKind kind,
         int entityId,
         CancellationToken ct)
         => RecordActing(
             new ActingCall(nameof(SearchMonitoredAsync), baseAddress, apiKey)
             {
+                Generation = generation,
                 Kind = kind,
                 EntityId = entityId,
             });
