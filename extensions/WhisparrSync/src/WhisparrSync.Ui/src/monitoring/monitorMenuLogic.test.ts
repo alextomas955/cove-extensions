@@ -366,8 +366,11 @@ describe("an action already on its way", () => {
 });
 
 describe("the verbs this build carries out", () => {
-  function secondaryItem(action: SecondaryAction): MonitorMenuItem {
-    const menu = monitorMenu(view({ kind: "studio", monitored: true }), false);
+  function secondaryItem(
+    action: SecondaryAction,
+    generation: WhisparrGeneration = "v3",
+  ): MonitorMenuItem {
+    const menu = monitorMenu(view({ kind: "studio", generation, monitored: true }), false);
     const item = menu.items.find((entry) => entry.item === "secondary" && entry.action === action);
     if (item === undefined) throw new Error(`the menu offers no ${action} row`);
     return item;
@@ -381,16 +384,45 @@ describe("the verbs this build carries out", () => {
     expect(routeFor(reflect, true)).toBe("reflect-owned");
   });
 
-  it("still answers null for the two verbs no route is mounted for", () => {
-    for (const action of ["addAllMissing", "searchAllMonitored"] as const) {
-      expect(routeFor(secondaryItem(action), true), action).toBeNull();
+  it("carries search all monitored out at its own route, on a generation holding it", () => {
+    for (const generation of GENERATIONS) {
+      const search = secondaryItem("searchAllMonitored", generation);
+
+      expect(search.enabled, generation).toBe(true);
+      expect(search.reason, generation).toBeNull();
+      expect(routeFor(search, true), generation).toBe("search-all-monitored");
     }
+  });
+
+  it("still answers null for the one verb no route is mounted for", () => {
+    expect(routeFor(secondaryItem("addAllMissing"), true)).toBeNull();
   });
 
   it("offers reflect owned to the selection bar not at all, because no bulk verb carries it", () => {
     const offer = bulkMonitorActions(view({ kind: "studio" }));
 
     expect(offer.actions.map((action) => action.verb)).toEqual(["monitor", "monitor", "unmonitor"]);
+  });
+
+  /**
+   * The absence is DERIVED, not written down twice.
+   *
+   * The entity menu can carry the verb out, so the selection bar leaving it out cannot be read as
+   * the row being unavailable. What excludes it is that the bulk route declares no verb reaching it,
+   * which is asserted here by pairing a non-null entity route with an absent bulk action.
+   */
+  it("offers the search verb to no selection, on either generation, while carrying it out per entity", () => {
+    for (const generation of GENERATIONS) {
+      for (const kind of ENTITY_KINDS) {
+        const offer = bulkMonitorActions(view({ kind, generation }));
+
+        expect(routeFor(secondaryItem("searchAllMonitored", generation), true)).not.toBeNull();
+        expect(
+          offer.actions.filter((action) => action.key.includes("searchAllMonitored")),
+          `${generation} ${kind}`,
+        ).toEqual([]);
+      }
+    }
   });
 
   it("states one sentence per skip reason", () => {
