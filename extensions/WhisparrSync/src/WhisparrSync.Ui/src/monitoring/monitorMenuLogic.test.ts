@@ -73,7 +73,7 @@ describe("the item set is written down for every combination the wire enums allo
     expect(CAPABILITY_ORDER).toHaveLength(6);
     expect(ENTITY_KINDS).toHaveLength(2);
     expect(GENERATIONS).toHaveLength(2);
-    expect(MONITOR_REFUSAL_KINDS).toHaveLength(7);
+    expect(MONITOR_REFUSAL_KINDS).toHaveLength(8);
     expect(SCOPE_ORDER).toHaveLength(2);
     expect(SECONDARY_ACTIONS).toHaveLength(3);
   });
