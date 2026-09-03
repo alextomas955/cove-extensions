@@ -1,3 +1,4 @@
+using WhisparrSync.Contracts;
 using WhisparrSync.Whisparr;
 
 namespace WhisparrSync.Monitoring;
@@ -19,10 +20,17 @@ public interface IWhisparrSearchGrabbing
     /// Names an entity and nothing else. There is no member taking a release, an indexer or a download
     /// client, so what is looked for is whatever that entity is monitoring at the time and the choice
     /// of where from is the instance's own.
+    /// <para>
+    /// The connected generation is named because both honour this role and neither spells the command
+    /// the way the other does: one takes an id array and the other a single scalar id, and a body
+    /// carrying the other's shape is accepted and does nothing. It names a lineage rather than a
+    /// route, so which body follows from it belongs to the implementation.
+    /// </para>
     /// </remarks>
     Task<WhisparrResponse> SearchMonitoredAsync(
         Uri baseAddress,
         string apiKey,
+        WhisparrGeneration generation,
         WhisparrEntityKind kind,
         int entityId,
         CancellationToken ct);

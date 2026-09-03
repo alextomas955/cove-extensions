@@ -36,6 +36,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.MonitorPerformer,
                 WhisparrCapability.RegisterMissingScenes,
                 WhisparrCapability.ReflectOwnedFiles,
+                WhisparrCapability.SearchMonitored,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V3).Held);
     }
@@ -51,6 +52,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.OutOfBandCallbackSecret,
                 WhisparrCapability.MonitorStudio,
                 WhisparrCapability.ReflectOwnedFiles,
+                WhisparrCapability.SearchMonitored,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V2).Held);
     }
@@ -147,6 +149,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.MonitorPerformer,
                 WhisparrCapability.RegisterMissingScenes,
                 WhisparrCapability.ReflectOwnedFiles,
+                WhisparrCapability.SearchMonitored,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
         Assert.Equal(
@@ -154,6 +157,7 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.OutOfBandCallbackSecret,
                 WhisparrCapability.MonitorStudio,
                 WhisparrCapability.ReflectOwnedFiles,
+                WhisparrCapability.SearchMonitored,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
         Assert.Empty(GenerationCapabilities.CapabilitiesOf((WhisparrGeneration)(-1)));
@@ -164,10 +168,9 @@ public sealed class GenerationCapabilitiesTests
     /// from its table rather than present and refusing when it is called.
     /// </summary>
     /// <remarks>
-    /// Three absences, and each has its own reason: it addresses no performer, no route on it adds a
-    /// catalogue item, and the one verb that downloads has no implementation on either generation yet.
-    /// A capability registered ahead of its implementation is worse than an absent one, because the
-    /// refusal a caller was forced to state would never fire.
+    /// Two absences, and each has its own reason: it addresses no performer at all, and no route on it
+    /// adds a catalogue item. Everything else it honours, so the list is the whole claim rather than a
+    /// sample of it.
     /// </remarks>
     [Fact]
     public void TheOlderGenerationHoldsExactlyTheCapabilitiesItCanHonour()
@@ -179,15 +182,11 @@ public sealed class GenerationCapabilitiesTests
                 WhisparrCapability.OutOfBandCallbackSecret,
                 WhisparrCapability.MonitorStudio,
                 WhisparrCapability.ReflectOwnedFiles,
+                WhisparrCapability.SearchMonitored,
             ],
             held);
         Assert.All(
-            new[]
-            {
-                WhisparrCapability.MonitorPerformer,
-                WhisparrCapability.RegisterMissingScenes,
-                WhisparrCapability.SearchMonitored,
-            },
+            new[] { WhisparrCapability.MonitorPerformer, WhisparrCapability.RegisterMissingScenes },
             absent => Assert.DoesNotContain(absent, held));
     }
 
@@ -327,7 +326,7 @@ public sealed class GenerationCapabilitiesTests
     public void TheCapabilityTravelsInTheCamelCaseSpelling()
         => Assert.Equal(
             "[\"outOfBandCallbackSecret\",\"monitorStudio\",\"monitorPerformer\","
-                + "\"registerMissingScenes\",\"reflectOwnedFiles\"]",
+                + "\"registerMissingScenes\",\"reflectOwnedFiles\",\"searchMonitored\"]",
             JsonSerializer.Serialize(
                 GenerationCapabilities.For(WhisparrGeneration.V3).Held, HostJsonOptions));
 

@@ -33,6 +33,12 @@ internal static class V3BodyProjector
     /// <summary>The add method recording that a person asked for the item.</summary>
     internal const string ManualAddMethod = "manual";
 
+    /// <summary>This generation's search command for a studio. The one verb that downloads.</summary>
+    internal const string StudiosSearchCommand = "StudiosSearch";
+
+    /// <summary>This generation's search command for a performer. The one verb that downloads.</summary>
+    internal const string PerformersSearchCommand = "PerformersSearch";
+
     /// <summary>This generation's catalogue-refresh command for a studio.</summary>
     internal const string RefreshStudiosCommand = "RefreshStudios";
 
@@ -124,6 +130,24 @@ internal static class V3BodyProjector
             WhisparrEntityKind.Studio => Command(RefreshStudiosCommand, "studioIds", entityId),
             WhisparrEntityKind.Performer
                 => Command(RefreshPerformersCommand, "performerIds", entityId),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(kind), kind, "This is not an entity kind this product expresses."),
+        };
+
+    /// <summary>The command asking the instance to look for what one entity monitors and lacks.</summary>
+    /// <remarks>
+    /// Composed only for a caller holding the grabbing role. It is the one body this product can
+    /// compose that makes an instance acquire anything.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="kind"/> is not a kind this product expresses, or <paramref name="entityId"/>
+    /// is below one.
+    /// </exception>
+    internal static JsonObject SearchMonitored(WhisparrEntityKind kind, int entityId)
+        => kind switch
+        {
+            WhisparrEntityKind.Studio => Command(StudiosSearchCommand, "studioIds", entityId),
+            WhisparrEntityKind.Performer => Command(PerformersSearchCommand, "performerIds", entityId),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(kind), kind, "This is not an entity kind this product expresses."),
         };

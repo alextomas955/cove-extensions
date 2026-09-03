@@ -131,6 +131,7 @@ public static class GenerationCapabilities
         WhisparrCapability.MonitorPerformer,
         WhisparrCapability.RegisterMissingScenes,
         WhisparrCapability.ReflectOwnedFiles,
+        WhisparrCapability.SearchMonitored,
     ];
 
     /// <inheritdoc cref="V3Capabilities"/>
@@ -145,6 +146,7 @@ public static class GenerationCapabilities
         WhisparrCapability.OutOfBandCallbackSecret,
         WhisparrCapability.MonitorStudio,
         WhisparrCapability.ReflectOwnedFiles,
+        WhisparrCapability.SearchMonitored,
     ];
 
     /// <summary>What <paramref name="generation"/> can honour, with no acting role supplied.</summary>
@@ -200,6 +202,7 @@ public static class GenerationCapabilities
                     registered[WhisparrCapability.MonitorPerformer] = roles.PerformerActing;
                     registered[WhisparrCapability.RegisterMissingScenes] = roles.MissingSceneActing;
                     registered[WhisparrCapability.ReflectOwnedFiles] = roles.ReflectOwnedActing;
+                    registered[WhisparrCapability.SearchMonitored] = roles.SearchGrabbing;
                 }
 
                 break;
@@ -212,6 +215,7 @@ public static class GenerationCapabilities
                 {
                     registered[WhisparrCapability.MonitorStudio] = roles.StudioActing;
                     registered[WhisparrCapability.ReflectOwnedFiles] = roles.ReflectOwnedActing;
+                    registered[WhisparrCapability.SearchMonitored] = roles.SearchGrabbing;
                 }
 
                 break;
@@ -238,11 +242,16 @@ public static class GenerationCapabilities
 /// <param name="PerformerActing">Monitors a performer.</param>
 /// <param name="MissingSceneActing">Registers scenes an instance's catalogue does not hold.</param>
 /// <param name="ReflectOwnedActing">Tells an instance where files the library already holds are.</param>
+/// <param name="SearchGrabbing">
+/// Asks an instance to look for what it monitors and does not hold. The one role here that can make
+/// an instance download, obtained by name and by nothing else.
+/// </param>
 internal sealed record WhisparrRoleSet(
     IWhisparrStudioActing StudioActing,
     IWhisparrPerformerActing PerformerActing,
     IWhisparrMissingSceneActing MissingSceneActing,
-    IWhisparrReflectOwnedActing ReflectOwnedActing)
+    IWhisparrReflectOwnedActing ReflectOwnedActing,
+    IWhisparrSearchGrabbing SearchGrabbing)
 {
     /// <summary>The roles <paramref name="client"/> implements.</summary>
     /// <exception cref="InvalidOperationException">
@@ -258,8 +267,13 @@ internal sealed record WhisparrRoleSet(
             and IWhisparrPerformerActing performerActing
             and IWhisparrMissingSceneActing missingSceneActing
             and IWhisparrReflectOwnedActing reflectOwnedActing
+            and IWhisparrSearchGrabbing searchGrabbing
             ? new WhisparrRoleSet(
-                studioActing, performerActing, missingSceneActing, reflectOwnedActing)
+                studioActing,
+                performerActing,
+                missingSceneActing,
+                reflectOwnedActing,
+                searchGrabbing)
             : throw new InvalidOperationException(
                 $"{client.GetType()} holds this product's HTTP client but implements only part of "
                     + $"{nameof(WhisparrRoleSet)}.");
