@@ -162,6 +162,17 @@ export const NO_INSTANCE_CONNECTED =
 export const NO_IDENTITY_IN_THIS_NAMESPACE =
   "Cove holds no link for this entity that the connected Whisparr can identify it by.";
 
+/**
+ * The entity carries several links the connected instance would read as the same source, naming
+ * different entities.
+ *
+ * Names the page the reader fixes it on rather than the instance, because nothing in Whisparr is
+ * wrong here: Cove holds two links and only one of them can be the right one.
+ */
+export const SEVERAL_IDENTITIES_IN_THIS_NAMESPACE =
+  "Cove holds more than one conflicting link for this entity, so which one Whisparr should use is " +
+  "unclear. Remove the links that do not belong on this entity's page in Cove.";
+
 /** The instance offers no quality profile, so nothing could be composed to send. */
 export const INSTANCE_OFFERS_NO_QUALITY_PROFILE =
   "Whisparr offers no quality profile, so nothing was sent. Add one in Whisparr and try again.";
