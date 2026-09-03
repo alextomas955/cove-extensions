@@ -57,7 +57,7 @@ export function EntityMonitorButton({ studio }: { studio: { id: number } }) {
         failed={null}
         content={
           <>
-            <WhisparrMark className="h-5 w-5" />
+            <WhisparrMark generation={state.view?.generation} className="h-5 w-5" />
             {monitored ? (
               <svg
                 viewBox="0 0 24 24"
