@@ -64,6 +64,7 @@ function viewOf(overrides: Partial<EntityMonitoringView>): EntityMonitoringView 
 interface Mounted {
   container: HTMLElement;
   trigger: HTMLButtonElement;
+  panel: () => Element | null;
   rows: () => HTMLButtonElement[];
 }
 
@@ -100,7 +101,10 @@ async function mount(
   return {
     container,
     trigger,
-    rows: () => [...host.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]')],
+    // Queried from the document, because the menu is portaled out of the host page's own hero: that
+    // container clips its overflow, so a panel left in the flow there would be cut off.
+    panel: () => document.body.querySelector('[role="menu"]'),
+    rows: () => [...document.body.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]')],
   };
 }
 
@@ -133,6 +137,26 @@ test("every row carries a menu role, and the scope pair carries the radio role a
   expect(rows.length).toBe(2);
   expect(rows.map((row) => row.getAttribute("role"))).toEqual(["menuitemradio", "menuitemradio"]);
   expect(rows.map((row) => row.getAttribute("aria-checked"))).toEqual(["true", "false"]);
+});
+
+test("the panel leaves the page's own container, which clips what it holds", async () => {
+  const menu = monitorMenu(viewOf({}), false);
+  const mounted = await mount((triggerRef) =>
+    createElement(EntityMonitorMenu, {
+      menu,
+      label: "Monitor in Whisparr",
+      triggerRef,
+      onSelect: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+
+  const panel = mounted.panel();
+  expect(panel).not.toBeNull();
+  // In the document rather than beside the control, and positioned against the viewport, so an
+  // ancestor hiding its overflow cannot cut the panel off.
+  expect(mounted.container.contains(panel)).toBe(false);
+  expect(panel?.classList.contains("fixed")).toBe(true);
 });
 
 test("the first scope option is Future Scenes and it is the one taken", async () => {
@@ -186,7 +210,7 @@ test("a sentence beneath a row stays out of that row's accessible name", async (
   );
 
   // The sentence is on screen, and the row is still called only what it is called.
-  expect(mounted.container.textContent).toContain(ALL_SCENES_MARKS_THE_BACK_CATALOGUE);
+  expect(mounted.panel()?.textContent).toContain(ALL_SCENES_MARKS_THE_BACK_CATALOGUE);
   expect(accessibleName(mounted.rows()[1])).toBe(SCOPE_ALL_SCENES);
 });
 

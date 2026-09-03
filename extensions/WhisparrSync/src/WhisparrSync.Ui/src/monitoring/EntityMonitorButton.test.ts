@@ -1,17 +1,18 @@
 // @vitest-environment jsdom
 /**
- * What the control paints at each stage of its own read, and what one press sends.
+ * What the control paints at each stage of its own read, what a press opens, and what a choice sends.
  *
  * A DOM is needed because the properties under test are about the rendered element rather than about
  * a value a helper returns: a mark drawn before the read answers is a wrong-generation colour on
- * screen, and a body carrying an identifier is a request the server is obliged to ignore.
+ * screen, a failed read painted as unmonitored is a wrong answer dressed as an answer, and a body
+ * carrying an identifier is a request the server is obliged to ignore.
  *
  * React arrives as its PRODUCTION build (the bundle's `process.env.NODE_ENV` define applies here
  * too), which has no `act`, so a render is flushed by waiting rather than by wrapping. The shared
- * primitives and the host's authenticated fetch both stand in, because each resolves only inside a
- * consuming bundle.
+ * primitives, the host's authenticated fetch and its POST helper all stand in, because each resolves
+ * only inside a consuming bundle.
  */
-import { test, expect, vi } from "vitest";
+import { test, expect, vi, afterEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -26,7 +27,7 @@ vi.mock("@cove-extensions/ui-shared", () => ({
 
 interface Sent {
   path: string;
-  method: string | undefined;
+  method: string;
   body: string | undefined;
 }
 
@@ -37,7 +38,7 @@ const sent: Sent[] = [];
 // test then does with it.
 type Answer = () => Promise<unknown>;
 let readAnswer: Answer = () => Promise.resolve(null);
-let actionAnswer: Answer = () => Promise.resolve(null);
+let actionAnswer: Answer = () => Promise.resolve({});
 
 vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
   ApiError: class ApiError extends Error {
@@ -48,18 +49,27 @@ vi.mock("@cove-extensions/ui-shared/extensionRequest", () => ({
       super(`${String(status)} ${body}`);
     }
   },
-  requestJson: (route: string, options?: RequestInit) => {
-    sent.push({
-      path: route,
-      method: options?.method,
-      body: typeof options?.body === "string" ? options.body : undefined,
-    });
-    return route.endsWith("/monitor") ? actionAnswer() : readAnswer();
+  requestJson: (route: string) => {
+    sent.push({ path: route, method: "GET", body: undefined });
+    return readAnswer();
   },
 }));
 
-const { EntityMonitorButton } = await import("./EntityMonitorButton");
-const { MONITOR_IN_WHISPARR, MONITORED_IN_WHISPARR } = await import("../common/ui/copy");
+vi.mock("@cove-extensions/ui-shared/postAction", () => ({
+  postAction: (route: string, body: unknown) => {
+    sent.push({ path: route, method: "POST", body: JSON.stringify(body) });
+    return actionAnswer();
+  },
+}));
+
+const { WhisparrPerformerActions, WhisparrStudioActions } = await import("./EntityMonitorButton");
+const {
+  ACTION_ABSENT_IN_THIS_VERSION,
+  CAP_UNAVAILABLE_ON_THIS_GENERATION,
+  MONITORED_IN_WHISPARR,
+  MONITORING_COULD_NOT_BE_READ,
+  MONITOR_IN_WHISPARR,
+} = await import("../common/ui/copy");
 
 const sleep = (ms: number) =>
   new Promise((resolve) => {
@@ -80,15 +90,24 @@ function hasClass(element: Element | null, cls: string): boolean {
   return element?.classList.contains(cls) === true;
 }
 
-function view(monitored: boolean) {
+function view(overrides: Record<string, unknown>) {
   return {
     kind: "studio",
     generation: "v3",
-    monitored,
+    monitored: false,
     refusal: "none",
     capabilities: ["monitorStudio"],
+    ...overrides,
   };
 }
+
+const teardowns: (() => void)[] = [];
+afterEach(() => {
+  while (teardowns.length > 0) teardowns.pop()?.();
+  sent.length = 0;
+  readAnswer = () => Promise.resolve(null);
+  actionAnswer = () => Promise.resolve({});
+});
 
 async function render(node: ReactNode) {
   const container = document.createElement("div");
@@ -96,86 +115,128 @@ async function render(node: ReactNode) {
   const root = createRoot(container);
   root.render(node);
   await sleep(COMMIT_MS);
+  teardowns.push(() => {
+    root.unmount();
+    container.remove();
+  });
   return {
     container,
     button: container.querySelector("button"),
-    marks: () => container.querySelectorAll("svg").length,
-    teardown: () => {
-      root.unmount();
-      container.remove();
-    },
+    marks: () => container.querySelector("button")?.querySelectorAll("svg").length ?? 0,
+    // Queried from the document, because the menu is portaled out of the host page's own hero: that
+    // container clips its overflow, so a panel left in the flow there would be cut off.
+    menu: () => document.body.querySelector('[role="menu"]'),
+    rows: () => [...document.body.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]')],
   };
 }
 
-function reset() {
-  sent.length = 0;
-  readAnswer = () => Promise.resolve(null);
-  actionAnswer = () => Promise.resolve(null);
-}
+/** A read that never settles, which is the frame under test. */
+const NEVER: Answer = () =>
+  new Promise(() => {
+    // intentionally never resolved
+  });
 
 test("the first frame is a bordered shell with no mark at all", async () => {
-  reset();
-  // A read that never settles, which is the frame under test.
-  readAnswer = () =>
-    new Promise(() => {
-      // intentionally never resolved
-    });
+  readAnswer = NEVER;
 
-  const rendered = await render(createElement(EntityMonitorButton, { studio: { id: 1 } }));
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
 
   expect(rendered.button).not.toBeNull();
   expect(rendered.marks()).toBe(0);
   expect(rendered.button?.getAttribute("aria-label")).toBe(MONITOR_IN_WHISPARR);
-  rendered.teardown();
 });
 
 test("a read answering not-monitored paints the mark and no tick", async () => {
-  reset();
-  readAnswer = () => Promise.resolve(view(false));
+  readAnswer = () => Promise.resolve(view({}));
 
-  const rendered = await render(createElement(EntityMonitorButton, { studio: { id: 1 } }));
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
 
   expect(rendered.marks()).toBe(1);
   expect(hasClass(rendered.button, "border-accent")).toBe(false);
   expect(rendered.button?.getAttribute("aria-label")).toBe(MONITOR_IN_WHISPARR);
-  rendered.teardown();
 });
 
-test("a read answering monitored paints the mark, the tick and the border", async () => {
-  reset();
-  readAnswer = () => Promise.resolve(view(true));
+test("the monitored state is a border and a tick, and no accent fill on the control itself", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true }));
 
-  const rendered = await render(createElement(EntityMonitorButton, { studio: { id: 1 } }));
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
 
   // The mark and the tick: the state lives on the border plus the tick, never on the mark, which is
   // a filled two-tone disc that cannot inherit a colour.
   expect(rendered.marks()).toBe(2);
   expect(hasClass(rendered.button, "border-accent")).toBe(true);
   expect(rendered.button?.getAttribute("aria-label")).toBe(MONITORED_IN_WHISPARR);
-  rendered.teardown();
+
+  // Neither accent background is on the button. The tint that lifts the border is a layer behind the
+  // mark, which is what keeps a two-tone disc off a solid accent field.
+  expect(hasClass(rendered.button, "bg-accent")).toBe(false);
+  expect(hasClass(rendered.button, "bg-accent/10")).toBe(false);
+  const tint = rendered.container.querySelector("span.bg-accent\\/10");
+  expect(tint, "the accent tint is not drawn behind the mark").not.toBeNull();
+  expect(tint?.parentElement).toBe(rendered.button);
+});
+
+test("a failed read says so, and never paints the unmonitored state", async () => {
+  readAnswer = () => Promise.reject(new Error("nothing answered"));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+
+  expect(rendered.button).not.toBeNull();
+  expect(rendered.marks()).toBe(0);
+  expect(rendered.button?.disabled).toBe(true);
+  expect(rendered.button?.getAttribute("aria-label")).toBe(
+    `${MONITOR_IN_WHISPARR}, ${MONITORING_COULD_NOT_BE_READ}`,
+  );
+  expect(rendered.button?.getAttribute("title")).toBe(
+    `${MONITOR_IN_WHISPARR}, ${MONITORING_COULD_NOT_BE_READ}`,
+  );
 });
 
 test("the read names the mounted entity and asks for its monitoring", async () => {
-  reset();
-  readAnswer = () => Promise.resolve(view(false));
+  readAnswer = () => Promise.resolve(view({}));
 
-  const rendered = await render(createElement(EntityMonitorButton, { studio: { id: 42 } }));
+  await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
 
   expect(sent).toHaveLength(1);
   expect(sent[0].path).toBe(
     "/extensions/com.alextomas955.whisparrsync/entity/studio/42/monitoring",
   );
-  expect(sent[0].method).toBeUndefined();
-  rendered.teardown();
+  expect(sent[0].method).toBe("GET");
 });
 
-test("one press posts the scope and no identifier of any kind", async () => {
-  reset();
-  readAnswer = () => Promise.resolve(view(false));
-  actionAnswer = () => Promise.resolve(view(true));
+test("the performer control asks about a performer, on its own page", async () => {
+  readAnswer = () => Promise.resolve(view({ kind: "performer" }));
 
-  const rendered = await render(createElement(EntityMonitorButton, { studio: { id: 42 } }));
+  await render(createElement(WhisparrPerformerActions, { performer: { id: 7 } }));
+
+  expect(sent).toHaveLength(1);
+  expect(sent[0].path).toBe(
+    "/extensions/com.alextomas955.whisparrsync/entity/performer/7/monitoring",
+  );
+});
+
+test("a press opens the menu and posts nothing, because monitoring lives in the menu", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
+  expect(rendered.menu()).toBeNull();
+
   rendered.button?.click();
+  await sleep(COMMIT_MS);
+
+  expect(rendered.menu()).not.toBeNull();
+  expect(rendered.button?.getAttribute("aria-expanded")).toBe("true");
+  expect(sent.filter((call) => call.method === "POST")).toEqual([]);
+});
+
+test("choosing a scope posts it, with no identifier of any kind, and reads the state back", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 42 } }));
+  rendered.button?.click();
+  await sleep(COMMIT_MS);
+
+  rendered.rows()[0].click();
   await sleep(COMMIT_MS);
 
   const posted = sent.filter((call) => call.method === "POST");
@@ -185,52 +246,65 @@ test("one press posts the scope and no identifier of any kind", async () => {
     "scope",
   ]);
   expect((JSON.parse(posted[0].body ?? "{}") as { scope: string }).scope).toBe("futureScenes");
-  rendered.teardown();
+
+  // Exactly one re-read: the mount read, then one more after the action settled. What the entity now
+  // is comes from the instance, never from what the browser asked for.
+  expect(sent.filter((call) => call.method === "GET")).toHaveLength(2);
 });
 
-test("the answer to a press is what the control then paints", async () => {
-  reset();
-  readAnswer = () => Promise.resolve(view(false));
-  actionAnswer = () => Promise.resolve(view(true));
+test("an item already on its way is not pressable again", async () => {
+  readAnswer = () => Promise.resolve(view({}));
+  actionAnswer = NEVER;
 
-  const rendered = await render(createElement(EntityMonitorButton, { studio: { id: 1 } }));
-  expect(rendered.marks()).toBe(1);
-
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
   rendered.button?.click();
   await sleep(COMMIT_MS);
 
-  expect(rendered.marks()).toBe(2);
-  expect(rendered.button?.getAttribute("aria-label")).toBe(MONITORED_IN_WHISPARR);
-  rendered.teardown();
-});
-
-test("a press in flight leaves the control unpressable, so one entity cannot get two", async () => {
-  reset();
-  readAnswer = () => Promise.resolve(view(false));
-  actionAnswer = () =>
-    new Promise(() => {
-      // intentionally never resolved
-    });
-
-  const rendered = await render(createElement(EntityMonitorButton, { studio: { id: 1 } }));
-  rendered.button?.click();
+  rendered.rows()[0].click();
   await sleep(COMMIT_MS);
 
-  expect(rendered.button?.disabled).toBe(true);
-  rendered.button?.click();
+  expect(rendered.rows().every((row) => row.disabled)).toBe(true);
+  rendered.rows()[1].click();
   await sleep(COMMIT_MS);
 
   expect(sent.filter((call) => call.method === "POST")).toHaveLength(1);
-  rendered.teardown();
 });
 
-test("a failed read leaves the shell with no mark rather than a guessed one", async () => {
-  reset();
-  readAnswer = () => Promise.reject(new Error("nothing answered"));
+test("a v2 performer keeps its control, disabled, saying what the generation cannot do", async () => {
+  readAnswer = () =>
+    Promise.resolve(
+      view({
+        kind: "performer",
+        generation: "v2",
+        refusal: "capabilityAbsentOnThisGeneration",
+        capabilities: ["outOfBandCallbackSecret", "monitorStudio"],
+      }),
+    );
 
-  const rendered = await render(createElement(EntityMonitorButton, { studio: { id: 1 } }));
+  const rendered = await render(createElement(WhisparrPerformerActions, { performer: { id: 3 } }));
 
-  expect(rendered.button).not.toBeNull();
-  expect(rendered.marks()).toBe(0);
-  rendered.teardown();
+  expect(rendered.button, "the control is omitted rather than refused").not.toBeNull();
+  expect(rendered.button?.disabled).toBe(true);
+  expect(rendered.button?.getAttribute("aria-label")).toBe(
+    `${MONITOR_IN_WHISPARR}, ${CAP_UNAVAILABLE_ON_THIS_GENERATION}`,
+  );
+});
+
+test("an item this build serves no route for is offered dimmed rather than pressed into nothing", async () => {
+  readAnswer = () => Promise.resolve(view({ monitored: true }));
+
+  const rendered = await render(createElement(WhisparrStudioActions, { studio: { id: 1 } }));
+  rendered.button?.click();
+  await sleep(COMMIT_MS);
+
+  const rows = rendered.rows();
+  expect(rows.length).toBeGreaterThan(0);
+  expect(rows.every((row) => row.disabled)).toBe(true);
+  expect(
+    rows.some((row) => (row.getAttribute("title") ?? "").endsWith(ACTION_ABSENT_IN_THIS_VERSION)),
+  ).toBe(true);
+
+  rows[0].click();
+  await sleep(COMMIT_MS);
+  expect(sent.filter((call) => call.method === "POST")).toEqual([]);
 });
