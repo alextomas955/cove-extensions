@@ -33,9 +33,14 @@ import { useMonitoring } from "./useMonitoring";
  * The host exports it so extensions match its rounding, size and border, and it cannot be imported
  * across repositories. Every class in it is one the host's own source writes, which is what makes it
  * a class the host actually emits.
+ *
+ * `border-border` is held out of it because the host's stylesheet declares that class twice: the
+ * utility `border-color` rule, and a later rule setting the `border` shorthand. At equal specificity
+ * the later one wins and its shorthand resets the colour, so `border-accent` alongside it computes
+ * grey rather than the accent. The monitored state therefore carries `border-accent` in its place.
  */
 const HERO_ACTION_BUTTON_CLASS =
-  "inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card transition-colors hover:border-accent hover:text-foreground disabled:cursor-not-allowed";
+  "inline-flex h-10 w-10 items-center justify-center rounded-lg border bg-card transition-colors hover:border-accent hover:text-foreground disabled:cursor-not-allowed";
 
 /** What that route is sent. A kind expressing no scope sends none rather than a default. */
 function bodyFor(item: MonitorMenuItem): unknown {
@@ -95,7 +100,7 @@ function EntityMonitorControl({ kind, coveId }: { kind: WhisparrEntityKind; cove
         className={
           monitored
             ? `relative ${HERO_ACTION_BUTTON_CLASS} border-accent`
-            : `relative ${HERO_ACTION_BUTTON_CLASS}`
+            : `relative ${HERO_ACTION_BUTTON_CLASS} border-border`
         }
         disabled={unavailable !== null || region.status === "reading"}
         aria-haspopup="menu"
