@@ -63,7 +63,10 @@ test("bulkSearchMonitoredBody shapes { Kind, RemoteIds:[{Endpoint,RemoteId}] } (
   assert.equal("BaseUrl" in body, false);
   assert.equal("ApiKey" in body, false);
   // Absent ids → empty array (the server then reports NO_STASHDB_IDENTITY).
-  assert.deepEqual(bulkSearchMonitoredBody("performer", null), { Kind: "performer", RemoteIds: [] });
+  assert.deepEqual(bulkSearchMonitoredBody("performer", null), {
+    Kind: "performer",
+    RemoteIds: [],
+  });
   assert.deepEqual(bulkSearchMonitoredBody("performer", undefined), {
     Kind: "performer",
     RemoteIds: [],
@@ -197,7 +200,12 @@ test("releaseSummary joins present-only fragments (quality · size · indexer ·
 });
 
 test("menuItemsState: monitored → checked + bulk shown; carries NO status-text field (the page line owns it)", () => {
-  const state = menuItemsState({ added: true, monitored: true, scenesPresent: 12, scenesTotal: 40 });
+  const state = menuItemsState({
+    added: true,
+    monitored: true,
+    scenesPresent: 12,
+    scenesTotal: 40,
+  });
   assert.deepEqual(state, {
     monitorLabel: "Monitor in Whisparr",
     monitorChecked: true,
@@ -209,11 +217,14 @@ test("menuItemsState: monitored → checked + bulk shown; carries NO status-text
 });
 
 test("menuItemsState: not monitored (or null) → unchecked, bulk hidden, no status-text field", () => {
-  assert.deepEqual(menuItemsState({ added: true, monitored: false, scenesPresent: 0, scenesTotal: 0 }), {
-    monitorLabel: "Monitor in Whisparr",
-    monitorChecked: false,
-    showBulk: false,
-  });
+  assert.deepEqual(
+    menuItemsState({ added: true, monitored: false, scenesPresent: 0, scenesTotal: 0 }),
+    {
+      monitorLabel: "Monitor in Whisparr",
+      monitorChecked: false,
+      showBulk: false,
+    },
+  );
   assert.deepEqual(menuItemsState(null), {
     monitorLabel: "Monitor in Whisparr",
     monitorChecked: false,

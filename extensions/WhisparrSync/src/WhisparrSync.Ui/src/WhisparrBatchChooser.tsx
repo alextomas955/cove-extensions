@@ -11,11 +11,9 @@
  * ships no CSS; a `left-1/2`/`-translate-x-1/2` utility the host never emits would not position it). All labels
  * render as React text nodes (auto-escaped); styling uses host Tailwind token classes only (check-classes).
  */
-// This file intentionally co-locates the chooser component with its imperative mounter
-// (presentBatchChooser renders the component into a body-attached root). Fast-refresh's
-// components-only export rule is a dev-HMR concern that does not apply to this production
-// library bundle, and splitting the mounter from the component it renders would be artificial.
-/* eslint-disable react-refresh/only-export-components */
+// This file intentionally co-locates the chooser component with its imperative mounter:
+// presentBatchChooser renders the component into a body-attached root, and splitting the two
+// would be artificial.
 import { useLayoutEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { Ban, CircleSlash, Plus, Radar, Search, TrendingUp } from "lucide-react";

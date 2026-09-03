@@ -44,7 +44,10 @@ test("success + unreachable + mismatch copy interpolate their values", () => {
     connectionCopy({ kind: "unreachable", url: "http://localhost:6969" }).message,
     /http:\/\/localhost:6969/,
   );
-  assert.match(connectionCopy({ kind: "versionMismatch", detected: "2.0.2.1" }).message, /2\.0\.2\.1/);
+  assert.match(
+    connectionCopy({ kind: "versionMismatch", detected: "2.0.2.1" }).message,
+    /2\.0\.2\.1/,
+  );
 });
 
 test("versionMismatch is a warning refusal, not a generic error", () => {

@@ -10,7 +10,15 @@ import assert from "node:assert/strict";
 const mod = await import(process.env.ACTION_FAILURE_MODULE);
 const { classifyActionFailure, actionFailureMessage, actionFailureCopy, rejectedMessage } = mod;
 
-const ALL_KINDS = ["badKey", "notWhisparr", "unreachable", "rejected", "noIdentity", "versionUnsupported", "unknown"];
+const ALL_KINDS = [
+  "badKey",
+  "notWhisparr",
+  "unreachable",
+  "rejected",
+  "noIdentity",
+  "versionUnsupported",
+  "unknown",
+];
 
 test("classifyActionFailure: 502 discriminates badKey / notWhisparr / rejected / unreachable (catch-all)", () => {
   assert.equal(classifyActionFailure(502, '{"result":"badKey"}'), "badKey");
@@ -22,17 +30,28 @@ test("classifyActionFailure: 502 discriminates badKey / notWhisparr / rejected /
 });
 
 test("rejected: surfaces Whisparr's own message, and degrades to a generic sentence when absent", () => {
-  assert.equal(rejectedMessage('{"result":"rejected","message":"Failed to connect to qBittorrent."}'), "Failed to connect to qBittorrent.");
+  assert.equal(
+    rejectedMessage('{"result":"rejected","message":"Failed to connect to qBittorrent."}'),
+    "Failed to connect to qBittorrent.",
+  );
   assert.equal(rejectedMessage('{"result":"rejected"}'), null);
   assert.equal(rejectedMessage("not json"), null);
   assert.equal(
     actionFailureMessage("rejected", "cap-copy", "Failed to connect to qBittorrent."),
     "Whisparr couldn't complete this: Failed to connect to qBittorrent.",
   );
-  assert.equal(actionFailureMessage("rejected", "cap-copy", null), "Whisparr couldn't complete this action.");
+  assert.equal(
+    actionFailureMessage("rejected", "cap-copy", null),
+    "Whisparr couldn't complete this action.",
+  );
   // The full copy surfaces Whisparr's real reason instead of a generic "can't reach Whisparr".
   assert.equal(
-    actionFailureCopy("grab this release", 502, '{"result":"rejected","message":"No matching movie"}', "cap-copy"),
+    actionFailureCopy(
+      "grab this release",
+      502,
+      '{"result":"rejected","message":"No matching movie"}',
+      "cap-copy",
+    ),
     "Couldn't grab this release — Whisparr couldn't complete this: No matching movie",
   );
 });

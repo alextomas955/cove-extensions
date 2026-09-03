@@ -5,6 +5,7 @@
  */
 import type { ReactNode } from "react";
 import { Ban, Bookmark, Circle, CircleDashed, Download, Loader } from "lucide-react";
+import { StatusPill } from "@cove-extensions/ui-shared";
 import { useLibraryStatusOn } from "./libraryToggleStore";
 import { WHISPARR_UNAVAILABLE_COPY } from "./monitorLogic";
 import { FILE_INDICATOR, SCENE_STATE_LABEL, type SceneWhisparrState } from "./sceneStatusLogic";
@@ -69,11 +70,14 @@ export function WhisparrLibraryRow() {
         })}
         {/* The SECONDARY in-library count: a scene with a file, quietly tinted apart from the primary axis
             (it overlaps monitored/unmonitored, so it is not one of the management pills). */}
-        <span className="inline-flex items-center gap-1.5 rounded-md border border-green-500/40 bg-green-500/10 px-2 py-0.5 text-xs">
-          <Download className="h-3.5 w-3.5 text-green-400" />
+        <StatusPill
+          variant="green"
+          shape="tag"
+          icon={<Download className="h-3.5 w-3.5 text-green-400" />}
+        >
           <span className="font-semibold tabular-nums text-foreground">{counts.inLibrary}</span>
           <span className="text-secondary">{FILE_INDICATOR.label}</span>
-        </span>
+        </StatusPill>
         <span className="ml-auto inline-flex items-center gap-1 text-xs text-muted">
           <span className="font-semibold tabular-nums">{counts.notAdded}</span>
           not added

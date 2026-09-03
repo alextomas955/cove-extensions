@@ -9,7 +9,10 @@ const mod = await import(process.env.WEBHOOK_LOGIC_MODULE);
 const { webhookUrlFromServer, resolveWebhookStatus, EMPTY_WEBHOOK } = mod;
 
 test("webhookUrlFromServer: reads the PascalCase WebhookUrlResponse shape", () => {
-  const v = webhookUrlFromServer({ Url: "http://host.docker.internal:5073/hook", Registered: true });
+  const v = webhookUrlFromServer({
+    Url: "http://host.docker.internal:5073/hook",
+    Registered: true,
+  });
   assert.equal(v.url, "http://host.docker.internal:5073/hook");
   assert.equal(v.registered, true);
 });

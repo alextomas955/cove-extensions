@@ -89,7 +89,10 @@ test("monitorButtonTitle: unsupported reads the version-capability copy; every o
 });
 
 test("shouldShowStatusLine: true only when monitored; false when not monitored / null / undefined", () => {
-  assert.equal(shouldShowStatusLine({ added: true, monitored: true, scenesPresent: 1, scenesTotal: 2 }), true);
+  assert.equal(
+    shouldShowStatusLine({ added: true, monitored: true, scenesPresent: 1, scenesTotal: 2 }),
+    true,
+  );
   assert.equal(
     shouldShowStatusLine({ added: true, monitored: false, scenesPresent: 0, scenesTotal: 0 }),
     false,
@@ -99,14 +102,20 @@ test("shouldShowStatusLine: true only when monitored; false when not monitored /
 });
 
 test("hasCounts honors the server flag, else derives from scenesTotal > 0; null → false", () => {
-  assert.equal(hasCounts({ added: true, monitored: true, scenesPresent: 3, scenesTotal: 10, hasCounts: true }), true);
+  assert.equal(
+    hasCounts({ added: true, monitored: true, scenesPresent: 3, scenesTotal: 10, hasCounts: true }),
+    true,
+  );
   assert.equal(
     hasCounts({ added: true, monitored: true, scenesPresent: 0, scenesTotal: 0, hasCounts: false }),
     false,
   );
   // No explicit flag: derive from scenesTotal.
   assert.equal(hasCounts({ added: true, monitored: true, scenesPresent: 1, scenesTotal: 4 }), true);
-  assert.equal(hasCounts({ added: true, monitored: true, scenesPresent: 0, scenesTotal: 0 }), false);
+  assert.equal(
+    hasCounts({ added: true, monitored: true, scenesPresent: 0, scenesTotal: 0 }),
+    false,
+  );
   assert.equal(hasCounts(null), false);
 });
 

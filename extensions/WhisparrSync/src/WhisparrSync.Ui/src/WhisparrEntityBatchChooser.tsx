@@ -11,9 +11,7 @@
  * All labels are React text nodes (auto-escaped); host Tailwind token classes only (check-classes).
  */
 // Co-locates the component with its imperative mounter (presentEntityBatchChooser), exactly as
-// WhisparrBatchChooser does — the fast-refresh components-only rule is a dev-HMR concern that does not apply to
-// this production library bundle.
-/* eslint-disable react-refresh/only-export-components */
+// WhisparrBatchChooser does.
 import { useLayoutEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { CircleSlash, FileCheck2, PlusCircle, Radar, Search } from "lucide-react";

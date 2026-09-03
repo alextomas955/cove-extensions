@@ -10,7 +10,14 @@
  * off the options wire). It is a documented, visible fallback — never a silent omission.
  */
 import type { ReactNode } from "react";
-import { Field, SectionCard, Select, StatusText, TagListInput, Toggle } from "@cove-extensions/ui-shared";
+import {
+  Field,
+  SectionCard,
+  Select,
+  StatusText,
+  TagListInput,
+  Toggle,
+} from "@cove-extensions/ui-shared";
 import { notLoadedMessage } from "./connectionAvailabilityLogic";
 
 /** A read-only switch affordance for a control that is intentionally not wired (Search on add). */
