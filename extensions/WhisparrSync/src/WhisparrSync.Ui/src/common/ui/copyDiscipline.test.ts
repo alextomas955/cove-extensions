@@ -113,6 +113,18 @@ const CARRIED_BY_THE_MONITOR_MENU_ITEMS = [
 ];
 
 /**
+ * The selection overlay's own sentences: what it asks, where the answer appears, why it sometimes
+ * has nothing to offer, and its two ways out.
+ */
+const RENDERED_BY_THE_BULK_OVERLAY = [
+  "BULK_CHOOSE_AN_ACTION",
+  "BULK_REPORTS_IN_THE_JOB_DRAWER",
+  "BULK_ACTIONS_COULD_NOT_BE_OFFERED",
+  "BULK_CANCEL",
+  "BULK_CLOSE",
+];
+
+/**
  * One sentence per reason a monitor control can be unavailable. The menu rules module maps the kind
  * the server answered onto exactly one of these, and a kind with none would be a dimmed control with
  * nothing to hear.
@@ -227,6 +239,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
     );
     const accountedByName = [
       ...CARRIED_BY_THE_MONITOR_MENU_ITEMS,
+      ...RENDERED_BY_THE_BULK_OVERLAY,
       ...DECLARED_FOR_LATER,
       ...RENDERED_BY_THE_CONNECT_SURFACE,
       ...RENDERED_BY_THE_ENTITY_CONTROL,
@@ -248,6 +261,7 @@ describe("no sentence is orphaned and no kind is silent", () => {
     const declared = CONSTANTS.map(([name]) => name);
     for (const name of [
       ...CARRIED_BY_THE_MONITOR_MENU_ITEMS,
+      ...RENDERED_BY_THE_BULK_OVERLAY,
       ...DECLARED_FOR_LATER,
       ...RENDERED_BY_THE_CONNECT_SURFACE,
       ...RENDERED_BY_THE_ENTITY_CONTROL,

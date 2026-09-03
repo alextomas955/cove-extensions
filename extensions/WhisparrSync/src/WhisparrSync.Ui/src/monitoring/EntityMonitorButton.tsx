@@ -23,7 +23,7 @@ import {
 } from "../common/ui/copy";
 import type { WhisparrEntityKind } from "../wire/api";
 import { EntityMonitorMenu } from "./EntityMonitorMenu";
-import { monitorMenu, type MonitorMenuItem } from "./monitorMenuLogic";
+import { monitorMenu, routeFor, type MonitorMenuItem } from "./monitorMenuLogic";
 import { WhisparrMark } from "./WhisparrMark";
 import { useMonitoring } from "./useMonitoring";
 
@@ -36,39 +36,6 @@ import { useMonitoring } from "./useMonitoring";
  */
 const HERO_ACTION_BUTTON_CLASS =
   "inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card transition-colors hover:border-accent hover:text-foreground disabled:cursor-not-allowed";
-
-/** Turning monitoring on, at a chosen scope. Only reached for an entity not yet monitored. */
-const MONITOR_ROUTE = "monitor";
-
-/** Turning monitoring off. */
-const UNMONITOR_ROUTE = "unmonitor";
-
-/** Changing the scope of something already monitored, which is not the same verb as monitoring. */
-const SCOPE_ROUTE = "scope";
-
-/**
- * The route that carries `item` out, or null where this build serves none.
- *
- * A scope row is two different verbs depending on the state: on an entity not yet monitored it is
- * the monitor gesture carrying that scope, and on one already monitored it changes the scope and
- * leaves the flag alone. The three secondary actions are served by no route here, so each renders
- * disabled and says so rather than being pressed into a route that answers nothing.
- *
- * `monitorRoutes.test.ts` reads the constants above against the routes the shipped wire document
- * declares, so a verb mounted later cannot be left out here in silence.
- */
-function routeFor(item: MonitorMenuItem, monitored: boolean): string | null {
-  switch (item.item) {
-    case "monitor":
-      return MONITOR_ROUTE;
-    case "unmonitor":
-      return UNMONITOR_ROUTE;
-    case "scope":
-      return monitored ? SCOPE_ROUTE : MONITOR_ROUTE;
-    default:
-      return null;
-  }
-}
 
 /** What that route is sent. A kind expressing no scope sends none rather than a default. */
 function bodyFor(item: MonitorMenuItem): unknown {
