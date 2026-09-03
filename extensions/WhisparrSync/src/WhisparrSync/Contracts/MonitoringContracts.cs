@@ -17,6 +17,38 @@ namespace WhisparrSync.Contracts;
 /// </param>
 public sealed record MonitorEntityRequest(MonitorScope? Scope);
 
+/// <summary>Why nothing was linked.</summary>
+/// <remarks>
+/// A wire type, because the sentence a user reads is chosen in the browser from the kind answered
+/// here. The converter is on the TYPE: an options-level one outranks a type attribute, so a second
+/// declaration could drift and win in silence.
+/// </remarks>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
+public enum ReflectOwnedSkipReason
+{
+    /// <summary>The instance's hard-link setting is off, so an import would copy the data.</summary>
+    HardLinksOff,
+
+    /// <summary>The setting could not be read, so whether an import would copy is unknown.</summary>
+    HardLinkSettingUnreadable,
+}
+
+/// <summary>What asking for one entity's owned files to be reflected produced.</summary>
+/// <remarks>
+/// Exactly one of the three carries the answer: a refusal taken before anything was sent, a skip
+/// decided from the instance's own setting, or the id of the run that was started.
+/// <para>
+/// The request has no body at all, so it carries no identifier member for the same reason
+/// <see cref="MonitorEntityRequest"/> does not: the route names the Cove entity, and what the
+/// instance is told is read on the server from the library's own rows.
+/// </para>
+/// </remarks>
+/// <param name="Skipped">Why nothing was asked for, or null when something was.</param>
+/// <param name="JobId">The run this extension's own status route answers about, or null.</param>
+/// <param name="Refusal">Why nothing could be started, or that something was.</param>
+public sealed record ReflectOwnedEnqueued(
+    ReflectOwnedSkipReason? Skipped, string? JobId, MonitorRefusalKind Refusal);
+
 /// <summary>Which verb one bulk gesture carries.</summary>
 /// <remarks>
 /// A verb is written down here only once a route serves it for a single entity. The selection bar

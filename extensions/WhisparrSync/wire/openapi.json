@@ -280,6 +280,67 @@
         }
       }
     },
+    "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/reflect-owned": {
+      "post": {
+        "tags": [
+          "WhisparrSync"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "coveId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReflectOwnedEnqueued"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReflectOwnedEnqueued"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCode"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/unmonitor": {
       "post": {
         "tags": [
@@ -1122,6 +1183,42 @@
         "enum": [
           "futureScenes",
           "allScenes",
+          null
+        ]
+      },
+      "ReflectOwnedEnqueued": {
+        "required": [
+          "skipped",
+          "jobId",
+          "refusal"
+        ],
+        "type": "object",
+        "properties": {
+          "skipped": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReflectOwnedSkipReason"
+              }
+            ]
+          },
+          "jobId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/MonitorRefusalKind"
+          }
+        }
+      },
+      "ReflectOwnedSkipReason": {
+        "enum": [
+          "hardLinksOff",
+          "hardLinkSettingUnreadable",
           null
         ]
       },

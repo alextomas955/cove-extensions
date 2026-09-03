@@ -11,6 +11,7 @@
  * onto the other.
  */
 import type { EntityMonitoringView, WhisparrEntityKind } from "../wire/api";
+import type { ReflectOwnedSkip } from "./monitorMenuLogic";
 import type { AsyncRead } from "../common/ui/asyncRegionLogic";
 import { INITIAL_ASYNC_READ } from "../common/ui/asyncRegionLogic";
 
@@ -29,6 +30,13 @@ export interface MonitoringState {
   /** An action is in flight, so the control is not pressable again. */
   readonly acting: boolean;
   readonly actionError: string | null;
+  /**
+   * The reason the last action was answered and did nothing, or null.
+   *
+   * Held apart from the error. A skip is a settled answer from the instance and a failure is no
+   * answer at all, and the two send the reader somewhere different.
+   */
+  readonly actionSkip: ReflectOwnedSkip | null;
 }
 
 /**
@@ -41,6 +49,7 @@ export const INITIAL_MONITORING_STATE: MonitoringState = {
   readError: null,
   acting: false,
   actionError: null,
+  actionSkip: null,
 };
 
 export interface MonitoringStore {
@@ -57,6 +66,8 @@ export interface MonitoringStore {
    * nothing here paints an answer composed from what the browser asked for.
    */
   actionSucceeded: (entity: MonitoredEntity) => void;
+  /** The action was answered and did nothing, for the reason the server named. */
+  actionSkipped: (entity: MonitoredEntity, reason: ReflectOwnedSkip) => void;
   actionFailed: (entity: MonitoredEntity, message: string) => void;
 }
 
@@ -125,15 +136,39 @@ export function createMonitoringStore(): MonitoringStore {
     },
 
     beginAction(entity) {
-      settle(entity, (current) => ({ ...current, acting: true, actionError: null }));
+      settle(entity, (current) => ({
+        ...current,
+        acting: true,
+        actionError: null,
+        actionSkip: null,
+      }));
     },
 
     actionSucceeded(entity) {
-      settle(entity, (current) => ({ ...current, acting: false, actionError: null }));
+      settle(entity, (current) => ({
+        ...current,
+        acting: false,
+        actionError: null,
+        actionSkip: null,
+      }));
+    },
+
+    actionSkipped(entity, reason) {
+      settle(entity, (current) => ({
+        ...current,
+        acting: false,
+        actionError: null,
+        actionSkip: reason,
+      }));
     },
 
     actionFailed(entity, message) {
-      settle(entity, (current) => ({ ...current, acting: false, actionError: message }));
+      settle(entity, (current) => ({
+        ...current,
+        acting: false,
+        actionError: message,
+        actionSkip: null,
+      }));
     },
   };
 }
