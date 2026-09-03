@@ -131,6 +131,7 @@
     <Compile Remove="Monitoring\EntityIdentityPortTests.cs" />
     <Compile Remove="Monitoring\MonitorPathTests.cs" />
     <Compile Remove="Monitoring\NonGrabbingBodyTests.cs" />
+    <Compile Remove="Monitoring\ReflectOwnedNeverTransfersTests.cs" />
     <Compile Remove="Monitoring\ReflectOwnedRouteTests.cs" />
     <Compile Remove="Monitoring\RefusalPrecedenceTests.cs" />
     <Compile Remove="Monitoring\SecondaryVerbTests.cs" />
