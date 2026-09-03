@@ -150,8 +150,8 @@ public sealed partial class WhisparrSync
     private const string SettingsTabKey = "whisparr-sync";
 
     /// <summary>
-    /// The surfaces the host mounts: one dedicated settings tab, and one control in the studio
-    /// page's own action row.
+    /// The surfaces the host mounts: one dedicated settings tab, and one control in each of the
+    /// studio and performer pages' own action rows.
     /// </summary>
     /// <remarks>
     /// Page layout, so the host renders the panel full-width with no card chrome and this extension
@@ -159,7 +159,7 @@ public sealed partial class WhisparrSync
     /// <c>defineExtension</c> component map: the host resolves one to the other by exact string and
     /// renders nothing, with no error, when they differ.
     /// <para>
-    /// The action-row slot is the only position an extension can reach on a studio page. The host's
+    /// The action-row slot is the only position an extension can reach on either page. The host's
     /// own entity-action contribution point answers with an empty list for anything but a video or an
     /// image, so a control registered there would never render at all.
     /// </para>
@@ -177,6 +177,7 @@ public sealed partial class WhisparrSync
                 label: "Whisparr Sync",
                 componentName: "WhisparrSyncPage")
             .AddSlot("studio-detail-actions", componentName: "WhisparrStudioActions", order: 100)
+            .AddSlot("performer-detail-actions", componentName: "WhisparrPerformerActions", order: 100)
             .WithJsBundle("index.mjs")
             .Build();
 
