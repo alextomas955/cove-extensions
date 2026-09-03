@@ -17,6 +17,90 @@ namespace WhisparrSync.Contracts;
 /// </param>
 public sealed record MonitorEntityRequest(MonitorScope? Scope);
 
+/// <summary>Which verb one bulk gesture carries.</summary>
+/// <remarks>
+/// A verb is written down here only once a route serves it for a single entity. The selection bar
+/// offers what the entity menu offers, so a verb reachable in bulk and nowhere else would be a
+/// second answer to the same question.
+/// </remarks>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
+public enum MonitorBulkVerb
+{
+    /// <summary>Monitor each selected entity, at the scope the request names.</summary>
+    Monitor,
+
+    /// <summary>Stop the connected instance monitoring each selected entity.</summary>
+    Unmonitor,
+}
+
+/// <summary>What a caller may say when it asks for a whole selection to be acted on.</summary>
+/// <remarks>
+/// The ids are Cove's own and nothing else identifying is expressible. Which entity each one names
+/// on the instance is read from its stored identity row inside the batch, so the same rule holds
+/// here as on the single-entity routes: an identifier a caller put in the body reaches nothing.
+/// </remarks>
+/// <param name="EntityType">
+/// The type the host's selection bar passed, in the spelling it passed it. The bar normalizes only
+/// the two media plurals, so studios and performers arrive plural and are matched as they arrive.
+/// </param>
+/// <param name="Verb">Which gesture to carry out for every selected entity.</param>
+/// <param name="Scope">
+/// How much of each entity's catalogue to cover, or null where the verb expresses no scope.
+/// </param>
+/// <param name="EntityIds">The Cove ids selected.</param>
+public sealed record MonitorBulkRequest(
+    string? EntityType, MonitorBulkVerb Verb, MonitorScope? Scope, int[]? EntityIds);
+
+/// <summary>What one selected entity's turn in a batch produced.</summary>
+/// <param name="CoveId">The Cove entity this outcome is about.</param>
+/// <param name="Refusal">Why it could not be done for this entity, or that it was done.</param>
+public sealed record MonitorBulkOutcome(int CoveId, MonitorRefusalKind Refusal);
+
+/// <summary>How one batch ended.</summary>
+[JsonConverter(typeof(CamelCaseStringEnumConverter))]
+public enum MonitorBulkOutcomeKind
+{
+    /// <summary>Every selected entity had its turn.</summary>
+    Completed,
+
+    /// <summary>The batch was stopped part way, and what it had already done stands.</summary>
+    Cancelled,
+
+    /// <summary>There was nothing selected to act on, so nothing was done.</summary>
+    NothingSelected,
+}
+
+/// <summary>One batch's per-entity outcomes, in the order the ids were supplied.</summary>
+/// <remarks>
+/// The order is the supplied one and is never grouped or sorted: a reader matches this list against
+/// the selection they made, and a list ordered by outcome cannot be matched against anything.
+/// <para>
+/// It carries one entry per DISTINCT id, so its length is bounded by the selection, which the route
+/// caps before any of this runs.
+/// </para>
+/// </remarks>
+/// <param name="Outcome">How the batch ended.</param>
+/// <param name="Outcomes">One entry per distinct selected entity, in the supplied order.</param>
+public sealed record MonitorBulkRun(
+    MonitorBulkOutcomeKind Outcome, IReadOnlyList<MonitorBulkOutcome> Outcomes)
+{
+    /// <summary>A batch that had nothing to act on.</summary>
+    public static MonitorBulkRun NothingSelected { get; } =
+        new(MonitorBulkOutcomeKind.NothingSelected, []);
+
+    /// <summary>A batch every selected entity had its turn in.</summary>
+    public static MonitorBulkRun Completed(IReadOnlyList<MonitorBulkOutcome> outcomes)
+        => new(MonitorBulkOutcomeKind.Completed, outcomes);
+
+    /// <summary>A batch stopped part way, keeping what it had already recorded.</summary>
+    public static MonitorBulkRun Cancelled(IReadOnlyList<MonitorBulkOutcome> outcomes)
+        => new(MonitorBulkOutcomeKind.Cancelled, outcomes);
+}
+
+/// <summary>The job id an enqueue answered with.</summary>
+/// <param name="JobId">What to ask this extension's own status route about.</param>
+public sealed record JobEnqueued(string JobId);
+
 /// <summary>Why a monitor could not be applied, or that it was.</summary>
 /// <remarks>
 /// One value per reason, never collapsed into a generic failure: each sends the user somewhere
