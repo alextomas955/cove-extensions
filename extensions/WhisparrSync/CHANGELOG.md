@@ -41,10 +41,15 @@ and what your Whisparr instance monitors.
   Cove's job list.
 - **Whisparr v2 cannot monitor a performer**, and no route on it registers a catalogue item. The
   button and the affected menu items are shown disabled with the reason rather than hidden.
-- **Three menu items are shown and are not carried out in this version.** Add all missing, reflect
-  owned and search all monitored appear once an entity is monitored, each disabled and each saying
-  so. They are described in the documentation so their cost is known before they arrive, and search
-  all monitored will be the one action that downloads.
+- **Whisparr links the files you already own into place, by itself.** Turning monitoring on for a
+  studio or a performer starts that work in the background with no second press and no dialog, and
+  **Reflect owned** in the menu runs it again at any time. Its progress appears in Cove's job list.
+  Nothing is copied: Cove reads Whisparr's hard-link setting first, and with that setting off, or
+  unreadable, it sends nothing and says so at the control rather than duplicating every matched file.
+- **Two menu items are shown and are not carried out in this version.** Add all missing and search
+  all monitored appear once an entity is monitored, each disabled and each saying so. They are
+  described in the documentation so their cost is known before they arrive, and search all monitored
+  will be the one action that downloads.
 
 Two things worth knowing before you enter a key:
 

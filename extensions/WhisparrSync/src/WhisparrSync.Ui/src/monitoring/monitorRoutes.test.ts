@@ -39,12 +39,58 @@ function mountedVerbs(): string[] {
     .sort();
 }
 
+/** Each declared route constant, by the name it is declared under. */
+function declaredRoutes(source: string): Map<string, string> {
+  return new Map(
+    [...source.matchAll(/^const ([A-Z_]+)_ROUTE = "([a-z-]+)";$/gm)].map((match) => [
+      `${match[1]}_ROUTE`,
+      match[2],
+    ]),
+  );
+}
+
+/**
+ * The token each non-null entry of the secondary map is written as, verbatim.
+ *
+ * The entries are read rather than the whole file, so a value written as a bare string literal is a
+ * token of its own here instead of disappearing into the constant scan above. That is the edit the
+ * one-assertion form of this pin could be slipped past: a literal keeps the offered set correct
+ * while the map stops naming the constant every other reader resolves through.
+ */
+function secondaryRouteTokens(source: string): string[] {
+  const map = /const SECONDARY_ACTION_ROUTES[^{]*\{([\s\S]*?)^};$/m.exec(source);
+  if (map === null) return [];
+  return [...map[1].matchAll(/^\s*\w+:\s*(.+),$/gm)]
+    .map((entry) => entry[1].trim())
+    .filter((token) => token !== "null");
+}
+
 test("the verbs the control can carry out are exactly the ones the server mounts", () => {
   const source = readFileSync(rules, "utf8");
-  const offered = [...source.matchAll(/^const ([A-Z_]+)_ROUTE = "([a-z-]+)";$/gm)].map(
-    (match) => match[2],
-  );
+  const declared = declaredRoutes(source);
+  const served = secondaryRouteTokens(source);
 
-  expect(offered, "the rules module declares no entity verb at all").not.toHaveLength(0);
+  const offered = [
+    ...new Set([
+      ...declared.values(),
+      ...served.map((token) => declared.get(token) ?? token.replaceAll('"', "")),
+    ]),
+  ];
+
+  expect([...declared.keys()], "the rules module declares no entity verb at all").not.toHaveLength(
+    0,
+  );
   expect(offered.sort()).toEqual(mountedVerbs());
+});
+
+test("every verb the secondary map serves names a declared route constant", () => {
+  const source = readFileSync(rules, "utf8");
+  const declared = declaredRoutes(source);
+  const served = secondaryRouteTokens(source);
+
+  expect(served, "the secondary map serves no verb at all").not.toHaveLength(0);
+  expect(
+    served.filter((token) => !declared.has(token)),
+    "a secondary verb is written as something other than a declared route constant",
+  ).toEqual([]);
 });
