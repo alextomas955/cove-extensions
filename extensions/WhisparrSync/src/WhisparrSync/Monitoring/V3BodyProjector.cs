@@ -183,6 +183,20 @@ internal static class V3BodyProjector
     /// <remarks>
     /// The whole resource rather than the editor resource, because the editor resource declares no
     /// date gate at all: a scope change sent there is accepted and applies nothing.
+    /// <para>
+    /// The only body this product composes by cloning a whole instance response, so it carries members
+    /// nothing here wrote. The read echoes the top-level acquisition-suppressing flag, and an entity a
+    /// person added in the instance's own interface with search-on-add ticked holds it TRUE: a clone
+    /// sent back as-is re-asserts a user's search flag on a request this product originated. It is
+    /// therefore overwritten every time. OVERWRITTEN rather than removed, because omission relies on
+    /// the instance defaulting an absent member to false, which was never measured.
+    /// </para>
+    /// <para>
+    /// The add-options member is overwritten only where the clone already carries one. This resource's
+    /// own schema declares no such member and the read never answers with one, so composing it here
+    /// would send a shape the instance was never measured accepting on this route. A member the
+    /// instance did not answer with cannot ride back out.
+    /// </para>
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="scope"/> is not a scope this product expresses.
@@ -192,6 +206,13 @@ internal static class V3BodyProjector
         ArgumentNullException.ThrowIfNull(held);
 
         var body = (JsonObject)held.DeepClone();
+        const bool search = false;
+        body["searchOnAdd"] = search;
+        if (body["addOptions"] is JsonObject addOptions)
+        {
+            addOptions["searchForMovie"] = search;
+        }
+
         switch (scope)
         {
             case MonitorScope.FutureScenes:
