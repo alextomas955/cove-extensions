@@ -30,10 +30,15 @@ public sealed class V3BodyProjectorTests
         ["qualityProfileId", "rootFolderPath", "tags", "afterDate", "searchOnAdd", "addOptions"];
 
     /// <summary>A studio as the instance holds one, with a catalogue and values a user chose.</summary>
+    /// <remarks>
+    /// The search flag is TRUE, as an instance answers for a studio a person added in its own interface
+    /// with search-on-add ticked. The read echoes it and this resource's schema declares no add-options
+    /// member, so this is the whole of what a body cloned from a read can carry.
+    /// </remarks>
     private const string HeldStudio = """
         {"id":4,"foreignId":"44e8ac11-9ed4-42e5-a9f4-bc2c138a5a6e","title":"1000 Facials",
          "monitored":true,"afterDate":"2026-09-02","qualityProfileId":4,
-         "rootFolderPath":"/config/library","tags":[7],"searchOnAdd":false,
+         "rootFolderPath":"/config/library","tags":[7],"searchOnAdd":true,
          "sceneCount":4,"totalSceneCount":22}
         """;
 
@@ -167,6 +172,41 @@ public sealed class V3BodyProjectorTests
 
         // The resource read in is not mutated, so a caller can compose both scopes from one read.
         Assert.Equal("2026-09-02", held["afterDate"]!.GetValue<string>());
+    }
+
+    /// <summary>
+    /// A scope change overwrites the search flag the instance answered with, and composes no
+    /// add-options member on a resource that carried none.
+    /// </summary>
+    /// <remarks>
+    /// The clone is the whole request, so a flag a user ticked in the instance's own interface would
+    /// otherwise be re-asserted on a change this product originated. Overwritten rather than removed:
+    /// an absent member's default is the instance's and was never measured.
+    /// <para>
+    /// The add-options member is what an add composes both spellings in, and this resource's schema
+    /// declares none of it. Composing one here would send a shape this route was never measured
+    /// accepting, and the spelling it holds cannot arrive on a body the instance did not answer with.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void AScopeChangeOverwritesTheSearchFlagAndComposesNoAddOptions()
+    {
+        var held = Parse(HeldStudio);
+
+        Assert.True(held["searchOnAdd"]!.GetValue<bool>());
+        Assert.False(held.ContainsKey("addOptions"));
+
+        foreach (var scope in new[] { MonitorScope.FutureScenes, MonitorScope.AllScenes })
+        {
+            var body = V3BodyProjector.WithScope(held, scope, Now);
+
+            Assert.True(body.ContainsKey("searchOnAdd"));
+            Assert.False(body["searchOnAdd"]!.GetValue<bool>());
+            Assert.False(body.ContainsKey("addOptions"));
+            Assert.DoesNotContain("searchForMovie", body.ToJsonString(), StringComparison.Ordinal);
+        }
+
+        Assert.True(held["searchOnAdd"]!.GetValue<bool>());
     }
 
     /// <summary>An entity whose catalogue is empty composes a scope body like any other.</summary>
