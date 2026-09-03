@@ -48,6 +48,8 @@ public sealed class EndpointPermissionTests
         "POST /api/extensions/com.alextomas955.whisparrsync/callback/register",
         "POST /api/extensions/com.alextomas955.whisparrsync/connection/test",
         "POST /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/monitor",
+        "POST /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/scope",
+        "POST /api/extensions/com.alextomas955.whisparrsync/entity/{kind}/{coveId}/unmonitor",
         "PUT /api/extensions/com.alextomas955.whisparrsync/settings",
     ];
 
