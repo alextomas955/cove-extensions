@@ -182,7 +182,11 @@ public interface IWhisparrClient
 /// invariant that reflects over this one to cover.
 /// </remarks>
 internal sealed class WhisparrClient(HttpClient http, ILogger log)
-    : IWhisparrClient, IWhisparrStudioActing, IWhisparrPerformerActing
+    : IWhisparrClient,
+        IWhisparrStudioActing,
+        IWhisparrPerformerActing,
+        IWhisparrMissingSceneActing,
+        IWhisparrReflectOwnedActing
 {
     /// <summary>The header both generations authenticate an API request with.</summary>
     internal const string ApiKeyHeader = "X-Api-Key";
@@ -532,6 +536,60 @@ internal sealed class WhisparrClient(HttpClient http, ILogger log)
             PerformerEditorPath,
             V3BodyProjector.SetPerformerMonitored(entityId, monitored),
             ct);
+
+    public Task<WhisparrResponse> AddSceneAsync(
+        Uri baseAddress,
+        string apiKey,
+        string foreignId,
+        AddDefaults defaults,
+        CancellationToken ct)
+        => ActAsync(
+            baseAddress,
+            apiKey,
+            HttpMethod.Post,
+            MoviePath,
+            V3BodyProjector.AddScene(foreignId, defaults),
+            ct);
+
+    public Task<WhisparrResponse> RefreshCatalogueAsync(
+        Uri baseAddress,
+        string apiKey,
+        WhisparrEntityKind kind,
+        int entityId,
+        CancellationToken ct)
+        => ActAsync(
+            baseAddress,
+            apiKey,
+            HttpMethod.Post,
+            CommandPath,
+            V3BodyProjector.RefreshCatalogue(kind, entityId),
+            ct);
+
+    public Task<WhisparrResponse> ReadHardlinkSettingAsync(
+        Uri baseAddress, string apiKey, CancellationToken ct)
+        => ReadAsync(baseAddress, apiKey, MediaManagementConfigPath, ct);
+
+    // The folder travels as a query value and is escaped as one, so a directory name carrying a
+    // separator names no other route. The instance is asked to include what it already holds, so a
+    // file the library holds and the instance has not attached is still answered for.
+    public Task<WhisparrResponse> ListImportableFilesAsync(
+        Uri baseAddress, string apiKey, string folder, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(folder);
+
+        return ReadAsync(
+            baseAddress,
+            apiKey,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"{ManualImportPath}?folder={Uri.EscapeDataString(folder)}&filterExistingFiles=false"),
+            ct);
+    }
+
+    public Task<WhisparrResponse> AttachOwnedFilesAsync(
+        Uri baseAddress, string apiKey, JsonNode files, CancellationToken ct)
+        => ActAsync(
+            baseAddress, apiKey, HttpMethod.Post, CommandPath, ReflectOwnedPlanner.Command(files), ct);
 
     // Escaped as one path segment. The identifier comes from a stored identity row rather than from a
     // caller, and escaping it keeps that true of the composed route as well: a value carrying a
