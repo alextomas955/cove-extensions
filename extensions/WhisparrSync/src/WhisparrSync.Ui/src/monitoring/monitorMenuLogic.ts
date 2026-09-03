@@ -195,6 +195,30 @@ const SECONDARY_SENTENCE: Record<SecondaryAction, string> = {
   searchAllMonitored: SEARCH_ALL_MONITORED,
 };
 
+/** Turning monitoring on, at a chosen scope. Only reached for an entity not yet monitored. */
+const MONITOR_ROUTE = "monitor";
+
+/** Turning monitoring off. */
+const UNMONITOR_ROUTE = "unmonitor";
+
+/** Changing the scope of something already monitored, which is not the same verb as monitoring. */
+const SCOPE_ROUTE = "scope";
+
+/**
+ * Which route each secondary action is served at, or null where this build serves none.
+ *
+ * The ONE place either surface learns whether a verb is reachable. The entity menu renders a row
+ * disabled when the answer is null and the selection overlay does not offer it at all, so the two
+ * cannot come to disagree about which verbs this build carries out.
+ *
+ * Total by TYPE, so a secondary action added later has to be classified here.
+ */
+const SECONDARY_ACTION_ROUTES: Record<SecondaryAction, string | null> = {
+  addAllMissing: null,
+  reflectOwned: null,
+  searchAllMonitored: null,
+};
+
 /** What each scope is called, in the instance's own words. */
 const SCOPE_LABEL: Record<MonitorScopeChoice, string> = {
   futureScenes: SCOPE_FUTURE_SCENES,
@@ -341,6 +365,137 @@ export function monitorMenu(view: EntityMonitoringView, inFlight: boolean): Moni
   }));
 
   return { available, reason, items: [...scopes, unmonitor, ...secondary] };
+}
+
+/**
+ * The route <code>item</code> is carried out at, or null where this build serves none.
+ *
+ * A scope row is two different verbs depending on the state: on an entity not yet monitored it is
+ * the monitor gesture carrying that scope, and on one already monitored it changes the scope and
+ * leaves the flag alone.
+ *
+ * <code>monitorRoutes.test.ts</code> reads the route constants above against the routes the shipped
+ * wire document declares, so a verb mounted later cannot be left out here in silence.
+ *
+ * @param item the menu item pressed
+ * @param monitored whether the connected instance already monitors the entity
+ */
+export function routeFor(item: MonitorMenuItem, monitored: boolean): string | null {
+  switch (item.item) {
+    case "monitor":
+      return MONITOR_ROUTE;
+    case "unmonitor":
+      return UNMONITOR_ROUTE;
+    case "scope":
+      return monitored ? SCOPE_ROUTE : MONITOR_ROUTE;
+    default:
+      return SECONDARY_ACTION_ROUTES[item.action];
+  }
+}
+
+/** A stable key for one item, so two secondary actions are not the same row. */
+export function monitorMenuItemKey(item: MonitorMenuItem): string {
+  switch (item.item) {
+    case "scope":
+      return `scope:${item.scope}`;
+    case "secondary":
+      return `secondary:${item.action}`;
+    default:
+      return item.item;
+  }
+}
+
+/** The verbs the bulk route carries, which are a subset of the entity routes. */
+export type BulkVerb = "monitor" | "unmonitor";
+
+/** One action the selection overlay offers, already decided. */
+export interface BulkMonitorAction {
+  readonly key: string;
+  readonly label: string;
+  /** What is stated beneath it, in the order it reads. */
+  readonly sentences: readonly string[];
+  readonly verb: BulkVerb;
+  /** The scope the request carries, or null where the verb expresses none. */
+  readonly scope: MonitorScopeChoice | null;
+}
+
+/** What a selection of one entity kind can be offered against one connection. */
+export interface BulkMonitorOffer {
+  readonly actions: readonly BulkMonitorAction[];
+  /** The one sentence to state when nothing can be offered, or null when something can. */
+  readonly reason: string | null;
+}
+
+/**
+ * What the selection bar offers for a selection of <code>view</code>'s kind.
+ *
+ * Derived from {@link monitorMenu} and {@link routeFor}, so the overlay offers exactly the verbs the
+ * entity menu can carry out: whatever that menu renders disabled is not offered here at all.
+ *
+ * Only what is true of the CONNECTION decides the offer. A refusal the sampled entity earned - no
+ * link, or several conflicting ones - is a fact about that one entity, and a selection can hold a
+ * hundred others it is not true of, so it is deliberately not read here. Nothing connected is the
+ * exception, because that one is about the connection.
+ *
+ * The entity's own monitored state is not read either, for the same reason: a selection can mix
+ * monitored and unmonitored entities, and each entity's own state is settled per entity on the
+ * server.
+ *
+ * @param view what a read of one selected entity answered
+ */
+export function bulkMonitorActions(view: EntityMonitoringView): BulkMonitorOffer {
+  if (view.refusal === "notConfigured") {
+    return { actions: [], reason: NO_INSTANCE_CONNECTED };
+  }
+
+  const connection: EntityMonitoringView = { ...view, refusal: "none" };
+  const notYetMonitored = monitorMenu({ ...connection, monitored: false }, false);
+  if (!notYetMonitored.available) {
+    return { actions: [], reason: notYetMonitored.reason };
+  }
+
+  const alreadyMonitored = monitorMenu({ ...connection, monitored: true }, false);
+
+  return {
+    actions: [
+      ...offered(notYetMonitored.items, false),
+      // The scope rows of a monitored entity are the scope-change verb, which the bulk route does not
+      // carry: this offers the gestures D-14 names and not a third one.
+      ...offered(
+        alreadyMonitored.items.filter((item) => item.item !== "scope"),
+        true,
+      ),
+    ],
+    reason: null,
+  };
+}
+
+function offered(
+  items: readonly MonitorMenuItem[],
+  monitored: boolean,
+): readonly BulkMonitorAction[] {
+  return items.flatMap((item) => {
+    if (item.reason !== null) return [];
+    const route = routeFor(item, monitored);
+    const verb = route === null ? null : bulkVerbFor(route);
+    if (verb === null) return [];
+    return [
+      {
+        key: monitorMenuItemKey(item),
+        label: item.label,
+        sentences: item.sentences,
+        verb,
+        scope: item.item === "scope" ? item.scope : null,
+      },
+    ];
+  });
+}
+
+/** Which bulk verb one entity route is carried out as, or null where the bulk route carries none. */
+function bulkVerbFor(route: string): BulkVerb | null {
+  if (route === MONITOR_ROUTE) return "monitor";
+  if (route === UNMONITOR_ROUTE) return "unmonitor";
+  return null;
 }
 
 function scopeSentences(
