@@ -108,7 +108,7 @@ public static class MonitoringBulkJob
     /// One entity's turn, over the batch's own elevated services. It answers a refusal kind rather
     /// than throwing, so one entity's refusal is not the whole batch's.
     /// </param>
-    /// <param name="progress">The host's own progress, which the units are declared and reported on.</param>
+    /// <param name="progress">The host's own progress, which the units are reported on.</param>
     /// <param name="ct">Cancelled when the host stops the job.</param>
     internal static async Task<MonitorBulkRun> RunAsync(
         IReadOnlyList<int> entityIds,
@@ -127,9 +127,6 @@ public static class MonitoringBulkJob
         {
             return MonitorBulkRun.NothingSelected;
         }
-
-        progress.DeclareUnitCount(selected.Count);
-        progress.DeclareUnits(selected.Select(coveId => (UnitOf(coveId), (string?)null)));
 
         var outcomes = new List<MonitorBulkOutcome>(selected.Count);
 
@@ -159,7 +156,7 @@ public static class MonitoringBulkJob
     /// <summary>The one line the host's Job Drawer shows for <paramref name="run"/>.</summary>
     /// <remarks>
     /// Counts rather than a list. The per-entity answers are the run's own units, which the drawer
-    /// shows in the order they were declared; a sentence naming every entity would grow with the
+    /// shows in the order they were started; a sentence naming every entity would grow with the
     /// selection.
     /// </remarks>
     internal static string SummaryOf(MonitorBulkRun run)
