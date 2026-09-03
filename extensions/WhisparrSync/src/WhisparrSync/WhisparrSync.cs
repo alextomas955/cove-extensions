@@ -89,7 +89,7 @@ public sealed partial class WhisparrSync : FullExtensionBase, IDisposable
         _scopeFactory = services.GetRequiredService<IServiceScopeFactory>();
         _jobs = services.GetService<IJobService>();
         await base.InitializeAsync(services, ct);
-        _selectedVersion = (await new OptionsStore(Store).LoadAsync(ct)).SelectedVersion;
+        _selectedVersion = (await new OptionsStore(Store, _log).LoadAsync(ct)).SelectedVersion;
         StartReconcileLoop();
     }
 
@@ -133,7 +133,7 @@ public sealed partial class WhisparrSync : FullExtensionBase, IDisposable
         {
             // Normal shutdown — the CTS was cancelled in ShutdownAsync.
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             LogReconcileLoopFault(ex.Message); // never silent, never rethrown out of the fire-and-forget loop
         }

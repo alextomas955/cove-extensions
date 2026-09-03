@@ -204,7 +204,8 @@ public sealed partial class WhisparrSync
             var monitor = new EntityMonitor(client, options);
             var actions = new SceneActions(client, options, library);
 
-            var batch = await _jobs!.RunBatchAsync(
+            var jobs = _jobs ?? throw new InvalidOperationException("The job service that enqueued this job is gone.");
+            var batch = await jobs.RunBatchAsync(
                 units,
                 // maxInFlight MUST stay 1: a reflect-owned/monitor unit can originate a targeted metadata
                 // refresh, so a parallel whole-library fan-out would burst faster than Whisparr's command queue

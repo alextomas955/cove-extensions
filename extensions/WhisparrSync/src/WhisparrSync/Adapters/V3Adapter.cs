@@ -464,20 +464,12 @@ internal sealed class V3Adapter(WhisparrClient client, TimeSpan? monitorSettleDe
     // Upgrade search: reuse the MoviesSearch command (Whisparr grabs an upgrade only when the
     // movie is monitored and the cutoff is unmet — eligibility is enforced server-side). A distinct grab verb;
     // an empty id set issues NO command (Ok no-op), mirroring SearchScenesAsync.
-    public async Task<WhisparrResult<BulkActionResult>> SearchForUpgradesAsync(
+    // An upgrade search is the SAME MoviesSearch command as a scene search: Whisparr grabs an upgrade only
+    // for a movie that is monitored with its profile cutoff unmet, so eligibility is decided server-side and
+    // the upgrade path needs no distinct wire shape.
+    public Task<WhisparrResult<BulkActionResult>> SearchForUpgradesAsync(
         string baseUrl, string apiKey, IReadOnlyList<int> movieIds, CancellationToken ct)
-    {
-        if (movieIds.Count == 0)
-        {
-            return WhisparrResult<BulkActionResult>.Ok(BulkActionResult.Empty);
-        }
-
-        var body = JsonSerializer.Serialize(new { name = "MoviesSearch", movieIds });
-        var result = await client.SendCommandAsync(baseUrl, apiKey, body, ct);
-        return result.IsOk
-            ? WhisparrResult<BulkActionResult>.Ok(new BulkActionResult(movieIds.Count, movieIds.Count, Failed: 0))
-            : Propagate<bool, BulkActionResult>(result);
-    }
+        => SearchScenesAsync(baseUrl, apiKey, movieIds, ct);
 
     // Add: POST the movie body (searchForMovie defaults false — register, don't grab), a 2xx
     // is the created row (Added:true), a 409 re-reads to the existing row (Added:false, never a duplicate).

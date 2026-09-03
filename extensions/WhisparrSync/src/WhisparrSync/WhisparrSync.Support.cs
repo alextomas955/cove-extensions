@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Cove.Core.Auth;
 using Cove.Core.Interfaces;
 using Microsoft.AspNetCore.Http;
@@ -234,7 +235,7 @@ public sealed partial class WhisparrSync
             return [];
         }
 
-        var options = await new OptionsStore(Store).LoadAsync(ct);
+        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
         var videos = await new CoveLibraryPort(db, options.StashDbEndpoint, options.TpdbEndpoint).LoadAllVideosAsync(ct);
         return [.. videos
             .SelectMany(v => v.FilePaths)
@@ -389,12 +390,12 @@ public sealed partial class WhisparrSync
     // A single-slot, short-TTL memoizer for one Whisparr list read, safe under concurrent requests (one fetch
     // wins the gate; the rest read the fresh value). Only an Ok result is cached — a transient failure is not
     // sticky. `key` (the base URL) scopes the entry so switching Whisparr instances never serves stale data.
+    [SuppressMessage("Reliability", "CA1001:Types that own disposable fields should be disposable",
+        Justification = "Process-lifetime cache: the gate lives as long as the extension, so there is no point at which disposing it would be correct.")]
     private sealed class TtlCache<T>(TimeSpan ttl)
         where T : class
     {
-        // Static (process-lifetime, never disposed): each closed generic type has exactly one cache instance, so a
-        // static gate is effectively per-cache while avoiding a disposable instance field (CA1001) — as WhisparrRootsGate does.
-        private static readonly SemaphoreSlim Gate = new(1, 1);
+        private readonly SemaphoreSlim _gate = new(1, 1);
         private string? _key;
         private T? _value;
         private DateTime _atUtc;
@@ -406,7 +407,7 @@ public sealed partial class WhisparrSync
                 return WhisparrResult<T>.Ok(cached);
             }
 
-            await Gate.WaitAsync(ct);
+            await _gate.WaitAsync(ct);
             try
             {
                 if (Fresh(key) is { } racedIn)
@@ -426,7 +427,7 @@ public sealed partial class WhisparrSync
             }
             finally
             {
-                Gate.Release();
+                _gate.Release();
             }
         }
 

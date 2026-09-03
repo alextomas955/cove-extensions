@@ -114,10 +114,11 @@ public sealed partial class WhisparrSync
 
         // Make ONE unit per SELECTED id (not just the resolved scenes) so the drawer's total matches the
         // selection and unresolvable ids (no StashDB identity) show as Skipped — consistent with the entities job.
-        var (scenes, _, movieIndex) = plan.Value!;
+        var (scenes, _, movieIndex) = plan.Value;
         var byId = scenes.ToDictionary(scene => scene.CoveId);
         var actions = new SceneActions(client, options, library);
-        var batch = await _jobs!.RunBatchAsync(
+        var jobs = _jobs ?? throw new InvalidOperationException("The job service that enqueued this job is gone.");
+        var batch = await jobs.RunBatchAsync(
             coveIds,
             maxInFlight: 1, // sequential mutations — one origin-tag get-or-create, gentle on Whisparr
             async (id, unit, unitCt) =>
@@ -172,7 +173,7 @@ public sealed partial class WhisparrSync
             return PropagateBatch(plan);
         }
 
-        var (scenes, unresolved, movieIndex) = plan.Value!;
+        var (scenes, unresolved, movieIndex) = plan.Value;
         if (scenes.Count == 0)
         {
             return WhisparrResult<VideosBatchResult>.Ok(new VideosBatchResult(WireOp(op), total, 0, unresolved, 0));
@@ -419,7 +420,8 @@ public sealed partial class WhisparrSync
         var monitor = new EntityMonitor(client, options);
         var actions = new SceneActions(client, options, library);
 
-        var batch = await _jobs!.RunBatchAsync(
+        var jobs = _jobs ?? throw new InvalidOperationException("The job service that enqueued this job is gone.");
+        var batch = await jobs.RunBatchAsync(
             coveEntityIds,
             // maxInFlight MUST stay 1 (loop-safety / scale). Each monitor op now issues a TARGETED metadata
             // refresh + a bounded command-completion wait + a bulk editor toggle, so a parallel fan-out over
@@ -450,9 +452,8 @@ public sealed partial class WhisparrSync
             EntityBatchOp.RegisterEntity => "register",
             _ => "process",
         };
-        var noun = kind == EntityKind.Studio
-            ? (count == 1 ? "studio" : "studios")
-            : (count == 1 ? "performer" : "performers");
+        var singular = kind == EntityKind.Studio ? "studio" : "performer";
+        var noun = count == 1 ? singular : singular + "s";
         return $"Whisparr: {verb} {count} {noun}";
     }
 

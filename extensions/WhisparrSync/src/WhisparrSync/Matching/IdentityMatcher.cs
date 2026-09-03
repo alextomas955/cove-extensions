@@ -77,9 +77,13 @@ internal static class IdentityMatcher
     /// </summary>
     private static bool StashMatches(CoveVideo cove, WhisparrMovie movie)
     {
-        var whisparrStash = !string.IsNullOrEmpty(movie.StashId)
-            ? movie.StashId
-            : (string.Equals(movie.ItemType, "scene", StringComparison.OrdinalIgnoreCase) ? movie.ForeignId : null);
+        var whisparrStash = movie.StashId;
+        if (string.IsNullOrEmpty(whisparrStash))
+        {
+            whisparrStash = string.Equals(movie.ItemType, "scene", StringComparison.OrdinalIgnoreCase)
+                ? movie.ForeignId
+                : null;
+        }
 
         return !string.IsNullOrEmpty(whisparrStash)
             && cove.StashIds.Any(s => string.Equals(s, whisparrStash, StringComparison.OrdinalIgnoreCase));

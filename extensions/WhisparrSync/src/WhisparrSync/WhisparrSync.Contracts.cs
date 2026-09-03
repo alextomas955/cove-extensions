@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Cove.Extensions.Shared;
+using System.Text.Json.Serialization;
 using WhisparrSync.Options;
 using WhisparrSync.Scene;
 
@@ -23,16 +23,16 @@ public sealed partial class WhisparrSync
     // The reconciliation responses are a fresh UI contract (no stored-blob spelling to preserve), so they use
     // the camelCase Web convention, and the JsonStringEnumConverter renders MatchedBy / MatchStatus as their
     // string names ("StashId" / "Tpdb" / "Confirmed" …) rather than integers the UI would have to decode.
-    private static readonly JsonSerializerOptions ReconciliationResponseJsonOptions = CoveJsonOptions.WebWithEnumStrings();
+    private static readonly JsonSerializerOptions ReconciliationResponseJsonOptions = WebWithEnumStrings();
 
     // The import-log is a fresh UI contract (no stored-blob spelling to preserve), so it uses the camelCase
     // Web convention; the JsonStringEnumConverter renders any enum-typed field as its string name for the UI.
-    private static readonly JsonSerializerOptions ImportLogResponseJsonOptions = CoveJsonOptions.WebWithEnumStrings();
+    private static readonly JsonSerializerOptions ImportLogResponseJsonOptions = WebWithEnumStrings();
 
     // The monitor responses are a fresh UI contract (the EntityMonitorResult / EntityStatus records), so they
     // use the camelCase Web convention; the JsonStringEnumConverter renders any enum-typed field as its string
     // name. Mirrors ReconciliationResponseJsonOptions.
-    private static readonly JsonSerializerOptions MonitorResponseJsonOptions = CoveJsonOptions.WebWithEnumStrings();
+    private static readonly JsonSerializerOptions MonitorResponseJsonOptions = WebWithEnumStrings();
 
     // The batch map's value is a SceneCardStatus { state, hasFile }; its State carries a property-level
     // [JsonConverter], but registering SceneWhisparrStateJsonConverter on the options too pins the camelCase wire
@@ -40,6 +40,12 @@ public sealed partial class WhisparrSync
     // over the enum's type-level attribute and emit PascalCase — the pitfall the enum's own docs warn about).
     // The frontend status store keys on those exact strings; hasFile is a plain bool secondary signal.
     private static readonly JsonSerializerOptions SceneStatusBatchJsonOptions = BuildSceneStatusBatchOptions();
+
+    // A fresh instance per call, so each options object above freezes on its own first use.
+    private static JsonSerializerOptions WebWithEnumStrings() => new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() },
+    };
 
     private static JsonSerializerOptions BuildSceneStatusBatchOptions()
     {

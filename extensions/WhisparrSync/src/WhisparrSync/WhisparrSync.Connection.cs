@@ -34,7 +34,7 @@ public sealed partial class WhisparrSync
             return denied;
         }
 
-        var options = await new OptionsStore(Store).LoadAsync(ct);
+        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
         var configured = !string.IsNullOrWhiteSpace(options.BaseUrl) && !string.IsNullOrEmpty(options.ApiKey);
         return Results.Json(
             new { configured, hasApiKey = !string.IsNullOrEmpty(options.ApiKey) },
@@ -52,7 +52,7 @@ public sealed partial class WhisparrSync
             return denied;
         }
 
-        var options = await new OptionsStore(Store).LoadAsync(ct);
+        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
         return Results.Json(OptionsView.From(options), OptionsResponseJsonOptions);
     }
 
@@ -70,7 +70,7 @@ public sealed partial class WhisparrSync
             return denied;
         }
 
-        var store = new OptionsStore(Store);
+        var store = new OptionsStore(Store, _log);
         var current = await store.LoadAsync(ct);
         var updated = current.WithSubmitted(
             req.BaseUrl, req.ApiKey, req.SelectedVersion, req.QualityProfileId,
@@ -149,14 +149,14 @@ public sealed partial class WhisparrSync
     private async Task<(WhisparrOptions Options, string BaseUrl, string ApiKey)> ResolveCredsAsync(
         TestConnectionRequest req, CancellationToken ct)
     {
-        var options = await new OptionsStore(Store).LoadAsync(ct);
+        var options = await new OptionsStore(Store, _log).LoadAsync(ct);
         var overrodeUrl = !string.IsNullOrWhiteSpace(req.BaseUrl);
         var baseUrl = overrodeUrl ? req.BaseUrl! : options.BaseUrl;
 
         string apiKey;
         if (!string.IsNullOrEmpty(req.ApiKey))
         {
-            apiKey = req.ApiKey!; // caller supplied its own key — use it as-is
+            apiKey = req.ApiKey; // caller supplied its own key — use it as-is
         }
         else if (!overrodeUrl ||
                  string.Equals(baseUrl.TrimEnd('/'), options.BaseUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
@@ -260,7 +260,7 @@ public sealed partial class WhisparrSync
         if (!string.Equals(origin, options.WebhookHost, StringComparison.Ordinal))
         {
             options = options with { WebhookHost = origin };
-            await new OptionsStore(Store).SaveAsync(options, ct);
+            await new OptionsStore(Store, _log).SaveAsync(options, ct);
         }
 
         var url = WebhookUrlBuilder.BuildUrl(origin, secret);
@@ -303,7 +303,7 @@ public sealed partial class WhisparrSync
     /// </summary>
     private async Task<(WhisparrOptions Options, string Secret)> EnsureWebhookSecretAsync(CancellationToken ct)
     {
-        var store = new OptionsStore(Store);
+        var store = new OptionsStore(Store, _log);
         var options = await store.LoadAsync(ct);
         var secret = WebhookUrlBuilder.EnsureSecret(options.WebhookSecret);
         if (secret != options.WebhookSecret)

@@ -62,7 +62,10 @@ internal static class SceneEnricher
                     await db.SaveChangesAsync(ct);
                 }
             }
-            catch (Exception)
+            // Open-ended by nature (host metadata-server config + network I/O), so the filter carries the
+            // breadth while still letting a shutdown cancellation propagate rather than reading as a
+            // best-effort miss.
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // best-effort identify; the guaranteed outcome is the stamped id above
             }
