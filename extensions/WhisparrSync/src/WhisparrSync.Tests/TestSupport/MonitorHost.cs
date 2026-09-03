@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using WhisparrSync.Connection;
 using WhisparrSync.Contracts;
 using WhisparrSync.Monitoring;
@@ -60,6 +61,7 @@ internal sealed class MonitorHost : IAsyncDisposable
         """{"id":2,"foreignId":"9f0d6f27-1f3a-4a5f-8b21-6b2d3a5f9c10","monitored":true}""";
 
     private WebApplication _app = null!;
+    private HttpClient? _http;
     private CoveContext _db = null!;
     private SqliteConnection _connection = null!;
     private int _seeded;
@@ -68,6 +70,9 @@ internal sealed class MonitorHost : IAsyncDisposable
 
     /// <summary>The folder source over this host's own library, as the routes resolve it.</summary>
     public IEntityFolderPort Folders { get; private set; } = null!;
+
+    /// <summary>The bytes that actually left, or null where this host stands the recorder instead.</summary>
+    public BodyRecordingHandler? Bytes { get; private set; }
 
     /// <summary>The host job service the bulk route enqueues into.</summary>
     public RecordingJobService Jobs { get; } = new();
@@ -79,10 +84,20 @@ internal sealed class MonitorHost : IAsyncDisposable
 
     private string RouteBase { get; set; } = null!;
 
+    /// <summary>
+    /// Creates one host over one real library.
+    /// </summary>
+    /// <remarks>
+    /// With <paramref name="bytes"/> supplied the SHIPPED client is stood over it instead of the
+    /// recorder, so a case can read the request bodies that actually leave rather than the arguments
+    /// a seam was handed. The two are different facts: what a call site supplied is not what the
+    /// client composes from it, and the composed body is what an instance acts on.
+    /// </remarks>
     public static async Task<MonitorHost> CreateAsync(
         FakePrincipalAccessor? principal = null,
         string? apiKey = StoredKey,
-        WhisparrGeneration generation = WhisparrGeneration.V3)
+        WhisparrGeneration generation = WhisparrGeneration.V3,
+        BodyRecordingHandler? bytes = null)
     {
         var host = new MonitorHost();
         (host._db, host._connection) = await CoveContextFactory.CreateSqliteContextAsync();
@@ -121,7 +136,18 @@ internal sealed class MonitorHost : IAsyncDisposable
         builder.Services.AddSingleton<ICurrentPrincipalAccessor>(
             principal ?? FakePrincipalAccessor.WithPermissions(
                 Permissions.VideosRead, Permissions.ExtensionsConfigure));
-        builder.Services.AddSingleton<IWhisparrClient>(host.Client);
+        if (bytes is null)
+        {
+            builder.Services.AddSingleton<IWhisparrClient>(host.Client);
+        }
+        else
+        {
+            host.Bytes = bytes;
+            host._http = new HttpClient(bytes);
+            builder.Services.AddSingleton<IWhisparrClient>(
+                new WhisparrClient(host._http, NullLogger.Instance));
+        }
+
         builder.Services.AddSingleton<IJobService>(host.Jobs);
         builder.Services.AddSingleton<IEntityIdentityPort>(new EntityIdentityPort(host._db, options));
         host.Folders = new EntityFolderPort(host._db);
@@ -310,6 +336,7 @@ internal sealed class MonitorHost : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         Http?.Dispose();
+        _http?.Dispose();
         await _app.StopAsync(TestCt);
         await _app.DisposeAsync();
         await _db.DisposeAsync();
