@@ -236,7 +236,7 @@ public sealed class BulkEndpointTests
             [nameof(MonitorRefusalKind.CapabilityAbsentOnThisGeneration)],
             progress.Units.Select(unit => unit.Message).Distinct());
         Assert.Empty(host.Client.Acting);
-        Assert.Equal("0 applied, 2 refused.", progress.Summary);
+        Assert.Equal((1d, "0 applied, 2 refused."), Assert.Single(progress.Reports));
     }
 
     /// <summary>The batch acts once per distinct id, whatever the selection carried.</summary>
@@ -254,7 +254,7 @@ public sealed class BulkEndpointTests
         Assert.Single(
             host.Client.Acting,
             call => call.Verb == nameof(IWhisparrStudioActing.AddMonitoredStudioAsync));
-        Assert.Equal("1 applied, 0 refused.", progress.Summary);
+        Assert.Equal((1d, "1 applied, 0 refused."), Assert.Single(progress.Reports));
     }
 
     /// <summary>
