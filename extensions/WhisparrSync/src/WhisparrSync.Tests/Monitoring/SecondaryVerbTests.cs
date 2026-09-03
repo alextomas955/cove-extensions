@@ -1,0 +1,327 @@
+using System.Net;
+using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging.Abstractions;
+using WhisparrSync.Contracts;
+using WhisparrSync.Monitoring;
+using WhisparrSync.Tests.Invariants;
+using WhisparrSync.Tests.TestSupport;
+using WhisparrSync.Whisparr;
+
+namespace WhisparrSync.Tests.Monitoring;
+
+/// <summary>
+/// The three verbs that appear only once an entity is monitored: registering the scenes an instance's
+/// catalogue lacks, linking files the library already holds, and the one verb that downloads.
+/// </summary>
+/// <remarks>
+/// No search is executed here or anywhere else. The grabbing verb's correctness is asserted on the
+/// body it composes and on the role's reachability, because both fixture instances report no indexer
+/// and no download client: a search that did start could find nothing, so running one would prove
+/// nothing about the payload and would still cost a real instance work if the fixture ever gained one.
+/// <para>
+/// The command payloads are transcribed from the two interface bundles rather than derived, and the
+/// array-versus-scalar split is the subject: a cross-lineage payload is accepted and does nothing.
+/// </para>
+/// </remarks>
+public sealed class SecondaryVerbTests
+{
+    private const string SceneForeignId = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
+
+    /// <summary>The instance-side values every composed add carries, as an instance offered them.</summary>
+    private static readonly AddDefaults Defaults = new(4, "/config/library");
+
+    /// <summary>
+    /// A parent studio whose own profile differs from the one the instance offers first, so a body
+    /// copying the parent's is distinguishable from one taking the instance's.
+    /// </summary>
+    private const string ParentStudioProfileId = "9";
+
+    private static CancellationToken TestCt => TestContext.Current.CancellationToken;
+
+    /// <summary>
+    /// The scene add suppresses acquisition, monitors the scene alone, and says a person asked for it.
+    /// </summary>
+    /// <remarks>
+    /// Presence is asserted apart from the value: an absent member and a false one read the same off a
+    /// value, and the instance's default for the absent case is not this product's to rely on.
+    /// </remarks>
+    [Fact]
+    public void TheSceneAddSuppressesAcquisitionAndNamesTheSceneOnlyMonitorTypeAndTheManualAddMethod()
+    {
+        var body = V3BodyProjector.AddScene(SceneForeignId, Defaults);
+        var addOptions = Assert.IsType<JsonObject>(body["addOptions"]);
+
+        Assert.True(addOptions.ContainsKey("searchForMovie"));
+        Assert.False(addOptions["searchForMovie"]!.GetValue<bool>());
+        Assert.True(body.ContainsKey("searchOnAdd"));
+        Assert.False(body["searchOnAdd"]!.GetValue<bool>());
+
+        Assert.Equal("sceneOnly", addOptions["monitor"]!.GetValue<string>());
+        Assert.Equal("manual", addOptions["addMethod"]!.GetValue<string>());
+    }
+
+    /// <summary>Every composed scene add carries the fields the instance's own database requires.</summary>
+    [Fact]
+    public void EveryComposedSceneAddCarriesTheRootTheTagsAndAUsableProfile()
+    {
+        var body = V3BodyProjector.AddScene(SceneForeignId, Defaults);
+
+        Assert.Equal(SceneForeignId, body["foreignId"]!.GetValue<string>());
+        Assert.Equal("/config/library", body["rootFolderPath"]!.GetValue<string>());
+        Assert.Empty(Assert.IsType<JsonArray>(body["tags"]));
+        Assert.Equal(4, body["qualityProfileId"]!.GetValue<int>());
+        Assert.True(body["monitored"]!.GetValue<bool>());
+
+        // The one guard on this generation: it accepts a zero profile, echoes it back, and the scene
+        // then monitors and can never acquire anything.
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => V3BodyProjector.AddScene(SceneForeignId, new AddDefaults(0, "/config/library")));
+    }
+
+    /// <summary>
+    /// No scene add carries a profile read off the parent entity. Whisparr sets a refresh-created
+    /// scene's profile from its own studio itself, so copying one would be this product deciding
+    /// something the instance owns.
+    /// </summary>
+    /// <remarks>
+    /// Composed beside a parent resource whose profile is a value the instance never offered, so a
+    /// body carrying the parent's is distinguishable from one carrying the instance's first.
+    /// </remarks>
+    [Fact]
+    public void NoSceneAddCarriesAProfileCopiedFromTheParentStudio()
+    {
+        var parent = Assert.IsType<JsonObject>(
+            JsonNode.Parse(
+                $$"""{"id":4,"foreignId":"{{SceneForeignId}}","qualityProfileId":{{ParentStudioProfileId}}}"""));
+
+        var body = V3BodyProjector.AddScene(SceneForeignId, Defaults);
+
+        Assert.Equal(
+            int.Parse(ParentStudioProfileId, System.Globalization.CultureInfo.InvariantCulture),
+            parent["qualityProfileId"]!.GetValue<int>());
+        Assert.Equal(Defaults.QualityProfileId, body["qualityProfileId"]!.GetValue<int>());
+        Assert.DoesNotContain(
+            ParentStudioProfileId, body["qualityProfileId"]!.ToJsonString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The catalogue refresh names an id ARRAY on the newer generation and a single SCALAR id on the
+    /// older one, and neither spelling reaches the other generation.
+    /// </summary>
+    /// <remarks>
+    /// The split is real and silent: a cross-lineage payload is answered as created and does nothing
+    /// at all, so what is asserted is the composed body rather than any status.
+    /// </remarks>
+    [Fact]
+    public void TheRefreshCommandComposesAnArrayOnTheNewerGenerationAndAScalarOnTheOlder()
+    {
+        var studio = V3BodyProjector.RefreshCatalogue(WhisparrEntityKind.Studio, 1);
+        var performer = V3BodyProjector.RefreshCatalogue(WhisparrEntityKind.Performer, 1);
+        var series = V2BodyProjector.RefreshCatalogue(1);
+
+        Assert.Equal("RefreshStudios", studio["name"]!.GetValue<string>());
+        Assert.Equal([1], Assert.IsType<JsonArray>(studio["studioIds"]).Select(id => id!.GetValue<int>()));
+        Assert.Equal("RefreshPerformers", performer["name"]!.GetValue<string>());
+        Assert.Equal(
+            [1], Assert.IsType<JsonArray>(performer["performerIds"]).Select(id => id!.GetValue<int>()));
+
+        Assert.Equal("RefreshSeries", series["name"]!.GetValue<string>());
+        Assert.Null(series["seriesId"] as JsonArray);
+        Assert.Equal(1, series["seriesId"]!.GetValue<int>());
+
+        // Neither generation's own spelling appears in the other's body.
+        Assert.DoesNotContain("seriesId", studio.ToJsonString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("seriesId", performer.ToJsonString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("studioIds", series.ToJsonString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("performerIds", series.ToJsonString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The older generation holds no scene-registration capability, and a caller asking for that role
+    /// is told which capability was refused and on which generation.
+    /// </summary>
+    /// <remarks>
+    /// No route on that generation adds a catalogue item at all, so the capability is genuinely absent
+    /// rather than expressed differently. Redefining it there as a catalogue refresh would read to a
+    /// user as an action that did nothing.
+    /// </remarks>
+    [Fact]
+    public void TheOlderGenerationRefusesTheSceneRegistrationRoleByName()
+    {
+        var refusal = CapabilitiesOn(WhisparrGeneration.V2, Recorder())
+            .Obtain<IWhisparrMissingSceneActing>()
+            .Match<CapabilityRefusal?>(_ => null, refused => refused);
+
+        Assert.NotNull(refusal);
+        Assert.Equal(WhisparrCapability.RegisterMissingScenes, refusal.Capability);
+        Assert.Equal(WhisparrGeneration.V2, refusal.Generation);
+        Assert.DoesNotContain(
+            WhisparrCapability.RegisterMissingScenes,
+            GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
+    }
+
+    /// <summary>The newer generation holds it and hands out the role the set was built with.</summary>
+    [Fact]
+    public void TheNewerGenerationHandsOutTheSceneRegistrationRole()
+    {
+        var client = Recorder();
+
+        Assert.Same(
+            client,
+            CapabilitiesOn(WhisparrGeneration.V3, client)
+                .Obtain<IWhisparrMissingSceneActing>()
+                .Match<IWhisparrMissingSceneActing?>(held => held, _ => null));
+    }
+
+    /// <summary>
+    /// Both generations hand out the reflect-owned role, because the two cases that verb decides
+    /// between are identical on each: neither offers an import mode that only links.
+    /// </summary>
+    [Fact]
+    public void BothGenerationsHandOutTheReflectOwnedRole()
+    {
+        foreach (var generation in new[] { WhisparrGeneration.V3, WhisparrGeneration.V2 })
+        {
+            var client = Recorder();
+
+            Assert.Contains(
+                WhisparrCapability.ReflectOwnedFiles,
+                GenerationCapabilities.CapabilitiesOf(generation));
+            Assert.Same(
+                client,
+                CapabilitiesOn(generation, client)
+                    .Obtain<IWhisparrReflectOwnedActing>()
+                    .Match<IWhisparrReflectOwnedActing?>(held => held, _ => null));
+        }
+    }
+
+    /// <summary>
+    /// A whole add-all-missing run records no grabbing-class verb at ANY position, and the log holds
+    /// the acting verbs the run is made of.
+    /// </summary>
+    /// <remarks>
+    /// Every index rather than the last: a grab issued before the adds would be just as acquiring.
+    /// Paired with the acting assertion, so a run that contacted the instance not at all cannot
+    /// satisfy the emptiness half.
+    /// </remarks>
+    [Fact]
+    public async Task AWholeAddAllMissingRunHoldsNoGrabbingVerbAtAnyPosition()
+    {
+        var client = Recorder();
+        var acting = CapabilitiesOn(WhisparrGeneration.V3, client)
+            .Obtain<IWhisparrMissingSceneActing>()
+            .Match<IWhisparrMissingSceneActing?>(held => held, _ => null);
+
+        Assert.NotNull(acting);
+        foreach (var scene in new[] { SceneForeignId, "5b1f7c33-0000-4000-8000-0000000000ab" })
+        {
+            await acting.AddSceneAsync(Address, Key, scene, Defaults, TestCt);
+        }
+
+        await acting.RefreshCatalogueAsync(Address, Key, WhisparrEntityKind.Studio, 1, TestCt);
+
+        Assert.Contains(
+            client.Verbs, verb => OutboundSeam.VerbClassByMember[verb] == WhisparrVerbClass.Act);
+        Assert.All(
+            client.Verbs,
+            verb => Assert.NotEqual(WhisparrVerbClass.Grab, OutboundSeam.VerbClassByMember[verb]));
+
+        // One bounded call per scene, driven by the set handed in rather than by anything the library
+        // holds, plus the one refresh that makes the registrations visible.
+        Assert.Equal(2, client.Acting.Count(call => call.Verb == nameof(acting.AddSceneAsync)));
+        Assert.Single(client.Acting, call => call.Verb == nameof(acting.RefreshCatalogueAsync));
+    }
+
+    /// <summary>
+    /// The scene add and the catalogue refresh reach the instance's own routes with the composed
+    /// bodies, read off a stub below the client rather than off the role double.
+    /// </summary>
+    [Fact]
+    public async Task TheSceneAddAndTheRefreshReachTheirOwnRoutesWithTheComposedBodies()
+    {
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.Created, """{"id":11}""");
+        using var http = new HttpClient(handler);
+        var client = new WhisparrClient(http, NullLogger.Instance);
+
+        await ((IWhisparrMissingSceneActing)client).AddSceneAsync(
+            Address, Key, SceneForeignId, Defaults, TestCt);
+        await ((IWhisparrMissingSceneActing)client).RefreshCatalogueAsync(
+            Address, Key, WhisparrEntityKind.Studio, 11, TestCt);
+
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Equal(HttpMethod.Post, handler.Requests[0].Method);
+        Assert.Equal("/api/v3/movie", handler.Requests[0].Path);
+        Assert.Equal("/api/v3/command", handler.Requests[1].Path);
+
+        var add = Assert.IsType<JsonObject>(JsonNode.Parse(handler.Requests[0].Body));
+        Assert.Equal(
+            "sceneOnly",
+            Assert.IsType<JsonObject>(add["addOptions"])["monitor"]!.GetValue<string>());
+
+        var refresh = Assert.IsType<JsonObject>(JsonNode.Parse(handler.Requests[1].Body));
+        Assert.Equal("RefreshStudios", refresh["name"]!.GetValue<string>());
+        Assert.Equal([11], Assert.IsType<JsonArray>(refresh["studioIds"]).Select(id => id!.GetValue<int>()));
+    }
+
+    /// <summary>
+    /// The batched add form is not built. A per-scene add needs no second shape, and a batch that
+    /// fails part-way is harder to report honestly than a sequence of per-scene outcomes.
+    /// </summary>
+    [Fact]
+    public void TheBatchedAddFormIsNotComposableAnywhereInThisProduct()
+        => Assert.DoesNotContain(
+            "movie/import",
+            string.Join(
+                '\n',
+                typeof(WhisparrClient)
+                    .GetFields(
+                        System.Reflection.BindingFlags.NonPublic
+                        | System.Reflection.BindingFlags.Public
+                        | System.Reflection.BindingFlags.Static)
+                    .Where(field => field.IsLiteral && field.FieldType == typeof(string))
+                    .Select(field => (string?)field.GetRawConstantValue())
+                    .OfType<string>()),
+            StringComparison.Ordinal);
+
+    /// <summary>The reflect-owned reads and the attach reach their own routes.</summary>
+    /// <remarks>
+    /// The folder travels as a query value and never as a route segment, so a folder name cannot
+    /// change which route is issued.
+    /// </remarks>
+    [Fact]
+    public async Task TheReflectOwnedReadsAndTheAttachReachTheirOwnRoutes()
+    {
+        var handler = BodyRecordingHandler.Answering(HttpStatusCode.OK, "[]");
+        using var http = new HttpClient(handler);
+        var acting = (IWhisparrReflectOwnedActing)new WhisparrClient(http, NullLogger.Instance);
+
+        await acting.ReadHardlinkSettingAsync(Address, Key, TestCt);
+        await acting.ListImportableFilesAsync(Address, Key, "/config/library/Vixen & Co", TestCt);
+        await acting.AttachOwnedFilesAsync(
+            Address, Key, new JsonArray(new JsonObject { ["path"] = "/config/library/a.mp4" }), TestCt);
+
+        Assert.Equal("/api/v3/config/mediamanagement", handler.Requests[0].Path);
+        Assert.Equal(HttpMethod.Get, handler.Requests[0].Method);
+
+        Assert.Equal("/api/v3/manualimport", handler.Requests[1].Path);
+        Assert.Contains(
+            "folder=%2Fconfig%2Flibrary%2FVixen%20%26%20Co", handler.Targets[1], StringComparison.Ordinal);
+
+        Assert.Equal("/api/v3/command", handler.Requests[2].Path);
+        Assert.Equal(HttpMethod.Post, handler.Requests[2].Method);
+        var attach = Assert.IsType<JsonObject>(JsonNode.Parse(handler.Requests[2].Body));
+        Assert.Equal("ManualImport", attach["name"]!.GetValue<string>());
+        Assert.Equal("copy", attach["importMode"]!.GetValue<string>());
+    }
+
+    private static Uri Address { get; } = new(MonitorHost.StoredAddress);
+
+    private static string Key => MonitorHost.StoredKey;
+
+    private static RecordingWhisparrClient Recorder()
+        => new(RecordingWhisparrClient.Json(201, """{"id":11}"""));
+
+    private static WhisparrCapabilitySet CapabilitiesOn(
+        WhisparrGeneration generation, RecordingWhisparrClient client)
+        => GenerationCapabilities.For(generation, WhisparrRoleSet.From(client));
+}
