@@ -111,10 +111,16 @@ public sealed class RefusalBeforeRequestTests
                 WhisparrCapability.OutOfBandCallbackSecret,
                 WhisparrCapability.MonitorStudio,
                 WhisparrCapability.MonitorPerformer,
+                WhisparrCapability.RegisterMissingScenes,
+                WhisparrCapability.ReflectOwnedFiles,
             ],
             GenerationCapabilities.For(WhisparrGeneration.V3).Held);
         Assert.Equal(
-            [WhisparrCapability.OutOfBandCallbackSecret, WhisparrCapability.MonitorStudio],
+            [
+                WhisparrCapability.OutOfBandCallbackSecret,
+                WhisparrCapability.MonitorStudio,
+                WhisparrCapability.ReflectOwnedFiles,
+            ],
             GenerationCapabilities.For(WhisparrGeneration.V2).Held);
     }
 

@@ -29,6 +29,32 @@ internal static class V2BodyProjector
     /// <summary>What every add and every scope change spells a future-only catalogue with.</summary>
     private const string FutureCatalogueOnly = "future";
 
+    /// <summary>This generation's catalogue-refresh command.</summary>
+    internal const string RefreshSeriesCommand = "RefreshSeries";
+
+    /// <summary>The command asking the instance to re-read one entity's catalogue.</summary>
+    /// <inheritdoc cref="Command" path="/remarks"/>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="entityId"/> is below one.</exception>
+    internal static JsonObject RefreshCatalogue(int entityId)
+        => Command(RefreshSeriesCommand, entityId);
+
+    /// <summary>One command naming one entity, in this generation's scalar spelling.</summary>
+    /// <remarks>
+    /// A single scalar id, not an array. The other generation names an id array, and a body carrying
+    /// the other's shape is accepted and does nothing at all.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="entityId"/> is below one.</exception>
+    internal static JsonObject Command(string name, int entityId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentOutOfRangeException.ThrowIfLessThan(entityId, 1);
+        return new JsonObject
+        {
+            ["name"] = name,
+            ["seriesId"] = entityId,
+        };
+    }
+
     /// <summary>The term the lookup is asked for <paramref name="storedId"/> under.</summary>
     /// <remarks>
     /// The stored identifier exactly as the library holds it, with no prefix and no scheme. The

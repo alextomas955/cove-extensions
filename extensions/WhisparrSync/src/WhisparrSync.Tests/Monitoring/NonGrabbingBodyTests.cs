@@ -52,6 +52,9 @@ internal static class ComposedAdds
         "EpisodeSearch",
     ];
 
+    /// <summary>A scene the library holds that an instance's catalogue does not.</summary>
+    private const string SceneForeignId = "3c0a6b21-9f7d-4c58-a3e2-71b0d4f5e8a9";
+
     /// <summary>The instance-side values every enumerated add is composed with.</summary>
     private static readonly AddDefaults Defaults = new(4, "/config/library");
 
@@ -81,9 +84,13 @@ internal static class ComposedAdds
     public static IReadOnlyList<ComposedAdd> All() => [.. Generations.SelectMany(On)];
 
     /// <summary>
-    /// Every body composed on a path that must not acquire: the adds, both flag flips and both scope
-    /// changes.
+    /// Every body composed on a path that must not acquire: the adds, both flag flips, both scope
+    /// changes and every catalogue refresh.
     /// </summary>
+    /// <remarks>
+    /// The refresh is composed on the scene-registration path, so it is searched for a grabbing
+    /// command name alongside the adds: it reaches the same command route a search would.
+    /// </remarks>
     public static IReadOnlyList<JsonObject> EveryNonGrabbingBody() =>
     [
         .. All().Select(added => added.Body),
@@ -93,6 +100,9 @@ internal static class ComposedAdds
         V3BodyProjector.SetPerformerMonitored(11, monitored: false),
         V3BodyProjector.WithScope(Held(), MonitorScope.FutureScenes, Now),
         V3BodyProjector.WithScope(Held(), MonitorScope.AllScenes, Now),
+        V3BodyProjector.RefreshCatalogue(WhisparrEntityKind.Studio, 4),
+        V3BodyProjector.RefreshCatalogue(WhisparrEntityKind.Performer, 11),
+        V2BodyProjector.RefreshCatalogue(3),
     ];
 
     /// <summary>
@@ -169,6 +179,22 @@ internal static class ComposedAdds
                     V3BodyProjector.AddPerformer(MonitorHost.PerformerRemoteIdValue, Defaults)),
             ],
 
+            // One catalogue item registered per scene, with the monitor type covering that scene
+            // alone and the add method recording that a person asked for it.
+            (WhisparrGeneration.V3, WhisparrCapability.RegisterMissingScenes) =>
+            [
+                new ComposedAdd(
+                    generation,
+                    WhisparrEntityKind.Studio,
+                    null,
+                    V3BodyProjector.AddScene(SceneForeignId, Defaults)),
+            ],
+
+            // Attaches files the library already holds and adds no catalogue item of any kind, so it
+            // contributes no add body to enumerate. Registered on both generations, because the two
+            // cases it decides between are identical on each.
+            (_, WhisparrCapability.ReflectOwnedFiles) => [],
+
             // The older generation addresses a studio as a series, and its add is composed from the
             // numeric identifier its own lookup answered with rather than from the one the library
             // holds. The identifiers below are what that lookup was measured answering.
@@ -222,21 +248,27 @@ public sealed class NonGrabbingBodyTests
     [Fact]
     public void TheCaseListIsDerivedFromTheRegisteredCapabilityTable()
     {
-        Assert.Equal(3, ComposedAdds.On(WhisparrGeneration.V3).Count);
+        Assert.Equal(4, ComposedAdds.On(WhisparrGeneration.V3).Count);
         Assert.Equal(
             [
                 WhisparrCapability.OutOfBandCallbackSecret,
                 WhisparrCapability.MonitorStudio,
                 WhisparrCapability.MonitorPerformer,
+                WhisparrCapability.RegisterMissingScenes,
+                WhisparrCapability.ReflectOwnedFiles,
             ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V3));
 
         Assert.Equal(2, ComposedAdds.On(WhisparrGeneration.V2).Count);
         Assert.Equal(
-            [WhisparrCapability.OutOfBandCallbackSecret, WhisparrCapability.MonitorStudio],
+            [
+                WhisparrCapability.OutOfBandCallbackSecret,
+                WhisparrCapability.MonitorStudio,
+                WhisparrCapability.ReflectOwnedFiles,
+            ],
             GenerationCapabilities.CapabilitiesOf(WhisparrGeneration.V2));
 
-        Assert.Equal(5, ComposedAdds.All().Count);
+        Assert.Equal(6, ComposedAdds.All().Count);
     }
 
     /// <summary>
