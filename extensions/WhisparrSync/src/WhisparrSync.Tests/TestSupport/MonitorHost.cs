@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using Cove.Core.Auth;
 using Cove.Core.Entities;
+using Cove.Core.Interfaces;
 using Cove.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
@@ -64,7 +65,13 @@ internal sealed class MonitorHost : IAsyncDisposable
 
     public RecordingWhisparrClient Client { get; private set; } = null!;
 
+    /// <summary>The host job service the bulk route enqueues into.</summary>
+    public RecordingJobService Jobs { get; } = new();
+
     public HttpClient Http { get; private set; } = null!;
+
+    /// <summary>The id the shipped manifest declares, which every job type is prefixed with.</summary>
+    public string ExtensionId { get; private set; } = null!;
 
     private string RouteBase { get; set; } = null!;
 
@@ -111,6 +118,7 @@ internal sealed class MonitorHost : IAsyncDisposable
             principal ?? FakePrincipalAccessor.WithPermissions(
                 Permissions.VideosRead, Permissions.ExtensionsConfigure));
         builder.Services.AddSingleton<IWhisparrClient>(host.Client);
+        builder.Services.AddSingleton<IJobService>(host.Jobs);
         builder.Services.AddSingleton<IEntityIdentityPort>(new EntityIdentityPort(host._db, options));
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton<ICredentialPort>(credentials);
@@ -118,6 +126,7 @@ internal sealed class MonitorHost : IAsyncDisposable
         host._app = builder.Build();
         var extension = WhisparrSyncFixture.Create();
         extension.MapEndpoints(host._app);
+        host.ExtensionId = extension.Id;
         host.RouteBase = "/api/extensions/" + extension.Id;
         await host._app.StartAsync(TestCt);
         host.Http = host._app.GetTestClient();
@@ -229,6 +238,25 @@ internal sealed class MonitorHost : IAsyncDisposable
         answered.EnsureSuccessStatusCode();
         return (await answered.Content.ReadFromJsonAsync<EntityMonitoringView>(TestCt))!;
     }
+
+    /// <summary>The raw answer to the bulk route, given <paramref name="body"/> verbatim.</summary>
+    /// <remarks>
+    /// The raw string is sent rather than a serialized record, so a case can carry an id array of any
+    /// length and members the request contract declares nothing for.
+    /// </remarks>
+    public async Task<HttpResponseMessage> PostBulkAsync(string body)
+    {
+        using var content = new StringContent(body, Encoding.UTF8, "application/json");
+        return await Http.PostAsync(RouteBase + "/entities/bulk-monitor", content, TestCt);
+    }
+
+    /// <summary>The raw answer to this extension's own job-status route.</summary>
+    public Task<HttpResponseMessage> ReadJobStatusAsync(string jobId)
+        => Http.GetAsync(RouteBase + "/job-status/" + jobId, TestCt);
+
+    /// <summary>Runs the batch the last enqueue handed the host, reporting into <paramref name="progress"/>.</summary>
+    public Task RunEnqueuedBatchAsync(RecordingJobProgress progress)
+        => Jobs.RunLastAsync(progress, TestCt);
 
     /// <summary>The raw answer to one entity's <paramref name="verb"/> route.</summary>
     public async Task<HttpResponseMessage> PostRawAsync(
