@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { ApiError, requestJson } from "@cove-extensions/ui-shared/extensionRequest";
 import { postAction } from "@cove-extensions/ui-shared/postAction";
 
-import type { EntityMonitoringView, WhisparrEntityKind } from "../wire/api";
+import type { EntityMonitoringView, ReflectOwnedEnqueued, WhisparrEntityKind } from "../wire/api";
 import { api } from "../common/lib/extension";
 import {
   createMonitoringStore,
@@ -62,12 +62,17 @@ export function useMonitoring(kind: WhisparrEntityKind, coveId: number): Monitor
     (verb: string, body: unknown) => {
       const entity: MonitoredEntity = { kind, coveId };
       store.beginAction(entity);
-      postAction(routeFor(entity, verb), body)
-        .then(() => {
-          // Read the state back rather than paint what the action answered with. The instance
-          // decides what it now holds, and its own catalogue refresh can move that between the
-          // answer and the next frame.
-          store.actionSucceeded(entity);
+      postAction<Partial<ReflectOwnedEnqueued>>(routeFor(entity, verb), body)
+        .then((answered) => {
+          // The answer's skip reason is the ONE thing read off it. A verb that was carried out is
+          // read back from the instance instead, because it decides what it now holds and its own
+          // catalogue refresh can move that between the answer and the next frame.
+          const skipped = answered.skipped ?? null;
+          if (skipped === null) {
+            store.actionSucceeded(entity);
+          } else {
+            store.actionSkipped(entity, skipped);
+          }
           read(entity);
         })
         .catch((err: unknown) => {
